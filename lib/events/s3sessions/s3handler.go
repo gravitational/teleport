@@ -27,12 +27,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/events"
-	s3metrics "github.com/gravitational/teleport/lib/observability/metrics/s3"
-	"github.com/gravitational/teleport/lib/session"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -43,6 +37,12 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager/s3manageriface"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/events"
+	s3metrics "github.com/gravitational/teleport/lib/observability/metrics/s3"
+	"github.com/gravitational/teleport/lib/session"
 )
 
 // s3AllowedACL is the set of canned ACLs that S3 accepts

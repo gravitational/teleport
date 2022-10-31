@@ -19,11 +19,11 @@ package services
 import (
 	"fmt"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 // LockInForceAccessDenied is an AccessDenied error returned when a lock

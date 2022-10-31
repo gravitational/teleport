@@ -39,6 +39,15 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -75,15 +84,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/lib/utils/proxy"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/otel/attribute"
-	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -1385,10 +1385,10 @@ func GetKubeTLSServerName(k8host string) string {
 		// If proxy is configured without public_addr set the ServerName to the 'kube.teleport.cluster.local' value.
 		// The k8s server name needs to be a valid hostname but when public_addr is missing from proxy settings
 		// the web_listen_addr is used thus webHost will contain local proxy IP address like: 0.0.0.0 or 127.0.0.1
-		// TODO(smallinsky) UPGRADE IN 10.0. Switch to KubeTeleportProxyALPNPrefix instead.
+		// TODO(smallinsky) UPGRADE IN 11.0. Switch to KubeTeleportProxyALPNPrefix instead.
 		return addSubdomainPrefix(constants.APIDomain, constants.KubeSNIPrefix)
 	}
-	// TODO(smallinsky) UPGRADE IN 10.0. Switch to KubeTeleportProxyALPNPrefix instead.
+	// TODO(smallinsky) UPGRADE IN 11.0. Switch to KubeTeleportProxyALPNPrefix instead.
 	return addSubdomainPrefix(k8host, constants.KubeSNIPrefix)
 }
 

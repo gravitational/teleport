@@ -23,12 +23,13 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/go-redis/redis/v8"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/go-redis/redis/v9"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 // Client alias for easier use.

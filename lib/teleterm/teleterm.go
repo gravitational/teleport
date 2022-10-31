@@ -21,15 +21,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gravitational/teleport/lib/teleterm/apiserver"
-	"github.com/gravitational/teleport/lib/teleterm/clusters"
-	"github.com/gravitational/teleport/lib/teleterm/daemon"
-
 	"github.com/gravitational/trace"
-
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/gravitational/teleport/lib/teleterm/apiserver"
+	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/teleterm/daemon"
 )
 
 // Serve starts daemon service

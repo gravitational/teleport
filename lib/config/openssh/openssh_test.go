@@ -23,9 +23,10 @@ import (
 	"testing"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/teleport/lib/utils/golden"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
 func TestParseSSHVersion(t *testing.T) {
