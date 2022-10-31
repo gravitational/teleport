@@ -24,6 +24,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/configure/cstrings"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"github.com/vulcand/predicate"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -36,13 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
-
-	"github.com/gravitational/configure/cstrings"
-	"github.com/gravitational/trace"
-
-	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
-	"github.com/vulcand/predicate"
 )
 
 // DefaultImplicitRules provides access to the default set of implicit rules
@@ -2093,7 +2091,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		if !matchMatchers {
 			if isDebugEnabled {
 				errs = append(errs, fmt.Errorf("role=%v, match(matchers=%v)",
-					role.GetName(), err))
+					role.GetName(), matchers))
 			}
 			continue
 		}

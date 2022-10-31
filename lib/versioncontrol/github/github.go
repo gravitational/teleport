@@ -24,13 +24,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gravitational/teleport"
-	vc "github.com/gravitational/teleport/lib/versioncontrol"
-
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-
 	"golang.org/x/mod/semver"
+
+	"github.com/gravitational/teleport"
+	vc "github.com/gravitational/teleport/lib/versioncontrol"
 )
 
 // NOTE: when making modifications to package, make sure to run tests with
