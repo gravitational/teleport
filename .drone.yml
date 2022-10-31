@@ -11585,7 +11585,6 @@ volumes:
 kind: pipeline
 type: kubernetes
 name: test-helm-publish
-
 trigger:
   event:
     include:
@@ -11596,14 +11595,10 @@ trigger:
   repo:
     include:
       - gravitational/*
-
-
 workspace:
   path: /go
-
 clone:
   disable: true
-
 steps:
   - name: "Helm: Assume Download AWS Role"
     image: amazon/aws-cli
@@ -11700,6 +11695,6 @@ steps:
       - aws s3 sync . s3://$AWS_S3_BUCKET/
 ---
 kind: signature
-hmac: 7707c948ffdb936085745d86bbc162a2c39814876db593b2c0bd6887c8d0e2c0
+hmac: 1f2e81a54384cd88f04eab6e9f0a3310601cb225fbed20ea6097304634851f74
 
 ...
