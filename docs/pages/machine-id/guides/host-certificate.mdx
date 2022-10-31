@@ -47,8 +47,8 @@ For example, normally when creating an SSH host certificate a `principal` repres
 By checking that a domain name matches the `principal` on a host certificate in the example configuration we use in this guide, access can be limited only to the desired server or servers.
 On Teleport, a **predicate** should be applied to a `principal` to further define the scope of permissions applied to the `principal`.
 
-By using the format of `where: 'predicate(host_cert.principals, "domain.name")'`, a Teleport user can create a role that will only be able to able to affect the designated principal
-in a manner defined by the selected predicate. A list of supported predicates, their behavior, and example configurations are listed below:
+By using the format of `where: 'predicate(host_cert.principals, "domain.name")'`, a Teleport user can create a role that will only be able to able to
+create host certificates with the designated principal. A list of supported predicates, their behavior, and example configurations are listed below:
 
 | **Predicate** | **Behavior** | **Example** |
 | ----------- | ----------- | ----------- |
@@ -57,7 +57,7 @@ in a manner defined by the selected predicate. A list of supported predicates, t
 | `is_subset` | All requested principals must be contained in the listed set. | `is_subset(host_cert.principals, "foo.example.com", "bar.example.com")` |
 
 In the case of an example role for use within this guide, use a text editor of your choice from your local administrative device with `tsh` access to create a role YAML named `tbotrole.yaml` with the following
- configuration options, replacing `nodename.my.domain.com` with your own domain name, or the domain associated with your cluster:
+ configuration options, replacing `nodename.my.domain.com` with the domain name associated with your OpenSSH server:
 
 ```yaml
 kind: role
