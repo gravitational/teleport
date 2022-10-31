@@ -11692,6 +11692,9 @@ steps:
     commands:
       - cd /go/chart/
       - aws s3 sync . s3://$AWS_S3_BUCKET/
+volumes:
+  - name: awsconfig
+    temp: {}      
 ---
 kind: signature
 hmac: 2f5804d18d95dd0ecfea53f8bfc774a4333bde29c8aa8a36c7481ec9ac261b96
