@@ -22,18 +22,17 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/gravitational/trace"
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgproto3/v2"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgproto3/v2"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 func init() {
@@ -416,7 +415,7 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	// AWS RDS/Aurora and GCP Cloud SQL use IAM authentication so request an
 	// auth token and use it as a password.
 	switch sessionCtx.Database.GetType() {
-	case types.DatabaseTypeRDS:
+	case types.DatabaseTypeRDS, types.DatabaseTypeRDSProxy:
 		config.Password, err = e.Auth.GetRDSAuthToken(sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)

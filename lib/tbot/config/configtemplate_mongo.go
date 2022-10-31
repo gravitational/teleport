@@ -19,11 +19,12 @@ package config
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/trace"
 )
 
 // defaultMongoPrefix is the default prefix in generated MongoDB certs.
