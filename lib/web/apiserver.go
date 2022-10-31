@@ -2164,6 +2164,7 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 			return nil, trace.Wrap(err)
 		}
 
+		req.Session.Kind = types.SSHSessionKind
 		req.Session.ServerHostname = hostname
 	}
 
@@ -2211,6 +2212,8 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 		ClusterName:           clusterName,
 		KubernetesClusterName: tracker.GetKubeCluster(),
 		DesktopName:           tracker.GetDesktopName(),
+		AppName:               tracker.GetAppName(),
+		DatabaseName:          tracker.GetDatabaseName(),
 	}
 }
 
@@ -2235,11 +2238,8 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 
 	sessions := make([]session.Session, 0, len(trackers))
 	for _, tracker := range trackers {
-		switch tracker.GetSessionKind() {
-		case types.SSHSessionKind, types.KubernetesSessionKind, types.WindowsDesktopSessionKind:
-			if tracker.GetState() != types.SessionState_SessionStateTerminated {
-				sessions = append(sessions, trackerToLegacySession(tracker, p.ByName("site")))
-			}
+		if tracker.GetState() != types.SessionState_SessionStateTerminated {
+			sessions = append(sessions, trackerToLegacySession(tracker, p.ByName("site")))
 		}
 	}
 
