@@ -1411,7 +1411,7 @@ steps:
     image: amazon/aws-cli
     commands:
       - cd /go/chart
-      - aws s3 sync --acl public-read . s3://$AWS_S3_BUCKET/
+      - aws s3 sync . s3://$AWS_S3_BUCKET/
     environment:
       AWS_REGION: us-west-2
       AWS_S3_BUCKET:
@@ -7827,7 +7827,7 @@ steps:
         path: /root/.aws
     commands:
       - cd /go/chart/
-      - aws s3 sync --acl public-read . s3://$AWS_S3_BUCKET/
+      - aws s3 sync . s3://$AWS_S3_BUCKET/
 
   # NOTE: all mandatory steps for a release promotion need to go BEFORE this
   # step, as there is a chance that everything afterwards will be skipped.
@@ -8094,6 +8094,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 17fefd9c61322bc6519bedaedd924a96b5b4ef2b6d47639114defd7eca1f074b
+hmac: 27dfcb323c55a4408d7bd06fcb95d04c5c8c984d36f6cdc0d3ee52dc8c0e3079
 
 ...
