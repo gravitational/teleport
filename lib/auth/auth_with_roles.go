@@ -452,6 +452,34 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 	return filteredSessions, nil
 }
 
+// GetActiveSessionTrackersWithFilter returns a list of active sessions filtered by a filter.
+func (a *ServerWithRoles) GetActiveSessionTrackersWithFilter(ctx context.Context, filter *types.SessionTrackerFilter) ([]types.SessionTracker, error) {
+	sessions, err := a.authServer.GetActiveSessionTrackersWithFilter(ctx, filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.serverAction(); err == nil {
+		return sessions, nil
+	}
+
+	var filteredSessions []types.SessionTracker
+	user := a.context.User
+	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, sess := range sessions {
+		ok := a.filterSessionTracker(ctx, joinerRoles, sess, types.VerbList)
+		if ok {
+			filteredSessions = append(filteredSessions, sess)
+		}
+	}
+
+	return filteredSessions, nil
+}
+
 // RemoveSessionTracker removes a tracker resource for an active session.
 func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID string) error {
 	if err := a.serverAction(); err != nil {

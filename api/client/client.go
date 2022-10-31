@@ -2772,6 +2772,30 @@ func (c *Client) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionT
 	return sessions, nil
 }
 
+// GetActiveSessionTrackersWithFilter returns a list of active sessions filtered by a filter.
+func (c *Client) GetActiveSessionTrackersWithFilter(ctx context.Context, filter *types.SessionTrackerFilter) ([]types.SessionTracker, error) {
+	stream, err := c.grpc.GetActiveSessionTrackersWithFilter(ctx, filter, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	var sessions []types.SessionTracker
+	for {
+		session, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+
+			return nil, trace.Wrap(err)
+		}
+
+		sessions = append(sessions, session)
+	}
+
+	return sessions, nil
+}
+
 // RemoveSessionTracker removes a tracker resource for an active session.
 func (c *Client) RemoveSessionTracker(ctx context.Context, sessionID string) error {
 	_, err := c.grpc.RemoveSessionTracker(ctx, &proto.RemoveSessionTrackerRequest{SessionID: sessionID}, c.callOpts...)

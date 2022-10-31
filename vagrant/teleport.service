@@ -9,7 +9,7 @@ RestartSec=5
 ExecStartPre=/bin/mkdir -p -m0700 /var/lib/teleport
 ExecStart=/usr/local/bin/teleport start -c /opt/teleport/teleport.yaml
 MountFlags=slave
-LimitNOFILE=1048576
+LimitNOFILE=524288
 LimitNPROC=1048576
 LimitCORE=infinity
 
