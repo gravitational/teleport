@@ -207,9 +207,9 @@ serviceAccount:
   # If create is false, the name will be used to reference an existing service account.
   name: ""
 
-# Kubernetes ClusterRole and ClusterRoleBinding to create.
+# Set to true (default) to create Kubernetes ClusterRole and ClusterRoleBinding.
 rbac:
-  # Specifies wheather a ClusterRole and ClusterRoleBindigs should be created.
+  # Specifies whether a ClusterRole and ClusterRoleBinding should be created.
   # Set to false if your cluster level resources are managed separately.
   create: true
 

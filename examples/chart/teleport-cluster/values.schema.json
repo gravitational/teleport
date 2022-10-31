@@ -702,8 +702,8 @@
                 }
             }
         },
-        "clusterRole": {
-            "$id": "#/properties/clusterRole",
+        "rbac": {
+            "$id": "#/properties/rbac",
             "type": "object",
             "required": [],
             "properties": {
