@@ -11608,6 +11608,8 @@ steps:
   - name: "Helm: Assume Download AWS Role"
     image: amazon/aws-cli
     commands:
+      - ls -la /root
+      - ls -la /root/.aws
       - touch /root/.aws/credentials
       - aws sts get-caller-identity
       - |-
