@@ -11600,6 +11600,16 @@ workspace:
 clone:
   disable: true
 steps:
+  - name: Check out code
+    image: docker:git
+    commands:
+      - |
+        mkdir -p /go/src/github.com/gravitational/teleport
+        cd /go/src/github.com/gravitational/teleport
+        git init && git remote add origin ${DRONE_REMOTE_URL}
+        git fetch origin +refs/tags/$(echo v1.2.3-fred.1):
+        git checkout -qf FETCH_HEAD
+
   - name: "Helm: Assume Download AWS Role"
     image: amazon/aws-cli
     commands:
@@ -11696,6 +11706,6 @@ volumes:
     temp: {}      
 ---
 kind: signature
-hmac: 8154da459ef08b4b4dfad977be67a6cd67ab1448e8446d10a2da4483bae860a3
+hmac: cfe429e581b8cc36136847c5524719f56fd4f11aee75fc27c077d71c02b4b72b
 
 ...
