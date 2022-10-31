@@ -154,6 +154,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindToken, RW()),
 				types.NewRule(types.KindConnectionDiagnostic, RW()),
 				types.NewRule(types.KindKubernetesCluster, RW()),
+				types.NewRule(types.KindSessionTracker, RO()),
 			},
 			JoinSessions: []*types.SessionJoinPolicy{
 				{

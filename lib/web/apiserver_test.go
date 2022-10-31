@@ -1544,51 +1544,84 @@ func TestWebAgentForward(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TODO(zmb3): create some dummy session trackers instead of starting a real session here
-
 func TestActiveSessions(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	sid := session.NewID()
 	pack := s.authPack(t, "foo")
 
-	ws, err := s.makeTerminal(t, pack, withSessionID(sid))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, ws.Close()) })
+	start := time.Now()
+	kinds := []types.SessionKind{
+		types.SSHSessionKind,
+		types.KubernetesSessionKind,
+		types.WindowsDesktopSessionKind,
+		types.DatabaseSessionKind,
+		types.AppSessionKind,
+	}
+	ids := make(map[string]struct{})
 
-	termHandler := newTerminalHandler()
-	stream := termHandler.asTerminalStream(ws)
-
-	// To make sure we have a session.
-	_, err = io.WriteString(stream, "echo vinsong\r\n")
-	require.NoError(t, err)
-
-	// Make sure server has replied.
-	err = waitForOutput(stream, "vinsong")
-	require.NoError(t, err)
-
-	var sessResp *siteSessionsGetResponse
-	require.Eventually(t, func() bool {
-		// Get site nodes and make sure the node has our active party.
-		re, err := pack.clt.Get(s.ctx, pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"), url.Values{})
+	for _, kind := range kinds {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID:    string(session.NewID()),
+			ClusterName:  s.server.ClusterName(),
+			Kind:         string(kind),
+			State:        types.SessionState_SessionStateRunning,
+			Created:      start,
+			Expires:      start.Add(1 * time.Hour),
+			Hostname:     s.node.GetInfo().GetHostname(),
+			DesktopName:  s.node.GetInfo().GetHostname(),
+			AppName:      s.node.GetInfo().GetHostname(),
+			DatabaseName: s.node.GetInfo().GetHostname(),
+			Address:      s.srvID,
+			Login:        pack.login,
+			Participants: []types.Participant{
+				{ID: "id", User: "user-1", LastActive: start},
+			},
+		})
 		require.NoError(t, err)
-		require.NoError(t, json.Unmarshal(re.Bytes(), &sessResp))
-		return len(sessResp.Sessions) == 1
-	}, time.Second*5, 250*time.Millisecond)
+		ids[tracker.GetSessionID()] = struct{}{}
 
-	sess := sessResp.Sessions[0]
-	require.Equal(t, sid, sess.ID)
-	require.Equal(t, s.node.GetNamespace(), sess.Namespace)
-	require.NotNil(t, sess.Parties)
-	require.Greater(t, sess.TerminalParams.H, 0)
-	require.Greater(t, sess.TerminalParams.W, 0)
-	require.Equal(t, pack.login, sess.Login)
-	require.False(t, sess.Created.IsZero())
-	require.False(t, sess.LastActive.IsZero())
-	require.Equal(t, s.srvID, sess.ServerID)
-	require.Equal(t, s.node.GetInfo().GetHostname(), sess.ServerHostname)
-	require.Equal(t, s.srvID, sess.ServerAddr)
-	require.Equal(t, s.server.ClusterName(), sess.ClusterName)
+		_, err = s.server.Auth().CreateSessionTracker(context.Background(), tracker)
+		require.NoError(t, err)
+	}
+
+	// create an inactive session, which should not show up
+	inactive, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID:    string(session.NewID()),
+		ClusterName:  s.server.ClusterName(),
+		Kind:         string(types.SSHSessionKind),
+		State:        types.SessionState_SessionStateTerminated,
+		Created:      time.Now(),
+		Expires:      time.Now().Add(1 * time.Hour),
+		Hostname:     s.node.GetInfo().GetHostname(),
+		Address:      s.srvID,
+		Login:        pack.login,
+		Participants: nil,
+	})
+	require.NoError(t, err)
+	_, err = s.server.Auth().CreateSessionTracker(context.Background(), inactive)
+	require.NoError(t, err)
+
+	re, err := pack.clt.Get(s.ctx, pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"), url.Values{})
+	require.NoError(t, err)
+
+	var sessResp siteSessionsGetResponse
+	require.NoError(t, json.Unmarshal(re.Bytes(), &sessResp))
+	require.Len(t, sessResp.Sessions, len(kinds))
+
+	for _, session := range sessResp.Sessions {
+		require.Contains(t, ids, string(session.ID))
+		require.Equal(t, s.node.GetNamespace(), session.Namespace)
+		require.NotNil(t, session.Parties)
+		require.Greater(t, session.TerminalParams.H, 0)
+		require.Greater(t, session.TerminalParams.W, 0)
+		require.Equal(t, pack.login, session.Login)
+		require.False(t, session.Created.IsZero())
+		require.False(t, session.LastActive.IsZero())
+		require.Equal(t, s.srvID, session.ServerID)
+		require.Equal(t, s.node.GetInfo().GetHostname(), session.ServerHostname)
+		require.Equal(t, s.srvID, session.ServerAddr)
+		require.Equal(t, s.server.ClusterName(), session.ClusterName)
+	}
 }
 
 func TestCloseConnectionsOnLogout(t *testing.T) {
