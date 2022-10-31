@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/predicate"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -93,6 +94,9 @@ type AuthorizerAccessPoint interface {
 
 	// GetSessionRecordingConfig returns session recording configuration.
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+
+	// GetAccessPolicy returns a given access policy by name.
+	GetAccessPolicy(ctx context.Context, name string) (types.AccessPolicy, error)
 }
 
 // authorizer creates new local authorizer
@@ -108,6 +112,8 @@ type Context struct {
 	User types.User
 	// Checker is access checker
 	Checker services.AccessChecker
+	// PredicateChecker is a predicate-based access checker.
+	PredicateChecker *predicate.PredicateAccessChecker
 	// Identity holds the caller identity:
 	// 1. If caller is a user
 	//   a. local user identity
@@ -770,6 +776,8 @@ func contextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, cluster
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// TODO(joel): huh?
+	accessInfo.AccessPolicies = user.GetAccessPolicies()
 	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, accessPoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -782,6 +790,7 @@ func contextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, cluster
 	// that by extracting up to date identity traits and roles from the user's
 	// certificate metadata.
 	user.SetRoles(accessInfo.Roles)
+	user.SetAccessPolicies(accessInfo.AccessPolicies)
 	user.SetTraits(accessInfo.Traits)
 
 	return &Context{

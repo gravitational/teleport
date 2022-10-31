@@ -110,25 +110,25 @@ func TestCheckAccessToNode(t *testing.T) {
 		},
 	})
 
-	checker := NewPredicateAccessChecker([]types.Policy{withNameAsLogin})
-	access, err := checker.CheckAccessToNode(&Node{Login: "mike"}, &User{Name: "mike"})
+	checker := NewPredicateAccessChecker([]types.AccessPolicy{withNameAsLogin})
+	access, err := checker.CheckLoginAccessToNode(&Node{}, &AccessNode{Login: "mike"}, &User{Name: "mike"})
 	require.NoError(t, err)
-	require.True(t, access)
+	require.Equal(t, access, AccessAllowed)
 
-	access, err = checker.CheckAccessToNode(&Node{Login: "alice"}, &User{Name: "bob"})
+	access, err = checker.CheckLoginAccessToNode(&Node{}, &AccessNode{Login: "alice"}, &User{Name: "bob"})
 	require.NoError(t, err)
-	require.False(t, access)
+	require.Equal(t, access, AccessUndecided)
 
-	access, err = checker.CheckAccessToNode(&Node{Login: "bob-admin"}, &User{Name: "bob"})
+	access, err = checker.CheckLoginAccessToNode(&Node{}, &AccessNode{Login: "bob-admin"}, &User{Name: "bob"})
 	require.NoError(t, err)
-	require.True(t, access)
+	require.Equal(t, access, AccessAllowed)
 
-	checkerWithDeny := NewPredicateAccessChecker([]types.Policy{withNameAsLogin, denyMike})
-	access, err = checkerWithDeny.CheckAccessToNode(&Node{Login: "mike"}, &User{Name: "mike"})
+	checkerWithDeny := NewPredicateAccessChecker([]types.AccessPolicy{withNameAsLogin, denyMike})
+	access, err = checkerWithDeny.CheckLoginAccessToNode(&Node{}, &AccessNode{Login: "mike"}, &User{Name: "mike"})
 	require.NoError(t, err)
-	require.False(t, access)
+	require.Equal(t, access, AccessDenied)
 
-	access, err = checkerWithDeny.CheckAccessToNode(&Node{Login: "bob"}, &User{Name: "bob"})
+	access, err = checkerWithDeny.CheckLoginAccessToNode(&Node{}, &AccessNode{Login: "bob"}, &User{Name: "bob"})
 	require.NoError(t, err)
-	require.True(t, access)
+	require.Equal(t, access, AccessAllowed)
 }

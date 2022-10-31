@@ -542,10 +542,12 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	}
 	mfaParams := accessChecker.MFAParams(ap.GetRequireMFAType())
 	_, mfaParams.Verified = cert.Extensions[teleport.CertExtensionMFAVerified]
+	node := h.c.Server.GetInfo()
 
 	// check if roles allow access to server
-	if err := accessChecker.CheckAccess(
-		h.c.Server.GetInfo(),
+	if err := accessChecker.CheckLoginAccessToNode(
+		node,
+		osUser,
 		mfaParams,
 		services.NewLoginMatcher(osUser),
 	); err != nil {

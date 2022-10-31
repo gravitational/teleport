@@ -64,6 +64,12 @@ func NewSessionTracker(ctx context.Context, trackerSpec types.SessionTrackerSpec
 	}, nil
 }
 
+// GetTracker returns the session tracker state.
+// TODO(joel): does this need a deep copy?
+func (s *SessionTracker) GetTracker() types.SessionTracker {
+	return s.tracker
+}
+
 // Close closes the session tracker and sets the tracker state to terminated
 func (s *SessionTracker) Close(ctx context.Context) error {
 	close(s.closeC)

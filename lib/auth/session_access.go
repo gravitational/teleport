@@ -69,7 +69,7 @@ func NewSessionAccessEvaluator(policySets []*types.SessionTrackerPolicySet, kind
 func getAllowPolicies(participant SessionAccessContext) []*types.SessionJoinPolicy {
 	var policies []*types.SessionJoinPolicy
 
-	for _, role := range participant.Roles {
+	for _, role := range participant.AccessChecker.Roles() {
 		policies = append(policies, role.GetSessionJoinPolicies()...)
 	}
 
@@ -88,9 +88,9 @@ func ContainsSessionKind(s []string, e types.SessionKind) bool {
 
 // SessionAccessContext is the context that must be provided per participant in the session.
 type SessionAccessContext struct {
-	Username string
-	Roles    []types.Role
-	Mode     types.SessionParticipantMode
+	Username      string
+	Mode          types.SessionParticipantMode
+	AccessChecker services.AccessChecker
 }
 
 // GetIdentifier is used by the `predicate` library to evaluate variable expressions when
@@ -103,7 +103,7 @@ func (ctx *SessionAccessContext) GetIdentifier(fields []string) (interface{}, er
 				return ctx.Username, nil
 			case "roles":
 				var roles []string
-				for _, role := range ctx.Roles {
+				for _, role := range ctx.AccessChecker.Roles() {
 					roles = append(roles, role.GetName())
 				}
 
@@ -184,36 +184,40 @@ func HasV5Role(roles []types.Role) bool {
 	return false
 }
 
-// CanJoin returns the modes a user has access to join a session with.
-// If the list is empty, the user doesn't have access to join the session at all.
-func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) []types.SessionParticipantMode {
-	// If we don't support session access controls, return the default mode set that was supported prior to Moderated Sessions.
-	if !HasV5Role(user.Roles) {
-		return preAccessControlsModes(e.kind)
+// CanJoin checks if a user can join a session with a given mode.
+func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext, tracker types.SessionTracker, mode types.SessionParticipantMode) error {
+	// If predicate rules allows the user to join, allow.
+	switch err := user.AccessChecker.CheckSessionJoinAccess(tracker, mode); {
+	case err == nil:
+		return nil
+	case trace.IsAccessDenied(err):
+	default:
+		return trace.Wrap(err)
+	}
+
+	// If we don't support session access controls, allow.
+	if !HasV5Role(user.AccessChecker.Roles()) {
+		return nil
 	}
 
 	// Session owners can always join their own sessions.
 	if user.Username == e.owner {
-		return []types.SessionParticipantMode{types.SessionPeerMode, types.SessionModeratorMode, types.SessionObserverMode}
+		return nil
 	}
 
-	var modes []types.SessionParticipantMode
-
 	// Loop over every allow policy attached the participant and check it's applicability.
-	// This code serves to merge the permissions of all applicable join policies.
 	for _, allowPolicy := range getAllowPolicies(user) {
-		// If the policy is applicable and allows joining the session, add the allowed modes to the list of modes.
+		// If the policy is applicable and allows joining the session, allow.
 		if e.matchesJoin(allowPolicy) {
 			for _, modeString := range allowPolicy.Modes {
-				mode := types.SessionParticipantMode(modeString)
-				if !SliceContainsMode(modes, mode) {
-					modes = append(modes, mode)
+				if mode == types.SessionParticipantMode(modeString) {
+					return nil
 				}
 			}
 		}
 	}
 
-	return modes
+	return trace.AccessDenied("user %v does not have permission to join session %v", user.Username, tracker.GetSessionID())
 }
 
 func SliceContainsMode(s []types.SessionParticipantMode, e types.SessionParticipantMode) bool {

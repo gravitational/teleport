@@ -20,10 +20,11 @@ import (
 	"crypto/rsa"
 	"net"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport/api/constants"
 )
 
 // CertChecker is a drop-in replacement for ssh.CertChecker. In FIPS mode,
@@ -46,12 +47,26 @@ func (c *CertChecker) Authenticate(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		return nil, trace.Wrap(err)
 	}
 
-	perms, err := c.CertChecker.Authenticate(conn, key)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	cert, ok := key.(*ssh.Certificate)
+	if !ok {
+		if c.UserKeyFallback != nil {
+			return c.UserKeyFallback(conn, key)
+		}
+		return nil, trace.BadParameter("ssh: normal key pairs not accepted")
 	}
 
-	return perms, nil
+	if cert.CertType != ssh.UserCert {
+		return nil, trace.BadParameter("ssh: cert has type %d", cert.CertType)
+	}
+	if !c.IsUserAuthority(cert.SignatureKey) {
+		return nil, trace.BadParameter("ssh: certificate signed by unrecognized authority")
+	}
+
+	if err := c.CheckCert(teleport.SSHSessionJoinPrincipal, cert); err != nil {
+		return nil, err
+	}
+
+	return &cert.Permissions, nil
 }
 
 // CheckCert checks certificate metadata and signature.

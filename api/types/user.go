@@ -44,6 +44,8 @@ type User interface {
 	SetLocalAuth(auth *LocalAuthSecrets)
 	// GetRoles returns a list of roles assigned to user
 	GetRoles() []string
+	// GetAccessPolicies returns a list of access policies assigned to user
+	GetAccessPolicies() []string
 	// GetLogins gets the list of server logins/principals for the user
 	GetLogins() []string
 	// GetDatabaseUsers gets the list of Database Users for the user
@@ -70,6 +72,8 @@ type User interface {
 	ResetLocks()
 	// SetRoles sets user roles
 	SetRoles(roles []string)
+	// SetAccessPolicies sets a list of access policies assigned to user
+	SetAccessPolicies(policies []string)
 	// AddRole adds role to the users' role list
 	AddRole(name string)
 	// SetLogins sets a list of server logins/principals for user
@@ -236,6 +240,11 @@ func (u *UserV2) SetRoles(roles []string) {
 	u.Spec.Roles = utils.Deduplicate(roles)
 }
 
+// SetAccessPolicies sets a list of access policies assigned to user
+func (u *UserV2) SetAccessPolicies(policies []string) {
+	u.Spec.AccessPolicies = utils.Deduplicate(policies)
+}
+
 func (u *UserV2) setTrait(trait string, list []string) {
 	if u.Spec.Traits == nil {
 		u.Spec.Traits = make(map[string][]string)
@@ -311,6 +320,11 @@ func (u *UserV2) SetLocalAuth(auth *LocalAuthSecrets) {
 // GetRoles returns a list of roles assigned to user
 func (u *UserV2) GetRoles() []string {
 	return u.Spec.Roles
+}
+
+// GetAccessPolicies returns a list of access policies assigned to user
+func (u *UserV2) GetAccessPolicies() []string {
+	return u.Spec.AccessPolicies
 }
 
 // AddRole adds a role to user's role list

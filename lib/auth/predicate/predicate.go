@@ -22,6 +22,20 @@ import (
 	"github.com/vulcand/predicate"
 )
 
+// AccesDecision represents the result of an access engine working through a set of rules.
+type AccessDecision int
+
+const (
+	// AccessUndecided means access was not granted or denied by a rule.
+	AccessUndecided AccessDecision = iota
+
+	// AccessAllowed means access was granted by a rule.
+	AccessAllowed
+
+	// AccessDenied means access was denied by a rule.
+	AccessDenied
+)
+
 // NamedParameter is an object with a name that can be added to the environment in which a predicate expression runs.
 type NamedParameter interface {
 	// GetName returns the name of the object.
@@ -81,26 +95,38 @@ func newParser(env map[string]any) (predicate.Parser, error) {
 
 // PredicateAccessChecker checks access/permissions to access certain resources by evaluating AccessPolicy resources.
 type PredicateAccessChecker struct {
-	policies []types.Policy
+	policies []types.AccessPolicy
 }
 
 // NewPredicateAccessChecker creates a new PredicateAccessChecker with a set of policies describing the permissions.
-func NewPredicateAccessChecker(policies []types.Policy) *PredicateAccessChecker {
+func NewPredicateAccessChecker(policies []types.AccessPolicy) *PredicateAccessChecker {
 	return &PredicateAccessChecker{policies}
 }
 
-// CheckAccessToNode checks if a given user has access to a Server Access node.
-func (c *PredicateAccessChecker) CheckAccessToNode(node *Node, user *User) (bool, error) {
-	env := buildEnv(node, user)
-	return c.checkPolicyExprs("node", env)
+// CheckAccessToNode checks if a given user has login access to a Server Access node.
+func (c *PredicateAccessChecker) CheckLoginAccessToNode(node *Node, access *AccessNode, user *User) (AccessDecision, error) {
+	env := buildEnv(node, access, user)
+	return c.checkPolicyExprs("access_node", env)
+}
+
+// CheckAccessToResource checks if a given user has access to view a resource.
+func (c *PredicateAccessChecker) CheckAccessToResource(resource *Resource, user *User) (AccessDecision, error) {
+	env := buildEnv(resource, user)
+	return c.checkPolicyExprs("resource", env)
+}
+
+// CheckSessionJoinAccess checks if a given user can join a session.
+func (c *PredicateAccessChecker) CheckSessionJoinAccess(session *Session, join *JoinSession, user *User) (AccessDecision, error) {
+	env := buildEnv(session, join, user)
+	return c.checkPolicyExprs("join_session", env)
 }
 
 // checkPolicyExprs is the internal routine that evaluates expressions in a given scope from all policies
 // with a provided execution environment containing input values.
-func (c *PredicateAccessChecker) checkPolicyExprs(scope string, env map[string]any) (bool, error) {
+func (c *PredicateAccessChecker) checkPolicyExprs(scope string, env map[string]any) (AccessDecision, error) {
 	parser, err := newParser(env)
 	if err != nil {
-		return false, trace.Wrap(err)
+		return AccessUndecided, trace.Wrap(err)
 	}
 
 	evaluate := func(expr string) (bool, error) {
@@ -121,11 +147,11 @@ func (c *PredicateAccessChecker) checkPolicyExprs(scope string, env map[string]a
 		if expr, ok := policy.GetDeny()[scope]; ok {
 			denied, err := evaluate(expr)
 			if err != nil {
-				return false, trace.Wrap(err)
+				return AccessUndecided, trace.Wrap(err)
 			}
 
 			if denied {
-				return false, nil
+				return AccessDenied, nil
 			}
 		}
 	}
@@ -134,25 +160,71 @@ func (c *PredicateAccessChecker) checkPolicyExprs(scope string, env map[string]a
 		if expr, ok := policy.GetAllow()[scope]; ok {
 			allowed, err := evaluate(expr)
 			if err != nil {
-				return false, trace.Wrap(err)
+				return AccessUndecided, trace.Wrap(err)
 			}
 
 			if allowed {
-				return true, nil
+				return AccessAllowed, nil
 			}
 		}
 	}
 
-	return false, nil
+	return AccessUndecided, nil
+}
+
+// Resource describes an arbitrary resource that can be viewed and listed.
+type Resource struct {
+	// The resource kind.
+	Kind string `json:"kind"`
+
+	// The resource subkind.
+	SubKind string `json:"subkind"`
+
+	// The version of the resource.
+	Version string `json:"version"`
+
+	// The name of the resource.
+	Name string `json:"name"`
+
+	// The unique ID of the resource.
+	Id string `json:"id"`
+
+	// The verb of the operation, e.g. "list", "read" or "write".
+	Verb string `json:"verb"`
+}
+
+// GetName returns the name of the object.
+func (n *Resource) GetName() string {
+	return "resource"
 }
 
 // Node describes a Server Access node.
 type Node struct {
-	// The UNIX login of the login request.
-	Login string `json:"login"`
+	// Hostname is the hostname of the node.
+	Hostname string `json:"hostname"`
 
-	// The labels on the target node.
+	// Address is the address reported by the node.
+	Address string `json:"address"`
+
+	// The complete (static+dynamic) set of labels for the node.
 	Labels map[string]string `json:"labels"`
+}
+
+// The name of the AccessNode predicate rule.
+const AccessNodeField = "access_node"
+
+// The name of the AccessNode.Login predicate field.
+const AccessNodeLoginField = AccessNodeField + ".login"
+
+// AccessNode represents the action of opening a connection to a node.
+type AccessNode struct {
+	// Login is the requested UNIX login.
+	Login string `json:"login"`
+}
+
+// GetName returns the name of the object.
+func (n *AccessNode) GetName() string {
+	return AccessNodeField
 }
 
 // GetName returns the name of the object.
@@ -165,6 +237,9 @@ type User struct {
 	// The name of the Teleport user.
 	Name string `json:"name"`
 
+	// All access policies assigned to the user.
+	Policies []string `json:"policies"`
+
 	// The traits associated with the user.
 	Traits map[string][]string `json:"traits"`
 }
@@ -172,4 +247,29 @@ type User struct {
 // GetName returns the name of the object.
 func (u *User) GetName() string {
 	return "user"
+}
+
+// Session describes an active Teleport session.
+type Session struct {
+	// Owner is the user who created the session.
+	Owner *User `json:"owner"`
+
+	// Participants is the list of current session participants.
+	Participants []string `json:"participants"`
+}
+
+// GetName returns the name of the object.
+func (u *Session) GetName() string {
+	return "session"
+}
+
+// JoinSession describes a request to join a session.
+type JoinSession struct {
+	// Mode is the participant mode, e.g. "observer" or "peer".
+	Mode string `json:"mode"`
+}
+
+// GetName returns the name of the object.
+func (u *JoinSession) GetName() string {
+	return "join_session"
 }

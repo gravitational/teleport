@@ -22,7 +22,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/predicate"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -248,4 +250,36 @@ func (h *Handler) desktopIsActive(w http.ResponseWriter, r *http.Request, p http
 
 type desktopIsActive struct {
 	Active bool `json:"active"`
+}
+
+// validLogins computes valid logins for a given node.
+func (h *Handler) validLogins(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (any, error) {
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	id := p.ByName("node")
+	s, err := clt.GetNode(r.Context(), apidefaults.Namespace, id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	node := &predicate.Node{
+		Hostname: s.GetHostname(),
+		Address:  s.GetAddr(),
+		Labels:   s.GetAllLabels(),
+	}
+
+	accessChecker, err := ctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	logins, err := accessChecker.ComputeValidNodeLogins(r.Context(), node, 10)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return logins, nil
 }

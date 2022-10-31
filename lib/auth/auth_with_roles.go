@@ -261,7 +261,7 @@ func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker type
 	return tracker, nil
 }
 
-func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles []types.Role, tracker types.SessionTracker, verb string) bool {
+func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, tracker types.SessionTracker, verb string) bool {
 	// Apply RFD 45 RBAC rules to the session if it's SSH.
 	// This is a bit of a hack. It converts to the old legacy format
 	// which we don't have all data for, luckily the fields we don't have aren't made available
@@ -299,8 +299,8 @@ func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles 
 	}
 
 	evaluator := NewSessionAccessEvaluator(tracker.GetHostPolicySets(), tracker.GetSessionKind(), tracker.GetHostUser())
-	modes := evaluator.CanJoin(SessionAccessContext{Username: a.context.User.GetName(), Roles: joinerRoles})
-	return len(modes) != 0
+	err := evaluator.CanJoin(SessionAccessContext{Username: a.context.User.GetName(), AccessChecker: a.context.Checker}, tracker, types.SessionObserverMode)
+	return err == nil
 }
 
 const (
@@ -410,13 +410,7 @@ func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID strin
 		return tracker, nil
 	}
 
-	user := a.context.User
-	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ok := a.filterSessionTracker(ctx, joinerRoles, tracker, types.VerbRead)
+	ok := a.filterSessionTracker(ctx, tracker, types.VerbRead)
 	if !ok {
 		return nil, trace.NotFound("session %v not found", sessionID)
 	}
@@ -436,14 +430,8 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 	}
 
 	var filteredSessions []types.SessionTracker
-	user := a.context.User
-	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	for _, sess := range sessions {
-		ok := a.filterSessionTracker(ctx, joinerRoles, sess, types.VerbList)
+		ok := a.filterSessionTracker(ctx, sess, types.VerbList)
 		if ok {
 			filteredSessions = append(filteredSessions, sess)
 		}
@@ -464,14 +452,8 @@ func (a *ServerWithRoles) GetActiveSessionTrackersWithFilter(ctx context.Context
 	}
 
 	var filteredSessions []types.SessionTracker
-	user := a.context.User
-	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	for _, sess := range sessions {
-		ok := a.filterSessionTracker(ctx, joinerRoles, sess, types.VerbList)
+		ok := a.filterSessionTracker(ctx, sess, types.VerbList)
 		if ok {
 			filteredSessions = append(filteredSessions, sess)
 		}
@@ -5177,7 +5159,7 @@ func (a *ServerWithRoles) MaintainSessionPresence(ctx context.Context) (proto.Au
 }
 
 // CreatePolicy creates a new policy resource.
-func (a *ServerWithRoles) CreatePolicy(ctx context.Context, policy types.Policy) error {
+func (a *ServerWithRoles) CreatePolicy(ctx context.Context, policy types.AccessPolicy) error {
 	if err := a.action(apidefaults.Namespace, types.KindAccessPolicy, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
@@ -5185,22 +5167,26 @@ func (a *ServerWithRoles) CreatePolicy(ctx context.Context, policy types.Policy)
 	return a.authServer.CreatePolicy(ctx, policy)
 }
 
-// GetPolicy fetches a policy resource by name.
-func (a *ServerWithRoles) GetPolicy(ctx context.Context, name string) (types.Policy, error) {
-	if err := a.action(apidefaults.Namespace, types.KindAccessPolicy, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+// GetAccessPolicy fetches a policy resource by name.
+func (a *ServerWithRoles) GetAccessPolicy(ctx context.Context, name string) (types.AccessPolicy, error) {
+	if a.serverAction() != nil {
+		if err := a.action(apidefaults.Namespace, types.KindAccessPolicy, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	return a.authServer.GetPolicy(ctx, name)
+	return a.authServer.GetAccessPolicy(ctx, name)
 }
 
-// GetPolicies lists policies in the cluster
-func (a *ServerWithRoles) GetPolicies(ctx context.Context) ([]types.Policy, error) {
-	if err := a.action(apidefaults.Namespace, types.KindAccessPolicy, types.VerbList); err != nil {
-		return nil, trace.Wrap(err)
+// GetAccessPolicies lists policies in the cluster
+func (a *ServerWithRoles) GetAccessPolicies(ctx context.Context) ([]types.AccessPolicy, error) {
+	if a.serverAction() != nil {
+		if err := a.action(apidefaults.Namespace, types.KindAccessPolicy, types.VerbList); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	return a.authServer.GetPolicies(ctx)
+	return a.authServer.GetAccessPolicies(ctx)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

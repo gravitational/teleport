@@ -273,6 +273,8 @@ type UserCertParams struct {
 	PermitFileCopying bool
 	// Roles is a list of roles assigned to this user
 	Roles []string
+	// AccessPolicies is a list of access policies assigned to this user
+	AccessPolicies []string
 	// CertificateFormat is the format of the SSH certificate.
 	CertificateFormat string
 	// RouteToCluster specifies the target cluster

@@ -1898,13 +1898,13 @@ message AppendDiagnosticTraceRequest {
   types.ConnectionDiagnosticTrace Trace = 2 [(gogoproto.jsontag) = "trace"];
 }
 
-// GetPolicyRequest is a request for a policy resource.
-message GetPolicyRequest {
+// GetAccessPolicyRequest is a request for a policy resource.
+message GetAccessPolicyRequest {
   string Name = 1 [(gogoproto.jsontag) = "name"];
 }
 
-// GetPoliciesResponse is a response containing a list of policies.
-message GetPoliciesResponse {
+// GetAccessPoliciesResponse is a response containing a list of policies.
+message GetAccessPoliciesResponse {
   repeated types.AccessPolicyV1 Policies = 1 [(gogoproto.jsontag) = "policies"];
 }
 
@@ -2013,10 +2013,10 @@ service AuthService {
 
   // CreatePolicy creates a new policy resource.
   rpc CreatePolicy(types.AccessPolicyV1) returns (google.protobuf.Empty);
-  // GetPolicy fetches a policy resource by name.
-  rpc GetPolicy(GetPolicyRequest) returns (types.AccessPolicyV1);
-  // GetPolicies lists policies in the cluster.
-  rpc GetPolicies(google.protobuf.Empty) returns (GetPoliciesResponse);
+  // GetAccessPolicy fetches a policy resource by name.
+  rpc GetAccessPolicy(GetAccessPolicyRequest) returns (types.AccessPolicyV1);
+  // GetAccessPolicies lists policies in the cluster.
+  rpc GetAccessPolicies(google.protobuf.Empty) returns (GetAccessPoliciesResponse);
 
   // GetUser gets a user resource by name.
   rpc GetUser(GetUserRequest) returns (types.UserV2);

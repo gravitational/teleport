@@ -17,6 +17,8 @@ limitations under the License.
 package services
 
 import (
+	"context"
+	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -27,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/predicate"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -44,6 +47,9 @@ type AccessChecker interface {
 
 	// CheckAccess checks access to the specified resource.
 	CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) error
+
+	// CheckAccessToNode checks login access to a given node.
+	CheckLoginAccessToNode(r types.Server, login string, mfa AccessMFAParams, matchers ...RoleMatcher) error
 
 	// CheckAccessToRemoteCluster checks access to remote cluster
 	CheckAccessToRemoteCluster(cluster types.RemoteCluster) error
@@ -187,6 +193,12 @@ type AccessChecker interface {
 	// PrivateKeyPolicy returns the enforced private key policy for this role set,
 	// or the provided defaultPolicy - whichever is stricter.
 	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy
+
+	// ComputeValidNodeLogins computes a list of valid logins for a given node.
+	ComputeValidNodeLogins(ctx context.Context, node *predicate.Node, limit int) ([]string, error)
+
+	// CheckSessionJoinAccess checks if the identity has access to join the given session.
+	CheckSessionJoinAccess(session types.SessionTracker, mode types.SessionParticipantMode) error
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
@@ -194,8 +206,12 @@ type AccessChecker interface {
 // host SSH certificate, TLS certificate, or user information stored in the
 // backend.
 type AccessInfo struct {
+	// Name is the name of the user.
+	Name string
 	// Roles is the list of cluster local roles for the identity.
 	Roles []string
+	// AccessPolicies is a list of policies (Teleport access policies) encoded in the identity
+	AccessPolicies []string
 	// Traits is the set of traits for the identity.
 	Traits wrappers.Traits
 	// AllowedResourceIDs is the list of resource IDs the identity is allowed to
@@ -215,6 +231,9 @@ type accessChecker struct {
 	// to search-based access requests) will be implemented by
 	// accessChecker.
 	RoleSet
+
+	// PredicateAccessChecker is embedded to allow access checking via access policy resources.
+	*predicate.PredicateAccessChecker
 }
 
 // NewAccessChecker returns a new AccessChecker which can be used to check
@@ -232,20 +251,47 @@ func NewAccessChecker(info *AccessInfo, localCluster string, access RoleGetter) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	policies := make([]types.AccessPolicy, 0)
+	for _, policyName := range info.AccessPolicies {
+		policy, err := access.GetAccessPolicy(context.TODO(), policyName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		policies = append(policies, policy)
+	}
+
 	return &accessChecker{
-		info:         info,
-		localCluster: localCluster,
-		RoleSet:      roleSet,
+		info:                   info,
+		localCluster:           localCluster,
+		RoleSet:                roleSet,
+		PredicateAccessChecker: predicate.NewPredicateAccessChecker(policies),
 	}, nil
+}
+
+// blendAccessDecision combines two access decisions into one using the following rule logic:
+// 1. If either decision is AccessDenied, the result is denial.
+// 2. If both decisions are AccessUndecided, the result is denial.
+// 3. If one decision is AccessAllowed and the other is AccessUndecided, the result is allow.
+// 4. If both decisions are AccessAllowed, the result is allow.
+func blendAccessDecision(a, b predicate.AccessDecision) error {
+	// Allow access if at least one checks pass AND no one responds with an explicity deny. Access if granted if one allows and the other is undecided.
+	if a != predicate.AccessDenied && b != predicate.AccessDenied && (b == predicate.AccessAllowed || a == predicate.AccessAllowed) {
+		return nil
+	}
+
+	return trace.AccessDenied("access denied")
 }
 
 // NewAccessCheckerWithRoleSet is similar to NewAccessChecker, but accepts the
 // full RoleSet rather than a RoleGetter.
 func NewAccessCheckerWithRoleSet(info *AccessInfo, localCluster string, roleSet RoleSet) AccessChecker {
 	return &accessChecker{
-		info:         info,
-		localCluster: localCluster,
-		RoleSet:      roleSet,
+		info:                   info,
+		localCluster:           localCluster,
+		RoleSet:                roleSet,
+		PredicateAccessChecker: predicate.NewPredicateAccessChecker(nil),
 	}
 }
 
@@ -292,7 +338,130 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matc
 	if err := a.checkAllowedResources(r); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.RoleSet.checkAccess(r, mfa, matchers...))
+
+	hasStandardAccess, err := a.RoleSet.checkAccess(r, mfa, matchers...)
+	if !trace.IsAccessDenied(err) {
+		return trace.Wrap(err)
+	}
+
+	res, ok := r.(types.Resource)
+	if !ok {
+		return trace.BadParameter("expected types.Resource, got %T", r)
+	}
+
+	hasPredicateAccess, err := a.PredicateAccessChecker.CheckAccessToResource(&predicate.Resource{
+		Kind:    r.GetKind(),
+		SubKind: res.GetSubKind(),
+		Version: res.GetVersion(),
+		Name:    r.GetName(),
+		Id:      strconv.FormatInt(res.GetResourceID(), 10),
+		Verb:    "todo",
+	}, &predicate.User{
+		Name:     a.info.Name,
+		Policies: a.info.AccessPolicies,
+		Traits:   a.info.Traits,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return blendAccessDecision(hasPredicateAccess, hasStandardAccess)
+}
+
+// CheckAccessToRule checks if the identity has access in the given
+// namespace to the specified resource and verb.
+// silent controls whether the access violations are logged.
+func (a *accessChecker) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
+	// TODO(joel): check resource predicate
+	hasStandardAccess, err := a.RoleSet.CheckAccessToRule(ctx, namespace, resource, verb, silent)
+	if !trace.IsAccessDenied(err) {
+		return trace.Wrap(err)
+	}
+
+	r, err := ctx.GetResource()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	hasPredicateAccess, err := a.PredicateAccessChecker.CheckAccessToResource(&predicate.Resource{
+		Kind:    r.GetKind(),
+		SubKind: r.GetSubKind(),
+		Version: r.GetVersion(),
+		Name:    r.GetName(),
+		Id:      strconv.FormatInt(r.GetResourceID(), 10),
+		Verb:    verb,
+	}, &predicate.User{
+		Name:     a.info.Name,
+		Policies: a.info.AccessPolicies,
+		Traits:   a.info.Traits,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return blendAccessDecision(hasPredicateAccess, hasStandardAccess)
+}
+
+// CheckSessionJoinAccess checks if the identity has access to join the given session.
+func (a *accessChecker) CheckSessionJoinAccess(session types.SessionTracker, mode types.SessionParticipantMode) error {
+	// TODO(joel): grab owner here
+	owner := &predicate.User{
+		Name:     a.info.Name,
+		Policies: a.info.AccessPolicies,
+		Traits:   a.info.Traits,
+	}
+
+	var participants []string
+	for _, p := range session.GetParticipants() {
+		participants = append(participants, p.User)
+	}
+
+	decision, err := a.PredicateAccessChecker.CheckSessionJoinAccess(&predicate.Session{
+		Owner:        owner,
+		Participants: participants,
+	}, &predicate.JoinSession{
+		Mode: string(mode),
+	}, &predicate.User{
+		Name:     a.info.Name,
+		Policies: a.info.AccessPolicies,
+		Traits:   a.info.Traits,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if decision == predicate.AccessAllowed {
+		return nil
+	}
+
+	return trace.AccessDenied("access denied to join session %v", session.GetSessionID())
+}
+
+// CheckLoginAccessToNode checks login access to a given node.
+func (a *accessChecker) CheckLoginAccessToNode(r types.Server, login string, mfa AccessMFAParams, matchers ...RoleMatcher) error {
+	if err := a.checkAllowedResources(r); err != nil {
+		return trace.Wrap(err)
+	}
+
+	hasStandardAccess, err := a.RoleSet.checkAccess(r, mfa, matchers...)
+	if !trace.IsAccessDenied(err) {
+		return trace.Wrap(err)
+	}
+
+	hasPredicateAccess, err := a.PredicateAccessChecker.CheckLoginAccessToNode(&predicate.Node{
+		Hostname: r.GetHostname(),
+		Address:  r.GetAddr(),
+		Labels:   r.GetAllLabels(),
+	}, &predicate.AccessNode{Login: login}, &predicate.User{
+		Name:     a.info.Name,
+		Policies: a.info.AccessPolicies,
+		Traits:   a.info.Traits,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return blendAccessDecision(hasPredicateAccess, hasStandardAccess)
 }
 
 // GetAllowedResourceIDs returns the list of allowed resources the identity for
@@ -316,15 +485,22 @@ func AccessInfoFromLocalCertificate(cert *ssh.Certificate) (*AccessInfo, error) 
 		return nil, trace.Wrap(err)
 	}
 
+	accessPolicies, err := ExtractAccessPoliciesFromCert(cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	allowedResourceIDs, err := ExtractAllowedResourcesFromCert(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &AccessInfo{
+		Name:               cert.KeyId,
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
+		AccessPolicies:     accessPolicies,
 	}, nil
 }
 
@@ -401,7 +577,9 @@ func AccessInfoFromLocalIdentity(identity tlsca.Identity, access UserGetter) (*A
 	}
 
 	return &AccessInfo{
+		Name:               identity.Username,
 		Roles:              roles,
+		AccessPolicies:     identity.AccessPolicies,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
 	}, nil

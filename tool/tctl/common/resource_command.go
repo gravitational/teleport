@@ -1393,17 +1393,17 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		return &installerCollection{installers: []types.Installer{inst}}, nil
 	case types.KindAccessPolicy:
 		if rc.ref.Name == "" {
-			policies, err := client.GetPolicies(ctx)
+			policies, err := client.GetAccessPolicies(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &policyCollection{policies: policies}, nil
 		}
-		policy, err := client.GetPolicy(ctx, rc.ref.Name)
+		policy, err := client.GetAccessPolicy(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &policyCollection{policies: []types.Policy{policy}}, nil
+		return &policyCollection{policies: []types.AccessPolicy{policy}}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

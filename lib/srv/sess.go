@@ -532,7 +532,6 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 		stopC:                          make(chan struct{}),
 		startTime:                      startTime,
 		serverCtx:                      scx.srv.Context(),
-		access:                         auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, scx.Identity.TeleportUser),
 		scx:                            scx,
 		presenceEnabled:                scx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified] != "",
 		io:                             NewTermManager(),
@@ -555,12 +554,10 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 
 	var err error
 	if err = sess.trackSession(ctx, scx.Identity.TeleportUser, policySets); err != nil {
-		if trace.IsNotImplemented(err) {
-			return nil, trace.NotImplemented("Attempted to use Moderated Sessions with an Auth Server below the minimum version of 9.0.0.")
-		}
 		return nil, trace.Wrap(err)
 	}
 
+	sess.access = auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, scx.Identity.TeleportUser)
 	sess.recorder, err = newRecorder(sess, scx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1360,9 +1357,9 @@ func (s *session) checkIfStart() (bool, auth.PolicyOptions, error) {
 		}
 
 		participants = append(participants, auth.SessionAccessContext{
-			Username: party.ctx.Identity.TeleportUser,
-			Roles:    party.ctx.Identity.AccessChecker.Roles(),
-			Mode:     party.mode,
+			Username:      party.ctx.Identity.TeleportUser,
+			AccessChecker: party.ctx.Identity.AccessChecker,
+			Mode:          party.mode,
 		})
 	}
 
@@ -1471,22 +1468,19 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 }
 
 func (s *session) join(ch ssh.Channel, ctx *ServerContext, mode types.SessionParticipantMode) (*party, error) {
-	if ctx.Identity.TeleportUser != s.initiator {
-		accessContext := auth.SessionAccessContext{
-			Username: ctx.Identity.TeleportUser,
-			Roles:    ctx.Identity.AccessChecker.Roles(),
-		}
+	accessContext := auth.SessionAccessContext{
+		Username:      ctx.Identity.TeleportUser,
+		AccessChecker: ctx.Identity.AccessChecker,
+	}
 
-		modes := s.access.CanJoin(accessContext)
-		if !auth.SliceContainsMode(modes, mode) {
-			return nil, trace.AccessDenied("insufficient permissions to join session %v", s.id)
-		}
+	if err := s.access.CanJoin(accessContext, s.tracker.GetTracker(), mode); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-		if s.presenceEnabled {
-			_, err := ch.SendRequest(teleport.MFAPresenceRequest, false, nil)
-			if err != nil {
-				return nil, trace.WrapWithMessage(err, "failed to send MFA presence request")
-			}
+	if s.presenceEnabled {
+		_, err := ch.SendRequest(teleport.MFAPresenceRequest, false, nil)
+		if err != nil {
+			return nil, trace.WrapWithMessage(err, "failed to send MFA presence request")
 		}
 	}
 

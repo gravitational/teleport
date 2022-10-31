@@ -1327,6 +1327,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		AllowedLogins:          allowedLogins,
 		TTL:                    sessionTTL,
 		Roles:                  req.checker.RoleNames(),
+		AccessPolicies:         req.user.GetAccessPolicies(),
 		CertificateFormat:      certificateFormat,
 		PermitPortForwarding:   req.checker.CanPortForward(),
 		PermitAgentForwarding:  req.checker.CanForwardAgents(),
@@ -1390,10 +1391,12 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	identity := tlsca.Identity{
 		Username:          req.user.GetName(),
 		Impersonator:      req.impersonator,
 		Groups:            req.checker.RoleNames(),
+		AccessPolicies:    req.user.GetAccessPolicies(),
 		Principals:        allowedLogins,
 		Usage:             req.usage,
 		RouteToCluster:    req.routeToCluster,

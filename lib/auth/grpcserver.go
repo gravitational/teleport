@@ -4317,14 +4317,14 @@ func (g *GRPCServer) CreatePolicy(ctx context.Context, req *types.AccessPolicyV1
 	return &emptypb.Empty{}, nil
 }
 
-// GetPolicy fetches a policy resource by name.
-func (g *GRPCServer) GetPolicy(ctx context.Context, req *proto.GetPolicyRequest) (*types.AccessPolicyV1, error) {
+// GetAccessPolicy fetches a policy resource by name.
+func (g *GRPCServer) GetAccessPolicy(ctx context.Context, req *proto.GetAccessPolicyRequest) (*types.AccessPolicyV1, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	policy, err := auth.GetPolicy(ctx, req.Name)
+	policy, err := auth.GetAccessPolicy(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4332,14 +4332,14 @@ func (g *GRPCServer) GetPolicy(ctx context.Context, req *proto.GetPolicyRequest)
 	return policy.(*types.AccessPolicyV1), nil
 }
 
-// GetPolicies lists policies in the cluster.
-func (g *GRPCServer) GetPolicies(ctx context.Context, req *emptypb.Empty) (*proto.GetPoliciesResponse, error) {
+// GetAccessPolicies lists policies in the cluster.
+func (g *GRPCServer) GetAccessPolicies(ctx context.Context, req *emptypb.Empty) (*proto.GetAccessPoliciesResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	policies, err := auth.GetPolicies(ctx)
+	policies, err := auth.GetAccessPolicies(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4354,7 +4354,7 @@ func (g *GRPCServer) GetPolicies(ctx context.Context, req *emptypb.Empty) (*prot
 		policiesV1 = append(policiesV1, AccessPolicyV1)
 	}
 
-	return &proto.GetPoliciesResponse{Policies: policiesV1}, nil
+	return &proto.GetAccessPoliciesResponse{Policies: policiesV1}, nil
 }
 
 // GRPCServerConfig specifies GRPC server configuration
@@ -4493,6 +4493,7 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 		}
 		return nil, trace.AccessDenied("[10] access denied")
 	}
+
 	return &grpcContext{
 		Context: authContext,
 		ServerWithRoles: &ServerWithRoles{

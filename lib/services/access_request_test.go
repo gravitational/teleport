@@ -73,6 +73,10 @@ func (m *mockGetter) GetRole(ctx context.Context, name string) (types.Role, erro
 	return role, nil
 }
 
+func (m *mockGetter) GetAccessPolicy(ctx context.Context, name string) (types.AccessPolicy, error) {
+	return nil, trace.NotFound("no such policy: %q", name)
+}
+
 func (m *mockGetter) GetRoles(ctx context.Context) ([]types.Role, error) {
 	roles := make([]types.Role, 0, len(m.roles))
 	for _, r := range m.roles {

@@ -752,20 +752,14 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 // join attempts to connect a party to the session.
 func (s *session) join(p *party) error {
 	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
-		roleNames := p.Ctx.Identity.GetIdentity().Groups
-		roles, err := getRolesByName(s.forwarder, roleNames)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
 		accessContext := auth.SessionAccessContext{
-			Username: p.Ctx.User.GetName(),
-			Roles:    roles,
+			Username:      p.Ctx.User.GetName(),
+			Mode:          p.Mode,
+			AccessChecker: p.Ctx.Checker,
 		}
 
-		modes := s.accessEvaluator.CanJoin(accessContext)
-		if !auth.SliceContainsMode(modes, p.Mode) {
-			return trace.AccessDenied("insufficient permissions to join session")
+		if err := s.accessEvaluator.CanJoin(accessContext, s.tracker.GetTracker(), p.Mode); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
@@ -999,16 +993,10 @@ func (s *session) canStart() (bool, auth.PolicyOptions, error) {
 			continue
 		}
 
-		roleNames := party.Ctx.Identity.GetIdentity().Groups
-		roles, err := getRolesByName(s.forwarder, roleNames)
-		if err != nil {
-			return false, auth.PolicyOptions{}, trace.Wrap(err)
-		}
-
 		participants = append(participants, auth.SessionAccessContext{
-			Username: party.Ctx.User.GetName(),
-			Roles:    roles,
-			Mode:     party.Mode,
+			Username:      party.Ctx.User.GetName(),
+			AccessChecker: party.Ctx.Checker,
+			Mode:          party.Mode,
 		})
 	}
 

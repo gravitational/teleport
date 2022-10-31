@@ -2894,14 +2894,14 @@ func (c *Client) UpsertClusterAlert(ctx context.Context, alert types.ClusterAler
 }
 
 // CreatePolicy creates a new policy resource.
-func (c *Client) CreatePolicy(ctx context.Context, policy types.Policy) error {
+func (c *Client) CreatePolicy(ctx context.Context, policy types.AccessPolicy) error {
 	_, err := c.grpc.CreatePolicy(ctx, policy.(*types.AccessPolicyV1), c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
-// GetPolicy fetches a policy resource by name.
-func (c *Client) GetPolicy(ctx context.Context, name string) (types.Policy, error) {
-	resp, err := c.grpc.GetPolicy(ctx, &proto.GetPolicyRequest{Name: name}, c.callOpts...)
+// GetAccessPolicy fetches a policy resource by name.
+func (c *Client) GetAccessPolicy(ctx context.Context, name string) (types.AccessPolicy, error) {
+	resp, err := c.grpc.GetAccessPolicy(ctx, &proto.GetAccessPolicyRequest{Name: name}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -2909,14 +2909,14 @@ func (c *Client) GetPolicy(ctx context.Context, name string) (types.Policy, erro
 	return resp, nil
 }
 
-// GetPolicies lists policies in the cluster.
-func (c *Client) GetPolicies(ctx context.Context) ([]types.Policy, error) {
-	resp, err := c.grpc.GetPolicies(ctx, &emptypb.Empty{}, c.callOpts...)
+// GetAccessPolicies lists policies in the cluster.
+func (c *Client) GetAccessPolicies(ctx context.Context) ([]types.AccessPolicy, error) {
+	resp, err := c.grpc.GetAccessPolicies(ctx, &emptypb.Empty{}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
 
-	policies := make([]types.Policy, len(resp.Policies))
+	policies := make([]types.AccessPolicy, len(resp.Policies))
 	for i, p := range resp.Policies {
 		policies[i] = p
 	}

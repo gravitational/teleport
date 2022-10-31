@@ -56,9 +56,9 @@ type Access interface {
 	ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error
 
 	// CreatePolicy creates a new policy resource.
-	CreatePolicy(ctx context.Context, policy types.Policy) error
-	// GetPolicy fetches a policy resource by name.
-	GetPolicy(ctx context.Context, name string) (types.Policy, error)
-	// GetPolicies lists policies in the cluster.
-	GetPolicies(ctx context.Context) ([]types.Policy, error)
+	CreatePolicy(ctx context.Context, policy types.AccessPolicy) error
+	// GetAccessPolicy fetches a policy resource by name.
+	GetAccessPolicy(ctx context.Context, name string) (types.AccessPolicy, error)
+	// GetAccessPolicies lists policies in the cluster.
+	GetAccessPolicies(ctx context.Context) ([]types.AccessPolicy, error)
 }

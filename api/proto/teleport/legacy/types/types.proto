@@ -2161,6 +2161,9 @@ message AccessPolicySpecV1 {
 
   // Deny contains scopes mapping to predicate expressions as above but the expressions are instead in deny form.
   map<string, string> Deny = 2 [(gogoproto.jsontag) = "deny,omitempty"];
+
+  // Options stores additional options for the policy.
+  map<string, string> Options = 3 [(gogoproto.jsontag) = "options,omitempty"];
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or
@@ -2464,6 +2467,9 @@ message UserSpecV2 {
 
   // Roles is a list of roles assigned to user
   repeated string Roles = 4 [(gogoproto.jsontag) = "roles,omitempty"];
+
+  // AccessPolicies is a list of access policies assigned to user
+  repeated string AccessPolicies = 10 [(gogoproto.jsontag) = "access_policies,omitempty"];
 
   // Traits are key/value pairs received from an identity provider (through
   // OIDC claims or SAML assertions) or from a system administrator for local

@@ -114,6 +114,8 @@ type Identity struct {
 	Impersonator string
 	// Groups is a list of groups (Teleport roles) encoded in the identity
 	Groups []string
+	// AccessPolicies is a list of policies (Teleport access policies) encoded in the identity
+	AccessPolicies []string
 	// SystemRoles is a list of system roles (e.g. auth, proxy, node, etc) used
 	// in "multi-role" certificates. Single-role certificates encode the system role
 	// in `Groups` for back-compat reasons.
