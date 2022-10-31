@@ -10874,10 +10874,10 @@ steps:
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
   - git checkout -qf "branch/v11"
-  - mkdir -pv "/go/vars/full-version"
+  - mkdir -pv $(dirname "/go/vars/full-version-v11")
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
-  - go run . "v11" | sed 's/v//' > "/go/vars/full-version/v11"
-  - echo Found full semver "$(cat "/go/vars/full-version/v11")" for major version
+  - go run . "v11" | sed 's/v//' > "/go/vars/full-version-v11"
+  - echo Found full semver "$(cat "/go/vars/full-version-v11")" for major version
     "v11"
 - name: Wait for docker
   image: docker
@@ -10904,20 +10904,21 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "$(cat '/go/vars/full-version/v11')"
+  - git checkout -qf "v$(cat '/go/vars/full-version-v11')"
   depends_on:
   - Find the latest available semver for v11
 - name: Build major, minor, and full semvers
   image: alpine
   commands:
   - mkdir -pv $(dirname "/go/var/major-version")
-  - echo $(cat '/go/vars/full-version/v11') | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
+  - echo v$(cat '/go/vars/full-version-v11') | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
   - echo $(cat "/go/var/major-version")
   - mkdir -pv $(dirname "/go/var/minor-version")
-  - echo $(cat '/go/vars/full-version/v11') | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
+  - echo v$(cat '/go/vars/full-version-v11') | sed 's/v//' | cut -d'.' -f "1,2" >
+    "/go/var/minor-version"
   - echo $(cat "/go/var/minor-version")
   - mkdir -pv $(dirname "/go/var/full-version")
-  - echo $(cat '/go/vars/full-version/v11') | sed 's/v//' > "/go/var/full-version"
+  - echo v$(cat '/go/vars/full-version-v11') | sed 's/v//' > "/go/var/full-version"
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Find the latest available semver for v11
@@ -11039,8 +11040,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
-    '/go/vars/full-version/v11')/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
+    '/go/vars/full-version-v11')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -11768,8 +11769,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
-    '/go/vars/full-version/v11')/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
+    '/go/vars/full-version-v11')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -12500,8 +12501,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
-    '/go/vars/full-version/v11')/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
+    '/go/vars/full-version-v11')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -13523,10 +13524,10 @@ steps:
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
   - git checkout -qf "branch/v10"
-  - mkdir -pv "/go/vars/full-version"
+  - mkdir -pv $(dirname "/go/vars/full-version-v10")
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
-  - go run . "v10" | sed 's/v//' > "/go/vars/full-version/v10"
-  - echo Found full semver "$(cat "/go/vars/full-version/v10")" for major version
+  - go run . "v10" | sed 's/v//' > "/go/vars/full-version-v10"
+  - echo Found full semver "$(cat "/go/vars/full-version-v10")" for major version
     "v10"
 - name: Wait for docker
   image: docker
@@ -13553,20 +13554,21 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "$(cat '/go/vars/full-version/v10')"
+  - git checkout -qf "v$(cat '/go/vars/full-version-v10')"
   depends_on:
   - Find the latest available semver for v10
 - name: Build major, minor, and full semvers
   image: alpine
   commands:
   - mkdir -pv $(dirname "/go/var/major-version")
-  - echo $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
+  - echo v$(cat '/go/vars/full-version-v10') | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
   - echo $(cat "/go/var/major-version")
   - mkdir -pv $(dirname "/go/var/minor-version")
-  - echo $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
+  - echo v$(cat '/go/vars/full-version-v10') | sed 's/v//' | cut -d'.' -f "1,2" >
+    "/go/var/minor-version"
   - echo $(cat "/go/var/minor-version")
   - mkdir -pv $(dirname "/go/var/full-version")
-  - echo $(cat '/go/vars/full-version/v10') | sed 's/v//' > "/go/var/full-version"
+  - echo v$(cat '/go/vars/full-version-v10') | sed 's/v//' > "/go/var/full-version"
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Find the latest available semver for v10
@@ -13688,8 +13690,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
-    '/go/vars/full-version/v10')/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
+    '/go/vars/full-version-v10')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -14417,8 +14419,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
-    '/go/vars/full-version/v10')/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
+    '/go/vars/full-version-v10')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -15149,8 +15151,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
-    '/go/vars/full-version/v10')/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
+    '/go/vars/full-version-v10')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -16172,10 +16174,10 @@ steps:
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
   - git checkout -qf "branch/v9"
-  - mkdir -pv "/go/vars/full-version"
+  - mkdir -pv $(dirname "/go/vars/full-version-v9")
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
-  - go run . "v9" | sed 's/v//' > "/go/vars/full-version/v9"
-  - echo Found full semver "$(cat "/go/vars/full-version/v9")" for major version "v9"
+  - go run . "v9" | sed 's/v//' > "/go/vars/full-version-v9"
+  - echo Found full semver "$(cat "/go/vars/full-version-v9")" for major version "v9"
 - name: Wait for docker
   image: docker
   commands:
@@ -16201,20 +16203,20 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "$(cat '/go/vars/full-version/v9')"
+  - git checkout -qf "v$(cat '/go/vars/full-version-v9')"
   depends_on:
   - Find the latest available semver for v9
 - name: Build major, minor, and full semvers
   image: alpine
   commands:
   - mkdir -pv $(dirname "/go/var/major-version")
-  - echo $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
+  - echo v$(cat '/go/vars/full-version-v9') | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
   - echo $(cat "/go/var/major-version")
   - mkdir -pv $(dirname "/go/var/minor-version")
-  - echo $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
+  - echo v$(cat '/go/vars/full-version-v9') | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
   - echo $(cat "/go/var/minor-version")
   - mkdir -pv $(dirname "/go/var/full-version")
-  - echo $(cat '/go/vars/full-version/v9') | sed 's/v//' > "/go/var/full-version"
+  - echo v$(cat '/go/vars/full-version-v9') | sed 's/v//' > "/go/var/full-version"
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Find the latest available semver for v9
@@ -16336,8 +16338,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
-    '/go/vars/full-version/v9')/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
+    '/go/vars/full-version-v9')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -17065,8 +17067,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
-    '/go/vars/full-version/v9')/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
+    '/go/vars/full-version-v9')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -17797,8 +17799,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
-    '/go/vars/full-version/v9')/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
+    '/go/vars/full-version-v9')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -18823,11 +18825,10 @@ steps:
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
   - git checkout -qf "branch/v11"
-  - mkdir -pv "/go/vars/full-version"
+  - mkdir -pv $(dirname "/go/vars/full-version-v11")
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
-  - go run . "v11" | sed 's/v//' > "/go/vars/full-version/v11"
-  - echo "v1.2.3-fred.1"  | sed 's/v//' > "/go/vars/full-version/v11"
-  - echo Found full semver "$(cat "/go/vars/full-version/v11")" for major version
+  - go run . "v11" | sed 's/v//' > "/go/vars/full-version-v11"
+  - echo Found full semver "$(cat "/go/vars/full-version-v11")" for major version
     "v11"
 - name: Wait for docker
   image: docker
@@ -18854,20 +18855,21 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "$(cat '/go/vars/full-version/v11')"
+  - git checkout -qf "v$(cat '/go/vars/full-version-v11')"
   depends_on:
   - Find the latest available semver for v11
 - name: Build major, minor, and full semvers
   image: alpine
   commands:
   - mkdir -pv $(dirname "/go/var/major-version")
-  - echo $(cat '/go/vars/full-version/v11') | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
+  - echo v$(cat '/go/vars/full-version-v11') | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
   - echo $(cat "/go/var/major-version")
   - mkdir -pv $(dirname "/go/var/minor-version")
-  - echo $(cat '/go/vars/full-version/v11') | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
+  - echo v$(cat '/go/vars/full-version-v11') | sed 's/v//' | cut -d'.' -f "1,2" >
+    "/go/var/minor-version"
   - echo $(cat "/go/var/minor-version")
   - mkdir -pv $(dirname "/go/var/full-version")
-  - echo $(cat '/go/vars/full-version/v11') | sed 's/v//' > "/go/var/full-version"
+  - echo v$(cat '/go/vars/full-version-v11') | sed 's/v//' > "/go/var/full-version"
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Find the latest available semver for v11
@@ -18989,8 +18991,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
-    '/go/vars/full-version/v11')/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
+    '/go/vars/full-version-v11')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -19718,8 +19720,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
-    '/go/vars/full-version/v11')/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
+    '/go/vars/full-version-v11')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -20450,8 +20452,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
-    '/go/vars/full-version/v11')/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
+    '/go/vars/full-version-v11')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -21441,6 +21443,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 51b4023146a388619a2b497ab476870705e28a4a992579e21b3ff6b8f31c9047
+hmac: 4dbced2df6d26ba45e645573f4edc4263d82b8a00602637913e5e72a6dea36c0
 
 ...
