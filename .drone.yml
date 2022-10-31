@@ -18826,6 +18826,7 @@ steps:
   - mkdir -pv "/go/vars/full-version"
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
   - go run . "v11" > "/go/vars/full-version/v11"
+  - echo "v1.2.3-fred.1" > "/go/vars/full-version/v11"
   - echo Found full semver "$(cat "/go/vars/full-version/v11")" for major version
     "v11"
 - name: Wait for docker
@@ -21440,6 +21441,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 0591e4cec025a8a34b9c95a2c59dd49f19ec466717079d79f664e792989ccce5
+hmac: c23b7fee6c12e3eca947e590a171ad79de0c5232b6f53021dcdf56d9c6caddc8
 
 ...
