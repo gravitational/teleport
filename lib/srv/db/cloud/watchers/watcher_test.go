@@ -101,6 +101,11 @@ func TestWatcher(t *testing.T) {
 		aws.StringValue(memorydbUnsupported.ARN): memorydbUnsupportedTags,
 	}
 
+	rdsProxyVpc1, rdsProxyDatabaseVpc1 := makeRDSProxy(t, "rds-proxy-1", "us-east-1", "vpc1")
+	rdsProxyVpc2, _ := makeRDSProxy(t, "rds-proxy-2", "us-east-1", "vpc2")
+	rdsProxyEndpointVpc1, rdsProxyEndpointDatabaseVpc1 := makeRDSProxyCustomEndpoint(t, rdsProxyVpc1, "endpoint-1", "us-east-1")
+	rdsProxyEndpointVpc2, _ := makeRDSProxyCustomEndpoint(t, rdsProxyVpc2, "endpoint-2", "us-east-1")
+
 	const (
 		group1        = "group1"
 		group2        = "group2"
@@ -232,10 +237,12 @@ func TestWatcher(t *testing.T) {
 					"us-west-1": &cloud.RDSMockByDBType{
 						DBInstances: &cloud.RDSMock{DBInstances: []*rds.DBInstance{rdsInstance4}},
 						DBClusters:  &cloud.RDSMockUnauth{},
+						DBProxies:   &cloud.RDSMockUnauth{},
 					},
 					"us-east-1": &cloud.RDSMockByDBType{
 						DBInstances: &cloud.RDSMockUnauth{},
 						DBClusters:  &cloud.RDSMock{DBClusters: []*rds.DBCluster{auroraCluster1}},
+						DBProxies:   &cloud.RDSMockUnauth{},
 					},
 				},
 			},
@@ -317,6 +324,22 @@ func TestWatcher(t *testing.T) {
 				},
 			},
 			expectedDatabases: types.Databases{memorydbDatabaseProd},
+		},
+		{
+			name: "RDS Proxy",
+			awsMatchers: []services.AWSMatcher{{
+				Types:   []string{services.AWSMatcherRDSProxy},
+				Regions: []string{"us-east-1"},
+				Tags:    types.Labels{"vpc-id": []string{"vpc1"}},
+			}},
+			clients: &clients.TestCloudClients{
+				RDS: &cloud.RDSMock{
+					DBProxies:         []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
+					DBProxyEndpoints:  []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
+					DBProxyTargetPort: 9999,
+				},
+			},
+			expectedDatabases: types.Databases{rdsProxyDatabaseVpc1, rdsProxyEndpointDatabaseVpc1},
 		},
 		{
 			name: "matcher with multiple types",
@@ -1040,6 +1063,36 @@ func makeMemoryDBCluster(t *testing.T, name, region, env string, opts ...func(*m
 	database, err := services.NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
 	require.NoError(t, err)
 	return cluster, database, tags
+}
+
+func makeRDSProxy(t *testing.T, name, region, vpcID string) (*rds.DBProxy, types.Database) {
+	rdsProxy := &rds.DBProxy{
+		DBProxyArn:   aws.String(fmt.Sprintf("arn:aws:rds:%s:1234567890:db-proxy:prx-%s", region, name)),
+		DBProxyName:  aws.String(name),
+		EngineFamily: aws.String(rds.EngineFamilyMysql),
+		Endpoint:     aws.String("localhost"),
+		VpcId:        aws.String(vpcID),
+		RequireTLS:   aws.Bool(true),
+		Status:       aws.String("available"),
+	}
+
+	rdsProxyDatabase, err := services.NewDatabaseFromRDSProxy(rdsProxy, 9999, nil)
+	require.NoError(t, err)
+	return rdsProxy, rdsProxyDatabase
+}
+
+func makeRDSProxyCustomEndpoint(t *testing.T, rdsProxy *rds.DBProxy, name, region string) (*rds.DBProxyEndpoint, types.Database) {
+	rdsProxyEndpoint := &rds.DBProxyEndpoint{
+		Endpoint:            aws.String("localhost"),
+		DBProxyEndpointName: aws.String(name),
+		DBProxyName:         rdsProxy.DBProxyName,
+		DBProxyEndpointArn:  aws.String(fmt.Sprintf("arn:aws:rds:%v:123456:db-proxy-endpoint:prx-endpoint-%v", region, name)),
+		TargetRole:          aws.String(rds.DBProxyEndpointTargetRoleReadOnly),
+		Status:              aws.String("available"),
+	}
+	rdsProxyEndpointDatabase, err := services.NewDatabaseFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyEndpoint, 9999, nil)
+	require.NoError(t, err)
+	return rdsProxyEndpoint, rdsProxyEndpointDatabase
 }
 
 // withRDSInstanceStatus returns an option function for makeRDSInstance to overwrite status.

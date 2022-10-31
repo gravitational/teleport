@@ -22,13 +22,12 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/trace"
-
-	"github.com/sirupsen/logrus"
 )
 
 // elastiCacheFetcherConfig is the ElastiCache databases fetcher configuration.

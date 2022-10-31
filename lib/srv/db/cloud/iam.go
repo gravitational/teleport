@@ -24,7 +24,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -32,9 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // IAMConfig is the IAM configurator config.
@@ -134,7 +133,7 @@ func (c *IAM) Start(ctx context.Context) error {
 
 // Setup sets up cloud IAM policies for the provided database.
 func (c *IAM) Setup(ctx context.Context, database types.Database) error {
-	if database.IsRDS() || database.IsRedshift() {
+	if c.isSetupRequiredForDatabase(database) {
 		return c.addTask(iamTask{
 			isSetup:  true,
 			database: database,
@@ -145,13 +144,24 @@ func (c *IAM) Setup(ctx context.Context, database types.Database) error {
 
 // Teardown tears down cloud IAM policies for the provided database.
 func (c *IAM) Teardown(ctx context.Context, database types.Database) error {
-	if database.IsRDS() || database.IsRedshift() {
+	if c.isSetupRequiredForDatabase(database) {
 		return c.addTask(iamTask{
 			isSetup:  false,
 			database: database,
 		})
 	}
 	return nil
+}
+
+// isSetupRequiredForDatabase returns true if database type is supported.
+func (c *IAM) isSetupRequiredForDatabase(database types.Database) bool {
+	switch database.GetType() {
+	case types.DatabaseTypeRDS, types.DatabaseTypeRDSProxy, types.DatabaseTypeRedshift:
+		return true
+
+	default:
+		return false
+	}
 }
 
 // getAWSConfigurator returns configurator instance for the provided database.
