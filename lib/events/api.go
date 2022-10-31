@@ -23,12 +23,12 @@ import (
 	"math"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -487,6 +487,15 @@ const (
 
 	// DatabaseSessionMalformedPacketEvent is emitted when SQL packet is malformed.
 	DatabaseSessionMalformedPacketEvent = "db.session.malformed_packet"
+
+	// DatabaseSessionCassandraBatchEvent is emitted when a Cassandra client executes a batch of queries.
+	DatabaseSessionCassandraBatchEvent = "db.session.cassandra.batch"
+	// DatabaseSessionCassandraPrepareEvent is emitted when a Cassandra client sends prepare packet.
+	DatabaseSessionCassandraPrepareEvent = "db.session.cassandra.prepare"
+	// DatabaseSessionCassandraExecuteEvent is emitted when a Cassandra client sends executed packet.
+	DatabaseSessionCassandraExecuteEvent = "db.session.cassandra.execute"
+	// DatabaseSessionCassandraRegisterEvent is emitted when a Cassandra client sends the register packet.
+	DatabaseSessionCassandraRegisterEvent = "db.session.cassandra.register"
 
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.

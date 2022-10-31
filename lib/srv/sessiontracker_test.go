@@ -21,12 +21,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestSessionTracker(t *testing.T) {
@@ -131,6 +131,10 @@ type mockSessiontrackerService struct {
 }
 
 func (m *mockSessiontrackerService) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
+	return nil, trace.NotImplemented("")
+}
+
+func (m *mockSessiontrackerService) GetActiveSessionTrackersWithFilter(ctx context.Context, filter *types.SessionTrackerFilter) ([]types.SessionTracker, error) {
 	return nil, trace.NotImplemented("")
 }
 

@@ -6,10 +6,9 @@ package utils
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"strings"
-
-	"crypto/tls"
 
 	"github.com/gravitational/trace"
 )

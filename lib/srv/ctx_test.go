@@ -25,9 +25,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-func TestCheckFileCopyingAllowed(t *testing.T) {
-	srv := NewMockServer(t)
-	ctx := NewTestServerContext(t, srv, nil)
+func TestCheckSFTPAllowed(t *testing.T) {
+	srv := newMockServer(t)
+	ctx := newTestServerContext(t, srv, nil)
 
 	tests := []struct {
 		name                 string
@@ -108,6 +108,29 @@ func TestCheckFileCopyingAllowed(t *testing.T) {
 			},
 			expectedErr: errRoleFileCopyingNotPermitted,
 		},
+		{
+			name:                 "moderated sessions enforced",
+			nodeAllowFileCopying: true,
+			roles: []types.Role{
+				&types.RoleV5{
+					Kind: types.KindNode,
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							RequireSessionJoin: []*types.SessionRequirePolicy{
+								{
+									Name:   "test",
+									Filter: `contains(user.roles, "auditor")`,
+									Kinds:  []string{string(types.SSHSessionKind)},
+									Modes:  []string{string(types.SessionModeratorMode)},
+									Count:  3,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErr: errCannotStartUnattendedSession,
+		},
 	}
 
 	for _, tt := range tests {
@@ -124,7 +147,7 @@ func TestCheckFileCopyingAllowed(t *testing.T) {
 				roles,
 			)
 
-			err := ctx.CheckFileCopyingAllowed()
+			err := ctx.CheckSFTPAllowed()
 			if tt.expectedErr == nil {
 				require.NoError(t, err)
 			} else {

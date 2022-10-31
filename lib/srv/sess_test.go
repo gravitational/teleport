@@ -22,6 +22,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -32,12 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 func TestParseAccessRequestIDs(t *testing.T) {
@@ -125,7 +125,7 @@ func TestSession_newRecorder(t *testing.T) {
 				log: logger,
 				registry: &SessionRegistry{
 					SessionRegistryConfig: SessionRegistryConfig{
-						Srv: &MockServer{
+						Srv: &mockServer{
 							component: teleport.ComponentNode,
 						},
 					},
@@ -148,7 +148,7 @@ func TestSession_newRecorder(t *testing.T) {
 				log: logger,
 				registry: &SessionRegistry{
 					SessionRegistryConfig: SessionRegistryConfig{
-						Srv: &MockServer{
+						Srv: &mockServer{
 							component: teleport.ComponentNode,
 						},
 					},
@@ -171,7 +171,7 @@ func TestSession_newRecorder(t *testing.T) {
 				log: logger,
 				registry: &SessionRegistry{
 					SessionRegistryConfig: SessionRegistryConfig{
-						Srv: &MockServer{
+						Srv: &mockServer{
 							component: teleport.ComponentNode,
 						},
 					},
@@ -179,7 +179,7 @@ func TestSession_newRecorder(t *testing.T) {
 			},
 			sctx: &ServerContext{
 				SessionRecordingConfig: nodeRecording,
-				srv: &MockServer{
+				srv: &mockServer{
 					component: teleport.ComponentNode,
 				},
 			},
@@ -193,7 +193,7 @@ func TestSession_newRecorder(t *testing.T) {
 				log: logger,
 				registry: &SessionRegistry{
 					SessionRegistryConfig: SessionRegistryConfig{
-						Srv: &MockServer{
+						Srv: &mockServer{
 							component: teleport.ComponentNode,
 						},
 					},
@@ -201,7 +201,7 @@ func TestSession_newRecorder(t *testing.T) {
 			},
 			sctx: &ServerContext{
 				SessionRecordingConfig: nodeRecordingSync,
-				srv: &MockServer{
+				srv: &mockServer{
 					component: teleport.ComponentNode,
 				},
 				Identity: IdentityContext{
@@ -231,7 +231,7 @@ func TestSession_newRecorder(t *testing.T) {
 				log: logger,
 				registry: &SessionRegistry{
 					SessionRegistryConfig: SessionRegistryConfig{
-						Srv: &MockServer{
+						Srv: &mockServer{
 							component: teleport.ComponentNode,
 						},
 					},
@@ -240,7 +240,7 @@ func TestSession_newRecorder(t *testing.T) {
 			sctx: &ServerContext{
 				ClusterName:            "test",
 				SessionRecordingConfig: nodeRecordingSync,
-				srv: &MockServer{
+				srv: &mockServer{
 					component: teleport.ComponentNode,
 				},
 				Identity: IdentityContext{
@@ -275,7 +275,7 @@ func TestSession_newRecorder(t *testing.T) {
 				log: logger,
 				registry: &SessionRegistry{
 					SessionRegistryConfig: SessionRegistryConfig{
-						Srv: &MockServer{
+						Srv: &mockServer{
 							component: teleport.ComponentNode,
 						},
 					},
@@ -284,7 +284,7 @@ func TestSession_newRecorder(t *testing.T) {
 			sctx: &ServerContext{
 				ClusterName:            "test",
 				SessionRecordingConfig: nodeRecordingSync,
-				srv: &MockServer{
+				srv: &mockServer{
 					MockEmitter: &eventstest.MockEmitter{},
 				},
 			},
@@ -315,7 +315,7 @@ func TestSession_emitAuditEvent(t *testing.T) {
 	})
 
 	t.Run("FallbackConcurrency", func(t *testing.T) {
-		srv := NewMockServer(t)
+		srv := newMockServer(t)
 		reg, err := NewSessionRegistry(SessionRegistryConfig{
 			Srv:                   srv,
 			SessionTrackerService: srv.auth,
@@ -328,7 +328,7 @@ func TestSession_emitAuditEvent(t *testing.T) {
 			log:      logger,
 			recorder: &mockRecorder{done: true},
 			registry: reg,
-			scx:      NewTestServerContext(t, srv, nil),
+			scx:      newTestServerContext(t, srv, nil),
 		}
 
 		controlCh := make(chan struct{})
@@ -355,7 +355,7 @@ func TestSession_emitAuditEvent(t *testing.T) {
 // Multiple sessions are opened in parallel tests to test for
 // deadlocks between session registry, sessions, and parties.
 func TestInteractiveSession(t *testing.T) {
-	srv := NewMockServer(t)
+	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
 
 	reg, err := NewSessionRegistry(SessionRegistryConfig{
@@ -384,7 +384,7 @@ func TestInteractiveSession(t *testing.T) {
 // TestStopUnstarted tests that a session may be stopped before it launches.
 func TestStopUnstarted(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
-	srv := NewMockServer(t)
+	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
 
 	reg, err := NewSessionRegistry(SessionRegistryConfig{
@@ -426,7 +426,7 @@ func TestStopUnstarted(t *testing.T) {
 func TestParties(t *testing.T) {
 	t.Parallel()
 
-	srv := NewMockServer(t)
+	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
 
 	// Use a separate clock from srv so we can use BlockUntil.
@@ -498,7 +498,7 @@ func TestParties(t *testing.T) {
 }
 
 func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
-	scx := NewTestServerContext(t, reg.Srv, nil)
+	scx := newTestServerContext(t, reg.Srv, nil)
 	scx.setSession(sess)
 
 	// Open a new session
@@ -532,7 +532,7 @@ func TestSessionRecordingModes(t *testing.T) {
 		},
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
-			srv := NewMockServer(t)
+			srv := newMockServer(t)
 			srv.component = teleport.ComponentNode
 
 			reg, err := NewSessionRegistry(SessionRegistryConfig{
@@ -601,7 +601,7 @@ func TestSessionRecordingModes(t *testing.T) {
 }
 
 func testOpenSession(t *testing.T, reg *SessionRegistry, roleSet services.RoleSet) (*session, ssh.Channel) {
-	scx := NewTestServerContext(t, reg.Srv, roleSet)
+	scx := newTestServerContext(t, reg.Srv, roleSet)
 
 	// Open a new session
 	sshChanOpen := newMockSSHChannel()

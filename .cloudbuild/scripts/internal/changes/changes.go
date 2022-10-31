@@ -40,6 +40,11 @@ type Changes struct {
 	Rust       bool
 }
 
+// HasCodeChanges returns true if the changeset includes code changes.
+func (c Changes) HasCodeChanges() bool {
+	return c.Code || c.Helm || c.CI || c.Rust || c.Operator
+}
+
 // Analyze examines the workspace for specific changes using its git history,
 // and then collates and returns a report.
 func Analyze(workspaceDir string, targetBranch string, commitSHA string) (Changes, error) {
@@ -101,7 +106,14 @@ func isCIChange(path string) bool {
 
 func isOperatorChange(path string) bool {
 	path = strings.ToLower(path)
-	return strings.HasPrefix(path, "operator/")
+	// dependency updates can impact CRD generation,
+	// so ensure that operator tests are run when
+	// dependencies change
+	return path == "go.mod" ||
+		path == "go.sum" ||
+		strings.HasPrefix(path, "operator/") ||
+		strings.HasPrefix(path, "api/types") || // the operator uses directly Teleport types
+		strings.HasPrefix(path, "lib/tbot") // the operator embeds a tbot instance
 }
 
 func isDocChange(path string) bool {

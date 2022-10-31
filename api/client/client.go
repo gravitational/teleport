@@ -28,16 +28,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/metadata"
-	"github.com/gravitational/teleport/api/observability/tracing"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
@@ -49,6 +39,17 @@ import (
 	ggzip "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/emptypb"
+
+	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 func init() {
@@ -262,18 +263,22 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	}()
 
 	var errs []error
-	for errChan != nil {
+Outer:
+	for {
 		select {
 		// Use the first client to successfully connect in syncConnect.
 		case clt := <-cltChan:
+			go func() {
+				for range errChan {
+				}
+			}()
 			return clt, nil
 		case err, ok := <-errChan:
-			if ok {
-				// Add a new line to make errs human readable.
-				errs = append(errs, trace.Wrap(err, ""))
-				continue
+			if !ok {
+				break Outer
 			}
-			errChan = nil
+			// Add a new line to make errs human readable.
+			errs = append(errs, trace.Wrap(err, ""))
 		}
 	}
 
@@ -1279,9 +1284,16 @@ func (c *Client) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUse
 
 // GenerateAppToken creates a JWT token with application access.
 func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error) {
+	traits := map[string]*wrappers.StringValues{}
+	for traitName, traitValues := range req.Traits {
+		traits[traitName] = &wrappers.StringValues{
+			Values: traitValues,
+		}
+	}
 	resp, err := c.grpc.GenerateAppToken(ctx, &proto.GenerateAppTokenRequest{
 		Username: req.Username,
 		Roles:    req.Roles,
+		Traits:   traits,
 		URI:      req.URI,
 		Expires:  req.Expires,
 	})
@@ -1515,9 +1527,6 @@ func (c *Client) GetOIDCConnector(ctx context.Context, name string, withSecrets 
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-	// An old server would send RedirectURL instead of RedirectURLs
-	// DELETE IN 11.0.0
-	resp.CheckSetRedirectURL()
 	return resp, nil
 }
 
@@ -1530,9 +1539,6 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]typ
 	}
 	oidcConnectors := make([]types.OIDCConnector, len(resp.OIDCConnectors))
 	for i, oidcConnector := range resp.OIDCConnectors {
-		// An old server would send RedirectURL instead of RedirectURLs
-		// DELETE IN 11.0.0
-		oidcConnector.CheckSetRedirectURL()
 		oidcConnectors[i] = oidcConnector
 	}
 	return oidcConnectors, nil
@@ -1544,9 +1550,6 @@ func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OI
 	if !ok {
 		return trace.BadParameter("invalid type %T", oidcConnector)
 	}
-	// An old server would expect RedirectURL instead of RedirectURLs
-	// DELETE IN 11.0.0
-	connector.CheckSetRedirectURL()
 	_, err := c.grpc.UpsertOIDCConnector(ctx, connector, c.callOpts...)
 	return trail.FromGRPC(err)
 }
@@ -2728,24 +2731,6 @@ func (c *Client) CreateSessionTracker(ctx context.Context, st types.SessionTrack
 	}
 
 	req := &proto.CreateSessionTrackerRequest{SessionTracker: v1}
-
-	// DELETE IN 11.0.0
-	// Early v9 versions use a flattened out types.SessionTrackerV1
-	req.ID = v1.Spec.SessionID
-	req.Type = v1.Spec.Kind
-	req.Reason = v1.Spec.Reason
-	req.Invited = v1.Spec.Invited
-	req.Hostname = v1.Spec.Hostname
-	req.Address = v1.Spec.Address
-	req.ClusterName = v1.Spec.ClusterName
-	req.Login = v1.Spec.Login
-	req.Expires = v1.Spec.Expires
-	req.KubernetesCluster = v1.Spec.KubernetesCluster
-	req.HostUser = v1.Spec.HostUser
-	if len(v1.Spec.Participants) > 0 {
-		req.Initiator = &v1.Spec.Participants[0]
-	}
-
 	tracker, err := c.grpc.CreateSessionTracker(ctx, req, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -2766,6 +2751,30 @@ func (c *Client) GetSessionTracker(ctx context.Context, sessionID string) (types
 // GetActiveSessionTrackers returns a list of active session trackers.
 func (c *Client) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
 	stream, err := c.grpc.GetActiveSessionTrackers(ctx, &emptypb.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	var sessions []types.SessionTracker
+	for {
+		session, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+
+			return nil, trace.Wrap(err)
+		}
+
+		sessions = append(sessions, session)
+	}
+
+	return sessions, nil
+}
+
+// GetActiveSessionTrackersWithFilter returns a list of active sessions filtered by a filter.
+func (c *Client) GetActiveSessionTrackersWithFilter(ctx context.Context, filter *types.SessionTrackerFilter) ([]types.SessionTracker, error) {
+	stream, err := c.grpc.GetActiveSessionTrackersWithFilter(ctx, filter, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}

@@ -21,13 +21,13 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/config"
 	dbconfigurators "github.com/gravitational/teleport/lib/configurators/databases"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-
-	"github.com/gravitational/trace"
 )
 
 // awsDatabaseTypes list of databases supported on the configurator.

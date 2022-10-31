@@ -211,7 +211,7 @@ following command, modifying the DN for your domain (in this command we use a
 domain of example.com)
 
 ```
-$ certutil -viewstore "ldap:///CN=NTAuthCertificates,CN=Public Key Services,CN=Configuration,DC=example,DC=com?caCertificate"
+$ certutil -viewstore "ldap:///CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com?caCertificate"
 ```
 
 You should see a popup window that shows the Teleport CA certificate. If the

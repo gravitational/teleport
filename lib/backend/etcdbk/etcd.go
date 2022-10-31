@@ -28,15 +28,6 @@ import (
 	"strings"
 	"time"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
-	cq "github.com/gravitational/teleport/lib/utils/concurrentqueue"
-
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -50,6 +41,14 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
+	cq "github.com/gravitational/teleport/lib/utils/concurrentqueue"
 )
 
 var (
@@ -571,7 +570,7 @@ func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey []byte, lim
 	if len(endKey) == 0 {
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
-	opts := []clientv3.OpOption{clientv3.WithSerializable(), clientv3.WithRange(b.prependPrefix(endKey))}
+	opts := []clientv3.OpOption{clientv3.WithRange(b.prependPrefix(endKey))}
 	if limit > 0 {
 		opts = append(opts, clientv3.WithLimit(int64(limit)))
 	}
@@ -720,7 +719,7 @@ func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 	if lease.ID == 0 {
 		return trace.BadParameter("lease is not specified")
 	}
-	re, err := b.client.Get(ctx, b.prependPrefix(lease.Key), clientv3.WithSerializable(), clientv3.WithKeysOnly())
+	re, err := b.client.Get(ctx, b.prependPrefix(lease.Key), clientv3.WithKeysOnly())
 	if err != nil {
 		return convertErr(err)
 	}
@@ -743,7 +742,7 @@ func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 
 // Get returns a single item or not found error
 func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
-	re, err := b.client.Get(ctx, b.prependPrefix(key), clientv3.WithSerializable())
+	re, err := b.client.Get(ctx, b.prependPrefix(key))
 	if err != nil {
 		return nil, convertErr(err)
 	}

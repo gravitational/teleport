@@ -6,7 +6,7 @@ Do not use this in production! This example should be used for demo, proof-of-co
 
 ## How does this work?
 
-Teleport AMIs are built so you only need to specify environment variables to bring a fully configured instance online. See `data.tpl` or our [documentation](https://gravitational.com/teleport/docs/aws_oss_guide/#single-oss-teleport-amis-manual-gui-setup) to learn more about supported environment variables.
+Teleport AMIs are built so you only need to specify environment variables to bring a fully configured instance online. See `data.tpl` or our [documentation](https://goteleport.com/docs/deploy-a-cluster/deployments/aws-terraform/#set-up-variables) to learn more about supported environment variables.
 
 A series of systemd [units](https://github.com/gravitational/teleport/tree/master/assets/aws/files/system) bootstrap the instance, via several bash [scripts](https://github.com/gravitational/teleport/tree/master/assets/aws/files/bin).
 
@@ -86,7 +86,7 @@ TF_VAR_license_path ?= "/path/to/license"
 # OSS: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'
 # Enterprise: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*'
 # FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
-TF_VAR_ami_name ?= "gravitational-teleport-ami-ent-10.3.1"
+TF_VAR_ami_name ?= "gravitational-teleport-ami-ent-11.0.1"
 
 # Route 53 hosted zone to use, must be a root zone registered in AWS, e.g. example.com
 TF_VAR_route53_zone ?= "example.com"

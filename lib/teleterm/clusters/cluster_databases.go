@@ -19,6 +19,8 @@ package clusters
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -27,10 +29,9 @@ import (
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/gravitational/trace"
 )
 
 // Database describes database
@@ -44,7 +45,7 @@ type Database struct {
 func (c *Cluster) GetDatabase(ctx context.Context, dbURI string) (*Database, error) {
 	// TODO(ravicious): Fetch a single db instead of filtering the response from GetDatabases.
 	// https://github.com/gravitational/teleport/pull/14690#discussion_r927720600
-	dbs, err := c.GetDatabases(ctx)
+	dbs, err := c.GetAllDatabases(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -59,7 +60,7 @@ func (c *Cluster) GetDatabase(ctx context.Context, dbURI string) (*Database, err
 }
 
 // GetDatabases returns databases
-func (c *Cluster) GetDatabases(ctx context.Context) ([]Database, error) {
+func (c *Cluster) GetAllDatabases(ctx context.Context) ([]Database, error) {
 	var dbs []types.Database
 	err := addMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
@@ -90,6 +91,67 @@ func (c *Cluster) GetDatabases(ctx context.Context) ([]Database, error) {
 	}
 
 	return responseDbs, nil
+}
+
+func (c *Cluster) GetDatabases(ctx context.Context, r *api.GetDatabasesRequest) (*GetDatabasesResponse, error) {
+	var (
+		resp        *types.ListResourcesResponse
+		authClient  auth.ClientI
+		proxyClient *client.ProxyClient
+		err         error
+	)
+
+	err = addMetadataToRetryableError(ctx, func() error {
+		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err = proxyClient.ConnectToRootCluster(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+		sortBy := types.GetSortByFromString(r.SortBy)
+
+		resp, err = authClient.ListResources(ctx, proto.ListResourcesRequest{
+			Namespace:           defaults.Namespace,
+			ResourceType:        types.KindDatabaseServer,
+			Limit:               r.Limit,
+			SortBy:              sortBy,
+			StartKey:            r.StartKey,
+			PredicateExpression: r.Query,
+			SearchKeywords:      client.ParseSearchKeywords(r.Search, ' '),
+			UseSearchAsRoles:    r.SearchAsRoles == "yes",
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	databases, err := types.ResourcesWithLabels(resp.Resources).AsDatabaseServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response := &GetDatabasesResponse{
+		StartKey:   resp.NextKey,
+		TotalCount: resp.TotalCount,
+	}
+	for _, database := range databases {
+		response.Databases = append(response.Databases, Database{
+			URI:      c.URI.AppendDB(database.GetName()),
+			Database: database.GetDatabase(),
+		})
+	}
+
+	return response, nil
 }
 
 // ReissueDBCerts issues new certificates for specific DB access
@@ -182,4 +244,12 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]
 	dbUsers := roleSet.EnumerateDatabaseUsers(db)
 
 	return dbUsers.Allowed(), nil
+}
+
+type GetDatabasesResponse struct {
+	Databases []Database
+	// StartKey is the next key to use as a starting point.
+	StartKey string
+	// // TotalCount is the total number of resources available as a whole.
+	TotalCount int
 }

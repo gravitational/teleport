@@ -35,6 +35,26 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
+	"github.com/gravitational/oxy/forward"
+	fwdutils "github.com/gravitational/oxy/utils"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/http2"
+	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/httpstream"
+	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/client-go/transport/spdy"
+	kubeexec "k8s.io/client-go/util/exec"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -51,33 +71,11 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
-	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
-	"github.com/gravitational/oxy/forward"
-	fwdutils "github.com/gravitational/oxy/utils"
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
-	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/maps"
-	"golang.org/x/net/http2"
-	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/httpstream"
-	"k8s.io/client-go/tools/remotecommand"
-	"k8s.io/client-go/transport/spdy"
-	kubeexec "k8s.io/client-go/util/exec"
 )
 
 // KubeServiceType specifies a Teleport service type which can forward Kubernetes requests
@@ -140,15 +138,6 @@ type ForwarderConfig struct {
 	ConnPingPeriod time.Duration
 	// Component name to include in log output.
 	Component string
-	// StaticLabels is map of static labels associated with this cluster.
-	// Used for RBAC.
-	StaticLabels map[string]string
-	// DynamicLabels is map of dynamic labels associated with this cluster.
-	// Used for RBAC.
-	DynamicLabels *labels.Dynamic
-	// CloudLabels is a map of labels imported from a cloud provider associated with this
-	// cluster. Used for RBAC.
-	CloudLabels labels.Importer
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
 	// CheckImpersonationPermissions is an optional override of the default
@@ -279,7 +268,6 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-
 	return fwd, nil
 }
 
@@ -1395,7 +1383,7 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 	// TODO(smallinsky) UPDATE IN 11.0. use KubeTeleportProxyALPNPrefix instead.
 	req.URL.Host = fmt.Sprintf("%s%s", constants.KubeSNIPrefix, constants.APIDomain)
 	if sess.creds != nil {
-		req.URL.Host = sess.creds.targetAddr
+		req.URL.Host = sess.creds.getTargetAddr()
 	}
 
 	// add origin headers so the service consuming the request on the other site
@@ -1603,7 +1591,7 @@ func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.R
 type clusterSession struct {
 	authContext
 	parent    *Forwarder
-	creds     *kubeCreds
+	creds     kubeCreds
 	tlsConfig *tls.Config
 	forwarder *forward.Forwarder
 	// noAuditEvents is true if this teleport service should leave audit event
@@ -1782,8 +1770,8 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 		parent:               f,
 		authContext:          ctx,
 		creds:                details.kubeCreds,
-		kubeClusterEndpoints: []kubeClusterEndpoint{{addr: details.targetAddr}},
-		tlsConfig:            details.tlsConfig.Clone(),
+		kubeClusterEndpoints: []kubeClusterEndpoint{{addr: details.getTargetAddr()}},
+		tlsConfig:            details.getTLSConfig().Clone(),
 	}, nil
 }
 
@@ -2024,31 +2012,13 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-// getServiceStaticLabels gets the labels that the forwarder should present as static,
-// which includes EC2 labels if available.
-func (f *Forwarder) getServiceStaticLabels() map[string]string {
-	if f.cfg.CloudLabels == nil {
-		return f.cfg.StaticLabels
-	}
-	labels := maps.Clone(f.cfg.CloudLabels.Get())
-	// Let static labels override ec2 labels.
-	for k, v := range f.cfg.StaticLabels {
-		labels[k] = v
-	}
-	return labels
-}
-
 // kubeClusters returns the list of available clusters
 func (f *Forwarder) kubeClusters() types.KubeClusters {
 	f.rwMutexDetails.RLock()
 	defer f.rwMutexDetails.RUnlock()
 	res := make(types.KubeClusters, 0, len(f.clusterDetails))
-	for n, cred := range f.clusterDetails {
-		cluster, err := f.newKubernetesClusterV3FromDetails(cred)
-		if err != nil {
-			f.log.WithError(err).Warnf("Error while creating *types.KubernetesClusterV3 for cluster %q", n)
-			continue
-		}
+	for _, cred := range f.clusterDetails {
+		cluster := cred.kubeCluster.Copy()
 		res = append(res,
 			cluster,
 		)
@@ -2056,25 +2026,16 @@ func (f *Forwarder) kubeClusters() types.KubeClusters {
 	return res
 }
 
-// findKubeClusterByName searches for the cluster otherwise returns a trace.NotFound error.
-func (f *Forwarder) findKubeClusterByName(name string) (types.KubeCluster, error) {
+// findKubeDetailsByClusterName searches for the cluster details otherwise returns a trace.NotFound error.
+func (f *Forwarder) findKubeDetailsByClusterName(name string) (*kubeDetails, error) {
 	f.rwMutexDetails.RLock()
 	defer f.rwMutexDetails.RUnlock()
 
 	if creds, ok := f.clusterDetails[name]; ok {
-		return f.newKubernetesClusterV3FromDetails(creds)
+		return creds, nil
 	}
 
 	return nil, trace.NotFound("cluster %s not found", name)
-}
-
-// newKubernetesClusterV3FromDetails copies the details.kubeCluster and populates it with the
-// kube_service's static and dynamic labels values.
-func (f *Forwarder) newKubernetesClusterV3FromDetails(details *kubeDetails) (*types.KubernetesClusterV3, error) {
-	clonedCluster := details.kubeCluster.Copy()
-	clonedCluster.Metadata.Labels = f.getClusterStaticLabels(clonedCluster)
-	clonedCluster.Spec.DynamicLabels = f.getClusterDynamicLabels(details)
-	return clonedCluster, nil
 }
 
 // upsertKubeDetails updates the details in f.ClusterDetails for key if they exist,
@@ -2099,41 +2060,6 @@ func (f *Forwarder) removeKubeDetails(name string) {
 		oldDetails.Close()
 	}
 	delete(f.clusterDetails, name)
-}
-
-// getClusterDynamicLabels returns the cluster dynamic labels and service labels merged together.
-// if cluster and service define the same dynamic label key, service labels have precedence.
-func (f *Forwarder) getClusterDynamicLabels(details *kubeDetails) (dstDynLabels map[string]types.CommandLabelV2) {
-	if details.dynamicLabels != nil {
-		dstDynLabels = types.LabelsToV2(details.dynamicLabels.Get())
-	}
-
-	if f.cfg.DynamicLabels != nil {
-		if dstDynLabels == nil {
-			dstDynLabels = map[string]types.CommandLabelV2{}
-		}
-		// get service level dynamic labels.
-		serviceDynLabels := types.LabelsToV2(f.cfg.DynamicLabels.Get())
-		// if cluster and service define the same dynamic label key, service labels have precedence.
-		maps.Copy(dstDynLabels, serviceDynLabels)
-	}
-	return
-}
-
-// getClusterStaticLabels returns the cluster static labels and service labels merged together.
-func (f *Forwarder) getClusterStaticLabels(cluster types.KubeCluster) (dstLabels map[string]string) {
-	if cluster.GetStaticLabels() != nil {
-		dstLabels = maps.Clone(cluster.GetStaticLabels())
-	}
-
-	if len(f.getServiceStaticLabels()) > 0 {
-		if dstLabels == nil {
-			dstLabels = make(map[string]string)
-		}
-		// if cluster and service define the same static label key, service labels have precedence.
-		maps.Copy(dstLabels, f.getServiceStaticLabels())
-	}
-	return
 }
 
 type responseStatusRecorder struct {

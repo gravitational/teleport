@@ -22,10 +22,11 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // selectConnectionUpgrade selects the requested upgrade type and returns the

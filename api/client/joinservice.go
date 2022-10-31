@@ -19,8 +19,9 @@ package client
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/client/proto"
 )
 
 // JoinServiceClient is a client for the JoinService, which runs on both the
@@ -49,6 +50,10 @@ type RegisterChallengeResponseFunc func(challenge string) (*proto.RegisterUsingI
 // *types.RegisterUsingTokenRequest with a signed sts:GetCallerIdentity request
 // including the challenge as a signed header.
 func (c *JoinServiceClient) RegisterUsingIAMMethod(ctx context.Context, challengeResponse RegisterChallengeResponseFunc) (*proto.Certs, error) {
+	// Make sure the gRPC stream is closed when this returns
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	// initiate the streaming rpc
 	iamJoinClient, err := c.grpcClient.RegisterUsingIAMMethod(ctx)
 	if err != nil {

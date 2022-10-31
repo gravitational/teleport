@@ -26,6 +26,9 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -34,9 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
 )
 
 // onAppLogin implements "tsh app login" command.
@@ -240,24 +240,19 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 		uri = fmt.Sprintf("https://%v:%v", appPublicAddr, port)
 	}
 
-	var curlCmd string
+	var curlInsecureFlag string
 	if tc.InsecureSkipVerify {
-		curlCmd = fmt.Sprintf(`curl --insecure \
-  --cert %v \
-  --key %v \
-  %v`,
-			profile.AppCertPath(appName),
-			profile.KeyPath(),
-			uri)
-	} else {
-		curlCmd = fmt.Sprintf(`curl \
-  --cert %v \
-  --key %v \
-  %v`,
-			profile.AppCertPath(appName),
-			profile.KeyPath(),
-			uri)
+		curlInsecureFlag = "--insecure "
 	}
+
+	curlCmd := fmt.Sprintf(`curl %s\
+  --cert %v \
+  --key %v \
+  %v`,
+		curlInsecureFlag,
+		profile.AppCertPath(appName),
+		profile.KeyPath(),
+		uri)
 	format = strings.ToLower(format)
 	switch format {
 	case appFormatURI:
