@@ -70,7 +70,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 				EnabledFlag:   "true",
 				ListenAddress: localListenerAddr(),
 			},
-			ClusterName: "localhost",
+			ClusterName: "root",
 		},
 	}
 
@@ -126,6 +126,9 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 }
 
 func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
+	sshListenAddr := localListenerAddr()
+	_, sshListenPort, err := net.SplitHostPort(sshListenAddr)
+	require.NoError(t, err)
 	fileConfig := &config.FileConfig{
 		Version: "v2",
 		Global: config.Global{
@@ -140,9 +143,12 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 		},
 		Proxy: config.Proxy{
 			Service: config.Service{
-				EnabledFlag: "true",
+				EnabledFlag:   "true",
+				ListenAddress: sshListenAddr,
 			},
-			WebAddr: localListenerAddr(),
+			SSHPublicAddr: []string{net.JoinHostPort("localhost", sshListenPort)},
+			WebAddr:       localListenerAddr(),
+			TunAddr:       localListenerAddr(),
 		},
 		Auth: config.Auth{
 			Service: config.Service{
@@ -156,7 +162,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 
 	cfg := service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	err := config.ApplyFileConfig(fileConfig, cfg)
+	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
 	user, err := user.Current()
@@ -277,9 +283,12 @@ func runTeleport(t *testing.T, cfg *service.Config, opts ...service.NewTeleportO
 		require.NoError(t, process.Wait())
 	})
 
-	serviceReadyEvents := []string{
-		service.ProxyWebServerReady,
-		service.NodeSSHReady,
+	var serviceReadyEvents []string
+	if cfg.Proxy.Enabled {
+		serviceReadyEvents = append(serviceReadyEvents, service.ProxyWebServerReady)
+	}
+	if cfg.SSH.Enabled {
+		serviceReadyEvents = append(serviceReadyEvents, service.NodeSSHReady)
 	}
 	if cfg.Databases.Enabled {
 		serviceReadyEvents = append(serviceReadyEvents, service.DatabasesReady)

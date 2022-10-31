@@ -2518,14 +2518,14 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(
 			priv.MarshalSSHPublicKey(), user.GetName(), time.Hour,
 			constants.CertificateFormatStandard,
-			"localhost", "",
+			"root", "",
 		)
 		require.NoError(t, err)
 
 		// load CA cert
 		authority, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
-			DomainName: "localhost",
+			DomainName: "root",
 		}, false)
 		require.NoError(t, err)
 
