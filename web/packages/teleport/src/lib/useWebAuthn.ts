@@ -63,18 +63,27 @@ export default function useWebAuthn(emitterSender: EventEmitterWebAuthnSender) {
       });
   }
 
+  const onChallenge = challengeJson => {
+    const challenge = JSON.parse(challengeJson);
+    const publicKey = makeMfaAuthenticateChallenge(challenge).webauthnPublicKey;
+
+    setState({
+      ...state,
+      requested: true,
+      publicKey,
+    });
+  };
+
   useEffect(() => {
     if (emitterSender) {
-      emitterSender.on(TermEventEnum.WEBAUTHN_CHALLENGE, challenge => {
-        const json = JSON.parse(challenge);
-        const publicKey = makeMfaAuthenticateChallenge(json).webauthnPublicKey;
+      emitterSender.on(TermEventEnum.WEBAUTHN_CHALLENGE, onChallenge);
 
-        setState({
-          ...state,
-          requested: true,
-          publicKey,
-        });
-      });
+      return () => {
+        emitterSender.removeListener(
+          TermEventEnum.WEBAUTHN_CHALLENGE,
+          onChallenge
+        );
+      };
     }
   }, [emitterSender]);
 
