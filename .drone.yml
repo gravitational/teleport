@@ -294,7 +294,7 @@ steps:
   - git submodule update --init --recursive webassets || true
   - mkdir -pv /go/cache
   - rm -f /root/.ssh/id_rsa
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
+  - if [[ "$(echo v1.2.3-fred.11)" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
     else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
@@ -830,7 +830,7 @@ steps:
 - name: Check if commit is tagged
   image: alpine
   commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+  - '[ -n $(echo v1.2.3-fred.11) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Wait for docker
   image: docker
@@ -1714,7 +1714,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.11)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -1900,7 +1900,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.11)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2091,7 +2091,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.11)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2283,7 +2283,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.11)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2464,7 +2464,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.11)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2506,7 +2506,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "$(echo v1.2.3-fred.11)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
     /go/artifacts/
@@ -2725,7 +2725,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.11)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2767,7 +2767,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "$(echo v1.2.3-fred.11)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-centos7-fips-bin.tar.gz
     /go/artifacts/
@@ -2989,7 +2989,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.11)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -3031,7 +3031,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "$(echo v1.2.3-fred.11)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz
     /go/artifacts/
@@ -3236,7 +3236,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.11)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -3278,7 +3278,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "$(echo v1.2.3-fred.11)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz
     /go/artifacts/
@@ -3482,7 +3482,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.11)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -3663,7 +3663,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.11)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -3705,7 +3705,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "$(echo v1.2.3-fred.11)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-386-bin.tar.gz
     /go/artifacts/
@@ -3924,7 +3924,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.11)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -3966,7 +3966,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "$(echo v1.2.3-fred.11)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-386-bin.tar.gz
     /go/artifacts/
@@ -4795,7 +4795,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.11)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -4978,7 +4978,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.11)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -5159,7 +5159,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.11)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -5201,7 +5201,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "$(echo v1.2.3-fred.11)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-arm64-bin.tar.gz
     /go/artifacts/
@@ -5406,7 +5406,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.11)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -5448,7 +5448,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "$(echo v1.2.3-fred.11)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-arm-bin.tar.gz
     /go/artifacts/
@@ -5653,7 +5653,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.11)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -5695,7 +5695,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "$(echo v1.2.3-fred.11)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-arm64-bin.tar.gz
     /go/artifacts/
@@ -5914,7 +5914,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.11)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -5956,7 +5956,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "$(echo v1.2.3-fred.11)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-arm-bin.tar.gz
     /go/artifacts/
@@ -6177,7 +6177,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.11)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -6924,7 +6924,7 @@ steps:
 - name: Verify build is tagged
   image: alpine:latest
   commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+  - '[ -n $(echo v1.2.3-fred.11) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Check out code
   image: alpine/git:latest
@@ -6934,7 +6934,7 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
+  - git checkout -qf "$(echo v1.2.3-fred.11)"
 - name: Assume Download AWS Role
   image: amazon/aws-cli
   commands:
@@ -6962,7 +6962,7 @@ steps:
   depends_on:
   - Verify build is tagged
   - Check out code
-- name: Download artifacts for "${DRONE_TAG}"
+- name: Download artifacts for "$(echo v1.2.3-fred.11)"
   image: amazon/aws-cli
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
@@ -7006,7 +7006,7 @@ steps:
   depends_on:
   - Verify build is tagged
   - Check out code
-- name: Publish debs to APT repos for "${DRONE_TAG}"
+- name: Publish debs to APT repos for "$(echo v1.2.3-fred.11)"
   image: golang:1.18-bullseye
   commands:
   - apt update
@@ -7015,7 +7015,7 @@ steps:
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
   - chown -R root:root "$GNUPGHOME"
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - export VERSION="${DRONE_TAG}"
+  - export VERSION="$(echo v1.2.3-fred.11)"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-os-package-repos apt -bucket "$REPO_S3_BUCKET" -local-bucket-path
     "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
@@ -7039,7 +7039,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download artifacts for "${DRONE_TAG}"
+  - Download artifacts for "$(echo v1.2.3-fred.11)"
   - Verify build is tagged
   - Check out code
 volumes:
@@ -7108,7 +7108,7 @@ steps:
 - name: Verify build is tagged
   image: alpine:latest
   commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+  - '[ -n $(echo v1.2.3-fred.11) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Check out code
   image: alpine/git:latest
@@ -7118,7 +7118,7 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
+  - git checkout -qf "$(echo v1.2.3-fred.11)"
 - name: Assume Download AWS Role
   image: amazon/aws-cli
   commands:
@@ -7146,7 +7146,7 @@ steps:
   depends_on:
   - Verify build is tagged
   - Check out code
-- name: Download artifacts for "${DRONE_TAG}"
+- name: Download artifacts for "$(echo v1.2.3-fred.11)"
   image: amazon/aws-cli
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
@@ -7190,7 +7190,7 @@ steps:
   depends_on:
   - Verify build is tagged
   - Check out code
-- name: Publish rpms to YUM repos for "${DRONE_TAG}"
+- name: Publish rpms to YUM repos for "$(echo v1.2.3-fred.11)"
   image: golang:1.18-bullseye
   commands:
   - apt update
@@ -7200,7 +7200,7 @@ steps:
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
   - chown -R root:root "$GNUPGHOME"
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - export VERSION="${DRONE_TAG}"
+  - export VERSION="$(echo v1.2.3-fred.11)"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
     "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
@@ -7224,7 +7224,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download artifacts for "${DRONE_TAG}"
+  - Download artifacts for "$(echo v1.2.3-fred.11)"
   - Verify build is tagged
   - Check out code
 volumes:
@@ -7796,7 +7796,7 @@ steps:
 - name: Check if commit is tagged
   image: alpine
   commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+  - '[ -n $(echo v1.2.3-fred.11) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Wait for docker
   image: docker
@@ -8176,12 +8176,12 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "$DRONE_TAG"
+  - git checkout -qf "$(echo v1.2.3-fred.11)"
 - name: Build full semver
   image: alpine
   commands:
   - mkdir -pv $(dirname "/go/var/full-version")
-  - echo $DRONE_TAG | sed 's/v//' > "/go/var/full-version"
+  - echo $(echo v1.2.3-fred.11) | sed 's/v//' > "/go/var/full-version"
   - echo $(cat "/go/var/full-version")
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
@@ -8269,7 +8269,7 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/$DRONE_TAG/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/$(echo v1.2.3-fred.11)/build.assets/charts/Dockerfile"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8591,7 +8591,7 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/$DRONE_TAG/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/$(echo v1.2.3-fred.11)/build.assets/charts/Dockerfile"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8914,7 +8914,7 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/$DRONE_TAG/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/$(echo v1.2.3-fred.11)/build.assets/charts/Dockerfile"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -9283,7 +9283,7 @@ steps:
 - name: Verify build is tagged
   image: alpine:latest
   commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+  - '[ -n $(echo v1.2.3-fred.11) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Wait for docker
   image: docker
@@ -9310,20 +9310,20 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "$DRONE_TAG"
+  - git checkout -qf "$(echo v1.2.3-fred.11)"
   depends_on:
   - Verify build is tagged
 - name: Build major, minor, and full semvers
   image: alpine
   commands:
   - mkdir -pv $(dirname "/go/var/major-version")
-  - echo $DRONE_TAG | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
+  - echo $(echo v1.2.3-fred.11) | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
   - echo $(cat "/go/var/major-version")
   - mkdir -pv $(dirname "/go/var/minor-version")
-  - echo $DRONE_TAG | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
+  - echo $(echo v1.2.3-fred.11) | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
   - echo $(cat "/go/var/minor-version")
   - mkdir -pv $(dirname "/go/var/full-version")
-  - echo $DRONE_TAG | sed 's/v//' > "/go/var/full-version"
+  - echo $(echo v1.2.3-fred.11) | sed 's/v//' > "/go/var/full-version"
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Verify build is tagged
@@ -18750,9 +18750,12 @@ workspace:
   path: /go
 clone:
   disable: true
-depends_on:
-- clean-up-previous-build
 steps:
+- name: Verify build is tagged
+  image: alpine:latest
+  commands:
+  - '[ -n $(echo v1.2.3-fred.11) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+    && exit 1)'
 - name: Wait for docker
   image: docker
   commands:
@@ -18760,12 +18763,16 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  depends_on:
+  - Verify build is tagged
 - name: Wait for docker registry
   image: alpine
   commands:
   - apk add curl
   - timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %{http_code} http://drone-docker-registry:5000/)"
     != "200" ]; do sleep 1; done'
+  depends_on:
+  - Verify build is tagged
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -18774,13 +18781,23 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "$DRONE_TAG"
-- name: Build full semver
+  - git checkout -qf "$(echo v1.2.3-fred.11)"
+  depends_on:
+  - Verify build is tagged
+- name: Build major, minor, and full semvers
   image: alpine
   commands:
+  - mkdir -pv $(dirname "/go/var/major-version")
+  - echo $(echo v1.2.3-fred.11) | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
+  - echo $(cat "/go/var/major-version")
+  - mkdir -pv $(dirname "/go/var/minor-version")
+  - echo $(echo v1.2.3-fred.11) | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
+  - echo $(cat "/go/var/minor-version")
   - mkdir -pv $(dirname "/go/var/full-version")
-  - echo $DRONE_TAG | sed 's/v//' > "/go/var/full-version"
+  - echo $(echo v1.2.3-fred.11) | sed 's/v//' > "/go/var/full-version"
   - echo $(cat "/go/var/full-version")
+  depends_on:
+  - Verify build is tagged
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
   commands:
@@ -18805,12 +18822,14 @@ steps:
   volumes:
   - name: awsconfig
     path: /root/.aws
-- name: Assume ECR - authenticated-pull AWS Role
+  depends_on:
+  - Verify build is tagged
+- name: Assume ECR - production AWS Role
   image: amazon/aws-cli
   commands:
   - aws sts get-caller-identity
   - |-
-    printf "[ecr-authenticated-pull]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+    printf "[ecr-production]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
         --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
@@ -18818,7 +18837,7 @@ steps:
         --output text) \
       >> /root/.aws/credentials
   - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile ecr-authenticated-pull
+  - aws sts get-caller-identity --profile ecr-production
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
@@ -18831,293 +18850,408 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume ECR - staging AWS Role
-- name: Assume S3 Download AWS Role for teleport
-  image: amazon/aws-cli
+  - Verify build is tagged
+- name: Pull teleport:v11-amd64 and push it to Local Registry
+  image: docker
   commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[s3-download-teleport]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      >> /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile s3-download-teleport
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
+    "/go/var/full-version")-amd64
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
+    "/go/var/full-version")-amd64 drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
+  - docker push drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_PROFILE: ecr-staging
   volumes:
   - name: awsconfig
     path: /root/.aws
+  - name: dockersock
+    path: /var/run
   depends_on:
+  - Verify build is tagged
   - Wait for docker
   - Wait for docker registry
   - Check out code
-  - Build full semver
+  - Build major, minor, and full semvers
   - Assume ECR - staging AWS Role
-  - Assume ECR - authenticated-pull AWS Role
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
-  image: alpine
+  - Assume ECR - production AWS Role
+- name: Pull teleport:v11-arm and push it to Local Registry
+  image: docker
   commands:
-  - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/$DRONE_TAG/build.assets/charts/Dockerfile"
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
+    "/go/var/full-version")-arm
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
+    "/go/var/full-version")-arm drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
+  - docker push drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
+  environment:
+    AWS_PROFILE: ecr-staging
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
   depends_on:
+  - Verify build is tagged
   - Wait for docker
   - Wait for docker registry
   - Check out code
-  - Build full semver
+  - Build major, minor, and full semvers
   - Assume ECR - staging AWS Role
-  - Assume ECR - authenticated-pull AWS Role
-- name: Download "teleport_v11-tag_amd64.deb" artifacts from S3
-  image: amazon/aws-cli
-  commands:
-  - END_TIME=$(( $(date +%s) + 3600 ))
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - SUCCESS=true
-  - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_amd64.deb
-    || SUCCESS=false
-  - '[ "$SUCCESS" = "true" ] && TIMED_OUT=false && break;'
-  - echo 'Condition not met yet, waiting another 60 seconds...'
-  - sleep 60
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    "$SUCCESS" = "true" ]'' && exit 1'
-  - mkdir -pv "/go/build"
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/teleport_$(cat
-    "/go/var/full-version")_amd64.deb /go/build/teleport_$(cat "/go/var/full-version")_amd64.deb
-  environment:
-    AWS_PROFILE: s3-download-teleport
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Assume S3 Download AWS Role for teleport
-  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
-- name: Build teleport image "teleport:v11-amd64"
+  - Assume ECR - production AWS Role
+- name: Pull teleport:v11-arm64 and push it to Local Registry
   image: docker
   commands:
-  - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/build" && cd "/go/build"
-  - mkdir -pv "/tmp/teleport-v11-amd64-builder"
-  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v11-amd64-builder/buildkitd.toml"
-  - echo '  http = true' >> "/tmp/teleport-v11-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
-    "teleport-v11-amd64-builder" --config "/tmp/teleport-v11-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
-  - docker buildx build --push --builder "teleport-v11-amd64-builder" --target "teleport"
-    --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile-teleport" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_amd64.deb
-    /go/build
-  - docker logout "public.ecr.aws"
-  - docker buildx rm "teleport-v11-amd64-builder"
-  - rm -rf "/tmp/teleport-v11-amd64-builder"
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
+    "/go/var/full-version")-arm64
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
+    "/go/var/full-version")-arm64 drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
+  - docker push drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
   environment:
-    AWS_PROFILE: ecr-authenticated-pull
-    DOCKER_BUILDKIT: "1"
+    AWS_PROFILE: ecr-staging
   volumes:
   - name: awsconfig
     path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
-  - Assume ECR - authenticated-pull AWS Role
-  - Download "teleport_v11-tag_amd64.deb" artifacts from S3
-- name: Download "teleport_v11-tag_arm.deb" artifacts from S3
-  image: amazon/aws-cli
-  commands:
-  - END_TIME=$(( $(date +%s) + 3600 ))
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - SUCCESS=true
-  - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm.deb
-    || SUCCESS=false
-  - '[ "$SUCCESS" = "true" ] && TIMED_OUT=false && break;'
-  - echo 'Condition not met yet, waiting another 60 seconds...'
-  - sleep 60
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    "$SUCCESS" = "true" ]'' && exit 1'
-  - mkdir -pv "/go/build"
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/teleport_$(cat
-    "/go/var/full-version")_arm.deb /go/build/teleport_$(cat "/go/var/full-version")_arm.deb
-  environment:
-    AWS_PROFILE: s3-download-teleport
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Assume S3 Download AWS Role for teleport
-  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
-- name: Build teleport image "teleport:v11-arm"
+  - Verify build is tagged
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+  - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
+- name: Tag and push image "teleport:v11-amd64" to Quay
   image: docker
   commands:
-  - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/build" && cd "/go/build"
-  - mkdir -pv "/tmp/teleport-v11-arm-builder"
-  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v11-arm-builder/buildkitd.toml"
-  - echo '  http = true' >> "/tmp/teleport-v11-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
-    "teleport-v11-arm-builder" --config "/tmp/teleport-v11-arm-builder/buildkitd.toml"
-  - apk add --no-cache aws-cli
-  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
-  - docker buildx build --push --builder "teleport-v11-arm-builder" --target "teleport"
-    --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile-teleport" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm.deb
-    /go/build
-  - docker logout "public.ecr.aws"
-  - docker buildx rm "teleport-v11-arm-builder"
-  - rm -rf "/tmp/teleport-v11-arm-builder"
+  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest inspect quay.io/fred_heinecke/teleport:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-amd64 quay.io/fred_heinecke/teleport:$(cat "/go/var/full-version")-amd64
+    && docker push quay.io/fred_heinecke/teleport:$(cat "/go/var/full-version")-amd64)
+  - docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
+    quay.io/fred_heinecke/teleport:$(cat "/go/var/major-version")-amd64
+  - docker push quay.io/fred_heinecke/teleport:$(cat "/go/var/major-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
+    quay.io/fred_heinecke/teleport:$(cat "/go/var/minor-version")-amd64
+  - docker push quay.io/fred_heinecke/teleport:$(cat "/go/var/minor-version")-amd64
+  - docker logout "quay.io"
   environment:
-    AWS_PROFILE: ecr-authenticated-pull
-    DOCKER_BUILDKIT: "1"
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: awsconfig
     path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
-  - Assume ECR - authenticated-pull AWS Role
-  - Download "teleport_v11-tag_arm.deb" artifacts from S3
-- name: Download "teleport_v11-tag_arm64.deb" artifacts from S3
-  image: amazon/aws-cli
-  commands:
-  - END_TIME=$(( $(date +%s) + 3600 ))
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - SUCCESS=true
-  - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm64.deb
-    || SUCCESS=false
-  - '[ "$SUCCESS" = "true" ] && TIMED_OUT=false && break;'
-  - echo 'Condition not met yet, waiting another 60 seconds...'
-  - sleep 60
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    "$SUCCESS" = "true" ]'' && exit 1'
-  - mkdir -pv "/go/build"
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/teleport_$(cat
-    "/go/var/full-version")_arm64.deb /go/build/teleport_$(cat "/go/var/full-version")_arm64.deb
-  environment:
-    AWS_PROFILE: s3-download-teleport
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Assume S3 Download AWS Role for teleport
-  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
-- name: Build teleport image "teleport:v11-arm64"
+  - Pull teleport:v11-amd64 and push it to Local Registry
+- name: Tag and push image "teleport:v11-arm" to Quay
   image: docker
   commands:
-  - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/build" && cd "/go/build"
-  - mkdir -pv "/tmp/teleport-v11-arm64-builder"
-  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v11-arm64-builder/buildkitd.toml"
-  - echo '  http = true' >> "/tmp/teleport-v11-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
-    "teleport-v11-arm64-builder" --config "/tmp/teleport-v11-arm64-builder/buildkitd.toml"
-  - apk add --no-cache aws-cli
-  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
-  - docker buildx build --push --builder "teleport-v11-arm64-builder" --target "teleport"
-    --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile-teleport" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm64.deb
-    /go/build
-  - docker logout "public.ecr.aws"
-  - docker buildx rm "teleport-v11-arm64-builder"
-  - rm -rf "/tmp/teleport-v11-arm64-builder"
+  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest inspect quay.io/fred_heinecke/teleport:$(cat "/go/var/full-version")-arm
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-arm quay.io/fred_heinecke/teleport:$(cat "/go/var/full-version")-arm
+    && docker push quay.io/fred_heinecke/teleport:$(cat "/go/var/full-version")-arm)
+  - docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
+    quay.io/fred_heinecke/teleport:$(cat "/go/var/major-version")-arm
+  - docker push quay.io/fred_heinecke/teleport:$(cat "/go/var/major-version")-arm
+  - docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
+    quay.io/fred_heinecke/teleport:$(cat "/go/var/minor-version")-arm
+  - docker push quay.io/fred_heinecke/teleport:$(cat "/go/var/minor-version")-arm
+  - docker logout "quay.io"
   environment:
-    AWS_PROFILE: ecr-authenticated-pull
-    DOCKER_BUILDKIT: "1"
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: awsconfig
     path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
-  - Assume ECR - authenticated-pull AWS Role
-  - Download "teleport_v11-tag_arm64.deb" artifacts from S3
-- name: Tag and push image "teleport:v11-amd64" to ECR - staging
+  - Pull teleport:v11-arm and push it to Local Registry
+- name: Tag and push image "teleport:v11-arm64" to Quay
+  image: docker
+  commands:
+  - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest inspect quay.io/fred_heinecke/teleport:$(cat "/go/var/full-version")-arm64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-arm64 quay.io/fred_heinecke/teleport:$(cat "/go/var/full-version")-arm64
+    && docker push quay.io/fred_heinecke/teleport:$(cat "/go/var/full-version")-arm64)
+  - docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
+    quay.io/fred_heinecke/teleport:$(cat "/go/var/major-version")-arm64
+  - docker push quay.io/fred_heinecke/teleport:$(cat "/go/var/major-version")-arm64
+  - docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
+    quay.io/fred_heinecke/teleport:$(cat "/go/var/minor-version")-arm64
+  - docker push quay.io/fred_heinecke/teleport:$(cat "/go/var/minor-version")-arm64
+  - docker logout "quay.io"
+  environment:
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Pull teleport:v11-arm64 and push it to Local Registry
+- name: Create manifest and push "teleport:major" to Quay
+  image: docker
+  commands:
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest create quay.io/fred_heinecke/teleport:$(cat "/go/var/major-version")
+    --amend quay.io/fred_heinecke/teleport:$(cat "/go/var/major-version")-amd64 --amend
+    quay.io/fred_heinecke/teleport:$(cat "/go/var/major-version")-arm --amend quay.io/fred_heinecke/teleport:$(cat
+    "/go/var/major-version")-arm64
+  - docker manifest push quay.io/fred_heinecke/teleport:$(cat "/go/var/major-version")
+  - docker logout "quay.io"
+  environment:
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport:v11-amd64" to Quay
+  - Tag and push image "teleport:v11-arm" to Quay
+  - Tag and push image "teleport:v11-arm64" to Quay
+- name: Create manifest and push "teleport:minor" to Quay
+  image: docker
+  commands:
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest create quay.io/fred_heinecke/teleport:$(cat "/go/var/minor-version")
+    --amend quay.io/fred_heinecke/teleport:$(cat "/go/var/minor-version")-amd64 --amend
+    quay.io/fred_heinecke/teleport:$(cat "/go/var/minor-version")-arm --amend quay.io/fred_heinecke/teleport:$(cat
+    "/go/var/minor-version")-arm64
+  - docker manifest push quay.io/fred_heinecke/teleport:$(cat "/go/var/minor-version")
+  - docker logout "quay.io"
+  environment:
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport:v11-amd64" to Quay
+  - Tag and push image "teleport:v11-arm" to Quay
+  - Tag and push image "teleport:v11-arm64" to Quay
+- name: Create manifest and push "teleport:full" to Quay
+  image: docker
+  commands:
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest inspect quay.io/fred_heinecke/teleport:$(cat "/go/var/full-version")
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
+    create quay.io/fred_heinecke/teleport:$(cat "/go/var/full-version") --amend quay.io/fred_heinecke/teleport:$(cat
+    "/go/var/full-version")-amd64 --amend quay.io/fred_heinecke/teleport:$(cat "/go/var/full-version")-arm
+    --amend quay.io/fred_heinecke/teleport:$(cat "/go/var/full-version")-arm64 &&
+    docker manifest push quay.io/fred_heinecke/teleport:$(cat "/go/var/full-version"))
+  - docker logout "quay.io"
+  environment:
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport:v11-amd64" to Quay
+  - Tag and push image "teleport:v11-arm" to Quay
+  - Tag and push image "teleport:v11-arm64" to Quay
+- name: Tag and push image "teleport:v11-amd64" to ECR - production
   image: docker
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
-    "/go/var/full-version")-amd64 > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat "/go/var/full-version")-amd64
-    && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
-    "/go/var/full-version")-amd64)
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-amd64 public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-amd64
+    && docker push public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-amd64)
+  - docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
+    public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/major-version")-amd64
+  - docker push public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/major-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
+    public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/minor-version")-amd64
+  - docker push public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/minor-version")-amd64
+  - docker logout "public.ecr.aws"
   environment:
-    AWS_PROFILE: ecr-staging
+    AWS_PROFILE: ecr-production
   volumes:
   - name: awsconfig
     path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
-  - Build teleport image "teleport:v11-amd64"
-- name: Tag and push image "teleport:v11-arm" to ECR - staging
+  - Pull teleport:v11-amd64 and push it to Local Registry
+- name: Tag and push image "teleport:v11-arm" to ECR - production
   image: docker
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
-    "/go/var/full-version")-arm > /dev/null 2>&1 && echo 'Found existing image, skipping'
-    || (docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat "/go/var/full-version")-arm
-    && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
-    "/go/var/full-version")-arm)
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-arm
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-arm public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-arm
+    && docker push public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-arm)
+  - docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
+    public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/major-version")-arm
+  - docker push public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/major-version")-arm
+  - docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
+    public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/minor-version")-arm
+  - docker push public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/minor-version")-arm
+  - docker logout "public.ecr.aws"
   environment:
-    AWS_PROFILE: ecr-staging
+    AWS_PROFILE: ecr-production
   volumes:
   - name: awsconfig
     path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
-  - Build teleport image "teleport:v11-arm"
-- name: Tag and push image "teleport:v11-arm64" to ECR - staging
+  - Pull teleport:v11-arm and push it to Local Registry
+- name: Tag and push image "teleport:v11-arm64" to ECR - production
   image: docker
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-arm64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat
+    "/go/var/full-version")-arm64 public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-arm64
+    && docker push public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-arm64)
+  - docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
+    public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/major-version")-arm64
+  - docker push public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/major-version")-arm64
+  - docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
+    public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/minor-version")-arm64
+  - docker push public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/minor-version")-arm64
+  - docker logout "public.ecr.aws"
+  environment:
+    AWS_PROFILE: ecr-production
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Pull teleport:v11-arm64 and push it to Local Registry
+- name: Create manifest and push "teleport:major" to ECR - production
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest create public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/major-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/major-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/major-version")-arm --amend
+    public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/major-version")-arm64
+  - docker manifest push public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/major-version")
+  - docker logout "public.ecr.aws"
+  environment:
+    AWS_PROFILE: ecr-production
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport:v11-amd64" to ECR - production
+  - Tag and push image "teleport:v11-arm" to ECR - production
+  - Tag and push image "teleport:v11-arm64" to ECR - production
+- name: Create manifest and push "teleport:minor" to ECR - production
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest create public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/minor-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/minor-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/minor-version")-arm --amend
+    public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/minor-version")-arm64
+  - docker manifest push public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/minor-version")
+  - docker logout "public.ecr.aws"
+  environment:
+    AWS_PROFILE: ecr-production
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport:v11-amd64" to ECR - production
+  - Tag and push image "teleport:v11-arm" to ECR - production
+  - Tag and push image "teleport:v11-arm64" to ECR - production
+- name: Create manifest and push "teleport:full" to ECR - production
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
+    create public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version") --amend
+    public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-amd64 --amend public.ecr.aws/u8j2q1d9/teleport:$(cat
+    "/go/var/full-version")-arm --amend public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-arm64
+    && docker manifest push public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version"))
+  - docker logout "public.ecr.aws"
+  environment:
+    AWS_PROFILE: ecr-production
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport:v11-amd64" to ECR - production
+  - Tag and push image "teleport:v11-arm" to ECR - production
+  - Tag and push image "teleport:v11-arm64" to ECR - production
+- name: Pull teleport-ent:v11-amd64 and push it to Local Registry
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
-    "/go/var/full-version")-arm64 > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat "/go/var/full-version")-arm64
-    && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
-    "/go/var/full-version")-arm64)
+  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-amd64
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-amd64 drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
+  - docker push drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
@@ -19126,498 +19260,595 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Build teleport image "teleport:v11-arm64"
-- name: Create manifest and push "teleport:full" to ECR - staging
+  - Verify build is tagged
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+  - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
+- name: Pull teleport-ent:v11-arm and push it to Local Registry
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
-    "/go/var/full-version") > /dev/null 2>&1 && echo 'Found existing image, skipping'
-    || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
-    "/go/var/full-version") --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
-    "/go/var/full-version")-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
-    "/go/var/full-version")-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
-    "/go/var/full-version")-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
+  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-arm
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-arm drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
+  - docker push drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
+  environment:
+    AWS_PROFILE: ecr-staging
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Verify build is tagged
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+  - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
+- name: Pull teleport-ent:v11-arm64 and push it to Local Registry
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-arm64
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-arm64 drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
+  - docker push drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
+  environment:
+    AWS_PROFILE: ecr-staging
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Verify build is tagged
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+  - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
+- name: Tag and push image "teleport-ent:v11-amd64" to Quay
+  image: docker
+  commands:
+  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-amd64 quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-amd64
+    && docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-amd64)
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
+    quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-amd64
+  - docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
+    quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-amd64
+  - docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-amd64
+  - docker logout "quay.io"
+  environment:
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Pull teleport-ent:v11-amd64 and push it to Local Registry
+- name: Tag and push image "teleport-ent:v11-arm" to Quay
+  image: docker
+  commands:
+  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-arm
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-arm
+    && docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-arm)
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
+    quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-arm
+  - docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-arm
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
+    quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-arm
+  - docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-arm
+  - docker logout "quay.io"
+  environment:
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Pull teleport-ent:v11-arm and push it to Local Registry
+- name: Tag and push image "teleport-ent:v11-arm64" to Quay
+  image: docker
+  commands:
+  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-arm64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm64 quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-arm64
+    && docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-arm64)
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
+    quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-arm64
+  - docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-arm64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
+    quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-arm64
+  - docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-arm64
+  - docker logout "quay.io"
+  environment:
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Pull teleport-ent:v11-arm64 and push it to Local Registry
+- name: Create manifest and push "teleport-ent:major" to Quay
+  image: docker
+  commands:
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest create quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")
+    --amend quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-amd64
+    --amend quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-arm
+    --amend quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-arm64
+  - docker manifest push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")
+  - docker logout "quay.io"
+  environment:
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-ent:v11-amd64" to Quay
+  - Tag and push image "teleport-ent:v11-arm" to Quay
+  - Tag and push image "teleport-ent:v11-arm64" to Quay
+- name: Create manifest and push "teleport-ent:minor" to Quay
+  image: docker
+  commands:
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest create quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")
+    --amend quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-amd64
+    --amend quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-arm
+    --amend quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-arm64
+  - docker manifest push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")
+  - docker logout "quay.io"
+  environment:
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-ent:v11-amd64" to Quay
+  - Tag and push image "teleport-ent:v11-arm" to Quay
+  - Tag and push image "teleport-ent:v11-arm64" to Quay
+- name: Create manifest and push "teleport-ent:full" to Quay
+  image: docker
+  commands:
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
+    create quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version") --amend
+    quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-amd64 --amend
+    quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-arm --amend quay.io/fred_heinecke/teleport-ent:$(cat
+    "/go/var/full-version")-arm64 && docker manifest push quay.io/fred_heinecke/teleport-ent:$(cat
     "/go/var/full-version"))
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "quay.io"
   environment:
-    AWS_PROFILE: ecr-staging
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: awsconfig
     path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport:v11-amd64" to ECR - staging
-  - Tag and push image "teleport:v11-arm" to ECR - staging
-  - Tag and push image "teleport:v11-arm64" to ECR - staging
-- name: Assume S3 Download AWS Role for teleport-ent
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[s3-download-teleport-ent]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      >> /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile s3-download-teleport-ent
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
-  - Assume ECR - staging AWS Role
-  - Assume ECR - authenticated-pull AWS Role
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
-  image: alpine
-  commands:
-  - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/$DRONE_TAG/build.assets/charts/Dockerfile"
-  depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
-  - Assume ECR - staging AWS Role
-  - Assume ECR - authenticated-pull AWS Role
-- name: Download "teleport-ent_v11-tag_amd64.deb" artifacts from S3
-  image: amazon/aws-cli
-  commands:
-  - END_TIME=$(( $(date +%s) + 3600 ))
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - SUCCESS=true
-  - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_amd64.deb
-    || SUCCESS=false
-  - '[ "$SUCCESS" = "true" ] && TIMED_OUT=false && break;'
-  - echo 'Condition not met yet, waiting another 60 seconds...'
-  - sleep 60
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    "$SUCCESS" = "true" ]'' && exit 1'
-  - mkdir -pv "/go/build"
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/teleport-ent_$(cat
-    "/go/var/full-version")_amd64.deb /go/build/teleport-ent_$(cat "/go/var/full-version")_amd64.deb
-  environment:
-    AWS_PROFILE: s3-download-teleport-ent
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Assume S3 Download AWS Role for teleport-ent
-  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
-- name: Build teleport-ent image "teleport-ent:v11-amd64"
-  image: docker
-  commands:
-  - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/build" && cd "/go/build"
-  - mkdir -pv "/tmp/teleport-ent-v11-amd64-builder"
-  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v11-amd64-builder/buildkitd.toml"
-  - echo '  http = true' >> "/tmp/teleport-ent-v11-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
-    "teleport-ent-v11-amd64-builder" --config "/tmp/teleport-ent-v11-amd64-builder/buildkitd.toml"
-  - apk add --no-cache aws-cli
-  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
-  - docker buildx build --push --builder "teleport-ent-v11-amd64-builder" --target
-    "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile-teleport-ent" --build-arg
-    DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_amd64.deb /go/build
-  - docker logout "public.ecr.aws"
-  - docker buildx rm "teleport-ent-v11-amd64-builder"
-  - rm -rf "/tmp/teleport-ent-v11-amd64-builder"
-  environment:
-    AWS_PROFILE: ecr-authenticated-pull
-    DOCKER_BUILDKIT: "1"
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Assume ECR - authenticated-pull AWS Role
-  - Download "teleport-ent_v11-tag_amd64.deb" artifacts from S3
-- name: Download "teleport-ent_v11-tag_arm.deb" artifacts from S3
-  image: amazon/aws-cli
-  commands:
-  - END_TIME=$(( $(date +%s) + 3600 ))
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - SUCCESS=true
-  - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm.deb
-    || SUCCESS=false
-  - '[ "$SUCCESS" = "true" ] && TIMED_OUT=false && break;'
-  - echo 'Condition not met yet, waiting another 60 seconds...'
-  - sleep 60
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    "$SUCCESS" = "true" ]'' && exit 1'
-  - mkdir -pv "/go/build"
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/teleport-ent_$(cat
-    "/go/var/full-version")_arm.deb /go/build/teleport-ent_$(cat "/go/var/full-version")_arm.deb
-  environment:
-    AWS_PROFILE: s3-download-teleport-ent
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Assume S3 Download AWS Role for teleport-ent
-  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
-- name: Build teleport-ent image "teleport-ent:v11-arm"
-  image: docker
-  commands:
-  - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/build" && cd "/go/build"
-  - mkdir -pv "/tmp/teleport-ent-v11-arm-builder"
-  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v11-arm-builder/buildkitd.toml"
-  - echo '  http = true' >> "/tmp/teleport-ent-v11-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
-    "teleport-ent-v11-arm-builder" --config "/tmp/teleport-ent-v11-arm-builder/buildkitd.toml"
-  - apk add --no-cache aws-cli
-  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
-  - docker buildx build --push --builder "teleport-ent-v11-arm-builder" --target "teleport"
-    --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile-teleport-ent" --build-arg DEB_PATH=teleport-ent_$(cat
-    "/go/var/full-version")_arm.deb /go/build
-  - docker logout "public.ecr.aws"
-  - docker buildx rm "teleport-ent-v11-arm-builder"
-  - rm -rf "/tmp/teleport-ent-v11-arm-builder"
-  environment:
-    AWS_PROFILE: ecr-authenticated-pull
-    DOCKER_BUILDKIT: "1"
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Assume ECR - authenticated-pull AWS Role
-  - Download "teleport-ent_v11-tag_arm.deb" artifacts from S3
-- name: Download "teleport-ent_v11-tag_arm64.deb" artifacts from S3
-  image: amazon/aws-cli
-  commands:
-  - END_TIME=$(( $(date +%s) + 3600 ))
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - SUCCESS=true
-  - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm64.deb
-    || SUCCESS=false
-  - '[ "$SUCCESS" = "true" ] && TIMED_OUT=false && break;'
-  - echo 'Condition not met yet, waiting another 60 seconds...'
-  - sleep 60
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    "$SUCCESS" = "true" ]'' && exit 1'
-  - mkdir -pv "/go/build"
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/teleport-ent_$(cat
-    "/go/var/full-version")_arm64.deb /go/build/teleport-ent_$(cat "/go/var/full-version")_arm64.deb
-  environment:
-    AWS_PROFILE: s3-download-teleport-ent
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Assume S3 Download AWS Role for teleport-ent
-  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
-- name: Build teleport-ent image "teleport-ent:v11-arm64"
-  image: docker
-  commands:
-  - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/build" && cd "/go/build"
-  - mkdir -pv "/tmp/teleport-ent-v11-arm64-builder"
-  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v11-arm64-builder/buildkitd.toml"
-  - echo '  http = true' >> "/tmp/teleport-ent-v11-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
-    "teleport-ent-v11-arm64-builder" --config "/tmp/teleport-ent-v11-arm64-builder/buildkitd.toml"
-  - apk add --no-cache aws-cli
-  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
-  - docker buildx build --push --builder "teleport-ent-v11-arm64-builder" --target
-    "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile-teleport-ent" --build-arg
-    DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_arm64.deb /go/build
-  - docker logout "public.ecr.aws"
-  - docker buildx rm "teleport-ent-v11-arm64-builder"
-  - rm -rf "/tmp/teleport-ent-v11-arm64-builder"
-  environment:
-    AWS_PROFILE: ecr-authenticated-pull
-    DOCKER_BUILDKIT: "1"
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Assume ECR - authenticated-pull AWS Role
-  - Download "teleport-ent_v11-tag_arm64.deb" artifacts from S3
-- name: Tag and push image "teleport-ent:v11-amd64" to ECR - staging
+  - Tag and push image "teleport-ent:v11-amd64" to Quay
+  - Tag and push image "teleport-ent:v11-arm" to Quay
+  - Tag and push image "teleport-ent:v11-arm64" to Quay
+- name: Tag and push image "teleport-ent:v11-amd64" to ECR - production
   image: docker
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-amd64
-    && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
-    "/go/var/full-version")-amd64)
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-amd64 public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-amd64
+    && docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-amd64)
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
+    public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-amd64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
+    public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-amd64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-amd64
+  - docker logout "public.ecr.aws"
   environment:
-    AWS_PROFILE: ecr-staging
+    AWS_PROFILE: ecr-production
   volumes:
   - name: awsconfig
     path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
-  - Build teleport-ent image "teleport-ent:v11-amd64"
-- name: Tag and push image "teleport-ent:v11-arm" to ECR - staging
+  - Pull teleport-ent:v11-amd64 and push it to Local Registry
+- name: Tag and push image "teleport-ent:v11-arm" to ECR - production
   image: docker
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
-    "/go/var/full-version")-arm > /dev/null 2>&1 && echo 'Found existing image, skipping'
-    || (docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-arm
-    && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
-    "/go/var/full-version")-arm)
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-arm
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-arm
+    && docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-arm)
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
+    public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-arm
+  - docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-arm
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
+    public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-arm
+  - docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-arm
+  - docker logout "public.ecr.aws"
   environment:
-    AWS_PROFILE: ecr-staging
+    AWS_PROFILE: ecr-production
   volumes:
   - name: awsconfig
     path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
-  - Build teleport-ent image "teleport-ent:v11-arm"
-- name: Tag and push image "teleport-ent:v11-arm64" to ECR - staging
+  - Pull teleport-ent:v11-arm and push it to Local Registry
+- name: Tag and push image "teleport-ent:v11-arm64" to ECR - production
   image: docker
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-arm64
-    && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
-    "/go/var/full-version")-arm64)
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-arm64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-arm64 public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-arm64
+    && docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-arm64)
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
+    public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-arm64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-arm64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
+    public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-arm64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-arm64
+  - docker logout "public.ecr.aws"
   environment:
-    AWS_PROFILE: ecr-staging
+    AWS_PROFILE: ecr-production
   volumes:
   - name: awsconfig
     path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
-  - Build teleport-ent image "teleport-ent:v11-arm64"
-- name: Create manifest and push "teleport-ent:full" to ECR - staging
+  - Pull teleport-ent:v11-arm64 and push it to Local Registry
+- name: Create manifest and push "teleport-ent:major" to ECR - production
   image: docker
   commands:
-  - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
-    "/go/var/full-version") > /dev/null 2>&1 && echo 'Found existing image, skipping'
-    || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
-    "/go/var/full-version") --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
-    "/go/var/full-version")-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
-    "/go/var/full-version"))
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
-  environment:
-    AWS_PROFILE: ecr-staging
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-ent:v11-amd64" to ECR - staging
-  - Tag and push image "teleport-ent:v11-arm" to ECR - staging
-  - Tag and push image "teleport-ent:v11-arm64" to ECR - staging
-- name: Assume S3 Download AWS Role for teleport-ent-fips
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[s3-download-teleport-ent-fips]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      >> /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile s3-download-teleport-ent-fips
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
-  - Assume ECR - staging AWS Role
-  - Assume ECR - authenticated-pull AWS Role
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for
-    teleport-ent-fips
-  image: alpine
-  commands:
-  - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/$DRONE_TAG/build.assets/charts/Dockerfile"
-  depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
-  - Assume ECR - staging AWS Role
-  - Assume ECR - authenticated-pull AWS Role
-- name: Download "teleport-ent_v11-tag-fips_amd64.deb" artifacts from S3
-  image: amazon/aws-cli
-  commands:
-  - END_TIME=$(( $(date +%s) + 3600 ))
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - SUCCESS=true
-  - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")-fips_amd64.deb
-    || SUCCESS=false
-  - '[ "$SUCCESS" = "true" ] && TIMED_OUT=false && break;'
-  - echo 'Condition not met yet, waiting another 60 seconds...'
-  - sleep 60
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    "$SUCCESS" = "true" ]'' && exit 1'
-  - mkdir -pv "/go/build"
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/teleport-ent_$(cat
-    "/go/var/full-version")-fips_amd64.deb /go/build/teleport-ent_$(cat "/go/var/full-version")-fips_amd64.deb
-  environment:
-    AWS_PROFILE: s3-download-teleport-ent-fips
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Assume S3 Download AWS Role for teleport-ent-fips
-  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for teleport-ent-fips
-- name: Build teleport-ent-fips image "teleport-ent:v11-fips-amd64"
-  image: docker
-  commands:
-  - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/build" && cd "/go/build"
-  - mkdir -pv "/tmp/teleport-ent-v11-fips-amd64-builder"
-  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v11-fips-amd64-builder/buildkitd.toml"
-  - echo '  http = true' >> "/tmp/teleport-ent-v11-fips-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
-    "teleport-ent-v11-fips-amd64-builder" --config "/tmp/teleport-ent-v11-fips-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker buildx build --push --builder "teleport-ent-v11-fips-amd64-builder" --target
-    "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-fips-amd64 --file "/go/build/Dockerfile-teleport-ent-fips"
-    --build-arg DEB_PATH=teleport-ent_$(cat "/go/var/full-version")-fips_amd64.deb
-    /go/build
+  - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-arm
+    --amend public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-arm64
+  - docker manifest push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")
   - docker logout "public.ecr.aws"
-  - docker buildx rm "teleport-ent-v11-fips-amd64-builder"
-  - rm -rf "/tmp/teleport-ent-v11-fips-amd64-builder"
   environment:
-    AWS_PROFILE: ecr-authenticated-pull
-    DOCKER_BUILDKIT: "1"
+    AWS_PROFILE: ecr-production
   volumes:
   - name: awsconfig
     path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
-  - Assume ECR - authenticated-pull AWS Role
-  - Download "teleport-ent_v11-tag-fips_amd64.deb" artifacts from S3
-- name: Tag and push image "teleport-ent:v11-fips-amd64" to ECR - staging
+  - Tag and push image "teleport-ent:v11-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v11-arm" to ECR - production
+  - Tag and push image "teleport-ent:v11-arm64" to ECR - production
+- name: Create manifest and push "teleport-ent:minor" to ECR - production
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-arm
+    --amend public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-arm64
+  - docker manifest push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")
+  - docker logout "public.ecr.aws"
+  environment:
+    AWS_PROFILE: ecr-production
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-ent:v11-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v11-arm" to ECR - production
+  - Tag and push image "teleport-ent:v11-arm64" to ECR - production
+- name: Create manifest and push "teleport-ent:full" to ECR - production
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
+    create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version") --amend
+    public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-amd64 --amend
+    public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-arm --amend
+    public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-arm64 && docker
+    manifest push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version"))
+  - docker logout "public.ecr.aws"
+  environment:
+    AWS_PROFILE: ecr-production
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-ent:v11-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v11-arm" to ECR - production
+  - Tag and push image "teleport-ent:v11-arm64" to ECR - production
+- name: Pull teleport-ent:v11-fips-amd64 and push it to Local Registry
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64
+  - docker push drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+  environment:
+    AWS_PROFILE: ecr-staging
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Verify build is tagged
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+  - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
+- name: Tag and push image "teleport-ent:v11-fips-amd64" to Quay
+  image: docker
+  commands:
+  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+    && docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64)
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+    quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
+  - docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+    quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
+  - docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
+  - docker logout "quay.io"
+  environment:
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Pull teleport-ent:v11-fips-amd64 and push it to Local Registry
+- name: Create manifest and push "teleport-ent:major-fips" to Quay
+  image: docker
+  commands:
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest create quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-fips
+    --amend quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
+  - docker manifest push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-fips
+  - docker logout "quay.io"
+  environment:
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-ent:v11-fips-amd64" to Quay
+- name: Create manifest and push "teleport-ent:minor-fips" to Quay
+  image: docker
+  commands:
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest create quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-fips
+    --amend quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
+  - docker manifest push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-fips
+  - docker logout "quay.io"
+  environment:
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-ent:v11-fips-amd64" to Quay
+- name: Create manifest and push "teleport-ent:full-fips" to Quay
+  image: docker
+  commands:
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
+    create quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips --amend
+    quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64 &&
+    docker manifest push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips)
+  - docker logout "quay.io"
+  environment:
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-ent:v11-fips-amd64" to Quay
+- name: Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
   image: docker
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
-    "/go/var/full-version")-fips-amd64 > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
-    && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 public.ecr.aws/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 && docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat
     "/go/var/full-version")-fips-amd64)
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+    public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+    public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
+  - docker logout "public.ecr.aws"
   environment:
-    AWS_PROFILE: ecr-staging
+    AWS_PROFILE: ecr-production
   volumes:
   - name: awsconfig
     path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
-  - Build teleport-ent-fips image "teleport-ent:v11-fips-amd64"
-- name: Create manifest and push "teleport-ent:full-fips" to ECR - staging
+  - Pull teleport-ent:v11-fips-amd64 and push it to Local Registry
+- name: Create manifest and push "teleport-ent:major-fips" to ECR - production
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-fips
+    --amend public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
+  - docker manifest push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-fips
+  - docker logout "public.ecr.aws"
+  environment:
+    AWS_PROFILE: ecr-production
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
+- name: Create manifest and push "teleport-ent:minor-fips" to ECR - production
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-fips
+    --amend public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
+  - docker manifest push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-fips
+  - docker logout "public.ecr.aws"
+  environment:
+    AWS_PROFILE: ecr-production
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
+- name: Create manifest and push "teleport-ent:full-fips" to ECR - production
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
+    create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips
+    --amend public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+    && docker manifest push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips)
+  - docker logout "public.ecr.aws"
+  environment:
+    AWS_PROFILE: ecr-production
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
+- name: Pull teleport-operator:v11-amd64 and push it to Local Registry
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
-    "/go/var/full-version")-fips > /dev/null 2>&1 && echo 'Found existing image, skipping'
-    || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
-    "/go/var/full-version")-fips --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
-    "/go/var/full-version")-fips-amd64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
-    "/go/var/full-version")-fips)
+  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64
+  - docker push drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
@@ -19626,213 +19857,381 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - staging
-- name: Build teleport-operator image "teleport-operator:v11-amd64"
+  - Verify build is tagged
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+  - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
+- name: Pull teleport-operator:v11-arm and push it to Local Registry
   image: docker
   commands:
-  - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
-  - mkdir -pv "/tmp/teleport-operator-v11-amd64-builder"
-  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v11-amd64-builder/buildkitd.toml"
-  - echo '  http = true' >> "/tmp/teleport-operator-v11-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
-    "teleport-operator-v11-amd64-builder" --config "/tmp/teleport-operator-v11-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
-  - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
-    "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11 --build-arg
-    COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
-  - docker logout "public.ecr.aws"
-  - docker buildx rm "teleport-operator-v11-amd64-builder"
-  - rm -rf "/tmp/teleport-operator-v11-amd64-builder"
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm
+  - docker push drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   environment:
-    AWS_PROFILE: ecr-authenticated-pull
-    DOCKER_BUILDKIT: "1"
+    AWS_PROFILE: ecr-staging
   volumes:
   - name: awsconfig
     path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
-  - Assume ECR - authenticated-pull AWS Role
+  - Verify build is tagged
   - Wait for docker
   - Wait for docker registry
   - Check out code
-  - Build full semver
+  - Build major, minor, and full semvers
   - Assume ECR - staging AWS Role
-  - Assume ECR - authenticated-pull AWS Role
-- name: Build teleport-operator image "teleport-operator:v11-arm"
+  - Assume ECR - production AWS Role
+- name: Pull teleport-operator:v11-arm64 and push it to Local Registry
   image: docker
   commands:
-  - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
-  - mkdir -pv "/tmp/teleport-operator-v11-arm-builder"
-  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v11-arm-builder/buildkitd.toml"
-  - echo '  http = true' >> "/tmp/teleport-operator-v11-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
-    "teleport-operator-v11-arm-builder" --config "/tmp/teleport-operator-v11-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
-  - docker buildx build --push --builder "teleport-operator-v11-arm-builder" --platform
-    "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
-    COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
-  - docker logout "public.ecr.aws"
-  - docker buildx rm "teleport-operator-v11-arm-builder"
-  - rm -rf "/tmp/teleport-operator-v11-arm-builder"
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64
+  - docker push drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   environment:
-    AWS_PROFILE: ecr-authenticated-pull
-    DOCKER_BUILDKIT: "1"
+    AWS_PROFILE: ecr-staging
   volumes:
   - name: awsconfig
     path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
-  - Assume ECR - authenticated-pull AWS Role
+  - Verify build is tagged
   - Wait for docker
   - Wait for docker registry
   - Check out code
-  - Build full semver
+  - Build major, minor, and full semvers
   - Assume ECR - staging AWS Role
-  - Assume ECR - authenticated-pull AWS Role
-- name: Build teleport-operator image "teleport-operator:v11-arm64"
+  - Assume ECR - production AWS Role
+- name: Tag and push image "teleport-operator:v11-amd64" to Quay
   image: docker
   commands:
-  - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
-  - mkdir -pv "/tmp/teleport-operator-v11-arm64-builder"
-  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v11-arm64-builder/buildkitd.toml"
-  - echo '  http = true' >> "/tmp/teleport-operator-v11-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
-    "teleport-operator-v11-arm64-builder" --config "/tmp/teleport-operator-v11-arm64-builder/buildkitd.toml"
-  - apk add --no-cache aws-cli
-  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
-  - docker buildx build --push --builder "teleport-operator-v11-arm64-builder" --platform
-    "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
-    COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
-  - docker logout "public.ecr.aws"
-  - docker buildx rm "teleport-operator-v11-arm64-builder"
-  - rm -rf "/tmp/teleport-operator-v11-arm64-builder"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64
+    && docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-amd64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-amd64
+  - docker logout "quay.io"
   environment:
-    AWS_PROFILE: ecr-authenticated-pull
-    DOCKER_BUILDKIT: "1"
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: awsconfig
     path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
-  - Assume ECR - authenticated-pull AWS Role
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
-  - Assume ECR - staging AWS Role
-  - Assume ECR - authenticated-pull AWS Role
-- name: Tag and push image "teleport-operator:v11-amd64" to ECR - staging
+  - Pull teleport-operator:v11-amd64 and push it to Local Registry
+- name: Tag and push image "teleport-operator:v11-arm" to Quay
+  image: docker
+  commands:
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm
+    && docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm
+  - docker logout "quay.io"
+  environment:
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Pull teleport-operator:v11-arm and push it to Local Registry
+- name: Tag and push image "teleport-operator:v11-arm64" to Quay
+  image: docker
+  commands:
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64
+    && docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker logout "quay.io"
+  environment:
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Pull teleport-operator:v11-arm64 and push it to Local Registry
+- name: Create manifest and push "teleport-operator:major" to Quay
+  image: docker
+  commands:
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest create quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-amd64
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker manifest push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")
+  - docker logout "quay.io"
+  environment:
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-operator:v11-amd64" to Quay
+  - Tag and push image "teleport-operator:v11-arm" to Quay
+  - Tag and push image "teleport-operator:v11-arm64" to Quay
+- name: Create manifest and push "teleport-operator:minor" to Quay
+  image: docker
+  commands:
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest create quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-amd64
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker manifest push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")
+  - docker logout "quay.io"
+  environment:
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-operator:v11-amd64" to Quay
+  - Tag and push image "teleport-operator:v11-arm" to Quay
+  - Tag and push image "teleport-operator:v11-arm64" to Quay
+- name: Create manifest and push "teleport-operator:full" to Quay
+  image: docker
+  commands:
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
+    create quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version") --amend
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64 --amend
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm --amend
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64 &&
+    docker manifest push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version"))
+  - docker logout "quay.io"
+  environment:
+    QUAY_PASSWORD:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-operator:v11-amd64" to Quay
+  - Tag and push image "teleport-operator:v11-arm" to Quay
+  - Tag and push image "teleport-operator:v11-arm64" to Quay
+- name: Tag and push image "teleport-operator:v11-amd64" to ECR - production
   image: docker
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    "/go/var/full-version")-amd64 > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    "/go/var/full-version")-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 && docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
     "/go/var/full-version")-amd64)
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-amd64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-amd64
+  - docker logout "public.ecr.aws"
   environment:
-    AWS_PROFILE: ecr-staging
+    AWS_PROFILE: ecr-production
   volumes:
   - name: awsconfig
     path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
-  - Build teleport-operator image "teleport-operator:v11-amd64"
-- name: Tag and push image "teleport-operator:v11-arm" to ECR - staging
+  - Pull teleport-operator:v11-amd64 and push it to Local Registry
+- name: Tag and push image "teleport-operator:v11-arm" to ECR - production
   image: docker
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    "/go/var/full-version")-arm > /dev/null 2>&1 && echo 'Found existing image, skipping'
-    || (docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    "/go/var/full-version")-arm && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    "/go/var/full-version")-arm)
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
+    && docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm
+  - docker logout "public.ecr.aws"
   environment:
-    AWS_PROFILE: ecr-staging
+    AWS_PROFILE: ecr-production
   volumes:
   - name: awsconfig
     path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
-  - Build teleport-operator image "teleport-operator:v11-arm"
-- name: Tag and push image "teleport-operator:v11-arm64" to ECR - staging
+  - Pull teleport-operator:v11-arm and push it to Local Registry
+- name: Tag and push image "teleport-operator:v11-arm64" to ECR - production
   image: docker
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    "/go/var/full-version")-arm64 > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    "/go/var/full-version")-arm64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 && docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
     "/go/var/full-version")-arm64)
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker logout "public.ecr.aws"
   environment:
-    AWS_PROFILE: ecr-staging
+    AWS_PROFILE: ecr-production
   volumes:
   - name: awsconfig
     path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
-  - Build teleport-operator image "teleport-operator:v11-arm64"
-- name: Create manifest and push "teleport-operator:full" to ECR - staging
+  - Pull teleport-operator:v11-arm64 and push it to Local Registry
+- name: Create manifest and push "teleport-operator:major" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    "/go/var/full-version") > /dev/null 2>&1 && echo 'Found existing image, skipping'
-    || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    "/go/var/full-version") --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    "/go/var/full-version")-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    "/go/var/full-version")-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    "/go/var/full-version")-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    "/go/var/full-version"))
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker manifest push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")
+  - docker logout "public.ecr.aws"
   environment:
-    AWS_PROFILE: ecr-staging
+    AWS_PROFILE: ecr-production
   volumes:
   - name: awsconfig
     path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-operator:v11-amd64" to ECR - staging
-  - Tag and push image "teleport-operator:v11-arm" to ECR - staging
-  - Tag and push image "teleport-operator:v11-arm64" to ECR - staging
+  - Tag and push image "teleport-operator:v11-amd64" to ECR - production
+  - Tag and push image "teleport-operator:v11-arm" to ECR - production
+  - Tag and push image "teleport-operator:v11-arm64" to ECR - production
+- name: Create manifest and push "teleport-operator:minor" to ECR - production
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker manifest push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")
+  - docker logout "public.ecr.aws"
+  environment:
+    AWS_PROFILE: ecr-production
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-operator:v11-amd64" to ECR - production
+  - Tag and push image "teleport-operator:v11-arm" to ECR - production
+  - Tag and push image "teleport-operator:v11-arm64" to ECR - production
+- name: Create manifest and push "teleport-operator:full" to ECR - production
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
+    create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm64
+    && docker manifest push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version"))
+  - docker logout "public.ecr.aws"
+  environment:
+    AWS_PROFILE: ecr-production
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-operator:v11-amd64" to ECR - production
+  - Tag and push image "teleport-operator:v11-arm" to ECR - production
+  - Tag and push image "teleport-operator:v11-arm64" to ECR - production
 services:
 - name: Start Docker
   image: docker:dind
@@ -19851,6 +20250,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: d25f013764a89bab89f58d38c3f1545577c86e9825ffb074b7896c2368362ebc
+hmac: 67814ce2b24f18939a6df792c347908d7d0c3125e25879090e88f05b8ce6cb52
 
 ...
