@@ -11593,6 +11593,10 @@ trigger:
   branch:
     include:
       - tcsc/test-helm-promote
+  repo:
+    include:
+      - gravitational/*
+
 
 workspace:
   path: /go
@@ -11693,6 +11697,6 @@ steps:
       - aws s3 sync . s3://$AWS_S3_BUCKET/
 ---
 kind: signature
-hmac: 861cec4d9c930497d956d53d6f4bb0ff49d311c07bdd25b8ab7977d9123157af
+hmac: 29919fd42df74c3331c84782af1daa2c7c4745771d3330029d2b37ed34dbc8c1
 
 ...
