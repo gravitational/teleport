@@ -51,7 +51,7 @@ func DialProxyWithDialer(
 	}
 }
 
-// dialProxyWithHTTPDialer creates a connection to a server via an HTTP Proxy using a specified dialer.
+// dialProxyWithHTTPDialer creates a connection to a server via an HTTP Proxy.
 func dialProxyWithHTTPDialer(
 	ctx context.Context,
 	proxyURL *url.URL,
@@ -122,7 +122,7 @@ func dialProxyWithHTTPDialer(
 	}, nil
 }
 
-// dialProxyWithSOCKSDialer creates a connection to a server via a SOCKS Proxy using a specified dialer.
+// dialProxyWithSOCKSDialer creates a connection to a server via a SOCKS Proxy.
 func dialProxyWithSOCKSDialer(
 	ctx context.Context,
 	proxyURL *url.URL,
