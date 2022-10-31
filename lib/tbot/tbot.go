@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"sync"
 	"time"
 
@@ -226,8 +227,10 @@ func (b *Bot) Run(ctx context.Context) error {
 
 	unlock, err := b.initialize(ctx)
 	defer func() {
-		if err := unlock(); err != nil {
-			b.log.WithError(err).Warn("failed to unlock")
+		if unlock != nil {
+			if err := unlock(); err != nil {
+				b.log.WithError(err).Warn("Failed to release lock. Future starts of tbot may fail.")
+			}
 		}
 	}()
 	if err != nil {
@@ -257,32 +260,31 @@ func (b *Bot) Run(ctx context.Context) error {
 
 // initialize returns an unlock function which must be deferred.
 func (b *Bot) initialize(ctx context.Context) (func() error, error) {
-	unlock := func() error {
-		return nil
-	}
-
 	if b.cfg.AuthServer == "" {
-		return unlock, trace.BadParameter(
+		return nil, trace.BadParameter(
 			"an auth or proxy server must be set via --auth-server or configuration",
 		)
 	}
 
 	// First, try to make sure all destinations are usable.
 	if err := checkDestinations(b.cfg); err != nil {
-		return unlock, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Start by loading the bot's primary destination.
 	dest, err := b.cfg.Storage.GetDestination()
 	if err != nil {
-		return unlock, trace.Wrap(
+		return nil, trace.Wrap(
 			err, "could not read bot storage destination from config",
 		)
 	}
 
 	// Now attempt to lock the destination so we have sole use of it
-	unlock, err = dest.Lock()
+	unlock, err := dest.Lock()
 	if err != nil {
+		if errors.Is(err, utils.ErrUnsuccessfulLockTry) {
+			return unlock, trace.WrapWithMessage(err, "Failed to acquire exclusive lock for tbot destination directory - is tbot already running?")
+		}
 		return unlock, trace.Wrap(err)
 	}
 

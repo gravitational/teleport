@@ -80,7 +80,7 @@ func (dm *DestinationMemory) String() string {
 }
 
 func (dm *DestinationMemory) Lock() (func() error, error) {
-	// As this is purely in-memory, no locking behaviour is required for the
+	// As this is purely in-memory, no locking behavior is required for the
 	// destination.
 	return func() error {
 		return nil

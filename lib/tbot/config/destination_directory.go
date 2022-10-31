@@ -19,17 +19,19 @@ package config
 import (
 	"errors"
 	"fmt"
-	"github.com/gravitational/teleport/lib/utils"
 	"io/fs"
 	"os"
 	"os/user"
 	"path"
 	"path/filepath"
 
+	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // DestinationDirectory is a Destination that writes to the local filesystem
