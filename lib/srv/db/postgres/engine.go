@@ -415,7 +415,7 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	// AWS RDS/Aurora and GCP Cloud SQL use IAM authentication so request an
 	// auth token and use it as a password.
 	switch sessionCtx.Database.GetType() {
-	case types.DatabaseTypeRDS:
+	case types.DatabaseTypeRDS, types.DatabaseTypeRDSProxy:
 		config.Password, err = e.Auth.GetRDSAuthToken(sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)

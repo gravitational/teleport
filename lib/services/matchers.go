@@ -272,6 +272,8 @@ type MatchResourceFilter struct {
 const (
 	// AWSMatcherRDS is the AWS matcher type for RDS databases.
 	AWSMatcherRDS = "rds"
+	// AWSMatcherRDSProxy is the AWS matcher type for RDS Proxy databases.
+	AWSMatcherRDSProxy = "rdsproxy"
 	// AWSMatcherRedshift is the AWS matcher type for Redshift databases.
 	AWSMatcherRedshift = "redshift"
 	// AWSMatcherElastiCache is the AWS matcher type for ElastiCache databases.
