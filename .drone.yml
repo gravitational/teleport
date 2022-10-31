@@ -11579,8 +11579,120 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+
+---
+# ==========================
+kind: pipeline
+type: kubernetes
+name: test-helm-publish
+
+trigger:
+  event:
+    include:
+      - push
+  branch:
+    include:
+      - tcsc/test-helm-promote
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: "Helm: Assume Download AWS Role"
+    image: amazon/aws-cli
+    commands:
+      - aws sts get-caller-identity
+      - |-
+        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+          $(aws sts assume-role \
+            --role-arn "$AWS_ROLE" \
+            --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+            --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+            --output text) \
+          > /root/.aws/credentials
+      - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+      - aws sts get-caller-identity --profile default
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
+      AWS_ROLE:
+        from_secret: PRODUCTION_CHARTS_AWS_ROLE
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
+
+  # Download all previously packaged charts. This is needed to rebuild the
+  # index and re-publish the repository.
+  - name: "Helm: Download chart repository"
+    image: amazon/aws-cli
+    environment:
+      AWS_REGION:  us-west-2
+      AWS_S3_BUCKET:
+        from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
+    commands:
+      - mkdir -p /go/chart
+      - aws s3 sync s3://$AWS_S3_BUCKET/ /go/chart
+
+  - name: "Helm: Package chart repository"
+    image: alpine/helm:latest
+    commands:
+      - cd /go/chart
+      - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport-cluster
+      - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport-kube-agent
+      # copy index.html to root of the S3 bucket.
+      - cp /go/src/github.com/gravitational/teleport/examples/chart/index.html /go/chart
+      # this will index all previous versions of the charts downloaded from the S3 bucket,
+      # plus the just-packaged charts listed above
+      - helm repo index /go/chart
+      - ls /go/chart
+
+  - name: "Helm: Assume Upload AWS Role"
+    image: amazon/aws-cli
+    commands:
+      - aws sts get-caller-identity
+      - |-
+        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+          $(aws sts assume-role \
+            --role-arn "$AWS_ROLE" \
+            --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+            --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+            --output text) \
+          > /root/.aws/credentials
+      - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+      - aws sts get-caller-identity --profile default
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
+      AWS_ROLE:
+        from_secret: PRODUCTION_CHARTS_AWS_ROLE
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
+
+  - name: "Helm: Publish chart repository to S3"
+    image: amazon/aws-cli
+    environment:
+      AWS_REGION:  us-west-2
+      AWS_S3_BUCKET:
+        from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
+    commands:
+      - cd /go/chart/
+      - aws s3 sync . s3://$AWS_S3_BUCKET/
 ---
 kind: signature
-hmac: 6949186be54eb7dcaf7703a9a06127ba64b6ba3400724c81f3945d92965de2eb
+hmac: 861cec4d9c930497d956d53d6f4bb0ff49d311c07bdd25b8ab7977d9123157af
 
 ...
