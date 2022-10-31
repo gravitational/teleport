@@ -36,7 +36,7 @@ func (a *Server) checkCircleCIJoinRequest(ctx context.Context, req *types.Regist
 	}
 	token, ok := pt.(*types.ProvisionTokenV2)
 	if !ok {
-		return trace.BadParameter("%q join method only support ProvisionTokenV2", types.JoinMethodCircleCI)
+		return trace.BadParameter("%q join method only support ProvisionTokenV2, '%T' was provided", types.JoinMethodCircleCI, pt)
 	}
 
 	claims, err := a.circleCITokenValidate(
