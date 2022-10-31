@@ -437,7 +437,7 @@ func (a *ProvisionTokenSpecV2CircleCI) checkAndSetDefaults() error {
 	for _, rule := range a.Allow {
 		projectSet := rule.ProjectID != ""
 		contextSet := rule.ContextID != ""
-		if !(projectSet || contextSet) {
+		if !projectSet && !contextSet {
 			return trace.BadParameter(
 				`allow rule for %q must include at least "project_id" or "context_id"`,
 				JoinMethodCircleCI,
