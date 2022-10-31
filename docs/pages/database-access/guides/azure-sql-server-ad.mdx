@@ -51,12 +51,12 @@ This guide will help you to:
 
 If you have it enabled, you can go to the next step.
 
-1. Go to the [Azure Portal](https://portal.azure.com/), select **Database
-   servers**, and select the database you wish to enable the Azure Active Directory
-   integration.
-2. Select **Azure Active Directory** in the left-hand column.
-3. Select **Set Admin**, and choose an account that will be added as an admin
-   login to SQL Server.
+* Go to the [Azure Portal](https://portal.azure.com/), select **Database
+  servers**, and select the database you wish to enable the Azure Active Directory
+  integration.
+* Select **Azure Active Directory** in the left-hand column.
+* Select **Set Admin**, and choose an account that will be added as an admin
+  login to SQL Server.
 
 ![Azure SQL Server Azure Active Directory admin page](../../../img/database-access/guides/sqlserver/azure-set-ad-admin.png)
 
@@ -82,28 +82,24 @@ created:
 
 ## Step 5/7. Enable managed identities login on SQL Server
 
-Connect to your SQL Server using a pre-existent authentication method or the
-Activity Directory Admin set on
-[Step 3](#step-37-enable-sql-server-azure-active-directory-integration).
+Azure AD SQL Server integration uses database-level authentication (contained
+users), meaning we must create a user for our identities on each database we
+want to access.
 
-Create a [contained user](https://learn.microsoft.com/en-us/sql/relational-databases/security/contained-database-users-making-your-database-portable?view=sql-server-ver16)
-for your identities:
+To create contained users for the identities, connect to your SQL server using
+its Activity Directory Admin and execute the query:
 ```sql
+USE MyDatabase;
 CREATE USER [sqlserver-identity] FROM EXTERNAL PROVIDER;
 ```
 
 The newly created user will be attached to the public role, which might not
 have enough permissions to perform queries. Consider granting individual
-permissions to the user or assigning it to an existing role. For example, add the user as a member of the
-`db_datareader` role:
+permissions to the user or assigning it to an existing role. For example, add
+the user as a member of the `db_datareader` role:
 ```sql
 ALTER ROLE db_datareader ADD MEMBER [sqlserver-identity];
 ```
-
-<Admonition type="note">
-Since we’re creating contained users, this step needs to be done on each
-database we want to be able to log in.
-</Admonition>
 
 ## Step 6/7. Start Teleport Database Service
 
