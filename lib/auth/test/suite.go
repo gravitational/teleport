@@ -21,6 +21,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -30,12 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
-
-	"github.com/gravitational/trace"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 )
 
 type AuthSuite struct {

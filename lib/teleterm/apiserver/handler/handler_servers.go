@@ -18,10 +18,10 @@ import (
 	"context"
 	"sort"
 
+	"github.com/gravitational/trace"
+
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
-
-	"github.com/gravitational/trace"
 )
 
 // GetAllServers returns a full list of nodes without pagination or sorting.

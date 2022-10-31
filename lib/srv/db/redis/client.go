@@ -27,13 +27,14 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
-	"github.com/gravitational/trace"
 )
 
 // Commands with additional processing in Teleport when using cluster mode.
@@ -108,6 +109,10 @@ func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsCon
 			Addr:      connectionAddr,
 			TLSConfig: tlsConfig,
 			OnConnect: onConnect,
+
+			// Auth should be done by the `OnConnect` callback here. So disable
+			// "automatic" auth by the client.
+			DisableAuthOnConnect: true,
 		}), nil
 	case Cluster:
 		client := &clusterClient{
@@ -115,6 +120,10 @@ func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsCon
 				Addrs:     []string{connectionAddr},
 				TLSConfig: tlsConfig,
 				OnConnect: onConnect,
+				NewClient: func(opt *redis.Options) *redis.Client {
+					opt.DisableAuthOnConnect = true
+					return redis.NewClient(opt)
+				},
 			}),
 		}
 		// Load cluster information.

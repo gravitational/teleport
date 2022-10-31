@@ -50,11 +50,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/sso"
 	"github.com/aws/aws-sdk-go/service/ssooidc"
 	"github.com/aws/aws-sdk-go/service/timestreamquery"
+	"github.com/gravitational/trace"
 
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
-
-	"github.com/gravitational/trace"
 )
 
 // resolveEndpoint extracts the aws-service on and aws-region from the request

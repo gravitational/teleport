@@ -25,6 +25,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -33,10 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
-
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 )
 
 // UploadDownload tests uploads and downloads

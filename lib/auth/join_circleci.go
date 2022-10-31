@@ -19,15 +19,16 @@ package auth
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/circleci"
-	"github.com/gravitational/trace"
 )
 
 func (a *Server) checkCircleCIJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
 	if req.IDToken == "" {
-		return trace.BadParameter("IDToken not provided for %q join request",  types.JoinMethodCircleCI)
+		return trace.BadParameter("IDToken not provided for %q join request", types.JoinMethodCircleCI)
 	}
 	pt, err := a.GetToken(ctx, req.Token)
 	if err != nil {

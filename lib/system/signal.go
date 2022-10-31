@@ -31,8 +31,7 @@ int resetInterruptSignalHandler() {
 }
 */
 import "C"
-import log "github.com/sirupsen/logrus"
-
+	log "github.com/sirupsen/logrus"
 // ResetInterruptSignal will reset the handler for SIGINT back to the default
 // handler. We need to do this because when sysvinit launches Teleport on some
 // operating systems (like CentOS 6.8) it configures Teleport to ignore SIGINT
