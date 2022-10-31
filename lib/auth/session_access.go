@@ -22,11 +22,12 @@ import (
 	"strings"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/trace"
+	"github.com/vulcand/predicate"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/vulcand/predicate"
 )
 
 var MinSupportedModeratedSessionsVersion = semver.New(utils.VersionBeforeAlpha("9.0.0"))

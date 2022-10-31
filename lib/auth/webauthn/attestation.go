@@ -19,11 +19,11 @@ import (
 	"encoding/pem"
 
 	"github.com/duo-labs/webauthn/protocol"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/trace"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // x5cFormats enumerates all attestation formats that supply an attestation

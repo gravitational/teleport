@@ -28,12 +28,13 @@ import (
 	"sync"
 
 	gwebsocket "github.com/gorilla/websocket"
-	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	clientremotecommand "k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport"
+
+	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 )
 
 var (

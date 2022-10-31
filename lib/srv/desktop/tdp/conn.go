@@ -22,8 +22,9 @@ import (
 	"net"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/srv"
 )
 
 // Conn is a desktop protocol connection.

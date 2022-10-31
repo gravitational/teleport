@@ -30,9 +30,14 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
+	"github.com/coreos/go-oidc/jose"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	reporting "github.com/gravitational/reporting/types"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -58,14 +63,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	reporting "github.com/gravitational/reporting/types"
-	"github.com/gravitational/trace"
-
-	"github.com/coreos/go-oidc/jose"
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 )
 
 type testPack struct {
@@ -98,7 +95,9 @@ func newTestPack(
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			},
 		},
 	}
 	p.a, err = NewServer(authConfig, opts...)
@@ -879,7 +878,9 @@ func TestUpdateConfig(t *testing.T) {
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			},
 		},
 	}
 	authServer, err := NewServer(authConfig)
@@ -2060,10 +2061,11 @@ func TestCAGeneration(t *testing.T) {
 	require.NoError(t, err)
 
 	ksConfig := keystore.Config{
-		RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
-			return privKey, pubKey, nil
+		Software: keystore.SoftwareConfig{
+			RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
+				return privKey, pubKey, nil
+			},
 		},
-		HostUUID: HostUUID,
 	}
 	keyStore, err := keystore.NewKeyStore(ksConfig)
 	require.NoError(t, err)
