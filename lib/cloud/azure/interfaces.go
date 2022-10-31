@@ -90,8 +90,16 @@ type RedisEnterpriseClient interface {
 
 // SQLServerClient is an interface for a SQL Server client.
 type SQLServerClient interface {
-	// ListAll returns all Azure Redis Enterprise databases within an Azure subscription.
+	// ListAll returns all Azure SQL servers within an Azure subscription.
 	ListAll(ctx context.Context) ([]*armsql.Server, error)
-	// ListWithinGroup returns all Azure Redis Enterprise databases within an Azure resource group.
+	// ListWithinGroup returns all Azure SQL servers databases within an Azure resource group.
 	ListWithinGroup(ctx context.Context, group string) ([]*armsql.Server, error)
+}
+
+// ManagedSQLServerClient is an interface for a Managed SQL Server client.
+type ManagedSQLServerClient interface {
+	// ListAll returns all Azure Managed SQL servers within an Azure subscription.
+	ListAll(ctx context.Context) ([]*armsql.ManagedInstance, error)
+	// ListWithinGroup returns all Azure Managed SQL servers within an Azure resource group.
+	ListWithinGroup(ctx context.Context, group string) ([]*armsql.ManagedInstance, error)
 }

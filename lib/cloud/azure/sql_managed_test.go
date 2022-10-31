@@ -24,22 +24,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSQLListAll(t *testing.T) {
+func TestManagedSQLListAll(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
 	for _, tc := range []struct {
 		desc            string
-		client          armSQLServerClient
+		client          armSQLManagedInstancesClient
 		expectErr       require.ErrorAssertionFunc
 		expectedServers []string
 	}{
 		{
 			desc: "servers",
-			client: &ARMSQLServerMock{AllServers: []*armsql.Server{
-				makeSQLServer(t, "server1", "group1"),
-				makeSQLServer(t, "server2", "group2"),
-				makeSQLServer(t, "server3", "group1"),
+			client: &ARMSQLManagedServerMock{AllServers: []*armsql.ManagedInstance{
+				makeManagedSQLServer(t, "server1", "group1"),
+				makeManagedSQLServer(t, "server2", "group2"),
+				makeManagedSQLServer(t, "server3", "group1"),
 			}},
 			expectErr: require.NoError,
 			expectedServers: []string{
@@ -50,43 +50,43 @@ func TestSQLListAll(t *testing.T) {
 		},
 		{
 			desc:            "empty list",
-			client:          &ARMSQLServerMock{AllServers: []*armsql.Server{}},
+			client:          &ARMSQLManagedServerMock{AllServers: []*armsql.ManagedInstance{}},
 			expectErr:       require.NoError,
 			expectedServers: []string{},
 		},
 		{
 			desc:            "auth error",
-			client:          &ARMSQLServerMock{NoAuth: true},
+			client:          &ARMSQLManagedServerMock{NoAuth: true},
 			expectErr:       require.Error,
 			expectedServers: []string{},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			c := NewSQLClientByAPI(tc.client)
+			c := NewManagedSQLClientByAPI(tc.client)
 
 			servers, err := c.ListAll(ctx)
 			tc.expectErr(t, err)
-			requireSQLServers(t, tc.expectedServers, servers)
+			requireManagedSQLServers(t, tc.expectedServers, servers)
 		})
 	}
 }
 
-func TestSQLListWithinGroup(t *testing.T) {
+func TestManagedSQLListWithinGroup(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
 	for _, tc := range []struct {
 		desc            string
-		client          armSQLServerClient
+		client          armSQLManagedInstancesClient
 		expectErr       require.ErrorAssertionFunc
 		expectedServers []string
 	}{
 		{
 			desc: "servers",
-			client: &ARMSQLServerMock{ResourceGroupServers: []*armsql.Server{
-				makeSQLServer(t, "server1", "group1"),
-				makeSQLServer(t, "server2", "group1"),
-				makeSQLServer(t, "server3", "group1"),
+			client: &ARMSQLManagedServerMock{ResourceGroupServers: []*armsql.ManagedInstance{
+				makeManagedSQLServer(t, "server1", "group1"),
+				makeManagedSQLServer(t, "server2", "group1"),
+				makeManagedSQLServer(t, "server3", "group1"),
 			}},
 			expectErr: require.NoError,
 			expectedServers: []string{
@@ -97,28 +97,28 @@ func TestSQLListWithinGroup(t *testing.T) {
 		},
 		{
 			desc:            "empty list",
-			client:          &ARMSQLServerMock{ResourceGroupServers: []*armsql.Server{}},
+			client:          &ARMSQLManagedServerMock{ResourceGroupServers: []*armsql.ManagedInstance{}},
 			expectErr:       require.NoError,
 			expectedServers: []string{},
 		},
 		{
 			desc:            "auth error",
-			client:          &ARMSQLServerMock{NoAuth: true},
+			client:          &ARMSQLManagedServerMock{NoAuth: true},
 			expectErr:       require.Error,
 			expectedServers: []string{},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			c := NewSQLClientByAPI(tc.client)
+			c := NewManagedSQLClientByAPI(tc.client)
 
 			servers, err := c.ListWithinGroup(ctx, "group1")
 			tc.expectErr(t, err)
-			requireSQLServers(t, tc.expectedServers, servers)
+			requireManagedSQLServers(t, tc.expectedServers, servers)
 		})
 	}
 }
 
-func requireSQLServers(t *testing.T, expected []string, actual []*armsql.Server) {
+func requireManagedSQLServers(t *testing.T, expected []string, actual []*armsql.ManagedInstance) {
 	t.Helper()
 
 	var serverNames []string
@@ -129,10 +129,10 @@ func requireSQLServers(t *testing.T, expected []string, actual []*armsql.Server)
 	require.ElementsMatch(t, expected, serverNames)
 }
 
-func makeSQLServer(t *testing.T, name, group string) *armsql.Server {
+func makeManagedSQLServer(t *testing.T, name, group string) *armsql.ManagedInstance {
 	t.Helper()
 
-	return &armsql.Server{
+	return &armsql.ManagedInstance{
 		ID:   to.Ptr(fmt.Sprintf("/subscriptions/sub-id/resourceGroups/%v/providers/Microsoft.Sql/servers/%v", group, name)),
 		Name: to.Ptr(fmt.Sprintf("%s.database.windows.net", name)),
 	}

@@ -518,3 +518,30 @@ func (m *ARMSQLServerMock) NewListByResourceGroupPager(resourceGroupName string,
 		}, nil
 	})
 }
+
+// ARMSQLManagedServerMock mocks armSQLServerClient
+type ARMSQLManagedServerMock struct {
+	NoAuth               bool
+	AllServers           []*armsql.ManagedInstance
+	ResourceGroupServers []*armsql.ManagedInstance
+}
+
+func (m *ARMSQLManagedServerMock) NewListPager(options *armsql.ManagedInstancesClientListOptions) *runtime.Pager[armsql.ManagedInstancesClientListResponse] {
+	return newPagerHelper(m.NoAuth, func() (armsql.ManagedInstancesClientListResponse, error) {
+		return armsql.ManagedInstancesClientListResponse{
+			ManagedInstanceListResult: armsql.ManagedInstanceListResult{
+				Value: m.AllServers,
+			},
+		}, nil
+	})
+}
+
+func (m *ARMSQLManagedServerMock) NewListByResourceGroupPager(resourceGroupName string, options *armsql.ManagedInstancesClientListByResourceGroupOptions) *runtime.Pager[armsql.ManagedInstancesClientListByResourceGroupResponse] {
+	return newPagerHelper(m.NoAuth, func() (armsql.ManagedInstancesClientListByResourceGroupResponse, error) {
+		return armsql.ManagedInstancesClientListByResourceGroupResponse{
+			ManagedInstanceListResult: armsql.ManagedInstanceListResult{
+				Value: m.ResourceGroupServers,
+			},
+		}, nil
+	})
+}
