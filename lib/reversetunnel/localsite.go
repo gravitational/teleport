@@ -533,11 +533,26 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 		}
 	}()
 
+	proxySyncTicker := s.clock.NewTicker(5 * time.Minute)
+	defer proxySyncTicker.Stop()
+
 	for {
 		select {
 		case <-s.srv.ctx.Done():
 			s.log.Infof("closing")
 			return
+		case <-proxySyncTicker.Chan():
+			logger.Debug("Syncing proxies to agent")
+			req := discoveryRequest{
+				ClusterName: s.srv.ClusterName,
+				Type:        rconn.tunnelType,
+				Proxies:     s.srv.proxyWatcher.GetCurrent(),
+			}
+			if err := rconn.sendDiscoveryRequest(req); err != nil {
+				logger.WithError(err).Debugf("Failed to send discovery request to agent")
+				rconn.markInvalid(err)
+				return
+			}
 		case proxies := <-rconn.newProxiesC:
 			req := discoveryRequest{
 				ClusterName: s.srv.ClusterName,
