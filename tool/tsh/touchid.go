@@ -20,11 +20,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth/touchid"
-
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/auth/touchid"
 )
 
 type touchIDCommand struct {
