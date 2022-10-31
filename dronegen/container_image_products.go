@@ -38,7 +38,10 @@ type Product struct {
 
 func NewTeleportProduct(isEnterprise, isFips bool, version *ReleaseVersion) *Product {
 	workingDirectory := "/go/build"
-	downloadURL := "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+	downloadURL := fmt.Sprintf(
+		"https://raw.githubusercontent.com/gravitational/teleport/%s/build.assets/charts/Dockerfile",
+		version.ShellVersion,
+	)
 	name := "teleport"
 	dockerfileTarget := "teleport"
 	supportedArches := []string{"amd64"}

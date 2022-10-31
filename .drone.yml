@@ -8267,7 +8267,7 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/$(echo v1.2.3-fred.11)/build.assets/charts/Dockerfile"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8589,7 +8589,7 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/$(echo v1.2.3-fred.11)/build.assets/charts/Dockerfile"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8912,7 +8912,7 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/$(echo v1.2.3-fred.11)/build.assets/charts/Dockerfile"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -10974,7 +10974,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
+    '/go/vars/full-version/v11')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -11702,7 +11703,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
+    '/go/vars/full-version/v11')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -12433,7 +12435,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
+    '/go/vars/full-version/v11')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -13620,7 +13623,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
+    '/go/vars/full-version/v10')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -14348,7 +14352,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
+    '/go/vars/full-version/v10')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -15079,7 +15084,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
+    '/go/vars/full-version/v10')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -16265,7 +16271,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
+    '/go/vars/full-version/v9')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -16993,7 +17000,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
+    '/go/vars/full-version/v9')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -17724,7 +17732,8 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/$(cat
+    '/go/vars/full-version/v9')/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -18854,7 +18863,7 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/$(echo v1.2.3-fred.11)/build.assets/charts/Dockerfile"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -19176,7 +19185,7 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/$(echo v1.2.3-fred.11)/build.assets/charts/Dockerfile"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -19499,7 +19508,7 @@ steps:
   commands:
   - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/$(echo v1.2.3-fred.11)/build.assets/charts/Dockerfile"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -19838,6 +19847,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 1b2a7009309eab26cda4ee70a9615c9a28e857bafc4303c4c176d857f57b0203
+hmac: 0df8a42be2b005d31718575a286f218fcf79dd2c456bc0ef14b8e8674cf5eeb9
 
 ...
