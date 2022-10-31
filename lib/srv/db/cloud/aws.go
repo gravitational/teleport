@@ -128,23 +128,23 @@ func (r *awsClient) teardownIAM(ctx context.Context) error {
 
 // ensureIAMAuth enables RDS instance IAM auth if it isn't enabled.
 func (r *awsClient) ensureIAMAuth(ctx context.Context) error {
-	if r.cfg.database.IsRedshift() {
-		// Redshift IAM auth is always enabled.
-		return nil
-	}
-	if r.cfg.database.GetAWS().RDS.IAMAuth {
-		r.log.Debug("IAM auth already enabled.")
-		return nil
-	}
-	if err := r.enableIAMAuth(ctx); err != nil {
-		return trace.Wrap(err)
+	// IAM Auth for Redshift and RDS Proxy is always enabled.
+	// Only setting for RDS instances and Aurora clusters.
+	if r.cfg.database.IsRDS() {
+		if r.cfg.database.GetAWS().RDS.IAMAuth {
+			r.log.Debug("IAM auth already enabled.")
+			return nil
+		}
+		if err := r.enableIAMAuthForRDS(ctx); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }
 
-// enableIAMAuth turns on IAM auth setting on the RDS instance.
-func (r *awsClient) enableIAMAuth(ctx context.Context) error {
-	r.log.Debug("Enabling IAM auth.")
+// enableIAMAuthForRDS turns on IAM auth setting on the RDS instance.
+func (r *awsClient) enableIAMAuthForRDS(ctx context.Context) error {
+	r.log.Debug("Enabling IAM auth for RDS.")
 	var err error
 	if r.cfg.database.GetAWS().RDS.ClusterID != "" {
 		_, err = r.rds.ModifyDBClusterWithContext(ctx, &rds.ModifyDBClusterInput{
