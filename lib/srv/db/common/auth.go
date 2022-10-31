@@ -535,8 +535,20 @@ func setupTLSConfigRootCAs(tlsConfig *tls.Config, sessionCtx *Session) error {
 // certificates signed by publicly trusted CAs so a system cert pool can be
 // used.
 func shouldUseSystemCertPool(sessionCtx *Session) bool {
-	// Azure Cache for Redis certificates are signed by DigiCert Global Root G2.
-	return sessionCtx.Database.IsAzure() && sessionCtx.Database.GetProtocol() == defaults.ProtocolRedis
+	switch sessionCtx.Database.GetType() {
+	case types.DatabaseTypeAzure:
+		// Azure Cache for Redis certificates are signed by DigiCert Global Root G2.
+		if sessionCtx.Database.GetProtocol() == defaults.ProtocolRedis {
+			return true
+		}
+
+	case types.DatabaseTypeRDSProxy:
+		// AWS RDS Proxy uses Amazon Root CAs.
+		//
+		// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.howitworks.html#rds-proxy-security.tls
+		return true
+	}
+	return false
 }
 
 // setupTLSConfigServerName initializes the server name for the provided
