@@ -52,6 +52,7 @@ export const DesktopPlayer = ({
 
       <TdpClientCanvas
         tdpCli={playerClient}
+        tdpCliInit={true}
         tdpCliOnPngFrame={tdpCliOnPngFrame}
         tdpCliOnClientScreenSpec={tdpCliOnClientScreenSpec}
         tdpCliOnWsClose={tdpCliOnWsClose}
