@@ -23,6 +23,8 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/auth/windows"
 )
 
 const (
@@ -34,7 +36,7 @@ const (
 
 // Note: if you want to browse LDAP on the Windows machine, run ADSIEdit.msc.
 type ldapClient struct {
-	cfg LDAPConfig
+	cfg windows.LDAPConfig
 
 	mu     sync.Mutex
 	client ldap.Client
