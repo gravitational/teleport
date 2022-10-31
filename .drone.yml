@@ -11603,7 +11603,6 @@ steps:
   - name: "Helm: Assume Download AWS Role"
     image: amazon/aws-cli
     commands:
-      - mkdir /root/.aws
       - aws sts get-caller-identity
       - |-
         printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
@@ -11697,6 +11696,6 @@ volumes:
     temp: {}      
 ---
 kind: signature
-hmac: 79510aa5b521c5f6c3fe643d811d6e80a6e73bf863bb561730c0d9c22456f83f
+hmac: 8154da459ef08b4b4dfad977be67a6cd67ab1448e8446d10a2da4483bae860a3
 
 ...
