@@ -14,23 +14,19 @@
 
 package proxy
 
+//nolint:goimports
 import (
 	"context"
 	"fmt"
 	"net"
 	"net/url"
 
-	"github.com/gravitational/teleport/api/types"
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
 	authzapi "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
-	"k8s.io/client-go/rest"
-
 	// Load kubeconfig auth plugins for gcp and azure.
 	// Without this, users can't provide a kubeconfig using those.
 	//
@@ -38,6 +34,10 @@ import (
 	// support for popular hosting providers and minimizing attack surface.
 	_ "k8s.io/client-go/plugin/pkg/client/auth/azure"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"k8s.io/client-go/rest"
+
+	"github.com/gravitational/teleport/api/types"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 )
 
 // ImpersonationPermissionsChecker describes a function that can be used to check

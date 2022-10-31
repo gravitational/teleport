@@ -24,10 +24,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestValidateConfig(t *testing.T) {
