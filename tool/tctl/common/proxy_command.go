@@ -18,12 +18,12 @@ import (
 	"context"
 	"os"
 
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
 )
 
 // ProxyCommand returns information about connected proxies

@@ -21,6 +21,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -32,9 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 )
 
 func EnableKubernetesService(t *testing.T, config *service.Config) {

@@ -26,6 +26,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -36,11 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 // TestConnAndSessLimits verifies that role sets correctly calculate

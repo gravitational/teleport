@@ -20,12 +20,11 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 	"go.mongodb.org/mongo-driver/x/mongo/driver"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
-
-	"github.com/stretchr/testify/require"
 )
 
 // TestOpMsgSingleBody verifies marshal/unmarshal for single-document OP_MSG wire message.

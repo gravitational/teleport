@@ -21,7 +21,11 @@ import (
 	"crypto/x509"
 	"time"
 
-	"github.com/gravitational/teleport/lib/githubactions"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"golang.org/x/net/http2"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -32,15 +36,10 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"golang.org/x/net/http2"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 // LocalRegister is used to generate host keys when a node or proxy is running

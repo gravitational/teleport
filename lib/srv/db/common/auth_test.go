@@ -27,6 +27,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -37,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
 )
 
 func TestAuthGetAzureCacheForRedisToken(t *testing.T) {
@@ -149,6 +149,12 @@ func TestAuthGetTLSConfig(t *testing.T) {
 			name:             "Azure Redis",
 			sessionDatabase:  newAzureRedisDatabase(t, "resource-id"),
 			expectServerName: "test-database.redis.cache.windows.net",
+			expectRootCAs:    systemCertPool,
+		},
+		{
+			name:             "AWS RDS Proxy",
+			sessionDatabase:  newRDSProxyDatabase(t, "my-proxy.proxy-abcdefghijklmnop.us-east-1.rds.amazonaws.com:5432"),
+			expectServerName: "my-proxy.proxy-abcdefghijklmnop.us-east-1.rds.amazonaws.com",
 			expectRootCAs:    systemCertPool,
 		},
 		{
@@ -403,6 +409,23 @@ func newRedshiftDatabase(t *testing.T, ca string) types.Database {
 		URI:      "redshift-cluster-1.abcdefghijklmnop.us-east-1.redshift.amazonaws.com:5432",
 		TLS: types.DatabaseTLS{
 			CACert: ca,
+		},
+	})
+	require.NoError(t, err)
+	return database
+}
+
+func newRDSProxyDatabase(t *testing.T, uri string) types.Database {
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-database",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      uri,
+		AWS: types.AWS{
+			Region: "us-east-1",
+			RDSProxy: types.RDSProxy{
+				Name: "test-database",
+			},
 		},
 	})
 	require.NoError(t, err)

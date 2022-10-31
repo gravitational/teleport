@@ -134,6 +134,8 @@ type CommandLineFlags struct {
 	DatabaseCACertFile string
 	// DatabaseAWSRegion is an optional database cloud region e.g. when using AWS RDS.
 	DatabaseAWSRegion string
+	// DatabaseAWSAccountID is an optional AWS account ID e.g. when using Keyspaces.
+	DatabaseAWSAccountID string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
 	DatabaseAWSRedshiftClusterID string
 	// DatabaseAWSRDSInstanceID is RDS instance identifier.
@@ -721,13 +723,13 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
 			)
 		}
 
-		cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
+		cfg.Auth.KeyStore.PKCS11.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
 	}
 
-	cfg.Auth.KeyStore.TokenLabel = fc.Auth.CAKeyParams.PKCS11.TokenLabel
-	cfg.Auth.KeyStore.SlotNumber = fc.Auth.CAKeyParams.PKCS11.SlotNumber
+	cfg.Auth.KeyStore.PKCS11.TokenLabel = fc.Auth.CAKeyParams.PKCS11.TokenLabel
+	cfg.Auth.KeyStore.PKCS11.SlotNumber = fc.Auth.CAKeyParams.PKCS11.SlotNumber
 
-	cfg.Auth.KeyStore.Pin = fc.Auth.CAKeyParams.PKCS11.Pin
+	cfg.Auth.KeyStore.PKCS11.Pin = fc.Auth.CAKeyParams.PKCS11.Pin
 	if fc.Auth.CAKeyParams.PKCS11.PinPath != "" {
 		if fc.Auth.CAKeyParams.PKCS11.Pin != "" {
 			return trace.BadParameter("can not set both pin and pin_path")
@@ -751,7 +753,7 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		pin := strings.TrimRight(string(pinBytes), "\r\n")
-		cfg.Auth.KeyStore.Pin = pin
+		cfg.Auth.KeyStore.PKCS11.Pin = pin
 	}
 	return nil
 }
@@ -1929,7 +1931,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 				CACert: caBytes,
 			},
 			AWS: service.DatabaseAWS{
-				Region: clf.DatabaseAWSRegion,
+				Region:    clf.DatabaseAWSRegion,
+				AccountID: clf.DatabaseAWSAccountID,
 				Redshift: service.DatabaseAWSRedshift{
 					ClusterID: clf.DatabaseAWSRedshiftClusterID,
 				},
