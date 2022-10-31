@@ -194,7 +194,7 @@ type LDAPConfig struct {
 
 func (cfg LDAPConfig) check() error {
 	if cfg.Addr == "" {
-		return trace.BadParameter("missing Addr in LDAPConfig")
+		return nil
 	}
 	if cfg.Domain == "" {
 		return trace.BadParameter("missing Domain in LDAPConfig")
@@ -332,14 +332,23 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		return nil, trace.Wrap(err, "fetching cluster name")
 	}
 
-	// Here we assume the LDAP server is an Active Directory Domain Controller,
-	// which means it should also be a DNS server that can resolve Windows hosts.
-	dnsServer, _, err := net.SplitHostPort(cfg.LDAPConfig.Addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	dialer := &net.Dialer{Timeout: dnsDialTimeout}
+	dnsDial := dialer.DialContext
+	if cfg.LDAPConfig.Addr != "" {
+		// Here we assume the LDAP server is an Active Directory Domain Controller,
+		// which means it should also be a DNS server that can resolve Windows hosts.
+		dnsServer, _, err := net.SplitHostPort(cfg.LDAPConfig.Addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		dnsAddr := net.JoinHostPort(dnsServer, "53")
+		cfg.Log.Debugln("DNS lookups will be performed against", dnsAddr)
+		dnsDial = func(ctx context.Context, network, address string) (net.Conn, error) {
+			// Ignore the address provided, and always explicitly dial
+			// the domain controller.
+			return dialer.DialContext(ctx, network, dnsAddr)
+		}
 	}
-	dnsAddr := net.JoinHostPort(dnsServer, "53")
-	cfg.Log.Debugln("DNS lookups will be performed against", dnsAddr)
 
 	ctx, close := context.WithCancel(context.Background())
 	s := &WindowsService{
@@ -350,12 +359,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		},
 		dnsResolver: &net.Resolver{
 			PreferGo: true,
-			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-				// Ignore the address provided, and always explicitly dial
-				// the domain controller.
-				d := net.Dialer{Timeout: dnsDialTimeout}
-				return d.DialContext(ctx, network, dnsAddr)
-			},
+			Dial:     dnsDial,
 		},
 		lc:          &ldapClient{cfg: cfg.LDAPConfig},
 		clusterName: clusterName.GetClusterName(),
@@ -504,6 +508,10 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 // and authenticate with the LDAP server, then the operation will be automatically
 // retried.
 func (s *WindowsService) initializeLDAP() error {
+	if s.cfg.LDAPConfig.Addr == "" {
+		s.ldapInitialized = true
+		return nil
+	}
 	tc, err := s.tlsConfigForLDAP()
 	if trace.IsAccessDenied(err) && modules.GetModules().BuildType() == modules.BuildEnterprise {
 		s.cfg.Log.Warn("Could not generate certificate for LDAPS. Ensure that the auth server is licensed for desktop access.")
