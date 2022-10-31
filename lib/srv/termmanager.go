@@ -53,7 +53,7 @@ type TermManager struct {
 	// remaining is a partially read chunk of stdin data
 	// we only support one concurrent reader so this isn't mutex protected
 	remaining         []byte
-	readStateUpdate   *sync.Cond
+	readStateUpdate   chan bool
 	closed            chan struct{}
 	lastWasBroadcast  bool
 	terminateNotifier chan struct{}
@@ -68,7 +68,7 @@ func NewTermManager() *TermManager {
 		writers:           make(map[string]io.Writer),
 		readerState:       make(map[string]bool),
 		closed:            make(chan struct{}),
-		readStateUpdate:   sync.NewCond(&sync.Mutex{}),
+		readStateUpdate:   make(chan bool, 1),
 		incoming:          make(chan []byte, 100),
 		terminateNotifier: make(chan struct{}, 1),
 	}
@@ -122,55 +122,57 @@ func (g *TermManager) Write(p []byte) (int, error) {
 }
 
 func (g *TermManager) Read(p []byte) (int, error) {
-	if len(g.remaining) > 0 {
+	// check to see if data should flow
+	g.mu.Lock()
+	on := g.on
+	g.mu.Unlock()
+
+	// If good to consume and there is data left over from last read,
+	// then return it.
+	if on && len(g.remaining) > 0 {
 		n := copy(p, g.remaining)
 		g.remaining = g.remaining[n:]
 		return n, nil
 	}
 
-	q := make(chan struct{})
-	defer close(q)
-	c := make(chan bool)
-	go func() {
-		g.readStateUpdate.L.Lock()
-		defer g.readStateUpdate.L.Unlock()
-
-		for {
-			g.mu.Lock()
-			on := g.on
-			g.mu.Unlock()
-
-			select {
-			case c <- on:
-			case <-q:
-				close(c)
-				return
-			}
-
-			g.readStateUpdate.Wait()
-		}
-	}()
-
-	on := <-c
+	// wait until 1 of 3 things happens
+	// 1) the session is closed
+	// 2) data is received
+	// 3) data flow is altered
 	for {
-		if !on {
-			select {
-			case <-g.closed:
-				return 0, io.EOF
-			case on = <-c:
+		select {
+		case <-g.closed: // the handler is closed
+			// the session is completed return io.EOF
+			return 0, io.EOF
+		case on = <-g.readStateUpdate: // data flow was changed
+			// When data flow is disabled we need to wait until it is
+			// turned back on before returning any data. If data flow
+			// is enabled, but we have no data to return we need to wait
+			// until more is available.
+			if !on || len(g.remaining) <= 0 {
 				continue
 			}
-		}
 
-		select {
-		case <-g.closed:
-			return 0, io.EOF
-		case on = <-c:
-			continue
-		case g.remaining = <-g.incoming:
+			// Data flow is enabled, and we have some data, let's send
+			// it along
 			n := copy(p, g.remaining)
 			g.remaining = g.remaining[n:]
 			return n, nil
+		case g.remaining = <-g.incoming: // data was written upstream
+			// let's check again if data flow has changed
+			// just to be safe
+			select {
+			case on = <-g.readStateUpdate:
+			default:
+			}
+
+			// Data flow is enabled, and we have some data, let's send
+			// it along
+			if on && len(g.remaining) > 0 {
+				n := copy(p, g.remaining)
+				g.remaining = g.remaining[n:]
+				return n, nil
+			}
 		}
 	}
 }
@@ -194,7 +196,7 @@ func (g *TermManager) On() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.on = true
-	g.readStateUpdate.Broadcast()
+	g.readStateUpdate <- true
 	g.writeToClients(g.buffer)
 }
 
@@ -203,7 +205,7 @@ func (g *TermManager) Off() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.on = false
-	g.readStateUpdate.Broadcast()
+	g.readStateUpdate <- false
 }
 
 func (g *TermManager) AddWriter(name string, w io.Writer) {
