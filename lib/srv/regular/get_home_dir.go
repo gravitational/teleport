@@ -23,10 +23,10 @@ import (
 	"os/user"
 	"strings"
 
-	"github.com/gravitational/teleport/lib/srv"
-
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/lib/srv"
 )
 
 type homeDirSubsys struct {

@@ -21,16 +21,15 @@ import (
 	"crypto/tls"
 	"net"
 
+	"github.com/gravitational/trace"
+	"github.com/jackc/pgproto3/v2"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/jackc/pgproto3/v2"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // Proxy proxies connections from Postgres clients to database services

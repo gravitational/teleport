@@ -23,7 +23,6 @@ import (
 	"github.com/flynn/u2f/u2fhid"
 	"github.com/flynn/u2f/u2ftoken"
 	"github.com/gravitational/trace"
-
 	log "github.com/sirupsen/logrus"
 )
 
