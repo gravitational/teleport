@@ -27,7 +27,7 @@ import (
 
 func (a *Server) checkCircleCIJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
 	if req.IDToken == "" {
-		return trace.BadParameter("%q not provided for %q join request", "IDToken", types.JoinMethodCircleCI)
+		return trace.BadParameter("IDToken not provided for %q join request",  types.JoinMethodCircleCI)
 	}
 	pt, err := a.GetToken(ctx, req.Token)
 	if err != nil {
