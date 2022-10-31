@@ -219,12 +219,21 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		Method:    types.JoinMethod(joinMethod),
 	}
 
-	if flags.AuthServer != "" {
-		g.AuthServer = flags.AuthServer
-	}
-
-	if flags.ProxyAddress != "" {
-		g.ProxyServer = flags.ProxyAddress
+	if flags.Version == defaults.TeleportConfigVersionV3 {
+		if flags.AuthServer != "" && flags.ProxyAddress != "" {
+			return nil, trace.BadParameter("--proxy and --auth-server cannot both be set")
+		} else if flags.AuthServer != "" {
+			g.AuthServer = flags.AuthServer
+		} else if flags.ProxyAddress != "" {
+			g.ProxyServer = flags.ProxyAddress
+		}
+	} else {
+		if flags.AuthServer != "" {
+			g.AuthServers = []string{flags.AuthServer}
+		}
+		if flags.ProxyAddress != "" {
+			return nil, trace.BadParameter("--proxy cannot be used with configuration versions older than v3")
+		}
 	}
 
 	g.CAPin = strings.Split(flags.CAPin, ",")
