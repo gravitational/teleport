@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auditd"
@@ -42,8 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // FileFD is a file descriptor passed down from a parent process when
@@ -210,21 +209,22 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	}
 
 	if err := auditd.SendEvent(auditd.AuditUserLogin, auditd.Success, auditdMsg); err != nil {
-		log.WithError(err).Errorf("failed to send user start event to auditd: %v", err)
+		// Currently, this logs nothing. Related issue https://github.com/gravitational/teleport/issues/17318
+		log.WithError(err).Debugf("failed to send user start event to auditd: %v", err)
 	}
 
 	defer func() {
 		if err != nil {
 			if errors.Is(err, user.UnknownUserError(c.Login)) {
 				if err := auditd.SendEvent(auditd.AuditUserErr, auditd.Failed, auditdMsg); err != nil {
-					log.WithError(err).Errorf("failed to send UserErr event to auditd: %v", err)
+					log.WithError(err).Debugf("failed to send UserErr event to auditd: %v", err)
 				}
 				return
 			}
 		}
 
 		if err := auditd.SendEvent(auditd.AuditUserEnd, auditd.Success, auditdMsg); err != nil {
-			log.WithError(err).Errorf("failed to send UserEnd event to auditd: %v", err)
+			log.WithError(err).Debugf("failed to send UserEnd event to auditd: %v", err)
 		}
 	}()
 
@@ -359,7 +359,10 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		// xauthority files is put into the correct place ($HOME/.Xauthority)
 		// with the right permissions.
 		removeCmd := x11.NewXAuthCommand(context.Background(), "")
-		removeCmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		removeCmd.SysProcAttr = &syscall.SysProcAttr{
+			Setsid:     true,
+			Credential: cmd.SysProcAttr.Credential,
+		}
 		removeCmd.Env = cmd.Env
 		removeCmd.Dir = cmd.Dir
 		if err := removeCmd.RemoveEntries(c.X11Config.XAuthEntry.Display); err != nil {
@@ -367,7 +370,10 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		}
 
 		addCmd := x11.NewXAuthCommand(context.Background(), "")
-		addCmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		addCmd.SysProcAttr = &syscall.SysProcAttr{
+			Setsid:     true,
+			Credential: cmd.SysProcAttr.Credential,
+		}
 		addCmd.Env = cmd.Env
 		addCmd.Dir = cmd.Dir
 		if err := addCmd.AddEntry(c.X11Config.XAuthEntry); err != nil {

@@ -25,19 +25,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/lib/tlsca"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go/aws/credentials/ssocreds"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // Cloud provides cloud provider access related methods such as generating

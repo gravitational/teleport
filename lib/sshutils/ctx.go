@@ -21,13 +21,14 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 
-	"github.com/gravitational/teleport/lib/teleagent"
-
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/teleagent"
 )
 
 // ConnectionContext manages connection-level state.
@@ -63,25 +64,46 @@ type ConnectionContext struct {
 
 	// cancel cancels the context.Context scope associated with this ConnectionContext.
 	cancel context.CancelFunc
+
+	// clientLastActive records the last time there was activity from the client.
+	clientLastActive time.Time
+
+	clock clockwork.Clock
+}
+
+type ConnectionContextOption func(c *ConnectionContext)
+
+// SetConnectionContextClock sets the connection context's internal clock.
+func SetConnectionContextClock(clock clockwork.Clock) ConnectionContextOption {
+	return func(c *ConnectionContext) {
+		c.clock = clock
+	}
 }
 
 // NewConnectionContext creates a new ConnectionContext and a child context.Context
 // instance which will be canceled when the ConnectionContext is closed.
-func NewConnectionContext(ctx context.Context, nconn net.Conn, sconn *ssh.ServerConn) (context.Context, *ConnectionContext) {
+func NewConnectionContext(ctx context.Context, nconn net.Conn, sconn *ssh.ServerConn, opts ...ConnectionContextOption) (context.Context, *ConnectionContext) {
 	ctx, cancel := context.WithCancel(ctx)
-	return ctx, &ConnectionContext{
+	ccx := &ConnectionContext{
 		NetConn:    nconn,
 		ServerConn: sconn,
 		env:        make(map[string]string),
 		cancel:     cancel,
+		clock:      clockwork.NewRealClock(),
 	}
+
+	for _, opt := range opts {
+		opt(ccx)
+	}
+
+	return ctx, ccx
 }
 
 // agentChannel implements the extended teleteleagent.Agent interface,
 // allowing the underlying ssh.Channel to be closed when the agent
 // is no longer needed.
 type agentChannel struct {
-	agent.Agent
+	agent.ExtendedAgent
 	ch ssh.Channel
 }
 
@@ -118,8 +140,8 @@ func (c *ConnectionContext) StartAgentChannel() (teleagent.Agent, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &agentChannel{
-		Agent: agent.NewClient(ch),
-		ch:    ch,
+		ExtendedAgent: agent.NewClient(ch),
+		ch:            ch,
 	}, nil
 }
 
@@ -184,6 +206,20 @@ func (c *ConnectionContext) decrSessions() {
 	if c.sessions < 0 {
 		panic("underflow")
 	}
+}
+
+// GetClientLastActive returns time when client was last active.
+func (c *ConnectionContext) GetClientLastActive() time.Time {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.clientLastActive
+}
+
+// UpdateClientActivity sets last recorded client activity associated with this context.
+func (c *ConnectionContext) UpdateClientActivity() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.clientLastActive = c.clock.Now().UTC()
 }
 
 // AddCloser adds any closer in ctx that will be called

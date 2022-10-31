@@ -80,7 +80,9 @@ func setUpSuite(t *testing.T) *OIDCSuite {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: authority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
 		},
 	}
 	s.a, err = NewServer(authConfig)
@@ -297,7 +299,7 @@ func TestSSODiagnostic(t *testing.T) {
 					ConnectorID: "-sso-test-okta",
 					Username:    "superuser@example.com",
 				},
-				Req: *request,
+				Req: OIDCAuthRequestFromProto(request),
 			}, resp)
 
 			diagCtx := ssoDiagContext{}
@@ -311,7 +313,7 @@ func TestSSODiagnostic(t *testing.T) {
 					ConnectorID: "-sso-test-okta",
 					Username:    "superuser@example.com",
 				},
-				Req: *request,
+				Req: OIDCAuthRequestFromProto(request),
 			}, resp)
 			require.Equal(t, types.SSODiagnosticInfo{
 				TestFlow: true,

@@ -22,15 +22,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/vulcand/predicate/builder"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/gravitational/trace"
-	"github.com/vulcand/predicate/builder"
 )
 
 // NewAdminContext returns new admin auth context
@@ -145,17 +145,12 @@ Loop:
 	return lockTargets
 }
 
-// UseSearchAsRoles extends the roles of the Checker on the current Context with
-// the set of roles the user is allowed to search as.
-func (c *Context) UseSearchAsRoles(access services.RoleGetter, clusterName string) error {
-	if len(c.Checker.GetAllowedResourceIDs()) > 0 {
-		return trace.AccessDenied("user is currently logged in with a search-based access request, cannot further extend roles for search")
-	}
+// UseExtraRoles extends the roles of the Checker on the current Context with
+// the given extra roles.
+func (c *Context) UseExtraRoles(access services.RoleGetter, clusterName string, roles []string) error {
 	var newRoleNames []string
-	// include existing roles
 	newRoleNames = append(newRoleNames, c.Checker.RoleNames()...)
-	// extend with allowed search_as_roles
-	newRoleNames = append(newRoleNames, c.Checker.GetSearchAsRoles()...)
+	newRoleNames = append(newRoleNames, roles...)
 	newRoleNames = utils.Deduplicate(newRoleNames)
 
 	// set new roles on the context user and create a new access checker
@@ -200,7 +195,31 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 		authContext.LockTargets()...); lockErr != nil {
 		return nil, trace.Wrap(lockErr)
 	}
+
+	// Enforce required private key policy if set.
+	if err := a.enforcePrivateKeyPolicy(ctx, authContext, authPref); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return authContext, nil
+}
+
+func (a *authorizer) enforcePrivateKeyPolicy(ctx context.Context, authContext *Context, authPref types.AuthPreference) error {
+	switch authContext.Identity.(type) {
+	case BuiltinRole, RemoteBuiltinRole:
+		// built in roles do not need to pass private key policies
+		return nil
+	}
+
+	// Check that the required private key policy, defined by roles and auth pref,
+	// is met by this Identity's tls certificate.
+	identityPolicy := authContext.Identity.GetIdentity().PrivateKeyPolicy
+	requiredPolicy := authContext.Checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if err := requiredPolicy.VerifyPolicy(identityPolicy); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context, error) {
@@ -289,6 +308,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		RouteToDatabase:   u.Identity.RouteToDatabase,
 		MFAVerified:       u.Identity.MFAVerified,
 		ClientIP:          u.Identity.ClientIP,
+		PrivateKeyPolicy:  u.Identity.PrivateKeyPolicy,
 	}
 
 	return &Context{
@@ -689,7 +709,10 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindNode, services.RO()),
+						types.NewRule(types.KindKubernetesCluster, services.RW()),
 					},
+					// wildcard any cluster available.
+					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				},
 			})
 	}

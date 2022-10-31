@@ -26,13 +26,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/dustin/go-humanize"
 	ui "github.com/gizak/termui/v3"
 	"github.com/gizak/termui/v3/widgets"
@@ -41,6 +34,13 @@ import (
 	"github.com/gravitational/trace"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TopCommand implements `tctl top` group of commands.

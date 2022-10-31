@@ -28,6 +28,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
@@ -43,10 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 const (
@@ -1276,11 +1276,6 @@ func (c *Client) DeleteBot(ctx context.Context, botName string) error {
 // GetBotUsers fetches all bot users.
 func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
 	return c.APIClient.GetBotUsers(ctx)
-}
-
-// GetAppServers gets all application servers.
-func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	return c.APIClient.GetAppServers(ctx, namespace)
 }
 
 // GetDatabaseServers returns all registered database proxy servers.

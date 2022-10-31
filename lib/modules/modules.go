@@ -19,18 +19,22 @@ limitations under the License.
 package modules
 
 import (
+	"context"
+	"crypto"
 	"crypto/sha256"
 	"fmt"
 	"reflect"
 	"runtime"
 	"sync"
+	"time"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // Features provides supported and unsupported features
@@ -55,12 +59,6 @@ type Features struct {
 	HSM bool
 	// Desktop enables desktop access product
 	Desktop bool
-	// ModeratedSessions turns on moderated sessions
-	ModeratedSessions bool
-	// MachineID turns on MachineID
-	MachineID bool
-	// ResourceAccessRequests turns on resource access requests
-	ResourceAccessRequests bool
 }
 
 // ToProto converts Features into proto.Features
@@ -76,9 +74,6 @@ func (f Features) ToProto() *proto.Features {
 		Cloud:                   f.Cloud,
 		HSM:                     f.HSM,
 		Desktop:                 f.Desktop,
-		ModeratedSessions:       f.ModeratedSessions,
-		MachineID:               f.MachineID,
-		ResourceAccessRequests:  f.ResourceAccessRequests,
 	}
 }
 
@@ -93,6 +88,8 @@ type Modules interface {
 	Features() Features
 	// BuildType returns build type (OSS or Enterprise)
 	BuildType() string
+	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
+	AttestHardwareKey(context.Context, interface{}, keys.PrivateKeyPolicy, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (keys.PrivateKeyPolicy, error)
 }
 
 const (
@@ -156,12 +153,10 @@ func (p *defaultModules) PrintVersion() {
 // Features returns supported features
 func (p *defaultModules) Features() Features {
 	return Features{
-		Kubernetes:        true,
-		DB:                true,
-		App:               true,
-		Desktop:           true,
-		MachineID:         true,
-		ModeratedSessions: false, // moderated sessions is supported in enterprise only
+		Kubernetes: true,
+		DB:         true,
+		App:        true,
+		Desktop:    true,
 	}
 }
 
@@ -171,6 +166,12 @@ func (p *defaultModules) IsBoringBinary() bool {
 	// dev.boringcrypto branch of Go.
 	hash := sha256.New()
 	return reflect.TypeOf(hash).Elem().PkgPath() == "crypto/internal/boring"
+}
+
+// AttestHardwareKey attests a hardware key.
+func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
+	// Default modules do not support attesting hardware keys.
+	return keys.PrivateKeyPolicyNone, nil
 }
 
 var (

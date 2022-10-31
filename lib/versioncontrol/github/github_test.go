@@ -22,10 +22,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	apiutils "github.com/gravitational/teleport/api/utils"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
-
-	"github.com/stretchr/testify/require"
 )
 
 // TestGithubAPI tests the github releases iterator against the real github
