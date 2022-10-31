@@ -326,3 +326,12 @@ func verifyNotPrereleaseStep() step {
 		Commands: commands,
 	}
 }
+
+func getStepNames(steps []step) []string {
+	stepNames := make([]string, 0, len(steps))
+	for _, step := range steps {
+		stepNames = append(stepNames, step.Name)
+	}
+
+	return stepNames
+}
