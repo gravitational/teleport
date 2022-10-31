@@ -11603,9 +11603,7 @@ steps:
   - name: "Helm: Assume Download AWS Role"
     image: amazon/aws-cli
     commands:
-      - ls -la /root
-      - ls -la /root/.aws
-      - touch /root/.aws/credentials
+      - mkdir /root/.aws
       - aws sts get-caller-identity
       - |-
         printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
@@ -11640,6 +11638,7 @@ steps:
       - name: awsconfig
         path: /root/.aws
     commands:
+      - ls -la /root/.aws
       - mkdir -p /go/chart
       - aws s3 sync s3://$AWS_S3_BUCKET/ /go/chart
 
@@ -11695,6 +11694,6 @@ steps:
       - aws s3 sync . s3://$AWS_S3_BUCKET/
 ---
 kind: signature
-hmac: 1f2e81a54384cd88f04eab6e9f0a3310601cb225fbed20ea6097304634851f74
+hmac: 2f5804d18d95dd0ecfea53f8bfc774a4333bde29c8aa8a36c7481ec9ac261b96
 
 ...
