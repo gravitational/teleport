@@ -140,7 +140,7 @@ func getLatestSemverStep(majorVersion string, majorVersionVarDirectory string) s
 			cloneRepoCommands(cloneDirectory, fmt.Sprintf("branch/%s", majorVersion)),
 			fmt.Sprintf("mkdir -pv %q", majorVersionVarDirectory),
 			fmt.Sprintf("cd %q", path.Join(cloneDirectory, "build.assets", "tooling", "cmd", "query-latest")),
-			fmt.Sprintf("go run . %q > %q", majorVersion, majorVersionVarPath),
+			fmt.Sprintf("go run . %q | sed 's/v//' > %q", majorVersion, majorVersionVarPath),
 			fmt.Sprintf("echo Found full semver \"$(cat %q)\" for major version %q", majorVersionVarPath, majorVersion),
 		),
 	}

@@ -10876,7 +10876,7 @@ steps:
   - git checkout -qf "branch/v11"
   - mkdir -pv "/go/vars/full-version"
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
-  - go run . "v11" > "/go/vars/full-version/v11"
+  - go run . "v11" | sed 's/v//' > "/go/vars/full-version/v11"
   - echo Found full semver "$(cat "/go/vars/full-version/v11")" for major version
     "v11"
 - name: Wait for docker
@@ -13525,7 +13525,7 @@ steps:
   - git checkout -qf "branch/v10"
   - mkdir -pv "/go/vars/full-version"
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
-  - go run . "v10" > "/go/vars/full-version/v10"
+  - go run . "v10" | sed 's/v//' > "/go/vars/full-version/v10"
   - echo Found full semver "$(cat "/go/vars/full-version/v10")" for major version
     "v10"
 - name: Wait for docker
@@ -16174,7 +16174,7 @@ steps:
   - git checkout -qf "branch/v9"
   - mkdir -pv "/go/vars/full-version"
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
-  - go run . "v9" > "/go/vars/full-version/v9"
+  - go run . "v9" | sed 's/v//' > "/go/vars/full-version/v9"
   - echo Found full semver "$(cat "/go/vars/full-version/v9")" for major version "v9"
 - name: Wait for docker
   image: docker
@@ -18825,8 +18825,8 @@ steps:
   - git checkout -qf "branch/v11"
   - mkdir -pv "/go/vars/full-version"
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
-  - go run . "v11" > "/go/vars/full-version/v11"
-  - echo "v1.2.3-fred.1" > "/go/vars/full-version/v11"
+  - go run . "v11" | sed 's/v//' > "/go/vars/full-version/v11"
+  - echo "v1.2.3-fred.1"  | sed 's/v//' > "/go/vars/full-version/v11"
   - echo Found full semver "$(cat "/go/vars/full-version/v11")" for major version
     "v11"
 - name: Wait for docker
@@ -21441,6 +21441,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: c23b7fee6c12e3eca947e590a171ad79de0c5232b6f53021dcdf56d9c6caddc8
+hmac: 51b4023146a388619a2b497ab476870705e28a4a992579e21b3ff6b8f31c9047
 
 ...
