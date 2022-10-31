@@ -1,4 +1,4 @@
-.version: &version "10.3.5"
+.version: &version "10.3.6-dev.michael.wilson.1"
 
 name: teleport-cluster
 apiVersion: v2
