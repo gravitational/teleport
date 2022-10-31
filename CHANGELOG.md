@@ -1,5 +1,37 @@
 # Changelog
 
+## 9.3.22
+
+This release of Teleport contains a security fix as well as multiple improvements and bug fixes.
+
+### Non-interactive commands audit escape
+
+Under some circumstances, non-interactive SSH commands could escape audit log.
+
+[#16817](https://github.com/gravitational/teleport/pull/16817)
+[#16922](https://github.com/gravitational/teleport/pull/16922)
+
+### Other fixes
+
+* Fixed issue with client idle timeout ending sessions too early in some cases. [#16869](https://github.com/gravitational/teleport/pull/16869)
+* Fixed issue with X11 forwarding for non-root users. [#17131](https://github.com/gravitational/teleport/pull/17131)
+* Fixed "access denied" error in `tctl auth sign`. [#17559](https://github.com/gravitational/teleport/pull/17559)
+* Fixed goroutine leak in API client. [#17158](https://github.com/gravitational/teleport/pull/17158)
+* Fixed Postgres connection errors when client requests GSS encryption. [#17816](https://github.com/gravitational/teleport/pull/17816)
+* Fixed issue with `tctl rm windows_desktop/<name>` removing all desktops. [#17730](https://github.com/gravitational/teleport/pull/17730)
+* Fixed issue where `tsh db connect` session can be terminated by SIGINT. [#17063](https://github.com/gravitational/teleport/pull/17063)
+* Fixed issue with Teleport starting with incorrect configuration when no config file is present. [#17346](https://github.com/gravitational/teleport/pull/17346)
+* Fixed issue with auto-discovery of global Aurora secondary cluster. [#16711](https://github.com/gravitational/teleport/pull/16711)
+* Fixed Kubernetes logs formatting. [#17477](https://github.com/gravitational/teleport/pull/17477)
+* Fixed panic when comparing SSH public keys. [#17873](https://github.com/gravitational/teleport/pull/17873)
+* Added support for imagePullSecrets in teleport-kube-agent Helm chart. [#16680](https://github.com/gravitational/teleport/pull/16680)
+* Added support for join parameters in teleport-kube-agent Helm chart. [#17535](https://github.com/gravitational/teleport/pull/17535)
+* Updated `tsh ls` query filter to allow filtering by node names. [#17043](https://github.com/gravitational/teleport/pull/17043)
+* Improved error displayed for locked Windows dekstops. [#17547](https://github.com/gravitational/teleport/pull/17547)
+* Improved desktop access performance. [#17072](https://github.com/gravitational/teleport/pull/17072)
+* Improved consistency when using etcd backend. [#17050](https://github.com/gravitational/teleport/pull/17050)
+* Improved memory utilization in large clusters. [#17078](https://github.com/gravitational/teleport/pull/17078)
+
 ## 9.3.21
 
 This release of Teleport contains multiple improvements and bug fixes.
