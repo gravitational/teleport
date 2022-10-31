@@ -16,6 +16,7 @@ package web
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -31,10 +32,12 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 func TestWebauthnLogin_ssh(t *testing.T) {
@@ -192,6 +195,7 @@ func TestWebauthnLogin_webWithPrivateKeyEnabledError(t *testing.T) {
 		User:                      user,
 		WebauthnAssertionResponse: assertionResp,
 	})
+	require.Error(t, err)
 	var resErr httpErrorResponse
 	require.NoError(t, json.Unmarshal(sessionResp.Bytes(), &resErr))
 	require.Contains(t, resErr.Error.Message, keys.PrivateKeyPolicyHardwareKeyTouch)
