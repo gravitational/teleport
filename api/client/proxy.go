@@ -149,7 +149,7 @@ func dialProxyWithSOCKSDialer(
 
 	conn, err := socksDialer.Dial("tcp", addr)
 	if err != nil {
-		log.Warnf("unable to proxy connection: %v", addr, err)
+		log.Warnf("unable to proxy connection: %v", err)
 		return nil, trace.ConvertSystemError(err)
 	}
 
