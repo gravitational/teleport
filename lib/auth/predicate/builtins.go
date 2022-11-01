@@ -82,6 +82,21 @@ func getProperty(m any, k any) (any, error) {
 	}
 }
 
+func cloneSlice[T any](in []T) []T {
+	out := make([]T, len(in))
+	copy(out, in)
+	return out
+}
+
+func cloneMap[K comparable, V any](in map[K]V) map[K]V {
+	out := make(map[K]V)
+	for k, v := range in {
+		out[k] = v
+	}
+
+	return out
+}
+
 func builtinOpAnd(a, b bool) any {
 	return a && b
 }
@@ -105,17 +120,17 @@ func builtinOpLT(a, b any) (bool, error) {
 
 	switch aT := a.(type) {
 	case string:
-		return aT < b.(string)
+		return aT < b.(string), nil
 	case int:
-		return aT < b.(int)
+		return aT < b.(int), nil
 	case float32:
-		return aT < b.(float32)
+		return aT < b.(float32), nil
 	default:
-		return false
+		return false, trace.BadParameter(`args to "<" must be either string, int or float32, got %T`, a)
 	}
 }
 
-func builtinOpGT(a, b any) any {
+func builtinOpGT(a, b any) (bool, error) {
 	return builtinOpLT(b, a)
 }
 
@@ -257,7 +272,7 @@ func builtinFirst(a []string) (any, error) {
 func builtinAppend(a any, b string) (any, error) {
 	switch aT := a.(type) {
 	case []string:
-		return append(aT, b), nil
+		return append(cloneSlice(aT), b), nil
 	default:
 		return nil, trace.BadParameter("append not valid for type: %T", a)
 	}
@@ -340,8 +355,9 @@ func builtinMapInsert(m, k, v any) (any, error) {
 		return nil, trace.BadParameter("cannot use non-string value of type: %T", k)
 	}
 
-	mT[kS] = vS
-	return nil, nil
+	newMap := cloneMap(mT)
+	newMap[kS] = vS
+	return newMap, nil
 }
 
 // type-generic for future extensibility
@@ -356,6 +372,7 @@ func builtinMapRemove(m, k any) (any, error) {
 		return nil, trace.BadParameter("cannot remove non-string key of type: %T", k)
 	}
 
-	delete(mT, kS)
-	return nil, nil
+	newMap := cloneMap(mT)
+	delete(newMap, kS)
+	return newMap, nil
 }

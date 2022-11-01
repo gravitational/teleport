@@ -117,7 +117,7 @@ func (c *PredicateAccessChecker) checkPolicyExprs(scope string, env map[string]a
 		return b, nil
 	}
 
-	for _, policy := range c.polices {
+	for _, policy := range c.policies {
 		if expr, ok := policy.GetDeny()[scope]; ok {
 			denied, err := evaluate(expr)
 			if err != nil {
@@ -130,7 +130,7 @@ func (c *PredicateAccessChecker) checkPolicyExprs(scope string, env map[string]a
 		}
 	}
 
-	for _, policy := range c.polices {
+	for _, policy := range c.policies {
 		if expr, ok := policy.GetAllow()[scope]; ok {
 			allowed, err := evaluate(expr)
 			if err != nil {
