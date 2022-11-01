@@ -17,11 +17,9 @@ limitations under the License.
 package desktop
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"net"
 	"os"
@@ -82,6 +80,20 @@ const (
 	windowsDesktopServiceCertRetryInterval = 10 * time.Minute
 )
 
+// ComputerAttributes are the attributes we fetch when discovering
+// Windows hosts via LDAP
+// see: https://docs.microsoft.com/en-us/windows/win32/adschema/c-computer#windows-server-2012-attributes
+var ComputerAttributes = []string{
+	windows.AttrName,
+	windows.AttrCommonName,
+	windows.AttrDistinguishedName,
+	windows.AttrDNSHostName,
+	windows.AttrObjectGUID,
+	windows.AttrOS,
+	windows.AttrOSVersion,
+	windows.AttrPrimaryGroupID,
+}
+
 // WindowsService implements the RDP-based Windows desktop access service.
 //
 // This service accepts mTLS connections from the proxy, establishes RDP
@@ -91,7 +103,8 @@ type WindowsService struct {
 	cfg        WindowsServiceConfig
 	middleware *auth.Middleware
 
-	lc *ldapClient
+	ca *windows.CertificateStoreClient
+	lc *windows.LDAPClient
 
 	mu              sync.Mutex // mu protects the fields that follow
 	ldapInitialized bool
@@ -302,7 +315,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 				return d.DialContext(ctx, network, dnsAddr)
 			},
 		},
-		lc:          &ldapClient{cfg: cfg.LDAPConfig},
+		lc:          &windows.LDAPClient{Cfg: cfg.LDAPConfig},
 		clusterName: clusterName.GetClusterName(),
 		closeCtx:    ctx,
 		close:       close,
@@ -350,6 +363,14 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	} else {
 		s.cfg.Log.Infoln("desktop discovery via LDAP is disabled, set 'base_dn' to enable")
 	}
+
+	s.ca = windows.NewCertificateStoreClient(windows.CertificateStoreConfig{
+		AccessPoint: s.cfg.AccessPoint,
+		LDAPConfig:  s.cfg.LDAPConfig,
+		Log:         s.cfg.Log,
+		ClusterName: s.clusterName,
+		LC:          s.lc,
+	})
 
 	ok = true
 	return s, nil
@@ -474,7 +495,7 @@ func (s *WindowsService) initializeLDAP() error {
 	}
 
 	conn.SetTimeout(ldapRequestTimeout)
-	s.lc.setClient(conn)
+	s.lc.SetClient(conn)
 
 	// Note: admin still needs to import our CA into the Group Policy following
 	// https://docs.vmware.com/en/VMware-Horizon-7/7.13/horizon-installation/GUID-7966AE16-D98F-430E-A916-391E8EAAFE18.html
@@ -487,7 +508,7 @@ func (s *WindowsService) initializeLDAP() error {
 	// https://docs.microsoft.com/en-us/previous-versions/windows/desktop/policy/registry-policy-file-format,
 	// but I'm leaving this for later.
 	//
-	if err := s.updateCA(s.closeCtx); err != nil {
+	if err := s.ca.Update(s.closeCtx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -583,7 +604,7 @@ func (s *WindowsService) Close() error {
 		s.ldapCertRenew.Stop()
 	}
 	s.close()
-	s.lc.close()
+	s.lc.Close()
 	return nil
 }
 
@@ -997,153 +1018,6 @@ func timer() func() int64 {
 		}
 		return int64(time.Since(first) / time.Millisecond)
 	}
-}
-
-func (s *WindowsService) updateCA(ctx context.Context) error {
-	// Publish the CA cert for current cluster CA. For trusted clusters, their
-	// respective windows_desktop_services will publish their CAs so we don't
-	// have to do it here.
-	//
-	// TODO(zmb3): support multiple CA certs per cluster (such as with HSMs).
-	ca, err := s.cfg.AccessPoint.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
-		DomainName: s.clusterName,
-	}, false)
-	if err != nil {
-		return trace.Wrap(err, "fetching Teleport CA: %v", err)
-	}
-	// LDAP stores certs and CRLs in binary DER format, so remove the outer PEM
-	// wrapper.
-	caPEM := ca.GetTrustedTLSKeyPairs()[0].Cert
-	caBlock, _ := pem.Decode(caPEM)
-	if caBlock == nil {
-		return trace.BadParameter("failed to decode CA PEM block")
-	}
-	caDER := caBlock.Bytes
-
-	crlDER, err := s.cfg.AccessPoint.GenerateCertAuthorityCRL(ctx, types.UserCA)
-	if err != nil {
-		return trace.Wrap(err, "generating CRL: %v", err)
-	}
-
-	// To make the CA trusted, we need 3 things:
-	// 1. put the CA cert into the Trusted Certification Authorities in the
-	//    Group Policy (done manually for now, see public docs)
-	// 2. put the CA cert into NTAuth store in LDAP
-	// 3. put the CRL of the CA into a dedicated LDAP entry
-	//
-	// Below we do #2 and #3.
-	if err := s.updateCAInNTAuthStore(ctx, caDER); err != nil {
-		return trace.Wrap(err, "updating NTAuth store over LDAP: %v", err)
-	}
-	if err := s.updateCRL(ctx, crlDER); err != nil {
-		return trace.Wrap(err, "updating CRL over LDAP: %v", err)
-	}
-	return nil
-}
-
-// updateCAInNTAuthStore records the Teleport user CA in the Windows store which records
-// CAs that are eligible to issue smart card login certificates and perform client
-// private key archival.
-//
-// This function is equivalent to running:
-//
-//	certutil –dspublish –f <PathToCertFile.cer> NTAuthCA
-//
-// You can confirm the cert is present by running:
-//
-//	certutil -viewstore "ldap:///CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com>?caCertificate"
-//
-// Once the CA is published to LDAP, it should eventually sync and be present in the
-// machine's enterprise NTAuth store. You can check that with:
-//
-//	certutil -viewstore -enterprise NTAuth
-//
-// You can expedite the synchronization by running:
-//
-//	certutil -pulse
-func (s *WindowsService) updateCAInNTAuthStore(ctx context.Context, caDER []byte) error {
-	// Check if our CA is already in the store. The LDAP entry for NTAuth store
-	// is constant and it should always exist.
-	ntAuthDN := "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration," + s.cfg.LDAPConfig.DomainDN()
-	entries, err := s.lc.read(ntAuthDN, "certificationAuthority", []string{"cACertificate"})
-	if err != nil {
-		return trace.Wrap(err, "fetching existing CAs: %v", err)
-	}
-	if len(entries) != 1 {
-		return trace.BadParameter("expected exactly 1 NTAuthCertificates CA store at %q, but found %d", ntAuthDN, len(entries))
-	}
-	// TODO(zmb3): during CA rotation, find the old CA in NTAuthStore and remove it.
-	// Right now we just append the active CA and let the old ones hang around.
-	existingCAs := entries[0].GetRawAttributeValues("cACertificate")
-	for _, existingCADER := range existingCAs {
-		// CA already present.
-		if bytes.Equal(existingCADER, caDER) {
-			s.cfg.Log.Info("Teleport CA already present in NTAuthStore in LDAP")
-			return nil
-		}
-	}
-
-	s.cfg.Log.Debugf("None of the %d existing NTAuthCertificates matched Teleport's", len(existingCAs))
-
-	// CA is not in the store, append it.
-	updatedCAs := make([]string, 0, len(existingCAs)+1)
-	for _, existingCADER := range existingCAs {
-		updatedCAs = append(updatedCAs, string(existingCADER))
-	}
-	updatedCAs = append(updatedCAs, string(caDER))
-
-	if err := s.lc.update(ntAuthDN, map[string][]string{
-		"cACertificate": updatedCAs,
-	}); err != nil {
-		return trace.Wrap(err, "updating CA entry: %v", err)
-	}
-	s.cfg.Log.Info("Added Teleport CA to NTAuthStore via LDAP")
-	return nil
-}
-
-func (s *WindowsService) updateCRL(ctx context.Context, crlDER []byte) error {
-	// Publish the CRL for current cluster CA. For trusted clusters, their
-	// respective windows_desktop_services will publish CRLs of their CAs so we
-	// don't have to do it here.
-	//
-	// CRLs live under the CDP (CRL Distribution Point) LDAP container. There's
-	// another nested container with the CA name, I think, and then multiple
-	// separate CRL objects in that container.
-	//
-	// We name our parent container "Teleport" and the CRL object is named
-	// after the Teleport cluster name. For example, CRL for cluster "prod"
-	// will be placed at:
-	// ... > CDP > Teleport > prod
-	containerDN := s.crlContainerDN()
-	crlDN := s.crlDN()
-
-	// Create the parent container.
-	if err := s.lc.createContainer(containerDN); err != nil {
-		return trace.Wrap(err, "creating CRL container: %v", err)
-	}
-
-	// Create the CRL object itself.
-	if err := s.lc.create(
-		crlDN,
-		"cRLDistributionPoint",
-		map[string][]string{"certificateRevocationList": {string(crlDER)}},
-	); err != nil {
-		if !trace.IsAlreadyExists(err) {
-			return trace.Wrap(err)
-		}
-		// CRL already exists, update it.
-		if err := s.lc.update(
-			crlDN,
-			map[string][]string{"certificateRevocationList": {string(crlDER)}},
-		); err != nil {
-			return trace.Wrap(err)
-		}
-		s.cfg.Log.Info("Updated CRL for Windows logins via LDAP")
-	} else {
-		s.cfg.Log.Info("Added CRL for Windows logins via LDAP")
-	}
-	return nil
 }
 
 // crlDN generates the LDAP distinguished name (DN) where this Windows Service
