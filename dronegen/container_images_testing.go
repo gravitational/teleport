@@ -72,8 +72,8 @@ const (
 
 func NewTestTrigger(triggerBranch, testMajorVersion string) *TriggerInfo {
 	// baseTrigger := NewTagTrigger(testMajorVersion)
-	baseTrigger := NewPromoteTrigger(testMajorVersion)
-	// baseTrigger := NewCronTrigger([]string{testMajorVersion})
+	// baseTrigger := NewPromoteTrigger(testMajorVersion)
+	baseTrigger := NewCronTrigger([]string{testMajorVersion})
 	baseTrigger.Name = "Test trigger on push"
 	baseTrigger.Trigger = trigger{
 		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
