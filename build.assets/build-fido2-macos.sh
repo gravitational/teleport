@@ -16,8 +16,8 @@ readonly MACOS_VERSION_MIN=10.13
 # Note: versions are the same as the corresponding git tags for each repo.
 readonly CBOR_VERSION=v0.9.0
 readonly CBOR_COMMIT=58b3319b8c3ec15171cb00f01a3a1e9d400899e1
-readonly CRYPTO_VERSION=OpenSSL_1_1_1r
-readonly CRYPTO_COMMIT=fbda8a9e3b6266da377a6f57d597d657257d9cff
+readonly CRYPTO_VERSION=OpenSSL_1_1_1s
+readonly CRYPTO_COMMIT=129058165d195e43a0ad10111b0c2e29bdf65980
 readonly FIDO2_VERSION=1.12.0
 readonly FIDO2_COMMIT=659a02679f99fd34a44e06e35dce90794f6ecc86
 
@@ -226,7 +226,11 @@ EOF
 }
 
 cleanup() {
-  for path in "${CLEANUPS[@]}"; do
+  # The strange looking expansion below (`${arr[@]+"${arr[@]}"}`) avoids unbound
+  # errors when the array is empty. (The actual expansion is quoted.)
+  # See https://stackoverflow.com/a/7577209.
+  #shellcheck disable=SC2068
+  for path in ${CLEANUPS[@]+"${CLEANUPS[@]}"}; do
     echo "Removing: $path" >&2
     rm -fr "$path"
   done
