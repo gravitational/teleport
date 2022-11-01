@@ -2583,7 +2583,6 @@ func TestSAMLValidation(t *testing.T) {
 			allow:              allowSAMLUpsert,
 			entityDescriptor:   minimalEntityDescriptor,
 			entityServerCalled: true,
-			assertErr:          trace.IsBadParameter,
 		},
 	}
 
