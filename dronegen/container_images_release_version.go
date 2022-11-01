@@ -238,17 +238,25 @@ func (rv *ReleaseVersion) buildSplitSemverSteps(onlyBuildFullSemver bool) step {
 }
 
 func (rv *ReleaseVersion) getProducts(clonedRepoPath string) []*Product {
+	ossTeleport := NewTeleportProduct(false, false, rv)
 	teleportProducts := []*Product{
-		NewTeleportProduct(false, false, rv), // OSS
-		NewTeleportProduct(true, false, rv),  // Enterprise
-		NewTeleportProduct(true, true, rv),   // Enterprise/FIPS
+		ossTeleport,                         // OSS
+		NewTeleportProduct(true, false, rv), // Enterprise
+		NewTeleportProduct(true, true, rv),  // Enterprise/FIPS
 	}
 
 	teleportOperatorProduct := NewTeleportOperatorProduct(clonedRepoPath)
 
-	products := make([]*Product, 0, len(teleportProducts)+1)
+	teleportLabProducts := []*Product{
+		// If we want to add Enterprise and/or Enterprise/FIPS Teleport Lab support in the future
+		// it should be configured here
+		NewTeleportLabProduct(clonedRepoPath, rv, ossTeleport),
+	}
+
+	products := make([]*Product, 0, len(teleportProducts)+1+len(teleportLabProducts))
 	products = append(products, teleportProducts...)
 	products = append(products, teleportOperatorProduct)
+	products = append(products, teleportLabProducts...)
 
 	return products
 }

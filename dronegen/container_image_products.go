@@ -31,7 +31,7 @@ type Product struct {
 	DockerfileTarget     string                                          // Optional. Defines a dockerfile target to stop at on build.
 	SupportedArchs       []string                                        // ISAs that the builder should produce
 	SetupSteps           []step                                          // Product-specific, arch agnostic steps that must be ran before building an image.
-	ArchSetupSteps       map[string][]step                               // Product and arch specific steps that must be ran before building an image.
+	ArchSetupSteps       map[string][]step                               // Product and arch specific steps that must be ran before building an image. If commands are empty then they are treated as dependent steps.
 	DockerfileArgBuilder func(arch string) []string                      // Generator that returns "docker build --arg" strings
 	ImageBuilder         func(repo *ContainerRepo, tag *ImageTag) *Image // Generator that returns an Image struct that defines what "docker build" should produce
 }
@@ -133,12 +133,44 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 	}
 }
 
+func NewTeleportLabProduct(cloneDirectory string, version *ReleaseVersion, teleport *Product) *Product {
+	workingDirectory := path.Join(cloneDirectory, "docker", "sshd")
+	name := "teleport-lab"
+	downloadURL := fmt.Sprintf(
+		"https://raw.githubusercontent.com/gravitational/teleport/%s/docker/sshd/Dockerfile",
+		version.ShellVersion,
+	)
+
+	setupSteps, dockerfilePath := getTeleportLabSetupSteps(name, workingDirectory, downloadURL)
+
+	return &Product{
+		Name:             name,
+		DockerfilePath:   dockerfilePath,
+		WorkingDirectory: workingDirectory,
+		SupportedArchs:   teleport.SupportedArchs,
+		DockerfileArgBuilder: func(arch string) []string {
+			return []string{
+				fmt.Sprintf("BASE_IMAGE=%s", teleport.GetLocalRegistryImage(arch, version).GetShellName()),
+			}
+		},
+		ImageBuilder: func(repo *ContainerRepo, tag *ImageTag) *Image {
+			return &Image{
+				Repo: repo,
+				Name: name,
+				Tag:  tag,
+			}
+		},
+		SetupSteps:     setupSteps,
+		ArchSetupSteps: getTelportLabArchSetupSteps(teleport, version),
+	}
+}
+
 // Builds all the steps required to prepare the pipeline for building Teleport images.
 // Returns the setup steps, the path to the downloaded Teleport dockerfile, and the name of the
 // AWS profile that can be used to download artifacts from S3.
 func getTeleportSetupSteps(productName, workingPath, downloadURL string) ([]step, string, string) {
 	assumeS3DownloadRoleStep, profileName := assumeS3DownloadRoleStep(productName)
-	downloadDockerfileStep, dockerfilePath := downloadTeleportDockerfileStep(productName, workingPath, downloadURL)
+	downloadDockerfileStep, dockerfilePath := downloadDockerfileStep(productName, workingPath, downloadURL)
 	// Additional setup steps in the future should go here
 
 	return []step{assumeS3DownloadRoleStep, downloadDockerfileStep}, dockerfilePath, profileName
@@ -227,6 +259,24 @@ func buildTeleportDebName(version *ReleaseVersion, arch string, isEnterprise, is
 	return debName
 }
 
+// Builds all the arch-neutral steps required to prepare the pipeline for building Teleport Lab images.
+// Returns the setup steps, and the path to the downloaded Teleport Lab dockerfile
+func getTeleportLabSetupSteps(productName, workingPath, downloadURL string) ([]step, string) {
+	downloadDockerfileStep, dockerfilePath := downloadDockerfileStep(productName, workingPath, downloadURL)
+	// Additional setup steps should go here in the future
+
+	return []step{downloadDockerfileStep}, dockerfilePath
+}
+
+func getTelportLabArchSetupSteps(teleport *Product, version *ReleaseVersion) map[string][]step {
+	archSetupSteps := make(map[string][]step, len(teleport.SupportedArchs))
+	for _, supportedArch := range teleport.SupportedArchs {
+		archSetupSteps[supportedArch] = []step{{Name: teleport.GetBuildStepName(supportedArch, version)}}
+	}
+
+	return archSetupSteps
+}
+
 // Creates a shell loop with a timeout
 // commands: commands to run in a loop
 // successCommand: should evaluate to shell true (i.e. `[ true ]`) when the loop has succeeded
@@ -258,14 +308,13 @@ func wrapCommandsInTimeout(commands []string, successCommand string, timeoutSeco
 	return loopCommands
 }
 
-// Generates a step that downloads the Teleport Dockerfile
+// Generates a step that downloads a Dockerfile
 // Returns the generated step and the path to the downloaded Dockerfile
-func downloadTeleportDockerfileStep(productName, workingPath, downloadURL string) (step, string) {
-	// Enterprise and fips specific dockerfiles should be configured here in the future if needed
+func downloadDockerfileStep(productName, workingPath, downloadURL string) (step, string) {
 	dockerfilePath := path.Join(workingPath, fmt.Sprintf("Dockerfile-%s", productName))
 
 	return step{
-		Name:  fmt.Sprintf("Download Teleport Dockerfile to %q for %s", dockerfilePath, productName),
+		Name:  fmt.Sprintf("Download Dockerfile for %s", productName),
 		Image: "alpine",
 		Commands: []string{
 			"apk add curl",
@@ -343,8 +392,10 @@ func (p *Product) buildSteps(version *ReleaseVersion, parentStepNames []string, 
 			// Collect the name of steps that are required before build, taking into account arch-specific steps
 			setupStepNames := make([]string, 0)
 			for _, archSetupStep := range p.ArchSetupSteps[supportedArch] {
-				archSetupStep.DependsOn = append(archSetupStep.DependsOn, productSetupStepNames...)
-				steps = append(steps, archSetupStep)
+				if len(archSetupStep.Commands) > 0 {
+					archSetupStep.DependsOn = append(archSetupStep.DependsOn, productSetupStepNames...)
+					steps = append(steps, archSetupStep)
+				}
 				setupStepNames = append(setupStepNames, archSetupStep.Name)
 			}
 			if len(setupStepNames) == 0 {

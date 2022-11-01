@@ -1,5 +1,5 @@
-ARG TELEPORT_TAG
-FROM public.ecr.aws/gravitational/teleport:${TELEPORT_TAG}
+ARG BASE_IMAGE
+FROM $BASE_IMAGE
 
 # Demo ansible, ssh, htop
 RUN apt-get update && apt-get install -y ansible ssh inetutils-syslogd htop
