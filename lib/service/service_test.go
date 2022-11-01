@@ -491,9 +491,9 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			name:        "ACME enabled, teleport ALPN protocols should be appended",
 			acmeEnabled: true,
 			wantNextProtos: []string{
-				// Ensure h2 has precedence over http/1.1.
-				"h2",
+				// Ensure http/1.1 has precedence over http2.
 				"http/1.1",
+				"h2",
 				"acme-tls/1",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",
@@ -529,9 +529,9 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-snowflake-ping",
 				"teleport-cassandra-ping",
 				"teleport-elasticsearch-ping",
-				// Ensure h2 has precedence over http/1.1.
-				"h2",
+				// Ensure http/1.1 has precedence over http2.
 				"http/1.1",
+				"h2",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
