@@ -86,7 +86,7 @@ func builtinOpAnd(a, b bool) any {
 	return a && b
 }
 
-func builtinOpOr(a, b bool) any {
+func builtinOpOr(a, b bool) bool {
 	return a || b
 }
 
