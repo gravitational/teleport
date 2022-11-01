@@ -16,6 +16,7 @@ package web
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -31,10 +32,12 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 func TestWebauthnLogin_ssh(t *testing.T) {
@@ -136,6 +139,66 @@ func TestWebauthnLogin_web(t *testing.T) {
 	require.NotEmpty(t, createSessionResp.Token)
 	require.NotEmpty(t, createSessionResp.TokenExpiresIn)
 	require.NotEmpty(t, createSessionResp.SessionExpires.Unix())
+}
+
+func TestWebauthnLogin_webWithPrivateKeyEnabledError(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	authPref := &types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOn,
+		Webauthn: &types.Webauthn{
+			RPID: env.server.TLS.ClusterName(),
+		},
+	}
+
+	// configureClusterForMFA will creates a user and a webauthn device,
+	// so we will enable the private key policy afterwards.
+	clusterMFA := configureClusterForMFA(t, env, authPref)
+	user := clusterMFA.User
+	password := clusterMFA.Password
+	device := clusterMFA.WebDev.Key
+
+	authPref.RequireMFAType = types.RequireMFAType_HARDWARE_KEY_TOUCH
+	cap, err := types.NewAuthPreference(*authPref)
+	require.NoError(t, err)
+	authServer := env.server.Auth()
+	err = authServer.SetAuthPreference(ctx, cap)
+	require.NoError(t, err)
+
+	modules.SetTestModules(t, &modules.TestModules{
+		MockAttestHardwareKey: func(_ context.Context, _ interface{}, policy keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
+			return "", keys.NewPrivateKeyPolicyError(policy)
+		},
+	})
+
+	clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
+	require.NoError(t, err)
+
+	// 1st login step: request challenge.
+	beginResp, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), &client.MFAChallengeRequest{
+		User: user,
+		Pass: password,
+	})
+	require.NoError(t, err)
+	authChallenge := &client.MFAAuthenticateChallenge{}
+	require.NoError(t, json.Unmarshal(beginResp.Bytes(), authChallenge))
+	require.NotNil(t, authChallenge.WebauthnChallenge)
+
+	// Sign Webauthn challenge (requires user interaction in real-world
+	// scenarios).
+	assertionResp, err := device.SignAssertion("https://"+env.server.TLS.ClusterName(), authChallenge.WebauthnChallenge)
+	require.NoError(t, err)
+
+	// 2nd login step: reply with signed challenged.
+	sessionResp, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "finishsession"), &client.AuthenticateWebUserRequest{
+		User:                      user,
+		WebauthnAssertionResponse: assertionResp,
+	})
+	require.Error(t, err)
+	var resErr httpErrorResponse
+	require.NoError(t, json.Unmarshal(sessionResp.Bytes(), &resErr))
+	require.Contains(t, resErr.Error.Message, keys.PrivateKeyPolicyHardwareKeyTouch)
 }
 
 func TestAuthenticate_passwordless(t *testing.T) {

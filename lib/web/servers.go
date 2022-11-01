@@ -24,7 +24,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -180,33 +179,27 @@ func (h *Handler) desktopIsActive(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	checker, err := ctx.GetUserAccessChecker()
+	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-L:
 	for _, tracker := range trackers {
-		desktops, err := h.auth.accessPoint.GetWindowsDesktops(r.Context(), types.WindowsDesktopFilter{Name: tracker.GetDesktopName()})
+		// clt is an auth.ClientI with the role of the user, so
+		// clt.GetWindowsDesktops() can be used to confirm that
+		// the user has access to the requested desktop.
+		desktops, err := clt.GetWindowsDesktops(r.Context(),
+			types.WindowsDesktopFilter{Name: tracker.GetDesktopName()})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		if len(desktops) == 0 {
+			// There are no active sessions for this desktop
+			// or the user doesn't have access to it
 			break
-		}
-
-		err = checker.CheckAccess(desktops[0], services.AccessMFAParams{})
-		switch {
-		case err == nil:
+		} else {
 			return desktopIsActive{true}, nil
-		case trace.IsAccessDenied(err):
-			// Use default behavior of this function
-			// so that information about desktops user
-			// doesn't have access to isn't leaked
-			break L
-		default:
-			return nil, trace.Wrap(err)
 		}
 	}
 
