@@ -98,9 +98,9 @@ func builtinOpEquals(a, b any) bool {
 	return reflect.DeepEqual(a, b)
 }
 
-func builtinOpLT(a, b any) any {
+func builtinOpLT(a, b any) (bool, error) {
 	if reflect.TypeOf(a) != reflect.TypeOf(b) {
-		return false
+		return false, trace.BadParameter(`args to "<" of types %T and %T do not match`, a, b)
 	}
 
 	switch aT := a.(type) {
