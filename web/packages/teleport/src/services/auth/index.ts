@@ -17,6 +17,6 @@ limitations under the License.
 import service from './auth';
 
 export * from './makeMfa';
-export * from './makeRecoveryCodes';
+export * from './make';
 export * from './types';
 export default service;

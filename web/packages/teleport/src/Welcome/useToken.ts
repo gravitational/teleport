@@ -19,12 +19,18 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
-import auth, { RecoveryCodes, ResetToken } from 'teleport/services/auth';
+import auth, {
+  ChangedUserAuthn,
+  RecoveryCodes,
+  ResetToken,
+} from 'teleport/services/auth';
 
 export default function useToken(tokenId: string) {
   const [resetToken, setResetToken] = useState<ResetToken>();
   const [recoveryCodes, setRecoveryCodes] = useState<RecoveryCodes>();
   const [success, setSuccess] = useState(false); // TODO rename
+  const [privateKeyPolicyEnabled, setPrivateKeyPolicyEnabled] = useState(false);
+
   const fetchAttempt = useAttempt('');
   const submitAttempt = useAttempt('');
   const auth2faType = cfg.getAuth2faType();
@@ -37,17 +43,22 @@ export default function useToken(tokenId: string) {
     );
   }, []);
 
+  function handleResponse(res: ChangedUserAuthn) {
+    if (res.privateKeyPolicyEnabled) {
+      setPrivateKeyPolicyEnabled(true);
+    }
+    if (res.recovery.createdDate) {
+      setRecoveryCodes(res.recovery);
+    } else {
+      finishedRegister();
+    }
+  }
+
   function onSubmit(password: string, otpCode = '', deviceName = '') {
     submitAttempt.setAttempt({ status: 'processing' });
     auth
       .resetPassword({ tokenId, password, otpCode, deviceName })
-      .then(recoveryCodes => {
-        if (recoveryCodes.createdDate) {
-          setRecoveryCodes(recoveryCodes);
-        } else {
-          finishedRegister();
-        }
-      })
+      .then(handleResponse)
       .catch(submitAttempt.handleError);
   }
 
@@ -55,13 +66,7 @@ export default function useToken(tokenId: string) {
     submitAttempt.setAttempt({ status: 'processing' });
     auth
       .resetPasswordWithWebauthn({ tokenId, password, deviceName })
-      .then(recoveryCodes => {
-        if (recoveryCodes.createdDate) {
-          setRecoveryCodes(recoveryCodes);
-        } else {
-          finishedRegister();
-        }
-      })
+      .then(handleResponse)
       .catch(submitAttempt.handleError);
   }
 
@@ -91,6 +96,7 @@ export default function useToken(tokenId: string) {
     redirect,
     success,
     finishedRegister,
+    privateKeyPolicyEnabled,
   };
 }
 
