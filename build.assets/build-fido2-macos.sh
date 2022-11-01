@@ -227,8 +227,9 @@ EOF
 
 cleanup() {
   # The strange looking expansion below (`${arr[@]+"${arr[@]}"}`) avoids unbound
-  # errors when the array is empty.
+  # errors when the array is empty. (The actual expansion is quoted.)
   # See https://stackoverflow.com/a/7577209.
+  #shellcheck disable=SC2068
   for path in ${CLEANUPS[@]+"${CLEANUPS[@]}"}; do
     echo "Removing: $path" >&2
     rm -fr "$path"
