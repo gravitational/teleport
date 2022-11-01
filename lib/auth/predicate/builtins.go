@@ -90,7 +90,7 @@ func builtinOpOr(a, b bool) bool {
 	return a || b
 }
 
-func builtinOpNot(a bool) any {
+func builtinOpNot(a bool) bool {
 	return !a
 }
 
