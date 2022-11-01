@@ -13,8 +13,8 @@ compromising productivity.
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
-- Be admin of the Discord Server (installing a bot requires at least the
-  "manager server" permission)
+- Admin account on your Discord server. Installing a bot requires at least the
+  "manager server" permission.
 - Either a Linux host or Kubernetes cluster where you will run the Discord plugin.
 
 (!/docs/pages/includes/tctl.mdx!)
@@ -119,7 +119,7 @@ to create a new Discord application. Click "New Application" and name the applic
 
 Set the application icon ([download application icon here](../../../img/sso/onelogin/teleport.png)).
 
-### Create the application Bot
+### Create the application bot
 
 - Go to the "Bot" tab and choose "Add Bot".
 - Set the bot icon ([download bot icon here](../../../img/enterprise/plugins/teleport_bot@2x.png)).
@@ -133,7 +133,7 @@ Go the the "OAuth2" tab, open the "URL Generator" and check the "bot" and "Send 
 ![Set Discord permissions](../../../img/enterprise/plugins/discord/discord-permissions.png)
 
 Copy and access the generated URL. Choose to install the application into the
-desired Discord server. If the wanted discord server is not available in the
+desired Discord server. If the server is not available in the
 dropdown list, it means you don't have sufficient rights. Ask a server
 administrator to grant you a role with the "manage server" permission.
 
@@ -251,35 +251,36 @@ identity = "/var/lib/teleport/plugins/discord/auth.pem"
 
 **`[discord]`**
 
-`token`: Paste the Bot token saved previously in this field.
+`token`: Paste the bot token saved previously in this field.
 
 **`[role_to_recipients]`**
 
-The `role_to_recipients` map configure the channels that the Discord plugin will
+The `role_to_recipients` map configures the channels that the Discord plugin will
 notify when a user requests access to a specific role. When the Discord plugin
 receives an Access Request from the Auth Service, it will look up the role being
 requested and identify the Discord channels to notify.
 
-Each channel is represented by a numeric ID, channels can be public, private or
-direct messages between a user and the Bot.
+Each channel is represented by a numeric ID. Channels can be public, private or
+direct messages between a user and the bot.
+To determine the numeric ID of a channel for the bot to notify, follow the instructions below:
 
 <Tabs>
   <TabItem label="Public Channel">
   
-    Open discord in a web browser and navigate to the desired channel.
+    Open Discord in a web browser and navigate to the desired channel.
     
     The web browser URL should look like:
     ```
     https://discord.com/channels/<guild ID>/<channel ID>
     ```
     
-    Copy the last part of the URL (everything after the last `/`), this is the channel ID.
+    Copy the last part of the URL (everything after the last `/`), which is the channel ID.
   </TabItem>
   <TabItem label="Private Channel">
-    Open discord in a web browser and navigate to the desired channel.
+    Open Discord in a web browser and navigate to the desired channel.
     
     In the channel list choose "Create invite", type "teleport" in the search field
-    and invite your Discord Teleport Bot. The Bot should now appear in the channel
+    and invite your Discord Teleport bot. The bot should now appear in the channel
     member list.
     
     The web browser URL should look like:
@@ -287,12 +288,12 @@ direct messages between a user and the Bot.
     https://discord.com/channels/<guild ID>/<channel ID>
     ```
     
-    Copy the last part of the URL (everything after the last `/`), this is the channel ID.
+    Copy the last part of the URL (everything after the last `/`), which is the channel ID.
   </TabItem>
   <TabItem label="Direct Message">
-    To retrieve the channel ID of the private discussion between UserA and the
-    Teleport Bot, have UserA send a direct message to the Teleport Bot. This will
-    open a conversation between the user and the Bot. Once the conversation is
+    To retrieve the channel ID of the private discussion between User A and the
+    Teleport bot, have User A send a direct message to the Teleport bot. This will
+    open a conversation between the user and the bot. Once the conversation is
     initiated, the user can open the discussion page.
     
     The web browser URL should look like:
@@ -300,7 +301,7 @@ direct messages between a user and the Bot.
     https://discord.com/channels/@me/<channel ID>
     ```
     
-    Copy the last part of the URL (everything after the last `/`), this is the channel ID.
+    Copy the last part of the URL (everything after the last `/`), which is the channel ID.
   </TabItem>
 </Tabs>
 

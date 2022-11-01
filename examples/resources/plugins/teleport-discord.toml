@@ -1,4 +1,4 @@
-# Example discord plugin configuration TOML file
+# Example Discord plugin configuration TOML file
 
 [teleport]
 # Teleport Auth/Proxy Server address.
@@ -24,7 +24,7 @@ token = "XXXXXXXXX"
 [role_to_recipients]
 # Map roles to recipients.
 #
-# Provide discord user_email/channel recipients for access requests for specific roles.
+# Provide Discord user_email/channel recipients for access requests for specific roles.
 # role.suggested_reviewers will automatically be treated as additional email recipients.
 # "*" must be provided to match non-specified roles.
 #
