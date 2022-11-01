@@ -594,7 +594,7 @@ func TestTCPLock(t *testing.T) {
 
 		_, err = conn.Read(buf)
 		return err != nil
-	}, time.Duration(5*time.Second), time.Duration(100*time.Millisecond))
+	}, 5*time.Second, 100*time.Millisecond)
 	// Close and re-open the connection
 	require.NoError(t, conn.Close())
 
