@@ -79,7 +79,7 @@ func (dm *DestinationMemory) String() string {
 	return "[memory]"
 }
 
-func (dm *DestinationMemory) Lock() (func() error, error) {
+func (dm *DestinationMemory) TryLock() (func() error, error) {
 	// As this is purely in-memory, no locking behavior is required for the
 	// destination.
 	return func() error {

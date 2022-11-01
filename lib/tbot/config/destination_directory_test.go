@@ -33,18 +33,18 @@ func TestDestinationDirectory_Lock(t *testing.T) {
 	}
 
 	// Successful lock
-	unlock, err := dd.Lock()
+	unlock, err := dd.TryLock()
 	require.NoError(t, err)
 
 	// Another lock should fail
-	_, err = dd.Lock()
+	_, err = dd.TryLock()
 	require.ErrorIs(t, err, utils.ErrUnsuccessfulLockTry)
 
 	// Release the lock
 	require.NoError(t, unlock())
 
 	// Trying to lock again should succeed
-	unlock, err = dd.Lock()
+	unlock, err = dd.TryLock()
 	require.NoError(t, err)
 
 	// Release the lock

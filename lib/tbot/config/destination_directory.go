@@ -231,7 +231,7 @@ func (dd *DestinationDirectory) String() string {
 	return fmt.Sprintf("directory %s", dd.Path)
 }
 
-func (dd *DestinationDirectory) Lock() (func() error, error) {
+func (dd *DestinationDirectory) TryLock() (func() error, error) {
 	unlock, err := utils.FSTryWriteLock(filepath.Join(dd.Path, "lock"))
 	return unlock, trace.Wrap(err)
 }

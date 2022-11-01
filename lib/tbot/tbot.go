@@ -280,7 +280,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 	}
 
 	// Now attempt to lock the destination so we have sole use of it
-	unlock, err := dest.Lock()
+	unlock, err := dest.TryLock()
 	if err != nil {
 		if errors.Is(err, utils.ErrUnsuccessfulLockTry) {
 			return unlock, trace.WrapWithMessage(err, "Failed to acquire exclusive lock for tbot destination directory - is tbot already running?")
