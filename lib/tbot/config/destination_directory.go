@@ -232,6 +232,9 @@ func (dd *DestinationDirectory) String() string {
 }
 
 func (dd *DestinationDirectory) TryLock() (func() error, error) {
+	// TryLock should only be used for bot data directory and not for
+	// destinations until an investigation on how locks will play with
+	// ACLs has been completed.
 	unlock, err := utils.FSTryWriteLock(filepath.Join(dd.Path, "lock"))
 	return unlock, trace.Wrap(err)
 }
