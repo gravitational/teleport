@@ -168,7 +168,7 @@ func builtinAdd(a, b any) (any, error) {
 	case float32:
 		return aT + b.(float32), nil
 	default:
-		return nil, trace.BadParameter("add unsupported for type type: %T", a)
+		return nil, trace.BadParameter("add unsupported for type type: %T, must be string, int or float", a)
 	}
 }
 
@@ -183,7 +183,7 @@ func builtinSub(a, b any) (any, error) {
 	case float32:
 		return aT - b.(float32), nil
 	default:
-		return nil, trace.BadParameter("sub unsupported for type type: %T", a)
+		return nil, trace.BadParameter("sub unsupported for type type: %T, must be int or float", a)
 	}
 }
 
@@ -198,7 +198,7 @@ func builtinMul(a, b any) (any, error) {
 	case float32:
 		return aT * b.(float32), nil
 	default:
-		return nil, trace.BadParameter("mul unsupported for type type: %T", a)
+		return nil, trace.BadParameter("mul unsupported for type type: %T, must be int or float", a)
 	}
 }
 
@@ -213,7 +213,7 @@ func builtinDiv(a, b any) (any, error) {
 	case float32:
 		return aT / b.(float32), nil
 	default:
-		return nil, trace.BadParameter("div unsupported for type type: %T", a)
+		return nil, trace.BadParameter("div unsupported for type type: %T, must be int or float", a)
 	}
 }
 
@@ -228,7 +228,7 @@ func builtinXor(a, b any) (any, error) {
 	case bool:
 		return aT != b.(bool), nil
 	default:
-		return nil, trace.BadParameter("xor unsupported for type type: %T", a)
+		return nil, trace.BadParameter("xor unsupported for type type: %T, must be int or bool", a)
 	}
 }
 
@@ -257,7 +257,7 @@ func builtinContains(a any, b string) (any, error) {
 
 		return false, nil
 	default:
-		return nil, trace.BadParameter("contains not valid for type: %T", a)
+		return nil, trace.BadParameter("contains not valid for type: %T, must be string or []string", a)
 	}
 }
 
@@ -269,13 +269,8 @@ func builtinFirst(a []string) any {
 	return a[0]
 }
 
-func builtinAppend(a any, b string) (any, error) {
-	switch aT := a.(type) {
-	case []string:
-		return append(cloneSlice(aT), b), nil
-	default:
-		return nil, trace.BadParameter("append not valid for type: %T", a)
-	}
+func builtinAppend(a []string, b string) (any, error) {
+	return append(cloneSlice(a), b), nil
 }
 
 func builtinArray(elements ...any) (any, error) {
@@ -283,7 +278,7 @@ func builtinArray(elements ...any) (any, error) {
 	for i, e := range elements {
 		s, ok := e.(string)
 		if !ok {
-			return nil, trace.BadParameter("cannot create array with element type %T", e)
+			return nil, trace.BadParameter("cannot create array with element type %T, must be string", e)
 		}
 
 		arr[i] = s
@@ -305,7 +300,7 @@ func builtinReplace(in any, match, with string) (any, error) {
 
 		return inT, nil
 	default:
-		return nil, trace.BadParameter("replace not valid for type: %T", in)
+		return nil, trace.BadParameter("replace not valid for type: %T, must be string or []string", in)
 	}
 }
 
@@ -316,7 +311,7 @@ func builtinLen(a any) (any, error) {
 	case []string:
 		return len(aT), nil
 	default:
-		return nil, trace.BadParameter("len not valid for type: %T", a)
+		return nil, trace.BadParameter("len not valid for type: %T, must be string or []string", a)
 	}
 }
 
@@ -340,19 +335,19 @@ func builtinContainsRegex(arr []string, regex *regexp.Regexp) (any, error) {
 
 // type-generic for future extensibility
 func builtinMapInsert(m, k, v any) (any, error) {
-	mT, ok := m.(map[string]string)
+	mT, ok := m.(map[string]any)
 	if !ok {
-		return nil, trace.BadParameter("cannot insert into map of type: %T", m)
+		return nil, trace.BadParameter("cannot insert into map of type: %T, must be map[string]any", m)
 	}
 
 	kS, ok := k.(string)
 	if !ok {
-		return nil, trace.BadParameter("cannot use non-string key of type: %T", k)
+		return nil, trace.BadParameter("cannot use string key of type: %T, must be string", k)
 	}
 
 	vS, ok := v.(string)
 	if !ok {
-		return nil, trace.BadParameter("cannot use non-string value of type: %T", k)
+		return nil, trace.BadParameter("cannot use string value of type: %T, must be string", k)
 	}
 
 	newMap := cloneMap(mT)
@@ -362,14 +357,14 @@ func builtinMapInsert(m, k, v any) (any, error) {
 
 // type-generic for future extensibility
 func builtinMapRemove(m, k any) (any, error) {
-	mT, ok := m.(map[string]string)
+	mT, ok := m.(map[string]any)
 	if !ok {
-		return nil, trace.BadParameter("cannot remove from map of type: %T", m)
+		return nil, trace.BadParameter("cannot remove from map of type: %T, must be map[string]any", m)
 	}
 
 	kS, ok := k.(string)
 	if !ok {
-		return nil, trace.BadParameter("cannot remove non-string key of type: %T", k)
+		return nil, trace.BadParameter("cannot remove key of type: %T, must be string", k)
 	}
 
 	newMap := cloneMap(mT)
