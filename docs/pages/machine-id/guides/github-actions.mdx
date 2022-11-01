@@ -34,7 +34,7 @@ join token that resembles the following:
 kind: token
 version: v2
 metadata:
-  name: github-demo
+  name: github-token
   expires: "3000-01-01T00:00:00Z"
 spec:
   roles: [Bot]
@@ -47,13 +47,11 @@ spec:
 
 Let's go over the token configuration YAML in more detail:
 
-- `metadata.name` defines the name of the token.
+- `metadata.name` defines the name of the token. Note that this value will need to be used in other parts of the configuration later.
 - `metadata.expires` defines the date that the join token will expire. This example is set
 to the year `3000`, however care should be taken in production in order to Ensure
 that the expiration date will not be given a value that is greater than what is needed.
 - `spec.bot_name` represents the name of the bot that will be configured with Machine ID.
-In this guide, both `metadata.name` and `spec.name` are the same value, `github-demo`, however
-these can be changed to any name of your choice.
 Note that this value will need to be used in other parts of the configuration later.
 - `metadata.expires` defines the date that the join token will expire. This example is set
 to the year `3000`, however care should be taken in production in order to Ensure
@@ -87,7 +85,7 @@ Once the configuration YAML file has been created, apply it to your cluster usin
 $ tctl create -f tokenconfig.yaml
 ```
 
-The token `github-demo` can now be observed with the following command, ready to be used by
+The token `github-token` can now be observed with the following command, ensuring that the configuring is ready to be used by
 GitHub:
 
 ```code
@@ -99,7 +97,7 @@ The output will resemble the following:
 ```code
 Token       Type Labels Expiry Time (UTC)
 ----------- ---- ------ ----------------------------------------------
-github-demo Bot         01 Jan 00 00:00 UTC (2562047h47m16.854775807s)
+github-token Bot         01 Jan 00 00:00 UTC (2562047h47m16.854775807s)
 ```
 
 ## Step 2/3. Creating your Machine ID bot
@@ -119,7 +117,7 @@ Enter the following command from your workstation with `tsh` access, replacing t
 the username affiliated with a node the bot will be required to access over a `tsh ssh` session:
 
 ```
-$ tctl bots add github-demo --roles=access --token=github-demo –logins=username
+$ tctl bots add github-demo --roles=access --token=github-token –logins=username
 ```
 
 ## Step 3/3. Configuring GitHub Actions
@@ -158,7 +156,7 @@ jobs:
        run: >
          tbot start
          --join-method=github
-         --token=github-demo
+         --token=github-token
 # Use the address of the auth/proxy server for your own cluster.
          --auth-server=example.domain:443
          --oneshot
