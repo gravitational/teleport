@@ -163,7 +163,7 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 			}),
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
-				require.ErrorContains(t, err, "\"IDToken\" not provided")
+				require.ErrorContains(t, err, "IDToken not provided")
 			},
 		},
 		{
