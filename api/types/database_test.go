@@ -40,6 +40,24 @@ func TestDatabaseRDSEndpoint(t *testing.T) {
 	}, database.GetAWS())
 }
 
+// TestDatabaseRDSProxyEndpoint verifies AWS info is correctly populated based
+// on the RDS Proxy endpoint.
+func TestDatabaseRDSProxyEndpoint(t *testing.T) {
+	database, err := NewDatabaseV3(Metadata{
+		Name: "rdsproxy",
+	}, DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "my-proxy.proxy-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+	})
+	require.NoError(t, err)
+	require.Equal(t, AWS{
+		Region: "us-west-1",
+		RDSProxy: RDSProxy{
+			Name: "my-proxy",
+		},
+	}, database.GetAWS())
+}
+
 // TestDatabaseRedshiftEndpoint verifies AWS info is correctly populated
 // based on the Redshift endpoint.
 func TestDatabaseRedshiftEndpoint(t *testing.T) {

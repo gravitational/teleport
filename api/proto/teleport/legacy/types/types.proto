@@ -389,6 +389,11 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "memorydb,omitempty"
   ];
+  // RDSProxy contains AWS Proxy specific metadata.
+  RDSProxy RDSProxy = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "rdsproxy,omitempty"
+  ];
 }
 
 // SecretStore contains secret store configurations.
@@ -415,6 +420,16 @@ message RDS {
   string ResourceID = 3 [(gogoproto.jsontag) = "resource_id,omitempty"];
   // IAMAuth indicates whether database IAM authentication is enabled.
   bool IAMAuth = 4 [(gogoproto.jsontag) = "iam_auth"];
+}
+
+// RDSProxy contains AWS RDS Proxy specific database metadata.
+message RDSProxy {
+  // Name is the identifier of an RDS Proxy.
+  string Name = 1 [(gogoproto.jsontag) = "name,omitempty"];
+  // CustomEndpointName is the identifier of an RDS Proxy custom endpoint.
+  string CustomEndpointName = 2 [(gogoproto.jsontag) = "custom_endpoint_name,omitempty"];
+  // ResourceID is the RDS instance resource identifier (prx-xxx).
+  string ResourceID = 3 [(gogoproto.jsontag) = "resource_id,omitempty"];
 }
 
 // ElastiCache contains AWS ElastiCache Redis specific metadata.
