@@ -187,7 +187,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 	var dialer client.Dialer
 	var password string
 	switch {
-	case sessionCtx.Database.IsRDS():
+	case sessionCtx.Database.IsRDS(), sessionCtx.Database.IsRDSProxy():
 		password, err = e.Auth.GetRDSAuthToken(sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)

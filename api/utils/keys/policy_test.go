@@ -58,32 +58,32 @@ func TestPrivateKeyPolicyError(t *testing.T) {
 			expectKeyPolicyErr: true,
 		}, {
 			desc:               "unknown_key_policy",
-			errIn:              newPrivateKeyPolicyError("unknown_key_policy"),
+			errIn:              NewPrivateKeyPolicyError("unknown_key_policy"),
 			expectIsKeyPolicy:  true,
 			expectKeyPolicyErr: true,
 		}, {
 			desc:              string(PrivateKeyPolicyNone),
-			errIn:             newPrivateKeyPolicyError(PrivateKeyPolicyNone),
+			errIn:             NewPrivateKeyPolicyError(PrivateKeyPolicyNone),
 			expectIsKeyPolicy: true,
 			expectKeyPolicy:   PrivateKeyPolicyNone,
 		}, {
 			desc:              string(PrivateKeyPolicyHardwareKey),
-			errIn:             newPrivateKeyPolicyError(PrivateKeyPolicyHardwareKey),
+			errIn:             NewPrivateKeyPolicyError(PrivateKeyPolicyHardwareKey),
 			expectIsKeyPolicy: true,
 			expectKeyPolicy:   PrivateKeyPolicyHardwareKey,
 		}, {
 			desc:              string(PrivateKeyPolicyHardwareKeyTouch),
-			errIn:             newPrivateKeyPolicyError(PrivateKeyPolicyHardwareKeyTouch),
+			errIn:             NewPrivateKeyPolicyError(PrivateKeyPolicyHardwareKeyTouch),
 			expectIsKeyPolicy: true,
 			expectKeyPolicy:   PrivateKeyPolicyHardwareKeyTouch,
 		}, {
 			desc:              "wrapped policy error",
-			errIn:             trace.Wrap(newPrivateKeyPolicyError(PrivateKeyPolicyHardwareKeyTouch), "wrapped err"),
+			errIn:             trace.Wrap(NewPrivateKeyPolicyError(PrivateKeyPolicyHardwareKeyTouch), "wrapped err"),
 			expectIsKeyPolicy: true,
 			expectKeyPolicy:   PrivateKeyPolicyHardwareKeyTouch,
 		}, {
 			desc:              "policy error string contained in error",
-			errIn:             trace.Errorf("ssh: rejected: administratively prohibited (%s)", newPrivateKeyPolicyError(PrivateKeyPolicyHardwareKeyTouch).Error()),
+			errIn:             trace.Errorf("ssh: rejected: administratively prohibited (%s)", NewPrivateKeyPolicyError(PrivateKeyPolicyHardwareKeyTouch).Error()),
 			expectIsKeyPolicy: true,
 			expectKeyPolicy:   PrivateKeyPolicyHardwareKeyTouch,
 		},

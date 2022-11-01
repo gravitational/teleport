@@ -134,6 +134,10 @@ func (m *mockSessiontrackerService) GetActiveSessionTrackers(ctx context.Context
 	return nil, trace.NotImplemented("")
 }
 
+func (m *mockSessiontrackerService) GetActiveSessionTrackersWithFilter(ctx context.Context, filter *types.SessionTrackerFilter) ([]types.SessionTracker, error) {
+	return nil, trace.NotImplemented("")
+}
+
 func (m *mockSessiontrackerService) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
 	return nil, trace.NotImplemented("")
 }
