@@ -4120,8 +4120,6 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 			},
 		}
 		utils.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
-
-		tlsConfig.NextProtos = apiutils.Deduplicate(tlsConfig.NextProtos)
 	}
 
 	for _, pair := range process.Config.Proxy.KeyPairs {
