@@ -89,7 +89,7 @@ func cloneSlice[T any](in []T) []T {
 }
 
 func cloneMap[K comparable, V any](in map[K]V) map[K]V {
-	out := make(map[K]V)
+	out := make(map[K]V, len(in))
 	for k, v := range in {
 		out[k] = v
 	}
@@ -134,24 +134,24 @@ func builtinOpGT(a, b any) (bool, error) {
 	return builtinOpLT(b, a)
 }
 
-func builtinOpLE(a, b any) any {
+func builtinOpLE(a, b any) (bool, error) {
 	if reflect.TypeOf(a) != reflect.TypeOf(b) {
-		return false
+		return false, trace.BadParameter(`args to "<=" of types %T and %T do not match`, a, b)
 	}
 
 	switch aT := a.(type) {
 	case string:
-		return aT <= b.(string)
+		return aT <= b.(string), nil
 	case int:
-		return aT <= b.(int)
+		return aT <= b.(int), nil
 	case float32:
-		return aT <= b.(float32)
+		return aT <= b.(float32), nil
 	default:
-		return false
+		return false, trace.BadParameter(`args to "<=" must be either string, int or float32, got %T`, a)
 	}
 }
 
-func builtinOpGE(a, b any) any {
+func builtinOpGE(a, b any) (bool, error) {
 	return builtinOpLE(b, a)
 }
 
@@ -261,12 +261,12 @@ func builtinContains(a any, b string) (any, error) {
 	}
 }
 
-func builtinFirst(a []string) (any, error) {
+func builtinFirst(a []string) any {
 	if len(a) == 0 {
-		return nil, nil
+		return ""
 	}
 
-	return a[0], nil
+	return a[0]
 }
 
 func builtinAppend(a any, b string) (any, error) {
