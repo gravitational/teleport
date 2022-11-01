@@ -17,6 +17,10 @@
           "slug": "/installation/"
         },
         {
+          "title": "End Users",
+          "slug": "/user-guides/"
+        },
+        {
           "title": "FAQ",
           "slug": "/faq/"
         },
