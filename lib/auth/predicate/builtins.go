@@ -94,7 +94,7 @@ func builtinOpNot(a bool) any {
 	return !a
 }
 
-func builtinOpEquals(a, b any) any {
+func builtinOpEquals(a, b any) bool {
 	return reflect.DeepEqual(a, b)
 }
 
