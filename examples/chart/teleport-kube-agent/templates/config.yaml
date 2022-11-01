@@ -4,6 +4,7 @@
 {{- else -}}
   {{- $_ := set . "teleportVersion" .Chart.Version -}}
 {{- end -}}
+{{- $_ := set . "teleportSemverClean" (split "-" .teleportVersion)._0 -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -19,12 +20,18 @@ metadata:
   {{- end }}
 data:
   teleport.yaml: |
+    {{- if semverCompare ">= 11" (.teleportSemverClean | toString) }}
     version: v3
+    {{- end }}
     teleport:
       join_params:
         method: "{{ .Values.joinParams.method }}"
         token_name: "/etc/teleport-secrets/auth-token"
+      {{- if semverCompare ">= 11" (.teleportSemverClean | toString) }}
       proxy_server: {{ required "proxyAddr is required in chart values" .Values.proxyAddr }}
+      {{- else }}
+      auth_servers: ["{{ required "proxyAddr is required in chart values" .Values.proxyAddr }}"]
+      {{- end }}
       {{- if .Values.caPin }}
       ca_pin: {{- toYaml .Values.caPin | nindent 8 }}
       {{- end }}
