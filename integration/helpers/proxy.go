@@ -117,22 +117,18 @@ func NewProxyAuthorizer(handler http.Handler, user, pass string) *ProxyAuthorize
 }
 
 func (p *ProxyAuthorizer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// we detect if someone is waiting for a new request to come in.
-	var waiter chan error
 	var err error
+	// we detect if someone is waiting for a new request to come in.
+	select {
+	case waiter := <-p.waitersC:
+		defer func() { p.notifyWaiter(waiter, err) }
+	default:
+	}
 	defer func() {
 		if err != nil {
 			trace.WriteError(w, err)
 		}
-		if waiter != nil {
-			p.notifyWaiter(waiter, err)
-		}
 	}()
-	select {
-	case waiter = <-p.waitersC:
-	default:
-	}
-
 	auth := r.Header.Get("Proxy-Authorization")
 	if auth == "" {
 		err = trace.AccessDenied("missing Proxy-Authorization header")
