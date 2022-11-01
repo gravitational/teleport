@@ -1,0 +1,51 @@
+name: Integration tests
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    # timeout-minutes: 10 TODO: Uncomment on production runner
+    container: 
+      image: public.ecr.aws/gravitational/teleport-buildbox:teleport11
+      env:
+        GOCACHE: /tmp/gocache
+      volumes:
+        - ${{ github.workspace }}:/workspace
+      options: --cap-add=SYS_ADMIN --privileged
+    steps:
+      - name: Install git 1.18+
+        run: |
+          apt -y update
+          apt -y install software-properties-common 
+          add-apt-repository -y ppa:git-core/ppa
+          apt-get -y update
+          apt-get -y install git
+          git config --global --add safe.directory /workspace
+          git config --global --add safe.directory /workspace/webassets
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+      - name: Go build cache
+        uses: actions/cache@v3
+        with:
+          path: /tmp/gocache
+          key: ${{ runner.os }}-go-build-integration-${{ hashFiles('/workspace/**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-build-integration-
+      - name: Rust cargo cache
+        uses: actions/cache@v3
+        with:
+          path: /workspace/target
+          key: ${{ runner.os }}-cargo-integration-${{ hashFiles('/workspace/**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-integration-
+      - name: Run tests (force)
+        if: ${{ github.ref_name == 'master' }}
+        run: |
+          cd /workspace/.cloudbuild/scripts
+          go run ./cmd/integration-tests -target "$GITHUB_REF_NAME" -commit $GITHUB_SHA -force
+      - name: Run tests
+        if: ${{ github.ref_name != 'master' }}
+        run: |
+          cd /workspace/.cloudbuild/scripts
+          go run ./cmd/integration-tests -target "$GITHUB_REF_NAME" -commit $GITHUB_SHA

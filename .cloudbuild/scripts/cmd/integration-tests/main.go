@@ -85,14 +85,17 @@ func innerMain() error {
 	}
 
 	log.Println("Analyzing code changes")
-	ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
-	if err != nil {
-		return trace.Wrap(err, "Failed analyzing code")
-	}
-
-	if !ch.Code {
-		log.Println("No code changes detected. Skipping tests.")
-		return nil
+	if args.forceRun {
+		log.Println("Forcing test run")
+	} else {
+		ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
+		if err != nil {
+			return trace.Wrap(err, "Failed analyzing code")
+		}
+		if !ch.Code {
+			log.Println("No code changes detected. Skipping tests.")
+			return nil
+		}
 	}
 
 	// From this point on, whatever happens we want to upload any artifacts

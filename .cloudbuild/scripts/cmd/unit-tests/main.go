@@ -60,6 +60,7 @@ type commandlineArgs struct {
 	bucket                 string
 	githubKeySrc           string
 	skipUnshallow          bool
+	forceRun               bool
 }
 
 // NOTE: changing the interface to this build script may require follow-up
@@ -75,6 +76,7 @@ func parseCommandLine() (commandlineArgs, error) {
 	flag.Var(&args.artifactSearchPatterns, "a", "Path to artifacts. May be globbed, and have multiple entries.")
 	flag.StringVar(&args.githubKeySrc, "key-secret", "", "Location of github deploy token, as a Google Cloud Secret")
 	flag.BoolVar(&args.skipUnshallow, "skip-unshallow", false, "Skip unshallowing the repository.")
+	flag.BoolVar(&args.forceRun, "force", false, "Run tests regardless of changes detected (ex: push to master)")
 
 	flag.Parse()
 
@@ -142,16 +144,22 @@ func run() error {
 		}
 	}
 
-	log.Println("Analyzing code changes")
-	ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
-	if err != nil {
-		return trace.Wrap(err, "Failed analyzing code")
-	}
-	log.Printf("Detected changes: %+v", ch)
+	var ch changes.Changes
 
-	if !ch.HasCodeChanges() {
-		log.Println("No code changes detected. Skipping tests.")
-		return nil
+	if args.forceRun {
+		log.Println("Forcing test run")
+	} else {
+		log.Println("Analyzing code changes")
+		ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
+		if err != nil {
+			return trace.Wrap(err, "Failed analyzing code")
+		}
+		log.Printf("Detected changes: %+v", ch)
+
+		if !ch.HasCodeChanges() {
+			log.Println("No code changes detected. Skipping tests.")
+			return nil
+		}
 	}
 
 	log.Printf("Starting etcd...")
@@ -179,7 +187,7 @@ func run() error {
 	}
 
 	log.Printf("Running unit tests...")
-	err = runUnitTests(args.workspace, ch)
+	err = runUnitTests(args.workspace, ch, args.forceRun)
 	if err != nil {
 		return trace.Wrap(err, "unit tests failed")
 	}
@@ -189,7 +197,7 @@ func run() error {
 	return nil
 }
 
-func runUnitTests(workspace string, ch changes.Changes) error {
+func runUnitTests(workspace string, ch changes.Changes, force bool) error {
 	enableTests := []string{
 		"TELEPORT_ETCD_TEST=yes",
 		"TELEPORT_XAUTH_TEST=yes",
@@ -197,19 +205,19 @@ func runUnitTests(workspace string, ch changes.Changes) error {
 	}
 
 	var targets []string
-	if ch.Code {
+	if ch.Code || force {
 		targets = append(targets, "test-go", "test-sh", "test-api")
 	}
-	if ch.Helm {
+	if ch.Helm || force {
 		targets = append(targets, "test-helm")
 	}
-	if ch.CI {
+	if ch.CI || force {
 		targets = append(targets, "test-ci")
 	}
-	if ch.Rust {
+	if ch.Rust || force {
 		targets = append(targets, "test-rust")
 	}
-	if ch.Operator {
+	if ch.Operator || force {
 		targets = append(targets, "test-operator")
 	}
 

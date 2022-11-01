@@ -36,6 +36,7 @@ type commandlineArgs struct {
 	bucket                 string
 	githubKeySrc           string
 	skipUnshallow          bool
+	forceRun               bool
 }
 
 // validate ensures the suplied arguments are valid & internally consistent.
@@ -90,6 +91,7 @@ func parseCommandLine() (*commandlineArgs, error) {
 	flag.Var(&args.artifactSearchPatterns, "a", "Path to artifacts. May be shell-globbed, and have multiple entries.")
 	flag.StringVar(&args.githubKeySrc, "key-secret", "", "Location of github deploy token, as a Google Cloud Secret")
 	flag.BoolVar(&args.skipUnshallow, "skip-unshallow", false, "Skip unshallowing the repository.")
+	flag.BoolVar(&args.forceRun, "force", false, "Run tests regardless of changes detected (ex: push to master)")
 
 	flag.Parse()
 
