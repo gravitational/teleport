@@ -30,10 +30,11 @@ import (
 )
 
 const (
-	sessionPrefix                 = "session_tracker"
-	retryDelay      time.Duration = time.Second
-	casRetryLimit   int           = 7
-	casErrorMessage string        = "CompareAndSwap reached retry limit"
+	sessionPrefix   = "session_tracker"
+	retryDelay      = time.Second
+	terminatedTTL   = 3 * time.Minute
+	casRetryLimit   = 7
+	casErrorMessage = "CompareAndSwap reached retry limit"
 )
 
 type sessionTracker struct {
@@ -214,11 +215,15 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 		case *types.SessionTrackerV1:
 			switch update := req.Update.(type) {
 			case *proto.UpdateSessionTrackerRequest_UpdateState:
-				session.SetState(update.UpdateState.State)
+				if err := session.SetState(update.UpdateState.State); err != nil {
+					return trace.Wrap(err)
+				}
 			case *proto.UpdateSessionTrackerRequest_AddParticipant:
 				session.AddParticipant(*update.AddParticipant.Participant)
 			case *proto.UpdateSessionTrackerRequest_RemoveParticipant:
-				session.RemoveParticipant(update.RemoveParticipant.ParticipantID)
+				if err := session.RemoveParticipant(update.RemoveParticipant.ParticipantID); err != nil {
+					return trace.Wrap(err)
+				}
 			case *proto.UpdateSessionTrackerRequest_UpdateExpiry:
 				session.SetExpiry(*update.UpdateExpiry.Expires)
 			}
@@ -231,10 +236,20 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 			return trace.Wrap(err)
 		}
 
+		expiry := session.Expiry()
+
+		// Terminated sessions don't need to stick around for the full TTL.
+		// Instead of explicitly deleting the item from the backend the TTL
+		// is set to a sooner time so that the backend can automatically
+		// clean it up.
+		if session.GetState() == types.SessionState_SessionStateTerminated {
+			expiry = s.bk.Clock().Now().UTC().Add(terminatedTTL)
+		}
+
 		item := backend.Item{
 			Key:     backend.Key(sessionPrefix, req.SessionID),
 			Value:   sessionJSON,
-			Expires: session.Expiry(),
+			Expires: expiry,
 		}
 		_, err = s.bk.CompareAndSwap(ctx, *sessionItem, item)
 		if trace.IsCompareFailed(err) {
