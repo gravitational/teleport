@@ -208,6 +208,16 @@ func (s *S) appendDeviceRef(ctx context.Context, current *backend.Item, ref *dev
 	return false, nil
 }
 
+// DeleteDevice hard-deletes a device from storage.
+func (s *S) DeleteDevice(ctx context.Context, deviceID string) error {
+	if deviceID == "" {
+		return trace.BadParameter("device ID required")
+	}
+
+	err := s.backend().Delete(ctx, deviceKey(deviceID))
+	return trace.Wrap(err)
+}
+
 // GetDeviceByID reads a device by ID.
 // Returns the stored device or trace.NotFound.
 func (s *S) GetDeviceByID(ctx context.Context, deviceID string) (*devicepb.Device, error) {
@@ -231,6 +241,10 @@ func (s *S) GetDeviceByID(ctx context.Context, deviceID string) (*devicepb.Devic
 // GetDevicesByAssetTag reads devices by asset tag.
 // Returns an empty slice if no devices are found.
 func (s *S) GetDevicesByAssetTag(ctx context.Context, assetTag string) ([]*devicepb.Device, error) {
+	if assetTag == "" {
+		return nil, trace.BadParameter("asset tag required")
+	}
+
 	item, err := s.backend().Get(ctx, devicesByAssetTagKey(assetTag))
 	switch {
 	case trace.IsNotFound(err):
@@ -287,6 +301,105 @@ func (s *S) GetDevicesByAssetTag(ctx context.Context, assetTag string) ([]*devic
 	return res, nil
 }
 
+// ListDevices is a paginated search of devices. It returns the found devices
+// and the page token for the next call.
+//
+// Use an empty pageToken to start the search and the returned nextPageToken for
+// subsequent calls. A non-empty nextPageToken means that a next page is
+// available (but may be empty), an empty nextPageToken signifies the end of the
+// search. Callers are not expected to change other parameters in the same
+// series of invocations.
+//
+// The requested pageSize is not guaranteed, as the server may change it at its
+// discretion.
+func (s *S) ListDevices(ctx context.Context, pageSize int, pageToken string) (devices []*devicepb.Device, nextPageToken string, err error) {
+	startKey := deviceKeyStart()
+	endKey := backend.RangeEnd(startKey)
+
+	// The pageToken contains the ID of the last device returned. If it's present,
+	// we start the search from it and skip that device in the results.
+	var lastID string
+	if pageToken != "" {
+		var err error
+		lastID, err = deviceIDFromPageToken(pageToken)
+		if err != nil {
+			return nil, "", trace.BadParameter("invalid page token")
+		}
+		startKey = deviceKey(lastID)
+	}
+
+	// Adjust page size so it can't be too large.
+	const maxPageSize = 200
+	if pageSize <= 0 || pageSize > maxPageSize {
+		pageSize = maxPageSize
+	}
+	// Increment pageSize to allow for the extra item represented by lastID.
+	// We skip this item in the results below.
+	if lastID != "" {
+		pageSize++
+	}
+
+	res, err := s.backend().GetRange(ctx, startKey, endKey, pageSize)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	for _, item := range res.Items {
+		// The devices collection could shift between calls, so don't assume
+		// anything about the position of lastID.
+		deviceID := deviceIDFromKey(item.Key)
+		if deviceID == lastID {
+			continue
+		}
+
+		stored := &storedDevice{}
+		if err := json.Unmarshal(item.Value, stored); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		devices = append(devices, storedToDevice(deviceID, stored))
+	}
+
+	// There can only be a next page if we got as many devices as we requested.
+	if len(res.Items) == pageSize {
+		lastDev := devices[len(devices)-1]
+		nextPageToken, err = deviceIDToPageToken(lastDev.Id)
+		if err != nil {
+			return nil, "", trace.Wrap(err, "generating next page token")
+		}
+	}
+
+	return devices, nextPageToken, nil
+}
+
+type devicePageToken struct {
+	ID string `json:"id"`
+}
+
+func deviceIDToPageToken(deviceID string) (string, error) {
+	jsonToken, err := json.Marshal(&devicePageToken{
+		ID: deviceID,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// Encode resulting token to discourage external fiddling.
+	return base64.StdEncoding.EncodeToString(jsonToken), nil
+}
+
+func deviceIDFromPageToken(pageToken string) (string, error) {
+	decodedToken, err := base64.StdEncoding.DecodeString(pageToken)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	var t devicePageToken
+	if err := json.Unmarshal(decodedToken, &t); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return t.ID, nil
+}
+
 // CreateDeviceEnrollToken creates or replaces the existing enrollment token for
 // a device. Only one enrollment token is allowed at a time.
 //
@@ -297,6 +410,10 @@ func (s *S) GetDevicesByAssetTag(ctx context.Context, assetTag string) ([]*devic
 // in outside of Teleport) to the person responsible for enrolling the device.
 // SpendDeviceEnrollToken spends the token for the enrollment ceremony.
 func (s *S) CreateDeviceEnrollToken(ctx context.Context, deviceID string) (*devicepb.DeviceEnrollToken, error) {
+	if deviceID == "" {
+		return nil, trace.BadParameter("device ID required")
+	}
+
 	// Device must exist, the easiest way to check is to read the key.
 	if _, err := s.backend().Get(ctx, deviceKey(deviceID)); err != nil {
 		return nil, trace.Wrap(err)
@@ -343,6 +460,13 @@ func (s *S) CreateDeviceEnrollToken(ctx context.Context, deviceID string) (*devi
 // Callers are encouraged to "erase" the resulting errors with a constant
 // type/message, as to avoid leaking information about storage state.
 func (s *S) SpendDeviceEnrollToken(ctx context.Context, deviceID, token string) error {
+	switch {
+	case deviceID == "":
+		return trace.BadParameter("device ID required")
+	case token == "":
+		return trace.BadParameter("token required")
+	}
+
 	// Device must exist, the easiest way to check is to read the key.
 	if _, err := s.backend().Get(ctx, deviceKey(deviceID)); err != nil {
 		return trace.Wrap(err)
@@ -396,6 +520,10 @@ func storedToDevice(deviceID string, sd *storedDevice) *devicepb.Device {
 // deviceKeyChild creates a key under "devices/id/<ID>/".
 func deviceKeyChild(deviceID string, child ...string) []byte {
 	return backend.Key(append([]string{"devices", "id", deviceID}, child...)...)
+}
+
+func deviceKeyStart() []byte {
+	return backend.Key("devices", "id")
 }
 
 func deviceKey(deviceID string) []byte {

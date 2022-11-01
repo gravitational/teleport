@@ -215,29 +215,270 @@ func TestS_CreateDevice_errors(t *testing.T) {
 	}
 }
 
-func TestS_GetDeviceByID_notFound(t *testing.T) {
+func TestS_DeleteDevice(t *testing.T) {
 	env := mustNewEnv()
 	defer env.Close()
-	s := env.S
 
+	s := env.S
 	ctx := context.Background()
-	if _, err := s.GetDeviceByID(ctx, "unknown"); !trace.IsNotFound(err) {
-		t.Errorf("GetDeviceByID returned an unexpected error: %v", err)
+
+	// Register a few devices for us to test with.
+	var devs []*devicepb.Device
+	for _, assetTag := range []string{"llama", "alpaca", "camel"} {
+		dev, err := s.CreateDevice(ctx, &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: assetTag,
+		})
+		if err != nil {
+			t.Fatalf("CreateDevice failed: %v", err)
+		}
+		devs = append(devs, dev)
+	}
+	d1 := devs[0] // deleted by tests
+	d2 := devs[1] // not deleted
+	d3 := devs[2] // not deleted
+
+	tests := []struct {
+		name      string
+		deviceID  string
+		assertErr func(err error) bool
+	}{
+		{
+			name:      "ok",
+			deviceID:  d1.Id,
+			assertErr: func(err error) bool { return err == nil },
+		},
+		{
+			name:      "already deleted device fails with not found",
+			deviceID:  d1.Id,
+			assertErr: trace.IsNotFound,
+		},
+		{
+			name:      "unknown device fails with not found",
+			deviceID:  "unknown",
+			assertErr: trace.IsNotFound,
+		},
+		{
+			name:      "empty device ID fails",
+			deviceID:  "",
+			assertErr: trace.IsBadParameter,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := s.DeleteDevice(ctx, test.deviceID)
+			if !test.assertErr(err) {
+				t.Errorf("DeleteDevice asserErr failed, err=%v", err)
+			}
+			if err != nil {
+				return
+			}
+
+			// Deleted device should really be deleted.
+			if _, err := s.GetDeviceByID(ctx, test.deviceID); !trace.IsNotFound(err) {
+				t.Errorf("GetDeviceByID returned an unexpected error: %v", err)
+			}
+		})
+	}
+
+	// Unrelated devices should still exist.
+	t.Run("unrelated", func(t *testing.T) {
+		got, _, err := s.ListDevices(ctx, 3 /* pageSize */, "" /* pageToken */)
+		if err != nil {
+			t.Fatalf("ListDevices failed: %v", err)
+		}
+
+		want := []*devicepb.Device{d2, d3}
+		sort.Slice(got, func(i, j int) bool { return got[i].Id < got[j].Id })
+		sort.Slice(want, func(i, j int) bool { return want[i].Id < want[j].Id })
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("ListDevices mismatch (-want +got)\n%s", diff)
+		}
+	})
+}
+
+func TestS_GetDeviceByID_errors(t *testing.T) {
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+
+	tests := []struct {
+		name      string
+		deviceID  string
+		assertErr func(err error) bool
+	}{
+		{
+			name:      "device ID required",
+			deviceID:  "",
+			assertErr: trace.IsBadParameter,
+		},
+		{
+			name:      "unknown device not found",
+			deviceID:  "unknown",
+			assertErr: trace.IsNotFound,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := s.GetDeviceByID(ctx, test.deviceID)
+			if !test.assertErr(err) {
+				t.Errorf("GetDeviceByID assertErr failed, err=%v", err)
+			}
+		})
 	}
 }
 
-func TestS_GetDevicesByAssetTag_noDevices(t *testing.T) {
+func TestS_GetDevicesByAssetTag_errors(t *testing.T) {
 	env := mustNewEnv()
 	defer env.Close()
-	s := env.S
 
+	s := env.S
 	ctx := context.Background()
-	got, err := s.GetDevicesByAssetTag(ctx, "unknown")
-	switch {
-	case err != nil:
-		t.Fatalf("GetDevicesByAssetTag failed: %v", err)
-	case len(got) != 0:
-		t.Fatalf("GetDevicesByAssetTag returned non-empty slice: %v", got)
+
+	tests := []struct {
+		name      string
+		assetTag  string
+		assertErr func(err error) bool
+	}{
+		{
+			name:      "asset tag required",
+			assetTag:  "",
+			assertErr: trace.IsBadParameter,
+		},
+		{
+			name:      "unknown tag returns empty",
+			assetTag:  "unknown",
+			assertErr: func(err error) bool { return err == nil },
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := s.GetDevicesByAssetTag(ctx, test.assetTag)
+			if !test.assertErr(err) {
+				t.Errorf("GetDevicesByAssetTag assertErr failed, err=%v", err)
+			}
+		})
+	}
+}
+
+func TestS_ListDevices(t *testing.T) {
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+
+	const defaultPageSize = 0
+	const defaultPageToken = ""
+
+	t.Run("empty", func(t *testing.T) {
+		devs, nextPageToken, err := s.ListDevices(ctx, defaultPageSize, defaultPageToken)
+		if err != nil {
+			t.Fatalf("ListDevices failed: %v", err)
+		}
+		if len(devs) > 0 {
+			t.Errorf("ListDevices returned unexpected devices: %v", devs)
+		}
+		if nextPageToken != "" {
+			t.Errorf("ListDevices returned an unexpected nextPageToken: %q", nextPageToken)
+		}
+	})
+
+	// Add a few devices to query.
+	var allDevs []*devicepb.Device
+	for _, assetTag := range []string{"llama", "alpaca", "camel", "horse", "duck"} {
+		dev, err := s.CreateDevice(ctx, &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: assetTag,
+		})
+		if err != nil {
+			t.Fatalf("CreateDevice(%q) failed: %v", assetTag, err)
+		}
+		allDevs = append(allDevs, dev)
+	}
+
+	tests := []struct {
+		name             string
+		pageSize         int
+		wantTrimmedPages bool
+	}{
+		{
+			name: "default page size",
+		},
+		{
+			name:     "page size 1",
+			pageSize: 1,
+		},
+		{
+			name:     "page size odd",
+			pageSize: 2,
+		},
+		{
+			name:     "page size even",
+			pageSize: 3,
+		},
+		{
+			name:     "empty last page",
+			pageSize: len(allDevs),
+		},
+		{
+			name:     "all results in first page",
+			pageSize: len(allDevs) + 1,
+		},
+		{
+			name:             "large page sizes get trimmed",
+			pageSize:         100_000,
+			wantTrimmedPages: true,
+		},
+		{
+			name:     "negative page size ignored",
+			pageSize: -1,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// We expect to eventually get all devices in all scenarios, so we'll
+			// collect them here and later compare against the complete list.
+			var pageToken string
+			var got []*devicepb.Device
+			for {
+				devs, nextPageToken, err := s.ListDevices(ctx, test.pageSize, pageToken)
+				if err != nil {
+					t.Fatalf("ListDevices failed: %v", err)
+				}
+				if test.wantTrimmedPages && len(devs) >= test.pageSize {
+					t.Errorf("ListDevices returned non-trimmed page: got %v, want <= %v", len(devs), test.pageSize)
+				}
+				got = append(got, devs...)
+
+				if nextPageToken == "" {
+					break
+				}
+				pageToken = nextPageToken
+			}
+
+			want := allDevs
+			sort.Slice(got, func(i, j int) bool { return got[i].Id < got[j].Id })
+			sort.Slice(want, func(i, j int) bool { return want[i].Id < want[j].Id })
+
+			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+				t.Errorf("ListDevices mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestS_ListDevices_errors(t *testing.T) {
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+
+	if _, _, err := s.ListDevices(ctx, 0 /* pageSize */, "badpagetoken" /* pageToken */); !trace.IsBadParameter(err) {
+		t.Errorf("ListDevices returned an unexpected error: %v", err)
 	}
 }
 
@@ -369,6 +610,30 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 				return s.SpendDeviceEnrollToken(ctx, deviceID, token)
 			},
 			assertSpendErr: trace.IsNotFound,
+		},
+		{
+			name:            "CreateDeviceEnrollToken requires device ID",
+			deviceID:        "",
+			createToken:     s.CreateDeviceEnrollToken,
+			assertCreateErr: trace.IsBadParameter,
+		},
+		{
+			name:        "SpendDeviceEnrollToken requires device ID",
+			deviceID:    deviceID,
+			createToken: s.CreateDeviceEnrollToken,
+			spendToken: func(ctx context.Context, _, token string) error {
+				return s.SpendDeviceEnrollToken(ctx, "" /* deviceID */, token)
+			},
+			assertSpendErr: trace.IsBadParameter,
+		},
+		{
+			name:        "SpendDeviceEnrollToken requires token",
+			deviceID:    deviceID,
+			createToken: s.CreateDeviceEnrollToken,
+			spendToken: func(ctx context.Context, deviceID, _ string) error {
+				return s.SpendDeviceEnrollToken(ctx, deviceID, "" /* token */)
+			},
+			assertSpendErr: trace.IsBadParameter,
 		},
 	}
 	for _, test := range tests {
