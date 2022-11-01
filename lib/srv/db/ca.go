@@ -49,7 +49,8 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 		types.DatabaseTypeElastiCache,
 		types.DatabaseTypeMemoryDB,
 		types.DatabaseTypeAWSKeyspaces,
-		types.DatabaseTypeCloudSQL:
+		types.DatabaseTypeCloudSQL,
+		types.DatabaseTypeAzureSQLServer:
 
 	case types.DatabaseTypeAzure:
 		// Azure Cache for Redis uses system cert pool.
@@ -141,7 +142,10 @@ func (s *Server) getCACertPath(database types.Database) (string, error) {
 		return filepath.Join(s.cfg.DataDir, fmt.Sprintf("%v-root.pem", database.GetName())), nil
 
 	case types.DatabaseTypeAzure:
-		return filepath.Join(s.cfg.DataDir, filepath.Base(azureCAURL)), nil
+		return filepath.Join(s.cfg.DataDir, filepath.Base(azureBaltimoreCAURL)), nil
+
+	case types.DatabaseTypeAzureSQLServer:
+		return filepath.Join(s.cfg.DataDir, filepath.Base(azureCABundleFileName)), nil
 
 	case types.DatabaseTypeAWSKeyspaces:
 		return filepath.Join(s.cfg.DataDir, filepath.Base(amazonKeyspacesCAURL)), nil
@@ -178,7 +182,9 @@ func (d *realDownloader) Download(ctx context.Context, database types.Database) 
 	case types.DatabaseTypeCloudSQL:
 		return d.downloadForCloudSQL(ctx, database)
 	case types.DatabaseTypeAzure:
-		return d.downloadFromURL(azureCAURL)
+		return d.downloadFromURL(azureBaltimoreCAURL)
+	case types.DatabaseTypeAzureSQLServer:
+		return d.downloadForAzureSQLServer(ctx, database)
 	case types.DatabaseTypeAWSKeyspaces:
 		return d.downloadFromURL(amazonKeyspacesCAURL)
 	}
@@ -224,6 +230,24 @@ func (d *realDownloader) downloadForCloudSQL(ctx context.Context, database types
 	}
 	return nil, trace.NotFound("Cloud SQL instance %v does not contain server CA certificate info: %v",
 		database, instance)
+}
+
+// downloadForAzureSQLServer downloads root certificate for the provided Azure SQL Server
+// instance. We need to download two certificates and combine them into one file
+// as described on the Azure guide:
+// https://learn.microsoft.com/en-us/azure/azure-sql/updates/ssl-root-certificate-expiring?view=azuresql#what-do-i-need-to-do-to-maintain-connectivity
+func (d *realDownloader) downloadForAzureSQLServer(ctx context.Context, database types.Database) ([]byte, error) {
+	baltimoreCAContents, err := d.downloadFromURL(azureBaltimoreCAURL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	digiCertCAContents, err := d.downloadFromURL(azureCADigiCertURL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return append(baltimoreCAContents, digiCertCAContents...), nil
 }
 
 // rdsCAURLForDatabase returns root certificate download URL based on the region
@@ -284,20 +308,28 @@ const (
 	// https://www.amazontrust.com/repository/
 	amazonRootCA1URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem"
 
-	// azureCAURL is the URL of the CA certificate for validating certificates
+	// azureBaltimoreCAURL is the URL of the CA certificate for validating certificates
 	// presented by Azure hosted databases. See:
 	//
 	// https://docs.microsoft.com/en-us/azure/postgresql/concepts-ssl-connection-security
 	// https://docs.microsoft.com/en-us/azure/mysql/howto-configure-ssl
-	azureCAURL = "https://www.digicert.com/CACerts/BaltimoreCyberTrustRoot.crt.pem"
-	// cloudSQLDownloadError is the error message that gets returned when
-	// we failed to download root certificate for Cloud SQL instance.
+	azureBaltimoreCAURL = "https://www.digicert.com/CACerts/BaltimoreCyberTrustRoot.crt.pem"
+
+	// azureCABundleFileName is the name of the file that contains Azure CA
+	// bundle.
+	azureCABundleFileName = "azure-ca-bundle.pem"
+
+	// azureCADigiCertURL is the URL of the CA certificate for validating certificates
+	// presented by Azure hosted databases.
+	azureCADigiCertURL = "https://cacerts.digicert.com/DigiCertGlobalRootG2.crt.pem"
 
 	// amazonKeyspacesCAURL is the URL of the CA certificate for validating certificates
 	// presented by AWS Keyspace. See:
 	// https://docs.aws.amazon.com/keyspaces/latest/devguide/using_go_driver.html
 	amazonKeyspacesCAURL = "https://certs.secureserver.net/repository/sf-class2-root.crt"
 
+	// cloudSQLDownloadError is the error message that gets returned when
+	// we failed to download root certificate for Cloud SQL instance.
 	cloudSQLDownloadError = `Could not download Cloud SQL CA certificate for database %v due to the following error:
 
     %v

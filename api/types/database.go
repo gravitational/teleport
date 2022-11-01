@@ -365,7 +365,7 @@ func (d *DatabaseV3) IsCloudSQL() bool {
 
 // IsAzure returns true if this is Azure hosted database.
 func (d *DatabaseV3) IsAzure() bool {
-	return d.GetType() == DatabaseTypeAzure
+	return d.GetType() == DatabaseTypeAzure || d.GetType() == DatabaseTypeAzureSQLServer
 }
 
 // IsElastiCache returns true if this is an AWS ElastiCache database.
@@ -428,7 +428,12 @@ func (d *DatabaseV3) GetType() string {
 	if d.GetGCP().ProjectID != "" {
 		return DatabaseTypeCloudSQL
 	}
+
 	if d.GetAzure().Name != "" {
+		if d.Spec.Protocol == "sqlserver" {
+			return DatabaseTypeAzureSQLServer
+		}
+
 		return DatabaseTypeAzure
 	}
 	return DatabaseTypeSelfHosted
@@ -763,6 +768,8 @@ const (
 	DatabaseTypeAWSKeyspaces = "keyspace"
 	// DatabaseTypeCassandra is AWS-hosted Keyspace database.
 	DatabaseTypeCassandra = "cassandra"
+	// DatabaseTypeAzureSQLServer is Azure-hosted SQL Server database.
+	DatabaseTypeAzureSQLServer = "azure-sql-server"
 )
 
 // GetServerName returns the GCP database project and instance as "<project-id>:<instance-id>".
