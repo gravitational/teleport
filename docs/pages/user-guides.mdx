@@ -1,0 +1,225 @@
+---
+title: User Guides
+description: Documentation for end users
+h1: End User Documentation
+---
+
+Teleport is a complex security solution, and most of our documentation covers
+the installation, configuration, and management of Teleport for administrators.
+For end users, this page covers the basics of authenticating to Teleport and
+accessing resources.
+
+## tsh
+
+`tsh` lets you authenticate to Teleport, list services, and initate either
+direct connections or proxy tunnels to them. After [downloading](/downloads)
+and installing `tsh`, sign in to your Teleport plane:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+$ tsh login --proxy=teleport.example.com --user=alice
+Enter password for Teleport user alice:
+Tap any security key
+> Profile URL:        https://teleport.example.com:443
+  Logged in as:       alice
+  Cluster:            example.com
+  Roles:              access
+  Logins:             root, ubuntu, ec2-user
+  Kubernetes:         enabled
+  Valid until:        2022-11-01 22:37:05 -0500 CDT [valid for 12h0m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
+```
+
+</ScopedBlock>
+
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ tsh login --proxy=mytennant.teleport.sh --user=alice
+Enter password for Teleport user alice:
+Tap any security key
+> Profile URL:        https://teleport.example.com:443
+  Logged in as:       alice
+  Cluster:            mytennant.teleport.sh
+  Roles:              access
+  Logins:             root, ubuntu, ec2-user
+  Kubernetes:         enabled
+  Valid until:        2022-11-01 22:37:05 -0500 CDT [valid for 12h0m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
+```
+
+</ScopedBlock>
+
+Depending on how Teleport was configured for your network, you may need
+additional flags, such as `--auth=a_saml_connector`. Your administrator should
+provde the details required for your particular use case.
+
+## Teleport Connect
+
+The Teleport Connect app provides all the same access to resources as `tsh` and
+more, in a friendly graphic user interface. After
+[downloading](https://goteleport.com/download/) and installing Teleport Connect,
+you can log in initiate sessions for Server, Database, and Desktop Access all
+within a single window.
+
+1. Click **CONNECT** to connect to the Teleport plane:
+
+   ![A new instance of Teleport Connect](../img/teleport-connect-init.png)
+
+2. Provide the address of your Teleport Cluster (e.g. 
+<ScopedBlock scope={["oss", "enterprise"]}>`https://teleport.example.com`</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>`https://mytennant.teleport.sh`</ScopedBlock>
+) and click **NEXT**.
+
+3. Teleport Connect will ask you for your username, password, and MFA. If this
+Teleport plane is integrated with an external Identity Provider (**IdP**), it
+may instead prompt you to authenticate in a browser window with that service.
+
+4. Once authenticated, you can browse and connect to all the resources your
+user is permitted to access:
+
+   ![An example of Teleport Connect, populated with instances](../img/use-teleport/connect-ui-overview.png)
+
+## Server Access
+
+<Tabs>
+<TabItem label="tsh">
+
+`tsh ls` lists the servers you have access to through Server Access (ssh):
+
+```code
+$ tsh ls
+Node Name           Address         Labels                       
+------------------- --------------- ---------------------------- 
+server1.example.com 192.0.2.24:3022 access=servers,hostname=server1
+server2.example.com 192.0.2.32:3022 access=servers,hostname=server2
+```
+
+To connect to a server:
+
+```code
+$tsh ssh server1.example.com
+root@server1:~$
+```
+
+</TabItem>
+<TabItem label="Teleport Connect">
+
+Under the **Servers** tab, click **CONNECT** next to the server you want to
+access. Select or type in a username available to your Teleport user.
+
+In a new tab, Teleport Connect will initiate the connection and provide a terminal environment.
+
+</TabItem>
+</Tabs>
+
+## Transferring files
+
+`tsh scp` will let you transfer files to servers behind Teleport:
+
+```code
+$ tsh scp somefile.ext xeon.tp.alexf.xyz:
+somefile.ext   7% |███████                | (25/342 MB, 2.9 MB/s) [9s:1m48s]
+```
+
+## Database Access
+
+<Tabs>
+<TabItem label="tsh">
+
+`tsh db ls` will list the databases available to your user:
+
+```code
+$ tsh db ls
+Name                                               Description Allowed Users   Labels  Connect
+-----------------------------------------------    ----------- --------------- ------- -------------------------
+myelastic                                                      [alice elastic] env=dev
+mysql-server1 (user: alice, db: teleport_example)              [alice elastic] env=dev tsh db connect mysql-server1
+```
+
+To connect to a database server, through `tsh`, you'll need a local client for
+that database. For example, to connect to a MySQL or MariaDB database, you'll
+need the [MySQL CLI](https://dev.mysql.com/doc/refman/8.0/en/mysql.html) client:
+
+```code
+tsh db connect --db-user=alice --db-name=teleport_example mysql-server1 
+```
+
+In this example, `teleport_example` is a pre-existing database on the MySQL server:
+
+```sql
+SHOW DATABASES;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| mysql              |
+| performance_schema |
+| teleport_example   |
++--------------------+
+4 rows in set (0.09 sec)
+```
+
+For other connection types, you can create a local tunnel to point your software to:
+
+```code
+$ tsh proxy db myelastic --db-user=alice --tunnel
+Started authenticated tunnel for the Elasticsearch database "myelastic" in cluster "example.come" on 192.0.2.58:52669.
+
+Use one of the following commands to connect to the database:
+
+  * interactive SQL connection:
+
+  $ elasticsearch-sql-cli http://localhost:52669/
+
+  * run single request with curl:
+
+  $ curl http://localhost:52669/
+
+Database certificate renewed: valid until 2022-11-02T06:11:50Z [valid for 9h55m0s]
+```
+
+</TabItem>
+<TabItem label="Teleport Connect">
+
+In the **Databases** tab, select the database you want to access and click
+**CONNECT**. Select or type in a username available to your Teleport user.
+
+Teleport Connect will open a tunneled connection to the database. You can copy the port number and connect with a GUI app at `localhost`, or click **RUN** to initiate a CLI connection inside Teleport Connect:
+
+![Teleport Connect database connection](../img/teleport-connect-mysql.png)
+
+</TabItem>
+</Tabs>
+
+## Desktop Access
+
+Desktop Access is available through the Teleport web UI. In your browser,
+navigate to your Telport cluster (e.g. 
+<ScopedBlock scope={["oss", "enterprise"]}>`https://teleport.example.com`</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>`https://mytennant.teleport.sh`</ScopedBlock>
+). From the menu on the right, select **<Icon name="desktop" inline={true} size="sm"/>
+Desktops**. Next to the desktop you want to access, click **CONNECT**. Select
+or type in a username available to your Teleport user. Teleport will open a new
+browser tab or window and begin the RDP session. Note that you may need to wait
+a moment for Teleport to log you in as the specified user.
+
+## Next Steps
+
+This page is a basic introduction to using Teleport. More detailed information
+on the subject matter covered here can be found in the **Connect your Client**
+section of our docs:
+
+- `tsh` is the primary CLI tool for Server Access through Teleport. With it,
+you can authenticate to Teleport, list available services, and connect to them
+either directly or through proxy tunnels.
+
+    Learn more about it from [Using the tsh Command Line Tool](./connect-your-client/tsh.mdx).
+
+- Teleport Connect is a graphic utility for connecting to resources through
+Teleport. You can initaite Server Access, connect to databases, and start
+Desktop Acesss sessions. See [Using Teleport Connect](./connect-your-client/teleport-connect.mdx).
+
+- [Database Access GUI Clients](./connect-your-client/gui-clients.mdx) details
+how to connect many popular database GUI clients through Teleport.
