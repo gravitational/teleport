@@ -538,8 +538,8 @@ func (s *localSite) fanOutProxies(proxies []types.Server) {
 // the connection as invalid.
 func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
 	logger := s.log.WithFields(log.Fields{
-		"nodeID": rconn.nodeID,
-		"addr":   rconn.conn.RemoteAddr().String(),
+		"serverID": rconn.nodeID,
+		"addr":     rconn.conn.RemoteAddr().String(),
 	})
 
 	firstHeartbeat := true

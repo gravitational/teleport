@@ -99,7 +99,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 	}
 
 	// the fake session should have prevented anything from closing
-	require.Equal(t, int32(0), conn1.closed)
+	require.False(t, conn1.closed.Load())
 	require.False(t, sconn.closed.Load())
 
 	// send another heartbeat to reset exceeding the threshold
@@ -125,7 +125,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 	}
 
 	// assert the connections were closed
-	require.Equal(t, int32(1), conn1.closed)
+	require.True(t, conn1.closed.Load())
 	require.True(t, sconn.closed.Load())
 }
 

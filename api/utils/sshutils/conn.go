@@ -31,7 +31,11 @@ import (
 
 // ConnectProxyTransport opens a channel over the remote tunnel and connects
 // to the requested host.
-func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (*ChConn, bool, error) {
+//
+// Returns the net.Conn wrapper over an SSH channel, whether the provided ssh.Conn
+// should be considered invalid due to errors opening or sending a request to the
+// channel while setting up the ChConn, and any error that occurs.
+func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (conn *ChConn, invalid bool, err error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, false, trace.Wrap(err)
 	}
