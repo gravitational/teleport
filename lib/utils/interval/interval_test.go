@@ -29,6 +29,7 @@ import (
 func TestIntervalReset(t *testing.T) {
 	const iterations = 1_000
 	const duration = time.Millisecond * 666
+	t.Parallel()
 
 	success := atomic.NewUint64(0)
 	failure := atomic.NewUint64(0)
@@ -83,6 +84,7 @@ func TestIntervalReset(t *testing.T) {
 }
 
 func TestNewNoop(t *testing.T) {
+	t.Parallel()
 	i := NewNoop()
 	ch := i.Next()
 	select {
