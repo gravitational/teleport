@@ -200,7 +200,7 @@ func makeAzureFetchers(ctx context.Context, clients cloud.Clients, matchers []se
 		services.AzureMatcherMySQL:     {newAzureMySQLFetcher},
 		services.AzureMatcherPostgres:  {newAzurePostgresFetcher},
 		services.AzureMatcherRedis:     {newAzureRedisFetcher, newAzureRedisEnterpriseFetcher},
-		services.AzureMatcherSQLServer: {newAzureSQLServerFetcher},
+		services.AzureMatcherSQLServer: {newAzureSQLServerFetcher, newAzureManagedSQLServerFetcher},
 	}
 	for _, matcher := range matchers {
 		for _, matcherType := range matcher.Types {

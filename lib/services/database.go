@@ -272,6 +272,37 @@ func NewDatabaseFromAzureSQLServer(server *armsql.Server) (types.Database, error
 		})
 }
 
+// NewDatabaseFromAzureManagedSQLServer creates a database resource from an
+// Azure Managed SQL server.
+func NewDatabaseFromAzureManagedSQLServer(server *armsql.ManagedInstance) (types.Database, error) {
+	if server.Properties == nil {
+		return nil, trace.BadParameter("missing properties")
+	}
+
+	if server.Properties.FullyQualifiedDomainName == nil {
+		return nil, trace.BadParameter("missing FQDN")
+	}
+
+	labels, err := labelsFromAzureManagedSQLServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return types.NewDatabaseV3(
+		setAzureDBName(types.Metadata{
+			Description: fmt.Sprintf("Azure Managed SQL Server in %v", azure.StringVal(server.Location)),
+			Labels:      labels,
+		}, azure.StringVal(server.Name)),
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolSQLServer,
+			URI:      fmt.Sprintf("%v:%d", azure.StringVal(server.Properties.FullyQualifiedDomainName), azureSQLServerDefaultPort),
+			Azure: types.Azure{
+				Name:       azure.StringVal(server.Name),
+				ResourceID: azure.StringVal(server.ID),
+			},
+		})
+}
+
 // NewDatabaseFromRDSInstance creates a database resource from an RDS instance.
 func NewDatabaseFromRDSInstance(instance *rds.DBInstance) (types.Database, error) {
 	endpoint := instance.Endpoint
@@ -834,6 +865,16 @@ func labelsFromAzureSQLServer(server *armsql.Server) (map[string]string, error) 
 	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
 }
 
+// labelsFromAzureManagedSQLServer creates database labels from the provided
+// Azure Managed SQL server.
+func labelsFromAzureManagedSQLServer(server *armsql.ManagedInstance) (map[string]string, error) {
+	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[labelRegion] = azure.StringVal(server.Location)
+	labels[labelEngineVersion] = AzureSQLManagedInstanceLabel
+	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
+}
+
 // labelsFromRDSInstance creates database labels for the provided RDS instance.
 func labelsFromRDSInstance(rdsInstance *rds.DBInstance, meta *types.AWS) map[string]string {
 	labels := rdsTagsToLabels(rdsInstance.TagList)
@@ -1274,6 +1315,9 @@ const (
 	AzureEngineMySQL = "Microsoft.DBforMySQL/servers"
 	// AzureEnginePostgres is the Azure engine name for PostgreSQL single-server instances
 	AzureEnginePostgres = "Microsoft.DBforPostgreSQL/servers"
+	// AzureSQLManagedInstanceLabel is used to identify Azure managed SQL
+	// instances.
+	AzureSQLManagedInstanceLabel = "managed-instance"
 )
 
 const (

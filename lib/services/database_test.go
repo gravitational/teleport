@@ -1693,3 +1693,59 @@ func TestNewDatabaseFromAzureSQLServer(t *testing.T) {
 		})
 	}
 }
+
+func TestNewDatabaseFromAzureManagedSQLServer(t *testing.T) {
+	for _, tc := range []struct {
+		desc        string
+		server      *armsql.ManagedInstance
+		expectedErr require.ErrorAssertionFunc
+		expectedDB  require.ValueAssertionFunc
+	}{
+		{
+			desc: "complete server",
+			server: &armsql.ManagedInstance{
+				ID:       to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-groupd/providers/Microsoft.Sql/servers/sqlserver"),
+				Name:     to.Ptr("sqlserver"),
+				Location: to.Ptr("westus"),
+				Properties: &armsql.ManagedInstanceProperties{
+					FullyQualifiedDomainName: to.Ptr("sqlserver.database.windows.net"),
+				},
+			},
+			expectedErr: require.NoError,
+			expectedDB: func(t require.TestingT, i interface{}, _ ...interface{}) {
+				db, ok := i.(types.Database)
+				require.True(t, ok, "expected types.Database, got %T", i)
+
+				require.Equal(t, db.GetProtocol(), defaults.ProtocolSQLServer)
+				require.Equal(t, "sqlserver", db.GetName())
+				require.Equal(t, "sqlserver.database.windows.net:1433", db.GetURI())
+				require.Equal(t, "sqlserver", db.GetAzure().Name)
+				require.Equal(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-groupd/providers/Microsoft.Sql/servers/sqlserver", db.GetAzure().ResourceID)
+
+				// Assert labels
+				labels := db.GetMetadata().Labels
+				require.Equal(t, types.OriginCloud, labels[types.OriginLabel])
+				require.Equal(t, "westus", labels[labelRegion])
+				require.Equal(t, AzureSQLManagedInstanceLabel, labels[labelEngineVersion])
+			},
+		},
+		{
+			desc:        "empty properties",
+			server:      &armsql.ManagedInstance{Properties: nil},
+			expectedErr: require.Error,
+			expectedDB:  require.Nil,
+		},
+		{
+			desc:        "empty FQDN",
+			server:      &armsql.ManagedInstance{Properties: &armsql.ManagedInstanceProperties{FullyQualifiedDomainName: nil}},
+			expectedErr: require.Error,
+			expectedDB:  require.Nil,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			database, err := NewDatabaseFromAzureManagedSQLServer(tc.server)
+			tc.expectedErr(t, err)
+			tc.expectedDB(t, database)
+		})
+	}
+}
