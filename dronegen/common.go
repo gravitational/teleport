@@ -304,9 +304,10 @@ func waitForDockerRegistryStep() step {
 
 func verifyValidPromoteRunSteps() []step {
 	tagStep := verifyTaggedStep()
-	verifyStep := verifyNotPrereleaseStep()
+	// verifyStep := verifyNotPrereleaseStep()
 
-	return []step{tagStep, verifyStep}
+	return []step{tagStep}
+	// return []step{tagStep, verifyStep}
 }
 
 func verifyTaggedStep() step {
