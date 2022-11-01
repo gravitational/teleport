@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
@@ -28,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 // azureListClient defines an interface for a common Azure client that can list

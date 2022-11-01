@@ -18,13 +18,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend/memory"
-
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
 // TestSessionTrackerStorage tests backend operations with tracker resources.
@@ -93,6 +93,19 @@ func TestSessionTrackerStorage(t *testing.T) {
 	tracker = sessions[0]
 	require.Len(t, tracker.GetParticipants(), 1)
 
+	sessions, err = srv.GetActiveSessionTrackersWithFilter(ctx, &types.SessionTrackerFilter{
+		Kind: types.KindWindowsDesktop,
+	})
+	require.NoError(t, err)
+	require.Len(t, sessions, 0)
+	sessions, err = srv.GetActiveSessionTrackersWithFilter(ctx, &types.SessionTrackerFilter{
+		Kind: types.KindSSHSession,
+	})
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	tracker = sessions[0]
+	require.Len(t, tracker.GetParticipants(), 1)
+
 	err = srv.RemoveSessionTracker(ctx, sid)
 	require.NoError(t, err)
 
@@ -100,6 +113,7 @@ func TestSessionTrackerStorage(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 	require.Nil(t, tracker)
+
 }
 
 func TestSessionTrackerImplicitExpiry(t *testing.T) {

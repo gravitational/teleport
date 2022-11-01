@@ -23,21 +23,23 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
-	libevents "github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/windows"
+	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 )
 
 func TestConfigWildcardBaseDN(t *testing.T) {
 	cfg := &WindowsServiceConfig{
 		DiscoveryBaseDN: "*",
-		LDAPConfig: LDAPConfig{
+		LDAPConfig: windows.LDAPConfig{
 			Domain: "test.goteleport.com",
 		},
 	}
@@ -108,7 +110,7 @@ func TestCRLDN(t *testing.T) {
 			w := &WindowsService{
 				clusterName: test.clusterName,
 				cfg: WindowsServiceConfig{
-					LDAPConfig: LDAPConfig{
+					LDAPConfig: windows.LDAPConfig{
 						Domain: "test.goteleport.com",
 					},
 				},
@@ -151,7 +153,7 @@ func TestGenerateCredentials(t *testing.T) {
 	w := &WindowsService{
 		clusterName: clusterName,
 		cfg: WindowsServiceConfig{
-			LDAPConfig: LDAPConfig{
+			LDAPConfig: windows.LDAPConfig{
 				Domain: domain,
 			},
 			AuthClient: client,
@@ -161,7 +163,7 @@ func TestGenerateCredentials(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	certb, keyb, err := w.generateCredentials(ctx, user, domain, windowsDesktopCertTTL)
+	certb, keyb, err := w.generateCredentials(ctx, user, domain, windows.CertTTL)
 	require.NoError(t, err)
 	require.NotNil(t, certb)
 	require.NotNil(t, keyb)
@@ -178,22 +180,22 @@ func TestGenerateCredentials(t *testing.T) {
 	foundAltName := false
 	for _, extension := range cert.Extensions {
 		switch {
-		case extension.Id.Equal(enhancedKeyUsageExtensionOID):
+		case extension.Id.Equal(windows.EnhancedKeyUsageExtensionOID):
 			foundKeyUsage = true
 			var oids []asn1.ObjectIdentifier
 			_, err = asn1.Unmarshal(extension.Value, &oids)
 			require.NoError(t, err)
 			require.Len(t, oids, 2)
-			require.Contains(t, oids, clientAuthenticationOID)
-			require.Contains(t, oids, smartcardLogonOID)
+			require.Contains(t, oids, windows.ClientAuthenticationOID)
+			require.Contains(t, oids, windows.SmartcardLogonOID)
 
-		case extension.Id.Equal(subjectAltNameExtensionOID):
+		case extension.Id.Equal(windows.SubjectAltNameExtensionOID):
 			foundAltName = true
-			var san subjectAltName
+			var san windows.SubjectAltName
 			_, err = asn1.Unmarshal(extension.Value, &san)
 			require.NoError(t, err)
 
-			require.Equal(t, san.OtherName.OID, upnOtherNameOID)
+			require.Equal(t, san.OtherName.OID, windows.UPNOtherNameOID)
 			require.Equal(t, san.OtherName.Value.Value, user+"@"+domain)
 		}
 	}

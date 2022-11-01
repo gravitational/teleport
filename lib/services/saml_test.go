@@ -20,12 +20,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/fixtures"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 )
 
 func TestParseFromMetadata(t *testing.T) {
@@ -39,8 +39,6 @@ func TestParseFromMetadata(t *testing.T) {
 	require.NoError(t, err)
 
 	oc, err := UnmarshalSAMLConnector(raw.Raw)
-	require.NoError(t, err)
-	err = ValidateSAMLConnector(oc, nil)
 	require.NoError(t, err)
 	require.Equal(t, oc.GetIssuer(), "http://www.okta.com/exkafftca6RqPVgyZ0h7")
 	require.Equal(t, oc.GetSSO(), "https://dev-813354.oktapreview.com/app/gravitationaldev813354_teleportsaml_1/exkafftca6RqPVgyZ0h7/sso/saml")

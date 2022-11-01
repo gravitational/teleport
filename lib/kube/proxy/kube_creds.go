@@ -23,12 +23,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 type kubeCreds interface {

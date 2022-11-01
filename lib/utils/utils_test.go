@@ -27,12 +27,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/gravitational/teleport/lib/fixtures"
-
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/fixtures"
 )
 
 func TestMain(m *testing.M) {

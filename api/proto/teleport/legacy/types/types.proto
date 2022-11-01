@@ -389,6 +389,11 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "memorydb,omitempty"
   ];
+  // RDSProxy contains AWS Proxy specific metadata.
+  RDSProxy RDSProxy = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "rdsproxy,omitempty"
+  ];
 }
 
 // SecretStore contains secret store configurations.
@@ -415,6 +420,16 @@ message RDS {
   string ResourceID = 3 [(gogoproto.jsontag) = "resource_id,omitempty"];
   // IAMAuth indicates whether database IAM authentication is enabled.
   bool IAMAuth = 4 [(gogoproto.jsontag) = "iam_auth"];
+}
+
+// RDSProxy contains AWS RDS Proxy specific database metadata.
+message RDSProxy {
+  // Name is the identifier of an RDS Proxy.
+  string Name = 1 [(gogoproto.jsontag) = "name,omitempty"];
+  // CustomEndpointName is the identifier of an RDS Proxy custom endpoint.
+  string CustomEndpointName = 2 [(gogoproto.jsontag) = "custom_endpoint_name,omitempty"];
+  // ResourceID is the RDS instance resource identifier (prx-xxx).
+  string ResourceID = 3 [(gogoproto.jsontag) = "resource_id,omitempty"];
 }
 
 // ElastiCache contains AWS ElastiCache Redis specific metadata.
@@ -4018,6 +4033,26 @@ message RecoveryCode {
   bytes HashedCode = 1 [(gogoproto.jsontag) = "hashed_code"];
   // IsUsed determines if this recovery code was used.
   bool IsUsed = 2 [(gogoproto.jsontag) = "is_used"];
+}
+
+message NullableSessionState {
+  SessionState State = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "state,omitempty"
+  ];
+}
+
+// SessionTrackerFilter are filters to apply when searching for session trackers.
+message SessionTrackerFilter {
+  // Kind describes what kind of session this is.
+  string Kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
+  // State is the current state of this session.
+  NullableSessionState State = 2 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "state,omitempty"
+  ];
+  // DesktopName is the windows desktop server this session belongs to.
+  string DesktopName = 3 [(gogoproto.jsontag) = "desktop_name,omitempty"];
 }
 
 // SessionTrackerV1 represents a live session resource.
