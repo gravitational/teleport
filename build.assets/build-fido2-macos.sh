@@ -226,7 +226,10 @@ EOF
 }
 
 cleanup() {
-  for path in "${CLEANUPS[@]}"; do
+  # The strange looking expansion below (`${arr[@]+"${arr[@]}"}`) avoids unbound
+  # errors when the array is empty.
+  # See https://stackoverflow.com/a/7577209.
+  for path in ${CLEANUPS[@]+"${CLEANUPS[@]}"}; do
     echo "Removing: $path" >&2
     rm -fr "$path"
   done
