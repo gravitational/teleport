@@ -166,6 +166,12 @@ func TestAuthGetTLSConfig(t *testing.T) {
 			expectInsecureSkipVerify: true,
 			expectVerifyConnection:   true,
 		},
+		{
+			name:             "Azure SQL Server",
+			sessionDatabase:  newAzureSQLDatabase(t, "resource-id"),
+			expectServerName: "test-database.database.windows.net",
+			expectRootCAs:    systemCertPool,
+		},
 	}
 
 	for _, test := range tests {
@@ -426,6 +432,21 @@ func newRDSProxyDatabase(t *testing.T, uri string) types.Database {
 			RDSProxy: types.RDSProxy{
 				Name: "test-database",
 			},
+		},
+	})
+	require.NoError(t, err)
+	return database
+}
+
+func newAzureSQLDatabase(t *testing.T, resourceID string) types.Database {
+	t.Helper()
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-database",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolSQLServer,
+		URI:      "test-database.database.windows.net:1433",
+		Azure: types.Azure{
+			ResourceID: resourceID,
 		},
 	})
 	require.NoError(t, err)

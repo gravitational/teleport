@@ -537,8 +537,10 @@ func setupTLSConfigRootCAs(tlsConfig *tls.Config, sessionCtx *Session) error {
 func shouldUseSystemCertPool(sessionCtx *Session) bool {
 	switch sessionCtx.Database.GetType() {
 	case types.DatabaseTypeAzure:
-		// Azure Cache for Redis certificates are signed by DigiCert Global Root G2.
-		if sessionCtx.Database.GetProtocol() == defaults.ProtocolRedis {
+		// Azure Cache for Redis and Azure SQL server certificates are signed by
+		// DigiCert Global Root G2.
+		if sessionCtx.Database.GetProtocol() == defaults.ProtocolRedis ||
+			sessionCtx.Database.GetProtocol() == defaults.ProtocolSQLServer {
 			return true
 		}
 

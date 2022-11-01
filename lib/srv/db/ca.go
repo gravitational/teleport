@@ -52,8 +52,9 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 		types.DatabaseTypeCloudSQL:
 
 	case types.DatabaseTypeAzure:
-		// Azure Cache for Redis uses system cert pool.
-		if database.GetProtocol() == defaults.ProtocolRedis {
+		// Azure Cache for Redis and Azure SQL Server uses system cert pool.
+		if database.GetProtocol() == defaults.ProtocolRedis ||
+			database.GetProtocol() == defaults.ProtocolSQLServer {
 			return nil
 		}
 
