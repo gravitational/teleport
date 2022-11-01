@@ -122,58 +122,36 @@ func (g *TermManager) Write(p []byte) (int, error) {
 }
 
 func (g *TermManager) Read(p []byte) (int, error) {
-	// check to see if data should flow
 	g.mu.Lock()
 	on := g.on
 	g.mu.Unlock()
 
-	// If good to consume and there is data left over from last read,
-	// then return it.
-	if on && len(g.remaining) > 0 {
-		n := copy(p, g.remaining)
-		g.remaining = g.remaining[n:]
-		return n, nil
-	}
-
-	// wait until 1 of 3 things happens
-	// 1) the session is closed
-	// 2) data is received
-	// 3) data flow is altered
 	for {
-		select {
-		case <-g.closed: // the handler is closed
-			// the session is completed return io.EOF
-			return 0, io.EOF
-		case on = <-g.readStateUpdate: // data flow was changed
-			// When data flow is disabled we need to wait until it is
-			// turned back on before returning any data. If data flow
-			// is enabled, but we have no data to return we need to wait
-			// until more is available.
-			if !on || len(g.remaining) <= 0 {
-				continue
-			}
-
-			// Data flow is enabled, and we have some data, let's send
-			// it along
-			n := copy(p, g.remaining)
-			g.remaining = g.remaining[n:]
-			return n, nil
-		case g.remaining = <-g.incoming: // data was written upstream
-			// let's check again if data flow has changed
-			// just to be safe
+		// Loop until data flow is enabled and there is data to return, or the session is terminated.
+		for !on || len(g.remaining) == 0 {
 			select {
+			case <-g.closed:
+				return 0, io.EOF
 			case on = <-g.readStateUpdate:
-			default:
-			}
-
-			// Data flow is enabled, and we have some data, let's send
-			// it along
-			if on && len(g.remaining) > 0 {
-				n := copy(p, g.remaining)
-				g.remaining = g.remaining[n:]
-				return n, nil
+			case data := <-g.incoming:
+				g.remaining = append(g.remaining, data...)
 			}
 		}
+
+		// ensure that data flow wasn't changed and can't change
+		// until the data has been returned
+		g.mu.Lock()
+		on = g.on
+		if !on {
+			g.mu.Unlock()
+			continue
+		}
+
+		n := copy(p, g.remaining)
+		g.remaining = g.remaining[n:]
+
+		g.mu.Unlock()
+		return n, nil
 	}
 }
 
