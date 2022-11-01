@@ -58,7 +58,7 @@ db_service:
   resources:
   - labels:
       "*": "*"
-  {{- if or .RDSDiscoveryRegions .RedshiftDiscoveryRegions .ElastiCacheDiscoveryRegions}}
+  {{- if or .RDSDiscoveryRegions .RDSProxyDiscoveryRegions .RedshiftDiscoveryRegions .ElastiCacheDiscoveryRegions}}
   # Matchers for registering AWS-hosted databases.
   aws:
   {{- end }}
@@ -69,6 +69,19 @@ db_service:
     # AWS regions to register databases from.
     regions:
     {{- range .RDSDiscoveryRegions }}
+    - {{ . }}
+    {{- end }}
+    # AWS resource tags to match when registering databases.
+    tags:
+      "*": "*"
+  {{- end }}
+  {{- if .RDSProxyDiscoveryRegions }}
+  # RDS Proxies auto-discovery.
+  # For more information about RDS Proxy auto-discovery: https://goteleport.com/docs/database-access/guides/rdsproxy/
+  - types: ["rdsproxy"]
+    # AWS regions to register databases from.
+    regions:
+    {{- range .RDSProxyDiscoveryRegions }}
     - {{ . }}
     {{- end }}
     # AWS resource tags to match when registering databases.
@@ -377,6 +390,9 @@ type DatabaseSampleFlags struct {
 	// RDSDiscoveryRegions is a list of regions the RDS auto-discovery is
 	// configured.
 	RDSDiscoveryRegions []string
+	// RDSProxyDiscoveryRegions is a list of regions the RDS Proxy
+	// auto-discovery is configured.
+	RDSProxyDiscoveryRegions []string
 	// RedshiftDiscoveryRegions is a list of regions the Redshift
 	// auto-discovery is configured.
 	RedshiftDiscoveryRegions []string

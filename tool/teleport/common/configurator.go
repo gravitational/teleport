@@ -33,6 +33,7 @@ import (
 // awsDatabaseTypes list of databases supported on the configurator.
 var awsDatabaseTypes = []string{
 	types.DatabaseTypeRDS,
+	types.DatabaseTypeRDSProxy,
 	types.DatabaseTypeRedshift,
 	types.DatabaseTypeElastiCache,
 	types.DatabaseTypeMemoryDB,
@@ -216,6 +217,8 @@ func buildAWSConfigurator(manual bool, flags configureDatabaseAWSFlags) (dbconfi
 		switch dbType {
 		case types.DatabaseTypeRDS:
 			configuratorFlags.ForceRDSPermissions = true
+		case types.DatabaseTypeRDSProxy:
+			configuratorFlags.ForceRDSProxyPermissions = true
 		case types.DatabaseTypeRedshift:
 			configuratorFlags.ForceRedshiftPermissions = true
 		case types.DatabaseTypeElastiCache:
