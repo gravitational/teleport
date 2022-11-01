@@ -24,10 +24,10 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/utils/socks"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/socks"
 )
 
 // TestDialProxy tests the dialing mechanism of HTTP and SOCKS proxies.
