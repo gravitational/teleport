@@ -1034,25 +1034,12 @@ matches snapshot for v10.yaml:
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
-          labels:
-            cluster: testing
 
         app_service:
-          enabled: true
-          apps:
-            - labels:
-                environment: test
-              name: grafana
-              uri: http://localhost:3000
+          enabled: false
 
         db_service:
-          enabled: true
-          databases:
-          - labels:
-              database: staging
-            name: aurora
-            protocol: postgres
-            uri: postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432
+          enabled: false
 
         auth_service:
           enabled: false
@@ -1062,9 +1049,6 @@ matches snapshot for v10.yaml:
           enabled: false
     kind: ConfigMap
     metadata:
-      annotations:
-        kubernetes.io/config: test-annotation
-        kubernetes.io/config-different: 2
       name: RELEASE-NAME
       namespace: NAMESPACE
 matches snapshot for v11.yaml:
@@ -1088,25 +1072,12 @@ matches snapshot for v11.yaml:
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
-          labels:
-            cluster: testing
 
         app_service:
-          enabled: true
-          apps:
-            - labels:
-                environment: test
-              name: grafana
-              uri: http://localhost:3000
+          enabled: false
 
         db_service:
-          enabled: true
-          databases:
-          - labels:
-              database: staging
-            name: aurora
-            protocol: postgres
-            uri: postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432
+          enabled: false
 
         auth_service:
           enabled: false
@@ -1116,9 +1087,6 @@ matches snapshot for v11.yaml:
           enabled: false
     kind: ConfigMap
     metadata:
-      annotations:
-        kubernetes.io/config: test-annotation
-        kubernetes.io/config-different: 2
       name: RELEASE-NAME
       namespace: NAMESPACE
 matches snapshot for volumes.yaml:
