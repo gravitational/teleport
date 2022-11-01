@@ -29,3 +29,17 @@ type ResetPasswordToken struct {
 	// Expiry is token expiration time
 	Expiry time.Time `json:"expiry,omitempty"`
 }
+
+// RecoveryCodes describes RecoveryCodes UI object.
+type RecoveryCodes struct {
+	// Codes are user's new recovery codes.
+	Codes []string `json:"codes,omitempty"`
+	// Created is when the codes were created.
+	Created *time.Time `json:"created,omitempty"`
+}
+
+// ChangedUserAuthn describes response after successfully changing authn.
+type ChangedUserAuthn struct {
+	Recovery                RecoveryCodes `json:"recovery"`
+	PrivateKeyPolicyEnabled bool          `json:"privateKeyPolicyEnabled,omitempty"`
+}

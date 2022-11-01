@@ -20,6 +20,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -118,7 +119,10 @@ func TestSessionTrackerStorage(t *testing.T) {
 
 func TestSessionTrackerImplicitExpiry(t *testing.T) {
 	ctx := context.Background()
-	bk, err := memory.New(memory.Config{})
+	clock := clockwork.NewFakeClock()
+	bk, err := memory.New(memory.Config{
+		Clock: clock,
+	})
 	require.NoError(t, err)
 
 	id := uuid.New().String()
@@ -139,7 +143,7 @@ func TestSessionTrackerImplicitExpiry(t *testing.T) {
 				Mode: string(types.SessionPeerMode),
 			},
 		},
-		Expires: time.Now().UTC().Add(time.Second),
+		Expires: clock.Now().UTC().Add(time.Second),
 	})
 	require.NoError(t, err)
 
@@ -159,24 +163,89 @@ func TestSessionTrackerImplicitExpiry(t *testing.T) {
 				Mode: string(types.SessionPeerMode),
 			},
 		},
-		Expires: time.Now().UTC().Add(24 * time.Hour),
+		Expires: clock.Now().UTC().Add(24 * time.Hour),
 	})
 	require.NoError(t, err)
 
 	_, err = srv.CreateSessionTracker(ctx, tracker2)
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
-		sessions, err := srv.GetActiveSessionTrackers(ctx)
-		require.NoError(t, err)
+	// Advance the clock to expire tracker1
+	clock.Advance(time.Second)
 
-		// Verify that we only get one session and that it's `id2` since we expect that
-		// `id` is filtered out due to it's expiry.
-		if len(sessions) == 1 {
-			require.Equal(t, sessions[0].GetSessionID(), id2)
-			return true
-		}
+	sessions, err := srv.GetActiveSessionTrackers(ctx)
+	require.NoError(t, err)
 
-		return false
-	}, time.Minute, time.Second)
+	// Verify that we only get one session and that it's `id2` since we expect that
+	// `id` is filtered out due to its expiry.
+	require.Len(t, sessions, 1)
+
+	require.Equal(t, sessions[0].GetSessionID(), id2)
+}
+
+// TestSessionTrackerTermination ensures that Session Trackers which transition to terminated
+// have their TTL lowered to terminatedTTL instead of lingering around for an entire hour
+// after the session is completed.
+func TestSessionTrackerTermination(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	// Setup the backend and service
+	bk, err := memory.New(memory.Config{
+		Clock: clock,
+	})
+	require.NoError(t, err)
+
+	srv, err := NewSessionTrackerService(bk)
+	require.NoError(t, err)
+
+	// Create our tracker with an expiry 1h from now
+	id := uuid.New().String()
+	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID:   id,
+		Kind:        types.KindSSHSession,
+		Hostname:    "hostname",
+		ClusterName: "cluster",
+		Login:       "foo",
+		Participants: []types.Participant{
+			{
+				ID:   uuid.New().String(),
+				User: "eve",
+				Mode: string(types.SessionPeerMode),
+			},
+		},
+		Expires: clock.Now().UTC().Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	_, err = srv.CreateSessionTracker(ctx, tracker)
+	require.NoError(t, err)
+
+	// Validate the tracker exists
+	sessions, err := srv.GetActiveSessionTrackers(ctx)
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+
+	// Set the tracker to terminated
+	require.NoError(t, srv.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
+		SessionID: id,
+		Update: &proto.UpdateSessionTrackerRequest_UpdateState{UpdateState: &proto.SessionTrackerUpdateState{
+			State: types.SessionState_SessionStateTerminated,
+		}},
+	}))
+
+	// Validate that the tracker still exists
+	sessions, err = srv.GetActiveSessionTrackers(ctx)
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+
+	// Advance the clock to now + terminatedTTL to validate
+	// that the tracker was removed prior to the original hour expiry
+	clock.Advance(terminatedTTL)
+
+	// Validate that no trackers exist
+	sessions, err = srv.GetActiveSessionTrackers(ctx)
+	require.NoError(t, err)
+	require.Empty(t, sessions)
+
 }
