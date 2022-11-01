@@ -40,8 +40,6 @@ func TestParseFromMetadata(t *testing.T) {
 
 	oc, err := UnmarshalSAMLConnector(raw.Raw)
 	require.NoError(t, err)
-	err = ValidateSAMLConnector(oc, nil)
-	require.NoError(t, err)
 	require.Equal(t, oc.GetIssuer(), "http://www.okta.com/exkafftca6RqPVgyZ0h7")
 	require.Equal(t, oc.GetSSO(), "https://dev-813354.oktapreview.com/app/gravitationaldev813354_teleportsaml_1/exkafftca6RqPVgyZ0h7/sso/saml")
 	require.Equal(t, oc.GetAssertionConsumerService(), "https://localhost:3080/v1/webapi/saml/acs")
