@@ -70,6 +70,18 @@ source on the initial build of teleport. A make target will be provided to
 perform a dockerized build of the webassets for those who don't wish to install
 node and yarn on their workstation.
 
+### Merging PRs
+
+At the time of writing, the `webapps` project sees about 1.5 pull requests per
+day into the `master` branch. The `webapps` CI jobs take at most 11 minutes to
+run. We expect the merging of the two projects to delay the merging of backend
+branches by 30m in the event a `webapps` PR lands while a `teleport` PR is
+running its own CI jobs. This is primarily caused by the length of the CI run
+for `teleport` and as such there are some tasks to improve the performance of
+these jobs listed in the `Process` section below.
+
+In the near future the `teleport` repository will also have a merge queue implemented which will dramatically reduce the hand-holding require to sheppard a PR through.
+
 ## Process
 
 Below outlines the process for each repository in the order that the steps need
