@@ -165,7 +165,7 @@ ENV GOPATH="/go" \
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install golangci-lint.
-RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.0
+RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
 
 # Install helm.
 RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
@@ -202,7 +202,7 @@ RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1 && \
 
 # Install buf
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.8.0" && \
+    VERSION="1.9.0" && \
       curl -sSL \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \
@@ -236,7 +236,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
     cargo --version && \
     rustc --version && \
     rustup component add rustfmt clippy && \
-    if [ "$BUILDARCH" = "amd64" ]; then rustup target add i686-unknown-linux-gnu arm-unknown-linux-gnueabihf aarch64-unknown-linux-gnu; fi
+    if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu; fi
 
 # Switch back to root for the remaining instructions and keep it as the default
 # user.

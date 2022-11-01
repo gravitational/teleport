@@ -305,7 +305,9 @@ matches snapshot for azure-databases.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO

@@ -17,10 +17,10 @@ limitations under the License.
 package services
 
 import (
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // ResourceMatcher matches cluster resources.
@@ -272,6 +272,8 @@ type MatchResourceFilter struct {
 const (
 	// AWSMatcherRDS is the AWS matcher type for RDS databases.
 	AWSMatcherRDS = "rds"
+	// AWSMatcherRDSProxy is the AWS matcher type for RDS Proxy databases.
+	AWSMatcherRDSProxy = "rdsproxy"
 	// AWSMatcherRedshift is the AWS matcher type for Redshift databases.
 	AWSMatcherRedshift = "redshift"
 	// AWSMatcherElastiCache is the AWS matcher type for ElastiCache databases.

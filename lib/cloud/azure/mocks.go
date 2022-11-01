@@ -22,6 +22,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
@@ -223,6 +224,7 @@ func (m *ARMRedisMock) ListKeys(ctx context.Context, resourceGroupName string, n
 		},
 	}, nil
 }
+
 func (m *ARMRedisMock) NewListBySubscriptionPager(options *armredis.ClientListBySubscriptionOptions) *runtime.Pager[armredis.ClientListBySubscriptionResponse] {
 	return newPagerHelper(m.NoAuth, func() (armredis.ClientListBySubscriptionResponse, error) {
 		return armredis.ClientListBySubscriptionResponse{
@@ -475,4 +477,16 @@ func (m *ARMKubernetesMock) BeginRunCommand(ctx context.Context, resourceGroupNa
 		return nil, trace.AccessDenied("unauthorized")
 	}
 	return &runtime.Poller[armcontainerservice.ManagedClustersClientRunCommandResponse]{}, nil
+}
+
+// ARMComputeMock mocks armcompute.VirtualMachinesClient.
+type ARMComputeMock struct {
+	GetResult armcompute.VirtualMachine
+	GetErr    error
+}
+
+func (m *ARMComputeMock) Get(_ context.Context, _ string, _ string, _ *armcompute.VirtualMachinesClientGetOptions) (armcompute.VirtualMachinesClientGetResponse, error) {
+	return armcompute.VirtualMachinesClientGetResponse{
+		VirtualMachine: m.GetResult,
+	}, m.GetErr
 }

@@ -25,6 +25,17 @@ import (
 	"io"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
+	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	sqladmin "google.golang.org/api/sqladmin/v1beta4"
+	gcpcredentialspb "google.golang.org/genproto/googleapis/iam/credentials/v1"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
@@ -36,21 +47,11 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
-	"github.com/aws/aws-sdk-go/service/redshift"
-
-	sqladmin "google.golang.org/api/sqladmin/v1beta4"
-	gcpcredentialspb "google.golang.org/genproto/googleapis/iam/credentials/v1"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
+
+// azureVirtualMachineCacheTTL is the default TTL for Azure virtual machine
+// cache entries.
+const azureVirtualMachineCacheTTL = 5 * time.Minute
 
 // Auth defines interface for creating auth tokens and TLS configurations.
 type Auth interface {
@@ -70,6 +71,10 @@ type Auth interface {
 	GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error)
 	// GetAuthPreference returns the cluster authentication config.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+	// GetAzureIdentityResourceID returns the Azure identity resource ID
+	// attached to the current compute instance. If Teleport is not running on
+	// Azure VM returns an error.
+	GetAzureIdentityResourceID(ctx context.Context, identityName string) (string, error)
 	// Closer releases all resources used by authenticator.
 	io.Closer
 }
@@ -117,6 +122,10 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 // generating auth tokens when connecting to databases.
 type dbAuth struct {
 	cfg AuthConfig
+	// azureVirtualMachineCache caches the current Azure virtual machine.
+	// Avoiding the need to query the metadata server on every database
+	// connection.
+	azureVirtualMachineCache *utils.FnCache
 }
 
 // NewAuth returns a new instance of database access authenticator.
@@ -124,8 +133,18 @@ func NewAuth(config AuthConfig) (Auth, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	azureVirtualMachineCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:   azureVirtualMachineCacheTTL,
+		Clock: config.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &dbAuth{
-		cfg: config,
+		cfg:                      config,
+		azureVirtualMachineCache: azureVirtualMachineCache,
 	}, nil
 }
 
@@ -516,8 +535,20 @@ func setupTLSConfigRootCAs(tlsConfig *tls.Config, sessionCtx *Session) error {
 // certificates signed by publicly trusted CAs so a system cert pool can be
 // used.
 func shouldUseSystemCertPool(sessionCtx *Session) bool {
-	// Azure Cache for Redis certificates are signed by DigiCert Global Root G2.
-	return sessionCtx.Database.IsAzure() && sessionCtx.Database.GetProtocol() == defaults.ProtocolRedis
+	switch sessionCtx.Database.GetType() {
+	case types.DatabaseTypeAzure:
+		// Azure Cache for Redis certificates are signed by DigiCert Global Root G2.
+		if sessionCtx.Database.GetProtocol() == defaults.ProtocolRedis {
+			return true
+		}
+
+	case types.DatabaseTypeRDSProxy:
+		// AWS RDS Proxy uses Amazon Root CAs.
+		//
+		// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.howitworks.html#rds-proxy-security.tls
+		return true
+	}
+	return false
 }
 
 // setupTLSConfigServerName initializes the server name for the provided
@@ -633,6 +664,62 @@ func (a *dbAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, e
 	return a.cfg.AuthClient.GetAuthPreference(ctx)
 }
 
+// GetAzureIdentityResourceID returns the Azure identity resource ID attached to
+// the current compute instance.
+func (a *dbAuth) GetAzureIdentityResourceID(ctx context.Context, identityName string) (string, error) {
+	if identityName == "" {
+		return "", trace.BadParameter("empty identity name")
+	}
+
+	vm, err := utils.FnCacheGet(ctx, a.azureVirtualMachineCache, "", a.getCurrentAzureVM)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	for _, identity := range vm.Identities {
+		if matchAzureResourceName(identity.ResourceID, identityName) {
+			return identity.ResourceID, nil
+		}
+	}
+
+	return "", trace.NotFound("could not find identity %q attached to the instance", identityName)
+}
+
+// getCurrentAzureVM fetches current Azure Virtual Machine struct. If Teleport
+// is not running on Azure, returns an error.
+func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*libazure.VirtualMachine, error) {
+	metadataClient, err := a.cfg.Clients.GetInstanceMetadataClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if metadataClient.GetType() != types.InstanceMetadataTypeAzure {
+		return nil, trace.BadParameter("fetching Azure identity resource ID is only supported on Azure")
+	}
+
+	instanceID, err := metadataClient.GetID(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	parsedInstanceID, err := arm.ParseResourceID(instanceID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	vmClient, err := a.cfg.Clients.GetAzureVirtualMachinesClient(parsedInstanceID.SubscriptionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	vm, err := vmClient.Get(ctx, instanceID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return vm, nil
+}
+
 // Close releases all resources used by authenticator.
 func (a *dbAuth) Close() error {
 	return a.cfg.Clients.Close()
@@ -658,4 +745,15 @@ func getVerifyCloudSQLCertificate(roots *x509.CertPool) func(tls.ConnectionState
 		_, err := cs.PeerCertificates[0].Verify(opts)
 		return err
 	}
+}
+
+// matchAzureResourceName receives a resource ID and checks if the resource name
+// matches.
+func matchAzureResourceName(resourceID, name string) bool {
+	parsedResource, err := arm.ParseResourceID(resourceID)
+	if err != nil {
+		return false
+	}
+
+	return parsedResource.Name == name
 }

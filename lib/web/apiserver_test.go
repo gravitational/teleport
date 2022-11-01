@@ -20,14 +20,15 @@ import (
 	"archive/tar"
 	"bufio"
 	"bytes"
-	"compress/flate"
 	"compress/gzip"
 	"context"
+	"crypto"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base32"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"image"
@@ -40,20 +41,35 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/beevik/etree"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+	lemma_secret "github.com/mailgun/lemma/secret"
+	"github.com/pquerna/otp/totp"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
+	"golang.org/x/text/encoding/unicode"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	authproto "github.com/gravitational/teleport/api/client/proto"
@@ -62,18 +78,17 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
@@ -93,25 +108,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
-	"github.com/gravitational/trace"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
-	lemma_secret "github.com/mailgun/lemma/secret"
-	"github.com/pquerna/otp/totp"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
-	"golang.org/x/text/encoding/unicode"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
-	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
-	"k8s.io/client-go/tools/clientcmd"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 const hostID = "00000000-0000-0000-0000-000000000000"
@@ -571,137 +567,6 @@ func Test_clientMetaFromReq(t *testing.T) {
 		UserAgent:  ua,
 		RemoteAddr: "192.0.2.1:1234",
 	}, got)
-}
-
-func TestSAML(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name                string
-		rawConnector        string
-		validSession        bool
-		expectedRedirectURL string
-	}{
-		{
-			name:                "success",
-			rawConnector:        fixtures.SAMLOktaConnectorV2,
-			validSession:        true,
-			expectedRedirectURL: "/after",
-		},
-		{
-			name:                "fail to map claims to roles",
-			rawConnector:        strings.ReplaceAll(fixtures.SAMLOktaConnectorV2, "Everyone", "No-one"),
-			validSession:        false,
-			expectedRedirectURL: client.LoginFailedUnauthorizedRedirectURL,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-			s := newWebSuite(t)
-			input := tc.rawConnector
-
-			decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
-			var raw services.UnknownResource
-			err := decoder.Decode(&raw)
-			require.NoError(t, err)
-
-			connector, err := services.UnmarshalSAMLConnector(raw.Raw)
-			require.NoError(t, err)
-
-			role, err := types.NewRoleV3(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV5{
-				Options: types.RoleOptions{
-					MaxSessionTTL: types.NewDuration(apidefaults.MaxCertDuration),
-				},
-				Allow: types.RoleConditions{
-					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-					Namespaces: []string{apidefaults.Namespace},
-					Rules: []types.Rule{
-						types.NewRule(types.Wildcard, services.RW()),
-					},
-				},
-			})
-			require.NoError(t, err)
-			role.SetLogins(types.Allow, []string{s.user})
-			err = s.server.Auth().UpsertRole(s.ctx, role)
-			require.NoError(t, err)
-
-			err = s.server.Auth().UpsertSAMLConnector(ctx, connector)
-			require.NoError(t, err)
-			s.server.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC)))
-			clt := s.clientNoRedirects()
-
-			csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
-
-			baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?connector_id=` + connector.GetName() + `&redirect_url=http://localhost/after`)
-			require.NoError(t, err)
-			req, err := http.NewRequest("GET", baseURL.String(), nil)
-			require.NoError(t, err)
-			addCSRFCookieToReq(req, csrfToken)
-			re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
-				return clt.Client.HTTPClient().Do(req)
-			})
-			require.NoError(t, err)
-
-			// we got a redirect
-			urlPattern := regexp.MustCompile(`URL='([^']*)'`)
-			locationURL := urlPattern.FindStringSubmatch(string(re.Bytes()))[1]
-			u, err := url.Parse(locationURL)
-			require.NoError(t, err)
-			require.Equal(t, fixtures.SAMLOktaSSO, u.Scheme+"://"+u.Host+u.Path)
-			data, err := base64.StdEncoding.DecodeString(u.Query().Get("SAMLRequest"))
-			require.NoError(t, err)
-			buf, err := io.ReadAll(flate.NewReader(bytes.NewReader(data)))
-			require.NoError(t, err)
-			doc := etree.NewDocument()
-			err = doc.ReadFromBytes(buf)
-			require.NoError(t, err)
-			id := doc.Root().SelectAttr("ID")
-			require.NotNil(t, id)
-
-			authRequest, err := s.server.Auth().GetSAMLAuthRequest(context.Background(), id.Value)
-			require.NoError(t, err)
-
-			// now swap the request id to the hardcoded one in fixtures
-			authRequest.ID = fixtures.SAMLOktaAuthRequestID
-			authRequest.CSRFToken = csrfToken
-			err = s.server.Auth().Services.CreateSAMLAuthRequest(ctx, *authRequest, backend.Forever)
-			require.NoError(t, err)
-
-			// now respond with pre-recorded request to the POST url
-			in := &bytes.Buffer{}
-			fw, err := flate.NewWriter(in, flate.DefaultCompression)
-			require.NoError(t, err)
-
-			_, err = fw.Write([]byte(fixtures.SAMLOktaAuthnResponseXML))
-			require.NoError(t, err)
-			err = fw.Close()
-			require.NoError(t, err)
-			encodedResponse := base64.StdEncoding.EncodeToString(in.Bytes())
-			require.NotNil(t, encodedResponse)
-
-			// now send the response to the server to exchange it for auth session
-			form := url.Values{}
-			form.Add("SAMLResponse", encodedResponse)
-			req, err = http.NewRequest("POST", clt.Endpoint("webapi", "saml", "acs"), strings.NewReader(form.Encode()))
-			req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-			addCSRFCookieToReq(req, csrfToken)
-			require.NoError(t, err)
-			authRe, err := clt.Client.RoundTrip(func() (*http.Response, error) {
-				return clt.Client.HTTPClient().Do(req)
-			})
-
-			require.NoError(t, err)
-			// This route uses a meta redirect, so expect redirect URL in body instead of location header.
-			require.Equal(t, http.StatusOK, authRe.Code(), "Response: %v", string(authRe.Bytes()))
-			if tc.validSession {
-				// we have got valid session
-				require.NotEmpty(t, authRe.Headers().Get("Set-Cookie"))
-			}
-			require.Contains(t, string(authRe.Bytes()), tc.expectedRedirectURL)
-		})
-	}
 }
 
 func TestWebSessionsCRUD(t *testing.T) {
@@ -1685,6 +1550,58 @@ func TestPlayback(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 }
 
+type httpErrorMessage struct {
+	Message string `json:"message"`
+}
+
+type httpErrorResponse struct {
+	Error httpErrorMessage `json:"error"`
+}
+
+func TestLogin_PrivateKeyEnabledError(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		MockAttestHardwareKey: func(_ context.Context, _ interface{}, policy keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
+			return "", keys.NewPrivateKeyPolicyError(policy)
+		},
+	})
+	s := newWebSuite(t)
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:           constants.Local,
+		SecondFactor:   constants.SecondFactorOff,
+		RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+	})
+	require.NoError(t, err)
+	err = s.server.Auth().SetAuthPreference(s.ctx, ap)
+	require.NoError(t, err)
+
+	// create user
+	s.createUser(t, "user1", "root", "password", "")
+
+	loginReq, err := json.Marshal(CreateSessionReq{
+		User: "user1",
+		Pass: "password",
+	})
+	require.NoError(t, err)
+
+	clt := s.client()
+	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(loginReq))
+	require.NoError(t, err)
+	ua := "test-ua"
+	req.Header.Set("User-Agent", ua)
+	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
+	addCSRFCookieToReq(req, csrfToken)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(csrf.HeaderName, csrfToken)
+
+	re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
+		return clt.Client.HTTPClient().Do(req)
+	})
+	require.NoError(t, err)
+	var resErr httpErrorResponse
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resErr))
+	require.Contains(t, resErr.Error.Message, keys.PrivateKeyPolicyHardwareKeyTouch)
+}
+
 func TestLogin(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
@@ -2125,7 +2042,7 @@ func TestSearchClusterEvents(t *testing.T) {
 				require.Equal(t, tc.Result[i].GetID(), resultEvent.GetID())
 			}
 
-			// Session prints do not have ID's, only sessionStart and sessionEnd.
+			// Session prints do not have IDs, only sessionStart and sessionEnd.
 			// When retrieving events for sessionStart and sessionEnd, sessionStart is returned first.
 			if tc.TestStartKey {
 				require.Equal(t, tc.StartKeyValue, result.StartKey)
@@ -2619,6 +2536,126 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 	}
 }
 
+func TestAuthExport(t *testing.T) {
+	ctx := context.Background()
+
+	env := newWebPack(t, 1)
+	clusterName := env.server.ClusterName()
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com", nil)
+
+	validateTLSCertificateDERFunc := func(t *testing.T, b []byte) {
+		cert, err := x509.ParseCertificate(b)
+		require.NoError(t, err)
+		require.NotNil(t, cert, "ParseCertificate failed")
+		require.Equal(t, "localhost", cert.Subject.CommonName, "unexpected certificate subject CN")
+	}
+
+	validateTLSCertificatePEMFunc := func(t *testing.T, b []byte) {
+		pemBlock, _ := pem.Decode(b)
+		require.NotNil(t, pemBlock, "pem.Decode failed")
+
+		validateTLSCertificateDERFunc(t, pemBlock.Bytes)
+	}
+
+	for _, tt := range []struct {
+		name           string
+		authType       string
+		expectedStatus int
+		assertBody     func(t *testing.T, bs []byte)
+	}{
+		{
+			name:           "all",
+			authType:       "",
+			expectedStatus: http.StatusOK,
+			assertBody: func(t *testing.T, b []byte) {
+				require.Contains(t, string(b), "@cert-authority localhost,*.localhost ssh-rsa ")
+				require.Contains(t, string(b), "cert-authority ssh-rsa")
+			},
+		},
+		{
+			name:           "host",
+			authType:       "host",
+			expectedStatus: http.StatusOK,
+			assertBody: func(t *testing.T, b []byte) {
+				require.Contains(t, string(b), "@cert-authority localhost,*.localhost ssh-rsa ")
+			},
+		},
+		{
+			name:           "user",
+			authType:       "user",
+			expectedStatus: http.StatusOK,
+			assertBody: func(t *testing.T, b []byte) {
+				require.Contains(t, string(b), "cert-authority ssh-rsa")
+			},
+		},
+		{
+			name:           "windows",
+			authType:       "windows",
+			expectedStatus: http.StatusOK,
+			assertBody:     validateTLSCertificateDERFunc,
+		},
+		{
+			name:           "db",
+			authType:       "db",
+			expectedStatus: http.StatusOK,
+			assertBody:     validateTLSCertificatePEMFunc,
+		},
+		{
+			name:           "tls",
+			authType:       "tls",
+			expectedStatus: http.StatusOK,
+			assertBody:     validateTLSCertificatePEMFunc,
+		},
+		{
+			name:           "invalid",
+			authType:       "invalid",
+			expectedStatus: http.StatusBadRequest,
+			assertBody: func(t *testing.T, b []byte) {
+				require.Contains(t, string(b), `"invalid" authority type is not supported`)
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			// export host certificate
+			endpointExport := pack.clt.Endpoint("webapi", "sites", clusterName, "auth", "export")
+
+			if tt.authType != "" {
+				endpointExport = fmt.Sprintf("%s?type=%s", endpointExport, tt.authType)
+			}
+
+			reqCtx, cancel := context.WithTimeout(ctx, time.Second)
+			defer cancel()
+
+			req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, endpointExport, nil)
+			require.NoError(t, err)
+
+			anonHTTPClient := &http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{
+						InsecureSkipVerify: true,
+					},
+				},
+			}
+
+			resp, err := anonHTTPClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			bs, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.expectedStatus, resp.StatusCode, "invalid status code with body %s", string(bs))
+
+			require.NotEmpty(t, bs, "unexpected empty body from http response")
+			if tt.assertBody != nil {
+				tt.assertBody(t, bs)
+			}
+		})
+	}
+}
+
 func TestClusterDatabasesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
@@ -2676,55 +2713,90 @@ func TestClusterKubesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
-	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubernetes")
-	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	extraRole := &types.RoleV5{
+		Metadata: types.Metadata{Name: "extra-role"},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				KubeUsers:  []string{"user1"},
+				KubeGroups: []string{"group1"},
+				KubernetesLabels: types.Labels{
+					"*": []string{"*"},
+				},
+			},
+		},
+	}
+
+	cluster1, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name:   "test-kube-name",
+			Labels: map[string]string{"test-field": "test-value"},
+		},
+		types.KubernetesClusterSpecV3{},
+	)
 	require.NoError(t, err)
+
+	// duplicate same server
+	for i := 0; i < 3; i++ {
+		server, err := types.NewKubernetesServerV3FromCluster(
+			cluster1,
+			fmt.Sprintf("hostname-%d", i),
+			fmt.Sprintf("uid-%d", i),
+		)
+		require.NoError(t, err)
+		// Register a kube service.
+		_, err = env.server.Auth().UpsertKubernetesServer(context.Background(), server)
+		require.NoError(t, err)
+	}
 
 	type testResponse struct {
 		Items      []ui.KubeCluster `json:"items"`
 		TotalCount int              `json:"totalCount"`
 	}
 
-	// No kube registered.
-	resp := testResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 0)
-
-	// Register a kube service.
-	_, err = env.server.Auth().UpsertKubeServiceV2(context.Background(), &types.ServerV2{
-		Metadata: types.Metadata{Name: "test-kube"},
-		Kind:     types.KindKubeService,
-		Version:  types.V2,
-		Spec: types.ServerSpecV2{
-			Addr: "test",
-			KubernetesClusters: []*types.KubernetesCluster{
-				{
-					Name:         "test-kube-name",
-					StaticLabels: map[string]string{"test-field": "test-value"},
-				},
-				// tests for de-duplication
-				{
-					Name:         "test-kube-name",
-					StaticLabels: map[string]string{"test-field": "test-value"},
-				},
+	tt := []struct {
+		name             string
+		user             string
+		extraRoles       services.RoleSet
+		expectedResponse ui.KubeCluster
+	}{
+		{
+			name: "user with no extra roles",
+			user: "test-user@example.com",
+			expectedResponse: ui.KubeCluster{
+				Name:       "test-kube-name",
+				Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
+				KubeUsers:  nil,
+				KubeGroups: nil,
 			},
 		},
-	})
-	require.NoError(t, err)
+		{
+			name:       "user with extra roles",
+			user:       "test-user2@example.com",
+			extraRoles: services.NewRoleSet(extraRole),
+			expectedResponse: ui.KubeCluster{
+				Name:       "test-kube-name",
+				Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
+				KubeUsers:  []string{"user1"},
+				KubeGroups: []string{"group1"},
+			},
+		},
+	}
 
-	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
-	require.NoError(t, err)
+	for _, tc := range tt {
+		pack := proxy.authPack(t, tc.user, tc.extraRoles)
 
-	resp = testResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 1)
-	require.Equal(t, 1, resp.TotalCount)
-	require.EqualValues(t, ui.KubeCluster{
-		Name:   "test-kube-name",
-		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
-	}, resp.Items[0])
+		endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubernetes")
+
+		re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+		require.NoError(t, err)
+
+		resp := testResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 1)
+		require.Equal(t, 1, resp.TotalCount)
+		require.EqualValues(t, tc.expectedResponse, resp.Items[0])
+	}
 }
 
 func TestClusterAppsGet(t *testing.T) {
@@ -2924,6 +2996,7 @@ func TestGetWebConfig(t *testing.T) {
 			AuthType:           constants.Local,
 			PreferredLocalMFA:  constants.SecondFactorWebauthn,
 			LocalConnectorName: constants.PasswordlessConnector,
+			PrivateKeyPolicy:   keys.PrivateKeyPolicyNone,
 		},
 		CanJoinSessions:  true,
 		ProxyClusterName: env.server.ClusterName(),
@@ -3621,8 +3694,8 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 }
 
 // TestChangeUserAuthentication_recoveryCodesReturnedForCloud tests for following:
-//   - Recovery codes are not returned for usernames that are not emails
-//   - Recovery codes are returned for usernames that are valid emails
+// - Recovery codes are not returned for usernames that are not emails
+// - Recovery codes are returned for usernames that are valid emails
 func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	env := newWebPack(t, 1)
 	ctx := context.Background()
@@ -3672,6 +3745,7 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Nil(t, re.Recovery)
+	require.False(t, re.PrivateKeyPolicyEnabled)
 
 	// Create a user that is valid for recovery.
 	teleUser, err = types.NewUser("valid-username@example.com")
@@ -3702,6 +3776,82 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, re.Recovery.Codes, 3)
 	require.NotEmpty(t, re.Recovery.Created)
+	require.False(t, re.PrivateKeyPolicyEnabled)
+}
+
+// TestChangeUserAuthentication_WithPrivacyPolicyEnabledError tests
+// that when there is a privacy policy enabled error, we still get
+// a non error response with recovery codes and a privacy policy
+// flag set to true.
+func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
+	env := newWebPack(t, 1)
+	ctx := context.Background()
+
+	// Enable second factor required by cloud and a privacy policy.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:           constants.Local,
+		SecondFactor:   constants.SecondFactorOTP,
+		RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Enable cloud feature.
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+		MockAttestHardwareKey: func(_ context.Context, _ interface{}, policy keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
+			return "", keys.NewPrivateKeyPolicyError(policy)
+		},
+	})
+
+	// Create a user that is valid for recovery.
+	teleUser, err := types.NewUser("valid-username@example.com")
+	require.NoError(t, err)
+	require.NoError(t, env.server.Auth().CreateUser(ctx, teleUser))
+
+	// Create a reset password token and secrets.
+	resetToken, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+		Name: "valid-username@example.com",
+	})
+	require.NoError(t, err)
+	res, err := env.server.Auth().CreateRegisterChallenge(ctx, &authproto.CreateRegisterChallengeRequest{
+		TokenID:    resetToken.GetName(),
+		DeviceType: authproto.DeviceType_DEVICE_TYPE_TOTP,
+	})
+	require.NoError(t, err)
+	totpCode, err := totp.GenerateCode(res.GetTOTP().GetSecret(), env.clock.Now())
+	require.NoError(t, err)
+
+	// Craft http request data.
+	clt := env.proxies[0].newClient(t)
+	req := changeUserAuthenticationRequest{
+		SecondFactorToken: totpCode,
+		Password:          []byte("abc123"),
+		TokenID:           resetToken.GetName(),
+	}
+	httpReqData, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	// CSRF protected endpoint.
+	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
+	httpReq, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(httpReqData))
+	require.NoError(t, err)
+	addCSRFCookieToReq(httpReq, csrfToken)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set(csrf.HeaderName, csrfToken)
+	httpRes, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
+		return clt.HTTPClient().Do(httpReq)
+	}))
+	require.NoError(t, err)
+
+	var apiRes ui.ChangedUserAuthn
+	require.NoError(t, json.Unmarshal(httpRes.Bytes(), &apiRes))
+	require.Len(t, apiRes.Recovery.Codes, 3)
+	require.NotEmpty(t, apiRes.Recovery.Created)
+	require.True(t, apiRes.PrivateKeyPolicyEnabled)
 }
 
 func TestParseSSORequestParams(t *testing.T) {
@@ -3770,6 +3920,47 @@ func TestParseSSORequestParams(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDesktopActive(t *testing.T) {
+	desktopName := "rickey-rock"
+	env := newWebPack(t, 1)
+	ctx := context.Background()
+
+	role, err := types.NewRole("admin", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			WindowsDesktopLabels: types.Labels{"environment": []string{"dev"}},
+		},
+	})
+	require.NoError(t, err)
+
+	pack := env.proxies[0].authPack(t, "foo", []types.Role{role})
+
+	check := func(match string) {
+		resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "desktops", desktopName, "active"), url.Values{})
+		require.NoError(t, err)
+		require.Contains(t, string(resp.Bytes()), match)
+	}
+
+	check("\"active\":false")
+	desktop, err := types.NewWindowsDesktopV3(desktopName, map[string]string{"environment": "dev"}, types.WindowsDesktopSpecV3{
+		Domain: "ad",
+		Addr:   "foo",
+		HostID: "bar",
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().CreateWindowsDesktop(ctx, desktop)
+	require.NoError(t, err)
+	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID:   "foo",
+		Kind:        string(types.WindowsDesktopSessionKind),
+		State:       types.SessionState_SessionStateRunning,
+		DesktopName: desktopName,
+	})
+	require.NoError(t, err)
+	_, err = env.server.Auth().CreateSessionTracker(ctx, tracker)
+	require.NoError(t, err)
+	check("\"active\":true")
 }
 
 func TestGetUserOrResetToken(t *testing.T) {
@@ -4144,6 +4335,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 
 	var (
 		validKubeUsers              = []string{}
+		multiKubeUsers              = []string{"user1", "user2"}
 		validKubeGroups             = []string{"validKubeGroup"}
 		invalidKubeGroups           = []string{"invalidKubeGroups"}
 		kubeClusterName             = "kube_cluster"
@@ -4216,16 +4408,18 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 	)
 
 	for _, tt := range []struct {
-		name             string
-		teleportUser     string
-		roleFunc         func(string, []string, []string) []types.Role
-		kubeUsers        []string
-		kubeGroups       []string
-		resourceName     string
-		expectedSuccess  bool
-		disconnectedKube bool
-		expectedMessage  string
-		expectedTraces   []types.ConnectionDiagnosticTrace
+		name               string
+		teleportUser       string
+		roleFunc           func(string, []string, []string) []types.Role
+		kubeUsers          []string
+		kubeGroups         []string
+		resourceName       string
+		selectedKubeUser   string
+		selectedKubeGroups []string
+		expectedSuccess    bool
+		disconnectedKube   bool
+		expectedMessage    string
+		expectedTraces     []types.ConnectionDiagnosticTrace
 	}{
 		{
 			name:            "kube cluster not found",
@@ -4349,6 +4543,117 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 			},
 		},
 		{
+			name:            "user with multiple defined kube_users",
+			roleFunc:        roleWithFullAccess,
+			kubeGroups:      validKubeGroups,
+			kubeUsers:       multiKubeUsers,
+			teleportUser:    "multiuser",
+			resourceName:    kubeClusterName,
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Kubernetes Cluster is registered in Teleport.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `User-associated roles define multiple "kubernetes_users". Make sure that only one value is defined or that you select the target user.`,
+					Error:   "please select a user to impersonate, refusing to select a user due to several kubernetes_users set up for this user",
+				},
+			},
+		},
+		{
+			name:             "user choosed to impersonate invalid kube_users",
+			roleFunc:         roleWithFullAccess,
+			kubeGroups:       validKubeGroups,
+			kubeUsers:        multiKubeUsers,
+			teleportUser:     "userwithWrongImpUser",
+			resourceName:     kubeClusterName,
+			expectedSuccess:  false,
+			expectedMessage:  "failed",
+			selectedKubeUser: "missingUser",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Kubernetes Cluster is registered in Teleport.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `User-associated roles do now allow the desired "kubernetes_user" impersonation. Please define a "kubernetes_user" that your roles allow to impersonate.`,
+					Error:   `impersonation request has been denied, user header "missingUser" is not allowed in roles`,
+				},
+			},
+		},
+		{
+			name:               "user choosed to impersonate invalid kube_group",
+			roleFunc:           roleWithFullAccess,
+			kubeGroups:         validKubeGroups,
+			kubeUsers:          multiKubeUsers,
+			teleportUser:       "userwithWrongImpGroup",
+			resourceName:       kubeClusterName,
+			expectedSuccess:    false,
+			expectedMessage:    "failed",
+			selectedKubeUser:   "user1",
+			selectedKubeGroups: []string{"missingGroup"},
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Kubernetes Cluster is registered in Teleport.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `User-associated roles do now allow the desired "kubernetes_group" impersonation. Please define a "kubernetes_group" that your roles allow to impersonate.`,
+					Error:   `impersonation request has been denied, group header "missingGroup" value is not allowed in roles`,
+				},
+			},
+		},
+		{
+			name:            "user with multiple defined kube_users",
+			roleFunc:        roleWithFullAccess,
+			kubeGroups:      validKubeGroups,
+			kubeUsers:       validKubeUsers,
+			teleportUser:    "successwithmultiusers",
+			resourceName:    kubeClusterName,
+			expectedSuccess: true,
+			expectedMessage: "success",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Kubernetes Cluster is registered in Teleport.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "User-associated roles define valid Kubernetes principals.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_KUBE,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "You are authorized to access this Kubernetes Cluster.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_KUBE_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Access to the Kubernetes Cluster granted.",
+					Error:   "",
+				},
+			},
+		},
+		{
 			name:            "success",
 			roleFunc:        roleWithFullAccess,
 			kubeGroups:      validKubeGroups,
@@ -4415,6 +4720,10 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 				ResourceName: tt.resourceName,
 				// Default is 30 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
 				DialTimeout: time.Second,
+				KubernetesImpersonation: conntest.KubernetesImpersonation{
+					KubernetesUser:   tt.selectedKubeUser,
+					KubernetesGroups: tt.selectedKubeGroups,
+				},
 			})
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, resp.Code())
@@ -4697,19 +5006,6 @@ func (s *WebSuite) listenForResizeEvent(ws *websocket.Conn) chan struct{} {
 	}()
 
 	return ch
-}
-
-func (s *WebSuite) clientNoRedirects(opts ...roundtrip.ClientParam) *client.WebClient {
-	hclient := client.NewInsecureWebClient()
-	hclient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
-	opts = append(opts, roundtrip.HTTPClient(hclient))
-	wc, err := client.NewWebClient(s.url().String(), opts...)
-	if err != nil {
-		panic(err)
-	}
-	return wc
 }
 
 func (s *WebSuite) client(opts ...roundtrip.ClientParam) *client.WebClient {

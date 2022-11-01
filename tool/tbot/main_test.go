@@ -21,8 +21,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/utils/golden"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
 func TestRun_Configure(t *testing.T) {
