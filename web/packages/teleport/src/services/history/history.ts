@@ -74,20 +74,18 @@ const history = {
   },
 
   ensureBaseUrl(url: string) {
-    url = url || '';
     // create a URL object with url arg and optional `base` second arg set to cfg.baseUrl
+    let urlWithBase = new URL(url || '', cfg.baseUrl);
+
     // if an attacker tries to pass a url such as teleport.example.com.bad.io
-    // the cfg.baseUrl will be overridden. If it hasn't been overridden we can
-    // assume that the passed url is either relative, or match our cfg.baseUrl
-    if (new URL(url, cfg.baseUrl).hostname !== cfg.baseUrl) {
-      if (url.startsWith('/')) {
-        url = `${cfg.baseUrl}${url}`;
-      } else {
-        url = `${cfg.baseUrl}/${url}`;
-      }
+    // the cfg.baseUrl argument will be overridden. If it hasn't been overridden we can
+    // assume that the passed url is either relative, or matches our cfg.baseUrl
+    if (urlWithBase.origin !== cfg.baseUrl) {
+      // create a new url with our base if the base doesn't match
+      urlWithBase = new URL(urlWithBase.pathname, cfg.baseUrl);
     }
 
-    return url;
+    return urlWithBase.toString();
   },
 
   getRoutes() {
