@@ -289,7 +289,7 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	}
 
 	if !canStart {
-		return trace.AccessDenied("lacking privileges to start unattended session")
+		return errCannotStartUnattendedSession
 	}
 
 	// Start a non-interactive session (TTY attached). Close the session if an error

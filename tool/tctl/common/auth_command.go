@@ -351,16 +351,20 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.
 		return trace.Wrap(err)
 	}
 
-	databaseCA, err := clusterAPI.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	cn, err := clusterAPI.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	certAuthID := types.CertAuthID{
+		Type:       types.DatabaseCA,
+		DomainName: cn.GetClusterName(),
+	}
+	databaseCA, err := clusterAPI.GetCertAuthority(ctx, certAuthID, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if len(databaseCA) != 1 {
-		return trace.Errorf("expected database CA to have only one entry, found %d", len(databaseCA))
-	}
-
-	key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: services.GetTLSCerts(databaseCA[0])}}
+	key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: services.GetTLSCerts(databaseCA)}}
 
 	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
 		OutputPath:           a.output,
