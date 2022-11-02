@@ -21,18 +21,19 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/config"
 	dbconfigurators "github.com/gravitational/teleport/lib/configurators/databases"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-
-	"github.com/gravitational/trace"
 )
 
 // awsDatabaseTypes list of databases supported on the configurator.
 var awsDatabaseTypes = []string{
 	types.DatabaseTypeRDS,
+	types.DatabaseTypeRDSProxy,
 	types.DatabaseTypeRedshift,
 	types.DatabaseTypeElastiCache,
 	types.DatabaseTypeMemoryDB,
@@ -216,6 +217,8 @@ func buildAWSConfigurator(manual bool, flags configureDatabaseAWSFlags) (dbconfi
 		switch dbType {
 		case types.DatabaseTypeRDS:
 			configuratorFlags.ForceRDSPermissions = true
+		case types.DatabaseTypeRDSProxy:
+			configuratorFlags.ForceRDSProxyPermissions = true
 		case types.DatabaseTypeRedshift:
 			configuratorFlags.ForceRedshiftPermissions = true
 		case types.DatabaseTypeElastiCache:
