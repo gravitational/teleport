@@ -28,8 +28,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
+	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport"
 )
 
 // NewSigningService creates a new instance of SigningService.
@@ -128,12 +131,33 @@ func (s *SigningService) SignRequest(req *http.Request, sc SigningCtx) (*http.Re
 	return reqCopy, payload, re, nil
 }
 
+// ReservedHeaders is a list of headers injected by Teleport.
+var ReservedHeaders = []string{
+	teleport.AppJWTHeader,
+	teleport.AppCFHeader,
+	forward.XForwardedFor,
+	forward.XForwardedHost,
+	forward.XForwardedProto,
+	forward.XForwardedServer,
+}
+
+// IsReservedHeader returns true if the provided header is one of headers
+// injected by Teleport.
+func IsReservedHeader(header string) bool {
+	for _, h := range ReservedHeaders {
+		if http.CanonicalHeaderKey(header) == http.CanonicalHeaderKey(h) {
+			return true
+		}
+	}
+	return false
+}
+
 func rewriteHeaders(r *http.Request, reqCopy *http.Request) {
 	for key, values := range r.Header {
 		// Remove Teleport app headers.
-		// if common.IsReservedHeader(key) {
-		// 	continue
-		// }
+		if IsReservedHeader(key) {
+			continue
+		}
 		for _, v := range values {
 			reqCopy.Header.Add(key, v)
 		}
