@@ -1900,3 +1900,5 @@ pub(crate) type Messages = Vec<Message>;
 pub(crate) trait Encode: std::fmt::Debug {
     fn encode(&self) -> RdpResult<Message>;
 }
+
+const MAX_RDP_MESSAGE_SIZE: usize = 2_usize.pow(21); // 2MB

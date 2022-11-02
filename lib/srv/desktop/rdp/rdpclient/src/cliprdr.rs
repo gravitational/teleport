@@ -14,7 +14,7 @@
 
 use super::errors::try_error;
 use crate::errors::invalid_data_error;
-use crate::{util, Message, Messages};
+use crate::{util, Message, Messages, MAX_RDP_MESSAGE_SIZE};
 use crate::{vchan, Payload};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -47,7 +47,7 @@ impl Client {
         Client {
             clipboard: HashMap::new(),
             on_remote_copy,
-            vchan: vchan::Client::new(),
+            vchan: vchan::Client::new(MAX_RDP_MESSAGE_SIZE),
             incoming_paste_formats: VecDeque::new(),
         }
     }

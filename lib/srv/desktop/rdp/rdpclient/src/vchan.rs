@@ -26,25 +26,34 @@ use std::io::{Cursor, Read};
 /// (or a single chunk) over a virtual channel.
 /// See https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/343e4888-4c48-4054-b0e3-4e0762d1993c
 /// for more information about chunks.
+///
+/// To prevent memory DoS attacks that could take down the entire system running the Windows Desktop Service,
+/// Client drops all RDP messages > capacity.
+/// See https://github.com/gravitational/teleport-private/issues/178#issuecomment-1299185326 for context.
 pub struct Client {
+    // capacity is effectively the maximum size of an RDP
+    // message we will receive from the RDP server, minus any
+    // ChannelPDUHeader's.
+    capacity: usize,
     data: Vec<u8>,
-}
-
-impl Default for Client {
-    fn default() -> Self {
-        Self::new()
-    }
+    drop_this_message: bool,
 }
 
 impl Client {
-    pub fn new() -> Self {
-        Self { data: Vec::new() }
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            capacity,
+            data: Vec::new(),
+            drop_this_message: false,
+        }
     }
 
     /// Callers can call read() to process RDP messages (PDUs) sent over a virtual channel.
     ///
     /// For chunked PDUs, the Client will piece the full PDU together in Client.data over multiple calls,
-    /// and will only return an Ok(Some(Payload)) once a full message has been pieced together.
+    /// and will only return an Ok(Some(Payload)) once a full message has been pieced together, presuming
+    /// the total message does not exceed capacity. Messages that do exceed capacity will be
+    /// dropped.
     ///
     /// The Payload will be the raw bytes of the PDU, starting at the channel specific header.
     /// For example, if handling a cliprdr PDU, Payload will be a full PDU starting with the
@@ -56,13 +65,26 @@ impl Client {
         let channel_pdu_header = ChannelPDUHeader::decode(&mut raw_payload)?;
         debug!("got RDP: {:?}", channel_pdu_header);
 
-        raw_payload.read_to_end(&mut self.data)?;
+        let this_chunk_size = raw_payload.get_ref().len() - raw_payload.position() as usize;
+        let cumulative_message_size = self.data.len();
+
+        if this_chunk_size + cumulative_message_size <= self.capacity {
+            raw_payload.read_to_end(&mut self.data)?;
+        } else {
+            self.drop_this_message = true;
+        }
 
         if channel_pdu_header
             .flags
             .contains(ChannelPDUFlags::CHANNEL_FLAG_LAST)
         {
-            return Ok(Some(Cursor::new(self.data.split_off(0))));
+            if !self.drop_this_message {
+                return Ok(Some(Cursor::new(self.data.split_off(0))));
+            } else {
+                warn!("RDP client received a message that exceeded the maximum allowed message size ({:?} bytes), message was dropped", self.capacity);
+                self.drop_this_message = false; // reset for the next message
+                self.data.clear(); // clear the pending data
+            }
         }
 
         Ok(None)
@@ -177,5 +199,75 @@ impl Encode for ChannelPDUHeader {
         w.write_u32::<LittleEndian>(self.length)?;
         w.write_u32::<LittleEndian>(self.flags.bits())?;
         Ok(w)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn drops_messages_exceeding_capacity() {
+        let mut c = Client::new(3);
+
+        // Create a first message that takes up the total capacity of the Client
+        let mut first_message = ChannelPDUHeader {
+            length: 4,
+            flags: ChannelPDUFlags::CHANNEL_FLAG_FIRST,
+        }
+        .encode()
+        .unwrap();
+        first_message.extend([1, 2, 3]);
+        let first_message = tpkt::Payload::Raw(Cursor::new(first_message));
+
+        let res = c.read(first_message).unwrap();
+        assert_eq!(res, None); // wasn't last message
+        assert!(!c.drop_this_message); // we haven't gone over capacity yet
+        assert_eq!(c.data, vec![1, 2, 3]);
+
+        // Create a second message that will overflow the capacity
+        let mut second_message = ChannelPDUHeader {
+            length: 4,
+            flags: ChannelPDUFlags::CHANNEL_FLAG_SHADOW_PERSISTENT,
+        }
+        .encode()
+        .unwrap();
+        second_message.extend([4, 5, 6]);
+        let second_message = tpkt::Payload::Raw(Cursor::new(second_message));
+
+        let res = c.read(second_message).unwrap();
+        assert_eq!(res, None); // wasn't last message
+        assert!(c.drop_this_message); // we're now over capacity
+        assert_eq!(c.data, vec![1, 2, 3]); // make sure we didn't add anything over capacity
+
+        // Create a would-be third and final message
+        let mut third_message = ChannelPDUHeader {
+            length: 4,
+            flags: ChannelPDUFlags::CHANNEL_FLAG_LAST,
+        }
+        .encode()
+        .unwrap();
+        third_message.extend([7, 8, 9]);
+        let third_message = tpkt::Payload::Raw(Cursor::new(third_message));
+        let res = c.read(third_message).unwrap();
+
+        assert_eq!(res, None); // was the last message, but it was dropped
+        assert!(!c.drop_this_message); // the drop_this_message flag was reset
+        assert_eq!(c.data, vec![]); // make sure the internal data cache was reset
+
+        // Confirm that the Client still functions as expected for <= capacity messages
+        let mut good_message = ChannelPDUHeader {
+            length: 4,
+            flags: ChannelPDUFlags::CHANNEL_FLAG_ONLY,
+        }
+        .encode()
+        .unwrap();
+        good_message.extend([10, 11, 12]);
+        let good_message = tpkt::Payload::Raw(Cursor::new(good_message));
+        let res = c.read(good_message).unwrap();
+
+        assert_eq!(res, Option::Some(Cursor::new(vec![10, 11, 12]))); // we got the payload
+        assert!(!c.drop_this_message); // the drop_this_message flag was never set
+        assert_eq!(c.data, vec![]); // the internal data cache was reset
     }
 }
