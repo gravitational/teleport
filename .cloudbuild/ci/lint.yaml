@@ -3,6 +3,4 @@ steps:
     id: lint
     args: ['make', 'lint']
 options:
-  pool:
-    name: projects/ci-account/locations/us-west1/workerPools/high-cpu-pool
-
+  machineType: 'E2_HIGHCPU_32'
