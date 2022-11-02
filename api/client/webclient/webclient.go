@@ -32,16 +32,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/net/http/httpproxy"
+
 	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils"
-
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"golang.org/x/net/http/httpproxy"
 )
 
 // Config specifies information when building requests with the
@@ -65,6 +66,8 @@ type Config struct {
 	IgnoreHTTPProxy bool
 	// Timeout is a timeout for requests.
 	Timeout time.Duration
+	// TraceProvider is used to retrieve a Tracer for creating spans
+	TraceProvider oteltrace.TracerProvider
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -78,6 +81,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.Timeout == 0 {
 		c.Timeout = defaults.DefaultDialTimeout
+	}
+	if c.TraceProvider == nil {
+		c.TraceProvider = tracing.DefaultProvider()
 	}
 	return nil
 }
@@ -114,6 +120,8 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 // If these conditions are not met, then the plain-HTTP fallback is not allowed,
 // and a the HTTPS failure will be considered final.
 func doWithFallback(clt *http.Client, allowPlainHTTP bool, extraHeaders map[string]string, req *http.Request) (*http.Response, error) {
+	span := oteltrace.SpanFromContext(req.Context())
+
 	// first try https and see how that goes
 	req.URL.Scheme = "https"
 	for k, v := range extraHeaders {
@@ -121,6 +129,7 @@ func doWithFallback(clt *http.Client, allowPlainHTTP bool, extraHeaders map[stri
 	}
 
 	log.Debugf("Attempting %s %s%s", req.Method, req.URL.Host, req.URL.Path)
+	span.AddEvent("sending https request")
 	resp, err := clt.Do(req)
 
 	// If the HTTPS succeeds, return that.
@@ -139,6 +148,7 @@ func doWithFallback(clt *http.Client, allowPlainHTTP bool, extraHeaders map[stri
 	// clear-text HTTP to see if that works.
 	req.URL.Scheme = "http"
 	log.Warnf("Request for %s %s%s falling back to PLAIN HTTP", req.Method, req.URL.Host, req.URL.Path)
+	span.AddEvent("falling back to http request")
 	resp, err = clt.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -156,9 +166,12 @@ func Find(cfg *Config) (*PingResponse, error) {
 	}
 	defer clt.CloseIdleConnections()
 
+	ctx, span := cfg.TraceProvider.Tracer("webclient").Start(cfg.Context, "webclient/Find")
+	defer span.End()
+
 	endpoint := fmt.Sprintf("https://%s/webapi/find", cfg.ProxyAddr)
 
-	req, err := http.NewRequestWithContext(cfg.Context, http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -189,12 +202,15 @@ func Ping(cfg *Config) (*PingResponse, error) {
 	}
 	defer clt.CloseIdleConnections()
 
+	ctx, span := cfg.TraceProvider.Tracer("webclient").Start(cfg.Context, "webclient/Ping")
+	defer span.End()
+
 	endpoint := fmt.Sprintf("https://%s/webapi/ping", cfg.ProxyAddr)
 	if cfg.ConnectorName != "" {
 		endpoint = fmt.Sprintf("%s/%s", endpoint, cfg.ConnectorName)
 	}
 
-	req, err := http.NewRequestWithContext(cfg.Context, http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -219,30 +235,6 @@ func Ping(cfg *Config) (*PingResponse, error) {
 	return pr, nil
 }
 
-// GetTunnelAddr returns the tunnel address either set in an environment variable or retrieved from the web proxy.
-func GetTunnelAddr(cfg *Config) (string, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return "", trace.Wrap(err)
-	}
-	// If TELEPORT_TUNNEL_PUBLIC_ADDR is set, nothing else has to be done, return it.
-	if tunnelAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); tunnelAddr != "" {
-		return parseAndJoinHostPort(tunnelAddr)
-	}
-
-	// Ping web proxy to retrieve tunnel proxy address.
-	pr, err := Find(cfg)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	// DELETE IN 11.0.0
-	// newer proxies should return WebListenAddr so
-	// we don't need to rely on the dialed proxyAddr
-	if pr.Proxy.SSH.WebListenAddr == "" {
-		pr.Proxy.SSH.WebListenAddr = cfg.ProxyAddr
-	}
-	return pr.Proxy.tunnelProxyAddr()
-}
-
 func GetMOTD(cfg *Config) (*MotD, error) {
 	clt, err := newWebClient(cfg)
 	if err != nil {
@@ -250,9 +242,12 @@ func GetMOTD(cfg *Config) (*MotD, error) {
 	}
 	defer clt.CloseIdleConnections()
 
+	ctx, span := cfg.TraceProvider.Tracer("webclient").Start(cfg.Context, "webclient/GetMOTD")
+	defer span.End()
+
 	endpoint := fmt.Sprintf("https://%s/webapi/motd", cfg.ProxyAddr)
 
-	req, err := http.NewRequestWithContext(cfg.Context, http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -432,6 +427,17 @@ type GithubSettings struct {
 	Name string `json:"name"`
 	// Display is the connector display name
 	Display string `json:"display"`
+}
+
+func (ps *ProxySettings) TunnelAddr() (string, error) {
+	// If TELEPORT_TUNNEL_PUBLIC_ADDR is set, nothing else has to be done, return it.
+	if tunnelAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); tunnelAddr != "" {
+		addr, err := parseAndJoinHostPort(tunnelAddr)
+		return addr, trace.Wrap(err)
+	}
+
+	addr, err := ps.tunnelProxyAddr()
+	return addr, trace.Wrap(err)
 }
 
 // tunnelProxyAddr returns the tunnel proxy address for the proxy settings.
