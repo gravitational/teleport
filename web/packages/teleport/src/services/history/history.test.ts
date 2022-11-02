@@ -34,6 +34,20 @@ describe('services/history', () => {
     jest.clearAllMocks();
   });
 
+  describe('ensureBaseUrl', () => {
+    it('should always ensure the base url matched cfg.baseUrl', () => {
+      expect(history.ensureBaseUrl('')).toBe('http://localhost/');
+      expect(history.ensureBaseUrl('/')).toBe('http://localhost/');
+      expect(history.ensureBaseUrl('/web')).toBe('http://localhost/web');
+      expect(history.ensureBaseUrl('somepath')).toBe(
+        'http://localhost/somepath'
+      );
+      expect(history.ensureBaseUrl('http://badurl')).toBe(
+        'http://localhost/http://badurl'
+      );
+    });
+  });
+
   describe('canPush', () => {
     const push = actual => ({
       andExpect(expected) {

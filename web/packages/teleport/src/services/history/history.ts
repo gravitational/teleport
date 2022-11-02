@@ -75,7 +75,11 @@ const history = {
 
   ensureBaseUrl(url: string) {
     url = url || '';
-    if (url.indexOf(cfg.baseUrl) !== 0) {
+    // create a URL object with url arg and optional `base` second arg set to cfg.baseUrl
+    // if an attacker tries to pass a url such as teleport.example.com.bad.io
+    // the cfg.baseUrl will be overridden. If it hasn't been overridden we can
+    // assume that the passed url is either relative, or match our cfg.baseUrl
+    if (new URL(url, cfg.baseUrl).hostname !== cfg.baseUrl) {
       if (url.startsWith('/')) {
         url = `${cfg.baseUrl}${url}`;
       } else {
