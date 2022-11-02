@@ -54,6 +54,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -1107,6 +1108,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			AuthType:           authType,
 			PreferredLocalMFA:  cap.GetPreferredLocalMFA(),
 			LocalConnectorName: localConnectorName,
+			PrivateKeyPolicy:   cap.GetPrivateKeyPolicy(),
 		}
 	}
 
@@ -1570,6 +1572,12 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 	if err != nil {
 		h.log.WithError(err).Warnf("Access attempt denied for user %q.", req.User)
+		// Since checking for private key policy meant that they passed authn,
+		// return policy error as is to help direct user.
+		if keys.IsPrivateKeyPolicyError(err) {
+			return nil, trace.Wrap(err)
+		}
+		// Obscure all other errors.
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
@@ -1721,6 +1729,21 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
+	if res.PrivateKeyPolicyEnabled {
+		if res.GetRecovery() == nil {
+			return &ui.ChangedUserAuthn{
+				PrivateKeyPolicyEnabled: res.PrivateKeyPolicyEnabled,
+			}, nil
+		}
+		return &ui.ChangedUserAuthn{
+			Recovery: ui.RecoveryCodes{
+				Codes:   res.GetRecovery().GetCodes(),
+				Created: &res.GetRecovery().Created,
+			},
+			PrivateKeyPolicyEnabled: res.PrivateKeyPolicyEnabled,
+		}, nil
+	}
+
 	sess := res.WebSession
 	ctx, err := h.auth.newSessionContext(r.Context(), sess.GetUser(), sess.GetName())
 	if err != nil {
@@ -1737,12 +1760,14 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	}
 
 	if res.GetRecovery() == nil {
-		return &ui.RecoveryCodes{}, nil
+		return &ui.ChangedUserAuthn{}, nil
 	}
 
-	return &ui.RecoveryCodes{
-		Codes:   res.Recovery.Codes,
-		Created: &res.Recovery.Created,
+	return &ui.ChangedUserAuthn{
+		Recovery: ui.RecoveryCodes{
+			Codes:   res.GetRecovery().GetCodes(),
+			Created: &res.GetRecovery().Created,
+		},
 	}, nil
 }
 
@@ -1896,6 +1921,12 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	clientMeta := clientMetaFromReq(r)
 	session, err := h.auth.AuthenticateWebUser(r.Context(), req, clientMeta)
 	if err != nil {
+		// Since checking for private key policy meant that they passed authn,
+		// return policy error as is to help direct user.
+		if keys.IsPrivateKeyPolicyError(err) {
+			return nil, trace.Wrap(err)
+		}
+		// Obscure all other errors.
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
