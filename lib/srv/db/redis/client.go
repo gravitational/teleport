@@ -26,7 +26,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/trace"
 )
@@ -98,16 +98,22 @@ func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsCon
 		return redis.NewClient(&redis.Options{
 			Addr:      connectionAddr,
 			TLSConfig: tlsConfig,
-			Username:  username,
-			Password:  password,
+			OnConnect: authWithPasswordOnConnect(username, password),
+
+			// Auth should be done by the `OnConnect` callback here. So disable
+			// "automatic" auth by the client.
+			DisableAuthOnConnect: true,
 		}), nil
 	case Cluster:
 		client := &clusterClient{
 			ClusterClient: *redis.NewClusterClient(&redis.ClusterOptions{
 				Addrs:     []string{connectionAddr},
 				TLSConfig: tlsConfig,
-				Username:  username,
-				Password:  password,
+				OnConnect: authWithPasswordOnConnect(username, password),
+				NewClient: func(opt *redis.Options) *redis.Client {
+					opt.DisableAuthOnConnect = true
+					return redis.NewClient(opt)
+				},
 			}),
 		}
 		// Load cluster information.
@@ -117,6 +123,25 @@ func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsCon
 	default:
 		// We've checked that while validating the config, but checking again can help with regression.
 		return nil, trace.BadParameter("incorrect connection mode %s", connectionOptions.mode)
+	}
+}
+
+// authWithPasswordOnConnect returns an onClientConnectFunc that sends "auth"
+// with provided username and password.
+func authWithPasswordOnConnect(username, password string) func(ctx context.Context, conn *redis.Conn) error {
+	return func(ctx context.Context, conn *redis.Conn) error {
+		// Copied from redis.baseClient.initConn.
+		_, err := conn.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+			if password != "" {
+				if username != "" {
+					pipe.AuthACL(ctx, username, password)
+				} else {
+					pipe.Auth(ctx, password)
+				}
+			}
+			return nil
+		})
+		return trace.Wrap(err)
 	}
 }
 

@@ -70,8 +70,14 @@ const (
 
 // SupportedProtocols is the list of supported ALPN protocols.
 var SupportedProtocols = []Protocol{
-	ProtocolHTTP2,
+	// HTTP needs to be prioritized over HTTP2 due to a bug in Chrome:
+	// https://bugs.chromium.org/p/chromium/issues/detail?id=1379017
+	// If Chrome resolves this, we can switch the prioritization. We may
+	// also be able to get around this if https://github.com/golang/go/issues/49918
+	// is implemented and we can enable HTTP2 websockets on our end, but
+	// it's less clear this will actually fix the issue.
 	ProtocolHTTP,
+	ProtocolHTTP2,
 	ProtocolPostgres,
 	ProtocolMySQL,
 	ProtocolMongoDB,
