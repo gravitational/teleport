@@ -26,6 +26,8 @@ export type AgentStepProps = {
   updateAgentMeta?: State['updateAgentMeta'];
   // nextStep increments the `currentStep` to go to the next step.
   nextStep?: State['nextStep'];
+  // prevStep decrements the `currentStep` to go to the prev step.
+  prevStep?: State['prevStep'];
   selectedResource?: State['selectedResource'];
   selectedResourceKind?: ResourceKind;
   onSelectResource?: State['onSelectResource'];

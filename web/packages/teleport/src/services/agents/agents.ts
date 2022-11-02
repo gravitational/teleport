@@ -33,10 +33,10 @@ export const agentService = {
         resource_kind: req.resourceKind,
         resource_name: req.resourceName,
         ssh_principal: req.sshPrincipal,
-        kubernetes_namespace: req.kubeImpersonation.namespace,
+        kubernetes_namespace: req.kubeImpersonation?.namespace,
         kubernetes_impersonation: {
-          kubernetes_user: req.kubeImpersonation.user,
-          kubernetes_groups: req.kubeImpersonation.groups,
+          kubernetes_user: req.kubeImpersonation?.user,
+          kubernetes_groups: req.kubeImpersonation?.groups,
         },
       })
       .then(makeConnectionDiagnostic);

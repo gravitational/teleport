@@ -23,7 +23,7 @@ import Select from 'shared/components/Select';
 import useTeleport from 'teleport/useTeleport';
 
 import {
-  Header,
+  HeaderWithBackBtn,
   ActionButtons,
   TextIcon,
   HeaderSubtitle,
@@ -51,6 +51,7 @@ export function TestConnection({
   runConnectionDiagnostic,
   diagnosis,
   nextStep,
+  prevStep,
   canTestConnection,
 }: State) {
   const [usernameOpts] = useState(() =>
@@ -88,7 +89,7 @@ export function TestConnection({
 
   return (
     <Box>
-      <Header>Test Connection</Header>
+      <HeaderWithBackBtn onPrev={prevStep}>Test Connection</HeaderWithBackBtn>
       <HeaderSubtitle>
         Optionally verify that you can successfully connect to the server you
         just added.

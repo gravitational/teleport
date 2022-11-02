@@ -65,6 +65,7 @@ export function useTestConnection({ ctx, props }: Props) {
     runConnectionDiagnostic,
     diagnosis,
     nextStep: props.nextStep,
+    prevStep: props.prevStep,
     canTestConnection,
   };
 }
