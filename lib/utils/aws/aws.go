@@ -325,10 +325,10 @@ func (roles Roles) FindRolesByName(name string) (result Roles) {
 }
 
 // UnmarshalRequestBody reads and unmarshals a JSON request body into a protobuf Struct wrapper.
-// If the request is not a recongized AWS JSON media type, or the body cannot be read, or the body
+// If the request is not a recognized AWS JSON media type, or the body cannot be read, or the body
 // is not valid JSON, then this function returns a nil value and an error.
 // The protobuf Struct wrapper is useful for serializing JSON into a protobuf, because otherwise when the
-// protobuf is marshalled it will re-marshall a JSON string field with escape characters or base64 encode
+// protobuf is marshaled it will re-marshall a JSON string field with escape characters or base64 encode
 // a []byte field.
 // Examples showing differences:
 // - JSON string in proto: `{"Table": "some-table"}` --marshal to JSON--> `"{\"Table\": \"some-table\"}"`

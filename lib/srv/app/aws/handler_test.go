@@ -65,8 +65,6 @@ func dynamoRequest(url string, provider client.ConfigProvider) error {
 	return err
 }
 
-func checks(chs ...require.ErrorAssertionFunc) []require.ErrorAssertionFunc { return chs }
-
 func hasStatusCode(wantStatusCode int) require.ErrorAssertionFunc {
 	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 		var apiErr awserr.RequestFailure
