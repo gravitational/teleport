@@ -27,9 +27,9 @@ RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 &&
 # Instal openssl.
 # Pulled from source because repository versions are too old.
 # install_sw install only binaries, skips docs.
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b OpenSSL_1_1_1r && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b OpenSSL_1_1_1s && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = "fbda8a9e3b6266da377a6f57d597d657257d9cff" ] && \
+    [ "$(git rev-parse HEAD)" = "129058165d195e43a0ad10111b0c2e29bdf65980" ] && \
     ./config --release && \
     make && \
     make install_sw
