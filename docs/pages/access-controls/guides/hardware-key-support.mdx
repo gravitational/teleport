@@ -22,7 +22,7 @@ Additionally, this feature can be configured to require touch for every Teleport
 </Admonition>
 
 <Admonition type="warning" title="Compatibility Issues">
-  Hardware key support provides the best security available, but it is a new feature with some compatiblity trade-offs. We hope to improve compatibility in the future.
+  Hardware key support provides the best security available, but it is a new feature with some compatibility trade-offs. We hope to improve compatibility in the future.
   
   Supported (`tsh`, `tctl`, and Teleport Connect):
     
@@ -44,7 +44,7 @@ Additionally, this feature can be configured to require touch for every Teleport
   (WebUI) or because the protocol only supports raw private keys currently (Agent forwarding,
   Kubernetes Access, Desktop Access). 
 
-  To navigate these incompatiblities, we recommend enabling hardware key support only when
+  To navigate these incompatibilities, we recommend enabling hardware key support only when
   necessary, such as for roles with access to critical infrastructure. These roles can be accessed
   as needed with Access Requests so that users can avoid these issues for their normal login
   sessions. We also recommend trying Teleport Connect as an alternative to the WebUI.
@@ -57,7 +57,7 @@ Additionally, this feature can be configured to require touch for every Teleport
 - A series 5+ YubiKey
 
 <Admonition type="note" title="PIV support">
-  Hardware key support requires users to use a PIV-compatible hardware key. Currently, this feature is only guarenteed to support YubiKey series 5+.
+  Hardware key support requires users to use a PIV-compatible hardware key. Currently, this feature is only guaranteed to support YubiKey series 5+.
   
   Teleport clients use PIV slot 9a for the `hardware_key` option and 9c for the `hardware_key_touch` option, and will overwrite other keys and certs in these slots as needed. This may interfere with other PIV applications, like `yubikey-agent`, so we recommend only using one PIV application at a time.
 </Admonition>
@@ -228,4 +228,4 @@ This error may also appear in the WebUI, since the WebUI does not support hardwa
 
 ### `ERROR: authenticating with management key: auth challenge: smart card error 6982: security status not satisfied`
 
-Smart card auth challenge errors can appear when the wrong Mangement key or PIN is used. Teleport clients expect a fresh PIV module with the default Management and PIN keys. You can reset these keys, along with any existing PIV keys and certs, with the [yubikey manager tool command](https://developers.yubico.com/yubikey-manager/) `ykman piv reset`.
+Smart card auth challenge errors can appear when the wrong Management key or PIN is used. Teleport clients expect a fresh PIV module with the default Management and PIN keys. You can reset these keys, along with any existing PIV keys and certs, with the [yubikey manager tool command](https://developers.yubico.com/yubikey-manager/) `ykman piv reset`.
