@@ -104,6 +104,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpnproxyauth "github.com/gravitational/teleport/lib/srv/alpnproxy/auth"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/srv/db"
@@ -4108,10 +4109,17 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		if acmeCfg.URI != "" {
 			m.Client = &acme.Client{DirectoryURL: acmeCfg.URI}
 		}
-		tlsConfig = m.TLSConfig()
+		// We have to duplicate the behavior of `m.TLSConfig()` here because
+		// http/1.1 needs to take precedence over h2 due to
+		// https://bugs.chromium.org/p/chromium/issues/detail?id=1379017#c5 in Chrome.
+		tlsConfig = &tls.Config{
+			GetCertificate: m.GetCertificate,
+			NextProtos: []string{
+				string(common.ProtocolHTTP), string(common.ProtocolHTTP2), // enable HTTP/2
+				acme.ALPNProto, // enable tls-alpn ACME challenges
+			},
+		}
 		utils.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
-
-		tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, acme.ALPNProto))
 	}
 
 	for _, pair := range process.Config.Proxy.KeyPairs {
