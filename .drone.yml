@@ -1779,6 +1779,7 @@ steps:
   - name: Download chart repo contents
     image: amazon/aws-cli
     environment:
+      AWS_REGION: us-west-2
       AWS_S3_BUCKET:
         from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
     volumes:
@@ -1805,9 +1806,9 @@ steps:
     image: amazon/aws-cli
     commands:
       - cd /go/chart
-      - aws s3 sync --acl public-read . s3://$AWS_S3_BUCKET/
+      - aws s3 sync . s3://$AWS_S3_BUCKET/
     environment:
-      AWS_REGION: us-east-2
+      AWS_REGION: us-west-2
       AWS_S3_BUCKET:
         from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
     volumes:
@@ -8000,6 +8001,7 @@ steps:
   - name: "Helm: Download chart repository"
     image: amazon/aws-cli
     environment:
+      AWS_REGION:  us-west-2
       AWS_S3_BUCKET:
         from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
     volumes:
@@ -8050,7 +8052,7 @@ steps:
   - name: "Helm: Publish chart repository to S3"
     image: amazon/aws-cli
     environment:
-      AWS_REGION:  us-east-2
+      AWS_REGION:  us-west-2
       AWS_S3_BUCKET:
         from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
     volumes:
@@ -8058,7 +8060,7 @@ steps:
         path: /root/.aws
     commands:
       - cd /go/chart/
-      - aws s3 sync --acl public-read . s3://$AWS_S3_BUCKET/
+      - aws s3 sync . s3://$AWS_S3_BUCKET/
 
   # NOTE: all mandatory steps for a release promotion need to go BEFORE this
   # step, as there is a chance that everything afterwards will be skipped.
@@ -8671,6 +8673,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 51a0581cf2b17700bb1f40201b9e97893d502ded270d7cf97aa9690011d03c36
+hmac: 85cc594714ff84ff91bd9c76d58aafe54a00b8d16231851f77e2cc04d88f3bdb
 
 ...

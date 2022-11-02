@@ -9,9 +9,6 @@ spec:
     kind: TeleportRole
     listKind: TeleportRoleList
     plural: teleportroles
-    shortNames:
-    - role
-    - roles
     singular: teleportrole
   scope: Namespaced
   versions:

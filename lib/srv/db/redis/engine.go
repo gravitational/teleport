@@ -22,7 +22,7 @@ import (
 	"errors"
 	"net"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"

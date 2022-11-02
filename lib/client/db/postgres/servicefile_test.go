@@ -59,6 +59,7 @@ func TestServiceFile(t *testing.T) {
 		"PGSSLROOTCERT": profile.CACertPath,
 		"PGSSLCERT":     profile.CertPath,
 		"PGSSLKEY":      profile.KeyPath,
+		"PGGSSENCMODE":  "disable",
 	}, env)
 
 	err = serviceFile.Delete(profile.Name)

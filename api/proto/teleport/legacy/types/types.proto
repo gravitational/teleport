@@ -3908,6 +3908,26 @@ message RecoveryCode {
   bool IsUsed = 2 [(gogoproto.jsontag) = "is_used"];
 }
 
+message NullableSessionState {
+  SessionState State = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "state,omitempty"
+  ];
+}
+
+// SessionTrackerFilter are filters to apply when searching for session trackers.
+message SessionTrackerFilter {
+  // Kind describes what kind of session this is.
+  string Kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
+  // State is the current state of this session.
+  NullableSessionState State = 2 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "state,omitempty"
+  ];
+  // DesktopName is the windows desktop server this session belongs to.
+  string DesktopName = 3 [(gogoproto.jsontag) = "desktop_name,omitempty"];
+}
+
 // SessionTrackerV1 represents a live session resource.
 message SessionTrackerV1 {
   // Header is the common resource header.
@@ -4144,6 +4164,10 @@ message ConnectionDiagnosticTrace {
     RBAC_PRINCIPAL = 4;
     // NODE_PRINCIPAL is used when checking if the Node has the requested principal.
     NODE_PRINCIPAL = 5;
+    // RBAC_KUBE is for RBAC checks to kubernetes the cluster.
+    RBAC_KUBE = 6;
+    // KUBE_PRINCIPAL is used when checking if the Kube Cluster has at least one user principals.
+    KUBE_PRINCIPAL = 7;
   }
   TraceType Type = 1 [(gogoproto.jsontag) = "type"];
   // StatusType describes whether this was a success or a failure.

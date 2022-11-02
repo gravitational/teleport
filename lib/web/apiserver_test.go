@@ -28,6 +28,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"io"
@@ -38,6 +39,7 @@ import (
 	"net/url"
 	"os"
 	"os/user"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -50,18 +52,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
-	lemma_secret "github.com/mailgun/lemma/secret"
-	"github.com/pquerna/otp/totp"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/text/encoding/unicode"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	apiProto "github.com/gravitational/teleport/api/client/proto"
@@ -73,6 +65,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
@@ -84,6 +77,8 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -99,6 +94,25 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
+	"github.com/gravitational/trace"
+
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+	lemma_secret "github.com/mailgun/lemma/secret"
+	"github.com/pquerna/otp/totp"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
+	"golang.org/x/text/encoding/unicode"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 const hostID = "00000000-0000-0000-0000-000000000000"
@@ -2665,7 +2679,15 @@ func TestClusterKubesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
+	kubeRole, err := types.NewRoleV3("kube", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			KubeGroups:       []string{"kubegroup1"},
+			KubeUsers:        []string{"kubeuser"},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+	pack := proxy.authPack(t, "test-user@example.com", []types.Role{kubeRole})
 
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubernetes")
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
@@ -2710,8 +2732,10 @@ func TestClusterKubesGet(t *testing.T) {
 	require.Len(t, resp.Items, 1)
 	require.Equal(t, 1, resp.TotalCount)
 	require.EqualValues(t, ui.KubeCluster{
-		Name:   "test-kube-name",
-		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
+		Name:       "test-kube-name",
+		Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
+		KubeGroups: []string{"kubegroup1"},
+		KubeUsers:  []string{"kubeuser"},
 	}, resp.Items[0])
 }
 
@@ -3609,8 +3633,8 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 }
 
 // TestChangeUserAuthentication_recoveryCodesReturnedForCloud tests for following:
-//  - Recovery codes are not returned for usernames that are not emails
-//  - Recovery codes are returned for usernames that are valid emails
+// - Recovery codes are not returned for usernames that are not emails
+// - Recovery codes are returned for usernames that are valid emails
 func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	env := newWebPack(t, 1)
 	ctx := context.Background()
@@ -3758,6 +3782,47 @@ func TestParseSSORequestParams(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDesktopActive(t *testing.T) {
+	desktopName := "rickey-rock"
+	env := newWebPack(t, 1)
+	ctx := context.Background()
+
+	role, err := types.NewRole("admin", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			WindowsDesktopLabels: types.Labels{"environment": []string{"dev"}},
+		},
+	})
+	require.NoError(t, err)
+
+	pack := env.proxies[0].authPack(t, "foo", []types.Role{role})
+
+	check := func(match string) {
+		resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "desktops", desktopName, "active"), url.Values{})
+		require.NoError(t, err)
+		require.Contains(t, string(resp.Bytes()), match)
+	}
+
+	check("\"active\":false")
+	desktop, err := types.NewWindowsDesktopV3(desktopName, map[string]string{"environment": "dev"}, types.WindowsDesktopSpecV3{
+		Domain: "ad",
+		Addr:   "foo",
+		HostID: "bar",
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().CreateWindowsDesktop(ctx, desktop)
+	require.NoError(t, err)
+	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID:   "foo",
+		Kind:        string(types.WindowsDesktopSessionKind),
+		State:       types.SessionState_SessionStateRunning,
+		DesktopName: desktopName,
+	})
+	require.NoError(t, err)
+	_, err = env.server.Auth().CreateSessionTracker(ctx, tracker)
+	require.NoError(t, err)
+	check("\"active\":true")
 }
 
 func TestGetUserOrResetToken(t *testing.T) {
@@ -4088,6 +4153,327 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 			var connectionDiagnostic ui.ConnectionDiagnostic
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &connectionDiagnostic))
 
+			gotFailedTraces := 0
+			expectedFailedTraces := 0
+
+			t.Log(tt.name)
+			t.Log(connectionDiagnostic.Message, connectionDiagnostic.Success)
+			for i, trace := range connectionDiagnostic.Traces {
+				if trace.Status == types.ConnectionDiagnosticTrace_FAILED.String() {
+					gotFailedTraces++
+				}
+
+				t.Logf("%d status='%s' type='%s' details='%s' error='%s'\n", i, trace.Status, trace.TraceType, trace.Details, trace.Error)
+			}
+
+			require.Equal(t, tt.expectedSuccess, connectionDiagnostic.Success)
+			require.Equal(t, tt.expectedMessage, connectionDiagnostic.Message)
+
+			for _, expectedTrace := range tt.expectedTraces {
+				if expectedTrace.Status == types.ConnectionDiagnosticTrace_FAILED {
+					expectedFailedTraces++
+				}
+
+				foundTrace := false
+				for _, returnedTrace := range connectionDiagnostic.Traces {
+					if expectedTrace.Type.String() != returnedTrace.TraceType {
+						continue
+					}
+
+					foundTrace = true
+					require.Equal(t, returnedTrace.Status, expectedTrace.Status.String())
+					require.Equal(t, returnedTrace.Details, expectedTrace.Details)
+					require.Contains(t, returnedTrace.Error, expectedTrace.Error)
+				}
+
+				require.True(t, foundTrace, "expected trace %v was not found", expectedTrace)
+			}
+			require.Equal(t, expectedFailedTraces, gotFailedTraces)
+		})
+	}
+}
+
+func TestDiagnoseKubeConnection(t *testing.T) {
+
+	var (
+		validKubeUsers              = []string{}
+		validKubeGroups             = []string{"validKubeGroup"}
+		invalidKubeGroups           = []string{"invalidKubeGroups"}
+		kubeClusterName             = "kube_cluster"
+		disconnectedKubeClustername = "dis_kube_cluster"
+		ctx                         = context.Background()
+	)
+
+	roleWithFullAccess := func(username string, kubeUsers, kubeGroups []string) []types.Role {
+		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:       []string{apidefaults.Namespace},
+				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				Rules: []types.Rule{
+					types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+				},
+				KubeGroups: kubeGroups,
+				KubeUsers:  kubeUsers,
+			},
+		})
+		require.NoError(t, err)
+		return []types.Role{ret}
+	}
+	require.NotNil(t, roleWithFullAccess)
+
+	rolesWithoutAccessToKubeCluster := func(username string, kubeUsers, kubeGroups []string) []types.Role {
+		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:       []string{apidefaults.Namespace},
+				KubernetesLabels: types.Labels{"forbidden": []string{"yes"}},
+				Rules: []types.Rule{
+					types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+				},
+				KubeGroups: kubeGroups,
+				KubeUsers:  kubeUsers,
+			},
+		})
+		require.NoError(t, err)
+		return []types.Role{ret}
+	}
+	require.NotNil(t, rolesWithoutAccessToKubeCluster)
+
+	env := newWebPack(t, 1)
+
+	rt := http.NewServeMux()
+	rt.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if slices.Contains(r.Header.Values("Impersonate-Group"), invalidKubeGroups[0]) {
+			marshalRBACError(t, w)
+			return
+		}
+		marshalValidPodList(t, w)
+	})
+	testKube := httptest.NewTLSServer(rt)
+	t.Cleanup(func() {
+		testKube.Close()
+	})
+
+	startKube(
+		ctx,
+		t,
+		startKubeOptions{
+			serviceType: kubeproxy.KubeService,
+			authServer:  env.server.TLS,
+			clusters: []kubeClusterConfig{
+				{
+					name:        kubeClusterName,
+					apiEndpoint: testKube.URL,
+				},
+			},
+		},
+	)
+
+	for _, tt := range []struct {
+		name             string
+		teleportUser     string
+		roleFunc         func(string, []string, []string) []types.Role
+		kubeUsers        []string
+		kubeGroups       []string
+		resourceName     string
+		expectedSuccess  bool
+		disconnectedKube bool
+		expectedMessage  string
+		expectedTraces   []types.ConnectionDiagnosticTrace
+	}{
+		{
+			name:            "kube cluster not found",
+			roleFunc:        roleWithFullAccess,
+			kubeGroups:      validKubeGroups,
+			kubeUsers:       validKubeUsers,
+			teleportUser:    "notfound",
+			resourceName:    "notregistered",
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `Failed to connect to Kubernetes cluster. Ensure the cluster is registered and online.`,
+					Error:   "kubernetes cluster \"notregistered\" is not registered or is offline",
+				},
+			},
+		},
+		{
+			name:             "kube cluster disconnected",
+			roleFunc:         roleWithFullAccess,
+			kubeGroups:       validKubeGroups,
+			kubeUsers:        validKubeUsers,
+			teleportUser:     "disconnected",
+			resourceName:     disconnectedKubeClustername,
+			disconnectedKube: true,
+			expectedSuccess:  false,
+			expectedMessage:  "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `Failed to connect to Kubernetes cluster. Ensure the cluster is registered and online.`,
+					Error:   fmt.Sprintf("kubernetes cluster %q is not registered or is offline", disconnectedKubeClustername),
+				},
+			},
+		},
+		{
+			name:            "no access to kube cluster",
+			teleportUser:    "userwithoutaccess",
+			roleFunc:        rolesWithoutAccessToKubeCluster,
+			kubeGroups:      validKubeGroups,
+			kubeUsers:       validKubeUsers,
+			resourceName:    kubeClusterName,
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Kubernetes Cluster is registered in Teleport.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "User-associated roles define valid Kubernetes principals.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_KUBE,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: "You are not authorized to access this Kubernetes Cluster. Ensure your role grants access by adding it to the 'kubernetes_labels' property.",
+					Error:   "[00] access denied",
+				},
+			},
+		},
+		{
+			name:            "no kube principals",
+			teleportUser:    "userwithoutprincipals",
+			roleFunc:        roleWithFullAccess,
+			kubeGroups:      nil,
+			kubeUsers:       nil,
+			resourceName:    kubeClusterName,
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Kubernetes Cluster is registered in Teleport.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: "User-associated roles do not configure \"kubernetes_groups\" or \"kubernetes_users\". Make sure that at least one is configured for the user.",
+					Error:   "this user cannot request kubernetes access, has no assigned groups or users",
+				},
+			},
+		},
+		{
+			name:            "teleport access but Kube RBAC fails",
+			teleportUser:    "userbadrbac",
+			roleFunc:        roleWithFullAccess,
+			kubeGroups:      invalidKubeGroups,
+			kubeUsers:       validKubeUsers,
+			resourceName:    kubeClusterName,
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Kubernetes Cluster is registered in Teleport.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "User-associated roles define valid Kubernetes principals.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_KUBE_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: "You are not allowed to list pods in the \"default\" namespace. Make sure your \"kubernetes_groups\" or \"kubernetes_users\" exist in the cluster and grant you access to list pods.",
+					Error:   "pods is forbidden: User \"USER\" cannot list resource \"pods\" in API group \"\" in the namespace \"default\"",
+				},
+			},
+		},
+		{
+			name:            "success",
+			roleFunc:        roleWithFullAccess,
+			kubeGroups:      validKubeGroups,
+			kubeUsers:       validKubeUsers,
+			teleportUser:    "success",
+			resourceName:    kubeClusterName,
+			expectedSuccess: true,
+			expectedMessage: "success",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Kubernetes Cluster is registered in Teleport.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "User-associated roles define valid Kubernetes principals.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_KUBE,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "You are authorized to access this Kubernetes Cluster.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_KUBE_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Access to the Kubernetes Cluster granted.",
+					Error:   "",
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			localEnv := env
+
+			if tt.disconnectedKube {
+				kubeServer, cleanup, _ := startKubeWithoutCleanup(ctx, t, startKubeOptions{
+					serviceType: kubeproxy.KubeService,
+					authServer:  env.server.TLS,
+					clusters: []kubeClusterConfig{
+						{
+							name:        tt.resourceName,
+							apiEndpoint: testKube.URL,
+						},
+					},
+				})
+				err := kubeServer.Close()
+				require.NoError(t, err)
+				require.NoError(t, cleanup())
+			}
+
+			clusterName := localEnv.server.ClusterName()
+			roles := tt.roleFunc(tt.teleportUser, tt.kubeUsers, tt.kubeGroups)
+			pack := localEnv.proxies[0].authPack(t, tt.teleportUser, roles)
+
+			createConnectionEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "diagnostics", "connections")
+
+			resp, err := pack.clt.PostJSON(ctx, createConnectionEndpoint, conntest.TestConnectionRequest{
+				ResourceKind: types.KindKubernetesCluster,
+				ResourceName: tt.resourceName,
+				// Default is 30 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
+				DialTimeout: time.Second,
+			})
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.Code())
+
+			var connectionDiagnostic ui.ConnectionDiagnostic
+			require.NoError(t, json.Unmarshal(resp.Bytes(), &connectionDiagnostic))
 			gotFailedTraces := 0
 			expectedFailedTraces := 0
 
@@ -4692,10 +5078,21 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	addr := utils.MustParseAddr(webServer.Listener.Addr().String())
 	handler.handler.cfg.ProxyWebAddr = *addr
 	handler.handler.cfg.ProxySSHAddr = *proxyAddr
+
 	_, sshPort, err := net.SplitHostPort(proxyAddr.String())
 	require.NoError(t, err)
 	handler.handler.sshPort = sshPort
 
+	kubeProxyAddr := startKube(
+		ctx,
+		t,
+		startKubeOptions{
+			serviceType: kubeproxy.ProxyService,
+			authServer:  authServer,
+			revTunnel:   revTunServer,
+		},
+	)
+	handler.handler.cfg.ProxyKubeAddr = utils.FromAddr(kubeProxyAddr)
 	url, err := url.Parse("https://" + webServer.Listener.Addr().String())
 	require.NoError(t, err)
 
@@ -5048,4 +5445,220 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 
 	// Verify that the userContext returned contains the correct Access Request ID.
 	require.Equal(t, accessRequestID, userContext.ConsumedAccessRequestID)
+}
+
+// kubeClusterConfig defines the cluster to be created
+type kubeClusterConfig struct {
+	name        string
+	apiEndpoint string
+}
+
+func newKubeConfigFile(ctx context.Context, t *testing.T, clusters ...kubeClusterConfig) string {
+	tmpDir := t.TempDir()
+
+	kubeConf := clientcmdapi.NewConfig()
+	for _, cluster := range clusters {
+		kubeConf.Clusters[cluster.name] = &clientcmdapi.Cluster{
+			Server:                cluster.apiEndpoint,
+			InsecureSkipTLSVerify: true,
+		}
+		kubeConf.AuthInfos[cluster.name] = &clientcmdapi.AuthInfo{}
+
+		kubeConf.Contexts[cluster.name] = &clientcmdapi.Context{
+			Cluster:  cluster.name,
+			AuthInfo: cluster.name,
+		}
+	}
+	kubeConfigLocation := filepath.Join(tmpDir, "kubeconfig")
+	err := clientcmd.WriteToFile(*kubeConf, kubeConfigLocation)
+	require.NoError(t, err)
+	return kubeConfigLocation
+}
+
+type startKubeOptions struct {
+	clusters    []kubeClusterConfig
+	authServer  *auth.TestTLSServer
+	revTunnel   reversetunnel.Server
+	serviceType kubeproxy.KubeServiceType
+}
+
+func startKube(ctx context.Context, t *testing.T, cfg startKubeOptions) net.Addr {
+	server, cleanup, addr := startKubeWithoutCleanup(ctx, t, cfg)
+	t.Cleanup(func() {
+		err := server.Close()
+		require.NoError(t, err)
+		require.NoError(t, cleanup())
+	})
+	return addr
+}
+
+type cleanupFunc func() error
+
+func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOptions) (*kubeproxy.TLSServer, cleanupFunc, net.Addr) {
+	role := types.RoleProxy
+	if cfg.serviceType == kubeproxy.KubeService {
+		role = types.RoleKube
+	}
+	var kubeConfigLocation string
+	if len(cfg.clusters) > 0 {
+		kubeConfigLocation = newKubeConfigFile(ctx, t, cfg.clusters...)
+	}
+
+	keyGen := native.New(ctx)
+	hostID := uuid.New().String()
+	// heartbeatsWaitChannel waits for clusters heartbeats to start.
+	heartbeatsWaitChannel := make(chan struct{}, len(cfg.clusters))
+	client, err := cfg.authServer.NewClient(auth.TestServerID(role, hostID))
+	require.NoError(t, err)
+
+	// Auth client, lock watcher and authorizer for Kube proxy.
+	proxyAuthClient, err := cfg.authServer.NewClient(auth.TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxyAuthClient.Close()) })
+
+	proxyLockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    proxyAuthClient,
+		},
+	})
+	require.NoError(t, err)
+	proxyAuthorizer, err := auth.NewAuthorizer(
+		cfg.authServer.ClusterName(),
+		proxyAuthClient,
+		proxyLockWatcher,
+	)
+	require.NoError(t, err)
+
+	// TLS config for kube proxy and Kube service.
+	authID := auth.IdentityID{
+		Role:     role,
+		HostUUID: hostID,
+		NodeName: "kube_server",
+	}
+	dns := []string{"localhost", "127.0.0.1", "kube." + constants.APIDomain, "*" + constants.APIDomain}
+	identity, err := auth.LocalRegister(authID, cfg.authServer.Auth(), nil, dns, "", nil)
+	require.NoError(t, err)
+
+	tlsConfig, err := identity.TLSConfig(nil)
+	require.NoError(t, err)
+
+	component := teleport.Component(teleport.ComponentProxy, teleport.ComponentProxyKube)
+	if cfg.serviceType == kubeproxy.KubeService {
+		component = teleport.ComponentKube
+	}
+
+	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
+		ForwarderConfig: kubeproxy.ForwarderConfig{
+			Namespace:         apidefaults.Namespace,
+			Keygen:            keyGen,
+			ClusterName:       cfg.authServer.ClusterName(),
+			Authz:             proxyAuthorizer,
+			AuthClient:        client,
+			StreamEmitter:     client,
+			DataDir:           t.TempDir(),
+			CachingAuthClient: client,
+			ServerID:          hostID,
+			Context:           ctx,
+			KubeconfigPath:    kubeConfigLocation,
+			KubeServiceType:   cfg.serviceType,
+			Component:         component,
+			DynamicLabels:     nil,
+			LockWatcher:       proxyLockWatcher,
+			ReverseTunnelSrv:  cfg.revTunnel,
+			// skip Impersonation validation
+			CheckImpersonationPermissions: func(ctx context.Context, clusterName string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
+				return nil
+			},
+			Clock: clockwork.NewRealClock(),
+		},
+		TLS:         tlsConfig,
+		AccessPoint: client,
+		LimiterConfig: limiter.Config{
+			MaxConnections:   1000,
+			MaxNumberOfUsers: 1000,
+		},
+		// each time heartbeat is called we insert data into the channel.
+		// this is used to make sure that heartbeat started and the clusters
+		// are registered in the auth server
+		OnHeartbeat: func(err error) {
+			select {
+			case heartbeatsWaitChannel <- struct{}{}:
+			default:
+			}
+		},
+	})
+	require.NoError(t, err)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	errChan := make(chan error, 1)
+	go func() {
+		defer close(errChan)
+		err := kubeServer.Serve(listener)
+		// ignore server closed error returned when .Close is called.
+		if errors.Is(err, http.ErrServerClosed) {
+			return
+		}
+		errChan <- err
+	}()
+
+	// Waits for len(clusters) heartbeats to start
+	heartbeatsToExpect := len(cfg.clusters)
+	for i := 0; i < heartbeatsToExpect; i++ {
+		<-heartbeatsWaitChannel
+	}
+
+	return kubeServer, func() error {
+		return <-errChan
+	}, listener.Addr()
+}
+
+func marshalRBACError(t *testing.T, w http.ResponseWriter) {
+	status := &metav1.Status{
+		Message: "pods is forbidden: User \"USER\" cannot list resource \"pods\" in API group \"\" in the namespace \"default\"",
+		Code:    http.StatusForbidden,
+		Reason:  metav1.StatusReasonForbidden,
+		Status:  metav1.StatusFailure,
+	}
+
+	data, err := runtime.Encode(statusCodecs.LegacyCodec(), status)
+	require.NoError(t, err)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusInternalServerError)
+	_, err = w.Write(data)
+	require.NoError(t, err)
+}
+
+func marshalValidPodList(t *testing.T, w http.ResponseWriter) {
+	result := &corev1.PodList{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "",
+			APIVersion: "",
+		},
+		ListMeta: metav1.ListMeta{
+			SelfLink:           "",
+			ResourceVersion:    "1231415",
+			Continue:           "",
+			RemainingItemCount: nil,
+		},
+		Items: []corev1.Pod{},
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	err := json.NewEncoder(w).Encode(result)
+	require.NoError(t, err)
+}
+
+// statusScheme is private scheme for the decoding here until someone fixes the TODO in NewConnection
+var statusScheme = runtime.NewScheme()
+
+// ParameterCodec knows about query parameters used with the meta v1 API spec.
+var statusCodecs = serializer.NewCodecFactory(statusScheme)
+
+func init() {
+	statusScheme.AddUnversionedTypes(metav1.SchemeGroupVersion,
+		&metav1.Status{},
+	)
 }
