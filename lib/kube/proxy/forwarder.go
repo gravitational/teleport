@@ -310,6 +310,8 @@ type authContext struct {
 	// disconnectExpiredCert if set, controls the time when the connection
 	// should be disconnected because the client cert expires
 	disconnectExpiredCert time.Time
+	// certExpires is the client certificate expiration timestamp.
+	certExpires time.Time
 	// sessionTTL specifies the duration of the user's session
 	sessionTTL time.Duration
 }
@@ -321,7 +323,7 @@ func (c authContext) String() string {
 func (c *authContext) key() string {
 	// it is important that the context key contains user, kubernetes groups and certificate expiry,
 	// so that new logins with different parameters will not reuse this context
-	return fmt.Sprintf("%v:%v:%v:%v:%v:%v", c.teleportCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.kubeCluster, c.disconnectExpiredCert.UTC().Unix())
+	return fmt.Sprintf("%v:%v:%v:%v:%v:%v", c.teleportCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.kubeCluster, c.certExpires.Unix())
 }
 
 func (c *authContext) eventClusterMeta() apievents.KubernetesClusterMetadata {
@@ -600,6 +602,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	authCtx := &authContext{
 		clientIdleTimeout: roles.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		sessionTTL:        sessionTTL,
+		certExpires:       certExpires,
 		Context:           ctx,
 		kubeGroups:        utils.StringsSet(kubeGroups),
 		kubeUsers:         utils.StringsSet(kubeUsers),
@@ -1662,12 +1665,14 @@ func (f *Forwarder) getClientCreds(ctx authContext) *tls.Config {
 	if !validClientCreds(f.cfg.Clock, c) {
 		return nil
 	}
+	f.log.Debugf("Returning cached client credentials with key: %v", ctx.key())
 	return c
 }
 
 func (f *Forwarder) saveClientCreds(ctx authContext, c *tls.Config) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.log.Debugf("Caching client credentials with key: %v", ctx.key())
 	return f.clientCredentials.Set(ctx.key(), c, ctx.sessionTTL)
 }
 
