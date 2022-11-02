@@ -746,6 +746,10 @@
               "slug": "/database-access/guides/azure-redis/"
             },
             {
+              "title": "Azure SQL Server (Preview)",
+              "slug": "/database-access/guides/azure-sql-server-ad/"
+            },
+            {
               "title": "MongoDB Atlas",
               "slug": "/database-access/guides/mongodb-atlas/"
             },

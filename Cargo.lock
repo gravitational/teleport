@@ -1030,7 +1030,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "rdp-rs",
- "rsa 0.7.0",
+ "rsa 0.7.1",
  "tempfile",
  "utf16string",
  "uuid",
@@ -1153,9 +1153,9 @@ dependencies = [
 
 [[package]]
 name = "rsa"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96144aaefe4fa4c1846c404d1ccc3dc45c9b15c2e41591597294cb7ccc2dbfd7"
+checksum = "b0ecc3307be66bfb3574577895555bacfb9a37a8d5cd959444b72ff02495c618"
 dependencies = [
  "byteorder",
  "digest 0.10.5",

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::errors::{invalid_data_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
+use crate::errors::invalid_data_error;
 use crate::{piv, Message};
 use crate::{Encode, Payload};
 use bitflags::bitflags;
@@ -55,7 +55,11 @@ impl Client {
     }
 
     // ioctl handles messages coming from the RDP server over the RDPDR channel.
-    pub fn ioctl(&mut self, code: IoctlCode, input: &mut Payload) -> RdpResult<(u32, Vec<u8>)> {
+    pub(super) fn ioctl(
+        &mut self,
+        code: IoctlCode,
+        input: &mut Payload,
+    ) -> RdpResult<Option<Box<dyn Encode>>> {
         debug!("got IoctlCode {:?}", &code);
         // Note: this is an incomplete implementation of the scard API.
         // It's the bare minimum needed to make RDP authentication using a smartcard work.
@@ -64,7 +68,7 @@ impl Client {
         // fail, but most modern Windows hosts shouldn't call those. If you're reading this because
         // some SCARD_IOCTL_*A call is failing, I was wrong and you'll have to implement the Ascii
         // calls.
-        let resp = match code {
+        match code {
             IoctlCode::SCARD_IOCTL_ACCESSSTARTEDEVENT => self.handle_access_started_event(input),
             IoctlCode::SCARD_IOCTL_ESTABLISHCONTEXT => self.handle_establish_context(input),
             IoctlCode::SCARD_IOCTL_RELEASECONTEXT => self.handle_release_context(input),
@@ -88,73 +92,71 @@ impl Client {
             IoctlCode::SCARD_IOCTL_READCACHEW => self.handle_read_cache(input),
             IoctlCode::SCARD_IOCTL_WRITECACHEW => self.handle_write_cache(input),
             IoctlCode::SCARD_IOCTL_GETREADERICON => self.handle_get_reader_icon(input),
-            _ => {
-                warn!("unimplemented IOCTL: {:?}", code);
-                let resp = Long_Return::new(ReturnCode::SCARD_F_INTERNAL_ERROR);
-                debug!("sending {:?}", resp);
-                Ok(Some(resp.encode()?))
-            }
-        }?;
-
-        if let Some(resp) = resp {
-            Ok((NTSTATUS_OK, encode_response(resp)?))
-        } else {
-            Ok((SPECIAL_NO_RESPONSE, vec![]))
+            _ => self.handle_unimplemented_ioctl(code),
         }
     }
 
-    fn handle_access_started_event(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_access_started_event(
+        &self,
+        input: &mut Payload,
+    ) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = ScardAccessStartedEvent_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_establish_context(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_establish_context(
+        &mut self,
+        input: &mut Payload,
+    ) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = EstablishContext_Call::decode(input)?;
         debug!("got {:?}", req);
         let ctx = self.contexts.establish();
         let resp = EstablishContext_Return::new(ReturnCode::SCARD_S_SUCCESS, ctx);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_release_context(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_release_context(
+        &mut self,
+        input: &mut Payload,
+    ) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = Context_Call::decode(input)?;
         debug!("got {:?}", req);
         self.contexts.release(req.context.value);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_cancel(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_cancel(&self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = Context_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_is_valid_context(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_is_valid_context(&self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = Context_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_list_readers(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_list_readers(&self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = ListReaders_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp =
             ListReaders_Return::new(ReturnCode::SCARD_S_SUCCESS, vec!["Teleport".to_string()]);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_get_status_change(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_get_status_change(&self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = GetStatusChange_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = GetStatusChange_Return::new(ReturnCode::SCARD_S_SUCCESS, req);
@@ -163,11 +165,11 @@ impl Client {
             Ok(None)
         } else {
             debug!("sending {:?}", resp);
-            Ok(Some(resp.encode()?))
+            Ok(Some(Box::new(resp)))
         }
     }
 
-    fn handle_connect(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_connect(&mut self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = Connect_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -185,10 +187,10 @@ impl Client {
 
         let resp = Connect_Return::new(ReturnCode::SCARD_S_SUCCESS, handle);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_disconnect(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_disconnect(&mut self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = HCardAndDisposition_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -199,30 +201,30 @@ impl Client {
 
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_begin_transaction(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_begin_transaction(&self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = HCardAndDisposition_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_end_transaction(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_end_transaction(&self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = HCardAndDisposition_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
     fn handle_status(
         &self,
         input: &mut Payload,
         enc: StringEncoding,
-    ) -> RdpResult<Option<Vec<u8>>> {
+    ) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = Status_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Status_Return::new(
@@ -231,10 +233,10 @@ impl Client {
             enc,
         );
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_transmit(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_transmit(&mut self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = Transmit_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -259,10 +261,13 @@ impl Client {
 
         let resp = Transmit_Return::new(ReturnCode::SCARD_S_SUCCESS, resp.encode());
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_get_device_type_id(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_get_device_type_id(
+        &mut self,
+        input: &mut Payload,
+    ) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = GetDeviceTypeId_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -273,10 +278,10 @@ impl Client {
 
         let resp = GetDeviceTypeId_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_read_cache(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_read_cache(&mut self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = ReadCache_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -288,10 +293,10 @@ impl Client {
 
         let resp = ReadCache_Return::new(val);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_write_cache(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_write_cache(&mut self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = WriteCache_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -302,10 +307,13 @@ impl Client {
 
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_get_reader_icon(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_get_reader_icon(
+        &mut self,
+        input: &mut Payload,
+    ) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = GetReaderIcon_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -316,7 +324,14 @@ impl Client {
 
         let resp = GetReaderIcon_Return::new(ReturnCode::SCARD_E_UNSUPPORTED_FEATURE);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
+    }
+
+    fn handle_unimplemented_ioctl(&self, code: IoctlCode) -> RdpResult<Option<Box<dyn Encode>>> {
+        warn!("unimplemented IOCTL: {:?}", code);
+        let resp = Long_Return::new(ReturnCode::SCARD_F_INTERNAL_ERROR);
+        debug!("sending {:?}", resp);
+        Ok(Some(Box::new(resp)))
     }
 }
 
@@ -464,7 +479,7 @@ impl RPCEStreamHeader {
     }
 }
 
-fn encode_response(resp: Vec<u8>) -> RdpResult<Vec<u8>> {
+fn pad_and_add_headers(resp: Vec<u8>) -> RdpResult<Vec<u8>> {
     let mut resp = resp;
     // Pad response to be 8-byte aligned.
     let tail = resp.length() % 8;
@@ -616,10 +631,13 @@ impl Long_Return {
     fn new(return_code: ReturnCode) -> Self {
         Self { return_code }
     }
+}
+
+impl Encode for Long_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -674,13 +692,16 @@ impl EstablishContext_Return {
             context,
         }
     }
+}
+
+impl Encode for EstablishContext_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         let mut index = 0;
         self.context.encode_ptr(&mut index, &mut w)?;
         self.context.encode_value(&mut w)?;
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -847,6 +868,9 @@ impl ListReaders_Return {
             readers,
         }
     }
+}
+
+impl Encode for ListReaders_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -857,7 +881,7 @@ impl ListReaders_Return {
         w.write_u32::<LittleEndian>(readers.length() as u32)?;
         w.extend_from_slice(&readers);
 
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -1220,6 +1244,18 @@ impl GetStatusChange_Return {
             reader_states,
         }
     }
+
+    fn no_change(&self) -> bool {
+        for state in &self.reader_states {
+            if state.current_state != state.event_state {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+impl Encode for GetStatusChange_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -1231,16 +1267,7 @@ impl GetStatusChange_Return {
             state.encode(&mut w)?;
         }
 
-        Ok(w)
-    }
-
-    fn no_change(&self) -> bool {
-        for state in &self.reader_states {
-            if state.current_state != state.event_state {
-                return false;
-            }
-        }
-        true
+        pad_and_add_headers(w)
     }
 }
 
@@ -1350,6 +1377,9 @@ impl Connect_Return {
             active_protocol: CardProtocol::SCARD_PROTOCOL_T1,
         }
     }
+}
+
+impl Encode for Connect_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -1357,7 +1387,7 @@ impl Connect_Return {
         self.handle.encode_ptr(&mut index, &mut w)?;
         w.write_u32::<LittleEndian>(self.active_protocol.bits())?;
         self.handle.encode_value(&mut w)?;
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -1548,6 +1578,9 @@ impl Status_Return {
             encoding,
         }
     }
+}
+
+impl Encode for Status_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -1567,7 +1600,7 @@ impl Status_Return {
         w.write_u32::<LittleEndian>(reader_names.length() as u32)?;
         w.extend_from_slice(&reader_names);
 
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -1714,6 +1747,9 @@ impl Transmit_Return {
             recv_buffer,
         }
     }
+}
+
+impl Encode for Transmit_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -1727,7 +1763,7 @@ impl Transmit_Return {
         w.write_u32::<LittleEndian>(self.recv_buffer.len() as u32)?;
         w.extend_from_slice(&self.recv_buffer);
 
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -1799,11 +1835,14 @@ impl GetDeviceTypeId_Return {
             device_type_id: SCARD_READER_TYPE_VENDOR,
         }
     }
+}
+
+impl Encode for GetDeviceTypeId_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         w.write_u32::<LittleEndian>(self.device_type_id)?;
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -1924,6 +1963,9 @@ impl ReadCache_Return {
             },
         }
     }
+}
+
+impl Encode for ReadCache_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -1932,7 +1974,7 @@ impl ReadCache_Return {
         encode_ptr(Some(self.data.length() as u32), &mut index, &mut w)?;
         w.write_u32::<LittleEndian>(self.data.length() as u32)?;
         w.extend_from_slice(&self.data);
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -2090,6 +2132,9 @@ impl GetReaderIcon_Return {
     fn new(return_code: ReturnCode) -> Self {
         Self { return_code }
     }
+}
+
+impl Encode for GetReaderIcon_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -2099,7 +2144,7 @@ impl GetReaderIcon_Return {
         let mut index = 0;
         encode_ptr(Some(0), &mut index, &mut w)?;
         w.write_u32::<LittleEndian>(0)?;
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -2346,7 +2391,7 @@ mod tests {
         connect_scard_to_ctx: Option<u32>,
         ctl_code: IoctlCode,
         payload: &dyn Encode,
-        expected: Vec<u8>,
+        expected: &dyn Encode,
     ) {
         let mut c = client();
 
@@ -2357,9 +2402,11 @@ mod tests {
             connect_scard(&mut c, connect_scard_to_ctx);
         }
 
-        let (code, res) = c.ioctl(ctl_code, &mut to_payload(payload)).unwrap();
-        assert_eq!(0, code);
-        assert_eq!(expected, res);
+        let res = c
+            .ioctl(ctl_code, &mut to_payload(payload))
+            .unwrap()
+            .unwrap();
+        assert_eq!(expected.encode().unwrap(), res.encode().unwrap());
     }
 
     /// Connects a piv::Card to the client's internal context cache
@@ -2390,9 +2437,9 @@ mod tests {
             &ScardAccessStartedEvent_Call {
                 _unused: 3234823568,
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &Long_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+            },
         )
     }
 
@@ -2405,10 +2452,13 @@ mod tests {
             &EstablishContext_Call {
                 scope: Scope::SCARD_SCOPE_SYSTEM,
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0,
-                0, 0, 2, 0, 4, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &EstablishContext_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                context: Context {
+                    length: 4,
+                    value: 1,
+                },
+            },
         )
     }
 
@@ -2430,11 +2480,10 @@ mod tests {
                 readers_is_null: false,
                 readers_size: 4294967295,
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0,
-                0, 0, 2, 0, 20, 0, 0, 0, 84, 0, 101, 0, 108, 0, 101, 0, 112, 0, 111, 0, 114, 0,
-                116, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &ListReaders_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                readers: vec!["Teleport".to_string()],
+            },
         )
     }
 
@@ -2453,9 +2502,10 @@ mod tests {
                 reader_ptr: 131076,
                 reader_name: "Teleport".to_string(),
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 240, 0, 0, 0,
-            ],
+            &GetDeviceTypeId_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                device_type_id: 240,
+            },
         )
     }
 
@@ -2472,9 +2522,9 @@ mod tests {
                     value: context_value,
                 },
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &Long_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+            },
         )
     }
 
@@ -2515,13 +2565,30 @@ mod tests {
                     },
                 ],
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 112, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0,
-                0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                16, 0, 0, 0, 34, 0, 0, 0, 11, 0, 0, 0, 59, 149, 19, 129, 1, 128, 115, 255, 1, 0,
-                11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &GetStatusChange_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                reader_states: vec![
+                    ReaderState_Common_Call {
+                        current_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                        event_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                        atr_length: 0,
+                        atr: [
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        ],
+                    },
+                    ReaderState_Common_Call {
+                        current_state: CardStateFlags::SCARD_STATE_EMPTY,
+                        event_state: CardStateFlags::SCARD_STATE_CHANGED
+                            | CardStateFlags::SCARD_STATE_PRESENT,
+                        atr_length: 11,
+                        atr: [
+                            59, 149, 19, 129, 1, 128, 115, 255, 1, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        ],
+                    },
+                ],
+            },
         )
     }
 
@@ -2545,11 +2612,18 @@ mod tests {
                         | CardProtocol::SCARD_PROTOCOL_TX,
                 },
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0,
-                0, 0, 2, 0, 4, 0, 0, 0, 4, 0, 2, 0, 2, 0, 0, 0, 4, 0, 0, 0, 5, 0, 0, 0, 4, 0, 0, 0,
-                1, 0, 0, 0,
-            ],
+            &Connect_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                handle: Handle {
+                    context: Context {
+                        length: 4,
+                        value: 5,
+                    },
+                    length: 4,
+                    value: 1,
+                },
+                active_protocol: CardProtocol::SCARD_PROTOCOL_T1,
+            },
         )
     }
 
@@ -2571,9 +2645,9 @@ mod tests {
                 },
                 disposition: 0,
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &Long_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+            },
         )
     }
 
@@ -2597,12 +2671,18 @@ mod tests {
                 reader_length: 4294967295,
                 atr_length: 32,
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0,
-                0, 0, 2, 0, 6, 0, 0, 0, 2, 0, 0, 0, 59, 149, 19, 129, 1, 128, 115, 255, 1, 0, 11,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 20, 0,
-                0, 0, 84, 0, 101, 0, 108, 0, 101, 0, 112, 0, 111, 0, 114, 0, 116, 0, 0, 0, 0, 0,
-            ],
+            &Status_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                reader_names: vec!["Teleport".to_string()],
+                state: State::SCARD_SPECIFICMODE,
+                protocol: CardProtocol::SCARD_PROTOCOL_T1,
+                atr: [
+                    59, 149, 19, 129, 1, 128, 115, 255, 1, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],
+                atr_length: 11,
+                encoding: StringEncoding::Unicode,
+            },
         )
     }
 
@@ -2633,11 +2713,12 @@ mod tests {
                 recv_buffer_is_null: false,
                 recv_length: 258,
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 48, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                21, 0, 0, 0, 0, 0, 2, 0, 21, 0, 0, 0, 97, 17, 79, 6, 0, 0, 16, 0, 1, 0, 121, 7, 79,
-                5, 160, 0, 0, 3, 8, 144, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &Transmit_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                recv_buffer: vec![
+                    97, 17, 79, 6, 0, 0, 16, 0, 1, 0, 121, 7, 79, 5, 160, 0, 0, 3, 8, 144, 0,
+                ],
+            },
         )
     }
 
@@ -2663,10 +2744,10 @@ mod tests {
                     data_len: 4294967295,
                 },
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 16, 0, 0, 0, 0, 0, 0, 0, 112, 0, 16, 128, 0, 0, 0,
-                0, 0, 0, 2, 0, 0, 0, 0, 0,
-            ],
+            &ReadCache_Return {
+                return_code: ReturnCode::SCARD_W_CACHE_ITEM_NOT_FOUND,
+                data: vec![],
+            },
         )
     }
 
@@ -2691,9 +2772,9 @@ mod tests {
                     data: vec![1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0],
                 },
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &Long_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+            },
         )
     }
 
@@ -2715,9 +2796,9 @@ mod tests {
                 },
                 disposition: 0,
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &Long_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+            },
         )
     }
 
@@ -2739,9 +2820,9 @@ mod tests {
                 },
                 disposition: 0,
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &Long_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+            },
         )
     }
 
@@ -2759,10 +2840,9 @@ mod tests {
                 },
                 reader_name: "Teleport".to_string(),
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 16, 0, 0, 0, 0, 0, 0, 0, 34, 0, 16, 128, 0, 0, 0,
-                0, 0, 0, 2, 0, 0, 0, 0, 0,
-            ],
+            &GetReaderIcon_Return {
+                return_code: ReturnCode::SCARD_E_UNSUPPORTED_FEATURE,
+            },
         )
     }
 }
