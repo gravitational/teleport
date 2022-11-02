@@ -367,6 +367,11 @@ var (
 	// separate plain connection, but we're detecting it anyway so it at
 	// least appears in the logs as "unsupported" for debugging.
 	postgresCancelRequest = []byte{0x0, 0x0, 0x0, 0x10, 0x4, 0xd2, 0x16, 0x2e}
+	// postgresGSSEncRequest is sent first by a Postgres client
+	// to check whether the server supports GSS encryption.
+	// It is currently unsupported and our postgres engine will always respond 'N'
+	// for "not supported".
+	postgresGSSEncRequest = []byte{0x0, 0x0, 0x0, 0x8, 0x4, 0xd2, 0x16, 0x30}
 )
 
 // isHTTP returns true if the first 3 bytes of the prefix indicate
@@ -405,7 +410,9 @@ func detectProto(in []byte) (Protocol, error) {
 		return ProtoTLS, nil
 	case isHTTP(in):
 		return ProtoHTTP, nil
-	case bytes.HasPrefix(in, postgresSSLRequest), bytes.HasPrefix(in, postgresCancelRequest):
+	case bytes.HasPrefix(in, postgresSSLRequest),
+		bytes.HasPrefix(in, postgresCancelRequest),
+		bytes.HasPrefix(in, postgresGSSEncRequest):
 		return ProtoPostgres, nil
 	default:
 		return ProtoUnknown, trace.BadParameter("multiplexer failed to detect connection protocol, first few bytes were: %#v", in)
