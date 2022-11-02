@@ -222,6 +222,26 @@ that people use to connect to your Teleport cluster, so choose wisely.
 
 This must be a subdomain of the domain you chose for [`route53_zone`](#route53\_zone) above.
 
+### add\_wildcard\_route53\_record
+
+Setting `export TF_VAR_add_wildcard_route53_record="true"`
+
+Used to enable Application Access for subdomains of the Teleport Proxy Service's public web address. A wildcard entry for the public-facing 
+domain will be set in Route 53, e.g., `*.teleport.example.com`, to point to the Teleport load balancer. For ACM a wildcard 
+certificate is included if this is set to `true`. Let's Encrypt automatically includes a wildcard subdomain in certificates that it issues.
+
+### enable\_mongodb\_listener
+
+Port `27017` is enabled on the Network Load Balancer that connects to the Teleport MongoDB listener port. Required for MongoDB database access.
+
+### enable\_mysql\_listener
+
+Port `3036` is enabled on the Network Load Balancer that connects to the Teleport MySQL listener port. Required for MySQL connections.
+
+### enable\_postgres\_listener
+
+Port `5432` is enabled on the Network Load Balancer that connects to the Teleport PostgreSQL listener port. Required for PostgreSQL connections.
+
 ### s3\_bucket_name
 
 Setting `export TF_VAR_s3_bucket_name="example-cluster"`

@@ -77,6 +77,8 @@ type OIDCConnector interface {
 	SetScope([]string)
 	// SetClaimsToRoles sets dynamic mapping from claims to roles
 	SetClaimsToRoles([]ClaimMapping)
+	// GetUsernameClaim gets the name of the claim from the OIDC connector to be used as the user's username.
+	GetUsernameClaim() string
 	// SetDisplay sets friendly name for this provider.
 	SetDisplay(string)
 	// GetGoogleServiceAccountURI returns path to google service account URI
@@ -306,6 +308,11 @@ func (o *OIDCConnectorV3) GetDisplay() string {
 // GetScope is additional scopes set by provider
 func (o *OIDCConnectorV3) GetScope() []string {
 	return o.Spec.Scope
+}
+
+// GetUsernameClaim gets the name of the claim from the OIDC connector to be used as the user's username.
+func (o *OIDCConnectorV3) GetUsernameClaim() string {
+	return o.Spec.UsernameClaim
 }
 
 // GetClaimsToRoles specifies dynamic mapping from claims to roles

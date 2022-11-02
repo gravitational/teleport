@@ -27,6 +27,7 @@ import (
 	mathrand "math/rand"
 	"os"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
@@ -35,6 +36,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -1259,7 +1262,7 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
-	hostID := uuid.New().String()
+	hostID := uuid.NewString()
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
@@ -2076,5 +2079,108 @@ func TestInstallerCRUD(t *testing.T) {
 	_, err = s.a.GetInstaller(ctx, installers.InstallerScriptName)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
+
+}
+
+func TestVersionMetrics(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	const resourceCount = 1100
+
+	expiry := srv.Auth().clock.Now().Add(time.Hour)
+	for i := 0; i < resourceCount; i++ {
+		version := strconv.Itoa(i % 2)
+
+		// create node
+		s, err := types.NewServer(uuid.NewString(), types.KindNode, types.ServerSpecV2{Version: version})
+		require.NoError(t, err)
+		s.SetExpiry(expiry)
+
+		_, err = srv.Auth().UpsertNode(ctx, s)
+		require.NoError(t, err)
+
+		// create database resource.
+		db, err := types.NewDatabaseV3(types.Metadata{
+			Name:    uuid.NewString(),
+			Expires: &expiry,
+		},
+			types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			})
+		require.NoError(t, err)
+
+		dbserver, err := types.NewDatabaseServerV3(types.Metadata{
+			Name:    uuid.NewString(),
+			Expires: &expiry,
+		},
+			types.DatabaseServerSpecV3{
+				Version:  version,
+				Hostname: "host",
+				HostID:   uuid.NewString(),
+				Database: db,
+			})
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertDatabaseServer(ctx, dbserver)
+		require.NoError(t, err)
+
+		// create app server
+		app, err := types.NewAppV3(types.Metadata{Name: uuid.NewString()}, types.AppSpecV3{URI: "localhost"})
+		require.NoError(t, err)
+
+		appserver, err := types.NewAppServerV3(types.Metadata{
+			Name:    uuid.NewString(),
+			Expires: &expiry,
+		}, types.AppServerSpecV3{
+			Hostname: "host",
+			HostID:   uuid.NewString(),
+			App:      app,
+			Version:  version,
+		})
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertApplicationServer(ctx, appserver)
+		require.NoError(t, err)
+
+		// create desktop
+		desktop, err := types.NewWindowsDesktopServiceV3(types.Metadata{Name: uuid.NewString()}, types.WindowsDesktopServiceSpecV3{
+			Addr:            "localhost:1234",
+			TeleportVersion: version,
+		})
+		require.NoError(t, err)
+		desktop.SetExpiry(expiry)
+
+		_, err = srv.Auth().UpsertWindowsDesktopService(ctx, desktop)
+		require.NoError(t, err)
+
+		// create kube service
+		kube := &types.ServerV2{
+			Metadata: types.Metadata{Name: uuid.NewString(), Expires: &expiry},
+			Kind:     types.KindKubeService,
+			Version:  types.V2,
+			Spec: types.ServerSpecV2{
+				KubernetesClusters: []*types.KubernetesCluster{{Name: "root-kube-cluster"}},
+				Version:            version,
+			},
+		}
+
+		require.NoError(t, srv.Auth().UpsertKubeService(ctx, kube))
+	}
+
+	// calculate the versions of all resources
+	srv.Auth().updateVersionMetrics()
+
+	// half the resources should be version 1
+	version1, err := registeredAgents.GetMetricWithLabelValues("1")
+	require.NoError(t, err)
+	assert.Equal(t, resourceCount*2.5, testutil.ToFloat64(version1))
+
+	// half the resources should be version 2
+	version0, err := registeredAgents.GetMetricWithLabelValues("0")
+	require.NoError(t, err)
+	assert.Equal(t, resourceCount*2.5, testutil.ToFloat64(version0))
 
 }

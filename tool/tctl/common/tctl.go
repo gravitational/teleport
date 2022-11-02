@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -190,6 +191,11 @@ func Run(commands []CLICommand) {
 		if match {
 			break
 		}
+	}
+
+	if err := common.ShowClusterAlerts(ctx, client, os.Stderr, nil,
+		types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
+		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 }
 
@@ -409,6 +415,10 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 	}
 	authConfig.AuthServers = cfg.AuthServers
 	authConfig.Log = cfg.Log
+
+	if c.TLSRoutingEnabled {
+		cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+	}
 
 	return authConfig, nil
 }

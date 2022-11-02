@@ -420,12 +420,12 @@ func TestSaveGetTrustedCerts(t *testing.T) {
 
 	pemBytes, ok := fixtures.PEMBytes["rsa"]
 	require.True(t, ok)
-	_, firstLeafCluster, err := newSelfSignedCA(pemBytes)
+	_, firstLeafCluster, err := newSelfSignedCA(pemBytes, "localhost")
 	require.NoError(t, err)
-	_, firstLeafClusterSecondCert, err := newSelfSignedCA(pemBytes)
+	_, firstLeafClusterSecondCert, err := newSelfSignedCA(pemBytes, "localhost")
 	require.NoError(t, err)
 
-	_, secondLeafCluster, err := newSelfSignedCA(pemBytes)
+	_, secondLeafCluster, err := newSelfSignedCA(pemBytes, "localhost")
 	require.NoError(t, err)
 
 	cas := []auth.TrustedCerts{
@@ -546,14 +546,14 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired boo
 	return key
 }
 
-func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, auth.TrustedCerts, error) {
+func newSelfSignedCA(privateKey []byte, cluster string) (*tlsca.CertAuthority, auth.TrustedCerts, error) {
 	rsaKey, err := ssh.ParseRawPrivateKey(privateKey)
 	if err != nil {
 		return nil, auth.TrustedCerts{}, trace.Wrap(err)
 	}
 	cert, err := tlsca.GenerateSelfSignedCAWithSigner(rsaKey.(*rsa.PrivateKey), pkix.Name{
-		CommonName:   "localhost",
-		Organization: []string{"localhost"},
+		CommonName:   cluster,
+		Organization: []string{cluster},
 	}, nil, defaults.CATTL)
 	if err != nil {
 		return nil, auth.TrustedCerts{}, trace.Wrap(err)
@@ -579,7 +579,7 @@ func newTest(t *testing.T) (keyStoreTest, func()) {
 	}
 	require.True(t, utils.IsDir(s.store.KeyDir))
 
-	s.tlsCA, s.tlsCACert, err = newSelfSignedCA(CAPriv)
+	s.tlsCA, s.tlsCACert, err = newSelfSignedCA(CAPriv, "localhost")
 	require.NoError(t, err)
 
 	return s, func() {

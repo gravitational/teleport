@@ -27,6 +27,10 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -40,10 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
-	"golang.org/x/sync/errgroup"
 )
 
 // onListDatabases implements "tsh db ls" command.
@@ -559,7 +559,7 @@ func serializeDatabaseConfig(configInfo *dbConfigInfo, format string) (string, e
 // maybeStartLocalProxy starts local TLS ALPN proxy if needed depending on the
 // connection scenario and returns a list of options to use in the connect
 // command.
-func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase,
+func maybeStartLocalProxy(ctx context.Context, cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase,
 	database types.Database, rootClusterName string,
 ) ([]dbcmd.ConnectCommandFunc, error) {
 	if !shouldUseLocalProxyForDatabase(tc, db) {
@@ -600,7 +600,7 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 
 	go func() {
 		defer listener.Close()
-		if err := lp.Start(cf.Context); err != nil {
+		if err := lp.Start(ctx); err != nil {
 			log.WithError(err).Errorf("Failed to start local proxy")
 		}
 	}()
@@ -732,7 +732,11 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	opts, err := maybeStartLocalProxy(cf, tc, profile, routeToDatabase, database, rootClusterName)
+	// To avoid termination of background DB teleport proxy when a SIGINT is received don't use the cf.Context.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	opts, err := maybeStartLocalProxy(ctx, cf, tc, profile, routeToDatabase, database, rootClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}

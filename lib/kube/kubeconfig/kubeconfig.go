@@ -84,15 +84,20 @@ type ExecValues struct {
 //
 // If `path` is empty, Update will try to guess it based on the environment or
 // known defaults.
-func Update(path string, v Values) error {
+func Update(path string, v Values, storeAllCAs bool) error {
 	config, err := Load(path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	clusterCAs, err := v.Credentials.RootClusterCAs()
-	if err != nil {
-		return trace.Wrap(err)
+	var clusterCAs [][]byte
+	if storeAllCAs {
+		clusterCAs = v.Credentials.TLSCAs()
+	} else {
+		clusterCAs, err = v.Credentials.RootClusterCAs()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	cas := bytes.Join(clusterCAs, []byte("\n"))

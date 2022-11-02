@@ -139,6 +139,10 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 		code = libevents.SSMRunSuccessCode
 	}
 
+	exitCode := aws.Int64Value(cmdOut.ResponseCode)
+	if exitCode == 0 && code == libevents.SSMRunFailCode {
+		exitCode = -1
+	}
 	event := events.SSMRun{
 		Metadata: events.Metadata{
 			Type: libevents.SSMRunEvent,
@@ -148,7 +152,7 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 		InstanceID: aws.StringValue(instanceID),
 		AccountID:  req.AccountID,
 		Region:     req.Region,
-		ExitCode:   aws.Int64Value(cmdOut.ResponseCode),
+		ExitCode:   exitCode,
 		Status:     aws.StringValue(cmdOut.Status),
 	}
 

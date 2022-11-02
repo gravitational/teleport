@@ -34,20 +34,30 @@ func buildDockerPromotionPipelineECR() pipeline {
 	dockerPipeline.Services = []service{
 		dockerService(),
 	}
-	dockerPipeline.Volumes = dockerVolumes()
+	dockerPipeline.Volumes = []volume{
+		volumeDocker,
+		volumeAwsConfig,
+	}
 
 	dockerPipeline.Steps = append(dockerPipeline.Steps, verifyTaggedBuildStep())
 	dockerPipeline.Steps = append(dockerPipeline.Steps, waitForDockerStep())
 
 	// Pull/Push Steps
+	dockerPipeline.Steps = append(dockerPipeline.Steps, kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+		awsRoleSettings: awsRoleSettings{
+			awsAccessKeyID:     value{fromSecret: "PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY"},
+			awsSecretAccessKey: value{fromSecret: "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET"},
+			role:               value{fromSecret: "PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE"},
+		},
+		configVolume: volumeRefAwsConfig,
+	}))
 	dockerPipeline.Steps = append(dockerPipeline.Steps, step{
 		Name:  "Pull/retag Docker images",
 		Image: "docker",
-		Environment: map[string]value{
-			"AWS_ACCESS_KEY_ID":     {fromSecret: "PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY"},
-			"AWS_SECRET_ACCESS_KEY": {fromSecret: "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET"},
+		Volumes: []volumeRef{
+			volumeRefDocker,
+			volumeRefAwsConfig,
 		},
-		Volumes: dockerVolumeRefs(),
 		Commands: []string{
 			"apk add --no-cache aws-cli",
 			"export VERSION=${DRONE_TAG##v}",
@@ -91,22 +101,34 @@ func buildDockerPromotionPipelineQuay() pipeline {
 	dockerPipeline.Services = []service{
 		dockerService(),
 	}
-	dockerPipeline.Volumes = dockerVolumes()
+	dockerPipeline.Volumes = []volume{
+		volumeDocker,
+		volumeAwsConfig,
+	}
 
 	dockerPipeline.Steps = append(dockerPipeline.Steps, verifyTaggedBuildStep())
 	dockerPipeline.Steps = append(dockerPipeline.Steps, waitForDockerStep())
 
 	// Pull/Push Steps
+	dockerPipeline.Steps = append(dockerPipeline.Steps, kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+		awsRoleSettings: awsRoleSettings{
+			awsAccessKeyID:     value{fromSecret: "PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY"},
+			awsSecretAccessKey: value{fromSecret: "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET"},
+			role:               value{fromSecret: "PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE"},
+		},
+		configVolume: volumeRefAwsConfig,
+	}))
 	dockerPipeline.Steps = append(dockerPipeline.Steps, step{
 		Name:  "Pull/retag Docker images",
 		Image: "docker",
 		Environment: map[string]value{
-			"QUAY_USERNAME":         {fromSecret: "PRODUCTION_QUAYIO_DOCKER_USERNAME"},
-			"QUAY_PASSWORD":         {fromSecret: "PRODUCTION_QUAYIO_DOCKER_PASSWORD"},
-			"AWS_ACCESS_KEY_ID":     {fromSecret: "STAGING_TELEPORT_DRONE_USER_ECR_KEY"},
-			"AWS_SECRET_ACCESS_KEY": {fromSecret: "STAGING_TELEPORT_DRONE_USER_ECR_SECRET"},
+			"QUAY_USERNAME": {fromSecret: "PRODUCTION_QUAYIO_DOCKER_USERNAME"},
+			"QUAY_PASSWORD": {fromSecret: "PRODUCTION_QUAYIO_DOCKER_PASSWORD"},
 		},
-		Volumes: dockerVolumeRefs(),
+		Volumes: []volumeRef{
+			volumeRefDocker,
+			volumeRefAwsConfig,
+		},
 		Commands: []string{
 			"apk add --no-cache aws-cli",
 			"export VERSION=${DRONE_TAG##v}",

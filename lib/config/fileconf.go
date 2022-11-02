@@ -765,6 +765,10 @@ type Auth struct {
 	// should be sent. This is applicable only when using ping-wrapped
 	// connections, regular TLS routing connections are not affected.
 	ProxyPingInterval types.Duration `yaml:"proxy_ping_interval,omitempty"`
+
+	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
+	// to ssh into a node, instead of just the CA for the current cluster.
+	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.

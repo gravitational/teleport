@@ -771,3 +771,105 @@ func TestEmailVerifiedClaim(t *testing.T) {
 		}
 	}
 }
+
+// TestUsernameClaim ensures that the `username_claim` field in an OIDC config is handled correctly.
+func TestUsernameClaim(t *testing.T) {
+	ctx := context.Background()
+	s := setUpSuite(t)
+	idp := newFakeIDP(t, false)
+
+	diagCtx := ssoDiagContext{}
+
+	// Create role that will be mapped to the user.
+	role, err := types.NewRole("access", types.RoleSpecV5{
+		Allow: types.RoleConditions{},
+	})
+	require.NoError(t, err)
+	err = s.a.CreateRole(ctx, role)
+	require.NoError(t, err)
+
+	// Create claims with "preferred_username" field.
+	claims := map[string]interface{}{
+		"email_verified":     true,
+		"groups":             []string{"everyone"},
+		"email":              "test-user@example.com",
+		"sub":                "00001234abcd",
+		"exp":                1652091713.0,
+		"preferred_username": "Teleport_TestUser",
+	}
+
+	// Create identity from the claims.
+	ident, err := oidc.IdentityFromClaims(claims)
+	require.NoError(t, err)
+
+	tests := []struct {
+		desc             string
+		spec             types.OIDCConnectorSpecV3
+		expectedUsername string
+		expectedError    string
+	}{
+		{
+			desc: "username_claim specified with correct claim",
+			spec: types.OIDCConnectorSpecV3{
+				IssuerURL:     idp.s.URL,
+				ClientID:      "000",
+				ClientSecret:  "0000",
+				ClaimsToRoles: []types.ClaimMapping{{Claim: "groups", Value: "everyone", Roles: []string{"access"}}},
+				RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+				UsernameClaim: "preferred_username",
+			},
+			expectedUsername: "Teleport_TestUser",
+		},
+		{
+			desc: "username_claim specified with incorrect claim",
+			spec: types.OIDCConnectorSpecV3{
+				IssuerURL:     idp.s.URL,
+				ClientID:      "000",
+				ClientSecret:  "0000",
+				ClaimsToRoles: []types.ClaimMapping{{Claim: "groups", Value: "everyone", Roles: []string{"access"}}},
+				RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+				UsernameClaim: "prefred_usrnam",
+			},
+			expectedError: "The configured username_claim of \"prefred_usrnam\" was not received from the IdP. Please update the username_claim in connector \"okta-oidc\".",
+		},
+		{
+			desc: "no username_claim specified, default to using email",
+			spec: types.OIDCConnectorSpecV3{
+				IssuerURL:     idp.s.URL,
+				ClientID:      "000",
+				ClientSecret:  "0000",
+				ClaimsToRoles: []types.ClaimMapping{{Claim: "groups", Value: "everyone", Roles: []string{"access"}}},
+				RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+			},
+			expectedUsername: "test-user@example.com",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			// Create OIDC connector with UsernameClaim specified.
+			connector, err := types.NewOIDCConnector("okta-oidc", tc.spec)
+			require.NoError(t, err)
+
+			// Create OIDC request.
+			oidcRequest := types.OIDCAuthRequest{
+				ConnectorID:   "okta-oidc",
+				Type:          constants.OIDC,
+				CertTTL:       defaults.OIDCAuthRequestTTL,
+				SSOTestFlow:   true,
+				ConnectorSpec: &tc.spec,
+			}
+			request, err := s.a.CreateOIDCAuthRequest(ctx, oidcRequest)
+			require.NoError(t, err)
+
+			// Generate the userCreateParams for the OIDC user.
+			createUserParams, err := s.a.calculateOIDCUser(&diagCtx, connector, claims, ident, request)
+			if tc.expectedError != "" {
+				require.ErrorContains(t, err, tc.expectedError)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedUsername, createUserParams.username)
+			}
+		})
+	}
+}

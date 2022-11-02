@@ -62,7 +62,7 @@ func (c *AlertCommand) Initialize(app *kingpin.Application, config *service.Conf
 	c.alertCreate.Arg("message", "Alert body message").Required().StringVar(&c.message)
 	c.alertCreate.Flag("ttl", "Time duration after which the alert expires.").DurationVar(&c.ttl)
 	c.alertCreate.Flag("severity", "Severity of the alert (low, medium, or high)").Default("low").EnumVar(&c.severity, "low", "medium", "high")
-	c.alertCreate.Flag("labels", labelHelp).StringVar(&c.labels)
+	c.alertCreate.Flag("labels", "List of labels to attach to the alert. For example: key1=value1,key2=value2").StringVar(&c.labels)
 }
 
 // TryRun takes the CLI command as an argument (like "alerts ls") and executes it.

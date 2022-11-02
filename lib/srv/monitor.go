@@ -387,7 +387,11 @@ type TrackingReadConn struct {
 func (t *TrackingReadConn) Read(b []byte) (int, error) {
 	n, err := t.Conn.Read(b)
 	t.UpdateClientActivity()
-	return n, trace.Wrap(err)
+
+	// This has to use the original error type or else utilities using the connection
+	// (like io.Copy, which is used by the oxy forwarder) may incorrectly categorize
+	// the error produced by this and terminate the connection unnecessarily.
+	return n, err
 }
 
 func (t *TrackingReadConn) Close() error {

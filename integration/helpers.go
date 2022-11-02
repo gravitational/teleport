@@ -1770,7 +1770,7 @@ func enableKube(config *service.Config, clusterName string) error {
 		TeleportClusterName: clusterName,
 		ClusterAddr:         "https://" + net.JoinHostPort(Host, ports.Pop()),
 		Credentials:         key,
-	})
+	}, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

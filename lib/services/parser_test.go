@@ -179,7 +179,7 @@ func TestNewResourceParser(t *testing.T) {
 		t.Parallel()
 		exprs := []string{
 			// Test equals.
-			"equals(name, `test-name`)",
+			"equals(name, `test-hostname`)",
 			`equals(resource.metadata.name, "test-name")`,
 			`equals(labels.env, "prod")`,
 			`equals(labels["env"], "prod")`,
@@ -201,9 +201,9 @@ func TestNewResourceParser(t *testing.T) {
 			`labels.env == "prod"`,
 			`labels["env"] == "prod"`,
 			`labels["env"] != "_"`,
-			`name == "test-name"`,
+			`name == "test-hostname"`,
 			// Test combos.
-			`labels.os == "mac" && name == "test-name" && search("v8")`,
+			`labels.os == "mac" && name == "test-hostname" && search("v8")`,
 			`exists(labels.env) && labels["env"] != "qa"`,
 			`search("does", "not", "exist") || resource.spec.addr == "_" || labels.version == "v8"`,
 			// Test operator precedence
@@ -279,6 +279,34 @@ func TestNewResourceParser(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestResourceParser_NameIdentifier(t *testing.T) {
+	t.Parallel()
+
+	// Server resource should use hostname when using name identifier.
+	server, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
+		Hostname: "server-hostname",
+	}, nil)
+	require.NoError(t, err)
+
+	parser, err := NewResourceParser(server)
+	require.NoError(t, err)
+	match, err := parser.EvalBoolPredicate(`name == "server-hostname"`)
+	require.NoError(t, err)
+	require.True(t, match)
+
+	// Other resource types should use the default metadata name.
+	desktop, err := types.NewWindowsDesktopV3("desktop-name", nil, types.WindowsDesktopSpecV3{
+		Addr: "some-address",
+	})
+	require.NoError(t, err)
+
+	parser, err = NewResourceParser(desktop)
+	require.NoError(t, err)
+	match, err = parser.EvalBoolPredicate(`name == "desktop-name"`)
+	require.NoError(t, err)
+	require.True(t, match)
 }
 
 // TestParserHostCertContext tests set functions with a custom host cert

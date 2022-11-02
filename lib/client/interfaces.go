@@ -279,6 +279,21 @@ func (k *Key) SSHCAsForClusters(clusters []string) (result [][]byte, err error) 
 	return result, nil
 }
 
+// GetClusterNames gets the names of clusters this key has CAs for.
+func (k *Key) GetClusterNames() ([]string, error) {
+	var clusters []string
+	for _, ca := range k.TrustedCA {
+		for _, hc := range ca.HostCertificates {
+			_, hosts, _, _, _, err := ssh.ParseKnownHosts(hc)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			clusters = append(clusters, hosts...)
+		}
+	}
+	return apiutils.Deduplicate(clusters), nil
+}
+
 // TeleportClientTLSConfig returns client TLS configuration used
 // to authenticate against API servers.
 func (k *Key) TeleportClientTLSConfig(cipherSuites []uint16, clusters []string) (*tls.Config, error) {

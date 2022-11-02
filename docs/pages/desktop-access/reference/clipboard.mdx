@@ -8,8 +8,8 @@ and a remote Windows Desktop.
 
 <Admonition type="note">
 This feature requires a Chromium-based browser such as Google Chrome, Brave,
-or Microsoft Edge. To use Desktop Access on other browsers, disable clipboard
-sharing.
+or Microsoft Edge. If using another browser, clipboard sharing will be disabled
+irrespective of whether a user's role allows it.
 </Admonition>
 
 Clipboard sharing is configured via Teleport's RBAC system. It is enabled by default,
@@ -27,7 +27,7 @@ spec:
 ```
 
 If a clipboard sharing is enabled for a user, the browser will prompt for access
-to the system clipboard when a desktop session is started. Grant this access to
+to the system clipboard when the clipboard is first synchronized. Grant this access to
 proceed.
 
 {

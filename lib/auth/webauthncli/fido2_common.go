@@ -78,14 +78,17 @@ func FIDO2Diag(ctx context.Context, promptOut io.Writer) (*FIDO2DiagResult, erro
 		Response: protocol.PublicKeyCredentialCreationOptions{
 			Challenge: make([]byte, 32),
 			RelyingParty: protocol.RelyingPartyEntity{
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "localhost",
+				},
 				ID: "localhost",
 			},
 			User: protocol.UserEntity{
 				CredentialEntity: protocol.CredentialEntity{
 					Name: "test",
 				},
-				ID:          []byte("test"),
 				DisplayName: "test",
+				ID:          []byte("test"),
 			},
 			Parameters: []protocol.CredentialParameter{
 				{

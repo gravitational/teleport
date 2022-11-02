@@ -488,6 +488,9 @@ message PingResponse {
   // RemoteAddr is the client peer addr as seen from the auth server (used to assist
   // instances in guessing their external IP when none is configured).
   string RemoteAddr = 7 [(gogoproto.jsontag) = "remote_addr"];
+  // LoadAllCAs signals whether or not tsh should load all CAs when trying
+  // to ssh into a node.
+  bool LoadAllCAs = 8 [(gogoproto.jsontag) = "load_all_cas"];
 }
 
 // Features are auth server features.
@@ -1661,6 +1664,9 @@ message ListResourcesRequest {
   // UseSearchAsRoles indicates that the response should include all resources
   // the caller is able to request access to using search_as_roles
   bool UseSearchAsRoles = 11 [(gogoproto.jsontag) = "use_search_as_roles,omitempty"];
+  // UsePreviewAsRoles indicates that the response should include all resources
+  // the caller would be able to access with their preview_as_roles
+  bool UsePreviewAsRoles = 12 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
 }
 
 // ListResourceResponse response of ListResources.
@@ -2050,6 +2056,9 @@ service AuthService {
 
   // GetActiveSessionTrackers returns a list of active sessions.
   rpc GetActiveSessionTrackers(google.protobuf.Empty) returns (stream types.SessionTrackerV1);
+
+  // GetActiveSessionTrackersWithFilter returns a list of active sessions filtered by a filter.
+  rpc GetActiveSessionTrackersWithFilter(types.SessionTrackerFilter) returns (stream types.SessionTrackerV1);
 
   // RemoveSessionTracker removes a session tracker resource.
   rpc RemoveSessionTracker(RemoveSessionTrackerRequest) returns (google.protobuf.Empty);
