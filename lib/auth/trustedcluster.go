@@ -613,11 +613,12 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *Valida
 
 		// Get the default transport, this allows picking up proxy from the
 		// environment.
-		tr, ok := http.DefaultTransport.(*http.Transport)
+		defaultTransport, ok := http.DefaultTransport.(*http.Transport)
 		if !ok {
-			return nil, trace.BadParameter("unable to get default transport")
+			return nil, trace.BadParameter("invalid transport type %T", http.DefaultTransport)
 		}
-
+		// Clone the transport to not modify the global instance.
+		tr := defaultTransport.Clone()
 		// Disable certificate checking while in debug mode.
 		tlsConfig := utils.TLSConfig(a.cipherSuites)
 		tlsConfig.InsecureSkipVerify = true
