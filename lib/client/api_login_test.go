@@ -227,7 +227,8 @@ func TestTeleportClient_Login_local(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			// NOTE: @gzigzigzeo Timeout increased
+			ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			defer cancel()
 
 			prompt.SetStdin(test.inputReader)
