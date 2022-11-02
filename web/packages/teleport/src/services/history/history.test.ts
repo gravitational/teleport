@@ -42,8 +42,21 @@ describe('services/history', () => {
       expect(history.ensureBaseUrl('somepath')).toBe(
         'http://localhost/somepath'
       );
-      expect(history.ensureBaseUrl('http://badurl')).toBe(
-        'http://localhost/http://badurl'
+      expect(history.ensureBaseUrl('http://badurl')).toBe('http://localhost/');
+      // app access path redirects
+      expect(
+        history.ensureBaseUrl(
+          '/web/launch%3Fpath%3D%252Fteleport%252Fconfig%252F'
+        )
+      ).toBe(
+        'http://localhost/web/launch%3Fpath%3D%252Fteleport%252Fconfig%252F'
+      );
+      expect(
+        history.ensureBaseUrl(
+          'http://badurl/web/launch%3Fpath%3D%252Fteleport%252Fconfig%252F'
+        )
+      ).toBe(
+        'http://localhost/web/launch%3Fpath%3D%252Fteleport%252Fconfig%252F'
       );
     });
   });
