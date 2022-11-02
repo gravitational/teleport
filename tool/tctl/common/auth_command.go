@@ -341,7 +341,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 	}
 	clusterName := cn.GetClusterName()
 
-	key.Cert, err = clusterAPI.GenerateHostCert(key.MarshalSSHPublicKey(),
+	key.Cert, err = clusterAPI.GenerateHostCert(ctx, key.MarshalSSHPublicKey(),
 		"", "", principals,
 		clusterName, types.RoleNode, 0)
 	if err != nil {
