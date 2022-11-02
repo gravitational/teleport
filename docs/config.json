@@ -742,6 +742,10 @@
               "slug": "/database-access/guides/azure-postgres-mysql/"
             },
             {
+              "title": "Azure Cache for Redis",
+              "slug": "/database-access/guides/azure-redis/"
+            },
+            {
               "title": "MongoDB Atlas",
               "slug": "/database-access/guides/mongodb-atlas/"
             },
