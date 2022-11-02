@@ -25,11 +25,11 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/utils/socks"
-	"github.com/gravitational/trace"
 )
 
 // TestDialProxy tests the dialing mechanism of HTTP and SOCKS proxies.
