@@ -160,6 +160,22 @@ func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
+func (s *SigningService) Sign(req *http.Request) (*http.Request, error) {
+	sessionCtx, err := common.GetSessionContext(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resolvedEndpoint, err := resolveEndpoint(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	signedReq, err := s.prepareSignedRequest(req, resolvedEndpoint, sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return signedReq, nil
+}
+
 // emitAuditEvent writes details of the AWS request to audit stream.
 func (s *SigningService) emitAuditEvent(ctx context.Context, req *http.Request, resp *http.Response, sessionCtx *common.SessionContext, endpoint *endpoints.ResolvedEndpoint) error {
 	event := &apievents.AppSessionRequest{
@@ -247,4 +263,39 @@ func getAWSCredentialsFromSTSAPI(provider client.ConfigProvider, sessionCtx *com
 			}
 		},
 	)
+}
+
+// signerHandler is an http.Handler for signing and forwarding requests to AWS API.
+type signerHandler struct {
+	ss *SigningService
+	*forward.Forwarder
+}
+
+func NewSignerHandler() (*signerHandler, error) {
+	fwd, err := forward.New(
+		forward.RoundTripper(http.DefaultTransport),
+		//forward.ErrorHandler(utils.ErrorHandlerFunc(ss.formatForwardResponseError)),
+		forward.PassHostHeader(true),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ss, err := NewSigningService(SigningServiceConfig{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &signerHandler{
+		ss:        ss,
+		Forwarder: fwd,
+	}, nil
+}
+
+// ServeHTTP handles incoming requests by signing them and then forwarding them to the proper AWS API.
+func (s *signerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	r, err := s.ss.Sign(r)
+	if err != nil {
+		panic(err)
+	}
+
+	s.Forwarder.ServeHTTP(w, r)
 }

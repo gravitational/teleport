@@ -19,6 +19,7 @@ package app
 import (
 	"context"
 	"errors"
+	"net/http"
 	"path/filepath"
 	"sync"
 	"time"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -83,7 +85,8 @@ type sessionChunk struct {
 	// for ~7 minutes at most.
 	closeTimeout time.Duration
 
-	log *logrus.Entry
+	log     *logrus.Entry
+	handler http.Handler
 }
 
 // sessionOpt defines an option function for creating sessionChunk.
@@ -185,6 +188,18 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+// withAWSForwarder is a sessionOpt that uses forwarder of the AWS signning
+// service.
+// withAWSSigner is a sessionOpt that uses an AWS signing service handler.
+func (s *Server) withAWSSigner(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
+	handler, err := appaws.NewSignerHandler()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sess.handler = handler
 	return nil
 }
 

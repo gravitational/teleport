@@ -196,6 +196,7 @@ type Server struct {
 
 	// authMiddleware allows wrapping connections with identity information.
 	authMiddleware *auth.Middleware
+	handler        http.Handler
 }
 
 // monitoredApps is a collection of applications from different sources
@@ -664,6 +665,9 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		//  services that support it (All services expect Amazon SimpleDB but
 		//  this AWS service has been deprecated)
 		if aws.IsSignedByAWSSigV4(r) {
+			if true {
+				return s.serveSession(w, r, identity, app, s.withAWSSigner)
+			}
 			return s.serveSession(w, r, identity, app, s.withAWSForwarder)
 		}
 
@@ -714,7 +718,13 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request, identity *
 	}
 
 	// Forward request to the target application.
-	session.fwd.ServeHTTP(w, common.WithSessionContext(r, sessionCtx))
+	if session.handler != nil {
+		session.handler.ServeHTTP(w, common.WithSessionContext(r, sessionCtx))
+		return nil
+
+	} else {
+		session.fwd.ServeHTTP(w, common.WithSessionContext(r, sessionCtx))
+	}
 	return nil
 }
 
