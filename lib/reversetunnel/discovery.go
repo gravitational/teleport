@@ -59,14 +59,18 @@ type discoveryRequestRaw struct {
 }
 
 func marshalDiscoveryRequest(req discoveryRequest) ([]byte, error) {
-	var out discoveryRequestRaw
+	out := discoveryRequestRaw{
+		Proxies: make([]json.RawMessage, 0, len(req.Proxies)),
+	}
 	for _, p := range req.Proxies {
-		// Clone the server value to avoid a potential race
-		// since the proxies are shared.
-		// Marshaling attempts to enforce defaults which modifies
-		// the original value.
-		p = p.DeepCopy()
-		data, err := services.MarshalServer(p)
+		// create a new server that clones only the id and kind as that's all we need
+		// to propagate
+		srv, err := types.NewServer(p.GetName(), p.GetKind(), types.ServerSpecV2{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		data, err := utils.FastMarshal(srv)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -81,17 +85,21 @@ func unmarshalDiscoveryRequest(data []byte) (*discoveryRequest, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing payload in discovery request")
 	}
+
 	var raw discoveryRequestRaw
-	err := utils.FastUnmarshal(data, &raw)
-	if err != nil {
+	if err := utils.FastUnmarshal(data, &raw); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var out discoveryRequest
+
+	out := discoveryRequest{
+		Proxies: make([]types.Server, 0, len(raw.Proxies)),
+	}
 	for _, bytes := range raw.Proxies {
-		proxy, err := services.UnmarshalServer([]byte(bytes), types.KindProxy)
+		proxy, err := services.UnmarshalServer(bytes, types.KindProxy)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		out.Proxies = append(out.Proxies, proxy)
 	}
 	out.ClusterName = raw.ClusterName
