@@ -29,9 +29,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
@@ -49,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 // TestALPNSNIProxyMultiCluster tests SSH connection in multi-cluster setup with.
@@ -1026,7 +1028,11 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 		Log:         utils.NewLoggerForTests(),
 		Ports:       singleProxyPortSetup(),
 	})
+	defer rc.StopAll()
 	username := mustGetCurrentUser(t).Username
+	log.Info("Teleport root cluster instance created")
+
+	username := helpers.MustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
 
 	rcConf := service.MakeDefaultConfig()
@@ -1046,15 +1052,9 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	require.NoError(t, err)
 	defer rc.StopAll()
 
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second*30))
-	defer cancel()
-
-	validUser := "aladdin"
-	validPass := "open sesame"
-
 	// Create and start http_proxy server.
 	ph := &helpers.ProxyHandler{}
-	authorizer := helpers.NewProxyAuthorizer(ph, map[string]string{validUser: validPass})
+	authorizer := helpers.NewProxyAuthorizer(ph, "alice", "rosebud")
 	ts := httptest.NewServer(authorizer)
 	defer ts.Close()
 
@@ -1062,27 +1062,24 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	require.NoError(t, err)
 
 	rcProxyAddr := net.JoinHostPort(rcAddr, rc.GetPortWeb())
+	// set http_proxy to user:password@host
+	// these credentials will be rejected by the auth proxy (initially).
+	user := "aladdin"
+	pass := "open sesame"
+	t.Setenv("http_proxy", helpers.MakeProxyAddr(user, pass, proxyURL.Host))
 
-	// proxy url is just the host with no auth credentials
-	t.Setenv("http_proxy", proxyURL.Host)
-	_, err = rc.StartNode(makeNodeConfig("first-root-node", rcProxyAddr))
+	rcProxyAddr := net.JoinHostPort(rcAddr, helpers.PortStr(t, rc.Web))
+	require.Zero(t, ph.Count())
+	_, err = rc.StartNode(makeNodeConfig("node1", rcProxyAddr))
 	require.Error(t, err)
-	require.ErrorIs(t, authorizer.LastError(), trace.AccessDenied("missing Proxy-Authorization header"))
+
+	timeout := time.Second * 60
+	require.ErrorIs(t, authorizer.WaitForRequest(timeout), trace.AccessDenied("bad credentials"))
 	require.Zero(t, ph.Count())
 
-	// proxy url is user:password@host with incorrect password
-	t.Setenv("http_proxy", helpers.MakeProxyAddr(validUser, "incorrectPassword", proxyURL.Host))
-	_, err = rc.StartNode(makeNodeConfig("second-root-node", rcProxyAddr))
-	require.Error(t, err)
-	require.ErrorIs(t, authorizer.LastError(), trace.AccessDenied("bad credentials"))
-	require.Zero(t, ph.Count())
-
-	// proxy url is user:password@host with correct password
-	t.Setenv("http_proxy", helpers.MakeProxyAddr(validUser, validPass, proxyURL.Host))
-	_, err = rc.StartNode(makeNodeConfig("third-root-node", rcProxyAddr))
-	require.NoError(t, err)
-	err = waitForNodeCount(ctx, rc, "root.example.com", 1)
-	require.NoError(t, err)
-	require.NoError(t, authorizer.LastError())
-	require.NotZero(t, ph.Count())
+	authorizer.SetCredentials(user, pass)
+	require.NoError(t, authorizer.WaitForRequest(timeout))
+	require.Greater(t, ph.Count(), 0)
+	// with env set correctly and authorized, the node should register.
+	require.NoError(t, helpers.WaitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 1))
 }
