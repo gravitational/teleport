@@ -118,14 +118,12 @@ func newTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dur
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
 		if proxyURL := proxy.GetProxyURL(addr); proxyURL != nil {
 			conn, err = DialProxyWithDialer(ctx, proxyURL, addr, dialer)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 		} else {
 			conn, err = dialer.DialContext(ctx, network, addr)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
+		}
+
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
 		sconn, err := sshConnect(ctx, conn, ssh, dialTimeout, addr)

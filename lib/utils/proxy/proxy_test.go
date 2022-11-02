@@ -14,20 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package client
+package proxy
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"testing"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/utils/socks"
+	"github.com/gravitational/trace"
 )
 
 // TestDialProxy tests the dialing mechanism of HTTP and SOCKS proxies.
@@ -36,64 +38,85 @@ func TestDialProxy(t *testing.T) {
 	dest := "remote-ip:3080"
 
 	cases := []struct {
-		proxy  func(net.Listener)
-		scheme string
+		proxy      func(chan error, net.Listener)
+		scheme     string
+		assertDial require.ErrorAssertionFunc
 	}{
 		{
-			proxy:  serveSOCKSProxy,
-			scheme: "socks5",
+			proxy:      serveSOCKSProxy,
+			scheme:     "socks5",
+			assertDial: require.NoError,
 		},
 		{
-			proxy:  serveHTTPProxy,
-			scheme: "http",
+			proxy:      serveHTTPProxy,
+			scheme:     "http",
+			assertDial: require.NoError,
+		},
+		{
+			proxy:      func(errChan chan error, l net.Listener) { close(errChan) },
+			scheme:     "unkown",
+			assertDial: require.Error,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.scheme, func(t *testing.T) {
+			errChan := make(chan error)
 			l, err := net.Listen("tcp", "127.0.0.1:0")
 			require.NoError(t, err)
+
 			t.Cleanup(func() {
 				require.NoError(t, l.Close())
+				err := <-errChan
+				require.NoError(t, err)
 			})
 
-			go tc.proxy(l)
+			go tc.proxy(errChan, l)
 
 			proxyURL, err := url.Parse(tc.scheme + "://" + l.Addr().String())
 			require.NoError(t, err)
 
-			conn, err := DialProxy(ctx, proxyURL, dest)
-			require.NoError(t, err)
+			conn, err := client.DialProxy(ctx, proxyURL, dest)
+			tc.assertDial(t, err)
 
-			result := make([]byte, len(dest))
-			_, err = io.ReadFull(conn, result)
-			require.NoError(t, err)
-			require.Equal(t, string(result), dest)
+			if conn != nil {
+				result := make([]byte, len(dest))
+				_, err = io.ReadFull(conn, result)
+				require.NoError(t, err)
+				require.Equal(t, string(result), dest)
+			}
 		})
 	}
 }
 
 // serveSOCKSProxy starts a limited SOCKS proxy on the supplied listener.
 // It performs the SOCKS5 handshake then writes back the requested remote address.
-func serveSOCKSProxy(l net.Listener) {
+func serveSOCKSProxy(errChan chan error, l net.Listener) {
+	defer close(errChan)
+
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			log.Debugf("error accepting connection: %v", err)
+			if !errors.Is(err, net.ErrClosed) {
+				errChan <- trace.Wrap(err)
+			}
 			return
 		}
 
 		go func(conn net.Conn) {
 			defer conn.Close()
 
-			remoteAddr, err := socks.Handshake(conn)
-			if err != nil {
-				log.Debugf("handshake error: %v", err)
-				return
+			write := func(msg string) {
+				if _, err := conn.Write([]byte(msg)); err != nil {
+					errChan <- trace.Wrap(err)
+					return
+				}
 			}
-			if _, err := conn.Write([]byte(remoteAddr)); err != nil {
-				log.Debugf("error writing to connection: %v", err)
-				return
+
+			if remoteAddr, err := socks.Handshake(conn); err != nil {
+				write(err.Error())
+			} else {
+				write(remoteAddr)
 			}
 		}(conn)
 	}
@@ -101,7 +124,11 @@ func serveSOCKSProxy(l net.Listener) {
 
 // serveHTTPProxy starts a limited HTTP proxy on the supplied listener.
 // It performs the HTTP handshake then writes back the requested remote address.
-func serveHTTPProxy(l net.Listener) {
+func serveHTTPProxy(errChan chan error, l net.Listener) {
+	defer func() {
+		close(errChan)
+	}()
+
 	s := &http.Server{
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == http.MethodConnect {
@@ -109,10 +136,11 @@ func serveHTTPProxy(l net.Listener) {
 				w.Write([]byte(r.Host))
 			} else {
 				http.Error(w, "handshake error", http.StatusBadRequest)
-				return
 			}
 		}),
 	}
 
-	s.Serve(l)
+	if err := s.Serve(l); !errors.Is(err, net.ErrClosed) {
+		errChan <- trace.Wrap(err)
+	}
 }
