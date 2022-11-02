@@ -710,7 +710,7 @@ fix-imports/host:
 	@if ! type gci 2>&1 >/dev/null; then\
 		echo "gci is not installed or it's missing from PATH, consider installing it 'go install github.com/daixiang0/gci@latest' or use 'make -C build.assets/ fix-imports'";\
 		exit 1;\
-    fi
+	fi
 	gci write -s 'standard,default,prefix(github.com/gravitational/teleport)' --skip-generated .
 
 .PHONY: lint-build-tooling
