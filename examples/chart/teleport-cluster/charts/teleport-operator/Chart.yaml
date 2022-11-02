@@ -1,4 +1,4 @@
-.version: &version "11.0.0-rc.2"
+.version: &version "11.0.1"
 
 name: teleport-operator
 apiVersion: v2

@@ -974,6 +974,8 @@ message ProvisionTokenSpecV2 {
   ];
   // GitHub allows the configuration of options specific to the "github" join method.
   ProvisionTokenSpecV2GitHub GitHub = 7 [(gogoproto.jsontag) = "github,omitempty"];
+  // CircleCI allows the configuration of options specific to the "circleci" join method.
+  ProvisionTokenSpecV2CircleCI CircleCI = 8 [(gogoproto.jsontag) = "circleci,omitempty"];
 }
 
 message ProvisionTokenSpecV2GitHub {
@@ -1005,6 +1007,17 @@ message ProvisionTokenSpecV2GitHub {
   // Allow is a list of TokenRules, nodes using this token must match one
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+}
+
+message ProvisionTokenSpecV2CircleCI {
+  message Rule {
+    string ProjectID = 1 [(gogoproto.jsontag) = "project_id,omitempty"];
+    string ContextID = 2 [(gogoproto.jsontag) = "context_id,omitempty"];
+  }
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  string OrganizationID = 2 [(gogoproto.jsontag) = "organization_id,omitempty"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -4018,6 +4031,26 @@ message RecoveryCode {
   bytes HashedCode = 1 [(gogoproto.jsontag) = "hashed_code"];
   // IsUsed determines if this recovery code was used.
   bool IsUsed = 2 [(gogoproto.jsontag) = "is_used"];
+}
+
+message NullableSessionState {
+  SessionState State = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "state,omitempty"
+  ];
+}
+
+// SessionTrackerFilter are filters to apply when searching for session trackers.
+message SessionTrackerFilter {
+  // Kind describes what kind of session this is.
+  string Kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
+  // State is the current state of this session.
+  NullableSessionState State = 2 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "state,omitempty"
+  ];
+  // DesktopName is the windows desktop server this session belongs to.
+  string DesktopName = 3 [(gogoproto.jsontag) = "desktop_name,omitempty"];
 }
 
 // SessionTrackerV1 represents a live session resource.

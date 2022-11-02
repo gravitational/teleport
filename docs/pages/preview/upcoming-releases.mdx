@@ -4,76 +4,68 @@ description: A timeline of upcoming Teleport releases.
 h1: Upcoming Teleport Releases
 ---
 
-The teleport team delivers a new major release roughly every 3 months.
+The Teleport team delivers a new major release roughly every 3 months.
 
 ## Teleport
 
-### Teleport 8.3
+### Teleport 11.1
 
-Teleport 8.3 will add support for IAM based joining on AWS and Session Moderation.
+- GKE automatic discovery for Kubernetes Access
+- FIPS support to Desktop Access
+- Per-session MFA for Teleport Connect
+- Improved x509 integration for self-hosted Microsoft SQL Server
+- ARM64 container images
 
-https://github.com/gravitational/teleport/milestone/69
+| Version          | Date          | Description                                                 |
+|------------------|---------------|-------------------------------------------------------------|
+| Release          | November 2022 | Good to go for production.                                  |
 
-| Version     | Date               | Description                      |
-| ----------- | ------------------ | -------------------------------- |
-| Release     | February 14th, 2022 | Good to go for production.      |
+### 11.2
 
-You can find the full list of fixes and features in the [GitHub milestone](https://github.com/gravitational/teleport/milestone/69).
+Teleport 11.2 will bring support for script-based automatic upgrades.
 
-### Teleport 9
+| Version          | Date          | Description                                                 |
+|------------------|---------------|-------------------------------------------------------------|
+| Release          | December 2022 | Good to go for production.                                  |
 
-Teleport 9.0 will focus on bringing Desktop Access to GA with support for
-session recording, per-session MFA, and clipboard support. Database Access
-will add self-hosted Redis, auto-discovery for Redshift clusers, and
-auto-IAM configuration improvements.
+### Teleport 12
 
-In addition, Teleport 9 will include preview releases of Microsoft SQL
-Server with AD authentication for Database Access and Teleport Certificate Bot.
+Teleport 12 will focus on support for additional cloud providers (GCP and Azure),
+Device Trust, improved resource onboarding, and non-AD support for Desktop Access.
 
-| Version     | Date               | Description                      |
-| ----------- | ------------------ | -------------------------------- |
-| Alpha       | Febuary 14th, 2022 | Good for some testing and demos. |
-| Beta        | Febuary 21st, 2022 | Deploy on staging.               |
-| Release     | March 11th, 2022   | Good to go for production.       |
-
-You can find the full list of fixes and features in the [GitHub milestone](https://github.com/gravitational/teleport/milestone/64).
+| Version          | Date          | Description                                                 |
+|------------------|---------------|-------------------------------------------------------------|
+| Release          | January 2023  | Good to go for production.                                  |
 
 ## Teleport Cloud
 
-The key areas of focus for Teleport cloud in early 2022 are:
-- Ensuring the best routing and latency experience
-- Stronger outbound communications on cloud health and infrastructure changes
-- UX where the cloud offering differs from the on-prem offering
+The key deliverables for Teleport Cloud in the next quarter:
 
-### Release Schedule
-
-| Date | Description |
-| - | - |
-| March 2022 | Complete rollout of our [worldwide access design](https://goteleport.com/blog/access-proxy-latency/), allowing low-latency access from around the world. |
-| April 2022 | Update security audit from independent auditors. [2021 Audit](https://goteleport.com/resources/audits/teleport-cloud-security-audit-2021/) |
-| Q1 2022 | Roll out a technical communications framework, notifying technical contacts of planned maintenance, infrastructure changes and outages |
-| Q1 2022 | Provide a public listing of IP addresses used by Teleport infrastructure for firewall configuration |
-| Q2 2022 | Offer more data retention options |
-| Q3 2022 | Option to store data in alternate regions around the world |
-
+| Date    | Description |
+|---------|-------------|
+| Q3 2022 | Update security audit from independent auditors. [2021 Audit](https://goteleport.com/resources/audits/teleport-cloud-security-audit-2021/)  |
+| Q3 2022 | Scheduled upgrades will limit downtime to non-peak hours.
+| Q4 2022 | Complete rollout of our [worldwide access design](https://goteleport.com/blog/access-proxy-latency/), allowing low-latency access from around the world. |
 
 ## Semantic Versioning
 
-Teleport follows [semantic versioning](https://semver.org/) for pre-releases and releases.
+Teleport follows [semantic versioning](https://semver.org/) for pre-releases
+and releases.
 
-**Pre-releases**
+### Pre-releases
 
-Pre-releases have suffixes `-alpha`, `-beta` and `-rc`.
-They are not ready for production:
+Pre-releases have suffixes `-alpha`, `-beta` and `-rc`. They are not ready for
+production:
 
 - You can use alpha releases such as `5.0.1-alpha.1` for trying new features.
   Things can break and new changes may not be backwards-compatible.
-- Teleport `beta` releases, such as `5.0.1-beta.2` are suitable for staging environments.
-  We are unlikely to change the APIs while we are ironing out bugs and UX glitches.
+- Teleport `beta` releases, such as `5.0.1-beta.2` are suitable for staging
+  environments.  We are unlikely to change the APIs while we are ironing out
+  bugs and UX glitches.
 - We mark release candidates as `5.0.1-rc.1` coding and bug fixes are finished.
   The team is going through the manual test plan to find any regressions.
 
-**Releases**
+### Releases
 
 Releases are ready for production use.
 

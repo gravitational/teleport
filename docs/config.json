@@ -230,6 +230,7 @@
         {
           "title": "Single Sign-On (SSO)",
           "slug": "/access-controls/sso/",
+          "forScopes": ["enterprise", "oss", "cloud"],
           "entries": [
             {
               "title": "GitHub SSO",
@@ -385,7 +386,7 @@
             {
               "title": "Troubleshooting",
               "slug": "/management/admin/troubleshooting/",
-              "forScopes": ["oss", "enterprise"]
+              "forScopes": ["oss", "enterprise", "cloud"]
             },
             {
               "title": "Upgrading the Teleport Binary",
@@ -745,6 +746,10 @@
               "slug": "/database-access/guides/mongodb-atlas/"
             },
             {
+              "title": "Self-Hosted Elasticsearch",
+              "slug": "/database-access/guides/elastic/"
+            },
+            {
               "title": "Self-Hosted PostgreSQL",
               "slug": "/database-access/guides/postgres-self-hosted/"
             },
@@ -909,10 +914,6 @@
             {
               "title": "Configuration",
               "slug": "/machine-id/reference/configuration/"
-            },
-            {
-              "title": "CLI",
-              "slug": "/machine-id/reference/cli/"
             }
           ]
         },
@@ -1144,7 +1145,7 @@
       "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "10.3.1",
+      "version": "10.3.2",
       "major_version": "10",
       "sla": {
         "monthly_percentage": "99.5%",
@@ -1175,14 +1176,14 @@
     },
     "teleport": {
       "major_version": "11",
-      "version": "9.0.4",
-      "golang": "1.17",
+      "version": "11.0.1",
+      "golang": "1.19",
       "plugin": {
-        "version": "10.2.6"
+        "version": "11.0.1"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport:9.1.2",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent:9.1.2"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport:11.0.1",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent:11.0.1"
     }
   },
   "redirects": [

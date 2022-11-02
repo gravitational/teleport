@@ -242,7 +242,7 @@ func ParsePrivateKey(keyPEM []byte) (*PrivateKey, error) {
 	case pivYubiKeyPrivateKeyType:
 		priv, err := parseYubiKeyPrivateKeyData(block.Bytes)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "failed to parse YubiKey private key")
 		}
 		return NewPrivateKey(priv, keyPEM)
 	default:

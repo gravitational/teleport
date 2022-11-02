@@ -124,9 +124,6 @@ func (p *SignParams) Check() error {
 	if len(p.Roles) == 0 {
 		return trace.BadParameter("roles missing")
 	}
-	if len(p.Traits) == 0 {
-		return trace.BadParameter("traits missing")
-	}
 	if p.Expires.IsZero() {
 		return trace.BadParameter("expires missing")
 	}

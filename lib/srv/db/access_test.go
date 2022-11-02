@@ -32,7 +32,7 @@ import (
 	elastic "github.com/elastic/go-elasticsearch/v8"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	mysqllib "github.com/go-mysql-org/go-mysql/mysql"
-	goredis "github.com/go-redis/redis/v8"
+	goredis "github.com/go-redis/redis/v9"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
@@ -1066,10 +1066,6 @@ func TestRedisPipeline(t *testing.T) {
 	})
 
 	pipeliner := redisClient.Pipeline()
-	t.Cleanup(func() {
-		err = pipeliner.Close()
-		require.NoError(t, err)
-	})
 
 	// Set multiple keys using pipelining.
 	for i := 0; i < 10; i++ {

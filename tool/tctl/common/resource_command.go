@@ -789,7 +789,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		deleted := 0
 		var errs []error
 		for _, desktop := range desktops {
-			if desktop.GetName() != rc.ref.Name {
+			if desktop.GetName() == rc.ref.Name {
 				if err = client.DeleteWindowsDesktop(ctx, desktop.GetHostID(), rc.ref.Name); err != nil {
 					errs = append(errs, err)
 					continue

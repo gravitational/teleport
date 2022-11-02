@@ -71,7 +71,10 @@ var (
 	)
 )
 
-var ErrNodeFileCopyingNotPermitted = trace.AccessDenied("node does not allow file copying via SCP or SFTP")
+var (
+	ErrNodeFileCopyingNotPermitted  = trace.AccessDenied("node does not allow file copying via SCP or SFTP")
+	errCannotStartUnattendedSession = trace.AccessDenied("lacking privileges to start unattended session")
+)
 
 func init() {
 	prometheus.MustRegister(serverTX)
@@ -639,6 +642,28 @@ func (c *ServerContext) CheckFileCopyingAllowed() error {
 	// Check if the user's RBAC role allows remote file operations.
 	if !c.Identity.AccessChecker.CanCopyFiles() {
 		return errRoleFileCopyingNotPermitted
+	}
+
+	return nil
+}
+
+// CheckSFTPAllowed returns an error if remote file operations via SCP
+// or SFTP are not allowed by the user's role or the node's config, or
+// if the user is not allowed to start unattended sessions.
+func (c *ServerContext) CheckSFTPAllowed() error {
+	if err := c.CheckFileCopyingAllowed(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// ensure moderated session policies allow starting an unattended session
+	policySets := c.Identity.AccessChecker.SessionPolicySets()
+	checker := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, c.Identity.TeleportUser)
+	canStart, _, err := checker.FulfilledFor(nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !canStart {
+		return errCannotStartUnattendedSession
 	}
 
 	return nil
