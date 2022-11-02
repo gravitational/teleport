@@ -121,7 +121,7 @@ func (p *ProxyAuthorizer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// we detect if someone is waiting for a new request to come in.
 	select {
 	case waiter := <-p.waitersC:
-		defer func() { p.notifyWaiter(waiter, err) }
+		defer func() { p.notifyWaiter(waiter, err) }()
 	default:
 	}
 	defer func() {
