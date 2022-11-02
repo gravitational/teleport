@@ -164,7 +164,7 @@ chartMode: standalone
 ######################################################################
 # Persistence settings (only used in "standalone" and "custom" modes)
 # NOTE: Changes in Kubernetes 1.23+ mean that persistent volumes will not automatically be provisioned in AWS EKS clusters
-# without additional confguration. See https://docs.aws.amazon.com/eks/latest/userguide/ebs-csi.html) for more details.
+# without additional configuration. See https://docs.aws.amazon.com/eks/latest/userguide/ebs-csi.html for more details.
 # This driver addon must be configured to use persistent volumes in EKS clusters after Kubernetes 1.23.
 ######################################################################
 persistence:
