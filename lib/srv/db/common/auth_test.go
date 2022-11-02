@@ -152,6 +152,12 @@ func TestAuthGetTLSConfig(t *testing.T) {
 			expectRootCAs:    systemCertPool,
 		},
 		{
+			name:             "AWS RDS Proxy",
+			sessionDatabase:  newRDSProxyDatabase(t, "my-proxy.proxy-abcdefghijklmnop.us-east-1.rds.amazonaws.com:5432"),
+			expectServerName: "my-proxy.proxy-abcdefghijklmnop.us-east-1.rds.amazonaws.com",
+			expectRootCAs:    systemCertPool,
+		},
+		{
 			name:            "GCP Cloud SQL",
 			sessionDatabase: newCloudSQLDatabase(t, "project-id", "instance-id"),
 			// RootCAs is empty, and custom VerifyConnection function is provided.
@@ -403,6 +409,23 @@ func newRedshiftDatabase(t *testing.T, ca string) types.Database {
 		URI:      "redshift-cluster-1.abcdefghijklmnop.us-east-1.redshift.amazonaws.com:5432",
 		TLS: types.DatabaseTLS{
 			CACert: ca,
+		},
+	})
+	require.NoError(t, err)
+	return database
+}
+
+func newRDSProxyDatabase(t *testing.T, uri string) types.Database {
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-database",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      uri,
+		AWS: types.AWS{
+			Region: "us-east-1",
+			RDSProxy: types.RDSProxy{
+				Name: "test-database",
+			},
 		},
 	})
 	require.NoError(t, err)
