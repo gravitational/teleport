@@ -37,12 +37,12 @@ fn test_to_windows_time() {
     assert_eq!(to_windows_time(1000), 116444736010000000);
 }
 
-fn client(with_scard_id: bool) -> Client {
+fn client(with_scard_id: bool, dir_sharing_enabled: bool) -> Client {
     let mut c = Client::new(Config {
         cert_der: vec![],
         key_der: vec![],
         pin: "".to_string(),
-        allow_directory_sharing: true,
+        allow_directory_sharing: dir_sharing_enabled,
         tdp_sd_acknowledge: Box::new(
             move |mut _ack: SharedDirectoryAcknowledge| -> RdpResult<()> { Ok(()) },
         ),
@@ -120,7 +120,7 @@ fn test_payload_in_to_response_out(
 
 #[test]
 fn test_handle_server_announce() {
-    let mut c = client(false);
+    let mut c = client(false, true);
     test_payload_in_to_response_out(
         &mut c,
         PayloadIn {
@@ -162,7 +162,7 @@ fn test_handle_server_announce() {
 
 #[test]
 fn test_handle_server_capability() {
-    let mut c = client(false);
+    let mut c = client(false, true);
     test_payload_in_to_response_out(
         &mut c,
         PayloadIn {
@@ -284,7 +284,7 @@ fn test_handle_server_capability() {
 
 #[test]
 fn test_handle_client_id_confirm() {
-    let mut c = client(false);
+    let mut c = client(false, true);
     test_payload_in_to_response_out(
         &mut c,
         PayloadIn {
@@ -325,7 +325,7 @@ fn test_handle_client_id_confirm() {
 
 #[test]
 fn test_handle_device_reply() {
-    let mut c = client(true);
+    let mut c = client(true, true);
     test_payload_in_to_response_out(
         &mut c,
         PayloadIn {
@@ -341,9 +341,91 @@ fn test_handle_device_reply() {
             },
             request: Box::new(ServerDeviceAnnounceResponse {
                 device_id: 1,
-                result_code: 0,
+                result_code: NTSTATUS::STATUS_SUCCESS,
             }),
         },
         vec![],
     );
+}
+
+/// Checks that any of the top level functions related to directory sharing fail with an error
+/// if directory sharing is disabled on the client
+#[test]
+fn check_dir_sharing_methods_error_when_disabled() {
+    let mut c = client(true, false);
+    let mut results = vec![];
+
+    results.push(
+        c.handle_client_device_list_announce(ClientDeviceListAnnounce::new_drive(
+            2,
+            "test".to_string(),
+        )),
+    );
+    results.push(c.handle_tdp_sd_info_response(SharedDirectoryInfoResponse {
+        completion_id: 0,
+        err_code: TdpErrCode::Nil,
+        fso: FileSystemObject {
+            last_modified: 1664500770191,
+            size: 9999,
+            file_type: FileType::File,
+            is_empty: 1,
+            path: UnixPath {
+                path: "test_file.txt".to_string(),
+            },
+        },
+    }));
+    results.push(
+        c.handle_tdp_sd_create_response(SharedDirectoryCreateResponse {
+            completion_id: 0,
+            err_code: TdpErrCode::Nil,
+            fso: FileSystemObject {
+                last_modified: 1664500770191,
+                size: 9999,
+                file_type: FileType::File,
+                is_empty: 1,
+                path: UnixPath {
+                    path: "test_file.txt".to_string(),
+                },
+            },
+        }),
+    );
+    results.push(
+        c.handle_tdp_sd_delete_response(SharedDirectoryDeleteResponse {
+            completion_id: 0,
+            err_code: TdpErrCode::Nil,
+        }),
+    );
+    results.push(c.handle_tdp_sd_list_response(SharedDirectoryListResponse {
+        completion_id: 0,
+        err_code: TdpErrCode::Nil,
+        fso_list: vec![],
+    }));
+    results.push(c.handle_tdp_sd_read_response(SharedDirectoryReadResponse {
+        completion_id: 0,
+        err_code: TdpErrCode::Nil,
+        read_data: vec![],
+    }));
+    results.push(
+        c.handle_tdp_sd_write_response(SharedDirectoryWriteResponse {
+            completion_id: 0,
+            err_code: TdpErrCode::Nil,
+            bytes_written: 0,
+        }),
+    );
+    results.push(c.handle_tdp_sd_move_response(SharedDirectoryMoveResponse {
+        completion_id: 0,
+        err_code: TdpErrCode::Nil,
+    }));
+
+    for result in results {
+        match result {
+            Err(err) => match err {
+                Error::TryError(s) => {
+                    assert_eq!(s, "directory sharing disabled")
+                }
+                _ => panic!("unexpected error type"),
+            },
+            Ok(_) => panic!("unexpected success"),
+        }
+    }
 }

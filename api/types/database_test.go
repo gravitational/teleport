@@ -40,6 +40,24 @@ func TestDatabaseRDSEndpoint(t *testing.T) {
 	}, database.GetAWS())
 }
 
+// TestDatabaseRDSProxyEndpoint verifies AWS info is correctly populated based
+// on the RDS Proxy endpoint.
+func TestDatabaseRDSProxyEndpoint(t *testing.T) {
+	database, err := NewDatabaseV3(Metadata{
+		Name: "rdsproxy",
+	}, DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "my-proxy.proxy-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+	})
+	require.NoError(t, err)
+	require.Equal(t, AWS{
+		Region: "us-west-1",
+		RDSProxy: RDSProxy{
+			Name: "my-proxy",
+		},
+	}, database.GetAWS())
+}
+
 // TestDatabaseRedshiftEndpoint verifies AWS info is correctly populated
 // based on the Redshift endpoint.
 func TestDatabaseRedshiftEndpoint(t *testing.T) {
@@ -324,4 +342,50 @@ func TestMySQLServerVersion(t *testing.T) {
 
 	database.SetMySQLServerVersion("8.0.1")
 	require.Equal(t, "8.0.1", database.GetMySQLServerVersion())
+}
+
+func TestCassandraAWSEndpoint(t *testing.T) {
+	t.Parallel()
+
+	t.Run("aws cassandra url from region", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "test",
+		}, DatabaseSpecV3{
+			Protocol: "cassandra",
+			AWS: AWS{
+				Region:    "us-west-1",
+				AccountID: "12345",
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "cassandra.us-west-1.amazonaws.com:9142", database.GetURI())
+	})
+
+	t.Run("aws cassandra custom uri", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "test",
+		}, DatabaseSpecV3{
+			Protocol: "cassandra",
+			URI:      "cassandra.us-west-1.amazonaws.com:9142",
+			AWS: AWS{
+				AccountID: "12345",
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "cassandra.us-west-1.amazonaws.com:9142", database.GetURI())
+		require.Equal(t, "us-west-1", database.GetAWS().Region)
+	})
+
+	t.Run("aws cassandra missing AccountID", func(t *testing.T) {
+		_, err := NewDatabaseV3(Metadata{
+			Name: "test",
+		}, DatabaseSpecV3{
+			Protocol: "cassandra",
+			URI:      "cassandra.us-west-1.amazonaws.com:9142",
+			AWS: AWS{
+				AccountID: "",
+			},
+		})
+		require.Error(t, err)
+	})
 }

@@ -53,7 +53,7 @@ subjects:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: "{{ .Release.Name }}"-hook
+  name: {{ .Release.Name }}-hook
   namespace: {{ .Release.Namespace }}
   annotations:
     "helm.sh/hook": post-upgrade
@@ -62,7 +62,7 @@ metadata:
 spec:
   template:
     metadata:
-      name: "{{ .Release.Name }}"-hook
+      name: {{ .Release.Name }}-hook
     spec:
       serviceAccountName: {{ .Release.Name }}-hook
       restartPolicy: OnFailure

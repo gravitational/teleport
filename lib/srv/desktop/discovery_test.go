@@ -19,8 +19,9 @@ import (
 	"testing"
 
 	"github.com/go-ldap/ldap/v3"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // TestDiscoveryLDAPFilter verifies that WindowsService produces a valid

@@ -23,6 +23,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -36,15 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -171,20 +171,17 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindAppServer, Version: types.V2},
-		{Kind: types.KindApp},
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
-		{Kind: types.KindDatabase},
 		{Kind: types.KindKubeServer},
-		{Kind: types.KindInstaller},
-		{Kind: types.KindKubernetesCluster},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
 }
 
 // ForOldRemoteProxy sets up watch configuration for older remote proxies.
+// The Watches defined here are a copy of those defined in ForRemoteProxy in the v10 branch.
 func ForOldRemoteProxy(cfg Config) Config {
 	cfg.target = "remote-proxy-old"
 	cfg.Watches = []types.WatchKind{
@@ -202,11 +199,11 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: types.KindAuthServer},
 		{Kind: types.KindReverseTunnel},
 		{Kind: types.KindTunnelConnection},
+		{Kind: types.KindAppServer},
 		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
-		{Kind: types.KindKubeServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -337,6 +334,7 @@ func ForDiscovery(cfg Config) Config {
 		{Kind: types.KindClusterName},
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNode},
+		{Kind: types.KindKubernetesCluster},
 	}
 	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg

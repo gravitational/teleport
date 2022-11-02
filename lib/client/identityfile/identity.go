@@ -18,6 +18,7 @@ limitations under the License.
 package identityfile
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"encoding/pem"
@@ -26,15 +27,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/pavlo-v-chernykh/keystore-go/v4"
 
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-
-	"github.com/gravitational/trace"
 )
 
 // Format describes possible file formats how a user identity can be stored.
@@ -75,6 +79,12 @@ const (
 	// FormatSnowflake produces public key in the format suitable for
 	// configuration Snowflake JWT access.
 	FormatSnowflake Format = "snowflake"
+	// FormatCassandra produces CA and key pair in the format suitable for
+	// configuring a Cassandra database for mutual TLS.
+	FormatCassandra Format = "cassandra"
+	// FormatScylla produces CA and key pair in the format suitable for
+	// configuring a Scylla database for mutual TLS.
+	FormatScylla Format = "scylla"
 
 	// FormatElasticsearch produces CA and key pair in the format suitable for
 	// configuring Elasticsearch for mutual TLS authentication.
@@ -89,7 +99,7 @@ type FormatList []Format
 
 // KnownFileFormats is a list of all above formats.
 var KnownFileFormats = FormatList{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo,
-	FormatCockroach, FormatRedis, FormatSnowflake, FormatElasticsearch}
+	FormatCockroach, FormatRedis, FormatSnowflake, FormatElasticsearch, FormatCassandra, FormatScylla}
 
 // String returns human-readable version of FormatList, ex:
 // file, openssh, tls, kubernetes
@@ -159,6 +169,8 @@ type WriteConfig struct {
 	OverwriteDestination bool
 	// Writer is the filesystem implementation.
 	Writer ConfigWriter
+	// JKSPassword is the password for the JKS keystore used by Cassandra format.
+	JKSPassword string
 }
 
 // Write writes user credentials to disk in a specified format.
@@ -231,7 +243,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-	case FormatTLS, FormatDatabase, FormatCockroach, FormatRedis, FormatElasticsearch:
+	case FormatTLS, FormatDatabase, FormatCockroach, FormatRedis, FormatElasticsearch, FormatScylla:
 		keyPath := cfg.OutputPath + ".key"
 		certPath := cfg.OutputPath + ".crt"
 		casPath := cfg.OutputPath + ".cas"
@@ -323,6 +335,13 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case FormatCassandra:
+		out, err := writeCassandraFormat(cfg, writer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		filesWritten = append(filesWritten, out...)
+
 	case FormatKubernetes:
 		filesWritten = append(filesWritten, cfg.OutputPath)
 		if err := checkOverwrite(writer, cfg.OverwriteDestination, filesWritten...); err != nil {
@@ -349,6 +368,104 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		return nil, trace.BadParameter("unsupported identity format: %q, use one of %s", cfg.Format, KnownFileFormats)
 	}
 	return filesWritten, nil
+}
+
+func writeCassandraFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error) {
+	if cfg.JKSPassword == "" {
+		pass, err := utils.CryptoRandomHex(16)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cfg.JKSPassword = pass
+	}
+	// Cassandra expects a JKS keystore file with the private key and certificate
+	// in it. The keystore file is password protected.
+	keystoreBuf, err := prepareCassandraKeystore(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Cassandra expects a JKS truststore file with the CA certificate in it.
+	// The truststore file is password protected.
+	truststoreBuf, err := prepareCassandraTruststore(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certPath := cfg.OutputPath + ".keystore"
+	casPath := cfg.OutputPath + ".truststore"
+	err = writer.WriteFile(certPath, keystoreBuf.Bytes(), identityfile.FilePermissions)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = writer.WriteFile(casPath, truststoreBuf.Bytes(), identityfile.FilePermissions)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return []string{certPath, casPath}, nil
+}
+
+func prepareCassandraTruststore(cfg WriteConfig) (*bytes.Buffer, error) {
+	var caCerts []byte
+	for _, ca := range cfg.Key.TrustedCA {
+		for _, cert := range ca.TLSCertificates {
+			block, _ := pem.Decode(cert)
+			caCerts = append(caCerts, block.Bytes...)
+		}
+	}
+
+	ks := keystore.New()
+	trustIn := keystore.TrustedCertificateEntry{
+		CreationTime: time.Now(),
+		Certificate: keystore.Certificate{
+			Type:    "x509",
+			Content: caCerts,
+		},
+	}
+	if err := ks.SetTrustedCertificateEntry("cassandra", trustIn); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var buff bytes.Buffer
+	if err := ks.Store(&buff, []byte(cfg.JKSPassword)); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &buff, nil
+}
+
+func prepareCassandraKeystore(cfg WriteConfig) (*bytes.Buffer, error) {
+	certBlock, _ := pem.Decode(cfg.Key.TLSCert)
+	privBlock, _ := pem.Decode(cfg.Key.PrivateKeyPEM())
+
+	privKey, err := x509.ParsePKCS1PrivateKey(privBlock.Bytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	privKeyPkcs8, err := x509.MarshalPKCS8PrivateKey(privKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ks := keystore.New()
+	pkeIn := keystore.PrivateKeyEntry{
+		CreationTime: time.Now(),
+		PrivateKey:   privKeyPkcs8,
+		CertificateChain: []keystore.Certificate{
+			{
+				Type:    "x509",
+				Content: certBlock.Bytes,
+			},
+		},
+	}
+	if err := ks.SetPrivateKeyEntry("cassandra", pkeIn, []byte(cfg.JKSPassword)); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var buff bytes.Buffer
+	if err := ks.Store(&buff, []byte(cfg.JKSPassword)); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &buff, nil
 }
 
 func checkOverwrite(writer ConfigWriter, force bool, paths ...string) error {

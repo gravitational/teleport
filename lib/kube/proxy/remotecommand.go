@@ -25,7 +25,6 @@ import (
 	"strings"
 	"time"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -36,6 +35,8 @@ import (
 	"k8s.io/apiserver/pkg/util/wsstream"
 	"k8s.io/client-go/tools/remotecommand"
 	utilexec "k8s.io/client-go/util/exec"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
 // remoteCommandRequest is a request to execute a remote command
@@ -55,13 +56,13 @@ type remoteCommandRequest struct {
 	pingPeriod         time.Duration
 }
 
-func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds *kubeCreds) apievents.KubernetesPodMetadata {
+func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds kubeCreds) apievents.KubernetesPodMetadata {
 	meta := apievents.KubernetesPodMetadata{
 		KubernetesPodName:       req.podName,
 		KubernetesPodNamespace:  req.podNamespace,
 		KubernetesContainerName: req.containerName,
 	}
-	if creds == nil || creds.kubeClient == nil {
+	if creds == nil || creds.getKubeClient() == nil {
 		return meta
 	}
 
@@ -69,7 +70,7 @@ func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds *kubeCre
 	//
 	// This can fail if a user has set tight RBAC rules for teleport. Failure
 	// here shouldn't prevent a session from starting.
-	pod, err := creds.kubeClient.CoreV1().Pods(req.podNamespace).Get(ctx, req.podName, metav1.GetOptions{})
+	pod, err := creds.getKubeClient().CoreV1().Pods(req.podNamespace).Get(ctx, req.podName, metav1.GetOptions{})
 	if err != nil {
 		log.WithError(err).Debugf("Failed fetching pod from kubernetes API; skipping additional metadata on the audit event")
 		return meta

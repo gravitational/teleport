@@ -23,6 +23,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/oxy/forward"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -34,15 +40,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/oxy/forward"
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
-
-	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 )
 
 // sessionChunkCloseTimeout is the default timeout used for sessionChunk.closeTimeout
@@ -141,6 +141,7 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 	jwt, err := s.c.AuthClient.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
 		Username: identity.Username,
 		Roles:    identity.Groups,
+		Traits:   identity.Traits,
 		URI:      app.GetURI(),
 		Expires:  identity.Expires,
 	})
@@ -171,12 +172,14 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 		return trace.Wrap(err)
 	}
 
+	delegate := forward.NewHeaderRewriter()
 	sess.fwd, err = forward.New(
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
 		forward.Logger(logrus.StandardLogger()),
-		forward.WebsocketRewriter(transport.ws),
+		forward.WebsocketRewriter(common.NewHeaderRewriter(transport.ws, delegate)),
 		forward.WebsocketDial(transport.ws.dialer),
+		forward.Rewriter(common.NewHeaderRewriter(delegate)),
 	)
 	if err != nil {
 		return trace.Wrap(err)

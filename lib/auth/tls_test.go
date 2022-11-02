@@ -30,13 +30,12 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -45,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -730,8 +730,13 @@ func TestAppTokenRotation(t *testing.T) {
 		types.GenerateAppTokenRequest{
 			Username: "foo",
 			Roles:    []string{"bar", "baz"},
-			URI:      "http://localhost:8080",
-			Expires:  tt.clock.Now().Add(1 * time.Minute),
+			Traits: map[string][]string{
+				"trait1": {"value1", "value2"},
+				"trait2": {"value3", "value4"},
+				"trait3": nil,
+			},
+			URI:     "http://localhost:8080",
+			Expires: tt.clock.Now().Add(1 * time.Minute),
 		})
 	require.NoError(t, err)
 
@@ -786,8 +791,13 @@ func TestAppTokenRotation(t *testing.T) {
 		types.GenerateAppTokenRequest{
 			Username: "foo",
 			Roles:    []string{"bar", "baz"},
-			URI:      "http://localhost:8080",
-			Expires:  tt.clock.Now().Add(1 * time.Minute),
+			Traits: map[string][]string{
+				"trait1": {"value1", "value2"},
+				"trait2": {"value3", "value4"},
+				"trait3": nil,
+			},
+			URI:     "http://localhost:8080",
+			Expires: tt.clock.Now().Add(1 * time.Minute),
 		})
 	require.NoError(t, err)
 
@@ -1366,7 +1376,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	require.NoError(t, err)
 	baseRole, err := clt.GetRole(ctx, baseRoleName)
 	require.NoError(t, err)
-	baseRole.SetSearchAsRoles([]string{resourceRequestRoleName})
+	baseRole.SetSearchAsRoles(types.Allow, []string{resourceRequestRoleName})
 	err = clt.UpsertRole(ctx, baseRole)
 	require.NoError(t, err)
 
@@ -2290,8 +2300,13 @@ func TestGenerateAppToken(t *testing.T) {
 			types.GenerateAppTokenRequest{
 				Username: "foo@example.com",
 				Roles:    []string{"bar", "baz"},
-				URI:      "http://localhost:8080",
-				Expires:  tt.clock.Now().Add(1 * time.Minute),
+				Traits: wrappers.Traits{
+					"trait1": {"value1", "value2"},
+					"trait2": {"value3", "value4"},
+					"trait3": nil,
+				},
+				URI:     "http://localhost:8080",
+				Expires: tt.clock.Now().Add(1 * time.Minute),
 			})
 		require.Equal(t, err != nil, ts.outError, ts.inComment)
 		if !ts.outError {
@@ -2303,6 +2318,10 @@ func TestGenerateAppToken(t *testing.T) {
 			require.NoError(t, err, ts.inComment)
 			require.Equal(t, claims.Username, "foo@example.com", ts.inComment)
 			require.Empty(t, cmp.Diff(claims.Roles, []string{"bar", "baz"}), ts.inComment)
+			require.Empty(t, cmp.Diff(claims.Traits, wrappers.Traits{
+				"trait1": {"value1", "value2"},
+				"trait2": {"value3", "value4"},
+			}), ts.inComment)
 		}
 	}
 }

@@ -946,7 +946,7 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	}
 	roleString := cert.Permissions.Extensions[utils.CertExtensionRole]
 	if roleString == "" {
-		return nil, trace.BadParameter("misssing cert extension %v", utils.CertExtensionRole)
+		return nil, trace.BadParameter("missing cert extension %v", utils.CertExtensionRole)
 	}
 	roles, err := types.ParseTeleportRoles(roleString)
 	if err != nil {

@@ -23,12 +23,12 @@ import (
 	"math"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -488,6 +488,15 @@ const (
 	// DatabaseSessionMalformedPacketEvent is emitted when SQL packet is malformed.
 	DatabaseSessionMalformedPacketEvent = "db.session.malformed_packet"
 
+	// DatabaseSessionCassandraBatchEvent is emitted when a Cassandra client executes a batch of queries.
+	DatabaseSessionCassandraBatchEvent = "db.session.cassandra.batch"
+	// DatabaseSessionCassandraPrepareEvent is emitted when a Cassandra client sends prepare packet.
+	DatabaseSessionCassandraPrepareEvent = "db.session.cassandra.prepare"
+	// DatabaseSessionCassandraExecuteEvent is emitted when a Cassandra client sends executed packet.
+	DatabaseSessionCassandraExecuteEvent = "db.session.cassandra.execute"
+	// DatabaseSessionCassandraRegisterEvent is emitted when a Cassandra client sends the register packet.
+	DatabaseSessionCassandraRegisterEvent = "db.session.cassandra.register"
+
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
 	SessionRejectedReasonMaxConnections = "max_connections limit reached"
@@ -560,6 +569,9 @@ const (
 	// SSMRunEvent is emitted when a run of an install script
 	// completes on a discovered EC2 node
 	SSMRunEvent = "ssm.run"
+
+	// DeviceEvent is the catch-all event for Device Trust events.
+	DeviceEvent = "device"
 
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
@@ -739,10 +751,7 @@ type IAuditLog interface {
 	// Returns all events that happen during a session sorted by time
 	// (oldest first).
 	//
-	// after tells to use only return events after a specified cursor Id
-	//
-	// This function is usually used in conjunction with GetSessionReader to
-	// replay recorded session streams.
+	// after is used to return events after a specified cursor ID
 	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error)
 
 	// SearchEvents is a flexible way to find events.

@@ -19,12 +19,13 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
 	"github.com/gravitational/teleport/lib/client/conntest"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/ui"
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 )
 
 // getConnectionDiagnostic returns a connection diagnostic connection diagnostics.
@@ -70,10 +71,11 @@ func (h *Handler) diagnoseConnection(w http.ResponseWriter, r *http.Request, p h
 	}
 
 	connectionTesterConfig := conntest.ConnectionTesterConfig{
-		ResourceKind:      req.ResourceKind,
-		UserClient:        userClt,
-		ProxyHostPort:     h.ProxyHostPort(),
-		TLSRoutingEnabled: proxySettings.TLSRoutingEnabled,
+		ResourceKind:              req.ResourceKind,
+		UserClient:                userClt,
+		ProxyHostPort:             h.ProxyHostPort(),
+		KubernetesPublicProxyAddr: h.kubeProxyHostPort(),
+		TLSRoutingEnabled:         proxySettings.TLSRoutingEnabled,
 	}
 
 	tester, err := conntest.ConnectionTesterForKind(connectionTesterConfig)

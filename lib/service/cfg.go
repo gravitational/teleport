@@ -31,10 +31,21 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
+	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/http/httpguts"
+	"k8s.io/apimachinery/pkg/util/validation"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
@@ -55,16 +66,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
-	"go.opentelemetry.io/otel/attribute"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/net/http/httpguts"
-	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // Rate describes a rate ratio, i.e. the number of "events" that happen over
@@ -858,6 +859,8 @@ type DatabaseAWS struct {
 	MemoryDB DatabaseAWSMemoryDB
 	// SecretStore contains settings for managing secrets.
 	SecretStore DatabaseAWSSecretStore
+	// AccountID is the AWS account ID.
+	AccountID string
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -912,6 +915,11 @@ type DatabaseAD struct {
 	Domain string
 	// SPN is the service principal name for the database.
 	SPN string
+}
+
+// IsEmpty returns true if the database AD configuration is empty.
+func (d *DatabaseAD) IsEmpty() bool {
+	return d.KeytabFile == "" && d.Krb5File == "" && d.Domain == "" && d.SPN == ""
 }
 
 // DatabaseAzure contains Azure database configuration.
@@ -983,10 +991,13 @@ func (d *Database) CheckAndSetDefaults() error {
 		if !strings.Contains(d.URI, defaults.SnowflakeURL) {
 			return trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
 		}
+	} else if d.Protocol == defaults.ProtocolCassandra && d.AWS.Region != "" && d.AWS.AccountID != "" {
+		// In case of cloud hosted Cassandra doesn't require URI validation.
 	} else if _, _, err := net.SplitHostPort(d.URI); err != nil {
 		return trace.BadParameter("invalid database %q address %q: %v",
 			d.Name, d.URI, err)
 	}
+
 	if len(d.TLS.CACert) != 0 {
 		if _, err := tlsca.ParseCertificatePEM(d.TLS.CACert); err != nil {
 			return trace.BadParameter("provided database %q CA doesn't appear to be a valid x509 certificate: %v",
@@ -1005,8 +1016,13 @@ func (d *Database) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.Name)
 	}
 
-	// For SQL Server we only support Kerberos auth with Active Directory at the moment.
-	if d.Protocol == defaults.ProtocolSQLServer {
+	// We support Azure AD authentication and Kerberos auth with AD for SQL
+	// Server. The first method doesn't require additional configuration since
+	// it assumes the environment’s Azure credentials
+	// (https://learn.microsoft.com/en-us/azure/developer/go/azure-sdk-authentication).
+	// The second method requires additional information, validated by
+	// DatabaseAD.
+	if d.Protocol == defaults.ProtocolSQLServer && (d.AD.Domain != "" || !strings.Contains(d.URI, azureutils.MSSQLEndpointSuffix)) {
 		if err := d.AD.CheckAndSetDefaults(d.Name); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1307,6 +1323,8 @@ type DiscoveryConfig struct {
 	Enabled bool
 	// AWSMatchers are used to match EC2 instances for auto enrollment.
 	AWSMatchers []services.AWSMatcher
+	// AzureMatchers are used to match resources for auto discovery.
+	AzureMatchers []services.AzureMatcher
 }
 
 // ParseHeader parses the provided string as a http header.

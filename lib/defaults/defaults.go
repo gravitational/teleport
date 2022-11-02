@@ -25,16 +25,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"gopkg.in/square/go-jose.v2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"gopkg.in/square/go-jose.v2"
 )
 
 // Default port numbers used by all teleport tools
@@ -480,6 +479,8 @@ const (
 	ProtocolSQLServer = "sqlserver"
 	// ProtocolSnowflake is the Snowflake REST database protocol.
 	ProtocolSnowflake = "snowflake"
+	// ProtocolCassandra is the Cassandra database protocol.
+	ProtocolCassandra = "cassandra"
 	// ProtocolElasticsearch is the Elasticsearch database protocol.
 	ProtocolElasticsearch = "elasticsearch"
 )
@@ -493,6 +494,7 @@ var DatabaseProtocols = []string{
 	ProtocolRedis,
 	ProtocolSnowflake,
 	ProtocolSQLServer,
+	ProtocolCassandra,
 	ProtocolElasticsearch,
 }
 
@@ -516,6 +518,8 @@ func ReadableDatabaseProtocol(p string) string {
 		return "Elasticsearch"
 	case ProtocolSQLServer:
 		return "Microsoft SQL Server"
+	case ProtocolCassandra:
+		return "Cassandra"
 	default:
 		// Unknown protocol. Return original string.
 		return p

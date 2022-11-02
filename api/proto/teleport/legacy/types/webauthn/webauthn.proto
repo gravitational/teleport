@@ -234,8 +234,8 @@ message CredentialDescriptor {
   // Raw Credential ID.
   bytes id = 2;
 
-// Notes:
-// * Transport hints omitted (assume no restrictions).
+  // Notes:
+  // * Transport hints omitted (assume no restrictions).
 }
 
 // Parameters for credential creation.

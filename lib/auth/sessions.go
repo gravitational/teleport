@@ -20,6 +20,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -30,10 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // CreateAppSession creates and inserts a services.WebSession into the
@@ -81,6 +81,9 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		appPublicAddr:  req.PublicAddr,
 		appClusterName: req.ClusterName,
 		awsRoleARN:     req.AWSRoleARN,
+		// Since we are generating the keys and certs directly on the Auth Server,
+		// we need to skip attestation.
+		skipAttestation: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -189,7 +192,7 @@ func waitForWebSession(ctx context.Context, sessionID, user string, evenSubKind 
 
 // generateAppToken generates an JWT token that will be passed along with every
 // application request.
-func (s *Server) generateAppToken(ctx context.Context, username string, roles []string, uri string, expires time.Time) (string, error) {
+func (s *Server) generateAppToken(ctx context.Context, username string, roles []string, traits map[string][]string, uri string, expires time.Time) (string, error) {
 	// Get the clusters CA.
 	clusterName, err := s.GetDomainName()
 	if err != nil {
@@ -201,6 +204,15 @@ func (s *Server) generateAppToken(ctx context.Context, username string, roles []
 	}, true)
 	if err != nil {
 		return "", trace.Wrap(err)
+	}
+
+	// Filter out empty traits so the resulting JWT doesn't have a bunch of
+	// entries with nil values.
+	filteredTraits := map[string][]string{}
+	for trait, values := range traits {
+		if len(values) > 0 {
+			filteredTraits[trait] = values
+		}
 	}
 
 	// Extract the JWT signing key and sign the claims.
@@ -215,6 +227,7 @@ func (s *Server) generateAppToken(ctx context.Context, username string, roles []
 	token, err := privateKey.Sign(jwt.SignParams{
 		Username: username,
 		Roles:    roles,
+		Traits:   filteredTraits,
 		URI:      uri,
 		Expires:  expires,
 	})

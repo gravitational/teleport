@@ -13,7 +13,7 @@
     echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/{{ .MajorVersion }}" |
       sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
     sudo apt-get update
-    sudo apt-get install teleport jq
+    sudo apt-get install -y teleport jq
   elif [ "$distro_id" = "amzn" ] || [ "$distro_id" = "rhel" ]; then
     . /etc/os-release
     sudo yum-config-manager --add-repo \

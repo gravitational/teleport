@@ -27,10 +27,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-
-	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -41,10 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"github.com/jonboulle/clockwork"
 )
 
 type KeyAgentTestSuite struct {
@@ -250,35 +247,63 @@ func TestHostCertVerification(t *testing.T) {
 	// hosts cache (done by "tsh login").
 	keygen := testauthority.New()
 
-	generateCA := func(hostname string) (ssh.Signer, auth.TrustedCerts) {
-		caPriv, caPub, err := keygen.GenerateKeyPair()
-		require.NoError(t, err)
-		caSigner, err := ssh.ParsePrivateKey(caPriv)
-		require.NoError(t, err)
-		caPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(caPub)
-		require.NoError(t, err)
-		err = lka.keyStore.AddKnownHostKeys(hostname, s.hostname, []ssh.PublicKey{caPublicKey})
-		require.NoError(t, err)
-
-		_, trustedCerts, err := newSelfSignedCA(caPriv, hostname)
-		require.NoError(t, err)
-		trustedCerts.ClusterName = hostname
-		return caSigner, trustedCerts
+	type ca struct {
+		signer       ssh.Signer
+		trustedCerts auth.TrustedCerts
 	}
+	generateCA := func(hostnames ...string) []ca {
+		result := make([]ca, 0, len(hostnames))
+		usedKeys := make(map[string]struct{})
 
-	rootCASigner, rootTrustedCerts := generateCA("example.com")
-	leafCASigner, leafTrustedCerts := generateCA("leaf.example.com")
+		for _, hostname := range hostnames {
+			var caPriv, caPub []byte
+			var err error
+
+			// retry until we get a unique keypair
+			attempts := 20
+			for i := 0; i < attempts; i++ {
+				if i == attempts-1 {
+					require.FailNowf(t, "could not find a unique keypair", "made %d attempts", i)
+				}
+				caPriv, caPub, err = keygen.GenerateKeyPair()
+				require.NoError(t, err)
+
+				// ensure we don't reuse the same keypair for different hosts
+				if _, ok := usedKeys[string(caPriv)]; ok {
+					continue
+				}
+				usedKeys[string(caPriv)] = struct{}{}
+				break
+			}
+
+			caSigner, err := ssh.ParsePrivateKey(caPriv)
+			require.NoError(t, err)
+			caPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(caPub)
+			require.NoError(t, err)
+			err = lka.keyStore.AddKnownHostKeys(hostname, s.hostname, []ssh.PublicKey{caPublicKey})
+			require.NoError(t, err)
+
+			_, trustedCerts, err := newSelfSignedCA(caPriv, hostname)
+			require.NoError(t, err)
+			trustedCerts.ClusterName = hostname
+			result = append(result, ca{signer: caSigner, trustedCerts: trustedCerts})
+		}
+		require.Len(t, result, len(hostnames))
+		return result
+	}
+	cas := generateCA("example.com", "leaf.example.com")
+	root, leaf := cas[0], cas[1]
 
 	// Call SaveTrustedCerts to create cas profile dir - this step is needed to support migration from profile combined
 	// CA file certs.pem to per cluster CA files in cas profile directory.
-	err = lka.keyStore.SaveTrustedCerts(s.hostname, []auth.TrustedCerts{rootTrustedCerts, leafTrustedCerts})
+	err = lka.keyStore.SaveTrustedCerts(s.hostname, []auth.TrustedCerts{root.trustedCerts, leaf.trustedCerts})
 	require.NoError(t, err)
 
 	// Generate a host certificate for node with role "node".
 	_, rootHostPub, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	rootHostCertBytes, err := keygen.GenerateHostCert(services.HostCertParams{
-		CASigner:      rootCASigner,
+		CASigner:      root.signer,
 		PublicHostKey: rootHostPub,
 		HostID:        "5ff40d80-9007-4f28-8f49-7d4fda2f574d",
 		NodeName:      "server01",
@@ -296,7 +321,7 @@ func TestHostCertVerification(t *testing.T) {
 	_, leafHostPub, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	leafHostCertBytes, err := keygen.GenerateHostCert(services.HostCertParams{
-		CASigner:      leafCASigner,
+		CASigner:      leaf.signer,
 		PublicHostKey: leafHostPub,
 		HostID:        "620bb71c-c9eb-4f6d-9823-f7d9125ebb1d",
 		NodeName:      "server02",

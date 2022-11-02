@@ -86,24 +86,8 @@ Write down this template as `onelogin-connector.yaml`:
 (!examples/resources/onelogin-connector.yaml!)
 ```
 
-To fill in the fields, open `SSO` tab:
-
-![Configure APP](../../../img/sso/onelogin/onelogin-saml-6.png)
-
-- `acs` - is the name of the teleport web proxy, e.g. `https://teleport.example.com/v1/webapi/saml/acs`
-- `issuer` - use value from `Issuer URL field`, e.g. `https://app.onelogin.com/saml/metadata/123456`
-- `sso` - use the value from the value from field `SAML 2.0 Endpoint (HTTP)` but replace `http-post` with `http-redirect`, e.g. `https://mycompany.onelogin.com/trust/saml2/http-redirect/sso/123456`
-
-<Admonition
-  type="tip"
-  title="Important"
->
-  Make sure to replace `http-post` with `http-redirect`.
-</Admonition>
-
-- `cert` - download certificate, by clicking "view details link" and add to `cert` section
-
-![Configure APP](../../../img/sso/onelogin/onelogin-saml-7.png)
+Update the `acs` value with your public cluster URL and paste the SAML metadata that you
+previously downloaded in `entity_descriptor`.
 
 Create the connector using `tctl` tool:
 

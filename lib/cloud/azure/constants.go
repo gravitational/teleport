@@ -23,4 +23,6 @@ const (
 	// PostgresPort is the Azure managed PostgreSQL server port
 	// https://docs.microsoft.com/en-us/azure/postgresql/single-server/concepts-connectivity-architecture
 	PostgresPort = "5432"
+	// resourceOwner is used to identify who owns the ClusterRole and ClusterRoleBinding.
+	resourceOwner = "Teleport"
 )

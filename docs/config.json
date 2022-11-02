@@ -219,12 +219,18 @@
               "title": "Moderated Sessions",
               "slug": "/access-controls/guides/moderated-sessions/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Hardware Key Support (Preview)",
+              "slug": "/access-controls/guides/hardware-key-support/",
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
         {
           "title": "Single Sign-On (SSO)",
           "slug": "/access-controls/sso/",
+          "forScopes": ["enterprise", "oss", "cloud"],
           "entries": [
             {
               "title": "GitHub SSO",
@@ -380,7 +386,7 @@
             {
               "title": "Troubleshooting",
               "slug": "/management/admin/troubleshooting/",
-              "forScopes": ["oss", "enterprise"]
+              "forScopes": ["oss", "enterprise", "cloud"]
             },
             {
               "title": "Upgrading the Teleport Binary",
@@ -389,6 +395,10 @@
             {
               "title": "Run Teleport as a Daemon",
               "slug": "/management/admin/daemon/"
+            },
+            {
+              "title": "Run Teleport with Self-Signed Certificates",
+              "slug": "/management/admin/self-signed-certs/"
             }
           ]
         },
@@ -478,6 +488,32 @@
             {
               "title": "Using Teleport's CA with GitHub",
               "slug": "/management/guides/ssh-key-extensions/"
+            }
+          ]
+        },
+        {
+          "title": "Diagnostics",
+          "slug": "/management/diagnostics/",
+          "entries": [
+            {
+              "title": "Health Monitoring",
+              "slug": "/management/diagnostics/monitoring/",
+              "forScopes": ["oss", "enterprise", "cloud"]
+            },
+            {
+              "title": "Metrics",
+              "slug": "/management/diagnostics/metrics/",
+              "forScopes": ["oss", "enterprise", "cloud"]
+            },
+            {
+              "title": "Collecting Profiles",
+              "slug": "/management/diagnostics/profiles/",
+              "forScopes": ["oss", "enterprise", "cloud"]
+            },
+            {
+              "title": "Distributed Tracing",
+              "slug": "/management/diagnostics/tracing/",
+              "forScopes": ["oss", "enterprise", "cloud"]
             }
           ]
         }
@@ -606,11 +642,15 @@
               "slug": "/server-access/guides/vscode/"
             },
             {
+              "title": "JetBrains SFTP",
+              "slug": "/server-access/guides/jetbrains-sftp/"
+            },
+            {
               "title": "Host User Creation",
               "slug": "/server-access/guides/host-user-creation/"
             },
             {
-              "title": "EC2 Instance Discovery",
+              "title": "EC2 Instance Discovery (Preview)",
               "slug": "/server-access/guides/ec2-discovery/"
             }
           ]
@@ -702,8 +742,20 @@
               "slug": "/database-access/guides/azure-postgres-mysql/"
             },
             {
+              "title": "Azure Cache for Redis",
+              "slug": "/database-access/guides/azure-redis/"
+            },
+            {
+              "title": "Azure SQL Server (Preview)",
+              "slug": "/database-access/guides/azure-sql-server-ad/"
+            },
+            {
               "title": "MongoDB Atlas",
               "slug": "/database-access/guides/mongodb-atlas/"
+            },
+            {
+              "title": "Self-Hosted Elasticsearch",
+              "slug": "/database-access/guides/elastic/"
             },
             {
               "title": "Self-Hosted PostgreSQL",
@@ -803,10 +855,10 @@
           "title": "Access Controls",
           "slug": "/desktop-access/rbac/"
         },
-	{
-	    "title": "Directory Sharing",
-	    "slug": "/desktop-access/directory-sharing/"
-	},
+        {
+          "title": "Directory Sharing",
+          "slug": "/desktop-access/directory-sharing/"
+        },
         {
           "title": "Reference",
           "slug": "/desktop-access/reference/",
@@ -870,10 +922,6 @@
             {
               "title": "Configuration",
               "slug": "/machine-id/reference/configuration/"
-            },
-            {
-              "title": "CLI",
-              "slug": "/machine-id/reference/cli/"
             }
           ]
         },
@@ -900,6 +948,10 @@
             {
               "title": "Applications",
               "slug": "/machine-id/guides/applications/"
+            },
+            {
+              "title": "Host Certificates",
+              "slug": "/machine-id/guides/host-certificate/"
             }
           ]
         }
@@ -1105,7 +1157,7 @@
       "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "10.3.1",
+      "version": "10.3.2",
       "major_version": "10",
       "sla": {
         "monthly_percentage": "99.5%",
@@ -1184,7 +1236,7 @@
     },
     {
       "source": "/metrics-logs-reference/",
-      "destination": "/reference/metrics/",
+      "destination": "/management/diagnostics/metrics/",
       "permanent": true
     },
     {

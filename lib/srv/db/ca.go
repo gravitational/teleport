@@ -24,15 +24,15 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gravitational/trace"
+	sqladmin "google.golang.org/api/sqladmin/v1beta4"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
 
 // initCACert initializes the provided server's CA certificate in case of a
@@ -48,10 +48,11 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 		types.DatabaseTypeRedshift,
 		types.DatabaseTypeElastiCache,
 		types.DatabaseTypeMemoryDB,
+		types.DatabaseTypeAWSKeyspaces,
 		types.DatabaseTypeCloudSQL:
 
 	case types.DatabaseTypeAzure:
-		// Azure Cache for Redis uses system cert poool
+		// Azure Cache for Redis uses system cert pool.
 		if database.GetProtocol() == defaults.ProtocolRedis {
 			return nil
 		}
@@ -141,7 +142,11 @@ func (s *Server) getCACertPath(database types.Database) (string, error) {
 
 	case types.DatabaseTypeAzure:
 		return filepath.Join(s.cfg.DataDir, filepath.Base(azureCAURL)), nil
+
+	case types.DatabaseTypeAWSKeyspaces:
+		return filepath.Join(s.cfg.DataDir, filepath.Base(amazonKeyspacesCAURL)), nil
 	}
+
 	return "", trace.BadParameter("%v doesn't support automatic CA download", database)
 }
 
@@ -174,6 +179,8 @@ func (d *realDownloader) Download(ctx context.Context, database types.Database) 
 		return d.downloadForCloudSQL(ctx, database)
 	case types.DatabaseTypeAzure:
 		return d.downloadFromURL(azureCAURL)
+	case types.DatabaseTypeAWSKeyspaces:
+		return d.downloadFromURL(amazonKeyspacesCAURL)
 	}
 	return nil, trace.BadParameter("%v doesn't support automatic CA download", database)
 }
@@ -285,6 +292,12 @@ const (
 	azureCAURL = "https://www.digicert.com/CACerts/BaltimoreCyberTrustRoot.crt.pem"
 	// cloudSQLDownloadError is the error message that gets returned when
 	// we failed to download root certificate for Cloud SQL instance.
+
+	// amazonKeyspacesCAURL is the URL of the CA certificate for validating certificates
+	// presented by AWS Keyspace. See:
+	// https://docs.aws.amazon.com/keyspaces/latest/devguide/using_go_driver.html
+	amazonKeyspacesCAURL = "https://certs.secureserver.net/repository/sf-class2-root.crt"
+
 	cloudSQLDownloadError = `Could not download Cloud SQL CA certificate for database %v due to the following error:
 
     %v

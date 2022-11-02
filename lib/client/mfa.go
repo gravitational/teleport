@@ -76,6 +76,9 @@ type PromptMFAChallengeOpts struct {
 // promptMFAStandalone is used to mock PromptMFAChallenge for tests.
 var promptMFAStandalone = PromptMFAChallenge
 
+// hasPlatformSupport is used to mock wancli.HasPlatformSupport for tests.
+var hasPlatformSupport = wancli.HasPlatformSupport
+
 // PromptMFAChallenge prompts the user to complete MFA authentication
 // challenges.
 // If proxyAddr is empty, the TeleportClient.WebProxyAddr is used.
@@ -121,9 +124,9 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 
 	// Does the current platform support hardware MFA? Adjust accordingly.
 	switch {
-	case !hasTOTP && !wancli.HasPlatformSupport():
+	case !hasTOTP && !hasPlatformSupport():
 		return nil, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
-	case !wancli.HasPlatformSupport():
+	case !hasPlatformSupport():
 		// Do not prompt for hardware devices, it won't work.
 		hasWebauthn = false
 	}

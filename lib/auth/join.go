@@ -21,11 +21,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/trace"
 )
 
 // tokenJoinMethod returns the join method of the token with the given tokenName
@@ -112,6 +113,10 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		if err := a.checkGitHubJoinRequest(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case types.JoinMethodCircleCI:
+		if err := a.checkCircleCIJoinRequest(ctx, req); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	case types.JoinMethodToken:
 		// carry on to common token checking logic
 	default:
@@ -140,6 +145,9 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 		// Append `bot-` to the bot name to derive its username.
 		botResourceName := BotResourceName(botName)
 		expires := a.GetClock().Now().Add(defaults.DefaultRenewableCertTTL)
+		if req.Expires != nil {
+			expires = *req.Expires
+		}
 
 		joinMethod := provisionToken.GetJoinMethod()
 
@@ -152,7 +160,9 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 		case types.JoinMethodToken:
 			shouldDeleteToken = true
 			renewable = true
-		case types.JoinMethodIAM, types.JoinMethodGitHub:
+		case types.JoinMethodIAM,
+			types.JoinMethodGitHub,
+			types.JoinMethodCircleCI:
 			shouldDeleteToken = false
 			renewable = false
 		default:
@@ -177,6 +187,9 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 
 		log.Infof("Bot %q has joined the cluster.", botName)
 		return certs, nil
+	}
+	if req.Expires != nil {
+		return nil, trace.BadParameter("'expires' cannot be set on join for non-bot certificates")
 	}
 
 	// instance certs include an additional field that specifies the list of

@@ -19,12 +19,13 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth/touchid"
-	"github.com/gravitational/trace"
-
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	log "github.com/sirupsen/logrus"
+	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 )
 
 // AuthenticatorAttachment allows callers to choose a specific attachment.
@@ -35,6 +36,18 @@ const (
 	AttachmentCrossPlatform
 	AttachmentPlatform
 )
+
+func (a AuthenticatorAttachment) String() string {
+	switch a {
+	case AttachmentAuto:
+		return "auto"
+	case AttachmentCrossPlatform:
+		return "cross-platform"
+	case AttachmentPlatform:
+		return "platform"
+	}
+	return ""
+}
 
 // CredentialInfo holds information about a WebAuthn credential, typically a
 // resident public key credential.
@@ -110,6 +123,13 @@ func Login(
 		user = opts.User
 	}
 
+	if webauthnwin.IsAvailable() {
+		log.Debug("WebAuthnWin: Using windows webauthn for credential assertion")
+		return webauthnwin.Login(ctx, origin, assertion, &webauthnwin.LoginOpts{
+			AuthenticatorAttachment: webauthnwin.AuthenticatorAttachment(attachment),
+		})
+	}
+
 	switch attachment {
 	case AttachmentCrossPlatform:
 		log.Debug("Cross-platform login")
@@ -133,7 +153,7 @@ func crossPlatformLogin(
 	ctx context.Context,
 	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
-	if IsFIDO2Available() {
+	if isLibfido2Enabled() {
 		log.Debug("FIDO2: Using libfido2 for assertion")
 		return FIDO2Login(ctx, origin, assertion, prompt, opts)
 	}
@@ -179,7 +199,12 @@ type RegisterPrompt interface {
 func Register(
 	ctx context.Context,
 	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt) (*proto.MFARegisterResponse, error) {
-	if IsFIDO2Available() {
+	if webauthnwin.IsAvailable() {
+		log.Debug("WebAuthnWin: Using windows webauthn for credential creation")
+		return webauthnwin.Register(ctx, origin, cc)
+	}
+
+	if isLibfido2Enabled() {
 		log.Debug("FIDO2: Using libfido2 for credential creation")
 		return FIDO2Register(ctx, origin, cc, prompt)
 	}
@@ -188,4 +213,16 @@ func Register(
 		return nil, trace.Wrap(err)
 	}
 	return U2FRegister(ctx, origin, cc)
+}
+
+// HasPlatformSupport returns true if the platform supports client-side
+// WebAuthn-compatible logins.
+func HasPlatformSupport() bool {
+	return IsFIDO2Available() || touchid.IsAvailable() || isU2FAvailable()
+}
+
+// IsFIDO2Available returns true if FIDO2 is implemented either via native
+// libfido2 library or Windows WebAuthn API.
+func IsFIDO2Available() bool {
+	return isLibfido2Enabled() || webauthnwin.IsAvailable()
 }

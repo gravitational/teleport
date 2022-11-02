@@ -20,9 +20,8 @@ import (
 	"context"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 var _ DBServersClient = (*mySQLClient)(nil)

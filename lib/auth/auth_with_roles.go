@@ -23,6 +23,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -40,12 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
-	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 )
 
 // ServerWithRoles is a wrapper around auth service
@@ -427,6 +427,34 @@ func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID strin
 // GetActiveSessionTrackers returns a list of active session trackers.
 func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
 	sessions, err := a.authServer.GetActiveSessionTrackers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.serverAction(); err == nil {
+		return sessions, nil
+	}
+
+	var filteredSessions []types.SessionTracker
+	user := a.context.User
+	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, sess := range sessions {
+		ok := a.filterSessionTracker(ctx, joinerRoles, sess, types.VerbList)
+		if ok {
+			filteredSessions = append(filteredSessions, sess)
+		}
+	}
+
+	return filteredSessions, nil
+}
+
+// GetActiveSessionTrackersWithFilter returns a list of active sessions filtered by a filter.
+func (a *ServerWithRoles) GetActiveSessionTrackersWithFilter(ctx context.Context, filter *types.SessionTrackerFilter) ([]types.SessionTracker, error) {
+	sessions, err := a.authServer.GetActiveSessionTrackersWithFilter(ctx, filter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1153,14 +1181,19 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 
 // ListResources returns a paginated list of resources filtered by user access.
 func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-	if req.UseSearchAsRoles {
+	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
+		var extraRoles []string
+		if req.UseSearchAsRoles {
+			extraRoles = append(extraRoles, a.context.Checker.GetAllowedSearchAsRoles()...)
+		}
+		if req.UsePreviewAsRoles {
+			extraRoles = append(extraRoles, a.context.Checker.GetAllowedPreviewAsRoles()...)
+		}
 		clusterName, err := a.authServer.GetClusterName()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// For search-based access requests, replace the current roles with all
-		// roles the user is allowed to search with.
-		if err := a.context.UseSearchAsRoles(services.RoleGetter(a.authServer), clusterName.GetClusterName()); err != nil {
+		if err := a.context.UseExtraRoles(a.authServer, clusterName.GetClusterName(), extraRoles); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.AccessRequestResourceSearch{
@@ -4143,7 +4176,7 @@ func (a *ServerWithRoles) GenerateAppToken(ctx context.Context, req types.Genera
 		return "", trace.Wrap(err)
 	}
 
-	session, err := a.authServer.generateAppToken(ctx, req.Username, req.Roles, req.URI, req.Expires)
+	session, err := a.authServer.generateAppToken(ctx, req.Username, req.Roles, req.Traits, req.URI, req.Expires)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

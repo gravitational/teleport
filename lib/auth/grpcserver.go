@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/events"
@@ -1437,15 +1438,20 @@ func (g *GRPCServer) DeleteUserAppSessions(ctx context.Context, req *proto.Delet
 }
 
 // GenerateAppToken creates a JWT token with application access.
-func (g GRPCServer) GenerateAppToken(ctx context.Context, req *proto.GenerateAppTokenRequest) (*proto.GenerateAppTokenResponse, error) {
+func (g *GRPCServer) GenerateAppToken(ctx context.Context, req *proto.GenerateAppTokenRequest) (*proto.GenerateAppTokenResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	traits := wrappers.Traits{}
+	for traitName, traitValues := range req.Traits {
+		traits[traitName] = traitValues.Values
+	}
 	token, err := auth.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
 		Username: req.Username,
 		Roles:    req.Roles,
+		Traits:   traits,
 		URI:      req.URI,
 		Expires:  req.Expires,
 	})
@@ -2522,9 +2528,6 @@ func (g *GRPCServer) GetSAMLConnectors(ctx context.Context, req *types.Resources
 func (g *GRPCServer) UpsertSAMLConnector(ctx context.Context, samlConnector *types.SAMLConnectorV2) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = services.ValidateSAMLConnector(samlConnector, auth); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err = auth.ServerWithRoles.UpsertSAMLConnector(ctx, samlConnector); err != nil {
@@ -3962,6 +3965,33 @@ func (g *GRPCServer) GetActiveSessionTrackers(_ *emptypb.Empty, stream proto.Aut
 	return nil
 }
 
+// GetActiveSessionTrackersWithFilter returns a list of active sessions filtered by a filter.
+func (g *GRPCServer) GetActiveSessionTrackersWithFilter(filter *types.SessionTrackerFilter, stream proto.AuthService_GetActiveSessionTrackersWithFilterServer) error {
+	ctx := stream.Context()
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sessions, err := auth.ServerWithRoles.GetActiveSessionTrackersWithFilter(ctx, filter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, session := range sessions {
+		defined, ok := session.(*types.SessionTrackerV1)
+		if !ok {
+			return trace.BadParameter("unexpected session type %T", session)
+		}
+
+		err := stream.Send(defined)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
 // RemoveSessionTracker removes a tracker resource for an active session.
 func (g *GRPCServer) RemoveSessionTracker(ctx context.Context, req *proto.RemoveSessionTrackerRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -4202,7 +4232,10 @@ func (g *GRPCServer) CreateKubernetesCluster(ctx context.Context, cluster *types
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cluster.SetOrigin(types.OriginDynamic)
+	// if origin is not set, force it to be dynamic.
+	if len(cluster.Origin()) == 0 {
+		cluster.SetOrigin(types.OriginDynamic)
+	}
 	if err := auth.CreateKubernetesCluster(ctx, cluster); err != nil {
 		return nil, trace.Wrap(err)
 	}
