@@ -14,40 +14,38 @@ export function Nodes(props: ListProps & { nodes: Node[] }) {
   } = props;
 
   return (
-    <>
-      <StyledTable
-        data={nodes}
-        columns={[
-          {
-            key: 'hostname',
-            headerText: 'Hostname',
-            isSortable: true,
-          },
-          {
-            key: 'addr',
-            headerText: 'Address',
-            render: renderAddressCell,
-          },
-          {
-            key: 'labels',
-            headerText: 'Labels',
-            render: ({ labels }) => (
-              <ClickableLabelCell labels={labels} onClick={onLabelClick} />
+    <StyledTable
+      data={nodes}
+      columns={[
+        {
+          key: 'hostname',
+          headerText: 'Hostname',
+          isSortable: true,
+        },
+        {
+          key: 'addr',
+          headerText: 'Address',
+          render: renderAddressCell,
+        },
+        {
+          key: 'labels',
+          headerText: 'Labels',
+          render: ({ labels }) => (
+            <ClickableLabelCell labels={labels} onClick={onLabelClick} />
+          ),
+        },
+        {
+          altKey: 'action-btn',
+          render: agent =>
+            renderActionCell(Boolean(addedResources.node[agent.id]), () =>
+              addOrRemoveResource('node', agent.id, agent.hostname)
             ),
-          },
-          {
-            altKey: 'action-btn',
-            render: agent =>
-              renderActionCell(Boolean(addedResources.node[agent.id]), () =>
-                addOrRemoveResource('node', agent.id, agent.hostname)
-              ),
-          },
-        ]}
-        emptyText="No Results Found"
-        customSort={customSort}
-        disableFilter
-      />
-    </>
+        },
+      ]}
+      emptyText="No Results Found"
+      customSort={customSort}
+      disableFilter
+    />
   );
 }
 
