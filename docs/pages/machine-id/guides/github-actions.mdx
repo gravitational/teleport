@@ -70,14 +70,14 @@ configuration options to more strictly define the scope of access granted to the
 
 | **Setting** | **Behavior** | **Example** |
 | ----------- | ----------- | ----------- |
-| `sub` | Defines a subject claim. | `repo:example-org/example-repo:environment:dev` |
-| `repository` | The repository where the actions will run. | `gravitational/example` |
-| `repository_owner` | The name of the organization that owns the repository where the actions will run.  | `example-org` |
-| `workflow`| The name of the workflow. | `example-workflow` |
-| `environment`| The name of the environment where the actions will run. | `dev` |
-| `actor` | The account that will perform the actions. | `username` |
-| `ref` | The git "ref" or reference that triggers the action. | `refs/heads/example` |
-| `ref_type` | The type of "ref" or reference that triggers the action. | `branch` |
+| `sub` | The subject claim that will trigger the GitHub Actions run. | `repo:example-org/example-repo:environment:development` |
+| `repository` | The repository where the action will run. | `example-org/example` |
+| `repository_owner` | The name of the organization that owns the repository where the action will run.  | `example-org` |
+| `workflow`| The name of the [workflow](https://docs.github.com/en/actions/using-workflows/about-workflows) that will run the job. This references the `name` of a workflow defined within a workflow configuration file, and can be the workflow created in Step 3/3 of this guide. | `guide-demo` |
+| `environment`| The name of the [environment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment) where the action will run. | `development` |
+| `actor` | The GitHub account name that the action will be triggered under. | `username` |
+| `ref` | The git "ref" or [reference](https://docs.github.com/en/rest/git/refs#about-the-git-references-api) that will trigger the action. | `refs/heads/example` |
+| `ref_type` | The **type** of "ref" or reference that will trigger the action. | `branch` |
 
 Once the configuration YAML file has been created, apply it to your cluster using `tctl`:
 
@@ -142,7 +142,7 @@ jobs:
 # The "id-token: write" permission is required or tbot will not be able to authenticate.
      id-token: write
      contents: read
-# The name of the action, and the Linux distro to be used to perform the required steps.
+# The name of the workflow, and the Linux distro to be used to perform the required steps.
    name: guide-demo
    runs-on: ubuntu-latest
    steps:
