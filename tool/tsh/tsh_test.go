@@ -2643,7 +2643,8 @@ func TestSerializeDatabases(t *testing.T) {
         },
         "elasticache": {},
         "secret_store": {},
-        "memorydb": {}
+        "memorydb": {},
+        "rdsproxy": {}
       },
       "mysql": {},
       "gcp": {},
@@ -2668,7 +2669,8 @@ func TestSerializeDatabases(t *testing.T) {
         },
         "elasticache": {},
         "secret_store": {},
-        "memorydb": {}
+        "memorydb": {},
+        "rdsproxy": {}
       },
       "azure": {
 	    "redis": {}
