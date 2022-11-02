@@ -87,29 +87,27 @@ export function Databases(props: State) {
         <ErrorMessage message={attempt.statusText} />
       )}
       {attempt.status !== 'processing' && !hasNoDatabases && (
-        <>
-          <DatabaseList
-            databases={results.databases}
-            username={username}
-            clusterId={clusterId}
-            authType={authType}
-            fetchNext={fetchNext}
-            fetchPrev={fetchPrev}
-            fetchStatus={fetchStatus}
-            from={from}
-            to={to}
-            totalCount={results.totalCount}
-            pageSize={pageSize}
-            params={params}
-            setParams={setParams}
-            startKeys={startKeys}
-            setSort={setSort}
-            pathname={pathname}
-            replaceHistory={replaceHistory}
-            onLabelClick={onLabelClick}
-            accessRequestId={accessRequestId}
-          />
-        </>
+        <DatabaseList
+          databases={results.databases}
+          username={username}
+          clusterId={clusterId}
+          authType={authType}
+          fetchNext={fetchNext}
+          fetchPrev={fetchPrev}
+          fetchStatus={fetchStatus}
+          from={from}
+          to={to}
+          totalCount={results.totalCount}
+          pageSize={pageSize}
+          params={params}
+          setParams={setParams}
+          startKeys={startKeys}
+          setSort={setSort}
+          pathname={pathname}
+          replaceHistory={replaceHistory}
+          onLabelClick={onLabelClick}
+          accessRequestId={accessRequestId}
+        />
       )}
       {attempt.status === 'success' && hasNoDatabases && (
         <Empty

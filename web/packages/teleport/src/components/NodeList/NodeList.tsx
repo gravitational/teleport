@@ -46,60 +46,58 @@ function NodeList(props: Props) {
   } = props;
 
   return (
-    <>
-      <Table
-        columns={[
-          {
-            key: 'hostname',
-            headerText: 'Hostname',
-            isSortable: true,
-          },
-          {
-            key: 'addr',
-            headerText: 'Address',
-            render: renderAddressCell,
-          },
-          {
-            key: 'labels',
-            headerText: 'Labels',
-            render: ({ labels }) => (
-              <ClickableLabelCell labels={labels} onClick={onLabelClick} />
-            ),
-          },
-          {
-            altKey: 'connect-btn',
-            render: ({ id }) =>
-              renderLoginCell(id, onLoginSelect, onLoginMenuOpen),
-          },
-        ]}
-        emptyText="No Nodes Found"
-        data={nodes}
-        pagination={{
-          pageSize,
-        }}
-        fetching={{
-          onFetchNext: fetchNext,
-          onFetchPrev: fetchPrev,
-          fetchStatus,
-        }}
-        serversideProps={{
-          sort: params.sort,
-          setSort,
-          startKeys,
-          serversideSearchPanel: (
-            <ServersideSearchPanel
-              from={from}
-              to={to}
-              count={totalCount}
-              params={params}
-              setParams={setParams}
-              pathname={pathname}
-              replaceHistory={replaceHistory}
-            />
+    <Table
+      columns={[
+        {
+          key: 'hostname',
+          headerText: 'Hostname',
+          isSortable: true,
+        },
+        {
+          key: 'addr',
+          headerText: 'Address',
+          render: renderAddressCell,
+        },
+        {
+          key: 'labels',
+          headerText: 'Labels',
+          render: ({ labels }) => (
+            <ClickableLabelCell labels={labels} onClick={onLabelClick} />
           ),
-        }}
-      />
-    </>
+        },
+        {
+          altKey: 'connect-btn',
+          render: ({ id }) =>
+            renderLoginCell(id, onLoginSelect, onLoginMenuOpen),
+        },
+      ]}
+      emptyText="No Nodes Found"
+      data={nodes}
+      pagination={{
+        pageSize,
+      }}
+      fetching={{
+        onFetchNext: fetchNext,
+        onFetchPrev: fetchPrev,
+        fetchStatus,
+      }}
+      serversideProps={{
+        sort: params.sort,
+        setSort,
+        startKeys,
+        serversideSearchPanel: (
+          <ServersideSearchPanel
+            from={from}
+            to={to}
+            count={totalCount}
+            params={params}
+            setParams={setParams}
+            pathname={pathname}
+            replaceHistory={replaceHistory}
+          />
+        ),
+      }}
+    />
   );
 }
 

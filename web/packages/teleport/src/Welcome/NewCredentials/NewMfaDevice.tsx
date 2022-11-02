@@ -182,12 +182,10 @@ export function NewMfaDevice(props: Props) {
               </>
             )}
             {mfaType?.value === 'optional' && (
-              <>
-                <Text textAlign="center">
-                  We strongly recommend enrolling a two-factor device to protect
-                  both yourself and your organization.
-                </Text>
-              </>
+              <Text textAlign="center">
+                We strongly recommend enrolling a two-factor device to protect
+                both yourself and your organization.
+              </Text>
             )}
           </Flex>
           {mfaType?.value !== 'optional' && (
