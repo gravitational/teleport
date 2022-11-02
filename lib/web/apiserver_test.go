@@ -2820,6 +2820,136 @@ func TestClusterDatabasesGet(t *testing.T) {
 	}, resp.Items[0])
 }
 
+func TestClusterDatabaseGet(t *testing.T) {
+	env := newWebPack(t, 1)
+	ctx := context.Background()
+
+	proxy := env.proxies[0]
+
+	// Register a database.
+	dbName := "existingdb"
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name: dbName,
+		Labels: map[string]string{
+			"env": "prod",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: "test-protocol",
+		URI:      "test-uri",
+	})
+	require.NoError(t, err)
+
+	dbNames := []string{"db1", "db2"}
+	dbUsers := []string{"user1", "user2"}
+
+	err = env.server.Auth().CreateDatabase(context.Background(), db)
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name            string
+		databaseName    string
+		userRoles       func(*testing.T) []types.Role
+		expectedDBUsers []string
+		expectedDBNames []string
+		requireError    require.ErrorAssertionFunc
+	}{
+		{
+			name:         "valid",
+			databaseName: dbName,
+			requireError: require.NoError,
+		},
+		{
+			name:         "notfound",
+			databaseName: "notfound",
+			requireError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(tt, trace.IsNotFound(err), "expected a not found error, got %v", err)
+			},
+		},
+		{
+			name:         "notauthorized",
+			databaseName: dbName,
+			userRoles: func(tt *testing.T) []types.Role {
+				role, err := types.NewRole(
+					"myrole",
+					types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							DatabaseLabels: types.Labels{
+								"env": apiutils.Strings{"staging"},
+							},
+						},
+					},
+				)
+				require.NoError(tt, err)
+				return []types.Role{role}
+			},
+			requireError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(tt, trace.IsAccessDenied(err), "expected a access denied error, got %v", err)
+			},
+		},
+		{
+			name:         "authorizedDBNamesUsers",
+			databaseName: dbName,
+			userRoles: func(tt *testing.T) []types.Role {
+				roleWithDBName, err := types.NewRole(
+					"myroleWithDBName",
+					types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							DatabaseLabels: types.Labels{
+								"env": apiutils.Strings{"prod"},
+							},
+							DatabaseNames: dbNames,
+						},
+					},
+				)
+				require.NoError(tt, err)
+
+				roleWithDBUser, err := types.NewRole(
+					"myroleWithDBUser",
+					types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							DatabaseLabels: types.Labels{
+								"env": apiutils.Strings{"prod"},
+							},
+							DatabaseUsers: dbUsers,
+						},
+					},
+				)
+				require.NoError(tt, err)
+
+				return []types.Role{roleWithDBUser, roleWithDBName}
+			},
+			expectedDBNames: dbNames,
+			expectedDBUsers: dbUsers,
+			requireError:    require.NoError,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var roles []types.Role
+			if tt.userRoles != nil {
+				roles = tt.userRoles(t)
+			}
+
+			pack := proxy.authPack(t, tt.name+"_user@example.com", roles)
+
+			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases", tt.databaseName)
+			re, err := pack.clt.Get(ctx, endpoint, nil)
+			tt.requireError(t, err)
+			if err != nil {
+				return
+			}
+
+			resp := ui.Database{}
+			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+
+			require.Equal(t, tt.databaseName, resp.Name, "database name")
+			require.Equal(t, types.DatabaseTypeSelfHosted, resp.Type, "database type")
+			require.EqualValues(t, []ui.Label{{Name: "env", Value: "prod"}}, resp.Labels)
+			require.ElementsMatch(t, tt.expectedDBUsers, resp.DatabaseUsers)
+			require.ElementsMatch(t, tt.expectedDBNames, resp.DatabaseNames)
+		})
+	}
+}
+
 func TestClusterKubesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 

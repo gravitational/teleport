@@ -228,10 +228,26 @@ type Database struct {
 	Type string `json:"type"`
 	// Labels is a map of static and dynamic labels associated with a database.
 	Labels []Label `json:"labels"`
+	// DatabaseUsers is the list of allowed Database RBAC users that the user can login.
+	DatabaseUsers []string `json:"database_users,omitempty"`
+	// DatabaseNames is the list of allowed Database RBAC names that the user can login.
+	DatabaseNames []string `json:"database_names,omitempty"`
 }
 
-// MakeDatabase creates a database object.
-func MakeDatabase(database types.Database) Database {
+// MakeDatabases creates database objects.
+func MakeDatabases(databases []types.Database) []Database {
+	uiServers := make([]Database, 0, len(databases))
+	for _, database := range databases {
+		db := MakeDatabase(database, nil /* database Users */, nil /* database Names */)
+		uiServers = append(uiServers, db)
+	}
+
+	return uiServers
+}
+
+// MakeDatabase creates database objects.
+func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
+
 	uiLabels := []Label{}
 
 	for name, value := range database.GetAllLabels() {
@@ -244,22 +260,14 @@ func MakeDatabase(database types.Database) Database {
 	sort.Sort(sortedLabels(uiLabels))
 
 	return Database{
-		Name:     database.GetName(),
-		Desc:     database.GetDescription(),
-		Protocol: database.GetProtocol(),
-		Type:     database.GetType(),
-		Labels:   uiLabels,
+		Name:          database.GetName(),
+		Desc:          database.GetDescription(),
+		Protocol:      database.GetProtocol(),
+		Type:          database.GetType(),
+		Labels:        uiLabels,
+		DatabaseUsers: dbUsers,
+		DatabaseNames: dbNames,
 	}
-}
-
-// MakeDatabases creates database objects.
-func MakeDatabases(clusterName string, databases []types.Database) []Database {
-	uiServers := make([]Database, 0, len(databases))
-	for _, database := range databases {
-		uiServers = append(uiServers, MakeDatabase(database))
-	}
-
-	return uiServers
 }
 
 // Desktop describes a desktop to pass to the ui.
