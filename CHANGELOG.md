@@ -1,5 +1,26 @@
 # Changelog
 
+## 8.3.20
+
+This release of Teleport contains a security fix as well as multiple improvements and bug fixes.
+
+### Non-interactive commands audit log escape
+
+Some non-interactive SSH commands could escape audit log.
+
+[#16923](https://github.com/gravitational/teleport/pull/16923)
+
+### Other fixes
+
+* Fixed issue with X11 forwarding for non-root users. [#17132](https://github.com/gravitational/teleport/pull/17132)
+* Fixed issue with `tsh db connect` session terminating upon receiving SIGINT. [#17066](https://github.com/gravitational/teleport/pull/17066)
+* Fixed issue with Teleport starting with incorrect configuration when no config file is present. [#17345](https://github.com/gravitational/teleport/pull/17345)
+* Fixed panic when comparing public SSH keys. [#17874](https://github.com/gravitational/teleport/pull/17874)
+* Added support for imagePullSecrets in teleport-kube-agent Helm chart. [#16679](https://github.com/gravitational/teleport/pull/16679)
+* Improved Kubernetes logs formatting. [#17478](https://github.com/gravitational/teleport/pull/17478)
+* Improved consistency when using etcd backend. [#17051](https://github.com/gravitational/teleport/pull/17051)
+* Improved memory usage in large clusters. [#16916](https://github.com/gravitational/teleport/pull/16916)
+
 ## 8.3.19
 
 This release of Teleport contains a security fix, as well as multiple improvements and bug fixes.
