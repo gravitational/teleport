@@ -152,6 +152,24 @@ func TestAuthGetTLSConfig(t *testing.T) {
 			expectRootCAs:    systemCertPool,
 		},
 		{
+			name:             "Azure Postgres",
+			sessionDatabase:  newDatabaseWithURI(t, "my-postgres.postgres.database.azure.com:5432", defaults.ProtocolPostgres),
+			expectServerName: "my-postgres.postgres.database.azure.com",
+			expectRootCAs:    systemCertPool,
+		},
+		{
+			name:             "Azure MySQL",
+			sessionDatabase:  newDatabaseWithURI(t, "my-mysql.mysql.database.azure.com:3306", defaults.ProtocolMySQL),
+			expectServerName: "my-mysql.mysql.database.azure.com",
+			expectRootCAs:    systemCertPool,
+		},
+		{
+			name:             "Azure SQL Server",
+			sessionDatabase:  newDatabaseWithURI(t, "test-database.database.windows.net:1433", defaults.ProtocolSQLServer),
+			expectServerName: "test-database.database.windows.net",
+			expectRootCAs:    systemCertPool,
+		},
+		{
 			name:             "AWS RDS Proxy",
 			sessionDatabase:  newRDSProxyDatabase(t, "my-proxy.proxy-abcdefghijklmnop.us-east-1.rds.amazonaws.com:5432"),
 			expectServerName: "my-proxy.proxy-abcdefghijklmnop.us-east-1.rds.amazonaws.com",
@@ -427,6 +445,19 @@ func newRDSProxyDatabase(t *testing.T, uri string) types.Database {
 				Name: "test-database",
 			},
 		},
+	})
+	require.NoError(t, err)
+	return database
+}
+
+func newDatabaseWithURI(t *testing.T, uri, protocol string) types.Database {
+	t.Helper()
+
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-database",
+	}, types.DatabaseSpecV3{
+		Protocol: protocol,
+		URI:      uri,
 	})
 	require.NoError(t, err)
 	return database

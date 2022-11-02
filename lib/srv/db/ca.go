@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -50,12 +49,6 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 		types.DatabaseTypeMemoryDB,
 		types.DatabaseTypeAWSKeyspaces,
 		types.DatabaseTypeCloudSQL:
-
-	case types.DatabaseTypeAzure:
-		// Azure Cache for Redis uses system cert pool.
-		if database.GetProtocol() == defaults.ProtocolRedis {
-			return nil
-		}
 
 	default:
 		return nil
@@ -140,9 +133,6 @@ func (s *Server) getCACertPath(database types.Database) (string, error) {
 	case types.DatabaseTypeCloudSQL:
 		return filepath.Join(s.cfg.DataDir, fmt.Sprintf("%v-root.pem", database.GetName())), nil
 
-	case types.DatabaseTypeAzure:
-		return filepath.Join(s.cfg.DataDir, filepath.Base(azureCAURL)), nil
-
 	case types.DatabaseTypeAWSKeyspaces:
 		return filepath.Join(s.cfg.DataDir, filepath.Base(amazonKeyspacesCAURL)), nil
 	}
@@ -177,8 +167,6 @@ func (d *realDownloader) Download(ctx context.Context, database types.Database) 
 		return d.downloadFromURL(amazonRootCA1URL)
 	case types.DatabaseTypeCloudSQL:
 		return d.downloadForCloudSQL(ctx, database)
-	case types.DatabaseTypeAzure:
-		return d.downloadFromURL(azureCAURL)
 	case types.DatabaseTypeAWSKeyspaces:
 		return d.downloadFromURL(amazonKeyspacesCAURL)
 	}
@@ -284,20 +272,13 @@ const (
 	// https://www.amazontrust.com/repository/
 	amazonRootCA1URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem"
 
-	// azureCAURL is the URL of the CA certificate for validating certificates
-	// presented by Azure hosted databases. See:
-	//
-	// https://docs.microsoft.com/en-us/azure/postgresql/concepts-ssl-connection-security
-	// https://docs.microsoft.com/en-us/azure/mysql/howto-configure-ssl
-	azureCAURL = "https://www.digicert.com/CACerts/BaltimoreCyberTrustRoot.crt.pem"
-	// cloudSQLDownloadError is the error message that gets returned when
-	// we failed to download root certificate for Cloud SQL instance.
-
 	// amazonKeyspacesCAURL is the URL of the CA certificate for validating certificates
 	// presented by AWS Keyspace. See:
 	// https://docs.aws.amazon.com/keyspaces/latest/devguide/using_go_driver.html
 	amazonKeyspacesCAURL = "https://certs.secureserver.net/repository/sf-class2-root.crt"
 
+	// cloudSQLDownloadError is the error message that gets returned when
+	// we failed to download root certificate for Cloud SQL instance.
 	cloudSQLDownloadError = `Could not download Cloud SQL CA certificate for database %v due to the following error:
 
     %v

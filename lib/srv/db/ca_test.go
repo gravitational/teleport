@@ -140,9 +140,9 @@ func TestInitCACert(t *testing.T) {
 			cert:     fixtures.TLSCACertPEM,
 		},
 		{
-			desc:     "should download Azure CA when it's not set",
+			desc:     "shouldn't download Azure CA",
 			database: azureMySQL.GetName(),
-			cert:     fixtures.TLSCACertPEM,
+			cert:     "", // Azure now uses system cert pool.
 		},
 	}
 

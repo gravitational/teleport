@@ -536,11 +536,12 @@ func setupTLSConfigRootCAs(tlsConfig *tls.Config, sessionCtx *Session) error {
 // used.
 func shouldUseSystemCertPool(sessionCtx *Session) bool {
 	switch sessionCtx.Database.GetType() {
+	// Azure databases either use Baltimore Root CA or DigiCert Global Root G2.
+	//
+	// https://docs.microsoft.com/en-us/azure/postgresql/concepts-ssl-connection-security
+	// https://docs.microsoft.com/en-us/azure/mysql/howto-configure-ssl
 	case types.DatabaseTypeAzure:
-		// Azure Cache for Redis certificates are signed by DigiCert Global Root G2.
-		if sessionCtx.Database.GetProtocol() == defaults.ProtocolRedis {
-			return true
-		}
+		return true
 
 	case types.DatabaseTypeRDSProxy:
 		// AWS RDS Proxy uses Amazon Root CAs.
