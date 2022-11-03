@@ -33,7 +33,7 @@ use std::io::{Cursor, Read};
 pub struct Client {
     // capacity is effectively the maximum size of an RDP
     // message we will receive from the RDP server, minus any
-    // ChannelPDUHeader's.
+    // ChannelPDUHeaders.
     capacity: usize,
     data: Vec<u8>,
     drop_this_message: bool,
