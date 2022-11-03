@@ -319,7 +319,8 @@ func (s *Server) handleEC2Discovery() {
 }
 
 func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
-	return trace.NotImplemented("Automatic Azure node joining not implemented")
+	s.Log.Error("Automatic Azure node joining not implemented")
+	return nil
 }
 
 func (s *Server) handleAzureDiscovery() {
