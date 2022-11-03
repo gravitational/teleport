@@ -25,6 +25,8 @@ jobs:
           apt-get -y install git
           git config --global --add safe.directory /workspace
           git config --global --add safe.directory /workspace/webassets
+      - name: See helm help (debug)
+        run: helm --help
       - name: Checkout Teleport
         uses: actions/checkout@v3
       - name: Go build cache
