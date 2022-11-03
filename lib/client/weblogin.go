@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/duo-labs/webauthn/protocol"
@@ -306,24 +307,32 @@ func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *Redirector
 	// If a command was found to launch the browser, create and start it.
 	var execCmd *exec.Cmd
 	if login.Browser != teleport.BrowserNone {
-		switch runtime.GOOS {
-		// macOS.
-		case constants.DarwinOS:
-			path, err := exec.LookPath(teleport.OpenBrowserDarwin)
+		if login.Browser != "" {
+			command := append(strings.Split(login.Browser, " "), clickableURL)
+			path, err := exec.LookPath(command[0])
 			if err == nil {
-				execCmd = exec.Command(path, clickableURL)
+				execCmd = exec.Command(path, command[1:]...)
 			}
-		// Windows.
-		case constants.WindowsOS:
-			path, err := exec.LookPath(teleport.OpenBrowserWindows)
-			if err == nil {
-				execCmd = exec.Command(path, "url.dll,FileProtocolHandler", clickableURL)
-			}
-		// Linux or any other operating system.
-		default:
-			path, err := exec.LookPath(teleport.OpenBrowserLinux)
-			if err == nil {
-				execCmd = exec.Command(path, clickableURL)
+		} else {
+			switch runtime.GOOS {
+			// macOS.
+			case constants.DarwinOS:
+				path, err := exec.LookPath(teleport.OpenBrowserDarwin)
+				if err == nil {
+					execCmd = exec.Command(path, clickableURL)
+				}
+			// Windows.
+			case constants.WindowsOS:
+				path, err := exec.LookPath(teleport.OpenBrowserWindows)
+				if err == nil {
+					execCmd = exec.Command(path, "url.dll,FileProtocolHandler", clickableURL)
+				}
+			// Linux or any other operating system.
+			default:
+				path, err := exec.LookPath(teleport.OpenBrowserLinux)
+				if err == nil {
+					execCmd = exec.Command(path, clickableURL)
+				}
 			}
 		}
 	}
