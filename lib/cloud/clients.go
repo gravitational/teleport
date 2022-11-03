@@ -51,12 +51,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
-	"google.golang.org/grpc/credentials/insecure"
-
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"

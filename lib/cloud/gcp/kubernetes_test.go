@@ -25,11 +25,12 @@ import (
 	"time"
 
 	gax "github.com/googleapis/gax-go/v2"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	containerpb "google.golang.org/genproto/googleapis/container/v1"
 	"k8s.io/client-go/rest"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func Test_gcpGKEClient_ListClusters(t *testing.T) {
@@ -166,7 +167,6 @@ func Test_gcpGKEClient_ListClusters(t *testing.T) {
 			})
 
 			require.Equal(t, got, tt.want)
-
 		})
 	}
 }
@@ -295,7 +295,7 @@ func Test_gcpGKEClient_GetClusterRestConfig(t *testing.T) {
 				},
 				tokenSource: &fakeTokenSource{
 					token: "fake_token",
-					exp:   time.Date(2022, 10, 25, 14, 00, 00, 00, time.Local),
+					exp:   time.Date(2022, 10, 25, 14, 0o0, 0o0, 0o0, time.Local),
 				},
 			},
 			args: args{
@@ -307,7 +307,7 @@ func Test_gcpGKEClient_GetClusterRestConfig(t *testing.T) {
 				},
 			},
 			errValidation:      require.NoError,
-			expectedExpiration: time.Date(2022, 10, 25, 14, 00, 00, 00, time.Local),
+			expectedExpiration: time.Date(2022, 10, 25, 14, 0o0, 0o0, 0o0, time.Local),
 			expectedCfg: &rest.Config{
 				Host:        "https://foobar1.com",
 				BearerToken: "fake_token",
@@ -324,7 +324,7 @@ func Test_gcpGKEClient_GetClusterRestConfig(t *testing.T) {
 				},
 				tokenSource: &fakeTokenSource{
 					token: "fake_token2",
-					exp:   time.Date(2022, 10, 25, 14, 00, 00, 00, time.Local),
+					exp:   time.Date(2022, 10, 25, 14, 0o0, 0o0, 0o0, time.Local),
 				},
 			},
 			args: args{
@@ -336,7 +336,7 @@ func Test_gcpGKEClient_GetClusterRestConfig(t *testing.T) {
 				},
 			},
 			errValidation:      require.NoError,
-			expectedExpiration: time.Date(2022, 10, 25, 14, 00, 00, 00, time.Local),
+			expectedExpiration: time.Date(2022, 10, 25, 14, 0o0, 0o0, 0o0, time.Local),
 			expectedCfg: &rest.Config{
 				Host:        "https://foobar2.com",
 				BearerToken: "fake_token2",
@@ -353,7 +353,7 @@ func Test_gcpGKEClient_GetClusterRestConfig(t *testing.T) {
 				},
 				tokenSource: &fakeTokenSource{
 					token: "fake_token3",
-					exp:   time.Date(2022, 10, 25, 14, 00, 00, 00, time.Local),
+					exp:   time.Date(2022, 10, 25, 14, 0o0, 0o0, 0o0, time.Local),
 				},
 			},
 			args: args{
@@ -365,7 +365,7 @@ func Test_gcpGKEClient_GetClusterRestConfig(t *testing.T) {
 				},
 			},
 			errValidation:      require.NoError,
-			expectedExpiration: time.Date(2022, 10, 25, 14, 00, 00, 00, time.Local),
+			expectedExpiration: time.Date(2022, 10, 25, 14, 0o0, 0o0, 0o0, time.Local),
 			expectedCfg: &rest.Config{
 				Host:        "https://foobar3.com",
 				BearerToken: "fake_token3",

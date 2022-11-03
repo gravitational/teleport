@@ -20,13 +20,12 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	containerpb "google.golang.org/genproto/googleapis/container/v1"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/sirupsen/logrus"
-	containerpb "google.golang.org/genproto/googleapis/container/v1"
 )
 
 // GKEFetcherConfig configures the GKE fetcher.
