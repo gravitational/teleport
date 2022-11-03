@@ -184,6 +184,7 @@ const props: State = {
   },
   runConnectionDiagnostic: () => null,
   nextStep: () => null,
+  prevStep: () => null,
   diagnosis: null,
   canTestConnection: true,
   kube: {
