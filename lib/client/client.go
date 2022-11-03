@@ -30,7 +30,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/moby/term"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -50,13 +56,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/socks"
-
-	"github.com/gravitational/trace"
-	"github.com/moby/term"
-	"go.opentelemetry.io/otel/attribute"
-	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 )
 
 // ProxyClient implements ssh client to a teleport proxy
@@ -85,7 +84,6 @@ type NodeClient struct {
 	Namespace   string
 	Tracer      oteltrace.Tracer
 	Client      *tracessh.Client
-	Proxy       *ProxyClient
 	TC          *TeleportClient
 	OnMFA       func()
 	FIPSEnabled bool
@@ -1624,7 +1622,6 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 
 	nc := &NodeClient{
 		Client:      tracessh.NewClient(conn, chans, emptyCh),
-		Proxy:       proxy,
 		Namespace:   apidefaults.Namespace,
 		TC:          proxy.teleportClient,
 		Tracer:      proxy.Tracer,
@@ -1634,7 +1631,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 	// Start a goroutine that will run for the duration of the client to process
 	// global requests from the client. Teleport clients will use this to update
 	// terminal sizes when the remote PTY size has changed.
-	go nc.handleGlobalRequests(ctx, reqs)
+	go nc.HandleGlobalRequests(ctx, reqs)
 
 	return nc, nil
 }
@@ -1708,7 +1705,6 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 
 	nc := &NodeClient{
 		Client:    tracessh.NewClient(conn, chans, emptyCh),
-		Proxy:     proxy,
 		Namespace: apidefaults.Namespace,
 		TC:        proxy.teleportClient,
 		Tracer:    proxy.Tracer,
@@ -1717,12 +1713,12 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	// Start a goroutine that will run for the duration of the client to process
 	// global requests from the client. Teleport clients will use this to update
 	// terminal sizes when the remote PTY size has changed.
-	go nc.handleGlobalRequests(ctx, reqs)
+	go nc.HandleGlobalRequests(ctx, reqs)
 
 	return nc, nil
 }
 
-func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.Request) {
+func (c *NodeClient) HandleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.Request) {
 	for {
 		select {
 		case r := <-requestCh:

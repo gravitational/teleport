@@ -19,8 +19,9 @@ package restrictedsession
 import (
 	"net"
 
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // Config holds configuration for the RestrictedSession service.

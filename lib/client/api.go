@@ -39,6 +39,15 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -75,15 +84,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/lib/utils/proxy"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/otel/attribute"
-	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -1385,10 +1385,10 @@ func GetKubeTLSServerName(k8host string) string {
 		// If proxy is configured without public_addr set the ServerName to the 'kube.teleport.cluster.local' value.
 		// The k8s server name needs to be a valid hostname but when public_addr is missing from proxy settings
 		// the web_listen_addr is used thus webHost will contain local proxy IP address like: 0.0.0.0 or 127.0.0.1
-		// TODO(smallinsky) UPGRADE IN 10.0. Switch to KubeTeleportProxyALPNPrefix instead.
+		// TODO(smallinsky) UPGRADE IN 12.0. Switch to KubeTeleportProxyALPNPrefix instead.
 		return addSubdomainPrefix(constants.APIDomain, constants.KubeSNIPrefix)
 	}
-	// TODO(smallinsky) UPGRADE IN 10.0. Switch to KubeTeleportProxyALPNPrefix instead.
+	// TODO(smallinsky) UPGRADE IN 12.0. Switch to KubeTeleportProxyALPNPrefix instead.
 	return addSubdomainPrefix(k8host, constants.KubeSNIPrefix)
 }
 
@@ -1987,7 +1987,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, sit
 		// Reuse the existing nodeClient we connected above.
 		return tc.runCommand(ctx, nodeClient, command)
 	}
-	return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
+	return tc.RunShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
 }
 
 func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, siteName string, nodeAddrs []string, proxyClient *ProxyClient, command []string) error {
@@ -2015,7 +2015,7 @@ func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, 
 			return trace.Wrap(err)
 		}
 		defer nodeClient.Close()
-		return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
+		return tc.RunShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
 	}
 	fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes matched label selector, running command on all.\n")
 	return tc.runCommandOnNodes(ctx, siteName, nodeAddrs, proxyClient, command)
@@ -2125,7 +2125,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	}
 
 	// running shell with a given session means "join" it:
-	err = tc.runShell(ctx, nc, mode, session, beforeStart)
+	err = tc.RunShell(ctx, nc, mode, session, beforeStart)
 	return trace.Wrap(err)
 }
 
@@ -2941,12 +2941,12 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 	return nil
 }
 
-// runShell starts an interactive SSH session/shell.
+// RunShell starts an interactive SSH session/shell.
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
-func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, beforeStart func(io.Writer)) error {
+func (tc *TeleportClient) RunShell(ctx context.Context, nodeClient *NodeClient, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, beforeStart func(io.Writer)) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
-		"teleportClient/runShell",
+		"teleportClient/RunShell",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()

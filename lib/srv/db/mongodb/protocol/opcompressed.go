@@ -19,11 +19,10 @@ package protocol
 import (
 	"bytes"
 
+	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 	"go.mongodb.org/mongo-driver/x/mongo/driver"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
-
-	"github.com/gravitational/trace"
 )
 
 // MessageOpCompressed represents parsed OP_COMPRESSED wire message.

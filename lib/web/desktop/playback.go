@@ -25,12 +25,13 @@ import (
 	"sync"
 	"time"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -120,14 +121,11 @@ const (
 )
 
 // actionMessage is a message passed from the playback client
-// to the server over the websocket connection in order to modify
-// the playback state.
+// to the server over the websocket connection in order to
+// control playback.
 type actionMessage struct {
-	// actionPlayPause toggles the playbackState.playState
-	Action playbackAction `json:"action"`
-
-	// PlaySpeed is the playback speed to use.
-	PlaybackSpeed float32 `json:"speed,omitempty"`
+	Action        playbackAction `json:"action"`
+	PlaybackSpeed float32        `json:"speed,omitempty"`
 }
 
 // waitWhilePaused waits idly while the player's state is paused, waiting until:

@@ -25,13 +25,14 @@ import (
 	"strings"
 
 	"github.com/go-redis/redis/v9"
+	"github.com/gravitational/trace"
+
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
-	"github.com/gravitational/trace"
 )
 
 // List of commands that Teleport handles in a special way by Redis standalone and cluster.

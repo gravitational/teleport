@@ -95,6 +95,7 @@ import (
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/proxy/clusterdial"
+	"github.com/gravitational/teleport/lib/proxy/peer"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -102,6 +103,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpnproxyauth "github.com/gravitational/teleport/lib/srv/alpnproxy/auth"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/srv/db"
@@ -3375,11 +3377,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
 	var tsrv reversetunnel.Server
-	var peerClient *proxy.Client
+	var peerClient *peer.Client
 
 	if !process.Config.Proxy.DisableReverseTunnel {
 		if listeners.proxy != nil {
-			peerClient, err = proxy.NewClient(proxy.ClientConfig{
+			peerClient, err = peer.NewClient(peer.ClientConfig{
 				Context:     process.ExitContext(),
 				ID:          process.Config.HostUUID,
 				AuthClient:  conn.Client,
@@ -3440,6 +3442,24 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return nil
 		})
 	}
+
+	localSite, err := tsrv.GetSite(clusterName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	proxyRouter, err := proxy.NewRouter(proxy.RouterConfig{
+		ClusterName:    clusterName,
+		Log:            process.log.WithField(trace.Component, teleport.ComponentProxy),
+		AccessPoint:    accessPoint,
+		LocalSite:      localSite,
+		Tunnel:         tsrv,
+		TracerProvider: process.TracingProvider,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	if !process.Config.Proxy.DisableTLS {
 		tlsConfigWeb, err = process.setupProxyTLSConfig(conn, tsrv, accessPoint, clusterName)
 		if err != nil {
@@ -3469,9 +3489,25 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			accessPoint:  accessPoint,
 		}
 
+		traceClt := tracing.NewNoopClient()
+		if cfg.Tracing.Enabled {
+			traceConf, err := process.Config.Tracing.Config()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			traceConf.Logger = process.log.WithField(trace.Component, teleport.ComponentTracing)
+
+			clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			traceClt = clt
+		}
 		proxyKubeAddr := cfg.Proxy.Kube.ListenAddr
 		if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
 			proxyKubeAddr = cfg.Proxy.Kube.PublicAddrs[0]
+
 		}
 
 		webConfig := web.Config{
@@ -3494,6 +3530,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ProxySettings:    proxySettings,
 			PublicProxyAddr:  process.proxyPublicAddr().Addr,
 			ALPNHandler:      alpnHandlerForWeb.HandleConnection,
+			TraceClient:      traceClt,
+			Router:           proxyRouter,
 			ProxyKubeAddr:    proxyKubeAddr,
 		}
 		webHandler, err = web.NewHandler(webConfig)
@@ -3521,8 +3559,15 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			})
 		}
 
+		handler := httplib.MakeTracingHandler(proxyLimiter, teleport.ComponentProxy)
 		webServer = &http.Server{
-			Handler:           httplib.MakeTracingHandler(proxyLimiter, teleport.ComponentProxy),
+			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if len(r.URL.Query()["traceparent"]) > 0 {
+					r.Header.Add("traceparent", r.URL.Query()["traceparent"][0])
+				}
+
+				handler.ServeHTTP(w, r)
+			}),
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 			ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentProxy),
 		}
@@ -3558,14 +3603,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	var peerAddrString string
-	var proxyServer *proxy.Server
+	var proxyServer *peer.Server
 	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxy != nil {
 		peerAddr, err := process.Config.Proxy.publicPeerAddr()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		peerAddrString = peerAddr.String()
-		proxyServer, err = proxy.NewServer(proxy.ServerConfig{
+		proxyServer, err = peer.NewServer(peer.ServerConfig{
 			AccessCache:   accessPoint,
 			Listener:      listeners.proxy,
 			TLSConfig:     serverTLSConfig,
@@ -3601,7 +3646,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		process.proxyPublicAddr(),
 		conn.Client,
 		regular.SetLimiter(proxyLimiter),
-		regular.SetProxyMode(peerAddrString, tsrv, accessPoint),
+		regular.SetProxyMode(peerAddrString, tsrv, accessPoint, proxyRouter),
 		regular.SetCiphers(cfg.Ciphers),
 		regular.SetKEXAlgorithms(cfg.KEXAlgorithms),
 		regular.SetMACAlgorithms(cfg.MACAlgorithms),
@@ -4082,10 +4127,17 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		if acmeCfg.URI != "" {
 			m.Client = &acme.Client{DirectoryURL: acmeCfg.URI}
 		}
-		tlsConfig = m.TLSConfig()
+		// We have to duplicate the behavior of `m.TLSConfig()` here because
+		// http/1.1 needs to take precedence over h2 due to
+		// https://bugs.chromium.org/p/chromium/issues/detail?id=1379017#c5 in Chrome.
+		tlsConfig = &tls.Config{
+			GetCertificate: m.GetCertificate,
+			NextProtos: []string{
+				string(common.ProtocolHTTP), string(common.ProtocolHTTP2), // enable HTTP/2
+				acme.ALPNProto, // enable tls-alpn ACME challenges
+			},
+		}
 		utils.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
-
-		tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, acme.ALPNProto))
 	}
 
 	for _, pair := range process.Config.Proxy.KeyPairs {
@@ -4832,6 +4884,7 @@ func readOrGenerateHostID(ctx context.Context, cfg *Config, kubeBackend kubernet
 			case types.JoinMethodToken,
 				types.JoinMethodUnspecified,
 				types.JoinMethodIAM,
+				types.JoinMethodCircleCI,
 				types.JoinMethodGitHub:
 				// Checking error instead of the usual uuid.New() in case uuid generation
 				// fails due to not enough randomness. It's been known to happen happen when

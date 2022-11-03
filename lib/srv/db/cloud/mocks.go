@@ -35,10 +35,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // STSMock mocks AWS STS API.
@@ -56,8 +57,11 @@ func (m *STSMock) GetCallerIdentityWithContext(aws.Context, *sts.GetCallerIdenti
 // RDSMock mocks AWS RDS API.
 type RDSMock struct {
 	rdsiface.RDSAPI
-	DBInstances []*rds.DBInstance
-	DBClusters  []*rds.DBCluster
+	DBInstances       []*rds.DBInstance
+	DBClusters        []*rds.DBCluster
+	DBProxies         []*rds.DBProxy
+	DBProxyEndpoints  []*rds.DBProxyEndpoint
+	DBProxyTargetPort int64
 }
 
 func (m *RDSMock) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, options ...request.Option) (*rds.DescribeDBInstancesOutput, error) {
@@ -132,6 +136,73 @@ func (m *RDSMock) ModifyDBClusterWithContext(ctx aws.Context, input *rds.ModifyD
 		}
 	}
 	return nil, trace.NotFound("cluster %v not found", aws.StringValue(input.DBClusterIdentifier))
+}
+func (m *RDSMock) DescribeDBProxiesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, options ...request.Option) (*rds.DescribeDBProxiesOutput, error) {
+	if aws.StringValue(input.DBProxyName) == "" {
+		return &rds.DescribeDBProxiesOutput{
+			DBProxies: m.DBProxies,
+		}, nil
+	}
+	for _, dbProxy := range m.DBProxies {
+		if aws.StringValue(dbProxy.DBProxyName) == aws.StringValue(input.DBProxyName) {
+			return &rds.DescribeDBProxiesOutput{
+				DBProxies: []*rds.DBProxy{dbProxy},
+			}, nil
+		}
+	}
+	return nil, trace.NotFound("proxy %v not found", aws.StringValue(input.DBProxyName))
+}
+func (m *RDSMock) DescribeDBProxyEndpointsWithContext(ctx aws.Context, input *rds.DescribeDBProxyEndpointsInput, options ...request.Option) (*rds.DescribeDBProxyEndpointsOutput, error) {
+	inputProxyName := aws.StringValue(input.DBProxyName)
+	inputProxyEndpointName := aws.StringValue(input.DBProxyEndpointName)
+
+	if inputProxyName == "" && inputProxyEndpointName == "" {
+		return &rds.DescribeDBProxyEndpointsOutput{
+			DBProxyEndpoints: m.DBProxyEndpoints,
+		}, nil
+	}
+
+	var endpoints []*rds.DBProxyEndpoint
+	for _, dbProxyEndpoiont := range m.DBProxyEndpoints {
+		if inputProxyEndpointName != "" &&
+			inputProxyEndpointName != aws.StringValue(dbProxyEndpoiont.DBProxyEndpointName) {
+			continue
+		}
+
+		if inputProxyName != "" &&
+			inputProxyName != aws.StringValue(dbProxyEndpoiont.DBProxyName) {
+			continue
+		}
+
+		endpoints = append(endpoints, dbProxyEndpoiont)
+	}
+	if len(endpoints) == 0 {
+		return nil, trace.NotFound("proxy endpoint %v not found", aws.StringValue(input.DBProxyEndpointName))
+	}
+	return &rds.DescribeDBProxyEndpointsOutput{DBProxyEndpoints: endpoints}, nil
+}
+func (m *RDSMock) DescribeDBProxyTargetsWithContext(ctx aws.Context, input *rds.DescribeDBProxyTargetsInput, options ...request.Option) (*rds.DescribeDBProxyTargetsOutput, error) {
+	// only mocking to return a port here
+	return &rds.DescribeDBProxyTargetsOutput{
+		Targets: []*rds.DBProxyTarget{{
+			Port: aws.Int64(m.DBProxyTargetPort),
+		}},
+	}, nil
+}
+func (m *RDSMock) DescribeDBProxiesPagesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, fn func(*rds.DescribeDBProxiesOutput, bool) bool, options ...request.Option) error {
+	fn(&rds.DescribeDBProxiesOutput{
+		DBProxies: m.DBProxies,
+	}, true)
+	return nil
+}
+func (m *RDSMock) DescribeDBProxyEndpointsPagesWithContext(ctx aws.Context, input *rds.DescribeDBProxyEndpointsInput, fn func(*rds.DescribeDBProxyEndpointsOutput, bool) bool, options ...request.Option) error {
+	fn(&rds.DescribeDBProxyEndpointsOutput{
+		DBProxyEndpoints: m.DBProxyEndpoints,
+	}, true)
+	return nil
+}
+func (m *RDSMock) ListTagsForResourceWithContext(ctx aws.Context, input *rds.ListTagsForResourceInput, options ...request.Option) (*rds.ListTagsForResourceOutput, error) {
+	return &rds.ListTagsForResourceOutput{}, nil
 }
 
 // IAMMock mocks AWS IAM API.
@@ -281,12 +352,22 @@ func (m *RDSMockUnauth) DescribeDBInstancesPagesWithContext(ctx aws.Context, inp
 func (m *RDSMockUnauth) DescribeDBClustersPagesWithContext(aws aws.Context, input *rds.DescribeDBClustersInput, fn func(*rds.DescribeDBClustersOutput, bool) bool, options ...request.Option) error {
 	return trace.AccessDenied("unauthorized")
 }
+func (m *RDSMockUnauth) DescribeDBProxiesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, options ...request.Option) (*rds.DescribeDBProxiesOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+func (m *RDSMockUnauth) DescribeDBProxyEndpointsWithContext(ctx aws.Context, input *rds.DescribeDBProxyEndpointsInput, options ...request.Option) (*rds.DescribeDBProxyEndpointsOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+func (m *RDSMockUnauth) DescribeDBProxiesPagesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, fn func(*rds.DescribeDBProxiesOutput, bool) bool, options ...request.Option) error {
+	return trace.AccessDenied("unauthorized")
+}
 
 // RDSMockByDBType is a mock RDS client that mocks API calls by DB type
 type RDSMockByDBType struct {
 	rdsiface.RDSAPI
 	DBInstances rdsiface.RDSAPI
 	DBClusters  rdsiface.RDSAPI
+	DBProxies   rdsiface.RDSAPI
 }
 
 func (m *RDSMockByDBType) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, options ...request.Option) (*rds.DescribeDBInstancesOutput, error) {
@@ -307,6 +388,15 @@ func (m *RDSMockByDBType) ModifyDBClusterWithContext(ctx aws.Context, input *rds
 }
 func (m *RDSMockByDBType) DescribeDBClustersPagesWithContext(aws aws.Context, input *rds.DescribeDBClustersInput, fn func(*rds.DescribeDBClustersOutput, bool) bool, options ...request.Option) error {
 	return m.DBClusters.DescribeDBClustersPagesWithContext(aws, input, fn, options...)
+}
+func (m *RDSMockByDBType) DescribeDBProxiesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, options ...request.Option) (*rds.DescribeDBProxiesOutput, error) {
+	return m.DBProxies.DescribeDBProxiesWithContext(ctx, input, options...)
+}
+func (m *RDSMockByDBType) DescribeDBProxyEndpointsWithContext(ctx aws.Context, input *rds.DescribeDBProxyEndpointsInput, options ...request.Option) (*rds.DescribeDBProxyEndpointsOutput, error) {
+	return m.DBProxies.DescribeDBProxyEndpointsWithContext(ctx, input, options...)
+}
+func (m *RDSMockByDBType) DescribeDBProxiesPagesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, fn func(*rds.DescribeDBProxiesOutput, bool) bool, options ...request.Option) error {
+	return m.DBProxies.DescribeDBProxiesPagesWithContext(ctx, input, fn, options...)
 }
 
 // RedshiftMockUnauth is a mock Redshift client that returns access denied to each call.

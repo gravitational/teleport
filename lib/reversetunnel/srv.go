@@ -26,6 +26,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
@@ -37,17 +43,11 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/proxy"
+	peer2 "github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 var (
@@ -191,7 +191,7 @@ type Config struct {
 	NewCachingAccessPointOldProxy auth.NewRemoteProxyCachingAccessPoint
 
 	// PeerClient is a client to peer proxy servers.
-	PeerClient *proxy.Client
+	PeerClient *peer2.Client
 
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
@@ -979,11 +979,6 @@ func (s *server) GetSite(name string) (RemoteSite, error) {
 		}
 	}
 	return nil, trace.NotFound("cluster %q is not found", name)
-}
-
-// GetProxyPeerClient returns the proxy peer client
-func (s *server) GetProxyPeerClient() *proxy.Client {
-	return s.PeerClient
 }
 
 // alwaysClose forces onSiteTunnelClose to remove and close

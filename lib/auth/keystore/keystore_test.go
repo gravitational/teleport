@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package keystore_test
+package keystore
 
 import (
 	"crypto"
@@ -26,16 +26,15 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
-
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 var (
@@ -134,25 +133,27 @@ func TestKeyStore(t *testing.T) {
 	})
 
 	skipSoftHSM := os.Getenv("SOFTHSM2_PATH") == ""
-	var softHSMConfig keystore.Config
+	var softHSMConfig Config
 	if !skipSoftHSM {
-		softHSMConfig = keystore.SetupSoftHSMTest(t)
-		softHSMConfig.HostUUID = "server1"
+		softHSMConfig = SetupSoftHSMTest(t)
+		softHSMConfig.PKCS11.HostUUID = "server1"
 	}
 
 	yubiSlotNumber := 0
 	testcases := []struct {
 		desc       string
-		config     keystore.Config
-		isRaw      bool
+		config     Config
+		isSoftware bool
 		shouldSkip func() bool
 	}{
 		{
-			desc: "raw keystore",
-			config: keystore.Config{
-				RSAKeyPairSource: native.GenerateKeyPair,
+			desc: "software keystore",
+			config: Config{
+				Software: SoftwareConfig{
+					RSAKeyPairSource: native.GenerateKeyPair,
+				},
 			},
-			isRaw:      true,
+			isSoftware: true,
 			shouldSkip: func() bool { return false },
 		},
 		{
@@ -168,11 +169,13 @@ func TestKeyStore(t *testing.T) {
 		},
 		{
 			desc: "yubihsm",
-			config: keystore.Config{
-				Path:       os.Getenv("YUBIHSM_PKCS11_PATH"),
-				SlotNumber: &yubiSlotNumber,
-				Pin:        "0001password",
-				HostUUID:   "server1",
+			config: Config{
+				PKCS11: PKCS11Config{
+					Path:       os.Getenv("YUBIHSM_PKCS11_PATH"),
+					SlotNumber: &yubiSlotNumber,
+					Pin:        "0001password",
+					HostUUID:   "server1",
+				},
 			},
 			shouldSkip: func() bool {
 				if os.Getenv("YUBIHSM_PKCS11_CONF") == "" || os.Getenv("YUBIHSM_PKCS11_PATH") == "" {
@@ -184,11 +187,13 @@ func TestKeyStore(t *testing.T) {
 		},
 		{
 			desc: "cloudhsm",
-			config: keystore.Config{
-				Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
-				TokenLabel: "cavium",
-				Pin:        os.Getenv("CLOUDHSM_PIN"),
-				HostUUID:   "server1",
+			config: Config{
+				PKCS11: PKCS11Config{
+					Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
+					TokenLabel: "cavium",
+					Pin:        os.Getenv("CLOUDHSM_PIN"),
+					HostUUID:   "server1",
+				},
 			},
 			shouldSkip: func() bool {
 				if os.Getenv("CLOUDHSM_PIN") == "" {
@@ -209,20 +214,20 @@ func TestKeyStore(t *testing.T) {
 			}
 
 			// create the keystore
-			keyStore, err := keystore.NewKeyStore(tc.config)
+			keyStore, err := NewKeyStore(tc.config)
 			require.NoError(t, err)
 
 			// create a key
-			key, signer, err := keyStore.GenerateRSA()
+			key, signer, err := keyStore.generateRSA()
 			require.NoError(t, err)
 			require.NotNil(t, key)
 			require.NotNil(t, signer)
 
 			// delete the key when we're done with it
-			t.Cleanup(func() { require.NoError(t, keyStore.DeleteKey(key)) })
+			t.Cleanup(func() { require.NoError(t, keyStore.deleteKey(key)) })
 
 			// get a signer from the key
-			signer, err = keyStore.GetSigner(key)
+			signer, err = keyStore.getSigner(key)
 			require.NoError(t, err)
 			require.NotNil(t, signer)
 
@@ -260,7 +265,7 @@ func TestKeyStore(t *testing.T) {
 						testPKCS11SSHKeyPair,
 						&types.SSHKeyPair{
 							PrivateKey:     key,
-							PrivateKeyType: keystore.KeyType(key),
+							PrivateKeyType: KeyType(key),
 							PublicKey:      sshPublicKey,
 						},
 					},
@@ -268,7 +273,7 @@ func TestKeyStore(t *testing.T) {
 						testPKCS11TLSKeyPair,
 						&types.TLSKeyPair{
 							Key:     key,
-							KeyType: keystore.KeyType(key),
+							KeyType: KeyType(key),
 							Cert:    tlsCert,
 						},
 					},
@@ -276,7 +281,7 @@ func TestKeyStore(t *testing.T) {
 						testPKCS11JWTKeyPair,
 						&types.JWTKeyPair{
 							PrivateKey:     key,
-							PrivateKeyType: keystore.KeyType(key),
+							PrivateKeyType: KeyType(key),
 							PublicKey:      sshPublicKey,
 						},
 					},
@@ -317,7 +322,7 @@ func TestKeyStore(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			if !tc.isRaw {
+			if !tc.isSoftware {
 				// hsm keyStore should not get any signer from raw keys
 				_, err = keyStore.GetSSHSigner(ca)
 				require.True(t, trace.IsNotFound(err))
@@ -328,7 +333,7 @@ func TestKeyStore(t *testing.T) {
 				_, err = keyStore.GetJWTSigner(ca)
 				require.True(t, trace.IsNotFound(err))
 			} else {
-				// raw keyStore should be able to get a signer
+				// software keyStore should be able to get a signer
 				sshSigner, err = keyStore.GetSSHSigner(ca)
 				require.NoError(t, err)
 				require.NotNil(t, sshSigner)
@@ -353,11 +358,11 @@ func TestLicenseRequirement(t *testing.T) {
 		t.SkipNow()
 	}
 
-	config := keystore.SetupSoftHSMTest(t)
-	config.HostUUID = "server1"
+	config := SetupSoftHSMTest(t)
+	config.PKCS11.HostUUID = "server1"
 
 	// should fail to create the keystore with default modules
-	_, err := keystore.NewKeyStore(config)
+	_, err := NewKeyStore(config)
 	require.Error(t, err)
 
 	modules.SetTestModules(t, &modules.TestModules{
@@ -368,6 +373,6 @@ func TestLicenseRequirement(t *testing.T) {
 	})
 
 	// should succeed when HSM feature is enabled
-	_, err = keystore.NewKeyStore(config)
+	_, err = NewKeyStore(config)
 	require.NoError(t, err)
 }

@@ -30,6 +30,14 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
+	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -47,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/pam"
+	"github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -56,14 +65,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
-	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 const sftpSubsystem = "sftp"
@@ -223,6 +224,8 @@ type Server struct {
 	// tracerProvider is used to create tracers capable
 	// of starting spans.
 	tracerProvider oteltrace.TracerProvider
+
+	router *proxy.Router
 }
 
 // TargetMetadata returns metadata about the server.
@@ -422,7 +425,7 @@ func SetShell(shell string) ServerOption {
 }
 
 // SetProxyMode starts this server in SSH proxying mode
-func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint) ServerOption {
+func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
 	return func(s *Server) error {
 		// always set proxy mode to true,
 		// because in some tests reverse tunnel is disabled,
@@ -431,6 +434,7 @@ func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyA
 		s.proxyTun = tsrv
 		s.proxyAccessPoint = ap
 		s.peerAddr = peerAddr
+		s.router = router
 		return nil
 	}
 }

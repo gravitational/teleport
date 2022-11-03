@@ -20,26 +20,17 @@ import (
 	"bytes"
 	"crypto"
 
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
-
-	"github.com/gravitational/trace"
 )
 
 var pkcs11Prefix = []byte("pkcs11:")
 
 // KeyStore is an interface for creating and using cryptographic keys.
 type KeyStore interface {
-	// GenerateRSA creates a new RSA private key and returns its identifier and
-	// a crypto.Signer. The returned identifier can be passed to GetSigner
-	// later to get the same crypto.Signer.
-	GenerateRSA() (keyID []byte, signer crypto.Signer, err error)
-
-	// GetSigner returns a crypto.Signer for the given key identifier, if it is found.
-	GetSigner(keyID []byte) (crypto.Signer, error)
-
 	// GetTLSCertAndSigner selects the local TLS keypair from the CA ActiveKeys
 	// and returns the PEM-encoded TLS cert and a crypto.Signer.
 	GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error)
@@ -69,9 +60,6 @@ type KeyStore interface {
 	// trusted keys that are usable with this KeyStore.
 	HasLocalAdditionalKeys(ca types.CertAuthority) bool
 
-	// DeleteKey deletes the given key from the KeyStore.
-	DeleteKey(keyID []byte) error
-
 	// DeleteUnusedKeys deletes all keys from the KeyStore if they are:
 	// 1. Labeled by this KeyStore when they were created
 	// 2. Not included in the argument usedKeys
@@ -85,40 +73,33 @@ type KeyStore interface {
 	// the CA AdditionalTrustedKeys and returns the PEM-encoded TLS cert and a
 	// crypto.Signer.
 	GetAdditionalTrustedTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error)
+
+	// generateRSA creates a new RSA private key and returns its identifier and
+	// a crypto.Signer. The returned identifier can be passed to getSigner
+	// later to get the same crypto.Signer.
+	generateRSA() (keyID []byte, signer crypto.Signer, err error)
+
+	// getSigner returns a crypto.Signer for the given key identifier, if it is found.
+	getSigner(keyID []byte) (crypto.Signer, error)
+
+	// deleteKey deletes the given key from the KeyStore.
+	deleteKey(keyID []byte) error
 }
 
 // Config is used to pass KeyStore configuration to NewKeyStore.
 type Config struct {
-	// RSAKeyPairSource is a function which returns raw keypairs to be used if
-	// an hsm is not configured
-	RSAKeyPairSource RSAKeyPairSource
+	// Software holds configuration parameters specific to software KeyStores
+	Software SoftwareConfig
 
-	// Path is the path to the PKCS11 module.
-	Path string
-	// SlotNumber points to the PKCS11 slot to use, or nil if slot is unused.
-	SlotNumber *int
-	// TokenLabel is the label of the PKCS11 token to use.
-	TokenLabel string
-	// Pin is the PKCS11 pin for the given token.
-	Pin string
-	// HostUUID is the UUID of the local auth server this HSM is connected to.
-	HostUUID string
+	// PKCS11 hold configuration parameters specific to PKCS11 KeyStores.
+	PKCS11 PKCS11Config
 }
 
 func (cfg *Config) CheckAndSetDefaults() error {
-	if cfg.Path == "" && cfg.RSAKeyPairSource == nil {
-		return trace.BadParameter("must provide one of Path or RSAKeyPairSource in keystore.Config")
+	if (cfg.PKCS11 != PKCS11Config{}) {
+		return trace.Wrap(cfg.PKCS11.CheckAndSetDefaults())
 	}
-	if cfg.Path != "" {
-		// HSM is configured, check the rest of the required params
-		if cfg.SlotNumber == nil && cfg.TokenLabel == "" {
-			return trace.BadParameter("must provide one of SlotNumber or TokenLabel in keystore.Config")
-		}
-		if cfg.HostUUID == "" {
-			return trace.BadParameter("must provide HostUUID in keystore.Config")
-		}
-	}
-	return nil
+	return trace.Wrap(cfg.Software.CheckAndSetDefaults())
 }
 
 // NewKeyStore returns a new KeyStore
@@ -126,19 +107,14 @@ func NewKeyStore(cfg Config) (KeyStore, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if cfg.Path == "" {
-		return NewRawKeyStore(&RawConfig{cfg.RSAKeyPairSource}), nil
+	if (cfg.PKCS11 != PKCS11Config{}) {
+		if !modules.GetModules().Features().HSM {
+			return nil, trace.AccessDenied("HSM support is only available with an enterprise license")
+		}
+		keyStore, err := NewPKCS11KeyStore(&cfg.PKCS11)
+		return keyStore, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().HSM {
-		return nil, trace.AccessDenied("HSM support is only available with an enterprise license")
-	}
-	return NewHSMKeyStore(&HSMConfig{
-		Path:       cfg.Path,
-		SlotNumber: cfg.SlotNumber,
-		TokenLabel: cfg.TokenLabel,
-		Pin:        cfg.Pin,
-		HostUUID:   cfg.HostUUID,
-	})
+	return NewSoftwareKeyStore(&cfg.Software), nil
 }
 
 // KeyType returns the type of the given private key.

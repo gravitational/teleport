@@ -19,12 +19,12 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/ui"
-
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 )
 
 // clusterKubesGet returns a list of kube clusters in a form the UI can present.
@@ -156,4 +156,56 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 	// if multiple Windows Desktop Services are in use. We only need
 	// to see the desktop once in the UI, so just take the first one.
 	return ui.MakeDesktop(windowsDesktops[0]), nil
+}
+
+// desktopIsActive checks if a desktop has an active session and returns a desktopIsActive.
+//
+// GET /v1/webapi/sites/:site/desktops/:desktopName/active
+//
+// Response body:
+//
+// {"active": bool}
+func (h *Handler) desktopIsActive(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	desktopName := p.ByName("desktopName")
+	trackers, err := h.auth.proxyClient.GetActiveSessionTrackersWithFilter(r.Context(), &types.SessionTrackerFilter{
+		Kind: string(types.WindowsDesktopSessionKind),
+		State: &types.NullableSessionState{
+			State: types.SessionState_SessionStateRunning,
+		},
+		DesktopName: desktopName,
+	})
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, tracker := range trackers {
+		// clt is an auth.ClientI with the role of the user, so
+		// clt.GetWindowsDesktops() can be used to confirm that
+		// the user has access to the requested desktop.
+		desktops, err := clt.GetWindowsDesktops(r.Context(),
+			types.WindowsDesktopFilter{Name: tracker.GetDesktopName()})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if len(desktops) == 0 {
+			// There are no active sessions for this desktop
+			// or the user doesn't have access to it
+			break
+		} else {
+			return desktopIsActive{true}, nil
+		}
+	}
+
+	return desktopIsActive{false}, nil
+}
+
+type desktopIsActive struct {
+	Active bool `json:"active"`
 }
