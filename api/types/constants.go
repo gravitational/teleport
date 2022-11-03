@@ -273,6 +273,9 @@ const (
 	// KindClusterAlert is a resource that conveys a cluster-level alert message.
 	KindClusterAlert = "cluster_alert"
 
+	// KindDevice represents a registered or trusted device.
+	KindDevice = "device"
+
 	// V5 is the fifth version of resources.
 	V5 = "v5"
 
