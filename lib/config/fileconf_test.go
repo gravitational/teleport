@@ -684,14 +684,11 @@ func TestDiscoveryConfig(t *testing.T) {
 		expectedDiscoverySection Discovery
 	}{
 		{
-			desc:          "default",
-			mutate:        func(cfgMap) {},
-			expectError:   require.NoError,
-			expectEnabled: require.False,
-			expectedDiscoverySection: Discovery{
-				AWSMatchers:   []AWSMatcher{},
-				AzureMatchers: []AzureMatcher{},
-			},
+			desc:                     "default",
+			mutate:                   func(cfgMap) {},
+			expectError:              require.NoError,
+			expectEnabled:            require.False,
+			expectedDiscoverySection: Discovery{},
 		},
 		{
 			desc:          "Azure section is filled with defaults",
