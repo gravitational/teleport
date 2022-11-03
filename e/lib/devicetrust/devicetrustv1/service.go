@@ -14,9 +14,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// TODO(codingllama): Pull from api/types.KindDevice
-const kindDevice = "device"
-
 // Service implements the teleport.devicetrust.v1.DeviceTrustService RPC
 // service.
 type Service struct {
@@ -51,7 +48,7 @@ func New(params ServiceParams) (*Service, error) {
 }
 
 func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRequest) (*devicepb.Device, error) {
-	if err := s.authorizeVerb(ctx, kindDevice, types.VerbCreate); err != nil {
+	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -75,13 +72,81 @@ func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRe
 	return dev, nil
 }
 
+func (s *Service) FindDevices(ctx context.Context, req *devicepb.FindDevicesRequest) (*devicepb.FindDevicesResponse, error) {
+	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if req.IdOrTag == "" {
+		return nil, trace.BadParameter("id_or_tag required")
+	}
+
+	innerCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Fire read by ID concurrently. This should speed things up a bit without
+	// being a huge cost.
+	type deviceRead struct {
+		dev *devicepb.Device
+		err error
+	}
+	readC := make(chan deviceRead, 1)
+	go func() {
+		dev, err := s.storage.GetDeviceByID(innerCtx, req.IdOrTag)
+		readC <- deviceRead{
+			dev: dev,
+			err: trace.Wrap(err),
+		}
+	}()
+
+	// Read devices by asset tag
+	devs, err := s.storage.GetDevicesByAssetTag(innerCtx, req.IdOrTag)
+	if err != nil {
+		// Be nice and wait for our goroutines to complete.
+		cancel()
+		<-readC
+
+		return nil, trace.Wrap(err, "reading devices by asset tag")
+	}
+
+	// Sync with read by ID.
+	r := <-readC
+	if r.err != nil && !trace.IsNotFound(r.err) {
+		return nil, trace.Wrap(err, "reading device by ID")
+	}
+	// Prepend ID match to the results, it's the stronger match.
+	if r.dev != nil {
+		devs = append([]*devicepb.Device{r.dev}, devs...)
+	}
+
+	return &devicepb.FindDevicesResponse{
+		Devices: devs,
+	}, nil
+}
+
 func (s *Service) GetDevice(ctx context.Context, req *devicepb.GetDeviceRequest) (*devicepb.Device, error) {
-	if err := s.authorizeVerb(ctx, kindDevice, types.VerbRead); err != nil {
+	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	dev, err := s.storage.GetDeviceByID(ctx, req.DeviceId)
 	return dev, trace.Wrap(err)
+}
+
+func (s *Service) ListDevices(ctx context.Context, req *devicepb.ListDevicesRequest) (*devicepb.ListDevicesResponse, error) {
+	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(codingllama): Implement list views correctly.
+	devs, nextPageToken, err := s.storage.ListDevices(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &devicepb.ListDevicesResponse{
+		Devices:       devs,
+		NextPageToken: nextPageToken,
+	}, nil
 }
 
 func (s *Service) authorizeVerb(ctx context.Context, rule, verb string) error {

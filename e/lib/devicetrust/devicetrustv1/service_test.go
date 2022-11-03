@@ -3,6 +3,7 @@ package devicetrustv1_test
 import (
 	"context"
 	"fmt"
+	"sort"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -35,7 +36,7 @@ func TestService_authz(t *testing.T) {
 		{
 			name: "CreateDevice",
 			checker: &fakeChecker{
-				wantRule: "device", // TODO(codingllama): Pull from api/types.KindDevice
+				wantRule: types.KindDevice,
 				wantVerb: types.VerbCreate,
 			},
 			rpc: func() error {
@@ -45,9 +46,23 @@ func TestService_authz(t *testing.T) {
 			assertErr: trace.IsBadParameter,
 		},
 		{
+			name: "FindDevices",
+			checker: &fakeChecker{
+				wantRule: types.KindDevice,
+				wantVerb: types.VerbList,
+			},
+			rpc: func() error {
+				_, err := devices.FindDevices(ctx, &devicepb.FindDevicesRequest{
+					IdOrTag: "unknown",
+				})
+				return err
+			},
+			assertErr: func(err error) bool { return err == nil },
+		},
+		{
 			name: "GetDevice",
 			checker: &fakeChecker{
-				wantRule: "device",
+				wantRule: types.KindDevice,
 				wantVerb: types.VerbRead,
 			},
 			rpc: func() error {
@@ -57,6 +72,18 @@ func TestService_authz(t *testing.T) {
 				return err
 			},
 			assertErr: trace.IsNotFound,
+		},
+		{
+			name: "ListDevices",
+			checker: &fakeChecker{
+				wantRule: types.KindDevice,
+				wantVerb: types.VerbList,
+			},
+			rpc: func() error {
+				_, err := devices.ListDevices(ctx, &devicepb.ListDevicesRequest{})
+				return err
+			},
+			assertErr: func(err error) bool { return err == nil },
 		},
 	}
 	for _, test := range tests {
@@ -203,6 +230,190 @@ func TestService_CreateDevice(t *testing.T) {
 			}
 			if diff := cmp.Diff(got, stored, protocmp.Transform()); diff != "" {
 				t.Errorf("GetDevice mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestService_ListDevices(t *testing.T) {
+	env := testenv.MustNew()
+	defer env.Close()
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	t.Run("no devices", func(t *testing.T) {
+		resp, err := devices.ListDevices(ctx, &devicepb.ListDevicesRequest{})
+		if err != nil {
+			t.Fatalf("ListDevices failed: %v", err)
+		}
+		if devs := resp.Devices; len(devs) > 0 {
+			t.Errorf("ListDevices returned %v devices, wanted zero: %v", len(devs), devs)
+		}
+		if resp.NextPageToken != "" {
+			t.Error("ListDevices returned a non-empty nextPageToken")
+		}
+	})
+
+	// Add a few devices to test with.
+	var allDevices []*devicepb.Device
+	for _, assetTag := range []string{"llama", "alpaca", "camel"} {
+		dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+			Device: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: assetTag,
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateDevice failed: %v", err)
+		}
+		allDevices = append(allDevices, dev)
+	}
+
+	tests := []struct {
+		name        string
+		initialReq  *devicepb.ListDevicesRequest
+		wantDevices []*devicepb.Device
+	}{
+		{
+			name:        "ok",
+			initialReq:  &devicepb.ListDevicesRequest{}, // default parameters
+			wantDevices: allDevices,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var got []*devicepb.Device
+			req := proto.Clone(test.initialReq).(*devicepb.ListDevicesRequest)
+			for {
+				resp, err := devices.ListDevices(ctx, req)
+				if err != nil {
+					t.Fatalf("ListDevices failed: %v", err)
+				}
+
+				got = append(got, resp.Devices...)
+
+				if resp.NextPageToken == "" {
+					break
+				}
+				req.PageToken = resp.NextPageToken
+			}
+
+			want := test.wantDevices
+			sort.Slice(want, func(i, j int) bool { return want[i].Id < want[j].Id })
+			sort.Slice(got, func(i, j int) bool { return got[i].Id < got[j].Id })
+			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+				t.Errorf("ListDevices mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestService_FindDevices(t *testing.T) {
+	env := testenv.MustNew()
+	defer env.Close()
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	llamaDev := &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama",
+	}
+	alpacaDev := &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "alpaca",
+	}
+	camelDev := &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "camel",
+	}
+	llamaLinux := proto.Clone(llamaDev).(*devicepb.Device)
+	llamaLinux.OsType = devicepb.OSType_OS_TYPE_LINUX
+	llamaWin := proto.Clone(llamaDev).(*devicepb.Device)
+	llamaWin.OsType = devicepb.OSType_OS_TYPE_WINDOWS
+
+	// Create test devices.
+	for _, dev := range []**devicepb.Device{&llamaDev, &alpacaDev, &camelDev, &llamaLinux, &llamaWin} {
+		created, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+			Device: *dev,
+		})
+		if err != nil {
+			t.Fatalf("CreateDevice(%q) failed: %v", (*dev).AssetTag, err)
+		}
+		*dev = created
+	}
+
+	// Create a device whose asset tag matches another's ID.
+	// Incredibly unlikely, but let's test anyway.
+	camelAssetTag, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+		Device: &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: camelDev.Id,
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	tests := []struct {
+		name        string
+		idOrTag     string
+		assertErr   func(error) bool
+		wantDevices []*devicepb.Device
+	}{
+		{
+			name:      "id_or_tag required",
+			idOrTag:   "",
+			assertErr: trace.IsBadParameter,
+		},
+		{
+			name:    "no results",
+			idOrTag: "I won't ever match anything",
+		},
+		{
+			name:        "match by ID",
+			idOrTag:     llamaDev.Id,
+			wantDevices: []*devicepb.Device{llamaDev},
+		},
+		{
+			name:        "match by asset tag (single)",
+			idOrTag:     alpacaDev.AssetTag,
+			wantDevices: []*devicepb.Device{alpacaDev},
+		},
+		{
+			name:        "match by asset tag (multiple)",
+			idOrTag:     llamaDev.AssetTag,
+			wantDevices: []*devicepb.Device{llamaDev, llamaLinux, llamaWin},
+		},
+		{
+			name:        "match by ID and asset tag",
+			idOrTag:     camelDev.Id, // matches the asset_tag of camelAssetTag
+			wantDevices: []*devicepb.Device{camelDev, camelAssetTag},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			resp, err := devices.FindDevices(ctx, &devicepb.FindDevicesRequest{
+				IdOrTag: test.idOrTag,
+			})
+			switch {
+			case test.assertErr == nil && err == nil: // OK
+			case test.assertErr == nil && err != nil:
+				t.Fatalf("FindDevices failed: %v", err)
+			case !test.assertErr(err):
+				t.Fatalf("FindDevices: assertErr failed, err=%v", err)
+			}
+			if err != nil {
+				return
+			}
+
+			got := resp.Devices
+			want := test.wantDevices
+			sort.Slice(got, func(i, j int) bool { return got[i].Id < got[j].Id })
+			sort.Slice(want, func(i, j int) bool { return want[i].Id < want[j].Id })
+			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+				t.Errorf("FindDevices mismatch (-want +got)\n%s", diff)
 			}
 		})
 	}
