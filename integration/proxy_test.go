@@ -1049,7 +1049,6 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 
 	err = rc.Start()
 	require.NoError(t, err)
-	defer rc.StopAll()
 
 	// Create and start http_proxy server.
 	ph := &helpers.ProxyHandler{}
