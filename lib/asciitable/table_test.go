@@ -33,11 +33,10 @@ const headlessTable = `one  two
 1    2    
 `
 
-const discardedTable = `one          two          three        
----          ---          -----        
-%!v(MISSING) %!v(MISSING) %!v(MISSING) 
-             two          three        
-one                                    
+const discardedTable = `one  two  three 
+---  ---  ----- 
+     two  three 
+one             
 `
 
 const truncatedTable = `Name          Motto                            Age   
@@ -67,10 +66,9 @@ func TestHeadlessTable(t *testing.T) {
 }
 
 func TestDiscardTable(t *testing.T) {
-	table := MakeTable([]string{"Prefix", "one", "two", "Middle", "three", "four"})
-	table.AddRow([]string{})                           // testing for OOB panics
-	table.AddRow([]string{"", "", "two", "", "three"}) // last missing
-	table.AddRow([]string{"", "one", "", "", "", "four"})
+	table := MakeTable([]string{"Prefix", "one", "two", "Middle", "three"})
+	table.AddRow([]string{"", "", "two", "", "three"})
+	table.AddRow([]string{"", "one", "", "", ""})
 
 	table.DiscardEmpty()
 	require.Equal(t, discardedTable, table.AsBuffer().String())
