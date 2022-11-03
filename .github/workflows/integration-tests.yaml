@@ -18,8 +18,8 @@ jobs:
     steps:
       - name: Install git 1.18+
         run: |
-          apt -y update
-          apt -y install software-properties-common 
+          apt-get -y update
+          apt-get -y install software-properties-common 
           add-apt-repository -y ppa:git-core/ppa
           apt-get -y update
           apt-get -y install git
