@@ -140,6 +140,8 @@ $COMPUTER_IP = (Resolve-DnsName -Type A $Env:COMPUTERNAME).Address
 $LDAP_ADDR="$COMPUTER_IP" + ":636"
 
 $DESKTOP_ACCESS_CONFIG_YAML=@'
+# NOTE:
+# If you are using PowerShell ISE: when copying and pasting the config from below there will be whitespace at the start - delete this before you save the config.
 version: v3
 teleport:
   auth_token: {0}
