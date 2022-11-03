@@ -21,9 +21,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // Duration is a wrapper around duration to set up custom marshal/unmarshal

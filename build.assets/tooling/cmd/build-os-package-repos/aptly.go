@@ -527,7 +527,7 @@ func (a *Aptly) GetPublishedRepoNames() ([]string, error) {
 
 			for _, repoNameMatch := range repoNameMatches {
 				// `repoNameRegexStr` is written such that there will be exactly one match and one group in repoNameMatch
-				// for example repoNameMatch could be [": [debian-bookwork-stable-v6]", "debian-bookwork-stable-v6"]
+				// for example repoNameMatch could be [": [debian-bookworm-stable-v6]", "debian-bookworm-stable-v6"]
 				publishedRepoName := repoNameMatch[1]
 				publishedRepoNames = append(publishedRepoNames, publishedRepoName)
 			}
