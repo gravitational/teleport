@@ -54,7 +54,7 @@ func TestDialProxy(t *testing.T) {
 		},
 		{
 			proxy:      func(errChan chan error, l net.Listener) { close(errChan) },
-			scheme:     "unkown",
+			scheme:     "unknown",
 			assertDial: require.Error,
 		},
 	}
