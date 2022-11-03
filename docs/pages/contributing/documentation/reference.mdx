@@ -65,9 +65,25 @@ To prevent content duplication, it's useful to include code examples or Markdown
 content from a partial file into the current page. This allows our documentation
 to reduce maintenance overhead so we can focus on writing new articles.
 
-To include a partial, use the following syntax: `(\!path-to-file.mdx\!)` syntax (remove the backslashes in an actual page).
+### Including partials
 
-Paths are resolved from the root of the repository.
+To include a partial, use the following syntax, removing the `\` character
+before each `!`:
+
+```markdown
+(\!path-to-file.mdx\!) 
+```
+
+<Notice type="tip"> 
+
+In the rest of this section, we will include examples of partial inclusion
+expressions that use `(\!` and `\!)` instead of `(!` and `!)`.  This is to
+prevent the docs engine from evaluating these expressions as partials.
+
+</Notice>
+
+When a page includes a partial, our docs engine resolves the partial's path from
+the root of the `gravitational/teleport` repository.
 
 Partials will be linted when a PR is created as part of our CI/CD process. If a
 partial does not exist in the repository, our system will throw an error.
@@ -75,7 +91,7 @@ Incorrect placement of include statements will also throw errors.
 
 Partials will only be included in these two cases:
 
-### Surrounded by newlines
+#### Surrounded by newlines
 
    ```md
    Some text.
@@ -85,10 +101,10 @@ Partials will only be included in these two cases:
    Some other text.
    ```
 
-   If the partial is an `.mdx` file, it will be parsed and rendered as Markdown. In other cases
-   it will be included as-is.
+If the partial is an `.mdx` file, it will be parsed and rendered as Markdown. In
+other cases it will be included as-is.
 
-### Inside code blocks
+#### Inside code blocks
 
    ````md
    ```code
@@ -100,6 +116,92 @@ Partials will only be included in these two cases:
    ````
 
 These will be inserted as-is, even in the case of `.mdx` files.
+
+### Partial parameters
+
+A partial can define parameters, which allow multiple docs pages to include the
+same partial but with slightly different content.
+
+Inside a partial, a parameter uses the `{{ }}` syntax. For example, the partial
+`mypartial.mdx` below uses the `{{ action }}` parameter.
+
+```markdown
+This is an example of a partial.
+
+A partial makes it possible to {{ action }}.
+```
+
+To provide a value for a partial, the page that includes it can use the
+following syntax:
+
+```text
+(\!mypartial.mdx param1="val" param2="val"\!)
+```
+
+For example, a page could supply a value to the `action` parameter in the
+`mypartial.mdx` partial above using this expression:
+
+```text
+(\!mypartial.mdx action="reuse content in docs pages."\!)
+```
+
+This partial would render as:
+
+```markdown
+This is an example of a partial.
+
+A partial makes it possible to reuse content in docs pages.
+```
+
+When including a partial, parameter definitions must be separated by single
+spaces. Values must be enclosed in double quotes. Parameter names and values
+must be separated by a `=` character, and the `=` character must not be
+surrounded by spaces. 
+
+If a partial defines parameters but a page does not define them when including
+the partial, the docs engine will leave the corresponding `{{ }}` expressions
+untouched. The exception to this is when the partial defines default parameter
+values, as described in the next section.
+
+### Default parameter values
+
+When defining parameters in a partial, you can instruct the docs engine to
+supply a value for those parameters if a page that includes the partial does
+not.
+
+To define default parameter values, add an expression with the following format
+to the top line of a partial:
+
+```markdown
+{{ param1="val1" param2="val2" param3="val3" }}
+```
+
+For example, let's say the `mypartial.mdx` partial we introduced earlier begins
+with the following expression:
+
+```markdown
+{{ action="write docs pages more easily." }}
+```
+
+If a page includes the partial with this expression...
+
+```markdown
+(\!mypartial.mdx\!)
+```
+
+...then the partial will render as follows:
+
+```markdown
+This is an example of a partial.
+
+A partial makes it possible to write docs pages more easily.
+```
+
+Default parameter assignments follow the same rules as parameter value
+assignments. Default parameter assignments must be separated by single spaces.
+Values must be enclosed in double quotes. Parameter names and values must be
+separated by a `=` character, and the `=` character must not be surrounded by
+spaces. 
 
 ## Image pixel density markers
 
