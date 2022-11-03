@@ -344,11 +344,12 @@ var SupportedAWSDiscoveryServices = []string{AWSServiceTypeEC2, AWSServiceTypeEK
 // Constants for Azure discovery.
 const (
 	AzureServiceTypeKubernetes = "aks"
+	AzureServiceTypeVM         = "vm"
 )
 
 // SupportedAzureDiscoveryServices is list of Azure services currently
 // supported by the Teleport discovery service.
-var SupportedAzureDiscoveryServices = []string{AzureServiceTypeKubernetes}
+var SupportedAzureDiscoveryServices = []string{AzureServiceTypeKubernetes, AzureServiceTypeVM}
 
 const (
 	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh
