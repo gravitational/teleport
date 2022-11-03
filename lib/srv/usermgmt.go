@@ -298,7 +298,7 @@ func (u *HostUserManagement) DeleteAllUsers() error {
 	for _, name := range users {
 		lt, err := u.storage.GetHostUserInteractionTime(u.ctx, name)
 		if err != nil {
-			log.Debugf("Failed to find user %q login time: %s", name, err)
+			//log.Debugf("Failed to find user %q login time: %s", name, err)
 			continue
 		}
 		u.doWithUserLock(func(l types.SemaphoreLease) error {
