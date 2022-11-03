@@ -746,6 +746,10 @@
               "slug": "/database-access/guides/azure-sql-server-ad/"
             },
             {
+              "title": "Azure Cache for Redis",
+              "slug": "/database-access/guides/azure-redis/"
+            },
+            {
               "title": "MongoDB Atlas",
               "slug": "/database-access/guides/mongodb-atlas/"
             },
