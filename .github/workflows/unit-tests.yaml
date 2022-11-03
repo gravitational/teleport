@@ -26,7 +26,7 @@ jobs:
           git config --global --add safe.directory /workspace
           git config --global --add safe.directory /workspace/webassets
       - name: See helm help (debug)
-        run: HELM_PLUGINS=/root/.local/share/helm/plugins helm --help
+        run: HELM_PLUGINS=/root/.local/share/helm/plugins helm --help && helm version
       - name: Checkout Teleport
         uses: actions/checkout@v3
       - name: Go build cache
