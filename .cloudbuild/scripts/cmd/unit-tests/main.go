@@ -209,7 +209,7 @@ func runUnitTests(workspace string, ch changes.Changes, force bool) error {
 		targets = append(targets, "test-go", "test-sh", "test-api")
 	}
 	if ch.Helm || force {
-		//targets = append(targets, "test-helm")
+		targets = append(targets, "test-helm")
 	}
 	if ch.CI || force {
 		targets = append(targets, "test-ci")
