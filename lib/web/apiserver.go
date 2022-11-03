@@ -1724,6 +1724,28 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
+	if h.ClusterFeatures.GetCloud() {
+		authPreference, err := ctx.clt.GetAuthPreference(r.Context())
+
+		if err == nil && authPreference.GetConnectorName() != constants.PasswordlessConnector {
+			users, err := h.cfg.ProxyClient.GetUsers(false)
+
+			if err == nil && len(users) == 1 {
+				authPreference.SetConnectorName(constants.PasswordlessConnector)
+
+				err = ctx.clt.SetAuthPreference(r.Context(), authPreference)
+
+				if err != nil {
+					h.log.WithError(err).Warn("Failed to update auth preference.")
+				}
+			} else {
+				h.log.WithError(err).Warn("Failed to fetch users.")
+			}
+		} else {
+			h.log.WithError(err).Warn("Failed to retrieve auth preference.")
+		}
+	}
+
 	if err := SetSessionCookie(w, sess.GetUser(), sess.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1905,28 +1927,6 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	ctx, err := h.auth.newSessionContext(r.Context(), user, session.GetName())
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
-	}
-
-	if h.ClusterFeatures.GetCloud() {
-		authPreference, err := ctx.clt.GetAuthPreference(r.Context())
-
-		if err == nil && authPreference.GetConnectorName() != constants.PasswordlessConnector {
-			users, err := h.cfg.ProxyClient.GetUsers(false)
-
-			if err == nil && len(users) == 1 {
-				authPreference.SetConnectorName(constants.PasswordlessConnector)
-
-				err = ctx.clt.SetAuthPreference(r.Context(), authPreference)
-
-				if err != nil {
-					h.log.WithError(err).Warn("Failed to update auth preference.")
-				}
-			} else {
-				h.log.WithError(err).Warn("Failed to fetch users.")
-			}
-		} else {
-			h.log.WithError(err).Warn("Failed to retrieve auth preference.")
-		}
 	}
 
 	return newSessionResponse(ctx)
