@@ -50,12 +50,13 @@ Teleport also supports Kubernetes in on-premise and air-gapped environments. If 
 
 Let's start with a single-pod Teleport deployment using a persistent volume as a backend. Modify the values of `CLUSTER_NAME` and `EMAIL` according to your environment, where `CLUSTER_NAME` is the domain name you are using for your Teleport deployment and `EMAIL` is an email address used for notifications.
 
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+
 <Tabs>
   <TabItem label="Open Source">
     ```code
     $ CLUSTER_NAME="tele.example.com"
     $ EMAIL="mail@example.com"
-    $ helm repo add teleport https://charts.releases.teleport.dev
 
     # Install a single node teleport cluster and provision a cert using ACME.
     # Set clusterName to unique hostname, for example tele.example.com
@@ -69,7 +70,6 @@ Let's start with a single-pod Teleport deployment using a persistent volume as a
     ```code
     $ CLUSTER_NAME="tele.example.com"
     $ EMAIL="mail@example.com"
-    $ helm repo add teleport https://charts.releases.teleport.dev
 
     # Create a namespace for a deployment.
     $ kubectl create namespace teleport-cluster-ent
