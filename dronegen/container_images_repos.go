@@ -194,6 +194,10 @@ func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput, flags *
 			if cr.Name == "Quay" {
 				continue
 			}
+
+			if cr.Name == "ECR - production" {
+				continue
+			}
 		}
 
 		multiarchImageTag := *imageTag
