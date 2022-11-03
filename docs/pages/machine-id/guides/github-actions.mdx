@@ -66,18 +66,18 @@ repository is used, and this example repository should be replaced with your own
 
 Most of the configuration settings used in the example configuration file `tokenconfig.yaml`
 do not have any variable settings, however the `allow` block of `spec.github.allow` has additional
-configuration options to more strictly define the scope of access granted to the token:
+configuration options to more strictly define which GitHub actions tokens will be granted access to:
 
 | **Setting** | **Behavior** | **Example** |
 | ----------- | ----------- | ----------- |
-| `sub` | The subject claim that will trigger the GitHub Actions run. | `repo:example-org/example-repo:environment:development` |
-| `repository` | The repository where the action will run. | `example-org/example` |
-| `repository_owner` | The name of the organization that owns the repository where the action will run.  | `example-org` |
-| `workflow`| The name of the [workflow](https://docs.github.com/en/actions/using-workflows/about-workflows) that will run the job. This references the `name` of a workflow defined within a workflow configuration file, and can be the workflow created in Step 3/3 of this guide. | `guide-demo` |
-| `environment`| The name of the [environment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment) where the action will run. | `development` |
-| `actor` | The GitHub account name that the action will be triggered under. | `username` |
-| `ref` | The git "ref" or [reference](https://docs.github.com/en/rest/git/refs#about-the-git-references-api) that will trigger the action. | `refs/heads/example` |
-| `ref_type` | The **type** of "ref" or reference that will trigger the action. | `branch` |
+| `sub` | The subject associated with the GitHub Actions run. | `repo:example-org/example-repo:environment:development` |
+| `repository` | The repository where the action is running. | `example-org/example` |
+| `repository_owner` | The name of the organization that owns the repository where the action is running.  | `example-org` |
+| `workflow`| The name of the [workflow](https://docs.github.com/en/actions/using-workflows/about-workflows) that the running job belongs to. This references the `name` of a workflow defined within a workflow configuration file, and can be the workflow created in Step 3/3 of this guide. | `guide-demo` |
+| `environment`| The name of the [environment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment) associated with the action run. | `development` |
+| `actor` | The GitHub account name that triggered the action run. | `username` |
+| `ref` | The git "ref" or [reference](https://docs.github.com/en/rest/git/refs#about-the-git-references-api) that triggered the action run. | `refs/heads/example` |
+| `ref_type` | The **type** of "ref" or reference that triggered the action run. | `branch` |
 
 Once the configuration YAML file has been created, apply it to your cluster using `tctl`:
 
