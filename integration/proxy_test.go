@@ -1032,7 +1032,6 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	username := mustGetCurrentUser(t).Username
 	log.Info("Teleport root cluster instance created")
 
-	username := helpers.MustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
 
 	rcConf := service.MakeDefaultConfig()
@@ -1068,7 +1067,6 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	pass := "open sesame"
 	t.Setenv("http_proxy", helpers.MakeProxyAddr(user, pass, proxyURL.Host))
 
-	rcProxyAddr := net.JoinHostPort(rcAddr, helpers.PortStr(t, rc.Web))
 	require.Zero(t, ph.Count())
 	_, err = rc.StartNode(makeNodeConfig("node1", rcProxyAddr))
 	require.Error(t, err)
@@ -1081,5 +1079,5 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	require.NoError(t, authorizer.WaitForRequest(timeout))
 	require.Greater(t, ph.Count(), 0)
 	// with env set correctly and authorized, the node should register.
-	require.NoError(t, helpers.WaitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 1))
+	require.NoError(t, waitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 1))
 }
