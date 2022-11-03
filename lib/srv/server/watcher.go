@@ -24,25 +24,31 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Instances contains information about discovered cloud instances from any provider.
+type Instances struct {
+	*EC2Instances
+	*AzureInstances
+}
+
 // Fetcher fetches instances from a particular cloud provider.
-type Fetcher[T any] interface {
+type Fetcher interface {
 	// GetInstances gets a list of cloud instances.
-	GetInstances(context.Context) ([]T, error)
+	GetInstances(context.Context) ([]Instances, error)
 }
 
 // Watcher allows callers to discover cloud instances matching specified filters.
-type Watcher[T any] struct {
+type Watcher struct {
 	// InstancesC can be used to consume newly discovered instances.
-	InstancesC chan T
+	InstancesC chan Instances
 
-	fetchers      []Fetcher[T]
+	fetchers      []Fetcher
 	fetchInterval time.Duration
 	ctx           context.Context
 	cancel        context.CancelFunc
 }
 
 // Run starts the watcher's main watch loop.
-func (w *Watcher[T]) Run() {
+func (w *Watcher) Run() {
 	ticker := time.NewTicker(w.fetchInterval)
 	defer ticker.Stop()
 	for {
@@ -72,6 +78,6 @@ func (w *Watcher[T]) Run() {
 }
 
 // Stop stops the watcher.
-func (w *Watcher[T]) Stop() {
+func (w *Watcher) Stop() {
 	w.cancel()
 }

@@ -55,14 +55,14 @@ type EC2Instances struct {
 }
 
 // NewEC2Watcher creates a new EC2 watcher instance.
-func NewEC2Watcher(ctx context.Context, matchers []services.AWSMatcher, clients cloud.Clients) (*Watcher[EC2Instances], error) {
+func NewEC2Watcher(ctx context.Context, matchers []services.AWSMatcher, clients cloud.Clients) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
-	watcher := Watcher[EC2Instances]{
-		fetchers:      []Fetcher[EC2Instances]{},
+	watcher := Watcher{
+		fetchers:      []Fetcher{},
 		ctx:           cancelCtx,
 		cancel:        cancelFn,
 		fetchInterval: time.Minute,
-		InstancesC:    make(chan EC2Instances),
+		InstancesC:    make(chan Instances),
 	}
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
@@ -125,8 +125,8 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 }
 
 // GetInstances fetches all EC2 instances matching configured filters.
-func (f *ec2InstanceFetcher) GetInstances(ctx context.Context) ([]EC2Instances, error) {
-	var instances []EC2Instances
+func (f *ec2InstanceFetcher) GetInstances(ctx context.Context) ([]Instances, error) {
+	var instances []Instances
 	err := f.EC2.DescribeInstancesPagesWithContext(ctx, &ec2.DescribeInstancesInput{
 		Filters: f.Filters,
 	},
@@ -145,7 +145,7 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context) ([]EC2Instances, 
 						Instances:    res.Instances[i:end],
 						Parameters:   f.Parameters,
 					}
-					instances = append(instances, inst)
+					instances = append(instances, Instances{EC2Instances: &inst})
 				}
 			}
 			return true

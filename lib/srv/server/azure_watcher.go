@@ -43,14 +43,14 @@ type AzureInstances struct {
 }
 
 // NewAzureWatcher creates a new Azure watcher instance.
-func NewAzureWatcher(ctx context.Context, matchers []services.AzureMatcher, clients cloud.Clients) (*Watcher[AzureInstances], error) {
+func NewAzureWatcher(ctx context.Context, matchers []services.AzureMatcher, clients cloud.Clients) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
-	watcher := Watcher[AzureInstances]{
-		fetchers:      []Fetcher[AzureInstances]{},
+	watcher := Watcher{
+		fetchers:      []Fetcher{},
 		ctx:           cancelCtx,
 		cancel:        cancelFn,
 		fetchInterval: time.Minute,
-		InstancesC:    make(chan AzureInstances),
+		InstancesC:    make(chan Instances),
 	}
 	for _, matcher := range matchers {
 		for _, subscription := range matcher.Subscriptions {
@@ -98,7 +98,7 @@ func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
 }
 
 // GetInstances fetches all Azure virtual machines matching configured filters.
-func (f *azureInstanceFetcher) GetInstances(ctx context.Context) ([]AzureInstances, error) {
+func (f *azureInstanceFetcher) GetInstances(ctx context.Context) ([]Instances, error) {
 	instancesByRegion := make(map[string][]*armcompute.VirtualMachine)
 	for _, region := range f.Regions {
 		instancesByRegion[region] = []*armcompute.VirtualMachine{}
@@ -124,15 +124,15 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context) ([]AzureInstanc
 		instancesByRegion[location] = append(instancesByRegion[location], vm)
 	}
 
-	var instances []AzureInstances
+	var instances []Instances
 	for region, vms := range instancesByRegion {
 		if len(vms) > 0 {
-			instances = append(instances, AzureInstances{
+			instances = append(instances, Instances{AzureInstances: &AzureInstances{
 				SubscriptionID: f.Subscription,
 				Region:         region,
 				ResourceGroup:  f.ResourceGroup,
 				Instances:      vms,
-			})
+			}})
 		}
 	}
 

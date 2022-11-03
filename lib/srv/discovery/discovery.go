@@ -88,11 +88,11 @@ type Server struct {
 	nodeWatcher *services.NodeWatcher
 
 	// ec2Watcher periodically retrieves EC2 instances.
-	ec2Watcher *server.Watcher[server.EC2Instances]
+	ec2Watcher *server.Watcher
 	// ec2Installer is used to start the installation process on discovered EC2 nodes
 	ec2Installer *server.SSMInstaller
 	// azureWatcher periodically retrieves Azure virtual machines.
-	azureWatcher *server.Watcher[server.AzureInstances]
+	azureWatcher *server.Watcher
 	// kubeFetchers holds all kubernetes fetchers for Azure and other clouds.
 	kubeFetchers []fetchers.Fetcher
 }
@@ -301,9 +301,10 @@ func (s *Server) handleEC2Discovery() {
 	for {
 		select {
 		case instances := <-s.ec2Watcher.InstancesC:
+			ec2Instances := instances.EC2Instances
 			s.Log.Debugf("EC2 instances discovered (AccountID: %s, Instances: %v), starting installation",
-				instances.AccountID, genEC2InstancesLogStr(instances.Instances))
-			if err := s.handleEC2Instances(&instances); err != nil {
+				instances.AccountID, genEC2InstancesLogStr(ec2Instances.Instances))
+			if err := s.handleEC2Instances(ec2Instances); err != nil {
 				if trace.IsNotFound(err) {
 					s.Log.Debug("All discovered EC2 instances are already part of the cluster.")
 				} else {
@@ -326,10 +327,11 @@ func (s *Server) handleAzureDiscovery() {
 	for {
 		select {
 		case instances := <-s.azureWatcher.InstancesC:
+			azureInstances := instances.AzureInstances
 			s.Log.Debugf("Azure instances discovered (SubscriptionID: %s, Instances: %v), starting installation",
-				instances.SubscriptionID, genAzureInstancesLogStr(instances.Instances),
+				instances.SubscriptionID, genAzureInstancesLogStr(azureInstances.Instances),
 			)
-			if err := s.handleAzureInstances(&instances); err != nil {
+			if err := s.handleAzureInstances(azureInstances); err != nil {
 				if trace.IsNotFound(err) {
 					s.Log.Debug("All discovered Azure VMs are already part of the cluster.")
 				} else {
