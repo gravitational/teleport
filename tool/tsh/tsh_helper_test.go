@@ -121,7 +121,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		options.rootConfigFunc(cfg)
 	}
 
-	s.root = runTeleport(t, cfg)
+	s.root = runTeleport(t, cfg, options.newTeleportOptions...)
 	t.Cleanup(func() { require.NoError(t, s.root.Close()) })
 }
 
@@ -187,17 +187,18 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	if options.leafConfigFunc != nil {
 		options.leafConfigFunc(cfg)
 	}
-	s.leaf = runTeleport(t, cfg)
+	s.leaf = runTeleport(t, cfg, options.newTeleportOptions...)
 
 	_, err = s.leaf.GetAuthServer().UpsertTrustedCluster(s.leaf.ExitContext(), tc)
 	require.NoError(t, err)
 }
 
 type testSuiteOptions struct {
-	rootConfigFunc func(cfg *service.Config)
-	leafConfigFunc func(cfg *service.Config)
-	leafCluster    bool
-	validationFunc func(*suite) bool
+	rootConfigFunc     func(cfg *service.Config)
+	leafConfigFunc     func(cfg *service.Config)
+	leafCluster        bool
+	validationFunc     func(*suite) bool
+	newTeleportOptions []service.NewTeleportOption
 }
 
 type testSuiteOptionFunc func(o *testSuiteOptions)
@@ -223,6 +224,12 @@ func withLeafCluster() testSuiteOptionFunc {
 func withValidationFunc(f func(*suite) bool) testSuiteOptionFunc {
 	return func(o *testSuiteOptions) {
 		o.validationFunc = f
+	}
+}
+
+func withNewTeleportOption(opt service.NewTeleportOption) testSuiteOptionFunc {
+	return func(o *testSuiteOptions) {
+		o.newTeleportOptions = append(o.newTeleportOptions, opt)
 	}
 }
 
@@ -261,8 +268,8 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 	return s
 }
 
-func runTeleport(t *testing.T, cfg *service.Config) *service.TeleportProcess {
-	process, err := service.NewTeleport(cfg)
+func runTeleport(t *testing.T, cfg *service.Config, opts ...service.NewTeleportOption) *service.TeleportProcess {
+	process, err := service.NewTeleport(cfg, opts...)
 	require.NoError(t, err)
 	require.NoError(t, process.Start())
 	t.Cleanup(func() {
