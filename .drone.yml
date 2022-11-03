@@ -9226,6 +9226,32 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab:v11-arm64"
+- name: Create manifest and push "teleport-lab:full" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version") > /dev/null 2>&1 && echo 'Found existing image, skipping'
+    || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version") --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version"))
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  environment:
+    AWS_PROFILE: ecr-staging
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-lab:v11-amd64" to ECR - staging
+  - Tag and push image "teleport-lab:v11-arm" to ECR - staging
+  - Tag and push image "teleport-lab:v11-arm64" to ECR - staging
 services:
 - name: Start Docker
   image: docker:dind
@@ -10917,80 +10943,6 @@ steps:
     path: /var/run
   depends_on:
   - Pull teleport-lab:v11-arm64 and push it to Local Registry
-- name: Create manifest and push "teleport-lab:major" to Quay
-  image: docker
-  commands:
-  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")-amd64
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")-arm
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")-arm64
-  - docker manifest push quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")
-  - docker logout "quay.io"
-  environment:
-    QUAY_PASSWORD:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    QUAY_USERNAME:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-lab:v11-amd64" to Quay
-  - Tag and push image "teleport-lab:v11-arm" to Quay
-  - Tag and push image "teleport-lab:v11-arm64" to Quay
-- name: Create manifest and push "teleport-lab:minor" to Quay
-  image: docker
-  commands:
-  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")-amd64
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")-arm
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")-arm64
-  - docker manifest push quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")
-  - docker logout "quay.io"
-  environment:
-    QUAY_PASSWORD:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    QUAY_USERNAME:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-lab:v11-amd64" to Quay
-  - Tag and push image "teleport-lab:v11-arm" to Quay
-  - Tag and push image "teleport-lab:v11-arm64" to Quay
-- name: Create manifest and push "teleport-lab:full" to Quay
-  image: docker
-  commands:
-  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/full-version")
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
-    create quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/full-version") --amend
-    quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/full-version")-amd64 --amend
-    quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/full-version")-arm --amend quay.io/fred_heinecke/teleport-lab:$(cat
-    "/go/var/full-version")-arm64 && docker manifest push quay.io/fred_heinecke/teleport-lab:$(cat
-    "/go/var/full-version"))
-  - docker logout "quay.io"
-  environment:
-    QUAY_PASSWORD:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    QUAY_USERNAME:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-lab:v11-amd64" to Quay
-  - Tag and push image "teleport-lab:v11-arm" to Quay
-  - Tag and push image "teleport-lab:v11-arm64" to Quay
 - name: Tag and push image "teleport-lab:v11-amd64" to ECR - production
   image: docker
   commands:
@@ -14012,6 +13964,87 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab:v11-arm64"
+- name: Create manifest and push "teleport-lab:major-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP)
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  environment:
+    AWS_PROFILE: ecr-staging
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-lab:v11-amd64" to ECR - staging
+  - Tag and push image "teleport-lab:v11-arm" to ECR - staging
+  - Tag and push image "teleport-lab:v11-arm64" to ECR - staging
+- name: Create manifest and push "teleport-lab:minor-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP)
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  environment:
+    AWS_PROFILE: ecr-staging
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-lab:v11-amd64" to ECR - staging
+  - Tag and push image "teleport-lab:v11-arm" to ECR - staging
+  - Tag and push image "teleport-lab:v11-arm64" to ECR - staging
+- name: Create manifest and push "teleport-lab:full-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP)
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  environment:
+    AWS_PROFILE: ecr-staging
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-lab:v11-amd64" to ECR - staging
+  - Tag and push image "teleport-lab:v11-arm" to ECR - staging
+  - Tag and push image "teleport-lab:v11-arm64" to ECR - staging
 - name: Tag and push image "teleport-lab:v11-amd64" to Quay
   image: docker
   commands:
@@ -14096,80 +14129,6 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab:v11-arm64"
-- name: Create manifest and push "teleport-lab:major" to Quay
-  image: docker
-  commands:
-  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")-amd64
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")-arm
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")-arm64
-  - docker manifest push quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")
-  - docker logout "quay.io"
-  environment:
-    QUAY_PASSWORD:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    QUAY_USERNAME:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-lab:v11-amd64" to Quay
-  - Tag and push image "teleport-lab:v11-arm" to Quay
-  - Tag and push image "teleport-lab:v11-arm64" to Quay
-- name: Create manifest and push "teleport-lab:minor" to Quay
-  image: docker
-  commands:
-  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")-amd64
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")-arm
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")-arm64
-  - docker manifest push quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")
-  - docker logout "quay.io"
-  environment:
-    QUAY_PASSWORD:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    QUAY_USERNAME:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-lab:v11-amd64" to Quay
-  - Tag and push image "teleport-lab:v11-arm" to Quay
-  - Tag and push image "teleport-lab:v11-arm64" to Quay
-- name: Create manifest and push "teleport-lab:full" to Quay
-  image: docker
-  commands:
-  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/full-version")
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
-    create quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/full-version") --amend
-    quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/full-version")-amd64 --amend
-    quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/full-version")-arm --amend quay.io/fred_heinecke/teleport-lab:$(cat
-    "/go/var/full-version")-arm64 && docker manifest push quay.io/fred_heinecke/teleport-lab:$(cat
-    "/go/var/full-version"))
-  - docker logout "quay.io"
-  environment:
-    QUAY_PASSWORD:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    QUAY_USERNAME:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-lab:v11-amd64" to Quay
-  - Tag and push image "teleport-lab:v11-arm" to Quay
-  - Tag and push image "teleport-lab:v11-arm64" to Quay
 - name: Tag and push image "teleport-lab:v11-amd64" to ECR - production
   image: docker
   commands:
@@ -17191,6 +17150,87 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab:v10-arm64"
+- name: Create manifest and push "teleport-lab:major-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP)
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  environment:
+    AWS_PROFILE: ecr-staging
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-lab:v10-amd64" to ECR - staging
+  - Tag and push image "teleport-lab:v10-arm" to ECR - staging
+  - Tag and push image "teleport-lab:v10-arm64" to ECR - staging
+- name: Create manifest and push "teleport-lab:minor-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP)
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  environment:
+    AWS_PROFILE: ecr-staging
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-lab:v10-amd64" to ECR - staging
+  - Tag and push image "teleport-lab:v10-arm" to ECR - staging
+  - Tag and push image "teleport-lab:v10-arm64" to ECR - staging
+- name: Create manifest and push "teleport-lab:full-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP)
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  environment:
+    AWS_PROFILE: ecr-staging
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-lab:v10-amd64" to ECR - staging
+  - Tag and push image "teleport-lab:v10-arm" to ECR - staging
+  - Tag and push image "teleport-lab:v10-arm64" to ECR - staging
 - name: Tag and push image "teleport-lab:v10-amd64" to Quay
   image: docker
   commands:
@@ -17275,80 +17315,6 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab:v10-arm64"
-- name: Create manifest and push "teleport-lab:major" to Quay
-  image: docker
-  commands:
-  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")-amd64
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")-arm
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")-arm64
-  - docker manifest push quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")
-  - docker logout "quay.io"
-  environment:
-    QUAY_PASSWORD:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    QUAY_USERNAME:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-lab:v10-amd64" to Quay
-  - Tag and push image "teleport-lab:v10-arm" to Quay
-  - Tag and push image "teleport-lab:v10-arm64" to Quay
-- name: Create manifest and push "teleport-lab:minor" to Quay
-  image: docker
-  commands:
-  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")-amd64
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")-arm
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")-arm64
-  - docker manifest push quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")
-  - docker logout "quay.io"
-  environment:
-    QUAY_PASSWORD:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    QUAY_USERNAME:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-lab:v10-amd64" to Quay
-  - Tag and push image "teleport-lab:v10-arm" to Quay
-  - Tag and push image "teleport-lab:v10-arm64" to Quay
-- name: Create manifest and push "teleport-lab:full" to Quay
-  image: docker
-  commands:
-  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/full-version")
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
-    create quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/full-version") --amend
-    quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/full-version")-amd64 --amend
-    quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/full-version")-arm --amend quay.io/fred_heinecke/teleport-lab:$(cat
-    "/go/var/full-version")-arm64 && docker manifest push quay.io/fred_heinecke/teleport-lab:$(cat
-    "/go/var/full-version"))
-  - docker logout "quay.io"
-  environment:
-    QUAY_PASSWORD:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    QUAY_USERNAME:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-lab:v10-amd64" to Quay
-  - Tag and push image "teleport-lab:v10-arm" to Quay
-  - Tag and push image "teleport-lab:v10-arm64" to Quay
 - name: Tag and push image "teleport-lab:v10-amd64" to ECR - production
   image: docker
   commands:
@@ -20368,6 +20334,87 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab:v9-arm64"
+- name: Create manifest and push "teleport-lab:major-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP)
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  environment:
+    AWS_PROFILE: ecr-staging
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-lab:v9-amd64" to ECR - staging
+  - Tag and push image "teleport-lab:v9-arm" to ECR - staging
+  - Tag and push image "teleport-lab:v9-arm64" to ECR - staging
+- name: Create manifest and push "teleport-lab:minor-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP)
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  environment:
+    AWS_PROFILE: ecr-staging
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-lab:v9-amd64" to ECR - staging
+  - Tag and push image "teleport-lab:v9-arm" to ECR - staging
+  - Tag and push image "teleport-lab:v9-arm64" to ECR - staging
+- name: Create manifest and push "teleport-lab:full-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP)
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  environment:
+    AWS_PROFILE: ecr-staging
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-lab:v9-amd64" to ECR - staging
+  - Tag and push image "teleport-lab:v9-arm" to ECR - staging
+  - Tag and push image "teleport-lab:v9-arm64" to ECR - staging
 - name: Tag and push image "teleport-lab:v9-amd64" to Quay
   image: docker
   commands:
@@ -20452,80 +20499,6 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab:v9-arm64"
-- name: Create manifest and push "teleport-lab:major" to Quay
-  image: docker
-  commands:
-  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")-amd64
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")-arm
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")-arm64
-  - docker manifest push quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")
-  - docker logout "quay.io"
-  environment:
-    QUAY_PASSWORD:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    QUAY_USERNAME:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-lab:v9-amd64" to Quay
-  - Tag and push image "teleport-lab:v9-arm" to Quay
-  - Tag and push image "teleport-lab:v9-arm64" to Quay
-- name: Create manifest and push "teleport-lab:minor" to Quay
-  image: docker
-  commands:
-  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")-amd64
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")-arm
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")-arm64
-  - docker manifest push quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")
-  - docker logout "quay.io"
-  environment:
-    QUAY_PASSWORD:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    QUAY_USERNAME:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-lab:v9-amd64" to Quay
-  - Tag and push image "teleport-lab:v9-arm" to Quay
-  - Tag and push image "teleport-lab:v9-arm64" to Quay
-- name: Create manifest and push "teleport-lab:full" to Quay
-  image: docker
-  commands:
-  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/full-version")
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
-    create quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/full-version") --amend
-    quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/full-version")-amd64 --amend
-    quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/full-version")-arm --amend quay.io/fred_heinecke/teleport-lab:$(cat
-    "/go/var/full-version")-arm64 && docker manifest push quay.io/fred_heinecke/teleport-lab:$(cat
-    "/go/var/full-version"))
-  - docker logout "quay.io"
-  environment:
-    QUAY_PASSWORD:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    QUAY_USERNAME:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-lab:v9-amd64" to Quay
-  - Tag and push image "teleport-lab:v9-arm" to Quay
-  - Tag and push image "teleport-lab:v9-arm64" to Quay
 - name: Tag and push image "teleport-lab:v9-amd64" to ECR - production
   image: docker
   commands:
@@ -23550,6 +23523,87 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab:v11-arm64"
+- name: Create manifest and push "teleport-lab:major-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/major-version")-$TIMESTAMP)
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  environment:
+    AWS_PROFILE: ecr-staging
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-lab:v11-amd64" to ECR - staging
+  - Tag and push image "teleport-lab:v11-arm" to ECR - staging
+  - Tag and push image "teleport-lab:v11-arm64" to ECR - staging
+- name: Create manifest and push "teleport-lab:minor-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/minor-version")-$TIMESTAMP)
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  environment:
+    AWS_PROFILE: ecr-staging
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-lab:v11-amd64" to ECR - staging
+  - Tag and push image "teleport-lab:v11-arm" to ECR - staging
+  - Tag and push image "teleport-lab:v11-arm64" to ECR - staging
+- name: Create manifest and push "teleport-lab:full-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(cat
+    "/go/var/full-version")-$TIMESTAMP)
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  environment:
+    AWS_PROFILE: ecr-staging
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-lab:v11-amd64" to ECR - staging
+  - Tag and push image "teleport-lab:v11-arm" to ECR - staging
+  - Tag and push image "teleport-lab:v11-arm64" to ECR - staging
 - name: Tag and push image "teleport-lab:v11-amd64" to Quay
   image: docker
   commands:
@@ -23634,80 +23688,6 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab:v11-arm64"
-- name: Create manifest and push "teleport-lab:major" to Quay
-  image: docker
-  commands:
-  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")-amd64
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")-arm
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")-arm64
-  - docker manifest push quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/major-version")
-  - docker logout "quay.io"
-  environment:
-    QUAY_PASSWORD:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    QUAY_USERNAME:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-lab:v11-amd64" to Quay
-  - Tag and push image "teleport-lab:v11-arm" to Quay
-  - Tag and push image "teleport-lab:v11-arm64" to Quay
-- name: Create manifest and push "teleport-lab:minor" to Quay
-  image: docker
-  commands:
-  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")-amd64
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")-arm
-    --amend quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")-arm64
-  - docker manifest push quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/minor-version")
-  - docker logout "quay.io"
-  environment:
-    QUAY_PASSWORD:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    QUAY_USERNAME:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-lab:v11-amd64" to Quay
-  - Tag and push image "teleport-lab:v11-arm" to Quay
-  - Tag and push image "teleport-lab:v11-arm64" to Quay
-- name: Create manifest and push "teleport-lab:full" to Quay
-  image: docker
-  commands:
-  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/full-version")
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
-    create quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/full-version") --amend
-    quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/full-version")-amd64 --amend
-    quay.io/fred_heinecke/teleport-lab:$(cat "/go/var/full-version")-arm --amend quay.io/fred_heinecke/teleport-lab:$(cat
-    "/go/var/full-version")-arm64 && docker manifest push quay.io/fred_heinecke/teleport-lab:$(cat
-    "/go/var/full-version"))
-  - docker logout "quay.io"
-  environment:
-    QUAY_PASSWORD:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    QUAY_USERNAME:
-      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-lab:v11-amd64" to Quay
-  - Tag and push image "teleport-lab:v11-arm" to Quay
-  - Tag and push image "teleport-lab:v11-arm64" to Quay
 - name: Tag and push image "teleport-lab:v11-amd64" to ECR - production
   image: docker
   commands:
@@ -23878,6 +23858,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: b01957a01a1802da81f6b8a970237d363983cf6cf9e540ada24015d6335a3d0d
+hmac: 8d7cb43f80aa2d2257b2782a7959444c12c8133898d80511db5d661d503e56c3
 
 ...
