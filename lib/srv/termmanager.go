@@ -28,6 +28,16 @@ const maxHistoryBytes = 1000
 // maxPausedHistoryBytes is maximum bytes that are buffered when a session is paused.
 const maxPausedHistoryBytes = 10000
 
+// termState indicates the current state of the terminal
+type termState int
+
+const (
+	// dataFlowOff indicates that data shouldn't be transmitted to clients
+	dataFlowOff termState = iota
+	// dataFlowOn indicates that data is allowed to be transmitted to clients
+	dataFlowOn
+)
+
 // TermManager handles the streams of terminal-like sessions.
 // It performs a number of tasks including:
 // - multiplexing
@@ -45,15 +55,18 @@ type TermManager struct {
 	OnWriteError func(idString string, err error)
 	// buffer is used to buffer writes when turned off
 	buffer []byte
-	on     bool
-	// history is used to store the scrollback history sent to new clients
+	// state dictates whether data flow is permitted
+	state termState
+	// history is used to store the terminal history sent to new clients
 	history []byte
 	// incoming is a stream of incoming stdin data
 	incoming chan []byte
 	// remaining is a partially read chunk of stdin data
 	// we only support one concurrent reader so this isn't mutex protected
-	remaining         []byte
-	readStateUpdate   chan bool
+	remaining []byte
+	// stateUpdate signals that a state transition has occurred as a result
+	// of calls to On/Off
+	stateUpdate       chan struct{}
 	closed            chan struct{}
 	lastWasBroadcast  bool
 	terminateNotifier chan struct{}
@@ -68,7 +81,7 @@ func NewTermManager() *TermManager {
 		writers:           make(map[string]io.Writer),
 		readerState:       make(map[string]bool),
 		closed:            make(chan struct{}),
-		readStateUpdate:   make(chan bool, 1),
+		stateUpdate:       make(chan struct{}, 1),
 		incoming:          make(chan []byte, 100),
 		terminateNotifier: make(chan struct{}, 1),
 	}
@@ -110,7 +123,7 @@ func (g *TermManager) Write(p []byte) (int, error) {
 		return 0, io.EOF
 	}
 
-	if g.on {
+	if g.state == dataFlowOn {
 		g.writeToClients(p)
 	} else {
 		// Only keep the last maxPausedHistoryBytes of stdout/stderr while the session is paused.
@@ -123,26 +136,33 @@ func (g *TermManager) Write(p []byte) (int, error) {
 
 func (g *TermManager) Read(p []byte) (int, error) {
 	g.mu.Lock()
-	on := g.on
+	state := g.state
 	g.mu.Unlock()
 
 	for {
-		// Loop until data flow is enabled and there is data to return, or the session is terminated.
-		for !on || len(g.remaining) == 0 {
-			select {
-			case <-g.closed:
-				return 0, io.EOF
-			case on = <-g.readStateUpdate:
-			case data := <-g.incoming:
-				g.remaining = append(g.remaining, data...)
+		// wait until data flow is enabled and there is data to be read, or the session is terminated.
+		func() {
+			for state == dataFlowOff || len(g.remaining) == 0 {
+				select {
+				case <-g.closed:
+					return
+				case <-g.stateUpdate:
+					return
+				case data := <-g.incoming:
+					g.remaining = append(g.remaining, data...)
+				}
 			}
+		}()
+
+		if g.isClosed() {
+			return 0, io.EOF
 		}
 
 		// ensure that data flow wasn't changed and can't change
 		// until the data has been returned
 		g.mu.Lock()
-		on = g.on
-		if !on {
+		state = g.state
+		if state == dataFlowOff {
 			g.mu.Unlock()
 			continue
 		}
@@ -173,8 +193,11 @@ func (g *TermManager) BroadcastMessage(message string) {
 func (g *TermManager) On() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	g.on = true
-	g.readStateUpdate <- true
+	g.state = dataFlowOn
+	select {
+	case g.stateUpdate <- struct{}{}:
+	default:
+	}
 	g.writeToClients(g.buffer)
 }
 
@@ -182,8 +205,11 @@ func (g *TermManager) On() {
 func (g *TermManager) Off() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	g.on = false
-	g.readStateUpdate <- false
+	g.state = dataFlowOff
+	select {
+	case g.stateUpdate <- struct{}{}:
+	default:
+	}
 }
 
 func (g *TermManager) AddWriter(name string, w io.Writer) {
@@ -215,7 +241,7 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 				// This is the ASCII control code for CTRL+C.
 				if b == 0x03 {
 					g.mu.Lock()
-					if !g.on && !g.isClosed() {
+					if g.state == dataFlowOff && !g.isClosed() {
 						select {
 						case g.terminateNotifier <- struct{}{}:
 						default:
@@ -228,7 +254,7 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 
 			g.mu.Lock()
 
-			if g.on {
+			if g.state == dataFlowOn {
 				g.mu.Unlock()
 				g.incoming <- buf[:n]
 				g.mu.Lock()
