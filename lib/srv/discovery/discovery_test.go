@@ -290,7 +290,7 @@ func TestDiscoveryServer(t *testing.T) {
 			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
 				scanner := bufio.NewScanner(logs)
 				instances := genEC2Instances(58)
-				findAll := []string{genInstancesLogStr(instances[:50]), genInstancesLogStr(instances[50:])}
+				findAll := []string{genEC2InstancesLogStr(instances[:50]), genEC2InstancesLogStr(instances[50:])}
 				index := 0
 				for scanner.Scan() {
 					if index == len(findAll) {
