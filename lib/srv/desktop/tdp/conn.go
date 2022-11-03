@@ -119,3 +119,14 @@ func (c *Conn) LocalAddr() net.Addr {
 func (c *Conn) RemoteAddr() net.Addr {
 	return c.remoteAddr
 }
+
+// IsNonFatalErr returns whether or not an error arising from
+// the tdp package should be interpreted as fatal or non-fatal
+// for an ongoing TDP connection.
+func IsNonFatalErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return err.Error() == clipDataMaxLenErr
+}

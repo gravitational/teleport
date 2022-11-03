@@ -333,6 +333,15 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 		wds.Close()
 	}
 
+	sendTDPError := func(ws *websocket.Conn, err error) error {
+		msg := tdp.Error{Message: err.Error()}
+		b, err := msg.Encode()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return ws.WriteMessage(websocket.BinaryMessage, b)
+	}
+
 	errs := make(chan error, 2)
 
 	go func() {
@@ -355,6 +364,9 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 				return
 			}
 			if err != nil {
+				if sendTDPError(ws, err) == nil && tdp.IsNonFatalErr(err) {
+					continue
+				}
 				errs <- err
 				return
 			}

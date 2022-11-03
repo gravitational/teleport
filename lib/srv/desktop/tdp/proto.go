@@ -500,7 +500,7 @@ func decodeMouseWheel(in io.Reader) (MouseWheel, error) {
 	return w, trace.Wrap(err)
 }
 
-const maxClipboardDataLength = 1024 * 1024
+const maxClipboardDataLength = 10 // todo(isaiah): change to 1024 * 1024
 
 // ClipboardData represents shared clipboard data.
 type ClipboardData []byte
@@ -513,6 +513,9 @@ func (c ClipboardData) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// This value MUST have the same value as the variable by the same name in webapps
+const clipDataMaxLenErr = "clipboard data exceeds maximum length"
+
 func decodeClipboardData(in io.Reader, maxLen uint32) (ClipboardData, error) {
 	var length uint32
 	if err := binary.Read(in, binary.BigEndian, &length); err != nil {
@@ -520,7 +523,12 @@ func decodeClipboardData(in io.Reader, maxLen uint32) (ClipboardData, error) {
 	}
 
 	if length > maxLen {
-		return nil, trace.BadParameter("clipboard data exceeds maximum length")
+		// If clipboard data exceeds maxLen,
+		// discard the rest of the message
+		if _, err := io.CopyN(io.Discard, in, int64(length)); err != nil {
+			return nil, err
+		}
+		return nil, trace.BadParameter(clipDataMaxLenErr)
 	}
 
 	b := make([]byte, int(length))
