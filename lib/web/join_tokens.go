@@ -338,10 +338,10 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		labelsList = append(labelsList, fmt.Sprintf("%s=%s", labelKey, labels))
 	}
 
-	resourceLabelsList := []string{}
+	var agentMatcherLabelsList []string
 	if settings.databaseInstallMode {
 		agentMatcherLabels := token.GetAgentMatcherLabels()
-		resourceLabelsList, err = scripts.MarshalLabelsYAML(agentMatcherLabels)
+		agentMatcherLabelsList, err = scripts.MarshalLabelsYAML(agentMatcherLabels)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -378,7 +378,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		"joinMethod":                 settings.joinMethod,
 		"labels":                     strings.Join(labelsList, ","),
 		"databaseInstallMode":        strconv.FormatBool(settings.databaseInstallMode),
-		"db_service_resource_labels": resourceLabelsList,
+		"db_service_resource_labels": agentMatcherLabelsList,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

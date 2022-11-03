@@ -2963,7 +2963,8 @@ type ProvisionTokenSpecV2 struct {
 	// BotName is the name of the bot this token grants access to, if any
 	BotName string `protobuf:"bytes,5,opt,name=BotName,proto3" json:"bot_name,omitempty"`
 	// SuggestedLabels is a set of labels that resources should set when using this token to enroll
-	// themselves in the cluster
+	// themselves in the cluster.
+	// Currently, only node-join scripts create a configuration according to the suggestion.
 	SuggestedLabels Labels `protobuf:"bytes,6,opt,name=SuggestedLabels,proto3,customtype=Labels" json:"suggested_labels,omitempty"`
 	// GitHub allows the configuration of options specific to the "github" join method.
 	GitHub *ProvisionTokenSpecV2GitHub `protobuf:"bytes,7,opt,name=GitHub,proto3" json:"github,omitempty"`
@@ -2972,6 +2973,7 @@ type ProvisionTokenSpecV2 struct {
 	// AgentMatcherLabels is a set of labels to be used by agents to match on resources.
 	// When an agent uses this token, the agent should monitor resources that match those labels.
 	// For databases, this means adding the labels to `db_service.resources.labels`.
+	// Currently, only node-join scripts create a configuration according to the suggestion.
 	AgentMatcherLabels   Labels   `protobuf:"bytes,9,opt,name=AgentMatcherLabels,proto3,customtype=Labels" json:"agent_matcher_labels,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
