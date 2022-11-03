@@ -2238,7 +2238,7 @@ func showDatabases(w io.Writer, clusterFlag string, databases []types.Database, 
 	case teleport.Text, "":
 		showDatabasesAsText(w, clusterFlag, databases, active, roleSet, verbose)
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeDatabases(databases, format)
+		out, err := serializeDatabases(databases, format, roleSet)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2249,18 +2249,62 @@ func showDatabases(w io.Writer, clusterFlag string, databases []types.Database, 
 	return nil
 }
 
-func serializeDatabases(databases []types.Database, format string) (string, error) {
+func serializeDatabases(databases []types.Database, format string, roleSet services.RoleSet) (string, error) {
 	if databases == nil {
 		databases = []types.Database{}
 	}
 	var out []byte
 	var err error
-	if format == teleport.JSON {
+	switch {
+	case roleSet != nil:
+		out, err = serializeDatabasesWithUsers(databases, format, roleSet)
+	case format == teleport.JSON:
 		out, err = utils.FastMarshalIndent(databases, "", "  ")
-	} else {
+	default:
 		out, err = yaml.Marshal(databases)
 	}
 	return string(out), trace.Wrap(err)
+}
+
+type dbUsers struct {
+	Allowed []string `json:"allowed"`
+	Denied  []string `json:"denied"`
+}
+
+type databaseWithUsers struct {
+	Database types.Database `json:"database"`
+	DbUsers  *dbUsers       `json:"db_users"`
+}
+
+func serializeDatabasesWithUsers(databases []types.Database, format string, roleSet services.RoleSet) ([]byte, error) {
+	result := []databaseWithUsers{}
+	for _, db := range databases {
+		users := roleSet.EnumerateDatabaseUsers(db)
+		allowed := append([]string{}, users.Allowed()...)
+		denied := append([]string{}, users.Denied()...)
+		if users.WildcardAllowed() {
+			// start the list with *
+			allowed = append([]string{types.Wildcard}, allowed...)
+		} else {
+			denied = []string{}
+		}
+		result = append(result, databaseWithUsers{
+			Database: db,
+			DbUsers: &dbUsers{
+				Allowed: allowed,
+				Denied:  denied,
+			},
+		})
+	}
+	var out []byte
+	var err error
+	switch format {
+	case teleport.JSON:
+		out, err = utils.FastMarshalIndent(result, "", "  ")
+	default:
+		out, err = yaml.Marshal(result)
+	}
+	return out, trace.Wrap(err)
 }
 
 func serializeDatabasesAllClusters(dbListings []databaseListing, format string) (string, error) {
