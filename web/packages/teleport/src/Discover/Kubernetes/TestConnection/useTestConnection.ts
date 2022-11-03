@@ -55,6 +55,7 @@ export function useTestConnection({ ctx, props }: Props) {
     runConnectionDiagnostic,
     diagnosis,
     nextStep: props.nextStep,
+    prevStep: props.prevStep,
     canTestConnection,
     kube: (props.agentMeta as KubeMeta).kube,
     username,

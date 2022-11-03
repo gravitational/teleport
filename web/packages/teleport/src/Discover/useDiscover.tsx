@@ -73,6 +73,14 @@ export function useDiscover(config: UseMainConfig) {
     }
   }
 
+  function prevStep() {
+    const nextView = findViewAtIndex(views, currentStep - 1);
+
+    if (nextView) {
+      setCurrentStep(currentStep - 1);
+    }
+  }
+
   function updateAgentMeta(meta: AgentMeta) {
     setAgentMeta(meta);
   }
@@ -90,6 +98,7 @@ export function useDiscover(config: UseMainConfig) {
     initAttempt: { status: initState.status, statusText: initState.statusText },
     logout,
     nextStep,
+    prevStep,
     onSelectResource,
     selectedResource,
     updateAgentMeta,

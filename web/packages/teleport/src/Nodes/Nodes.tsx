@@ -101,27 +101,25 @@ export function Nodes(props: State) {
         </Box>
       )}
       {attempt.status !== 'processing' && !hasNoNodes && (
-        <>
-          <NodeList
-            nodes={results.nodes}
-            totalCount={results.totalCount}
-            onLoginMenuOpen={getNodeLoginOptions}
-            onLoginSelect={onLoginSelect}
-            fetchNext={fetchNext}
-            fetchPrev={fetchPrev}
-            fetchStatus={fetchStatus}
-            from={from}
-            to={to}
-            pageSize={pageSize}
-            params={params}
-            setParams={setParams}
-            startKeys={startKeys}
-            setSort={setSort}
-            pathname={pathname}
-            replaceHistory={replaceHistory}
-            onLabelClick={onLabelClick}
-          />
-        </>
+        <NodeList
+          nodes={results.nodes}
+          totalCount={results.totalCount}
+          onLoginMenuOpen={getNodeLoginOptions}
+          onLoginSelect={onLoginSelect}
+          fetchNext={fetchNext}
+          fetchPrev={fetchPrev}
+          fetchStatus={fetchStatus}
+          from={from}
+          to={to}
+          pageSize={pageSize}
+          params={params}
+          setParams={setParams}
+          startKeys={startKeys}
+          setSort={setSort}
+          pathname={pathname}
+          replaceHistory={replaceHistory}
+          onLabelClick={onLabelClick}
+        />
       )}
       {attempt.status === 'success' && hasNoNodes && (
         <Empty

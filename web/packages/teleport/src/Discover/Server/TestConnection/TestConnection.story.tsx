@@ -137,6 +137,7 @@ const props: State = {
   startSshSession: () => null,
   runConnectionDiagnostic: () => null,
   nextStep: () => null,
+  prevStep: () => null,
   diagnosis: null,
   canTestConnection: true,
 };
