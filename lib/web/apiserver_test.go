@@ -2092,12 +2092,12 @@ func TestTokenGeneration(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "token")
 
 	tt := []struct {
-		name               string
-		roles              types.SystemRoles
-		shouldErr          bool
-		joinMethod         types.JoinMethod
-		agentMatcherLabels types.Labels
-		allow              []*types.TokenRule
+		name                        string
+		roles                       types.SystemRoles
+		shouldErr                   bool
+		joinMethod                  types.JoinMethod
+		suggestedAgentMatcherLabels types.Labels
+		allow                       []*types.TokenRule
 	}{
 		{
 			name:      "single node role",
@@ -2140,7 +2140,7 @@ func TestTokenGeneration(t *testing.T) {
 		{
 			name:  "adds the agent match labels",
 			roles: types.SystemRoles{types.RoleDatabase},
-			agentMatcherLabels: types.Labels{
+			suggestedAgentMatcherLabels: types.Labels{
 				"*": apiutils.Strings{"*"},
 			},
 			shouldErr: false,
@@ -2152,10 +2152,10 @@ func TestTokenGeneration(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			re, err := pack.clt.PostJSON(context.Background(), endpoint, types.ProvisionTokenSpecV2{
-				Roles:              tc.roles,
-				JoinMethod:         tc.joinMethod,
-				Allow:              tc.allow,
-				AgentMatcherLabels: tc.agentMatcherLabels,
+				Roles:                       tc.roles,
+				JoinMethod:                  tc.joinMethod,
+				Allow:                       tc.allow,
+				SuggestedAgentMatcherLabels: tc.suggestedAgentMatcherLabels,
 			})
 
 			if tc.shouldErr {
@@ -2191,7 +2191,7 @@ func TestTokenGeneration(t *testing.T) {
 			// if no joinMethod is provided, expect token method
 			require.Equal(t, expectedJoinMethod, generatedToken.GetJoinMethod())
 
-			require.Equal(t, tc.agentMatcherLabels, generatedToken.GetAgentMatcherLabels())
+			require.Equal(t, tc.suggestedAgentMatcherLabels, generatedToken.GetSuggestedAgentMatcherLabels())
 		})
 	}
 }
@@ -2214,14 +2214,14 @@ func TestInstallDatabaseScriptGeneration(t *testing.T) {
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, username, []types.Role{roleTokenCRD})
 
-	// Create a new token with the desired AgentMatcherLabels
+	// Create a new token with the desired SuggestedAgentMatcherLabels
 	endpointGenerateToken := pack.clt.Endpoint("webapi", "token")
 	re, err := pack.clt.PostJSON(
 		context.Background(),
 		endpointGenerateToken,
 		types.ProvisionTokenSpecV2{
 			Roles: types.SystemRoles{types.RoleDatabase},
-			AgentMatcherLabels: types.Labels{
+			SuggestedAgentMatcherLabels: types.Labels{
 				"stage": apiutils.Strings{"prod"},
 			},
 		})
@@ -2230,7 +2230,7 @@ func TestInstallDatabaseScriptGeneration(t *testing.T) {
 	var responseToken nodeJoinToken
 	require.NoError(t, json.Unmarshal(re.Bytes(), &responseToken))
 
-	// Generating the script with the token should return the AgentMatcherLabels provided in the first request
+	// Generating the script with the token should return the SuggestedAgentMatcherLabels provided in the first request
 	endpointInstallDatabase := pack.clt.Endpoint("scripts", responseToken.ID, "install-database.sh")
 
 	t.Log(responseToken, endpointInstallDatabase)

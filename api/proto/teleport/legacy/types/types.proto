@@ -992,13 +992,13 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2GitHub GitHub = 7 [(gogoproto.jsontag) = "github,omitempty"];
   // CircleCI allows the configuration of options specific to the "circleci" join method.
   ProvisionTokenSpecV2CircleCI CircleCI = 8 [(gogoproto.jsontag) = "circleci,omitempty"];
-  // AgentMatcherLabels is a set of labels to be used by agents to match on resources.
+  // SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources.
   // When an agent uses this token, the agent should monitor resources that match those labels.
   // For databases, this means adding the labels to `db_service.resources.labels`.
   // Currently, only node-join scripts create a configuration according to the suggestion.
-  wrappers.LabelValues AgentMatcherLabels = 9 [
+  wrappers.LabelValues SuggestedAgentMatcherLabels = 9 [
     (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "agent_matcher_labels,omitempty",
+    (gogoproto.jsontag) = "suggested_agent_matcher_labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];
 }
