@@ -140,9 +140,9 @@ func TestInitCACert(t *testing.T) {
 			cert:     fixtures.TLSCACertPEM,
 		},
 		{
-			desc:     "shouldn't download Azure CA",
+			desc:     "should download Azure CA when it's not set",
 			database: azureMySQL.GetName(),
-			cert:     "", // Azure now uses system cert pool.
+			cert:     fixtures.TLSCACertPEM + "\n" + fixtures.TLSCACertPEM, // Two CA files.
 		},
 	}
 
@@ -201,7 +201,7 @@ type fakeDownloader struct {
 	count int
 }
 
-func (d *fakeDownloader) Download(context.Context, types.Database) ([]byte, error) {
+func (d *fakeDownloader) Download(context.Context, types.Database, string) ([]byte, error) {
 	d.count++
 	return d.cert, nil
 }

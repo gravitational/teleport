@@ -110,6 +110,9 @@ func TestAuthGetTLSConfig(t *testing.T) {
 	systemCertPool, err := x509.SystemCertPool()
 	require.NoError(t, err)
 
+	systemCertPoolWithCA := systemCertPool.Clone()
+	systemCertPoolWithCA.AppendCertsFromPEM([]byte(fixtures.TLSCACertPEM))
+
 	// The authClientMock uses fixtures.TLSCACertPEM as the root signing CA.
 	defaultCertPool := x509.NewCertPool()
 	require.True(t, defaultCertPool.AppendCertsFromPEM([]byte(fixtures.TLSCACertPEM)))
@@ -173,16 +176,10 @@ func TestAuthGetTLSConfig(t *testing.T) {
 			expectRootCAs:    systemCertPool,
 		},
 		{
-			name:             "Azure Postgres",
-			sessionDatabase:  newDatabaseWithURI(t, "my-postgres.postgres.database.azure.com:5432", defaults.ProtocolPostgres),
+			name:             "Azure Postgres with downloaded CA",
+			sessionDatabase:  newAzurePostgresDatabaseWithCA(t, fixtures.TLSCACertPEM),
 			expectServerName: "my-postgres.postgres.database.azure.com",
-			expectRootCAs:    systemCertPool,
-		},
-		{
-			name:             "Azure MySQL",
-			sessionDatabase:  newDatabaseWithURI(t, "my-mysql.mysql.database.azure.com:3306", defaults.ProtocolMySQL),
-			expectServerName: "my-mysql.mysql.database.azure.com",
-			expectRootCAs:    systemCertPool,
+			expectRootCAs:    systemCertPoolWithCA,
 		},
 	}
 
@@ -197,11 +194,7 @@ func TestAuthGetTLSConfig(t *testing.T) {
 
 			require.Equal(t, test.expectServerName, tlsConfig.ServerName)
 			require.Equal(t, test.expectInsecureSkipVerify, tlsConfig.InsecureSkipVerify)
-
-			// nolint:staticcheck
-			// TODO x509.CertPool.Subjects() is deprecated. use
-			// x509.CertPool.Equal introduced in 1.19 for comparison.
-			require.Equal(t, test.expectRootCAs.Subjects(), tlsConfig.RootCAs.Subjects())
+			require.True(t, test.expectRootCAs.Equal(tlsConfig.RootCAs))
 
 			if test.expectClientCertificates {
 				require.Len(t, tlsConfig.Certificates, 1)
@@ -450,16 +443,18 @@ func newRDSProxyDatabase(t *testing.T, uri string) types.Database {
 	return database
 }
 
-func newDatabaseWithURI(t *testing.T, uri, protocol string) types.Database {
+func newAzurePostgresDatabaseWithCA(t *testing.T, ca string) types.Database {
 	t.Helper()
 
 	database, err := types.NewDatabaseV3(types.Metadata{
 		Name: "test-database",
 	}, types.DatabaseSpecV3{
-		Protocol: protocol,
-		URI:      uri,
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "my-postgres.postgres.database.azure.com:5432",
 	})
 	require.NoError(t, err)
+
+	database.SetStatusCA(ca)
 	return database
 }
 
