@@ -24139,77 +24139,6 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab:v11-arm64"
-- name: Create manifest and push "teleport-lab:major" to ECR - production
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
-  - docker manifest create public.ecr.aws/u8j2q1d9/teleport-lab:$(cat "/go/var/major-version")
-    --amend public.ecr.aws/u8j2q1d9/teleport-lab:$(cat "/go/var/major-version")-amd64
-    --amend public.ecr.aws/u8j2q1d9/teleport-lab:$(cat "/go/var/major-version")-arm
-    --amend public.ecr.aws/u8j2q1d9/teleport-lab:$(cat "/go/var/major-version")-arm64
-  - docker manifest push public.ecr.aws/u8j2q1d9/teleport-lab:$(cat "/go/var/major-version")
-  - docker logout "public.ecr.aws"
-  environment:
-    AWS_PROFILE: ecr-production
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-lab:v11-amd64" to ECR - production
-  - Tag and push image "teleport-lab:v11-arm" to ECR - production
-  - Tag and push image "teleport-lab:v11-arm64" to ECR - production
-- name: Create manifest and push "teleport-lab:minor" to ECR - production
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
-  - docker manifest create public.ecr.aws/u8j2q1d9/teleport-lab:$(cat "/go/var/minor-version")
-    --amend public.ecr.aws/u8j2q1d9/teleport-lab:$(cat "/go/var/minor-version")-amd64
-    --amend public.ecr.aws/u8j2q1d9/teleport-lab:$(cat "/go/var/minor-version")-arm
-    --amend public.ecr.aws/u8j2q1d9/teleport-lab:$(cat "/go/var/minor-version")-arm64
-  - docker manifest push public.ecr.aws/u8j2q1d9/teleport-lab:$(cat "/go/var/minor-version")
-  - docker logout "public.ecr.aws"
-  environment:
-    AWS_PROFILE: ecr-production
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-lab:v11-amd64" to ECR - production
-  - Tag and push image "teleport-lab:v11-arm" to ECR - production
-  - Tag and push image "teleport-lab:v11-arm64" to ECR - production
-- name: Create manifest and push "teleport-lab:full" to ECR - production
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
-  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-lab:$(cat "/go/var/full-version")
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
-    create public.ecr.aws/u8j2q1d9/teleport-lab:$(cat "/go/var/full-version") --amend
-    public.ecr.aws/u8j2q1d9/teleport-lab:$(cat "/go/var/full-version")-amd64 --amend
-    public.ecr.aws/u8j2q1d9/teleport-lab:$(cat "/go/var/full-version")-arm --amend
-    public.ecr.aws/u8j2q1d9/teleport-lab:$(cat "/go/var/full-version")-arm64 && docker
-    manifest push public.ecr.aws/u8j2q1d9/teleport-lab:$(cat "/go/var/full-version"))
-  - docker logout "public.ecr.aws"
-  environment:
-    AWS_PROFILE: ecr-production
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-lab:v11-amd64" to ECR - production
-  - Tag and push image "teleport-lab:v11-arm" to ECR - production
-  - Tag and push image "teleport-lab:v11-arm64" to ECR - production
 services:
 - name: Start Docker
   image: docker:dind
@@ -24228,6 +24157,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 4f74432ae195b181b5c5b39a4de6c058ab8ac6f9c89b6502abb06a24bc7231f0
+hmac: 8d40dec14683270524b2a127441bb0aac53e07435d53324b7b9ed8852c419ea3
 
 ...
