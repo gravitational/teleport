@@ -13,6 +13,7 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/lib/auth"
@@ -27,6 +28,7 @@ type E struct {
 	DevicesClient devicepb.DeviceTrustServiceClient
 
 	authorizer auth.Authorizer
+	emitter    apievents.Emitter
 	closers    []func() error
 }
 
@@ -50,6 +52,11 @@ func WithAuthorizer(a auth.Authorizer) Opt {
 	return func(e *E) { e.authorizer = a }
 }
 
+// WithEmitter customizes the testenv.E event emitter.
+func WithEmitter(em apievents.Emitter) Opt {
+	return func(e *E) { e.emitter = em }
+}
+
 // MustNew creates a new testenv.E or panics.
 func MustNew(opts ...Opt) *E {
 	env, err := New(opts...)
@@ -63,6 +70,7 @@ func MustNew(opts ...Opt) *E {
 func New(opts ...Opt) (*E, error) {
 	e := &E{
 		authorizer: &noopAuthorizer{},
+		emitter:    &noopEmitter{},
 	}
 	for _, opt := range opts {
 		opt(e)
@@ -90,6 +98,7 @@ func New(opts ...Opt) (*E, error) {
 	// Device service.
 	dtV1, err := devicetrustv1.New(devicetrustv1.ServiceParams{
 		Authorizer: e.authorizer,
+		Emitter:    e.emitter,
 		Storage:    dtStorage,
 	})
 	if err != nil {
@@ -163,4 +172,10 @@ type noopChecker struct {
 
 func (*noopChecker) CheckAccessToRule(ruleCtx services.RuleContext, namespace string, rule string, verb string, silent bool) error {
 	return nil // Anything goes.
+}
+
+type noopEmitter struct{}
+
+func (*noopEmitter) EmitAuditEvent(context.Context, apievents.AuditEvent) error {
+	return nil
 }

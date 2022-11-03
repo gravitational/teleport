@@ -14,8 +14,11 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -147,7 +150,8 @@ func (c *fakeChecker) CheckAccessToRule(ruleCtx services.RuleContext, namespace 
 }
 
 func TestService_CreateDevice(t *testing.T) {
-	env := testenv.MustNew()
+	emitter := &eventstest.MockEmitter{}
+	env := testenv.MustNew(testenv.WithEmitter(emitter))
 	defer env.Close()
 	devices := env.DevicesClient
 
@@ -178,6 +182,8 @@ func TestService_CreateDevice(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			emitter.Reset()
+
 			got, err := devices.CreateDevice(ctx, test.req)
 			if err != nil {
 				t.Fatalf("CreateDevice failed: %v", err)
@@ -231,6 +237,21 @@ func TestService_CreateDevice(t *testing.T) {
 			if diff := cmp.Diff(got, stored, protocmp.Transform()); diff != "" {
 				t.Errorf("GetDevice mismatch (-want +got):\n%s", diff)
 			}
+
+			// Verify audit log.
+			wantEvents := []wantEvent{
+				{
+					Type: events.DeviceEvent,
+					Code: events.DeviceCreateCode,
+				},
+			}
+			if test.req.CreateEnrollToken {
+				wantEvents = append(wantEvents, wantEvent{
+					Type: events.DeviceEvent,
+					Code: events.DeviceEnrollTokenCreateCode,
+				})
+			}
+			assertEvents(t, emitter.Events(), wantEvents)
 		})
 	}
 }
@@ -416,5 +437,26 @@ func TestService_FindDevices(t *testing.T) {
 				t.Errorf("FindDevices mismatch (-want +got)\n%s", diff)
 			}
 		})
+	}
+}
+
+type wantEvent struct {
+	Type, Code string
+}
+
+func assertEvents(t *testing.T, got []apievents.AuditEvent, want []wantEvent) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Errorf("Audit: found an unexpected number events: got %v, want %v", len(got), len(want))
+		return
+	}
+	for i, g := range got {
+		w := want[i]
+		if g.GetType() != w.Type {
+			t.Errorf("Audit: event mismatch: got[%v].Type = %v, want %v", i, g.GetType(), w.Type)
+		}
+		if g.GetCode() != w.Code {
+			t.Errorf("Audit: event mismatch: got[%v].Code = %v, want %v", i, g.GetCode(), w.Code)
+		}
 	}
 }

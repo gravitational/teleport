@@ -9,8 +9,10 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -22,12 +24,14 @@ type Service struct {
 	logger *log.Entry
 
 	authorizer auth.Authorizer
+	emitter    apievents.Emitter
 	storage    *storage.S
 }
 
 // ServiceParams holds creation parameters for Service.
 type ServiceParams struct {
 	Authorizer auth.Authorizer
+	Emitter    apievents.Emitter
 	Storage    *storage.S
 }
 
@@ -36,6 +40,8 @@ func New(params ServiceParams) (*Service, error) {
 	switch {
 	case params.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer required")
+	case params.Emitter == nil:
+		return nil, trace.BadParameter("emitter required")
 	case params.Storage == nil:
 		return nil, trace.BadParameter("storage required")
 	}
@@ -43,6 +49,7 @@ func New(params ServiceParams) (*Service, error) {
 	return &Service{
 		logger:     log.WithField(trace.Component, "devicetrust.service"),
 		authorizer: params.Authorizer,
+		emitter:    params.Emitter,
 		storage:    params.Storage,
 	}, nil
 }
@@ -56,17 +63,38 @@ func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// TODO(codingllama): Audit.
+	s.emitAuditEvent(ctx, &apievents.DeviceEvent{
+		Metadata: apievents.Metadata{
+			Type: events.DeviceEvent,
+			Code: events.DeviceCreateCode,
+		},
+		Status: &apievents.Status{
+			Success: true,
+		},
+		Device: getDeviceMetadata(dev),
+		User:   getUserMetadata(ctx),
+	})
 
 	if req.CreateEnrollToken {
 		token, err := s.storage.CreateDeviceEnrollToken(ctx, dev.Id)
+		s.emitAuditEvent(ctx, &apievents.DeviceEvent{
+			Metadata: apievents.Metadata{
+				Type: events.DeviceEvent,
+				Code: events.DeviceEnrollTokenCreateCode,
+			},
+			Status: &apievents.Status{
+				Success: err == nil,
+			},
+			Device: getDeviceMetadata(dev),
+			User:   getUserMetadata(ctx),
+		})
 		if err != nil {
 			s.logger.
 				WithError(err).
 				Warn("Failed to create device enrollment token, returning device without it")
+		} else {
+			dev.EnrollToken = token
 		}
-		dev.EnrollToken = token
-		// TODO(codingllama): Audit.
 	}
 
 	return dev, nil
@@ -160,4 +188,36 @@ func (s *Service) authorizeVerb(ctx context.Context, rule, verb string) error {
 	}
 	err = authCtx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, rule, verb, false /* silent */)
 	return trace.Wrap(err)
+}
+
+func (s *Service) emitAuditEvent(ctx context.Context, e apievents.AuditEvent) {
+	if err := s.emitter.EmitAuditEvent(ctx, e); err != nil {
+		um := getUserMetadata(ctx)
+		s.logger.
+			WithError(err).
+			WithFields(log.Fields{
+				"type":         e.GetType(),
+				"code":         e.GetCode(),
+				"user":         um.User,
+				"impersonator": um.Impersonator,
+			}).
+			Warn("Failed to emit audit event")
+	}
+}
+
+func getDeviceMetadata(dev *devicepb.Device) *apievents.DeviceMetadata {
+	if dev == nil {
+		return nil
+	}
+	return &apievents.DeviceMetadata{
+		DeviceId:     dev.Id,
+		OsType:       apievents.OSType(dev.OsType),
+		AssetTag:     dev.AssetTag,
+		CredentialId: dev.Credential.GetId(),
+	}
+}
+
+func getUserMetadata(ctx context.Context) *apievents.UserMetadata {
+	m := auth.ClientUserMetadata(ctx)
+	return &m
 }
