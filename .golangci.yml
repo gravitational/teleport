@@ -21,6 +21,7 @@ linters:
   enable:
     - bodyclose
     - depguard
+    - gci
     - goimports
     - gosimple
     - govet
@@ -42,6 +43,13 @@ linters-settings:
     - go.uber.org/atomic: 'use "sync/atomic" instead'
   misspell:
     locale: US
+  gci:
+    sections:
+      - standard # Standard section: captures all standard packages.
+      - default # Default section: contains all imports that could not be matched to another section type.
+      - prefix(github.com/gravitational/teleport) # Custom section: groups all imports with the specified Prefix.
+    skip-generated: true # Skip generated files.
+    custom-order: true # Required for "sections" to take effect.
 output:
   uniq-by-line: false
 

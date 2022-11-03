@@ -33,4 +33,10 @@ type Destination interface {
 
 	// Read fetches data from the destination with a given name.
 	Read(name string) ([]byte, error)
+
+	// TryLock attempts to lock a destination. This is non-blocking, and will
+	// return an error if it is not possible to lock the destination.
+	// TryLock should be used to lock a destination so it cannot be used by
+	// multiple processes of tbot concurrently.
+	TryLock() (func() error, error)
 }

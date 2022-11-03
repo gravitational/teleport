@@ -554,12 +554,14 @@ spec:
   allow:
     windows_desktop_labels:
       "*": "*"
-    windows_desktop_logins: ["Administrator"]
+    windows_desktop_logins: ["jsmith"]
 ```
 
 <Admonition type="warning" title="RBAC Configuration">
 Ensure that each Teleport user is only assigned Windows logins that they should
 be allowed to access.
+
+Usernames shared between domain and local users will create login conflicts.
 </Admonition>
 
 See the [RBAC page](./rbac.mdx) for more information about setting up

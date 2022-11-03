@@ -25,6 +25,17 @@ import (
 	"io"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
+	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	sqladmin "google.golang.org/api/sqladmin/v1beta4"
+	gcpcredentialspb "google.golang.org/genproto/googleapis/iam/credentials/v1"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
@@ -36,20 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
-	"github.com/aws/aws-sdk-go/service/redshift"
-
-	sqladmin "google.golang.org/api/sqladmin/v1beta4"
-	gcpcredentialspb "google.golang.org/genproto/googleapis/iam/credentials/v1"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
 
 // azureVirtualMachineCacheTTL is the default TTL for Azure virtual machine
@@ -538,8 +535,20 @@ func setupTLSConfigRootCAs(tlsConfig *tls.Config, sessionCtx *Session) error {
 // certificates signed by publicly trusted CAs so a system cert pool can be
 // used.
 func shouldUseSystemCertPool(sessionCtx *Session) bool {
-	// Azure Cache for Redis certificates are signed by DigiCert Global Root G2.
-	return sessionCtx.Database.IsAzure() && sessionCtx.Database.GetProtocol() == defaults.ProtocolRedis
+	switch sessionCtx.Database.GetType() {
+	case types.DatabaseTypeAzure:
+		// Azure Cache for Redis certificates are signed by DigiCert Global Root G2.
+		if sessionCtx.Database.GetProtocol() == defaults.ProtocolRedis {
+			return true
+		}
+
+	case types.DatabaseTypeRDSProxy:
+		// AWS RDS Proxy uses Amazon Root CAs.
+		//
+		// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.howitworks.html#rds-proxy-security.tls
+		return true
+	}
+	return false
 }
 
 // setupTLSConfigServerName initializes the server name for the provided
