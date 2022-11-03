@@ -191,9 +191,9 @@ func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput, flags *
 				continue
 			}
 
-			if cr.Name == "Quay" {
-				continue
-			}
+			// if cr.Name == "Quay" {
+			// 	continue
+			// }
 
 			if cr.Name == "ECR - production" {
 				continue
