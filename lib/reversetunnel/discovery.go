@@ -43,66 +43,103 @@ type discoveryRequest struct {
 	Proxies []types.Server `json:"proxies"`
 }
 
-func (r discoveryRequest) String() string {
-	proxyNames := make([]string, 0, len(r.Proxies))
+// ProxyNames returns the names of all proxies carried in the request
+func (r *discoveryRequest) ProxyNames() []string {
+	names := make([]string, 0, len(r.Proxies))
 	for _, p := range r.Proxies {
-		proxyNames = append(proxyNames, p.GetName())
+		names = append(names, p.GetName())
 	}
+
+	return names
+}
+
+func (r *discoveryRequest) String() string {
 	return fmt.Sprintf("discovery request, cluster name: %v, address: %v, proxies: %v",
-		r.ClusterName, r.ClusterAddr, strings.Join(proxyNames, ","))
+		r.ClusterName, r.ClusterAddr, strings.Join(r.ProxyNames(), ","))
 }
 
-type discoveryRequestRaw struct {
-	ClusterName string            `json:"cluster_name"`
-	Type        string            `json:"type"`
-	Proxies     []json.RawMessage `json:"proxies"`
-}
-
-func marshalDiscoveryRequest(req discoveryRequest) ([]byte, error) {
-	out := discoveryRequestRaw{
-		Proxies: make([]json.RawMessage, 0, len(req.Proxies)),
+// MarshalJSON creates a minimal JSON representation of a discoveryRequest
+// by converting the Proxies from types.Server to discoveryProxy.
+// The minification is useful since only the Proxy ID is to be consumed
+// by the agents. This is needed to maintain backward compatability
+// but should be replaced in the future by a message which
+// only contains the Proxy IDs.
+func (r *discoveryRequest) MarshalJSON() ([]byte, error) {
+	var out struct {
+		ClusterName string           `json:"cluster_name"`
+		Type        string           `json:"type"`
+		Proxies     []discoveryProxy `json:"proxies"`
 	}
-	for _, p := range req.Proxies {
-		// create a new server that clones only the id and kind as that's all we need
-		// to propagate
-		srv, err := types.NewServer(p.GetName(), p.GetKind(), types.ServerSpecV2{})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 
-		data, err := utils.FastMarshal(srv)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out.Proxies = append(out.Proxies, data)
+	out.ClusterName = r.ClusterName
+	out.Type = r.Type
+	out.Proxies = make([]discoveryProxy, 0, len(r.Proxies))
+
+	for _, p := range r.Proxies {
+		out.Proxies = append(out.Proxies, discoveryProxy(p.GetName()))
 	}
-	out.ClusterName = req.ClusterName
-	out.Type = req.Type
+
 	return json.Marshal(out)
 }
 
-func unmarshalDiscoveryRequest(data []byte) (*discoveryRequest, error) {
+func (r *discoveryRequest) UnmarshalJSON(data []byte) error {
 	if len(data) == 0 {
-		return nil, trace.BadParameter("missing payload in discovery request")
+		return trace.BadParameter("missing payload in discovery request")
 	}
 
-	var raw discoveryRequestRaw
-	if err := utils.FastUnmarshal(data, &raw); err != nil {
-		return nil, trace.Wrap(err)
+	var in struct {
+		ClusterName string            `json:"cluster_name"`
+		Type        string            `json:"type"`
+		Proxies     []json.RawMessage `json:"proxies"`
 	}
 
-	out := discoveryRequest{
-		Proxies: make([]types.Server, 0, len(raw.Proxies)),
+	if err := utils.FastUnmarshal(data, &in); err != nil {
+		return trace.Wrap(err)
 	}
-	for _, bytes := range raw.Proxies {
+
+	d := discoveryRequest{
+		ClusterName: in.ClusterName,
+		Type:        in.Type,
+		Proxies:     make([]types.Server, 0, len(in.Proxies)),
+	}
+
+	for _, bytes := range in.Proxies {
 		proxy, err := services.UnmarshalServer(bytes, types.KindProxy)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
-		out.Proxies = append(out.Proxies, proxy)
+		d.Proxies = append(d.Proxies, proxy)
 	}
-	out.ClusterName = raw.ClusterName
-	out.Type = raw.Type
-	return &out, nil
+
+	*r = d
+	return nil
+}
+
+// discoveryProxy is a wrapper around a Proxy ID that
+// can be marshalled to json in the minimal representation
+// of a types.Server that will still be correctly unmarshalled
+// as a types.Server. Backwards compatability requires a types.Server
+// to be included in a discoveryRequest when in reality only
+// the Proxy ID needs to be communicated to agents.
+//
+// This should eventually be replaced by a newer version of
+// messages used by agents to indicate they can support discovery
+// requests which only contain Proxy IDs.
+type discoveryProxy string
+
+// MarshalJSON creates a minimum representation of types.Server
+// such that (*discoveryRequest) UnmarshalJSON will successfully
+// unmarshal this as a types.Server. This allows the discoveryRequest
+// to be four and a half times smaller when marshalled.
+func (s discoveryProxy) MarshalJSON() ([]byte, error) {
+	var p struct {
+		Version  string `json:"version"`
+		Metadata struct {
+			Name string `json:"name"`
+		} `json:"metadata"`
+	}
+	p.Version = types.V2
+	p.Metadata.Name = string(s)
+	return json.Marshal(p)
 }
