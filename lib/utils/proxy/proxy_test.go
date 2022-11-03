@@ -61,7 +61,7 @@ func TestDialProxy(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.scheme, func(t *testing.T) {
-			errChan := make(chan error)
+			errChan := make(chan error, 1)
 			l, err := net.Listen("tcp", "127.0.0.1:0")
 			require.NoError(t, err)
 
