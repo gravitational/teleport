@@ -742,6 +742,10 @@
               "slug": "/database-access/guides/azure-postgres-mysql/"
             },
             {
+              "title": "Azure SQL Server (Preview)",
+              "slug": "/database-access/guides/azure-sql-server-ad/"
+            },
+            {
               "title": "Azure Cache for Redis",
               "slug": "/database-access/guides/azure-redis/"
             },
