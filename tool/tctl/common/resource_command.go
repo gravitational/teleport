@@ -107,6 +107,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindKubernetesCluster:       rc.createKubeCluster,
 		types.KindToken:                   rc.createToken,
 		types.KindInstaller:               rc.createInstaller,
+		types.KindNode:                    rc.createNode,
 	}
 	rc.config = config
 
@@ -624,6 +625,20 @@ func (rc *ResourceCommand) createInstaller(ctx context.Context, client auth.Clie
 	}
 
 	err = client.SetInstaller(ctx, inst)
+	return trace.Wrap(err)
+}
+
+func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	server, err := services.UnmarshalServer(raw.Raw, types.KindNode)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !rc.force {
+		return trace.AlreadyExists("nodes cannot be created, only upserted")
+	}
+
+	_, err = client.UpsertNode(ctx, server)
 	return trace.Wrap(err)
 }
 
