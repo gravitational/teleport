@@ -1901,14 +1901,12 @@ func (f *Forwarder) getClientCreds(ctx authContext) *tls.Config {
 	if !validClientCreds(f.cfg.Clock, c) {
 		return nil
 	}
-	f.log.Debugf("Returning cached client credentials with key: %v", ctx.key())
 	return c
 }
 
 func (f *Forwarder) saveClientCreds(ctx authContext, c *tls.Config) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.log.Debugf("Caching client credentials with key: %v", ctx.key())
 	return f.clientCredentials.Set(ctx.key(), c, ctx.sessionTTL)
 }
 
