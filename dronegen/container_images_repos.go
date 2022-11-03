@@ -186,6 +186,12 @@ func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput, flags *
 
 	// Create and push a manifest for each tag, referencing multiple architectures in the manifest
 	for _, imageTag := range imageTags {
+		if buildStepDetails[0].Product.Name == "teleport-lab" {
+			if cr.Name == "ECR - staging" {
+				continue
+			}
+		}
+
 		multiarchImageTag := *imageTag
 		multiarchImageTag.Arch = ""
 		manifestImage := buildStepDetails[0].Product.ImageBuilder(cr, &multiarchImageTag)
