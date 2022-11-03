@@ -2331,6 +2331,10 @@ message WebSessionSpecV2 {
     // IdleTimeout is the max time a user can be inactive in a session.
     int64 IdleTimeout = 9
         [ (gogoproto.jsontag) = "idle_timeout", (gogoproto.casttype) = "Duration" ];
+    // ConsumedAccessRequestID is the ID of the access request from which additional roles to assume
+    // were obtained.
+    string ConsumedAccessRequestID = 10
+        [ (gogoproto.jsontag) = "consumed_access_request_id,omitempty" ];
 }
 
 // WebSessionFilter encodes cache watch parameters for filtering web sessions.
@@ -2953,6 +2957,21 @@ message RecoveryCode {
     bytes HashedCode = 1 [ (gogoproto.jsontag) = "hashed_code" ];
     // IsUsed determines if this recovery code was used.
     bool IsUsed = 2 [ (gogoproto.jsontag) = "is_used" ];
+}
+
+message NullableSessionState {
+    SessionState State = 1 [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "state,omitempty" ];
+}
+
+// SessionTrackerFilter are filters to apply when searching for session trackers.
+message SessionTrackerFilter {
+    // Kind describes what kind of session this is.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind,omitempty" ];
+    // State is the current state of this session.
+    NullableSessionState State = 2
+        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "state,omitempty" ];
+    // DesktopName is the windows desktop server this session belongs to.
+    string DesktopName = 3 [ (gogoproto.jsontag) = "desktop_name,omitempty" ];
 }
 
 // SessionTrackerV1 represents a live session resource.

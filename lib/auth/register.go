@@ -204,11 +204,14 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 	var certs *proto.Certs
 	if params.JoinMethod == types.JoinMethodIAM {
 		// IAM join method requires gRPC client
-		client, err := proxyJoinServiceClient(params)
+		conn, err := proxyJoinServiceConn(params)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		certs, err = registerUsingIAMMethod(client, token, params)
+		defer conn.Close()
+
+		joinServiceClient := client.NewJoinServiceClient(proto.NewJoinServiceClient(conn))
+		certs, err = registerUsingIAMMethod(joinServiceClient, token, params)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -280,14 +283,13 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 	return certs, trace.Wrap(err)
 }
 
-// proxyJoinServiceClient attempts to connect to the join service running on the
+// proxyJoinServiceConn attempts to connect to the join service running on the
 // proxy. The Proxy's TLS cert will be verified using the host's root CA pool
 // (PKI) unless the --insecure flag was passed.
-func proxyJoinServiceClient(params RegisterParams) (*client.JoinServiceClient, error) {
+func proxyJoinServiceConn(params RegisterParams) (*grpc.ClientConn, error) {
 	if len(params.Servers) == 0 {
 		return nil, trace.BadParameter("no auth servers set")
 	}
-
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 	// set NextProtos for TLS routing, the actual protocol will be h2
@@ -304,11 +306,7 @@ func proxyJoinServiceClient(params RegisterParams) (*client.JoinServiceClient, e
 		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return client.NewJoinServiceClient(proto.NewJoinServiceClient(conn)), nil
+	return conn, trace.Wrap(err)
 }
 
 // insecureRegisterClient attempts to connects to the Auth Server using the

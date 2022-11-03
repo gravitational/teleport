@@ -745,8 +745,8 @@ func TestValidateBearerToken(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
-	pack1 := proxy.authPack(t, "user1")
-	pack2 := proxy.authPack(t, "user2")
+	pack1 := proxy.authPack(t, "user1", nil /* roles */)
+	pack2 := proxy.authPack(t, "user2", nil /* roles */)
 
 	// Swap pack1's session token with pack2's sessionToken
 	jar, err := cookiejar.New(nil)
@@ -833,7 +833,7 @@ func TestClusterNodesGet(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com")
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 	clusterName := env.server.ClusterName()
 
 	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "nodes")
@@ -1180,7 +1180,7 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "llama")
+	pack := proxy.authPack(t, "llama", nil /* roles */)
 
 	clt, err := env.server.NewClient(auth.TestUser("llama"))
 	require.NoError(t, err)
@@ -1427,7 +1427,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 			ctx := context.Background()
 			env := newWebPack(t, 1)
 			proxy := env.proxies[0]
-			pack := proxy.authPack(t, "llama")
+			pack := proxy.authPack(t, "llama", nil /* roles */)
 
 			clt, err := env.server.NewClient(auth.TestUser("llama"))
 			require.NoError(t, err)
@@ -1705,7 +1705,7 @@ func TestCreateSession(t *testing.T) {
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	user := "test-user@example.com"
-	pack := proxy.authPack(t, user)
+	pack := proxy.authPack(t, user, nil /* roles */)
 
 	// get site nodes
 	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "nodes"), url.Values{})
@@ -2383,7 +2383,7 @@ func TestTokenGeneration(t *testing.T) {
 			env := newWebPack(t, 1)
 
 			proxy := env.proxies[0]
-			pack := proxy.authPack(t, "test-user@example.com")
+			pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
 			endpoint := pack.clt.Endpoint("webapi", "token")
 			re, err := pack.clt.PostJSON(context.Background(), endpoint, types.ProvisionTokenSpecV2{
@@ -2422,7 +2422,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com")
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
@@ -2474,7 +2474,7 @@ func TestClusterKubesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com")
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubernetes")
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
@@ -2528,7 +2528,7 @@ func TestClusterAppsGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com")
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
 	type testResponse struct {
 		Items      []ui.App `json:"items"`
@@ -2593,7 +2593,7 @@ func TestApplicationAccessDisabled(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "foo@example.com")
+	pack := proxy.authPack(t, "foo@example.com", nil /* roles */)
 
 	// Register an application.
 	app, err := types.NewAppV3(types.Metadata{
@@ -2624,7 +2624,7 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "foo@example.com")
+	pack := proxy.authPack(t, "foo@example.com", nil /* roles */)
 
 	// Register multiple applications.
 	applications := []struct {
@@ -2682,7 +2682,7 @@ func TestCreatePrivilegeToken(t *testing.T) {
 	proxy := env.proxies[0]
 
 	// Create a user with second factor totp.
-	pack := proxy.authPack(t, "foo@example.com")
+	pack := proxy.authPack(t, "foo@example.com", nil /* roles */)
 
 	// Get a totp code.
 	totpCode, err := totp.GenerateCode(pack.otpSecret, env.clock.Now().Add(30*time.Second))
@@ -2705,7 +2705,7 @@ func TestAddMFADevice(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "foo@example.com")
+	pack := proxy.authPack(t, "foo@example.com", nil /* roles */)
 
 	// Enable second factor.
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2832,7 +2832,7 @@ func TestDeleteMFA(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "foo@example.com")
+	pack := proxy.authPack(t, "foo@example.com", nil /* roles */)
 
 	//setting up client manually because we need sanitizer off
 	jar, err := cookiejar.New(nil)
@@ -2878,7 +2878,7 @@ func TestGetMFADevicesWithAuth(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "foo@example.com")
+	pack := proxy.authPack(t, "foo@example.com", nil /* roles */)
 
 	endpoint := pack.clt.Endpoint("webapi", "mfa", "devices")
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
@@ -2898,7 +2898,7 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 
 	// Create a user with a TOTP device.
 	username := "llama"
-	proxy.createUser(ctx, t, username, "root", "password", "some-otp-secret")
+	proxy.createUser(ctx, t, username, "root", "password", "some-otp-secret", nil /* roles */)
 
 	// Enable second factor.
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2953,7 +2953,7 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 	proxy := env.proxies[0]
 
 	// Create a user with a TOTP device, with second factor preference to OTP only.
-	authPack := proxy.authPack(t, "llama@example.com")
+	authPack := proxy.authPack(t, "llama@example.com", nil /* roles */)
 
 	// Authenticated client for private endpoints.
 	authnClt := authPack.clt
@@ -3250,7 +3250,7 @@ func TestNewSessionResponseWithRenewSession(t *testing.T) {
 	require.NoError(t, env.server.Auth().SetClusterNetworkingConfig(context.Background(), cfg))
 
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "foo")
+	pack := proxy.authPack(t, "foo", nil /* roles */)
 
 	var ns *CreateSessionResponse
 	resp := pack.renewSession(context.Background(), t)
@@ -3273,7 +3273,7 @@ func TestWebSessionsRenewDoesNotBreakExistingTerminalSession(t *testing.T) {
 
 	proxy1, proxy2 := env.proxies[0], env.proxies[1]
 	// Connect to both proxies
-	pack1 := proxy1.authPack(t, "foo")
+	pack1 := proxy1.authPack(t, "foo", nil /* roles */)
 	pack2 := proxy2.authPackFromPack(t, pack1)
 
 	ws := proxy2.makeTerminal(t, pack2, session.NewID())
@@ -3310,7 +3310,7 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "foo")
+	pack := proxy.authPack(t, "foo", nil /* roles */)
 
 	delta := 30 * time.Second
 	// Advance the time before renewing the session.
@@ -3369,8 +3369,8 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 }
 
 // TestChangeUserAuthentication_recoveryCodesReturnedForCloud tests for following:
-//   - Recovery codes are not returned for usernames that are not emails
-//   - Recovery codes are returned for usernames that are valid emails
+// - Recovery codes are not returned for usernames that are not emails
+// - Recovery codes are returned for usernames that are valid emails
 func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	env := newWebPack(t, 1)
 	ctx := context.Background()
@@ -3450,6 +3450,47 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, re.Recovery.Codes, 3)
 	require.NotEmpty(t, re.Recovery.Created)
+}
+
+func TestDesktopActive(t *testing.T) {
+	desktopName := "rickey-rock"
+	env := newWebPack(t, 1)
+	ctx := context.Background()
+
+	role, err := types.NewRole("admin", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			WindowsDesktopLabels: types.Labels{"environment": []string{"dev"}},
+		},
+	})
+	require.NoError(t, err)
+
+	pack := env.proxies[0].authPack(t, "foo", []types.Role{role})
+
+	check := func(match string) {
+		resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "desktops", desktopName, "active"), url.Values{})
+		require.NoError(t, err)
+		require.Contains(t, string(resp.Bytes()), match)
+	}
+
+	check("\"active\":false")
+	desktop, err := types.NewWindowsDesktopV3(desktopName, map[string]string{"environment": "dev"}, types.WindowsDesktopSpecV3{
+		Domain: "ad",
+		Addr:   "foo",
+		HostID: "bar",
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().CreateWindowsDesktop(ctx, desktop)
+	require.NoError(t, err)
+	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID:   "foo",
+		Kind:        string(types.WindowsDesktopSessionKind),
+		State:       types.SessionState_SessionStateRunning,
+		DesktopName: desktopName,
+	})
+	require.NoError(t, err)
+	_, err = env.server.Auth().CreateSessionTracker(ctx, tracker)
+	require.NoError(t, err)
+	check("\"active\":true")
 }
 
 func TestParseSSORequestParams(t *testing.T) {
@@ -4123,7 +4164,7 @@ type proxy struct {
 
 // authPack returns new authenticated package consisting of created valid
 // user, otp token, created web session and authenticated client.
-func (r *proxy) authPack(t *testing.T, user string) *authPack {
+func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPack {
 	ctx := context.Background()
 	const (
 		loginUser = "user"
@@ -4141,7 +4182,7 @@ func (r *proxy) authPack(t *testing.T, user string) *authPack {
 	err = r.auth.Auth().SetAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
-	r.createUser(context.Background(), t, user, loginUser, pass, otpSecret)
+	r.createUser(context.Background(), t, user, loginUser, pass, otpSecret, roles)
 
 	// create a valid otp token
 	validToken, err := totp.GenerateCode(otpSecret, r.clock.Now())
@@ -4214,19 +4255,31 @@ func (r *proxy) authPackFromResponse(t *testing.T, httpResp *roundtrip.Response)
 	}
 }
 
-func (r *proxy) createUser(ctx context.Context, t *testing.T, user, login, pass, otpSecret string) {
-	teleUser, err := types.NewUser(user)
-	require.NoError(t, err)
-
+func defaultRoleForNewUser(teleUser types.User, login string) types.Role {
 	role := services.RoleForUser(teleUser)
 	role.SetLogins(types.Allow, []string{login})
+	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 	options := role.GetOptions()
 	options.ForwardAgent = types.NewBool(true)
 	role.SetOptions(options)
-	err = r.auth.Auth().UpsertRole(ctx, role)
+	return role
+}
+
+func (r *proxy) createUser(ctx context.Context, t *testing.T, user, login, pass, otpSecret string, roles []types.Role) {
+	teleUser, err := types.NewUser(user)
 	require.NoError(t, err)
 
-	teleUser.AddRole(role.GetName())
+	if len(roles) == 0 {
+		roles = []types.Role{defaultRoleForNewUser(teleUser, login)}
+	}
+
+	for _, role := range roles {
+		err = r.auth.Auth().UpsertRole(ctx, role)
+		require.NoError(t, err)
+
+		teleUser.AddRole(role.GetName())
+	}
+
 	teleUser.SetCreatedBy(types.CreatedBy{
 		User: types.UserRef{Name: "some-auth-user"},
 	})
@@ -4361,4 +4414,66 @@ type mockProxySettings struct {
 
 func (mock *mockProxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error) {
 	return &webclient.ProxySettings{}, nil
+}
+
+// TestUserContextWithAccessRequest checks that the userContext includes the ID of the
+// access request after it has been consumed and the web session has been renewed.
+func TestUserContextWithAccessRequest(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	ctx := context.Background()
+
+	// Set user and role names.
+	username := "user"
+	baseRoleName := "role"
+	requestableRolename := "requestable-role"
+
+	// Create user's base role with the ability to request the requestable role.
+	baseRole, err := types.NewRole(baseRoleName, types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{requestableRolename},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create user with the base role.
+	pack := proxy.authPack(t, username, []types.Role{baseRole})
+
+	// Create the requestable role.
+	requestableRole, err := types.NewRole(requestableRolename, types.RoleSpecV5{})
+	require.NoError(t, err)
+	err = env.server.Auth().UpsertRole(ctx, requestableRole)
+	require.NoError(t, err)
+
+	// Create and approve an access request for the requestable role.
+	accessReq, err := services.NewAccessRequest(username, requestableRolename)
+	require.NoError(t, err)
+	accessReq.SetState(types.RequestState_APPROVED)
+	err = env.server.Auth().CreateAccessRequest(ctx, accessReq)
+	require.NoError(t, err)
+
+	// Get the ID of the created and approved access request.
+	accessRequestID := accessReq.GetMetadata().Name
+
+	// Make a request to renew the session with the ID of the access request.
+	_, err = pack.clt.PostJSON(ctx, pack.clt.Endpoint("webapi", "sessions", "renew"), renewSessionRequest{
+		AccessRequestID: accessRequestID,
+	})
+	require.NoError(t, err)
+
+	// Make a request to fetch the userContext.
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "context")
+	response, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	// Process the JSON response of the request.
+	var userContext ui.UserContext
+	err = json.Unmarshal(response.Bytes(), &userContext)
+	require.NoError(t, err)
+
+	// Verify that the userContext returned contains the correct Access Request ID.
+	require.Equal(t, accessRequestID, userContext.ConsumedAccessRequestID)
 }

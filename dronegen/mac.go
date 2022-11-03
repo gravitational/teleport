@@ -17,6 +17,7 @@ package main
 import (
 	"fmt"
 	"path"
+	"path/filepath"
 )
 
 // escapedPreformatted returns expr wrapped in escaped backticks,
@@ -93,6 +94,7 @@ func darwinTagPipeline() pipeline {
 	}
 	p := newDarwinPipeline("build-darwin-amd64")
 	p.Trigger = triggerTag
+	awsConfigPath := filepath.Join(p.Workspace.Path, "credentials")
 	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Steps = []step{
 		setUpExecStorageStep(p.Workspace.Path),
@@ -124,14 +126,21 @@ func darwinTagPipeline() pipeline {
 			},
 			Commands: darwinTagCopyPackageArtifactCommands(),
 		},
+		macAssumeAwsRoleStep(macRoleSettings{
+			awsRoleSettings: awsRoleSettings{
+				awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+				awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				role:               value{fromSecret: "AWS_ROLE"},
+			},
+			configPath: awsConfigPath,
+		}),
 		{
 			Name: "Upload to S3",
 			Environment: map[string]value{
-				"AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
-				"AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
-				"AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
-				"AWS_REGION":            {raw: "us-west-2"},
-				"WORKSPACE_DIR":         {raw: p.Workspace.Path},
+				"AWS_S3_BUCKET":               {fromSecret: "AWS_S3_BUCKET"},
+				"AWS_REGION":                  {raw: "us-west-2"},
+				"AWS_SHARED_CREDENTIALS_FILE": {raw: awsConfigPath},
+				"WORKSPACE_DIR":               {raw: p.Workspace.Path},
 			},
 			Commands: darwinUploadToS3Commands(),
 		},

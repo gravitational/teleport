@@ -2,14 +2,29 @@
 # Values that must always be provided by the user.
 ################################################################
 
-# Join token for the cluster.
-# Leave empty if the secret "teleport-kube-agent-join-token"
-# has been created before and contains a valid join token
+# Join token for the cluster. `joinParams` can also pass the join token,
+# but supports more join methods and takes precedence if set.
 authToken: ""
+
 # Address of the teleport proxy with port (usually :3080).
 proxyAddr: ""
 # Comma-separated list of roles to enable (any of: kube,db,app)
 roles: "kube"
+
+################################################################
+# Values that must be provided if IAM or EC2 joining is enabled.
+################################################################
+
+# Specify how to join the Teleport cluster
+joinParams:
+  # Supported join methods are "token", "ec2", "iam".
+  # method "token", is equivalent to using authToken to join a cluster
+  method: "token"
+
+  # Leave empty only when method is "token" and the secret
+  # "teleport-kube-agent-join-token" has been created before and
+  # contains a valid join token.
+  tokenName: ""
 
 ################################################################
 # Values that must be provided if Kubernetes access is enabled.
