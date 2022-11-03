@@ -56,6 +56,17 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.ElementsMatch(t, flags.RDSDiscoveryRegions, databases.AWSMatchers[0].Regions)
 	})
 
+	t.Run("RDSProxyAutoDiscovery", func(t *testing.T) {
+		flags := DatabaseSampleFlags{
+			RDSProxyDiscoveryRegions: []string{"us-west-1", "us-west-2"},
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AWSMatchers, 1)
+		require.ElementsMatch(t, []string{"rdsproxy"}, databases.AWSMatchers[0].Types)
+		require.ElementsMatch(t, flags.RDSProxyDiscoveryRegions, databases.AWSMatchers[0].Regions)
+	})
+
 	t.Run("RedshiftAutoDiscovery", func(t *testing.T) {
 		flags := DatabaseSampleFlags{
 			RedshiftDiscoveryRegions: []string{"us-west-1", "us-west-2"},
