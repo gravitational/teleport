@@ -20,19 +20,21 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // WatcherConfig is the cloud watcher configuration.
 type WatcherConfig struct {
 	// AWSMatchers is a list of matchers for AWS databases.
 	AWSMatchers []services.AWSMatcher
+	// AzureMatchers is a list of matchers for Azure databases.
+	AzureMatchers []services.AzureMatcher
 	// Clients provides cloud API clients.
 	Clients cloud.Clients
 	// Interval is the interval between fetches.
@@ -47,6 +49,7 @@ func (c *WatcherConfig) CheckAndSetDefaults() error {
 	if c.Interval == 0 {
 		c.Interval = 5 * time.Minute
 	}
+	c.AzureMatchers = simplifyMatchers(c.AzureMatchers)
 	return nil
 }
 
@@ -75,7 +78,7 @@ func NewWatcher(ctx context.Context, config WatcherConfig) (*Watcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	fetchers, err := makeFetchers(config.Clients, config.AWSMatchers)
+	fetchers, err := makeFetchers(ctx, &config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -121,7 +124,9 @@ func (w *Watcher) fetchAndSend() {
 		if err != nil {
 			// DB agent may have permissions to fetch some databases but not
 			// others. This is acceptable, thus continue to other fetchers.
-			if trace.IsAccessDenied(err) {
+			// DB agent may also query for resources that do not exist. This is ok.
+			// If the resource is created in the future, we will fetch it then.
+			if trace.IsAccessDenied(err) || trace.IsNotFound(err) {
 				w.log.WithError(err).Debugf("Skipping fetcher %v.", fetcher)
 				continue
 			}
@@ -143,10 +148,27 @@ func (w *Watcher) DatabasesC() <-chan types.Databases {
 }
 
 // makeFetchers returns cloud fetchers for the provided matchers.
-func makeFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (result []Fetcher, err error) {
+func makeFetchers(ctx context.Context, config *WatcherConfig) (result []Fetcher, err error) {
+	fetchers, err := makeAWSFetchers(config.Clients, config.AWSMatchers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	result = append(result, fetchers...)
+
+	fetchers, err = makeAzureFetchers(ctx, config.Clients, config.AzureMatchers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	result = append(result, fetchers...)
+
+	return result, nil
+}
+
+func makeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (result []Fetcher, err error) {
 	type makeFetcherFunc func(cloud.Clients, string, types.Labels) (Fetcher, error)
 	makeFetcherFuncs := map[string][]makeFetcherFunc{
 		services.AWSMatcherRDS:         {makeRDSInstanceFetcher, makeRDSAuroraFetcher},
+		services.AWSMatcherRDSProxy:    {makeRDSProxyFetcher},
 		services.AWSMatcherRedshift:    {makeRedshiftFetcher},
 		services.AWSMatcherElastiCache: {makeElastiCacheFetcher},
 		services.AWSMatcherMemoryDB:    {makeMemoryDBFetcher},
@@ -165,6 +187,43 @@ func makeFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (result
 						return nil, trace.Wrap(err)
 					}
 					result = append(result, fetcher)
+				}
+			}
+		}
+	}
+	return result, nil
+}
+
+func makeAzureFetchers(ctx context.Context, clients cloud.Clients, matchers []services.AzureMatcher) (result []Fetcher, err error) {
+	type makeFetcherFunc func(azureFetcherConfig) (Fetcher, error)
+	makeFetcherFuncs := map[string][]makeFetcherFunc{
+		services.AzureMatcherMySQL:    {newAzureMySQLFetcher},
+		services.AzureMatcherPostgres: {newAzurePostgresFetcher},
+		services.AzureMatcherRedis:    {newAzureRedisFetcher, newAzureRedisEnterpriseFetcher},
+	}
+	for _, matcher := range matchers {
+		for _, matcherType := range matcher.Types {
+			makeFetchers, found := makeFetcherFuncs[matcherType]
+			if !found {
+				return nil, trace.BadParameter("unknown matcher type %q", matcherType)
+			}
+
+			for _, makeFetcher := range makeFetchers {
+				for _, sub := range matcher.Subscriptions {
+					for _, group := range matcher.ResourceGroups {
+						fetcher, err := makeFetcher(azureFetcherConfig{
+							AzureClients:  clients,
+							Type:          matcherType,
+							Subscription:  sub,
+							ResourceGroup: group,
+							Labels:        matcher.ResourceTags,
+							Regions:       matcher.Regions,
+						})
+						if err != nil {
+							return nil, trace.Wrap(err)
+						}
+						result = append(result, fetcher)
+					}
 				}
 			}
 		}
@@ -208,6 +267,20 @@ func makeRDSAuroraFetcher(clients cloud.Clients, region string, tags types.Label
 	return fetcher, nil
 }
 
+// makeRDSProxyFetcher returns RDS proxy fetcher for the provided region and tags.
+func makeRDSProxyFetcher(clients cloud.Clients, region string, tags types.Labels) (Fetcher, error) {
+	rds, err := clients.GetAWSRDSClient(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newRDSDBProxyFetcher(rdsFetcherConfig{
+		Region: region,
+		Labels: tags,
+		RDS:    rds,
+	})
+}
+
 // makeRedshiftFetcher returns Redshift fetcher for the provided region and tags.
 func makeRedshiftFetcher(clients cloud.Clients, region string, tags types.Labels) (Fetcher, error) {
 	redshift, err := clients.GetAWSRedshiftClient(region)
@@ -245,4 +318,20 @@ func makeMemoryDBFetcher(clients cloud.Clients, region string, tags types.Labels
 		Labels:   tags,
 		MemoryDB: memorydb,
 	})
+}
+
+// filterDatabasesByLabels filters input databases with provided labels.
+func filterDatabasesByLabels(databases types.Databases, labels types.Labels, log logrus.FieldLogger) types.Databases {
+	var matchedDatabases types.Databases
+	for _, database := range databases {
+		match, _, err := services.MatchLabels(labels, database.GetAllLabels())
+		if err != nil {
+			log.Warnf("Failed to match %v against selector: %v.", database, err)
+		} else if match {
+			matchedDatabases = append(matchedDatabases, database)
+		} else {
+			log.Debugf("%v doesn't match selector.", database)
+		}
+	}
+	return matchedDatabases
 }

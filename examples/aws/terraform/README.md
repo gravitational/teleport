@@ -11,13 +11,13 @@ If you are planning on using our Terraform example in production, please referen
 
 We recommend familiarizing yourself with the following resources prior to reviewing our Terraform examples:
 
-- [Teleport Architecture](https://goteleport.com/teleport/docs/architecture/overview/)
-- [Admin Guide](https://gravitational.com/teleport/docs/admin-guide/)
+- [Teleport Architecture](https://goteleport.com/docs/architecture/overview/)
+- [Admin Guide](https://goteleport.com/docs/management/admin/)
 
 In order to spin up AWS resources using these Terraform examples, you need the following software:
 
-- terraform v0.12+ [install docs](https://learn.hashicorp.com/terraform/getting-started/install.html)
-- awscli v1.14+ [install docs](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
+- terraform v1.0+ [install docs](https://learn.hashicorp.com/tutorials/terraform/install-cli)
+- awscli v1.14+ [install docs](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 
 ## Projects
 
@@ -29,7 +29,7 @@ In order to spin up AWS resources using these Terraform examples, you need the f
 
 ## How to get help
 
-If you're having trouble, check out our [Discourse community](https://community.gravitational.com).
+If you're having trouble, check out our [GitHub Discussions](https://github.com/gravitational/teleport/discussions).
 
 For bugs related to this code, please [open an issue](https://github.com/gravitational/teleport/issues/new/choose).
 

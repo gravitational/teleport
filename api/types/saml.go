@@ -17,14 +17,15 @@ limitations under the License.
 package types
 
 import (
+	"strings"
 	"time"
+
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
-	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/trace"
 )
 
 // SAMLConnector specifies configuration for SAML 2.0 identity providers
@@ -88,6 +89,10 @@ type SAMLConnector interface {
 	GetEncryptionKeyPair() *AsymmetricKeyPair
 	// SetEncryptionKeyPair sets the key pair for SAML assertions.
 	SetEncryptionKeyPair(k *AsymmetricKeyPair)
+	// GetAllowIDPInitiated returns whether the identity provider can initiate a login or not.
+	GetAllowIDPInitiated() bool
+	// SetAllowIDPInitiated sets whether the identity provider can initiate a login or not.
+	SetAllowIDPInitiated(bool)
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -332,6 +337,16 @@ func (o *SAMLConnectorV2) SetEncryptionKeyPair(k *AsymmetricKeyPair) {
 	o.Spec.EncryptionKeyPair = k
 }
 
+// GetAllowIDPInitiated returns whether the identity provider can initiate a login or not.
+func (o *SAMLConnectorV2) GetAllowIDPInitiated() bool {
+	return o.Spec.AllowIDPInitiated
+}
+
+// SetAllowIDPInitiated sets whether the identity provider can initiate a login or not.
+func (o *SAMLConnectorV2) SetAllowIDPInitiated(allow bool) {
+	o.Spec.AllowIDPInitiated = allow
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (o *SAMLConnectorV2) setStaticFields() {
 	o.Kind = KindSAMLConnector
@@ -350,6 +365,9 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 	}
 	if o.Spec.AssertionConsumerService == "" {
 		return trace.BadParameter("missing acs - assertion consumer service parameter, set service URL that will receive POST requests from SAML")
+	}
+	if o.Spec.AllowIDPInitiated && !strings.HasSuffix(o.Spec.AssertionConsumerService, "/"+o.Metadata.Name) {
+		return trace.BadParameter("acs - assertion consumer service parameter must end with /%v when allow_idp_initiated is set to true, eg https://cluster.domain/webapi/v1/saml/acs/%v. Ensure this URI matches the one configured at the identity provider.", o.Metadata.Name, o.Metadata.Name)
 	}
 	if o.Spec.ServiceProviderIssuer == "" {
 		o.Spec.ServiceProviderIssuer = o.Spec.AssertionConsumerService

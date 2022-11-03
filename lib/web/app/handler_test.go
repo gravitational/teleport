@@ -31,6 +31,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -41,12 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-
-	"github.com/stretchr/testify/require"
 )
 
 // TestAuthPOST tests the handler of POST /x-teleport-auth.
@@ -123,14 +122,21 @@ func TestHasName(t *testing.T) {
 			desc:        "OK - adds path",
 			addrs:       []string{"proxy.com"},
 			reqURL:      "https://app1.proxy.com/foo",
-			expectedURL: "https://proxy.com/web/launch/app1.proxy.com%3Fpath=/foo",
+			expectedURL: "https://proxy.com/web/launch/app1.proxy.com?path=%2Ffoo",
+			hasName:     true,
+		},
+		{
+			desc:        "OK - adds paths with ampersands",
+			addrs:       []string{"proxy.com"},
+			reqURL:      "https://app1.proxy.com/foo/this&/that",
+			expectedURL: "https://proxy.com/web/launch/app1.proxy.com?path=%2Ffoo%2Fthis%26%2Fthat",
 			hasName:     true,
 		},
 		{
 			desc:        "OK - adds root path",
 			addrs:       []string{"proxy.com"},
 			reqURL:      "https://app1.proxy.com/",
-			expectedURL: "https://proxy.com/web/launch/app1.proxy.com%3Fpath=/",
+			expectedURL: "https://proxy.com/web/launch/app1.proxy.com?path=%2F",
 			hasName:     true,
 		},
 	} {

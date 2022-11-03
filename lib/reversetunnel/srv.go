@@ -26,10 +26,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -41,12 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 var (
@@ -290,10 +291,11 @@ func NewServer(cfg Config) (Server, error) {
 	proxyWatcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: cfg.Component,
-			Client:    cfg.LocalAuthClient,
+			Client:    cfg.LocalAccessPoint,
 			Log:       cfg.Log,
 		},
-		ProxiesC: make(chan []types.Server, 10),
+		ProxiesC:    make(chan []types.Server, 10),
+		ProxyGetter: cfg.LocalAccessPoint,
 	})
 	if err != nil {
 		cancel()
@@ -336,6 +338,7 @@ func NewServer(cfg Config) (Server, error) {
 		sshutils.SetKEXAlgorithms(cfg.KEXAlgorithms),
 		sshutils.SetMACAlgorithms(cfg.MACAlgorithms),
 		sshutils.SetFIPS(cfg.FIPS),
+		sshutils.SetClock(cfg.Clock),
 	)
 	if err != nil {
 		return nil, err
@@ -1119,11 +1122,11 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}
 	remoteSite.certificateCache = certificateCache
 
-	caRetry, err := utils.NewLinear(utils.LinearConfig{
+	caRetry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First:  utils.HalfJitter(srv.Config.PollingPeriod),
 		Step:   srv.Config.PollingPeriod / 5,
 		Max:    srv.Config.PollingPeriod,
-		Jitter: utils.NewHalfJitter(),
+		Jitter: retryutils.NewHalfJitter(),
 		Clock:  srv.Clock,
 	})
 	if err != nil {
@@ -1147,11 +1150,11 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		remoteSite.updateCertAuthorities(caRetry, remoteWatcher, remoteVersion)
 	}()
 
-	lockRetry, err := utils.NewLinear(utils.LinearConfig{
+	lockRetry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First:  utils.HalfJitter(srv.Config.PollingPeriod),
 		Step:   srv.Config.PollingPeriod / 5,
 		Max:    srv.Config.PollingPeriod,
-		Jitter: utils.NewHalfJitter(),
+		Jitter: retryutils.NewHalfJitter(),
 		Clock:  srv.Clock,
 	})
 	if err != nil {
@@ -1164,12 +1167,11 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 }
 
 // createRemoteAccessPoint creates a new access point for the remote cluster.
-// Checks if the cluster that is connecting is a pre-v8 cluster. If it is,
-// don't assume the newer organization of cluster configuration resources
-// (RFD 28) because older proxy servers will reject that causing the cache
-// to go into a re-sync loop.
+// Checks if the cluster that is connecting is a pre-v11 cluster. If it is,
+// we disable the watcher for types.KindKubeServer and types.KindKubeCluster resources
+// since both resources are not supported in a v10 leaf cluster.
 func createRemoteAccessPoint(srv *server, clt auth.ClientI, version, domainName string) (auth.RemoteProxyAccessPoint, error) {
-	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("8.0.0"))
+	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("11.0.0"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

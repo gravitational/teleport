@@ -21,18 +21,17 @@ import (
 	"os"
 	"text/template"
 
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
 )
 
 // DBCommand implements "tctl db" group of commands.
@@ -93,15 +92,6 @@ func (c *DBCommand) ListDatabases(ctx context.Context, clt auth.ClientI) error {
 		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),
 	})
 	switch {
-	// Underlying ListResources for db servers not available, use fallback.
-	// Using filter flags with older auth will silently do nothing.
-	//
-	// DELETE IN 11.0.0
-	case trace.IsNotImplemented(err):
-		servers, err = clt.GetDatabaseServers(ctx, apidefaults.Namespace)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 	case err != nil:
 		if utils.IsPredicateError(err) {
 			return trace.Wrap(utils.PredicateError{Err: err})
@@ -127,7 +117,7 @@ func (c *DBCommand) ListDatabases(ctx context.Context, clt auth.ClientI) error {
 	}
 }
 
-var dbMessageTemplate = template.Must(template.New("db").Parse(`The invite token: {{.token}}.
+var dbMessageTemplate = template.Must(template.New("db").Parse(`The invite token: {{.token}}
 This token will expire in {{.minutes}} minutes.
 
 Fill out and run this command on a node to start proxying the database:

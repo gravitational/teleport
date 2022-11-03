@@ -20,16 +20,15 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/trace"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
-
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 // redshiftFetcherConfig is the Redshift databases fetcher configuration.
@@ -122,7 +121,7 @@ func getRedshiftClusters(ctx context.Context, redshiftClient redshiftiface.Redsh
 		func(page *redshift.DescribeClustersOutput, lastPage bool) bool {
 			pageNum++
 			clusters = append(clusters, page.Clusters...)
-			return pageNum <= maxPages
+			return pageNum <= common.MaxPages
 		},
 	)
 	return clusters, common.ConvertError(err)

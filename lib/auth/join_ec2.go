@@ -24,13 +24,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
@@ -38,8 +31,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"go.mozilla.org/pkcs7"
+
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type ec2Client interface {
@@ -253,6 +252,20 @@ func dbExists(ctx context.Context, presence services.Presence, hostID string) (b
 	return false, nil
 }
 
+func desktopServiceExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
+	svcs, err := presence.GetWindowsDesktopServices(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	for _, wds := range svcs {
+		if wds.GetName() == hostID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // tryToDetectIdentityReuse performs a best-effort check to see if the specified role+id combination
 // is already in use by an instance. This will only detect re-use in the case where a recent heartbeat
 // clearly shows the combination in use since teleport maintains no long-term per-instance state.
@@ -277,6 +290,8 @@ func (a *Server) tryToDetectIdentityReuse(ctx context.Context, req *types.Regist
 		instanceExists, err = appExists(ctx, a, req.HostID)
 	case types.RoleDatabase:
 		instanceExists, err = dbExists(ctx, a, req.HostID)
+	case types.RoleWindowsDesktop:
+		instanceExists, err = desktopServiceExists(ctx, a, req.HostID)
 	case types.RoleInstance:
 		// no appropriate check exists for the Instance role
 		instanceExists = false
@@ -297,11 +312,12 @@ func (a *Server) tryToDetectIdentityReuse(ctx context.Context, req *types.Regist
 
 // checkEC2JoinRequest checks register requests which use EC2 Simplified Node
 // Joining. This method checks that:
-// 1. The given Instance Identity Document has a valid signature (signed by AWS).
-// 2. There is no obvious signs that a node already joined the cluster from this EC2 instance (to
-//    reduce the risk of re-use of a stolen Instance Identity Document).
-// 3. The signed instance attributes match one of the allow rules for the
-//    corresponding token.
+//  1. The given Instance Identity Document has a valid signature (signed by AWS).
+//  2. There is no obvious signs that a node already joined the cluster from this EC2 instance (to
+//     reduce the risk of re-use of a stolen Instance Identity Document).
+//  3. The signed instance attributes match one of the allow rules for the
+//     corresponding token.
+//
 // If the request does not include an Instance Identity Document, and the
 // token does not include any allow rules, this method returns nil and the
 // normal token checking logic resumes.

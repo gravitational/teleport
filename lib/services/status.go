@@ -30,3 +30,11 @@ type Status interface {
 	// UpsertClusterAlert creates the specified alert, overwriting any preexising alert with the same ID.
 	UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error
 }
+
+// StatusInternal extends Status with auth-internal methods.
+type StatusInternal interface {
+	Status
+
+	// DeleteClusterAlert deletes the cluster alert with the specified ID.
+	DeleteClusterAlert(ctx context.Context, alertID string) error
+}

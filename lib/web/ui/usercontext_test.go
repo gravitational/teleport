@@ -20,11 +20,12 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewUserContext(t *testing.T) {
@@ -97,6 +98,7 @@ func TestNewUserContext(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.ACL.Tokens, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.Nodes, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.AccessRequests, denied))
+	require.Empty(t, cmp.Diff(userContext.ACL.ConnectionDiagnostic, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.Desktops, allowed))
 	require.Empty(t, cmp.Diff(userContext.ACL.WindowsLogins, []string{"a", "b", "d"}))
 	require.Empty(t, cmp.Diff(userContext.AccessStrategy, accessStrategy{

@@ -111,7 +111,7 @@ $ tsh kube ls
 
 # kubeconfig now points to the cookie cluster
 $ tsh kube login cookie
-# Logged into kubernetes cluster "cookie"
+# Logged into kubernetes cluster "cookie". Try 'kubectl version' to test the connection.
 
 # kubectl command executed on `cookie` but is routed through the Teleport cluster.
 $ kubectl get pods
@@ -119,4 +119,4 @@ $ kubectl get pods
 
 ## Next Steps
 
-- Take a look at a [kube-agent helm chart reference](../setup/helm-reference/teleport-kube-agent.mdx) for a full list of parameters.
+- Take a look at a [kube-agent helm chart reference](../reference/helm-reference/teleport-kube-agent.mdx) for a full list of parameters.

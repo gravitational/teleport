@@ -38,6 +38,7 @@ import (
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -151,7 +152,7 @@ type TerminalHandler struct {
 	// log holds the structured logger.
 	log *logrus.Entry
 
-	// params is the initial PTY size.
+	// params describes the request for a PTY
 	params TerminalRequest
 
 	// ctx is a web session context for the currently logged in user.
@@ -370,7 +371,7 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 	}
 	defer pc.Close()
 
-	priv, err := ssh.ParsePrivateKey(t.ctx.session.GetPriv())
+	pk, err := keys.ParsePrivateKey(t.ctx.session.GetPriv())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -379,10 +380,9 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 		RouteToCluster: t.params.Cluster,
 		NodeName:       t.params.Server,
 		ExistingCreds: &client.Key{
-			Pub:     ssh.MarshalAuthorizedKey(priv.PublicKey()),
-			Priv:    t.ctx.session.GetPriv(),
-			Cert:    t.ctx.session.GetPub(),
-			TLSCert: t.ctx.session.GetTLSCert(),
+			PrivateKey: pk,
+			Cert:       t.ctx.session.GetPub(),
+			TLSCert:    t.ctx.session.GetTLSCert(),
 		},
 	}, promptMFAChallenge(ws, t.wsLock, protobufMFACodec{}))
 	if err != nil {
@@ -552,15 +552,7 @@ func (t *TerminalHandler) windowChange(ctx context.Context, params *session.Term
 		return
 	}
 
-	_, err := t.sshSession.SendRequest(
-		ctx,
-		sshutils.WindowChangeRequest,
-		false,
-		ssh.Marshal(sshutils.WinChangeReqParams{
-			W: uint32(params.W),
-			H: uint32(params.H),
-		}))
-	if err != nil {
+	if err := t.sshSession.WindowChange(ctx, params.H, params.W); err != nil {
 		t.log.Error(err)
 	}
 }

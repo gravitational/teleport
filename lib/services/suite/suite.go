@@ -29,20 +29,21 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // NewTestCA returns new test authority with a test key as a public and
@@ -119,7 +120,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	case types.KindJWT:
 		// Generating keys is CPU intensive operation. Generate JWT keys only
 		// when needed.
-		publicKey, privateKey, err := jwt.GenerateKeyPair()
+		publicKey, privateKey, err := testauthority.New().GenerateJWT()
 		if err != nil {
 			panic(err)
 		}
@@ -139,9 +140,6 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		panic("unknown CA type")
 	}
 
-	if err := services.SyncCertAuthorityKeys(ca); err != nil {
-		panic(err)
-	}
 	return ca
 }
 
@@ -308,9 +306,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	require.NoError(t, err)
 	ca2 := ca.Clone().(*types.CertAuthorityV2)
 	ca2.Spec.ActiveKeys.SSH[0].PrivateKey = nil
-	ca2.Spec.SigningKeys = nil
 	ca2.Spec.ActiveKeys.TLS[0].Key = nil
-	ca2.Spec.TLSKeyPairs[0].Key = nil
 	require.Equal(t, cas[0], ca2)
 
 	cas, err = s.CAS.GetCertAuthorities(ctx, types.UserCA, true)
@@ -459,56 +455,46 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Len(t, out, 0)
 }
 
-// NewAppServer creates a new application server resource.
-func NewAppServer(name string, internalAddr string, publicAddr string) *types.ServerV2 {
-	return &types.ServerV2{
-		Kind:    types.KindAppServer,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name:      uuid.New().String(),
-			Namespace: apidefaults.Namespace,
-		},
-		Spec: types.ServerSpecV2{
-			Apps: []*types.App{
-				{
-					Name:       name,
-					URI:        internalAddr,
-					PublicAddr: publicAddr,
-				},
-			},
-		},
-	}
-}
-
 // AppServerCRUD tests CRUD functionality for services.Server.
 func (s *ServicesTestSuite) AppServerCRUD(t *testing.T) {
 	ctx := context.Background()
 
-	// Create application.
-	server := NewAppServer("foo", "http://127.0.0.1:8080", "foo.example.com")
-
 	// Expect not to be returned any applications and trace.NotFound.
-	out, err := s.PresenceS.GetAppServers(ctx, apidefaults.Namespace)
+	out, err := s.PresenceS.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Equal(t, len(out), 0)
 
+	// Make an app and an app server.
+	app, err := types.NewAppV3(types.Metadata{Name: "foo"},
+		types.AppSpecV3{URI: "http://127.0.0.1:8080", PublicAddr: "foo.example.com"})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3(types.Metadata{
+		Name:      app.GetName(),
+		Namespace: apidefaults.Namespace,
+	}, types.AppServerSpecV3{
+		Hostname: "localhost",
+		HostID:   uuid.New().String(),
+		App:      app,
+	})
+	require.NoError(t, err)
+
 	// Upsert application.
-	_, err = s.PresenceS.UpsertAppServer(ctx, server)
+	_, err = s.PresenceS.UpsertApplicationServer(ctx, server)
 	require.NoError(t, err)
 
 	// Check again, expect a single application to be found.
-	out, err = s.PresenceS.GetAppServers(ctx, server.GetNamespace())
+	out, err = s.PresenceS.GetApplicationServers(ctx, server.GetNamespace())
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	server.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff([]types.Server{server}, out))
+	require.Empty(t, cmp.Diff([]types.AppServer{server}, out))
 
 	// Remove the application.
-	err = s.PresenceS.DeleteAppServer(ctx, server.Metadata.Namespace, server.GetName())
+	err = s.PresenceS.DeleteApplicationServer(ctx, server.Metadata.Namespace, server.GetHostID(), server.GetName())
 	require.NoError(t, err)
 
 	// Now expect no applications to be returned.
-	out, err = s.PresenceS.GetAppServers(ctx, server.Metadata.Namespace)
+	out, err = s.PresenceS.GetApplicationServers(ctx, server.Metadata.Namespace)
 	require.NoError(t, err)
 	require.Len(t, out, 0)
 }
@@ -806,7 +792,7 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 			},
 		},
 	}
-	err := services.ValidateSAMLConnector(connector)
+	err := services.ValidateSAMLConnector(connector, nil)
 	require.NoError(t, err)
 	err = s.WebS.UpsertSAMLConnector(ctx, connector)
 	require.NoError(t, err)
@@ -1180,7 +1166,7 @@ func (s *ServicesTestSuite) SemaphoreFlakiness(t *testing.T) {
 
 	cfg := services.SemaphoreLockConfig{
 		Service:  wrapper,
-		Expiry:   time.Second,
+		Expiry:   time.Hour,
 		TickRate: time.Millisecond * 50,
 		Params: types.AcquireSemaphoreRequest{
 			SemaphoreKind: types.SemaphoreKindConnection,
@@ -1201,7 +1187,7 @@ func (s *ServicesTestSuite) SemaphoreFlakiness(t *testing.T) {
 			continue
 		case <-lock.Done():
 			t.Fatalf("Lost semaphore lock: %v", lock.Wait())
-		case <-time.After(time.Second):
+		case <-time.After(time.Second * 30):
 			t.Fatalf("Timeout waiting for renewals")
 		}
 	}

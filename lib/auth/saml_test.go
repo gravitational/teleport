@@ -34,6 +34,7 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -65,6 +66,11 @@ func TestCreateSAMLUser(t *testing.T) {
 		Backend:                b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
+		},
 	}
 
 	a, err := NewServer(authConfig)
@@ -188,6 +194,11 @@ func TestPingSAMLWorkaround(t *testing.T) {
 		Backend:                b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
+		},
 	}
 
 	a, err := NewServer(authConfig)
@@ -220,12 +231,18 @@ func TestPingSAMLWorkaround(t *testing.T) {
 		PrivateKey: fixtures.EncryptionKeyPEM,
 	}
 
+	// SAML connector validation requires the roles in mappings exist.
+	role, err := types.NewRole("admin", types.RoleSpecV5{})
+	require.NoError(t, err)
+	err = a.CreateRole(ctx, role)
+	require.NoError(t, err)
+
 	connector, err := types.NewSAMLConnector("ping", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "https://proxy.example.com:3080/v1/webapi/saml/acs",
 		Provider:                 "ping",
 		Display:                  "Ping",
 		AttributesToRoles: []types.AttributeMapping{
-			{Name: "groups", Value: "ping-admin", Roles: []string{"admin"}},
+			{Name: "groups", Value: "ping-admin", Roles: []string{role.GetName()}},
 		},
 		EntityDescriptor:  entityDescriptor,
 		SigningKeyPair:    signingKeypair,
@@ -277,9 +294,17 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 		Backend:                b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
+		},
 	}
 
 	a, err := NewServer(authConfig)
+	require.NoError(t, err)
+
+	_, err = CreateRole(ctx, a, "baz", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -391,6 +416,11 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 		Backend:                b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
+		},
 	}
 
 	a, err := NewServer(authConfig)
@@ -399,7 +429,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	a.SetClock(clock)
 
 	// empty response gives error.
-	response, err := a.ValidateSAMLResponse(context.Background(), "")
+	response, err := a.ValidateSAMLResponse(context.Background(), "", "")
 	require.Nil(t, response)
 	require.Error(t, err)
 
@@ -466,6 +496,12 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	}, nil, 10*365*24*time.Hour)
 	require.NoError(t, err)
 
+	// SAML connector validation requires the roles in mappings exist.
+	connectorRole, err := types.NewRole("baz", types.RoleSpecV5{})
+	require.NoError(t, err)
+	err = a.CreateRole(ctx, connectorRole)
+	require.NoError(t, err)
+
 	conn, err := types.NewSAMLConnector("saml-test-conn", types.SAMLConnectorSpecV2{
 		Issuer:                   "test",
 		SSO:                      "test",
@@ -474,7 +510,7 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 		AttributesToRoles: []types.AttributeMapping{{
 			Name:  "foo",
 			Value: "bar",
-			Roles: []string{"baz"},
+			Roles: []string{connectorRole.GetName()},
 		}},
 		SigningKeyPair: &types.AsymmetricKeyPair{
 			PrivateKey: string(keyPEM),
@@ -520,13 +556,13 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	require.NoError(t, err)
 
 	// check ValidateSAMLResponse
-	response, err = a.ValidateSAMLResponse(context.Background(), base64.StdEncoding.EncodeToString([]byte(respOkta)))
+	response, err = a.ValidateSAMLResponse(context.Background(), base64.StdEncoding.EncodeToString([]byte(respOkta)), "")
 	require.NoError(t, err)
 	require.NotNil(t, response)
 
 	// check internal method, validate diagnostic outputs.
 	diagCtx := a.newSSODiagContext(types.KindSAML)
-	auth, err := a.validateSAMLResponse(context.Background(), diagCtx, base64.StdEncoding.EncodeToString([]byte(respOkta)))
+	auth, err := a.validateSAMLResponse(context.Background(), diagCtx, base64.StdEncoding.EncodeToString([]byte(respOkta)), "")
 	require.NoError(t, err)
 
 	// ensure diag info got stored and is identical.

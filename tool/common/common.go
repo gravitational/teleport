@@ -17,18 +17,33 @@ limitations under the License.
 package common
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
+
+// ExitCodeError wraps an exit code as an error.
+type ExitCodeError struct {
+	// Code is the exit code
+	Code int
+}
+
+// Error implements the error interface.
+func (e *ExitCodeError) Error() string {
+	return fmt.Sprintf("exit code %d", e.Code)
+}
 
 // SessionsCollection is a collection of session end events.
 type SessionsCollection struct {
@@ -71,7 +86,7 @@ func (e *SessionsCollection) WriteYAML(w io.Writer) error {
 	return utils.WriteYAML(w, e.SessionEvents)
 }
 
-// ShowSessions is s helper function for displaying listed sessions via tsh or tctl
+// ShowSessions is a helper function for displaying listed sessions via tsh or tctl.
 func ShowSessions(events []events.AuditEvent, format string, w io.Writer) error {
 	sessions := &SessionsCollection{SessionEvents: events}
 	switch format {
@@ -84,4 +99,36 @@ func ShowSessions(events []events.AuditEvent, format string, w io.Writer) error 
 	default:
 		return trace.BadParameter("unknown format %q", format)
 	}
+}
+
+// ClusterAlertGetter manages getting cluster alerts.
+type ClusterAlertGetter interface {
+	GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error)
+}
+
+// ShowClusterAlerts shows cluster alerts with the given labels and severity.
+func ShowClusterAlerts(ctx context.Context, client ClusterAlertGetter, w io.Writer, labels map[string]string, minSeverity, maxSeverity types.AlertSeverity) error {
+	// get any "on login" alerts
+	alertCtx, cancelAlertCtx := context.WithTimeout(ctx, constants.TimeoutGetClusterAlerts)
+	defer cancelAlertCtx()
+	alerts, err := client.GetClusterAlerts(alertCtx, types.GetClusterAlertsRequest{
+		Labels:   labels,
+		Severity: minSeverity,
+	})
+	if err != nil && !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+
+	types.SortClusterAlerts(alerts)
+	var errs []error
+	for _, alert := range alerts {
+		if err := alert.CheckMessage(); err != nil {
+			errs = append(errs, trace.Errorf("invalid alert %q: %w", alert.Metadata.Name, err))
+			continue
+		}
+		if alert.Spec.Severity <= maxSeverity {
+			fmt.Fprintf(w, "%s\n\n", utils.FormatAlert(alert))
+		}
+	}
+	return trace.NewAggregate(errs...)
 }

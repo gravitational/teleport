@@ -19,12 +19,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type SemaphoreLockConfig struct {
@@ -71,7 +72,7 @@ func (l *SemaphoreLockConfig) CheckAndSetDefaults() error {
 type SemaphoreLock struct {
 	cfg       SemaphoreLockConfig
 	lease0    types.SemaphoreLease
-	retry     utils.Retry
+	retry     retryutils.Retry
 	ticker    *time.Ticker
 	doneC     chan struct{}
 	closeOnce sync.Once
@@ -184,6 +185,14 @@ Outer:
 				l.retry.Inc()
 				select {
 				case <-l.retry.After():
+				case tick = <-l.ticker.C:
+					// check to make sure that we still have some time on the lease. the default tick rate would have
+					// us waking _as_ the lease expires here, but if we're working with a higher tick rate, its worth
+					// retrying again.
+					if !lease.Expires.After(tick) {
+						leaseCancel()
+						return
+					}
 				case <-leaseContext.Done():
 					leaseCancel() // demanded by linter
 					return
@@ -205,13 +214,13 @@ Outer:
 type AcquireSemaphoreWithRetryConfig struct {
 	Service types.Semaphores
 	Request types.AcquireSemaphoreRequest
-	Retry   utils.LinearConfig
+	Retry   retryutils.LinearConfig
 }
 
 // AcquireSemaphoreWithRetry tries to acquire the semaphore according to the
 // retry schedule until it succeeds or context expires.
 func AcquireSemaphoreWithRetry(ctx context.Context, req AcquireSemaphoreWithRetryConfig) (*types.SemaphoreLease, error) {
-	retry, err := utils.NewLinear(req.Retry)
+	retry, err := retryutils.NewLinear(req.Retry)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -234,10 +243,10 @@ func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*Semaph
 		return nil, trace.Wrap(err)
 	}
 	// set up retry with a ratio which will result in 3-4 retries before the lease expires
-	retry, err := utils.NewLinear(utils.LinearConfig{
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Max:    cfg.Expiry / 4,
 		Step:   cfg.Expiry / 16,
-		Jitter: utils.NewJitter(),
+		Jitter: retryutils.NewJitter(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -24,10 +24,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/stretchr/testify/require"
 )
 
 type mockClients struct {
@@ -166,12 +167,12 @@ func TestEC2Watcher(t *testing.T) {
 	require.Equal(t, EC2Instances{
 		Region:     "us-west-2",
 		Instances:  []*ec2.Instance{&present},
-		Parameters: map[string]string{"token": ""},
+		Parameters: map[string]string{"token": "", "scriptName": ""},
 	}, result)
 	result = <-watcher.InstancesC
 	require.Equal(t, EC2Instances{
 		Region:     "us-west-2",
 		Instances:  []*ec2.Instance{&presentOther},
-		Parameters: map[string]string{"token": ""},
+		Parameters: map[string]string{"token": "", "scriptName": ""},
 	}, result)
 }

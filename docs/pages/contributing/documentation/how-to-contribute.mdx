@@ -3,7 +3,8 @@ title: How to Contribute to Teleport's Documentation
 description: Follow this guide to get started contributing changes to Teleport's documentation
 ---
 
-This guide describes the general workflow for making documentation changes
+This guide describes the general workflow for making documentation changes.
+It assumes you already have Node >=14 and `yarn` installed.
 
 ## Step 1/4 Set up your local environment
 
@@ -18,13 +19,19 @@ Different versions of the documentation are organized into the `content` directo
 Navigate to the root of your local clone of the `gravitational/docs` repository and run the following command to populate the `content` directory:
 
 ```code
-$ git submodule update --init --recursive
+$ yarn git-update
 ```
 
 Next, navigate to the directory under `content` that corresponds to the latest version of Teleport.
 
 ```code
 $ cd content/(=version=)
+```
+
+Switch to the master branch (or versioned branch for updates specific to previous versions):
+
+```code
+git switch master
 ```
 
 Check out a new branch of `gravitational/teleport`.
@@ -38,6 +45,7 @@ $ git switch -c my-branch
 Run the following command to start the development server:
 
 ```code
+$ yarn install
 $ yarn dev
 ```
 

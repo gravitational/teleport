@@ -21,19 +21,19 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-
-	"github.com/gravitational/trace"
-
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 )
 
 // UploadCompleterConfig specifies configuration for the uploader
@@ -51,10 +51,6 @@ type UploadCompleterConfig struct {
 	CheckPeriod time.Duration
 	// Clock is used to override clock in tests
 	Clock clockwork.Clock
-	// DELETE IN 11.0.0 in favor of SessionTrackerService
-	// GracePeriod is the period after which an upload's session
-	// tracker will be check to see if it's an abandoned upload.
-	GracePeriod time.Duration
 	// ClusterName identifies the originating teleport cluster
 	ClusterName string
 }
@@ -126,7 +122,7 @@ func (u *UploadCompleter) Serve(ctx context.Context) error {
 	periodic := interval.New(interval.Config{
 		Duration:      u.cfg.CheckPeriod,
 		FirstDuration: utils.HalfJitter(u.cfg.CheckPeriod),
-		Jitter:        utils.NewSeventhJitter(),
+		Jitter:        retryutils.NewSeventhJitter(),
 	})
 	defer periodic.Stop()
 
@@ -160,27 +156,11 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 
 	// Complete upload for any uploads without an active session tracker
 	for _, upload := range uploads {
-		// DELETE IN 11.0.0
-		// To support v9/v8 versions which do not use SessionTrackerService,
-		// sessions are only considered abandoned after the provided grace period.
-		if u.cfg.GracePeriod != 0 {
-			gracePoint := upload.Initiated.Add(u.cfg.GracePeriod)
-			if gracePoint.After(u.cfg.Clock.Now()) {
-				// uploads are ordered oldest to newest, stop checking
-				// once an upload doesn't exceed the grace point
-				return nil
-			}
-		}
-
 		switch _, err := u.cfg.SessionTracker.GetSessionTracker(ctx, upload.SessionID.String()); {
 		case err == nil: // session is still in progress, continue to other uploads
+			u.log.Debugf("session %v has active tracker and is not ready to be uploaded", upload.SessionID)
 			continue
 		case trace.IsNotFound(err): // upload abandoned, complete upload
-		case trace.IsAccessDenied(err): // upload abandoned, complete upload
-			// Treat access denied errors as not found errors, since we expect
-			// to get them if the auth server is v9.2.3 or earlier, since only
-			// node, proxy, and kube roles had permissions to create trackers.
-			// DELETE IN 11.0.0
 		default: // aka err != nil
 			return trace.Wrap(err)
 		}
@@ -194,11 +174,11 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 
-		u.log.Debugf("Upload %v was abandoned, trying to complete.", upload.ID)
+		u.log.Debugf("Upload for session %v was abandoned, trying to complete.", upload.SessionID)
 		if err := u.cfg.Uploader.CompleteUpload(ctx, upload, parts); err != nil {
 			return trace.Wrap(err)
 		}
-		u.log.Debugf("Completed upload %v.", upload)
+		u.log.Debugf("Completed upload for session %v.", upload.SessionID)
 		completed++
 
 		if len(parts) == 0 {
@@ -222,6 +202,7 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 		// This is necessary because we'll need to download the session in order to
 		// enumerate its events, and the S3 API takes a little while after the upload
 		// is completed before version metadata becomes available.
+		upload := upload // capture range variable
 		go func() {
 			select {
 			case <-ctx.Done():
@@ -344,6 +325,8 @@ loop:
 	}
 
 	u.log.Infof("emitting %T event for completed session %v", sessionEndEvent, uploadData.SessionID)
+
+	sessionEndEvent.SetTime(lastEvent.GetTime())
 
 	// Check and set event fields
 	if err := checkAndSetEventFields(sessionEndEvent, u.cfg.Clock, utils.NewRealUID(), sessionEndEvent.GetClusterName()); err != nil {

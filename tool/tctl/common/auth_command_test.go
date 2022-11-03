@@ -292,6 +292,16 @@ func (c *mockClient) GenerateUserCerts(ctx context.Context, userCertsReq proto.U
 	c.userCertsReq = &userCertsReq
 	return c.userCerts, nil
 }
+
+func (c *mockClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+	for _, v := range c.cas {
+		if v.GetType() == id.Type && v.GetClusterName() == id.DomainName {
+			return v, nil
+		}
+	}
+	return nil, trace.NotFound("not found")
+}
+
 func (c *mockClient) GetCertAuthorities(context.Context, types.CertAuthType, bool, ...services.MarshalOption) ([]types.CertAuthority, error) {
 	return c.cas, nil
 }
@@ -445,7 +455,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 		},
 	}
 
-	key, err := client.NewKey()
+	key, err := client.GenerateRSAKey()
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -475,7 +485,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outKeyFile:     "db.key",
 			outCertFile:    "db.crt",
 			outCAFile:      "db.cas",
-			outKey:         key.Priv,
+			outKey:         key.PrivateKeyPEM(),
 			outCert:        certBytes,
 			outCA:          caBytes,
 		},
@@ -490,7 +500,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outKeyFile:     "db.key",
 			outCertFile:    "db.crt",
 			outCAFile:      "db.cas",
-			outKey:         key.Priv,
+			outKey:         key.PrivateKeyPEM(),
 			outCert:        certBytes,
 			outCA:          caBytes,
 		},
@@ -504,7 +514,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outServerNames: []string{"mongo.example.com"},
 			outCertFile:    "mongo.crt",
 			outCAFile:      "mongo.cas",
-			outCert:        append(certBytes, key.Priv...),
+			outCert:        append(certBytes, key.PrivateKeyPEM()...),
 			outCA:          caBytes,
 		},
 		{
@@ -517,7 +527,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outKeyFile:     "node.key",
 			outCertFile:    "node.crt",
 			outCAFile:      "ca.crt",
-			outKey:         key.Priv,
+			outKey:         key.PrivateKeyPEM(),
 			outCert:        certBytes,
 			outCA:          caBytes,
 		},
@@ -532,7 +542,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outKeyFile:     "db.key",
 			outCertFile:    "db.crt",
 			outCAFile:      "db.cas",
-			outKey:         key.Priv,
+			outKey:         key.PrivateKeyPEM(),
 			outCert:        certBytes,
 			outCA:          caBytes,
 		},
@@ -822,6 +832,84 @@ func TestGenerateDatabaseUserCertificates(t *testing.T) {
 			certBytes, err := os.ReadFile(filepath.Join(certsDir, test.dbService+".crt"))
 			require.NoError(t, err)
 			require.Equal(t, authClient.userCerts.TLS, certBytes, "certificates match")
+		})
+	}
+}
+
+func TestGenerateAndSignKeys(t *testing.T) {
+	clusterName, err := services.NewClusterNameWithRandomID(
+		types.ClusterNameSpecV2{
+			ClusterName: "example.com",
+		})
+	require.NoError(t, err)
+
+	_, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "example.com"}, nil, time.Minute)
+	require.NoError(t, err)
+	firstCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.DatabaseCA,
+		ClusterName: "example.com",
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{PublicKey: []byte("SSH CA cert")}},
+			TLS: []*types.TLSKeyPair{{Cert: cert}},
+		},
+	})
+	require.NoError(t, err)
+
+	secondCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.DatabaseCA,
+		ClusterName: "leaf.example.com",
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{PublicKey: []byte("SSH CA cert")}},
+			TLS: []*types.TLSKeyPair{{Cert: cert}},
+		},
+	})
+	require.NoError(t, err)
+	certBytes := []byte("TLS cert")
+	caBytes := []byte("CA cert")
+
+	authClient := &mockClient{
+		clusterName: clusterName,
+		dbCerts: &proto.DatabaseCertResponse{
+			Cert:    certBytes,
+			CACerts: [][]byte{caBytes},
+		},
+		cas: []types.CertAuthority{firstCA, secondCA},
+	}
+
+	tests := []struct {
+		name      string
+		inFormat  identityfile.Format
+		inHost    string
+		inOutDir  string
+		inOutFile string
+	}{
+		{
+			name:      "snowflake format",
+			inFormat:  identityfile.FormatSnowflake,
+			inOutDir:  t.TempDir(),
+			inOutFile: "server",
+		},
+		{
+			name:      "db format",
+			inFormat:  identityfile.FormatDatabase,
+			inOutDir:  t.TempDir(),
+			inOutFile: "server",
+			inHost:    "localhost",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ac := AuthCommand{
+				output:        filepath.Join(test.inOutDir, test.inOutFile),
+				outputFormat:  test.inFormat,
+				signOverwrite: true,
+				genHost:       test.inHost,
+				genTTL:        time.Hour,
+			}
+
+			err = ac.GenerateAndSignKeys(context.Background(), authClient)
+			require.NoError(t, err)
 		})
 	}
 }

@@ -26,14 +26,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/jonboulle/clockwork"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestPlainHttpFallback(t *testing.T) {
@@ -143,7 +143,7 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 
 	tc, err := client.NewClient(cfg)
 	require.NoError(t, err)
-	key, err := client.NewKey()
+	key, err := client.GenerateRSAKey()
 	require.NoError(t, err)
 
 	// customPromptCalled is a flag to ensure the custom prompt was indeed called
@@ -199,7 +199,7 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 		req := client.SSHLoginPasswordless{
 			SSHLogin: client.SSHLogin{
 				ProxyAddr:         tc.WebProxyAddr,
-				PubKey:            key.Pub,
+				PubKey:            key.MarshalSSHPublicKey(),
 				TTL:               tc.KeyTTL,
 				Insecure:          tc.InsecureSkipVerify,
 				Compatibility:     tc.CertificateFormat,

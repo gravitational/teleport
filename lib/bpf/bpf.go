@@ -19,8 +19,6 @@ limitations under the License.
 
 package bpf
 
-// #cgo LDFLAGS: -ldl
-// #include <stdlib.h>
 import "C"
 
 import (

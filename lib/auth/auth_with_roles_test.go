@@ -24,26 +24,30 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 // TestLocalUserCanReissueCerts tests that local users can reissue
@@ -52,7 +56,7 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 
-	_, pub, err := native.GenerateKeyPair()
+	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	start := srv.AuthServer.Clock().Now()
@@ -141,7 +145,7 @@ func TestSSOUserCanReissueCert(t *testing.T) {
 	client, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
 
-	_, pub, err := native.GenerateKeyPair()
+	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	_, err = client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -157,6 +161,9 @@ func TestSAMLAuthRequest(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	_, err = CreateRole(ctx, srv.Auth(), "baz", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	access1Role, err := CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV5{
@@ -367,7 +374,7 @@ func TestInstaller(t *testing.T) {
 	user, err := CreateUser(srv.Auth(), "testuser")
 	require.NoError(t, err)
 
-	inst, err := types.NewInstallerV1("contents")
+	inst, err := types.NewInstallerV1(installers.InstallerScriptName, "contents")
 	require.NoError(t, err)
 	err = srv.Auth().SetInstaller(ctx, inst)
 	require.NoError(t, err)
@@ -380,21 +387,21 @@ func TestInstaller(t *testing.T) {
 		roles:  []string{"test-empty"},
 		assert: require.Error,
 		installerAction: func(c *Client) error {
-			_, err := c.GetInstaller(ctx)
+			_, err := c.GetInstaller(ctx, installers.InstallerScriptName)
 			return err
 		},
 	}, {
 		roles:  []string{"test-read"},
 		assert: require.NoError,
 		installerAction: func(c *Client) error {
-			_, err := c.GetInstaller(ctx)
+			_, err := c.GetInstaller(ctx, installers.InstallerScriptName)
 			return err
 		},
 	}, {
 		roles:  []string{"test-update"},
 		assert: require.NoError,
 		installerAction: func(c *Client) error {
-			inst, err := types.NewInstallerV1("new-contents")
+			inst, err := types.NewInstallerV1(installers.InstallerScriptName, "new-contents")
 			require.NoError(t, err)
 			return c.SetInstaller(ctx, inst)
 		},
@@ -402,7 +409,7 @@ func TestInstaller(t *testing.T) {
 		roles:  []string{"test-delete"},
 		assert: require.NoError,
 		installerAction: func(c *Client) error {
-			err := c.DeleteInstaller(ctx)
+			err := c.DeleteInstaller(ctx, installers.InstallerScriptName)
 			return err
 		},
 	}} {
@@ -1039,7 +1046,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			_, pub, err := native.GenerateKeyPair()
+			_, pub, err := testauthority.New().GenerateKeyPair()
 			require.NoError(t, err)
 
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -1137,7 +1144,7 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	// Generate cert with a role request.
 	client, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// Request certs for only the `foo` role.
@@ -1235,8 +1242,9 @@ func TestGenerateDatabaseCert(t *testing.T) {
 	}
 
 	// Generate CSR once for speed sake.
-	priv, _, err := native.GenerateKeyPair()
+	priv, err := native.GeneratePrivateKey()
 	require.NoError(t, err)
+
 	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{CommonName: "test"}, priv)
 	require.NoError(t, err)
 
@@ -1508,6 +1516,109 @@ func TestGetAndList_Nodes(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, 1)
 	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+}
+
+// TestStreamSessionEvents_User ensures that when a user streams a session's events, it emits an audit event.
+func TestStreamSessionEvents_User(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	username := "user"
+	user, _, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// ignore the response as we don't want the events or the error (the session will not exist)
+	_, _ = clt.StreamSessionEvents(ctx, "44c6cea8-362f-11ea-83aa-125400432324", 0)
+
+	// we need to wait for a short period to ensure the event is returned
+	time.Sleep(500 * time.Millisecond)
+
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
+		srv.Clock().Now().Add(-time.Hour),
+		srv.Clock().Now().Add(time.Hour),
+		defaults.Namespace,
+		[]string{events.SessionRecordingAccessEvent},
+		1,
+		types.EventOrderDescending,
+		"",
+	)
+	require.NoError(t, err)
+
+	event := searchEvents[0].(*apievents.SessionRecordingAccess)
+	require.Equal(t, username, event.User)
+}
+
+// TestStreamSessionEvents_Builtin ensures that when a builtin role streams a session's events, it does not emit
+// an audit event.
+func TestStreamSessionEvents_Builtin(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	identity := TestBuiltin(types.RoleProxy)
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// ignore the response as we don't want the events or the error (the session will not exist)
+	_, _ = clt.StreamSessionEvents(ctx, "44c6cea8-362f-11ea-83aa-125400432324", 0)
+
+	// we need to wait for a short period to ensure the event is returned
+	time.Sleep(500 * time.Millisecond)
+
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
+		srv.Clock().Now().Add(-time.Hour),
+		srv.Clock().Now().Add(time.Hour),
+		defaults.Namespace,
+		[]string{events.SessionRecordingAccessEvent},
+		1,
+		types.EventOrderDescending,
+		"",
+	)
+	require.NoError(t, err)
+
+	require.Equal(t, 0, len(searchEvents))
+}
+
+// TestGetSessionEvents ensures that when a user streams a session's events, it emits an audit event.
+func TestGetSessionEvents(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestTLSServer(t)
+
+	username := "user"
+	user, _, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// ignore the response as we don't want the events or the error (the session will not exist)
+	_, _ = clt.GetSessionEvents(defaults.Namespace, "44c6cea8-362f-11ea-83aa-125400432324", 0, false)
+
+	// we need to wait for a short period to ensure the event is returned
+	time.Sleep(500 * time.Millisecond)
+
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
+		srv.Clock().Now().Add(-time.Hour),
+		srv.Clock().Now().Add(time.Hour),
+		defaults.Namespace,
+		[]string{events.SessionRecordingAccessEvent},
+		1,
+		types.EventOrderDescending,
+		"",
+	)
+	require.NoError(t, err)
+
+	event := searchEvents[0].(*apievents.SessionRecordingAccess)
+	require.Equal(t, username, event.User)
 }
 
 // TestAPILockedOut tests Auth API when there are locks involved.
@@ -1958,92 +2069,6 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	require.Empty(t, cmp.Diff([]types.ResourceWithLabels{}, resp.Resources))
 }
 
-func TestGetAppServers(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
-
-	// Create test apps.
-	for i := 0; i < 5; i++ {
-		name := uuid.New().String()
-		app, err := types.NewServerWithLabels(
-			name,
-			types.KindAppServer,
-			types.ServerSpecV2{
-				Apps: []*types.App{{
-					Name:         name,
-					StaticLabels: map[string]string{"name": name},
-					URI:          "localhost",
-				}},
-			},
-			nil,
-		)
-		require.NoError(t, err)
-
-		_, err = srv.Auth().UpsertAppServer(ctx, app)
-		require.NoError(t, err)
-	}
-
-	testServers, err := srv.Auth().GetAppServers(ctx, defaults.Namespace)
-	require.NoError(t, err)
-
-	// create user, role, and client
-	username := "user"
-	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
-	require.NoError(t, err)
-	identity := TestUser(user.GetName())
-	clt, err := srv.NewClient(identity)
-	require.NoError(t, err)
-
-	// permit user to get the first app
-	role.SetAppLabels(types.Allow, types.Labels{"name": {testServers[0].GetName()}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-	servers, err := clt.GetAppServers(ctx, defaults.Namespace)
-	require.NoError(t, err)
-	require.EqualValues(t, len(testServers), len(servers))
-	for i := 1; i < len(servers); i++ {
-		// servers other than the first should have no apps
-		require.Empty(t, servers[i].GetApps())
-		// set apps to be equal to compare other fields
-		servers[i].SetApps(testServers[i].GetApps())
-	}
-	require.Empty(t, cmp.Diff(testServers, servers))
-
-	// permit user to get all apps
-	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-	servers, err = clt.GetAppServers(ctx, defaults.Namespace)
-	require.NoError(t, err)
-	require.EqualValues(t, len(testServers), len(servers))
-	require.Empty(t, cmp.Diff(testServers, servers))
-
-	// deny user to get the first app
-	role.SetAppLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-	servers, err = clt.GetAppServers(ctx, defaults.Namespace)
-	require.NoError(t, err)
-	require.EqualValues(t, len(testServers), len(servers))
-	// first server should have no apps
-	require.Empty(t, servers[0].GetApps())
-	// set apps to be equal to compare other fields
-	servers[0].SetApps(testServers[0].GetApps())
-	require.Empty(t, cmp.Diff(testServers, servers))
-
-	// deny user to get all apps
-	role.SetAppLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
-	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-	servers, err = clt.GetAppServers(ctx, defaults.Namespace)
-	require.NoError(t, err)
-	require.EqualValues(t, len(testServers), len(servers))
-	for i := 0; i < len(servers); i++ {
-		// servers other than the first should have no apps
-		require.Empty(t, servers[i].GetApps())
-		// set apps to be equal to compare other fields
-		servers[i].SetApps(testServers[i].GetApps())
-	}
-	require.Empty(t, cmp.Diff(testServers, servers))
-}
-
 // TestApps verifies RBAC is applied to app resources.
 func TestApps(t *testing.T) {
 	t.Parallel()
@@ -2255,7 +2280,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 		req                *proto.IsMFARequiredRequest
 	}{
 		{
-			name:       "RequireSessionMFA enabled MySQL protocol doesn't match database name",
+			name:       "RequireSessionMFA on MySQL protocol doesn't match database name",
 			dbProtocol: libdefaults.ProtocolMySQL,
 			req: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Database{
@@ -2269,7 +2294,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			},
 			modifyRoleFunc: func(role types.Role) {
 				roleOpt := role.GetOptions()
-				roleOpt.RequireSessionMFA = true
+				roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 				role.SetOptions(roleOpt)
 
 				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -2279,7 +2304,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			checkMFA: require.True,
 		},
 		{
-			name:       "RequireSessionMFA disabled",
+			name:       "RequireSessionMFA off",
 			dbProtocol: libdefaults.ProtocolMySQL,
 			req: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Database{
@@ -2293,7 +2318,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			},
 			modifyRoleFunc: func(role types.Role) {
 				roleOpt := role.GetOptions()
-				roleOpt.RequireSessionMFA = false
+				roleOpt.RequireMFAType = types.RequireMFAType_OFF
 				role.SetOptions(roleOpt)
 
 				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -2303,7 +2328,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			checkMFA: require.False,
 		},
 		{
-			name:       "RequireSessionMFA enabled Postgres protocol database name doesn't match",
+			name:       "RequireSessionMFA on Postgres protocol database name doesn't match",
 			dbProtocol: libdefaults.ProtocolPostgres,
 			req: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Database{
@@ -2317,7 +2342,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			},
 			modifyRoleFunc: func(role types.Role) {
 				roleOpt := role.GetOptions()
-				roleOpt.RequireSessionMFA = true
+				roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 				role.SetOptions(roleOpt)
 
 				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -2327,7 +2352,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			checkMFA: require.False,
 		},
 		{
-			name:       "RequireSessionMFA enabled Postgres protocol database name matches",
+			name:       "RequireSessionMFA on Postgres protocol database name matches",
 			dbProtocol: libdefaults.ProtocolPostgres,
 			req: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Database{
@@ -2341,7 +2366,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			},
 			modifyRoleFunc: func(role types.Role) {
 				roleOpt := role.GetOptions()
-				roleOpt.RequireSessionMFA = true
+				roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 				role.SetOptions(roleOpt)
 
 				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -2754,7 +2779,7 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test nodes.
-	const numTestNodes = 2
+	const numTestNodes = 3
 	for i := 0; i < numTestNodes; i++ {
 		name := fmt.Sprintf("node%d", i)
 		node, err := types.NewServerWithLabels(
@@ -2787,53 +2812,95 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 	searchAsRole.SetLogins(types.Allow, []string{"user"})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, searchAsRole))
 
-	role.SetSearchAsRoles([]string{searchAsRole.GetName()})
+	// create a third role which can see the third node
+	previewAsRole := services.RoleForUser(user)
+	previewAsRole.SetName("test_preview_role")
+	previewAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[2].GetName()}})
+	previewAsRole.SetLogins(types.Allow, []string{"user"})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, previewAsRole))
+
+	role.SetSearchAsRoles(types.Allow, []string{searchAsRole.GetName()})
+	role.SetPreviewAsRoles(types.Allow, []string{previewAsRole.GetName()})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
 	clt, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
 
-	// Regular ListResources returns first node, which user normally has
-	// permission for
-	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType: types.KindNode,
-		Limit:        int32(len(testNodes)),
-	})
-	require.NoError(t, err)
-	require.Len(t, resp.Resources, 1)
-	require.Equal(t, resp.Resources[0].GetName(), testNodes[0].GetName())
+	for _, tc := range []struct {
+		desc                   string
+		requestOpt             func(*proto.ListResourcesRequest)
+		expectNodes            []string
+		expectSearchEventRoles []string
+	}{
+		{
+			desc:        "basic",
+			expectNodes: []string{testNodes[0].GetName()},
+		},
+		{
+			desc: "search as roles",
+			requestOpt: func(req *proto.ListResourcesRequest) {
+				req.UseSearchAsRoles = true
+			},
+			expectNodes:            []string{testNodes[0].GetName(), testNodes[1].GetName()},
+			expectSearchEventRoles: []string{role.GetName(), searchAsRole.GetName()},
+		},
+		{
+			desc: "preview as roles",
+			requestOpt: func(req *proto.ListResourcesRequest) {
+				req.UsePreviewAsRoles = true
+			},
+			expectNodes:            []string{testNodes[0].GetName(), testNodes[2].GetName()},
+			expectSearchEventRoles: []string{role.GetName(), previewAsRole.GetName()},
+		},
+		{
+			desc: "both",
+			requestOpt: func(req *proto.ListResourcesRequest) {
+				req.UseSearchAsRoles = true
+				req.UsePreviewAsRoles = true
+			},
+			expectNodes:            []string{testNodes[0].GetName(), testNodes[1].GetName(), testNodes[2].GetName()},
+			expectSearchEventRoles: []string{role.GetName(), searchAsRole.GetName(), previewAsRole.GetName()},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			req := proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Limit:        int32(len(testNodes)),
+			}
+			if tc.requestOpt != nil {
+				tc.requestOpt(&req)
+			}
+			resp, err := clt.ListResources(ctx, req)
+			require.NoError(t, err)
+			require.Len(t, resp.Resources, len(tc.expectNodes))
+			var gotNodes []string
+			for _, node := range resp.Resources {
+				gotNodes = append(gotNodes, node.GetName())
+			}
+			require.ElementsMatch(t, tc.expectNodes, gotNodes)
 
-	// ListResources with UseSearchAsRoles returns both nodes
-	resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType:     types.KindNode,
-		Limit:            int32(len(testNodes)),
-		UseSearchAsRoles: true,
-	})
-	require.NoError(t, err)
-	require.Len(t, resp.Resources, len(testNodes))
-	var expectedNodes []string
-	for _, node := range testNodes {
-		expectedNodes = append(expectedNodes, node.GetName())
+			if len(tc.expectSearchEventRoles) > 0 {
+				require.Eventually(t, func() bool {
+					// make sure an audit event is logged for the search
+					auditEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(time.Time{}, time.Now(), "", []string{events.AccessRequestResourceSearch}, 10, 0, "")
+					require.NoError(t, err)
+					if len(auditEvents) == 0 {
+						t.Log("no search audit events found")
+						return false
+					}
+					lastEvent := auditEvents[len(auditEvents)-1].(*apievents.AccessRequestResourceSearch)
+					diff := cmp.Diff(tc.expectSearchEventRoles, lastEvent.SearchAsRoles)
+					if diff == "" {
+						// Found the event we're looking for.
+						return true
+					}
+					t.Logf("most recent search event does not have the expected roles, diff: %s", diff)
+					return false
+				}, 10*time.Second, 250*time.Millisecond, "did not find expected search event")
+			}
+		})
 	}
-	var gotNodes []string
-	for _, node := range resp.Resources {
-		gotNodes = append(gotNodes, node.GetName())
-	}
-	require.ElementsMatch(t, expectedNodes, gotNodes)
 
-	// make sure an audit event is logged for the search
-	auditEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(time.Time{}, time.Now(), "", nil, 10, 0, "")
-	require.NoError(t, err)
-	foundAuditEvent := false
-	for _, event := range auditEvents {
-		if searchEvent, ok := event.(*apievents.AccessRequestResourceSearch); ok {
-			foundAuditEvent = true
-			require.ElementsMatch(t,
-				[]string{role.GetName(), searchAsRole.GetName()},
-				searchEvent.SearchAsRoles)
-		}
-	}
-	require.True(t, foundAuditEvent)
 }
 
 func TestGetAndList_WindowsDesktops(t *testing.T) {
@@ -3375,7 +3442,6 @@ func TestListResources_WithRoles(t *testing.T) {
 	createRole := func(ctx context.Context, t *testing.T, srv *Server, name string, labels map[string]apiutils.Strings) {
 		role, err := types.NewRoleV3(name, types.RoleSpecV5{
 			Allow: types.RoleConditions{
-				Logins: []string{"root"},
 				NodeLabels: types.Labels{
 					"*": []string{types.Wildcard},
 				},
@@ -3537,6 +3603,343 @@ func TestListResources_WithRoles(t *testing.T) {
 					require.Len(t, nodes, tt.expected)
 				})
 			}
+		})
+	}
+}
+
+// TestGenerateHostCert attempts to generate host certificates using various
+// RBAC rules
+func TestGenerateHostCert(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clusterName := srv.ClusterName()
+
+	_, pub, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+
+	noError := func(err error) bool {
+		return err == nil
+	}
+
+	for _, test := range []struct {
+		desc       string
+		principals []string
+		skipRule   bool
+		where      string
+		deny       bool
+		denyWhere  string
+		expect     func(error) bool
+	}{
+		{
+			desc:       "disallowed",
+			skipRule:   true,
+			principals: []string{"foo.example.com"},
+			expect:     trace.IsAccessDenied,
+		},
+		{
+			desc:       "denied",
+			deny:       true,
+			principals: []string{"foo.example.com"},
+			expect:     trace.IsAccessDenied,
+		},
+		{
+			desc:       "allowed",
+			principals: []string{"foo.example.com"},
+			expect:     noError,
+		},
+		{
+			desc:       "allowed-subset",
+			principals: []string{"foo.example.com"},
+			where:      `is_subset(host_cert.principals, "foo.example.com", "bar.example.com")`,
+			expect:     noError,
+		},
+		{
+			desc:       "disallowed-subset",
+			principals: []string{"baz.example.com"},
+			where:      `is_subset(host_cert.principals, "foo.example.com", "bar.example.com")`,
+			expect:     trace.IsAccessDenied,
+		},
+		{
+			desc:       "allowed-all-equal",
+			principals: []string{"foo.example.com"},
+			where:      `all_equal(host_cert.principals, "foo.example.com")`,
+			expect:     noError,
+		},
+		{
+			desc:       "disallowed-all-equal",
+			principals: []string{"bar.example.com"},
+			where:      `all_equal(host_cert.principals, "foo.example.com")`,
+			expect:     trace.IsAccessDenied,
+		},
+		{
+			desc:       "allowed-all-end-with",
+			principals: []string{"node.foo.example.com"},
+			where:      `all_end_with(host_cert.principals, ".foo.example.com")`,
+			expect:     noError,
+		},
+		{
+			desc:       "disallowed-all-end-with",
+			principals: []string{"node.bar.example.com"},
+			where:      `all_end_with(host_cert.principals, ".foo.example.com")`,
+			expect:     trace.IsAccessDenied,
+		},
+		{
+			desc:       "allowed-complex",
+			principals: []string{"foo.example.com"},
+			where:      `all_end_with(host_cert.principals, ".example.com")`,
+			denyWhere:  `is_subset(host_cert.principals, "bar.example.com", "baz.example.com")`,
+			expect:     noError,
+		},
+		{
+			desc:       "disallowed-complex",
+			principals: []string{"bar.example.com"},
+			where:      `all_end_with(host_cert.principals, ".example.com")`,
+			denyWhere:  `is_subset(host_cert.principals, "bar.example.com", "baz.example.com")`,
+			expect:     trace.IsAccessDenied,
+		},
+		{
+			desc:       "allowed-multiple",
+			principals: []string{"bar.example.com", "foo.example.com"},
+			where:      `is_subset(host_cert.principals, "foo.example.com", "bar.example.com")`,
+			expect:     noError,
+		},
+		{
+			desc:       "disallowed-multiple",
+			principals: []string{"foo.example.com", "bar.example.com", "baz.example.com"},
+			where:      `is_subset(host_cert.principals, "foo.example.com", "bar.example.com")`,
+			expect:     trace.IsAccessDenied,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			rules := []types.Rule{}
+			if !test.skipRule {
+				rules = append(rules, types.Rule{
+					Resources: []string{types.KindHostCert},
+					Verbs:     []string{types.VerbCreate},
+					Where:     test.where,
+				})
+			}
+
+			denyRules := []types.Rule{}
+			if test.deny || test.denyWhere != "" {
+				denyRules = append(denyRules, types.Rule{
+					Resources: []string{types.KindHostCert},
+					Verbs:     []string{types.VerbCreate},
+					Where:     test.denyWhere,
+				})
+			}
+
+			role, err := CreateRole(ctx, srv.Auth(), test.desc, types.RoleSpecV5{
+				Allow: types.RoleConditions{Rules: rules},
+				Deny:  types.RoleConditions{Rules: denyRules},
+			})
+			require.NoError(t, err)
+
+			user, err := CreateUser(srv.Auth(), test.desc, role)
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			_, err = client.GenerateHostCert(pub, "", "", test.principals, clusterName, types.RoleNode, 0)
+			require.True(t, test.expect(err))
+		})
+	}
+}
+
+// TestLocalServiceRolesHavePermissionsForUploaderService verifies that all of Teleport's
+// builtin roles have permissions to execute the calls required by the uploader service.
+// This is because only one uploader service runs per Teleport process, and it will use
+// the first available identity.
+func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
+	for _, role := range types.LocalServiceMappings() {
+		if role == types.RoleAuth {
+			continue
+		}
+		t.Run(role.String(), func(t *testing.T) {
+			ctx := context.Background()
+
+			identity := TestBuiltin(role)
+			authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, identity.I))
+			require.NoError(t, err)
+
+			s := &ServerWithRoles{
+				authServer: srv.AuthServer,
+				alog:       srv.AuditLog,
+				context:    *authContext,
+			}
+
+			t.Run("GetSessionTracker", func(t *testing.T) {
+				sid := session.ID("foo/" + role.String())
+				tracker, err := s.CreateSessionTracker(ctx, &types.SessionTrackerV1{
+					ResourceHeader: types.ResourceHeader{
+						Metadata: types.Metadata{
+							Name: sid.String(),
+						},
+					},
+					Spec: types.SessionTrackerSpecV1{
+						SessionID: sid.String(),
+					},
+				})
+				require.NoError(t, err)
+
+				_, err = s.GetSessionTracker(ctx, tracker.GetSessionID())
+				require.NoError(t, err)
+			})
+
+			t.Run("EmitAuditEvent", func(t *testing.T) {
+				err := s.EmitAuditEvent(ctx, &apievents.UserLogin{
+					Metadata: apievents.Metadata{
+						Type: events.UserLoginEvent,
+						Code: events.UserLocalLoginFailureCode,
+					},
+					Method: events.LoginMethodClientCert,
+					Status: apievents.Status{Success: true},
+				})
+				require.NoError(t, err)
+			})
+
+			t.Run("StreamSessionEvents", func(t *testing.T) {
+				// swap out the audit log with a discard log because we don't care if
+				// the streaming actually succeeds, we just want to make sure RBAC checks
+				// pass and allow us to enter the audit log code
+				originalLog := s.alog
+				t.Cleanup(func() { s.alog = originalLog })
+				s.alog = events.NewDiscardAuditLog()
+
+				eventC, errC := s.StreamSessionEvents(ctx, "foo", 0)
+				select {
+				case err := <-errC:
+					require.NoError(t, err)
+				default:
+					// drain eventC to prevent goroutine leak
+					for range eventC {
+					}
+				}
+			})
+
+			t.Run("CreateAuditStream", func(t *testing.T) {
+				stream, err := s.CreateAuditStream(ctx, session.ID("streamer"))
+				require.NoError(t, err)
+				require.NoError(t, stream.Close(ctx))
+			})
+
+			t.Run("ResumeAuditStream", func(t *testing.T) {
+				stream, err := s.ResumeAuditStream(ctx, session.ID("streamer"), "upload")
+				require.NoError(t, err)
+				require.NoError(t, stream.Close(ctx))
+			})
+		})
+	}
+}
+
+type getActiveSessionsTestCase struct {
+	name      string
+	tracker   types.SessionTracker
+	role      types.Role
+	hasAccess bool
+}
+
+func TestGetActiveSessionTrackers(t *testing.T) {
+	t.Parallel()
+
+	testCases := []getActiveSessionsTestCase{func() getActiveSessionsTestCase {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID: "1",
+			Kind:      string(types.SSHSessionKind),
+		})
+		require.NoError(t, err)
+
+		role, err := types.NewRole("foo", types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{{
+					Resources: []string{types.KindSessionTracker},
+					Verbs:     []string{types.VerbList, types.VerbRead},
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		return getActiveSessionsTestCase{"with access simple", tracker, role, true}
+	}(), func() getActiveSessionsTestCase {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID: "1",
+			Kind:      string(types.SSHSessionKind),
+		})
+		require.NoError(t, err)
+
+		role, err := types.NewRole("foo", types.RoleSpecV5{})
+		require.NoError(t, err)
+
+		return getActiveSessionsTestCase{"with no access rule", tracker, role, false}
+	}(), func() getActiveSessionsTestCase {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID: "1",
+			Kind:      string(types.KubernetesSessionKind),
+		})
+		require.NoError(t, err)
+
+		role, err := types.NewRole("foo", types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{{
+					Resources: []string{types.KindSessionTracker},
+					Verbs:     []string{types.VerbList, types.VerbRead},
+					Where:     "equals(session_tracker.session_id, \"1\")",
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		return getActiveSessionsTestCase{"access with match expression", tracker, role, true}
+	}(), func() getActiveSessionsTestCase {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID: "2",
+			Kind:      string(types.KubernetesSessionKind),
+		})
+		require.NoError(t, err)
+
+		role, err := types.NewRole("foo", types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{{
+					Resources: []string{types.KindSessionTracker},
+					Verbs:     []string{types.VerbList, types.VerbRead},
+					Where:     "equals(session_tracker.session_id, \"1\")",
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		return getActiveSessionsTestCase{"no access with match expression", tracker, role, false}
+	}()}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx := context.Background()
+			srv := newTestTLSServer(t)
+			err := srv.Auth().CreateRole(ctx, testCase.role)
+			require.NoError(t, err)
+
+			_, err = srv.Auth().CreateSessionTracker(ctx, testCase.tracker)
+			require.NoError(t, err)
+
+			user, err := types.NewUser(uuid.NewString())
+			require.NoError(t, err)
+
+			user.AddRole(testCase.role.GetName())
+			err = srv.Auth().UpsertUser(user)
+			require.NoError(t, err)
+
+			clt, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			found, err := clt.GetActiveSessionTrackers(ctx)
+			require.NoError(t, err)
+			require.Equal(t, testCase.hasAccess, len(found) != 0)
 		})
 	}
 }

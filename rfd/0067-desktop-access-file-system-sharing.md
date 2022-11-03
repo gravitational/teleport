@@ -256,7 +256,7 @@ response.
 #### 16 - Shared Directory Create Response
 
 ```
-| message type (16) | completion_id uint32 | err_code uint32 |
+| message type (16) | completion_id uint32 | err_code uint32 | file_system_object fso |
 ```
 
 This message is sent by the client to the server to acknowledge a `Shared Directory Create Request` was successfully executed. A `Shared Directory Create Request`
@@ -265,6 +265,8 @@ that fails should respond with an "operation failed" `Shared Directory Error`.
 `completion_id` must match the `completion_id` of the `Shared Directory Create Request` that this message is responding to.
 
 `err_code` is an error code. If a filesystem object at `path` already exists, this should be set to `3` ("resource already exists").
+
+`file_system_object` is the file system object that was created.
 
 #### 17 - Shared Directory Delete Request
 
@@ -444,8 +446,12 @@ This message is sent by the client to the server in response to a `Shared Direct
 ##### File System Object (fso)
 
 ```
-| last_modified uint64 | size uint64 | file_type uint32 | path_length uint32 | path byte[] |
+| last_modified uint64 | size uint64 | file_type uint32 | is_empty bool | path_length uint32 | path byte[] |
 ```
+
+The design of this message is constrained by [what information is made available to us by the browser](https://developer.mozilla.org/en-US/docs/Web/API/File) and
+which [File Information Classes](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/4718fc40-e539-4014-8e33-b675af74e3e1) are potentially
+requested by RDP.
 
 For files, `last_modified` is the last modified time of the file as specified by the [`mtime`](https://www.makeuseof.com/linux-file-timestamps/), in milliseconds
 since the [UNIX epoch](https://en.wikipedia.org/wiki/Unix_time). For directories, `last_modified` should also be set to the
@@ -462,9 +468,8 @@ types available in RDP's [File Attributes](https://docs.microsoft.com/en-us/open
 0. file
 1. directory
 
-The design of this message is constrained by [what information is made available to us by the browser](https://developer.mozilla.org/en-US/docs/Web/API/File) and
-which [File Information Classes](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/4718fc40-e539-4014-8e33-b675af74e3e1) are potentially
-requested by RDP.
+`is_empty` says whether or not a directory is empty. For objects where `file_type = 0` (files), this field should be
+ignored.
 
 `path_length` is the length in bytes of the `path`
 
@@ -485,6 +490,13 @@ For now, all errors will be unspecified, and translated into
 [`NTSTATUS::STATUS_UNSUCCESSFUL`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55) over RDP. Later, we
 can add more specific error messages for more specific RDP error handling,
 [as they do in FreeRDP](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L67-L132).
+
+##### bool
+
+`bool` is a `uint8` specifying True or False:
+
+0. False
+1. True
 
 ## RDP --> TDP Translation for `IRP_MJ_READ`
 
@@ -582,3 +594,147 @@ The UX for this feature is discussed in [RFD 0058](https://github.com/gravitatio
 ## Security
 
 Security will be discussed in [a future RFD](https://github.com/gravitational/teleport/issues/13406).
+
+## Audit Events
+
+Audit events would ideally be focused exclusively on directory sharing events that are germaine to system security such as:
+
+- A file was transferred from the remote Windows machine onto the local machine (into the shared directory)
+- A file was transferred from the local machine (from the shared directory) onto the remote Windows machine
+- etc
+
+However due to our limited visibility into the Windows side of the equation it is not possible for us to determine such events with precision. For example, if a user transfers a file
+from the Windows box into the shared directory, we see that as a `Shared Directory Create` sequence followed by a `Shared Directory Write` sequence. But then that same sequence could
+just have been a user creating a brand new file within the shared directory and then writing to it (which is not of particular note from a security perspective). Given this limitation,
+we will instead simply log all events that indicate security-relevant information, which is to say events indicating a data transfer between the local and remote machines,
+which is to say `Shared Directory Read` ("desktop.directory.read") and `Shared Directory Write` ("desktop.directory.write") events.
+
+`Shared Directory Announce/Acknowledge` ("desktop.directory.start") is also included in the audit event log to make the sequence of events more easily comprehensible.
+
+**TDP Shared Directory Messages Logged --> Proposed Event Name**
+
+The following list includes the type of TDP messages that will be logged and their propsed corresponding event names.
+
+- `Shared Directory Announce/Acknowledge` --> "desktop.directory.start"
+- `Shared Directory ReadRequest/ReadResponse` --> "desktop.directory.read"
+- `Shared Directory WriteRequest/WriteResponse` --> "desktop.directory.write"
+
+**TDP Shared Directory Messages Skipped**
+
+- `Shared Directory Info`
+- `Shared Directory List`
+- `Shared Directory Create`
+- `Shared Directory Delete`
+- `Shared Directory Move`
+
+For `Shared Directory Read` and `Shared Directory Write`, which contain raw file data, the length (number of bytes) of the data transfer will be logged rather than the data itself. This
+by default prevents the audit log from blowing up in size if large files are shared, and from becoming a source of potential data theft. That said, given that there is apparently already
+consumer demand for complete file data logging in the audit log, it's worth considering making this configurable (out of scope for this RFD).
+
+### Events
+
+#### DesktopSharedDirectoryStart
+
+Emitted when a successful `Shared Directory Acknowledge` is received. Due to technical limitations, we will for now just be logging this event on a successful directory sharing initialization.
+We can attempt a more complex implementation that takes into account failed initialization attempts, pending user demand.
+
+```proto
+// DesktopSharedDirectoryStart is emitted when Teleport
+// attempt to begin sharing a new directory to a remote desktop.
+message DesktopSharedDirectoryStart {
+  // Metadata is common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Session is common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Connection holds information about the connection.
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // DesktopAddr is the address of the desktop being accessed.
+  string DesktopAddr = 5 [(gogoproto.jsontag) = "desktop_addr"];
+  // DirectoryName is the name of the directory being shared.
+  string DirectoryName = 6 [(gogoproto.jsontag) = "directory_name"];
+  // DirectoryID is the ID of the directory being shared (unique to the Windows Desktop Session).
+  uint32 DirectoryID = 7 [(gogoproto.jsontag) = "directory_id"];
+}
+```
+
+Note: the inclusion of `DirectoryID` is looking forward to if/when we allow for multiple directories to be shared at once, at which point `DirectoryName` will no longer necessarily be
+a unique identifier.
+
+#### DesktopSharedDirectoryRead
+
+```proto
+// DesktopSharedDirectoryRead is emitted when Teleport
+// attempts to read from a file in a shared directory at
+// the behest of the remote desktop.
+message DesktopSharedDirectoryRead {
+  // Metadata, UserMetadata, SessionMetadata, ConnectionMetadata ommitted
+
+  // DesktopAddr is the address of the desktop being accessed.
+  string DesktopAddr = 5 [(gogoproto.jsontag) = "desktop_addr"];
+  // DirectoryName is the name of the directory being shared.
+  string DirectoryName = 6 [(gogoproto.jsontag) = "directory_name"];
+  // DirectoryID is the ID of the directory being shared (unique to the Windows Desktop Session).
+  uint32 DirectoryID = 7 [(gogoproto.jsontag) = "directory_id"];
+  // Path is the path within the shared directory where the file is located.
+  string Path = 8 [(gogoproto.jsontag) = "file_path"];
+  // Length is the number of bytes read.
+  uint32 Length = 9 [(gogoproto.jsontag) = "length"];
+  // Offset is the offset the bytes were read from.
+  uint32 Offset = 10 [(gogoproto.jsontag) = "offset"];
+}
+```
+
+#### DesktopSharedDirectoryWrite
+
+```proto
+// DesktopSharedDirectoryWrite is emitted when Teleport
+// attempts to write to a file in a shared directory at
+// the behest of the remote desktop.
+message DesktopSharedDirectoryWrite {
+  // Metadata, UserMetadata, SessionMetadata, ConnectionMetadata ommitted
+
+  // DesktopAddr is the address of the desktop being accessed.
+  string DesktopAddr = 5 [(gogoproto.jsontag) = "desktop_addr"];
+  // DirectoryName is the name of the directory being shared.
+  string DirectoryName = 6 [(gogoproto.jsontag) = "directory_name"];
+  // DirectoryID is the ID of the directory being shared (unique to the Windows Desktop Session).
+  uint32 DirectoryID = 7 [(gogoproto.jsontag) = "directory_id"];
+  // Path is the path within the shared directory where the file is located.
+  string Path = 8 [(gogoproto.jsontag) = "file_path"];
+  // Length is the number of bytes written.
+  uint32 Length = 9 [(gogoproto.jsontag) = "length"];
+  // Offset is the offset the bytes were written to.
+  uint32 Offset = 10 [(gogoproto.jsontag) = "offset"];
+}
+```
+
+#### Debouncing for read/write
+
+The read/write events that are sent to us are fundamentally determined by the program on the Windows machine that's reading or writing to a shared file.
+In the case of copying files in/out of the shared directory, that program is typically File Explorer, which empirically does read/writes at a maximum of
+1MB (exactly 2^20 bytes) at a time. For files larger than 1MB, this manifests as several read/writes in a row showing up at time in such a case.
+
+In order to avoid the logs getting spammed with multiple messages corresponding to one "operation" (such as a multi MB read of a large file), we can create
+an algorithm which upon reciept of a read or write event, sets a short timer (say 1s), and if it receives another non-overlapping read/write for the same
+file before the timer runs out, stops the timer and amalgamates the events together, repeating until the timer runs out at which point a single event is
+written into the log (credit to @zmb3 for the algo design).
+
+This feature will be considered beyond the scope of the initial implementation, which will naively write all reads/writes as individual events.

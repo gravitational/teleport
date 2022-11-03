@@ -23,7 +23,7 @@ import (
 )
 
 // Source: os/stat_linux.go
-func atime(fi os.FileInfo) time.Time {
+func GetAtime(fi os.FileInfo) time.Time {
 	return timespecToTime(fi.Sys().(*syscall.Stat_t).Atim)
 }
 

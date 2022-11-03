@@ -23,26 +23,28 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/proxy"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/forward"
-	"github.com/gravitational/teleport/lib/utils"
-	proxyutils "github.com/gravitational/teleport/lib/utils/proxy"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/proxy"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/forward"
+	"github.com/gravitational/teleport/lib/utils"
+	proxyutils "github.com/gravitational/teleport/lib/utils/proxy"
 )
+
+// periodicFunctionInterval is the interval at which periodic stats are calculated.
+var periodicFunctionInterval = 3 * time.Minute
 
 func newlocalSite(srv *server, domainName string, authServers []string) (*localSite, error) {
 	err := metrics.RegisterPrometheusCollectors(localClusterCollectors...)
@@ -609,7 +611,7 @@ func (s *localSite) chanTransportConn(rconn *remoteConn, dreq *sshutils.DialReq)
 
 // periodicFunctions runs functions periodic functions for the local cluster.
 func (s *localSite) periodicFunctions() {
-	ticker := time.NewTicker(defaults.ResyncInterval)
+	ticker := time.NewTicker(periodicFunctionInterval)
 	defer ticker.Stop()
 
 	for {

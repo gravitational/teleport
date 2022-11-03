@@ -25,10 +25,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -36,10 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
 )
 
 type APIConfig struct {
@@ -88,10 +88,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Kubernetes extensions
 	srv.POST("/:version/kube/csr", srv.withAuth(srv.processKubeCSR))
 
-	// Operations on certificate authorities
-	srv.GET("/:version/domain", srv.withAuth(srv.getDomainName))    // DELETE IN 11.0.0 REST method replaced by gRPC
-	srv.GET("/:version/cacert", srv.withAuth(srv.getClusterCACert)) // DELETE IN 11.0.0 REST method replaced by gRPC
-
 	srv.POST("/:version/authorities/:type", srv.withAuth(srv.upsertCertAuthority))
 	srv.POST("/:version/authorities/:type/rotate", srv.withAuth(srv.rotateCertAuthority))
 	srv.POST("/:version/authorities/:type/rotate/external", srv.withAuth(srv.rotateExternalCertAuthority))
@@ -110,7 +106,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Passwords and sessions
 	srv.POST("/:version/users", srv.withAuth(srv.upsertUser))
 	srv.PUT("/:version/users/:user/web/password", srv.withAuth(srv.changePassword))
-	srv.POST("/:version/users/:user/web/password", srv.withAuth(srv.upsertPassword))
 	srv.POST("/:version/users/:user/web/password/check", srv.withRate(srv.withAuth(srv.checkPassword)))
 	srv.POST("/:version/users/:user/web/sessions", srv.withAuth(srv.createWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.withAuth(srv.authenticateWebUser))
@@ -149,7 +144,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/trustedclusters/validate", srv.withAuth(srv.validateTrustedCluster))
 
 	// Tokens
-	srv.POST("/:version/tokens", srv.withAuth(srv.generateToken))
 	srv.POST("/:version/tokens/register", srv.withAuth(srv.registerUsingToken))
 
 	// Active sessions
@@ -169,16 +163,9 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/configuration/static_tokens", srv.withAuth(srv.deleteStaticTokens))
 	srv.POST("/:version/configuration/static_tokens", srv.withAuth(srv.setStaticTokens))
 
-	// OIDC
-	srv.POST("/:version/oidc/requests/create", srv.withAuth(srv.createOIDCAuthRequest)) // DELETE in 11.0.0
+	// SSO validation handlers
 	srv.POST("/:version/oidc/requests/validate", srv.withAuth(srv.validateOIDCAuthCallback))
-
-	// SAML handlers
-	srv.POST("/:version/saml/requests/create", srv.withAuth(srv.createSAMLAuthRequest)) // DELETE in 11.0.0
 	srv.POST("/:version/saml/requests/validate", srv.withAuth(srv.validateSAMLResponse))
-
-	// Github connector
-	srv.POST("/:version/github/requests/create", srv.withAuth(srv.createGithubAuthRequest)) // DELETE in 11.0.0
 	srv.POST("/:version/github/requests/validate", srv.withAuth(srv.validateGithubAuthCallback))
 
 	// Audit logs AKA events
@@ -207,17 +194,21 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 		// HTTPS server expects auth context to be set by the auth middleware
 		authContext, err := s.Authorizer.Authorize(r.Context())
 		if err != nil {
+			switch {
 			// propagate connection problem error so we can differentiate
 			// between connection failed and access denied
-			if trace.IsConnectionProblem(err) {
+			case trace.IsConnectionProblem(err):
 				return nil, trace.ConnectionProblem(err, "[07] failed to connect to the database")
-			} else if trace.IsAccessDenied(err) {
+			case trace.IsAccessDenied(err):
 				// don't print stack trace, just log the warning
 				log.Warn(err)
-			} else {
+			case keys.IsPrivateKeyPolicyError(err):
+				// private key policy errors should be returned to the client
+				// unaltered so that they know to reauthenticate with a valid key.
+				return nil, trace.Unwrap(err)
+			default:
 				log.Warn(trace.DebugReport(err))
 			}
-
 			return nil, trace.AccessDenied(accessDeniedMsg + "[00]")
 		}
 		auth := &ServerWithRoles{
@@ -501,19 +492,15 @@ type WebSessionReq struct {
 	// Switchback is a flag to indicate if user is wanting to switchback from an assumed role
 	// back to their default role.
 	Switchback bool `json:"switchback"`
+	// ReloadUser is a flag to indicate if user needs to be refetched from the backend
+	// to apply new user changes e.g. user traits were updated.
+	ReloadUser bool `json:"reload_user"`
 }
 
 func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req WebSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// DELETE IN 8.0: proxy v5 sends request with no user field.
-	// And since proxy v6, request will come with user field set, so grabbing user
-	// by param is not required.
-	if req.User == "" {
-		req.User = p.ByName("user")
 	}
 
 	if req.PrevSessionID != "" {
@@ -523,10 +510,12 @@ func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *htt
 		}
 		return sess, nil
 	}
+
 	sess, err := auth.CreateWebSession(r.Context(), req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
 }
 
@@ -564,25 +553,6 @@ func (s *APIServer) changePassword(auth ClientI, w http.ResponseWriter, r *http.
 	}
 
 	return message(fmt.Sprintf("password has been changed for user %q", req.User)), nil
-}
-
-type upsertPasswordReq struct {
-	Password string `json:"password"`
-}
-
-func (s *APIServer) upsertPassword(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *upsertPasswordReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	user := p.ByName("user")
-	err := auth.UpsertPassword(user, []byte(req.Password))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message(fmt.Sprintf("password for for user %q upserted", user)), nil
 }
 
 type upsertUserRawReq struct {
@@ -694,19 +664,6 @@ func (s *APIServer) generateHostCert(auth ClientI, w http.ResponseWriter, r *htt
 	return string(cert), nil
 }
 
-// DELETE IN 11.0.0
-func (s *APIServer) generateToken(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req proto.GenerateTokenRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	token, err := auth.GenerateToken(r.Context(), &req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return token, nil
-}
-
 func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
 	var req types.RegisterUsingTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -816,39 +773,6 @@ func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *htt
 	return rawMessage(services.MarshalCertAuthority(ca, services.WithVersion(version), services.PreserveResourceID()))
 }
 
-// Replaced with gRPC endpoint
-// DELETE IN 11.0.0
-func (s *APIServer) getDomainName(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	domain, err := auth.GetDomainName(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return domain, nil
-}
-
-// deprecatedLocalCAResponse contains the concatenated PEM-encoded TLS certs for
-// the local cluster's Host CA
-// DELETE IN 11.0.0
-type deprecatedLocalCAResponse struct {
-	// TLSCA is a PEM-encoded TLS certificate authority.
-	TLSCA []byte `json:"tls_ca"`
-}
-
-// getClusterCACert returns the PEM-encoded TLS certs for the local cluster
-// without signing keys. If the cluster has multiple TLS certs, they will all
-// be appended.
-// DELETE IN 11.0.0
-func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	localCA, err := auth.GetClusterCACert(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return deprecatedLocalCAResponse{
-		TLSCA: localCA.TLSCA,
-	}, nil
-}
-
 func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	id := types.CertAuthID{
 		DomainName: p.ByName("domain"),
@@ -858,23 +782,6 @@ func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("cert '%v' deleted", id)), nil
-}
-
-type createOIDCAuthRequestReq struct {
-	Req types.OIDCAuthRequest `json:"req"`
-}
-
-// DELETE IN 11.0.0
-func (s *APIServer) createOIDCAuthRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *createOIDCAuthRequestReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response, err := auth.CreateOIDCAuthRequest(r.Context(), req.Req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response, nil
 }
 
 type validateOIDCAuthCallbackReq struct {
@@ -895,7 +802,7 @@ type oidcAuthRawResponse struct {
 	// TLSCert is PEM encoded TLS certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
 	// Req is original oidc auth request
-	Req types.OIDCAuthRequest `json:"req"`
+	Req OIDCAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`
@@ -935,25 +842,9 @@ func (s *APIServer) validateOIDCAuthCallback(auth ClientI, w http.ResponseWriter
 	return &raw, nil
 }
 
-type createSAMLAuthRequestReq struct {
-	Req types.SAMLAuthRequest `json:"req"`
-}
-
-// DELETE IN 11.0.0
-func (s *APIServer) createSAMLAuthRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *createSAMLAuthRequestReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response, err := auth.CreateSAMLAuthRequest(r.Context(), req.Req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response, nil
-}
-
 type validateSAMLResponseReq struct {
-	Response string `json:"response"`
+	Response    string `json:"response"`
+	ConnectorID string `json:"connector_id,omitempty"`
 }
 
 // samlAuthRawResponse is returned when auth server validated callback parameters
@@ -968,7 +859,7 @@ type samlAuthRawResponse struct {
 	// Cert will be generated by certificate authority
 	Cert []byte `json:"cert,omitempty"`
 	// Req is original oidc auth request
-	Req types.SAMLAuthRequest `json:"req"`
+	Req SAMLAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`
@@ -981,7 +872,7 @@ func (s *APIServer) validateSAMLResponse(auth ClientI, w http.ResponseWriter, r 
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response, err := auth.ValidateSAMLResponse(r.Context(), req.Response)
+	response, err := auth.ValidateSAMLResponse(r.Context(), req.Response, req.ConnectorID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1010,31 +901,6 @@ func (s *APIServer) validateSAMLResponse(auth ClientI, w http.ResponseWriter, r 
 	return &raw, nil
 }
 
-// createGithubAuthRequestReq is a request to start Github OAuth2 flow
-type createGithubAuthRequestReq struct {
-	// Req is the request parameters
-	Req types.GithubAuthRequest `json:"req"`
-}
-
-/* createGithubAuthRequest creates a new request for Github OAuth2 flow
-
-   POST /:version/github/requests/create
-
-   Success response: types.GithubAuthRequest
-*/
-// DELETE IN 11.0.0
-func (s *APIServer) createGithubAuthRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req createGithubAuthRequestReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response, err := auth.CreateGithubAuthRequest(r.Context(), req.Req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response, nil
-}
-
 // validateGithubAuthCallbackReq is a request to validate Github OAuth2 callback
 type validateGithubAuthCallbackReq struct {
 	// Query is the callback query string
@@ -1055,17 +921,18 @@ type githubAuthRawResponse struct {
 	// TLSCert is PEM encoded TLS certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
 	// Req is original oidc auth request
-	Req types.GithubAuthRequest `json:"req"`
+	Req GithubAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`
 }
 
-/* validateGithubAuthRequest validates Github auth callback redirect
+/*
+validateGithubAuthRequest validates Github auth callback redirect
 
-   POST /:version/github/requests/validate
+	POST /:version/github/requests/validate
 
-   Success response: githubAuthRawResponse
+	Success response: githubAuthRawResponse
 */
 func (s *APIServer) validateGithubAuthCallback(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req validateGithubAuthCallbackReq
@@ -1106,9 +973,10 @@ func (s *APIServer) validateGithubAuthCallback(auth ClientI, w http.ResponseWrit
 // HTTP GET /:version/events?query
 //
 // Query fields:
-//	'from'  : time filter in RFC3339 format
-//	'to'    : time filter in RFC3339 format
-//  ...     : other fields are passed directly to the audit backend
+//
+//		'from'  : time filter in RFC3339 format
+//		'to'    : time filter in RFC3339 format
+//	 ...     : other fields are passed directly to the audit backend
 func (s *APIServer) searchEvents(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var err error
 	to := time.Now().In(time.UTC)
@@ -1189,8 +1057,9 @@ func (s *APIServer) searchSessionEvents(auth ClientI, w http.ResponseWriter, r *
 
 // HTTP GET /:version/sessions/:id/stream?offset=x&bytes=y
 // Query parameters:
-//   "offset"   : bytes from the beginning
-//   "bytes"    : number of bytes to read (it won't return more than 512Kb)
+//
+//	"offset"   : bytes from the beginning
+//	"bytes"    : number of bytes to read (it won't return more than 512Kb)
 func (s *APIServer) getSessionChunk(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	sid, err := session.ParseID(p.ByName("id"))
 	if err != nil {
@@ -1227,7 +1096,8 @@ func (s *APIServer) getSessionChunk(auth ClientI, w http.ResponseWriter, r *http
 
 // HTTP GET /:version/sessions/:id/events?maxage=n
 // Query:
-//    'after' : cursor value to return events newer than N. Defaults to 0, (return all)
+//
+//	'after' : cursor value to return events newer than N. Defaults to 0, (return all)
 func (s *APIServer) getSessionEvents(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	sid, err := session.ParseID(p.ByName("id"))
 	if err != nil {

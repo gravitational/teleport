@@ -40,7 +40,7 @@ Vagrant.configure(2) do |config|
 
   # libvirt:
   config.vm.provider "libvirt" do |v|
-      config.vm.box = "http://s3.gravitational.io/vms/libvirt-debian.box"
+      config.vm.box = "debian/contrib-jessie64"
       config.vm.box_check_update = false
       config.vm.synced_folder "../", "/home/vagrant/teleport", type: "9p", disabled: false, accessmode: "mapped"
       config.vm.synced_folder "opt", "/opt", type: "9p", disabled: false, accessmode: "mapped"

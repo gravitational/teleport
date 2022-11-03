@@ -15,9 +15,9 @@
 package events
 
 import (
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/aws/aws-sdk-go/aws/endpoints"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 const (

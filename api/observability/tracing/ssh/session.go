@@ -49,7 +49,9 @@ func (s *Session) SendRequest(ctx context.Context, name string, wantReply bool, 
 	)
 	defer span.End()
 
-	return s.Session.SendRequest(name, wantReply, wrapPayload(ctx, s.wrapper.capability, config.TextMapPropagator, payload))
+	// no need to wrap payload here, the session's channel wrapper will do it for us
+	s.wrapper.addContext(ctx, name)
+	return s.Session.SendRequest(name, wantReply, payload)
 }
 
 // Setenv sets an environment variable that will be applied to any

@@ -20,15 +20,15 @@ import (
 	"context"
 	"encoding/hex"
 
+	"github.com/gravitational/trace"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/trace"
-
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 // GetKubeClient returns instance of client to the kubernetes cluster
@@ -137,7 +137,6 @@ func GetKubeConfig(configPath string, allConfigEntries bool, clusterName string)
 //
 // It is hex encoded to allow wildcard matching to work. In DNS wildcard match
 // include only one '.'
-//
 func EncodeClusterName(clusterName string) string {
 	// k is to avoid first letter to be a number
 	return "k" + hex.EncodeToString([]byte(clusterName))

@@ -11,7 +11,14 @@ resource "aws_dynamodb_table" "teleport" {
   write_capacity = 10
   hash_key       = "HashKey"
   range_key      = "FullPath"
+
+  // For demo purposes, CMK isn't necessary
+  // tfsec:ignore:aws-dynamodb-table-customer-key
   server_side_encryption {
+    enabled = true
+  }
+
+  point_in_time_recovery {
     enabled = true
   }
 
@@ -53,7 +60,13 @@ resource "aws_dynamodb_table" "teleport_events" {
   hash_key       = "SessionID"
   range_key      = "EventIndex"
 
+  // For demo purposes, CMK isn't necessary
+  // tfsec:ignore:aws-dynamodb-table-customer-key
   server_side_encryption {
+    enabled = true
+  }
+
+  point_in_time_recovery {
     enabled = true
   }
 
@@ -106,6 +119,16 @@ resource "aws_dynamodb_table" "teleport_locks" {
   read_capacity  = 5
   write_capacity = 5
   hash_key       = "Lock"
+
+  // For demo purposes, CMK isn't necessary
+  // tfsec:ignore:aws-dynamodb-table-customer-key
+  server_side_encryption {
+    enabled = true
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
 
   billing_mode = "PROVISIONED"
 

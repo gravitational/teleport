@@ -28,16 +28,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
 	"github.com/ThalesIgnite/crypto11"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/cryptosigner"
 	"gopkg.in/square/go-jose.v2/jwt"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Config defines the clock and PEM encoded bytes of a public and private
@@ -104,6 +104,9 @@ type SignParams struct {
 
 	// Roles are the roles assigned to the user within Teleport.
 	Roles []string
+
+	// Traits are the traits assigned to the user within Teleport.
+	Traits wrappers.Traits
 
 	// Expiry is time to live for the token.
 	Expires time.Time
@@ -177,6 +180,7 @@ func (k *Key) Sign(p SignParams) (string, error) {
 		},
 		Username: p.Username,
 		Roles:    p.Roles,
+		Traits:   p.Traits,
 	}
 
 	return k.sign(claims)
@@ -324,6 +328,9 @@ type Claims struct {
 
 	// Roles returns the list of roles assigned to the user within Teleport.
 	Roles []string `json:"roles"`
+
+	// Traits returns the traits assigned to the user within Teleport.
+	Traits wrappers.Traits `json:"traits"`
 }
 
 // GenerateKeyPair generates and return a PEM encoded private and public

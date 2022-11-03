@@ -5,9 +5,6 @@ on:
     branches:
       - master
       - branch/*
-    paths-ignore:
-      - 'docs/**'
-      - 'rfd/**'
   pull_request:
     branches:
       - master
@@ -15,11 +12,12 @@ on:
     paths-ignore:
       - 'docs/**'
       - 'rfd/**'
+      - '**.md'
 
 jobs:
   analyze:
     name: Analyze
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-32core
     permissions:
       actions: read
       contents: read
@@ -34,15 +32,27 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    - name: Initialize CodeQL
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version-file: 'go.mod'
+      if: ${{ matrix.language == 'go' }}
+
+    - name: Initialize the CodeQL tools for scanning
       uses: github/codeql-action/init@v2
       with:
         languages: ${{ matrix.language }}
 
     - name: Autobuild
       uses: github/codeql-action/autobuild@v2
+      if: ${{ matrix.language != 'go' }}
+
+    - name: Build Teleport OSS
+      run: |
+        make full
+      if: ${{ matrix.language == 'go' }}
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
-      env:
-        CODEQL_EXTRACTOR_GO_MAX_GOROUTINES: 16
+      with:
+        category: "/language:${{matrix.language}}"

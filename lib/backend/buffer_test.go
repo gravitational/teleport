@@ -22,33 +22,11 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
-
-// TestBufferSizes tests various combinations of various
-// buffer sizes and lists
-func TestBufferSizes(t *testing.T) {
-	list(t, 1, 100)
-	list(t, 2, 100)
-	list(t, 3, 100)
-	list(t, 4, 100)
-}
-
-// TestBufferSizesReset tests various combinations of various
-// buffer sizes and lists with clear.
-func TestBufferSizesReset(t *testing.T) {
-	b := NewCircularBuffer(
-		BufferCapacity(1),
-	)
-	defer b.Close()
-	b.SetInit()
-
-	listWithBuffer(t, b, 1, 100)
-	b.Clear()
-	listWithBuffer(t, b, 1, 100)
-}
 
 // TestWatcherSimple tests scenarios with watchers
 func TestWatcherSimple(t *testing.T) {
@@ -349,56 +327,4 @@ func TestWatcherTree(t *testing.T) {
 	require.Equal(t, matched[0], w2)
 
 	require.Equal(t, wt.rm(w2), true)
-}
-
-func makeIDs(size int) []int64 {
-	out := make([]int64, size)
-	for i := 0; i < size; i++ {
-		out[i] = int64(i)
-	}
-	return out
-}
-
-func expectEvents(t *testing.T, b *CircularBuffer, ids []int64) {
-	events := b.Events()
-	if len(ids) == 0 {
-		require.Equal(t, len(events), 0)
-		return
-	}
-	require.Empty(t, cmp.Diff(toIDs(events), ids))
-}
-
-func toIDs(e []Event) []int64 {
-	var out []int64
-	for i := 0; i < len(e); i++ {
-		out = append(out, e[i].Item.ID)
-	}
-	return out
-}
-
-func list(t *testing.T, bufferSize int, listSize int) {
-	b := NewCircularBuffer(
-		BufferCapacity(bufferSize),
-	)
-	defer b.Close()
-	b.SetInit()
-	listWithBuffer(t, b, bufferSize, listSize)
-}
-
-func listWithBuffer(t *testing.T, b *CircularBuffer, bufferSize int, listSize int) {
-	// empty by default
-	expectEvents(t, b, nil)
-
-	elements := makeIDs(listSize)
-
-	// push through all elements of the list and make sure
-	// the slice always matches
-	for i := 0; i < len(elements); i++ {
-		b.Emit(Event{Item: Item{ID: elements[i]}})
-		sliceEnd := i + 1 - bufferSize
-		if sliceEnd < 0 {
-			sliceEnd = 0
-		}
-		expectEvents(t, b, elements[sliceEnd:i+1])
-	}
 }

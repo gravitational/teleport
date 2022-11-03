@@ -21,6 +21,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -28,11 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // SSOTestCommand implements common.CLICommand interface
@@ -48,6 +47,8 @@ type SSOTestCommand struct {
 	Handlers map[string]func(c auth.ClientI, connBytes []byte) (*AuthRequestInfo, error)
 	// GetDiagInfoFields provides auth kind-specific diagnostic info fields.
 	GetDiagInfoFields map[string]func(diag *types.SSODiagnosticInfo, debug bool) []string
+	// Browser to use in login flow.
+	Browser string
 }
 
 // Initialize allows a caller-defined command to plug itself into CLI
@@ -57,6 +58,7 @@ func (cmd *SSOTestCommand) Initialize(app *kingpin.Application, cfg *service.Con
 
 	sso := app.GetCommand("sso")
 	cmd.ssoTestCmd = sso.Command("test", "Perform end-to-end test of SSO flow using provided auth connector definition.")
+	cmd.ssoTestCmd.Flag("browser", "Set to 'none' to suppress browser opening on login.").StringVar(&cmd.Browser)
 	cmd.ssoTestCmd.Arg("filename", "Connector resource definition filename. Empty for stdin.").StringVar(&cmd.connectorFileName)
 	cmd.ssoTestCmd.Alias(`
 Examples:
@@ -160,7 +162,7 @@ type AuthRequestInfo struct {
 }
 
 func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, protocol string, c auth.ClientI, config *client.RedirectorConfig) (*auth.SSHLoginResponse, error) {
-	key, err := client.NewKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -176,6 +178,7 @@ func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, protocol string,
 
 	cfg := client.MakeDefaultConfig()
 	cfg.WebProxyAddr = proxies[0].GetPublicAddr()
+	cfg.Browser = cmd.Browser
 
 	tc, err := client.NewClient(cfg)
 	if err != nil {
@@ -185,7 +188,7 @@ func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, protocol string,
 	return client.SSHAgentSSOLogin(ctx, client.SSHLoginSSO{
 		SSHLogin: client.SSHLogin{
 			ProxyAddr:         tc.WebProxyAddr,
-			PubKey:            key.Pub,
+			PubKey:            key.MarshalSSHPublicKey(),
 			TTL:               tc.KeyTTL,
 			Insecure:          tc.InsecureSkipVerify,
 			Pool:              nil,
