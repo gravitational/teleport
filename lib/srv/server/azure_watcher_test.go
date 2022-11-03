@@ -18,7 +18,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -143,7 +142,7 @@ func TestAzureWatcher(t *testing.T) {
 						vmIDs = append(vmIDs, *vm.ID)
 					}
 				case <-ctx.Done():
-					require.Fail(t, fmt.Sprintf("Expected %v VMs, got %v", len(tc.wantVMs), len(vmIDs)))
+					require.Fail(t, "Expected %v VMs, got %v", tc.wantVMs, len(vmIDs))
 				}
 			}
 

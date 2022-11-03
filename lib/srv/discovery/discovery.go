@@ -176,8 +176,8 @@ func (s *Server) initAWSWatchers(matchers []services.AWSMatcher) error {
 func (s *Server) initAzureWatchers(ctx context.Context, matchers []services.AzureMatcher) error {
 	vmMatchers, otherMatchers := splitAzureMatchers(matchers)
 
-	var err error
 	if len(vmMatchers) > 0 {
+		var err error
 		s.azureWatcher, err = server.NewAzureWatcher(s.ctx, vmMatchers, s.Clients)
 		if err != nil {
 			return trace.Wrap(err)
