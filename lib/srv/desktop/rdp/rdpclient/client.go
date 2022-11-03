@@ -278,7 +278,7 @@ func (c *Client) start() {
 		// calls handle_bitmap repeatedly with the incoming bitmaps.
 		if errCode := C.read_rdp_output(c.rustClient); errCode != C.ErrCodeSuccess {
 			c.cfg.Log.Warningf("Failed reading RDP output frame: %v", errCode)
-			c.cfg.Conn.SendError("There was an error reading data from the Windows Desktop")
+			c.cfg.Conn.SendError("There was an error reading data from the Windows Desktop", true)
 		}
 	}()
 
@@ -298,7 +298,7 @@ func (c *Client) start() {
 			if errors.Is(err, io.EOF) {
 				return
 			} else if tdp.IsNonFatalErr(err) {
-				c.cfg.Conn.SendError(err.Error())
+				c.cfg.Conn.SendError(err.Error(), false)
 				continue
 			} else if err != nil {
 				c.cfg.Log.Warningf("Failed reading TDP input message: %v", err)

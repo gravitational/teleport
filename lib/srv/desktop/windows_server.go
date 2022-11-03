@@ -631,7 +631,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 
 	// Inline function to enforce that we are centralizing TDP Error sending in this function.
 	sendTDPError := func(message string) {
-		if err := tdpConn.SendError(message); err != nil {
+		if err := tdpConn.SendError(message, true); err != nil {
 			log.Errorf("Failed to send TDP error message %v", err)
 		}
 	}
@@ -1220,7 +1220,7 @@ type monitorErrorSender struct {
 }
 
 func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
-	if err := m.tdpConn.SendError(s); err != nil {
+	if err := m.tdpConn.SendError(s, true); err != nil {
 		errMsg := fmt.Sprintf("Failed to send TDP error message %v: %v", s, err)
 		m.log.Error(errMsg)
 		return 0, trace.Errorf(errMsg)

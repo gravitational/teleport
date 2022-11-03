@@ -200,10 +200,12 @@ This message contains a mouse wheel update. Sent from client to server.
 #### 9 - error
 
 ```
-| message type (9) | message_length uint32 | message []byte
+| message type (9) | message_length uint32 | message []byte | fatal bool
 ```
 
 This message indicates an error has occurred.
+
+Type `bool` is defined in [0067](https://github.com/gravitational/teleport/blob/master/rfd/0067-desktop-access-file-system-sharing.md)
 
 #### 10 - MFA
 

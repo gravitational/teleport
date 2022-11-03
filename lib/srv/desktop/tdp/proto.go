@@ -447,6 +447,7 @@ func decodeClientUsername(in io.Reader) (ClientUsername, error) {
 
 type Error struct {
 	Message string
+	Fatal   bool
 }
 
 // tdpMaxErrorMessageLength is somewhat arbitrary, as it is only sent *to*
@@ -459,15 +460,32 @@ func (m Error) Encode() ([]byte, error) {
 	if err := encodeString(buf, m.Message); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	var fatal byte
+	if m.Fatal {
+		fatal = 1
+	} else {
+		fatal = 0
+	}
+	buf.WriteByte(fatal)
 	return buf.Bytes(), nil
 }
 
-func decodeError(in io.Reader) (Error, error) {
+func decodeError(in byteReader) (Error, error) {
 	message, err := decodeString(in, tdpMaxErrorMessageLength)
 	if err != nil {
 		return Error{}, trace.Wrap(err)
 	}
-	return Error{Message: message}, nil
+	fatalByte, err := in.ReadByte()
+	if err != nil {
+		return Error{}, trace.Wrap(err)
+	}
+	var fatal bool
+	if fatalByte == 0 {
+		fatal = false
+	} else {
+		fatal = true
+	}
+	return Error{Message: message, Fatal: fatal}, nil
 }
 
 // MouseWheelAxis identifies a scroll axis on the mouse wheel.
@@ -513,8 +531,7 @@ func (c ClipboardData) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// This value MUST have the same value as the variable by the same name in webapps
-const clipDataMaxLenErr = "clipboard data exceeds maximum length"
+const clipDataMaxLenErr = "clipboard sync failed: clipboard data exceeded maximum length"
 
 func decodeClipboardData(in io.Reader, maxLen uint32) (ClipboardData, error) {
 	var length uint32
