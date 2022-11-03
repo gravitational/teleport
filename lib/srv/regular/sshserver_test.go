@@ -35,6 +35,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/mailgun/timetools"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -58,15 +68,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/mailgun/timetools"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 )
 
 // teleportTestUser is additional user used for tests
@@ -1411,8 +1412,8 @@ func TestProxyRoundRobin(t *testing.T) {
 	up, err := newUpack(f.testSrv, f.user, []string{f.user}, wildcardAllow)
 	require.NoError(t, err)
 
-	resolver := func(context.Context) (*utils.NetAddr, error) {
-		return &utils.NetAddr{Addr: reverseTunnelAddress.Addr, AddrNetwork: "tcp"}, nil
+	resolver := func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
+		return &utils.NetAddr{Addr: reverseTunnelAddress.Addr, AddrNetwork: "tcp"}, types.ProxyListenerMode_Separate, nil
 	}
 
 	pool1, err := reversetunnel.NewAgentPool(ctx, reversetunnel.AgentPoolConfig{
@@ -1815,6 +1816,79 @@ func TestGlobalRequestRecordingProxy(t *testing.T) {
 	response, err = strconv.ParseBool(string(responseBytes))
 	require.NoError(t, err)
 	require.True(t, response)
+}
+
+// TestGlobalRequestClusterDetails simulates sending a global out-of-band
+// cluster-details@goteleport.com request.
+func TestGlobalRequestClusterDetails(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	cases := []struct {
+		name     string
+		fips     bool
+		mode     string
+		expected sshutils.ClusterDetails
+	}{
+		{
+			name: "node recording and fips",
+			fips: true,
+			mode: types.RecordAtNode,
+			expected: sshutils.ClusterDetails{
+				RecordingProxy: false,
+				FIPSEnabled:    true,
+			},
+		},
+		{
+			name: "node recording and not fips",
+			fips: false,
+			mode: types.RecordAtNode,
+			expected: sshutils.ClusterDetails{
+				RecordingProxy: false,
+				FIPSEnabled:    false,
+			},
+		},
+		{
+			name: "proxy recording and fips",
+			fips: true,
+			mode: types.RecordAtProxy,
+			expected: sshutils.ClusterDetails{
+				RecordingProxy: true,
+				FIPSEnabled:    true,
+			},
+		},
+		{
+			name: "proxy recording and not fips",
+			fips: false,
+			mode: types.RecordAtProxy,
+			expected: sshutils.ClusterDetails{
+				RecordingProxy: true,
+				FIPSEnabled:    false,
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newCustomFixture(t, func(*auth.TestServerConfig) {}, SetFIPS(tt.fips))
+			recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{Mode: tt.mode})
+			require.NoError(t, err)
+
+			err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
+			require.NoError(t, err)
+
+			ok, responseBytes, err := f.ssh.clt.SendRequest(ctx, teleport.ClusterDetailsReqType, true, nil)
+			require.NoError(t, err)
+			require.True(t, ok)
+
+			var details sshutils.ClusterDetails
+			require.NoError(t, ssh.Unmarshal(responseBytes, &details))
+			require.Empty(t, cmp.Diff(tt.expected, details))
+		})
+	}
 }
 
 // rawNode is a basic non-teleport node which holds a
@@ -2402,7 +2476,7 @@ func requireRoot(t *testing.T) {
 //
 // See the following links for more details.
 //
-//   https://man7.org/linux/man-pages/man7/pipe.7.html
-//   https://github.com/afborchert/pipebuf
-//   https://unix.stackexchange.com/questions/11946/how-big-is-the-pipe-buffer
+//	https://man7.org/linux/man-pages/man7/pipe.7.html
+//	https://github.com/afborchert/pipebuf
+//	https://unix.stackexchange.com/questions/11946/how-big-is-the-pipe-buffer
 const maxPipeSize = 65536 + 1
