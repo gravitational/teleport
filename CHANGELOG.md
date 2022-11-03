@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.3.21
+
+This release of Teleport contains a bug fix and a performance improvement.
+
+* Fixed issue with Kubernetes proxy caching client credentials between different login sessions. [#18114](https://github.com/gravitational/teleport/pull/18114)
+* Improved performance by reducing number of roundtrips to the cluster by various clients. [#17805](https://github.com/gravitational/teleport/pull/17805), [#17799](https://github.com/gravitational/teleport/pull/17799)
+
 ## 8.3.20
 
 This release of Teleport contains a security fix as well as multiple improvements and bug fixes.
