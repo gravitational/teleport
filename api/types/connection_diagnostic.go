@@ -17,14 +17,17 @@ limitations under the License.
 package types
 
 import (
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 const (
-	// DiagnosticMessageWaiting is the message used when we start the Diagnostic
-	// before collecting any traces.
-	DiagnosticMessageWaiting = "waiting"
+	// DiagnosticMessageSuccess is the message used when we the Connection was successful
+	DiagnosticMessageSuccess = "success"
+
+	// DiagnosticMessageFailed is the message used when we the Connection failed
+	DiagnosticMessageFailed = "failed"
 )
 
 // ConnectionDiagnostic represents a Connection Diagnostic.
@@ -143,4 +146,21 @@ func (c *ConnectionDiagnosticV1) SetOrigin(o string) {
 // SetStaticLabels sets the connection diagnostic static labels.
 func (c *ConnectionDiagnosticV1) SetStaticLabels(sl map[string]string) {
 	c.Metadata.Labels = sl
+}
+
+// NewTraceDiagnosticConnection creates a new Connection Diagnostic Trace.
+// If traceErr is not nil, it will set the Status to FAILED, SUCCESS otherwise.
+func NewTraceDiagnosticConnection(traceType ConnectionDiagnosticTrace_TraceType, details string, traceErr error) *ConnectionDiagnosticTrace {
+	ret := &ConnectionDiagnosticTrace{
+		Status:  ConnectionDiagnosticTrace_SUCCESS,
+		Type:    traceType,
+		Details: details,
+	}
+
+	if traceErr != nil {
+		ret.Status = ConnectionDiagnosticTrace_FAILED
+		ret.Error = traceErr.Error()
+	}
+
+	return ret
 }

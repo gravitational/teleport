@@ -53,14 +53,17 @@ const (
 	SessionLogsDir = "sessions"
 
 	// StreamingLogsDir is a subdirectory of sessions /var/lib/teleport/log/streaming
-	// is used in new versions of the uploader
+	// is used in new versions of the uploader. This directory is used in asynchronous
+	// recording modes where recordings are buffered to disk before being uploaded
+	// to the auth server.
 	StreamingLogsDir = "streaming"
 
-	// RecordsDir is a subdirectory with default records /var/lib/teleport/log/records
-	// is used in new versions of the uploader
+	// RecordsDir is an auth server subdirectory with session recordings that is used
+	// when the auth server is not configured for external cloud storage. It is not
+	// used by nodes, proxies, or other Teleport services.
 	RecordsDir = "records"
 
-	// PlaybackDir is a directory for playbacks
+	// PlaybackDir is a directory for caching downloaded sessions during playback.
 	PlaybackDir = "playbacks"
 
 	// LogfileExt defines the ending of the daily event log file
@@ -744,9 +747,7 @@ func (l *AuditLog) getSessionChunk(namespace string, sid session.ID, offsetBytes
 // (oldest first).
 //
 // Can be filtered by 'after' (cursor value to return events newer than)
-//
-// This function is usually used in conjunction with GetSessionReader to
-// replay recorded session streams.
+
 func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]EventFields, error) {
 	l.log.WithFields(log.Fields{"sid": string(sid), "afterN": afterN, "printEvents": includePrintEvents}).Debugf("GetSessionEvents.")
 	if namespace == "" {

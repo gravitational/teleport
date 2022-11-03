@@ -34,6 +34,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -45,6 +46,9 @@ var ErrSAMLNoRoles = trace.AccessDenied("No roles mapped from claims. The mappin
 
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
+	if err := services.ValidateSAMLConnector(connector, a); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := a.Services.UpsertSAMLConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
@@ -155,7 +159,7 @@ func (a *Server) getSAMLConnectorAndProvider(ctx context.Context, req types.SAML
 		}
 
 		// validate, set defaults for connector
-		err = services.ValidateSAMLConnector(connector)
+		err = services.ValidateSAMLConnector(connector, a)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -361,10 +365,39 @@ type SAMLAuthResponse struct {
 	// TLSCert is a PEM encoded TLS certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
 	// Req is an original SAML auth request
-	Req types.SAMLAuthRequest `json:"req"`
+	Req SAMLAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
+}
+
+// SAMLAuthRequest is a SAML auth request that supports standard json marshaling.
+type SAMLAuthRequest struct {
+	// ID is a unique request ID.
+	ID string `json:"id"`
+	// PublicKey is an optional public key, users want these
+	// keys to be signed by auth servers user CA in case
+	// of successful auth.
+	PublicKey []byte `json:"public_key"`
+	// CSRFToken is associated with user web session token.
+	CSRFToken string `json:"csrf_token"`
+	// CreateWebSession indicates if user wants to generate a web
+	// session after successful authentication.
+	CreateWebSession bool `json:"create_web_session"`
+	// ClientRedirectURL is a URL client wants to be redirected
+	// after successful authentication.
+	ClientRedirectURL string `json:"client_redirect_url"`
+}
+
+// SAMLAuthRequestFromProto converts the types.SAMLAuthRequest to SAMLAuthRequestData.
+func SAMLAuthRequestFromProto(req *types.SAMLAuthRequest) SAMLAuthRequest {
+	return SAMLAuthRequest{
+		ID:                req.ID,
+		PublicKey:         req.PublicKey,
+		CSRFToken:         req.CSRFToken,
+		CreateWebSession:  req.CreateWebSession,
+		ClientRedirectURL: req.ClientRedirectURL,
+	}
 }
 
 // ValidateSAMLResponse consumes attribute statements from SAML identity provider
@@ -454,7 +487,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 			return nil, trace.Wrap(err, "Failed to get SAML connector and provider")
 		}
 	case err != nil:
-		trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	default:
 		diagCtx.requestID = requestID
 		request, err = a.Identity.GetSAMLAuthRequest(ctx, requestID)
@@ -551,9 +584,9 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 	}
 
 	if request != nil {
-		auth.Req = *request
+		auth.Req = SAMLAuthRequestFromProto(request)
 	} else {
-		auth.Req = types.SAMLAuthRequest{
+		auth.Req = SAMLAuthRequest{
 			CreateWebSession: true,
 		}
 	}
@@ -582,7 +615,8 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 
 	// If a public key was provided, sign it and return a certificate.
 	if request != nil && len(request.PublicKey) != 0 {
-		sshCert, tlsCert, err := a.createSessionCert(user, params.sessionTTL, request.PublicKey, request.Compatibility, request.RouteToCluster, request.KubernetesCluster)
+		sshCert, tlsCert, err := a.createSessionCert(user, params.sessionTTL, request.PublicKey, request.Compatibility, request.RouteToCluster,
+			request.KubernetesCluster, keys.AttestationStatementFromProto(request.AttestationStatement))
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")
 		}

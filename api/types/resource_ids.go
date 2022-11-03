@@ -21,9 +21,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 func (id *ResourceID) CheckAndSetDefaults() error {
@@ -108,18 +108,4 @@ func ResourceIDsFromString(raw string) ([]ResourceID, error) {
 		resourceIDs = append(resourceIDs, id)
 	}
 	return resourceIDs, nil
-}
-
-// EventResourceIDs converts a []ResourceID to a []events.ResourceID
-func EventResourceIDs(resourceIDs []ResourceID) []events.ResourceID {
-	if resourceIDs == nil {
-		return nil
-	}
-	out := make([]events.ResourceID, len(resourceIDs))
-	for i := range resourceIDs {
-		out[i].ClusterName = resourceIDs[i].ClusterName
-		out[i].Kind = resourceIDs[i].Kind
-		out[i].Name = resourceIDs[i].Name
-	}
-	return out
 }

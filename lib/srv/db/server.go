@@ -16,12 +16,18 @@ limitations under the License.
 
 package db
 
+//nolint:goimports
 import (
 	"context"
 	"crypto/tls"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -36,26 +42,24 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	// Import to register Cassandra engine.
+	_ "github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/cloud/users"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/srv/db/mysql"
-	"github.com/gravitational/teleport/lib/utils"
-
+	// Import to register Elasticsearch engine.
+	_ "github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	// Import to register MongoDB engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/mongodb"
+	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	// Import to register Postgres engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/postgres"
 	// Import to register Snowflake engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/snowflake"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// Config is the configuration for an database proxy server.
+// Config is the configuration for a database proxy server.
 type Config struct {
 	// Clock used to control time.
 	Clock clockwork.Clock
@@ -904,7 +908,7 @@ func fetchMySQLVersion(ctx context.Context, database types.Database) error {
 	}
 
 	// Try to extract the engine version for AWS metadata labels.
-	if database.IsRDS() {
+	if database.IsRDS() || database.IsAzure() {
 		version := services.GetMySQLEngineVersion(database.GetMetadata().Labels)
 		if version != "" {
 			database.SetMySQLServerVersion(version)
@@ -947,16 +951,7 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 
 	s.log.Debugf("Creating tracker for session %v", sessionCtx.ID)
 	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, s.cfg.AuthClient)
-	switch {
-	case err == nil:
-	case trace.IsAccessDenied(err):
-		// Ignore access denied errors, which we may get if the auth
-		// server is v9.2.3 or earlier, since only node, proxy, and
-		// kube roles had permission to create session trackers.
-		// DELETE IN 11.0.0
-		s.log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session %v", sessionCtx.ID)
-		return nil
-	default: // aka err != nil
+	if err != nil {
 		return trace.Wrap(err)
 	}
 

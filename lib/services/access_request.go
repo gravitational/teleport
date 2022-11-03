@@ -24,6 +24,9 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/vulcand/predicate"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -31,10 +34,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/vulcand/predicate"
 )
 
 const maxAccessRequestReasonSize = 4096
@@ -596,13 +595,18 @@ func GetTraitMappings(cms []types.ClaimMapping) types.TraitMappingSet {
 	return types.TraitMappingSet(tm)
 }
 
+// ResourceLister is an interface which can list resources.
+type ResourceLister interface {
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+}
+
 // RequestValidatorGetter is the interface required by the request validation
 // functions used to get necessary resources.
 type RequestValidatorGetter interface {
 	UserGetter
 	RoleGetter
+	ResourceLister
 	GetRoles(ctx context.Context) ([]types.Role, error)
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
 }
 
@@ -1314,16 +1318,16 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 }
 
 // pruneResourceRequestRoles takes an access request and does one of two things:
-// 1. If it is a role request, returns it unchanged.
-// 2. If it is a resource request, all available `search_as_roles` for the user
-//    should have been populated on the request by `ValidateAccessReqeustForUser`.
-//    This function will attempt to prune these roles to a minimal necessary set
-//    based on the following rules:
-//    - If a role does not grant access to any resources in the set, it is pruned.
-//    - If the request includes a LoginHint, access to a node with that login
-//      should be satisfied by exactly 1 role. The first such role will be
-//      requested, all others will be pruned unless they are necessary to access
-//      a different resource in the set.
+//  1. If it is a role request, returns it unchanged.
+//  2. If it is a resource request, all available `search_as_roles` for the user
+//     should have been populated on the request by `ValidateAccessReqeustForUser`.
+//     This function will attempt to prune these roles to a minimal necessary set
+//     based on the following rules:
+//     - If a role does not grant access to any resources in the set, it is pruned.
+//     - If the request includes a LoginHint, access to a node with that login
+//     should be satisfied by exactly 1 role. The first such role will be
+//     requested, all others will be pruned unless they are necessary to access
+//     a different resource in the set.
 func (m *RequestValidator) pruneResourceRequestRoles(
 	ctx context.Context,
 	resourceIDs []types.ResourceID,
@@ -1356,7 +1360,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		return nil, trace.Wrap(err)
 	}
 
-	resources, err := getResources(ctx, m.getter, resourceIDs)
+	resources, err := GetResourcesByResourceIDs(ctx, m.getter, resourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1455,7 +1459,9 @@ func roleAllowsResource(
 	return true, nil
 }
 
-func getResources(ctx context.Context, getter RequestValidatorGetter, resourceIDs []types.ResourceID) ([]types.ResourceWithLabels, error) {
+type ListResourcesRequestOption func(*proto.ListResourcesRequest)
+
+func GetResourcesByResourceIDs(ctx context.Context, lister ResourceLister, resourceIDs []types.ResourceID, opts ...ListResourcesRequestOption) ([]types.ResourceWithLabels, error) {
 	resourceNamesByKind := make(map[string][]string)
 	for _, resourceID := range resourceIDs {
 		resourceNamesByKind[resourceID.Kind] = append(resourceNamesByKind[resourceID.Kind], resourceID.Name)
@@ -1467,7 +1473,10 @@ func getResources(ctx context.Context, getter RequestValidatorGetter, resourceID
 			PredicateExpression: anyNameMatcher(resourceNames),
 			Limit:               int32(len(resourceNames)),
 		}
-		resp, err := getter.ListResources(ctx, req)
+		for _, opt := range opts {
+			opt(&req)
+		}
+		resp, err := lister.ListResources(ctx, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1487,7 +1496,7 @@ func getResources(ctx context.Context, getter RequestValidatorGetter, resourceID
 func anyNameMatcher(names []string) string {
 	matchers := make([]string, len(names))
 	for i := range names {
-		matchers[i] = fmt.Sprintf(`name == %q`, names[i])
+		matchers[i] = fmt.Sprintf(`resource.metadata.name == %q`, names[i])
 	}
 	return strings.Join(matchers, " || ")
 }

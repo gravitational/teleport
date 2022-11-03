@@ -20,12 +20,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/gravitational/trace"
-
-	"github.com/sirupsen/logrus"
 )
 
 // RequestSender is an interface that implements SendRequest. It is used so
@@ -62,7 +61,7 @@ func StartKeepAliveLoop(p KeepAliveParams) {
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentKeepAlive,
 	})
-	log.Debugf("Starting keep-alive loop with with interval %v and max count %v.", p.Interval, p.MaxCount)
+	log.Debugf("Starting keep-alive loop with interval %v and max count %v.", p.Interval, p.MaxCount)
 
 	tickerCh := time.NewTicker(p.Interval)
 	defer tickerCh.Stop()

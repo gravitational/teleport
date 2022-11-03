@@ -25,10 +25,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -40,8 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 // generateKeys generates TLS and SSH keypairs.
@@ -64,11 +66,11 @@ func generateKeys() (private, sshpub, tlspub []byte, err error) {
 	return privateKey, publicKey, tlsPublicKey, nil
 }
 
-// authenticatedUserClientFromIdentity creates a new auth client from the given
+// AuthenticatedUserClientFromIdentity creates a new auth client from the given
 // identity. Note that depending on the connection address given, this may
 // attempt to connect via the proxy and therefore requires both SSH and TLS
 // credentials.
-func (b *Bot) authenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity, authServer string) (auth.ClientI, error) {
+func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (auth.ClientI, error) {
 	if id.SSHCert == nil || id.X509Cert == nil {
 		return nil, trace.BadParameter("auth client requires a fully formed identity")
 	}
@@ -83,7 +85,7 @@ func (b *Bot) authenticatedUserClientFromIdentity(ctx context.Context, id *ident
 		return nil, trace.Wrap(err)
 	}
 
-	authAddr, err := utils.ParseAddr(authServer)
+	authAddr, err := utils.ParseAddr(b.cfg.AuthServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -371,7 +373,7 @@ func (b *Bot) generateImpersonatedIdentity(
 	// Now that we have an initial impersonated identity, we can use it to
 	// request any app/db/etc certs
 	if destCfg.Database != nil {
-		impClient, err := b.authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
+		impClient, err := b.AuthenticatedUserClientFromIdentity(ctx, ident)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -406,7 +408,7 @@ func (b *Bot) generateImpersonatedIdentity(
 
 		return newIdent, trace.Wrap(err)
 	} else if destCfg.App != nil {
-		impClient, err := b.authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
+		impClient, err := b.AuthenticatedUserClientFromIdentity(ctx, ident)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -457,18 +459,20 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	expires := time.Now().Add(b.cfg.CertificateTTL)
 	params := auth.RegisterParams{
 		Token: token,
 		ID: auth.IdentityID{
 			Role: types.RoleBot,
 		},
-		Servers:            []utils.NetAddr{*addr},
+		AuthServers:        []utils.NetAddr{*addr},
 		PublicTLSKey:       tlsPublicKey,
 		PublicSSHKey:       sshPublicKey,
 		CAPins:             b.cfg.Onboarding.CAPins,
 		CAPath:             b.cfg.Onboarding.CAPath,
 		GetHostCredentials: client.HostCredentials,
 		JoinMethod:         b.cfg.Onboarding.JoinMethod,
+		Expires:            &expires,
 	}
 	certs, err := auth.Register(params)
 	if err != nil {
@@ -494,7 +498,11 @@ func (b *Bot) renewIdentityViaAuth(
 		joinMethod = b.cfg.Onboarding.JoinMethod
 	}
 	switch joinMethod {
-	case types.JoinMethodIAM:
+	// When using join methods that are repeatable - renew fully rather than
+	// renewing using existing credentials.
+	case types.JoinMethodIAM,
+		types.JoinMethodGitHub,
+		types.JoinMethodCircleCI:
 		ident, err := b.getIdentityFromToken()
 		return ident, trace.Wrap(err)
 	default:
@@ -563,9 +571,7 @@ func (b *Bot) renew(
 
 	// Immediately attempt to reconnect using the new identity (still
 	// haven't persisted the known-good certs).
-	newClient, err := b.authenticatedUserClientFromIdentity(
-		ctx, newIdentity, b.cfg.AuthServer,
-	)
+	newClient, err := b.AuthenticatedUserClientFromIdentity(ctx, newIdentity)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -676,7 +682,7 @@ func (b *Bot) renewLoop(ctx context.Context) error {
 	}
 
 	ticker := time.NewTicker(b.cfg.RenewalInterval)
-	jitter := utils.NewJitter()
+	jitter := retryutils.NewJitter()
 	defer ticker.Stop()
 	for {
 		var err error

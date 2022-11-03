@@ -20,12 +20,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
-	josejwt "gopkg.in/square/go-jose.v2/jwt"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	josejwt "gopkg.in/square/go-jose.v2/jwt"
+
+	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestSignAndVerify(t *testing.T) {
@@ -89,8 +90,11 @@ func TestPublicOnlyVerify(t *testing.T) {
 	token, err := key.Sign(SignParams{
 		Username: "foo@example.com",
 		Roles:    []string{"foo", "bar"},
-		Expires:  clock.Now().Add(1 * time.Minute),
-		URI:      "http://127.0.0.1:8080",
+		Traits: wrappers.Traits{
+			"trait1": []string{"value-1", "value-2"},
+		},
+		Expires: clock.Now().Add(1 * time.Minute),
+		URI:     "http://127.0.0.1:8080",
 	})
 	require.NoError(t, err)
 
@@ -143,8 +147,11 @@ func TestExpiry(t *testing.T) {
 	token, err := key.Sign(SignParams{
 		Username: "foo@example.com",
 		Roles:    []string{"foo", "bar"},
-		Expires:  clock.Now().Add(1 * time.Minute),
-		URI:      "http://127.0.0.1:8080",
+		Traits: wrappers.Traits{
+			"trait1": []string{"value-1", "value-2"},
+		},
+		Expires: clock.Now().Add(1 * time.Minute),
+		URI:     "http://127.0.0.1:8080",
 	})
 	require.NoError(t, err)
 

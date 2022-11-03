@@ -16,14 +16,17 @@ package identityfile
 
 import (
 	"bytes"
-	"crypto/rsa"
+	"crypto"
 	"crypto/x509/pkix"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/utils/keypaths"
@@ -33,25 +36,18 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/stretchr/testify/require"
 )
 
-func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, auth.TrustedCerts, error) {
-	rsaKey, err := ssh.ParseRawPrivateKey(privateKey)
-	if err != nil {
-		return nil, auth.TrustedCerts{}, trace.Wrap(err)
-	}
-	cert, err := tlsca.GenerateSelfSignedCAWithSigner(rsaKey.(*rsa.PrivateKey), pkix.Name{
+func newSelfSignedCA(priv crypto.Signer) (*tlsca.CertAuthority, auth.TrustedCerts, error) {
+	cert, err := tlsca.GenerateSelfSignedCAWithSigner(priv, pkix.Name{
 		CommonName:   "localhost",
 		Organization: []string{"localhost"},
 	}, nil, defaults.CATTL)
 	if err != nil {
 		return nil, auth.TrustedCerts{}, trace.Wrap(err)
 	}
-	ca, err := tlsca.FromCertAndSigner(cert, rsaKey.(*rsa.PrivateKey))
+	ca, err := tlsca.FromCertAndSigner(cert, priv)
 	if err != nil {
 		return nil, auth.TrustedCerts{}, trace.Wrap(err)
 	}
@@ -59,15 +55,12 @@ func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, auth.TrustedCerts
 }
 
 func newClientKey(t *testing.T) *client.Key {
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, err := testauthority.New().GeneratePrivateKey()
 	require.NoError(t, err)
 
 	ff, tc, err := newSelfSignedCA(privateKey)
 	require.NoError(t, err)
 	keygen := testauthority.New()
-
-	cryptoPubKey, err := sshutils.CryptoPublicKey(publicKey)
-	require.NoError(t, err)
 
 	clock := clockwork.NewRealClock()
 	identity := tlsca.Identity{
@@ -79,30 +72,29 @@ func newClientKey(t *testing.T) *client.Key {
 
 	tlsCert, err := ff.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
-		PublicKey: cryptoPubKey,
+		PublicKey: privateKey.Public(),
 		Subject:   subject,
 		NotAfter:  clock.Now().UTC().Add(defaults.CATTL),
 	})
 	require.NoError(t, err)
 
 	ta := testauthority.New()
-	priv, _, err := ta.GenerateKeyPair()
+	signer, err := ta.GeneratePrivateKey()
 	require.NoError(t, err)
-	caSigner, err := ssh.ParsePrivateKey(priv)
+	caSigner, err := ssh.NewSignerFromKey(signer)
 	require.NoError(t, err)
 
 	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
 		CASigner:      caSigner,
-		PublicUserKey: publicKey,
+		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 		Username:      "testuser",
 	})
 	require.NoError(t, err)
 
 	return &client.Key{
-		Priv:    privateKey,
-		Pub:     publicKey,
-		Cert:    certificate,
-		TLSCert: tlsCert,
+		PrivateKey: privateKey,
+		Cert:       certificate,
+		TLSCert:    tlsCert,
 		TrustedCA: []auth.TrustedCerts{
 			tc,
 		},
@@ -129,7 +121,7 @@ func TestWrite(t *testing.T) {
 	// key is OK:
 	out, err := os.ReadFile(cfg.OutputPath)
 	require.NoError(t, err)
-	require.Equal(t, string(out), string(key.Priv))
+	require.Equal(t, string(out), string(key.PrivateKeyPEM()))
 
 	// cert is OK:
 	out, err = os.ReadFile(keypaths.IdentitySSHCertPath(cfg.OutputPath))
@@ -147,14 +139,14 @@ func TestWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	wantArr := [][]byte{
-		key.Priv,
-		{'\n'},
+		key.PrivateKeyPEM(),
+		[]byte("\n"),
 		key.Cert,
 		key.TLSCert,
 		bytes.Join(key.TLSCAs(), []byte{}),
 	}
 	want := string(bytes.Join(wantArr, nil))
-	require.Equal(t, string(out), want)
+	require.Equal(t, want, string(out))
 
 	// Test kubeconfig creation.
 	cfg.OutputPath = filepath.Join(outputDir, "kubeconfig")
@@ -164,6 +156,38 @@ func TestWrite(t *testing.T) {
 	_, err = Write(cfg)
 	require.NoError(t, err)
 	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "far.away.cluster", cfg.KubeTLSServerName)
+}
+
+func TestWriteAllFormats(t *testing.T) {
+	for _, format := range KnownFileFormats {
+		t.Run(string(format), func(t *testing.T) {
+			key := newClientKey(t)
+
+			cfg := WriteConfig{
+				OutputPath: path.Join(t.TempDir(), "identity"),
+				Key:        key,
+				Format:     format,
+			}
+
+			// extra fields for kubernetes
+			if format == FormatKubernetes {
+				cfg.KubeProxyAddr = "far.away.cluster"
+				cfg.KubeTLSServerName = "kube.far.away.cluster"
+			}
+
+			// for cockroach, output path should be a directory
+			if format == FormatCockroach {
+				cfg.OutputPath = t.TempDir()
+			}
+
+			files, err := Write(cfg)
+			require.NoError(t, err)
+			for _, file := range files {
+				require.True(t, strings.HasPrefix(file, cfg.OutputPath))
+			}
+			require.True(t, len(files) > 0)
+		})
+	}
 }
 
 func TestKubeconfigOverwrite(t *testing.T) {

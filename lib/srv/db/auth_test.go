@@ -23,6 +23,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -30,11 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/jonboulle/clockwork"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
 
 // TestAuthTokens verifies that proper IAM auth tokens are used when connecting
@@ -55,7 +55,10 @@ func TestAuthTokens(t *testing.T) {
 		withCloudSQLMySQL("mysql-cloudsql-correct-token", "root", cloudSQLPassword),
 		withCloudSQLMySQL("mysql-cloudsql-incorrect-token", "root", "qwe123"),
 		withAzureMySQL("mysql-azure-correct-token", "root", azureAccessToken),
-		withAzureMySQL("mysql-azure-incorrect-token", "root", "qwe123"))
+		withAzureMySQL("mysql-azure-incorrect-token", "root", "qwe123"),
+		withAzureRedis("redis-azure-correct-token", azureRedisToken),
+		withAzureRedis("redis-azure-incorrect-token", "qwe123"),
+	)
 	go testCtx.startHandlingConnections()
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
@@ -123,6 +126,17 @@ func TestAuthTokens(t *testing.T) {
 			protocol: defaults.ProtocolMySQL,
 			err:      "Access denied for user",
 		},
+		{
+			desc:     "correct Azure Redis auth token",
+			service:  "redis-azure-correct-token",
+			protocol: defaults.ProtocolRedis,
+		},
+		{
+			desc:     "incorrect Azure Redis auth token",
+			service:  "redis-azure-incorrect-token",
+			protocol: defaults.ProtocolRedis,
+			err:      "WRONGPASS invalid username-password pair",
+		},
 	}
 
 	for _, test := range tests {
@@ -139,6 +153,15 @@ func TestAuthTokens(t *testing.T) {
 				}
 			case defaults.ProtocolMySQL:
 				conn, err := testCtx.mysqlClient("alice", test.service, "root")
+				if test.err != "" {
+					require.Error(t, err)
+					require.Contains(t, err.Error(), test.err)
+				} else {
+					require.NoError(t, err)
+					require.NoError(t, conn.Close())
+				}
+			case defaults.ProtocolRedis:
+				conn, err := testCtx.redisClient(ctx, "alice", test.service, "default")
 				if test.err != "" {
 					require.Error(t, err)
 					require.Contains(t, err.Error(), test.err)
@@ -186,6 +209,8 @@ const (
 	cloudSQLPassword = "cloudsql-password"
 	// azureAccessToken is a mock Azure access token.
 	azureAccessToken = "azure-access-token"
+	// azureRedisToken is a mock Azure Redis token.
+	azureRedisToken = "azure-redis-token"
 )
 
 // GetRDSAuthToken generates RDS/Aurora auth token.
@@ -218,6 +243,12 @@ func (a *testAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *common.S
 	return azureAccessToken, nil
 }
 
+// GetAzureCacheForRedisToken retrieves auth token for Azure Cache for Redis.
+func (a *testAuth) GetAzureCacheForRedisToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
+	a.Infof("Generating Azure Redis token for %v.", sessionCtx)
+	return azureRedisToken, nil
+}
+
 func TestDBCertSigning(t *testing.T) {
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Clock:       clockwork.NewFakeClockAt(time.Now()),
@@ -229,7 +260,7 @@ func TestDBCertSigning(t *testing.T) {
 
 	ctx := context.Background()
 
-	privateKey, _, err := testauthority.New().GenerateKeyPair()
+	privateKey, err := testauthority.New().GeneratePrivateKey()
 	require.NoError(t, err)
 
 	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{

@@ -22,15 +22,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -84,15 +83,20 @@ type ExecValues struct {
 //
 // If `path` is empty, Update will try to guess it based on the environment or
 // known defaults.
-func Update(path string, v Values) error {
+func Update(path string, v Values, storeAllCAs bool) error {
 	config, err := Load(path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	clusterCAs, err := v.Credentials.RootClusterCAs()
-	if err != nil {
-		return trace.Wrap(err)
+	var clusterCAs [][]byte
+	if storeAllCAs {
+		clusterCAs = v.Credentials.TLSCAs()
+	} else {
+		clusterCAs, err = v.Credentials.RootClusterCAs()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	cas := bytes.Join(clusterCAs, []byte("\n"))
@@ -154,20 +158,26 @@ func Update(path string, v Values) error {
 		//
 		// Validate the provided credentials, to avoid partially-populated
 		// kubeconfig.
-		if len(v.Credentials.Priv) == 0 {
-			return trace.BadParameter("private key missing in provided credentials")
-		}
-		if len(v.Credentials.TLSCert) == 0 {
-			return trace.BadParameter("TLS certificate missing in provided credentials")
-		}
 
-		config.AuthInfos[v.TeleportClusterName] = &clientcmdapi.AuthInfo{
-			ClientCertificateData: v.Credentials.TLSCert,
-			ClientKeyData:         v.Credentials.Priv,
-		}
+		// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to use non-rsa
+		// private keys for kube credentials (if possible)
+		rsaKeyPEM, err := v.Credentials.PrivateKey.RSAPrivateKeyPEM()
+		if err == nil {
+			if len(v.Credentials.TLSCert) == 0 {
+				return trace.BadParameter("TLS certificate missing in provided credentials")
+			}
 
-		setContext(config.Contexts, v.TeleportClusterName, v.TeleportClusterName, v.TeleportClusterName)
-		config.CurrentContext = v.TeleportClusterName
+			config.AuthInfos[v.TeleportClusterName] = &clientcmdapi.AuthInfo{
+				ClientCertificateData: v.Credentials.TLSCert,
+				ClientKeyData:         rsaKeyPEM,
+			}
+
+			setContext(config.Contexts, v.TeleportClusterName, v.TeleportClusterName, v.TeleportClusterName)
+			config.CurrentContext = v.TeleportClusterName
+		} else if !trace.IsBadParameter(err) {
+			return trace.Wrap(err)
+		}
+		log.WithError(err).Warn("Kubernetes integration is not supported when logging in with a non-rsa private key.")
 	}
 
 	return Save(path, *config)

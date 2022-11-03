@@ -22,7 +22,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/desktop"
 )
 
 type access struct {
@@ -83,6 +82,8 @@ type userACL struct {
 	AccessRequests access `json:"accessRequests"`
 	// Billing defines access to billing information.
 	Billing access `json:"billing"`
+	// ConnectionDiagnostic defines access to connection diagnostics.
+	ConnectionDiagnostic access `json:"connectionDiagnostic"`
 	// Clipboard defines whether the user can use a shared clipboard during windows desktop sessions.
 	Clipboard bool `json:"clipboard"`
 	// DesktopSessionRecording defines whether the user's desktop sessions are being recorded.
@@ -112,6 +113,9 @@ type UserContext struct {
 	AccessStrategy accessStrategy `json:"accessStrategy"`
 	// AccessCapabilities defines allowable access request rules defined in a user's roles.
 	AccessCapabilities AccessCapabilities `json:"accessCapabilities"`
+	// ConsumedAccessRequestID is the request ID of the access request from which the assumed role was
+	// obtained
+	ConsumedAccessRequestID string `json:"accessRequestId,omitempty"`
 }
 
 func getWindowsDesktopLogins(roleSet services.RoleSet) []string {
@@ -196,6 +200,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeServer)
 	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
+	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
 
 	var billingAccess access
 	if features.Cloud {
@@ -225,10 +230,10 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		Tokens:                  tokenAccess,
 		Nodes:                   nodeAccess,
 		Billing:                 billingAccess,
+		ConnectionDiagnostic:    cnDiagnosticAccess,
 		Clipboard:               clipboard,
 		DesktopSessionRecording: desktopSessionRecording,
-		// AllowDirectorySharing() ensures this setting is modulated by build flag while in development
-		DirectorySharing: directorySharing && desktop.AllowDirectorySharing(),
+		DirectorySharing:        directorySharing,
 	}
 
 	// local user

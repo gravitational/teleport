@@ -167,6 +167,53 @@ func TestAppServerSorter(t *testing.T) {
 	require.True(t, trace.IsNotImplemented(AppServers(servers).SortByCustom(sortBy)))
 }
 
+func TestAppIsAWSConsole(t *testing.T) {
+	tests := []struct {
+		name               string
+		uri                string
+		assertIsAWSConsole require.BoolAssertionFunc
+	}{
+		{
+			name:               "AWS Standard",
+			uri:                "https://console.aws.amazon.com/ec2/v2/home",
+			assertIsAWSConsole: require.True,
+		},
+		{
+			name:               "AWS China",
+			uri:                "https://console.amazonaws.cn/console/home",
+			assertIsAWSConsole: require.True,
+		},
+		{
+			name:               "AWS GovCloud (US)",
+			uri:                "https://console.amazonaws-us-gov.com/console/home",
+			assertIsAWSConsole: require.True,
+		},
+		{
+			name:               "Region based not supported yet",
+			uri:                "https://us-west-1.console.aws.amazon.com",
+			assertIsAWSConsole: require.False,
+		},
+		{
+			name:               "Not an AWS Console URL",
+			uri:                "https://hello.world",
+			assertIsAWSConsole: require.False,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			app, err := NewAppV3(Metadata{
+				Name: "aws",
+			}, AppSpecV3{
+				URI: test.uri,
+			})
+			require.NoError(t, err)
+
+			test.assertIsAWSConsole(t, app.IsAWSConsole())
+		})
+	}
+}
+
 func TestApplicationGetAWSExternalID(t *testing.T) {
 	t.Parallel()
 

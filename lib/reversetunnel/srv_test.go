@@ -23,16 +23,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 func TestServerKeyAuth(t *testing.T) {
@@ -168,19 +168,20 @@ func TestCreateRemoteAccessPoint(t *testing.T) {
 			assertion: require.Error,
 		},
 		{
-			name:      "remote running 9.0.0",
+			name:      "remote running 11.0.0",
 			assertion: require.NoError,
-			version:   "9.0.0",
+			version:   "11.0.0",
 		},
 		{
-			name:      "remote running 8.0.0",
-			assertion: require.NoError,
-			version:   "8.0.0",
-		},
-		{
-			name:           "remote running 7.0.0",
+			name:           "remote running 10.0.0",
 			assertion:      require.NoError,
-			version:        "7.0.0",
+			version:        "10.0.0",
+			oldRemoteProxy: true,
+		},
+		{
+			name:           "remote running 9.0.0",
+			assertion:      require.NoError,
+			version:        "9.0.0",
 			oldRemoteProxy: true,
 		},
 		{

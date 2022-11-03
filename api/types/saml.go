@@ -17,14 +17,15 @@ limitations under the License.
 package types
 
 import (
+	"strings"
 	"time"
+
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
-	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/trace"
 )
 
 // SAMLConnector specifies configuration for SAML 2.0 identity providers
@@ -364,6 +365,9 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 	}
 	if o.Spec.AssertionConsumerService == "" {
 		return trace.BadParameter("missing acs - assertion consumer service parameter, set service URL that will receive POST requests from SAML")
+	}
+	if o.Spec.AllowIDPInitiated && !strings.HasSuffix(o.Spec.AssertionConsumerService, "/"+o.Metadata.Name) {
+		return trace.BadParameter("acs - assertion consumer service parameter must end with /%v when allow_idp_initiated is set to true, eg https://cluster.domain/webapi/v1/saml/acs/%v. Ensure this URI matches the one configured at the identity provider.", o.Metadata.Name, o.Metadata.Name)
 	}
 	if o.Spec.ServiceProviderIssuer == "" {
 		o.Spec.ServiceProviderIssuer = o.Spec.AssertionConsumerService

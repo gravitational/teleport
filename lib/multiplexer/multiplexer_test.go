@@ -35,7 +35,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgproto3/v2"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/constants"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -45,12 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-
-	"github.com/jackc/pgproto3/v2"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -300,16 +298,17 @@ func TestMux(t *testing.T) {
 		require.NotNil(t, err)
 	})
 
-	// Timeout tests client timeout - client dials, but writes nothing
-	// make sure server hangs up
+	// Timeout test makes sure that multiplexer respects read deadlines.
 	t.Run("Timeout", func(t *testing.T) {
 		t.Parallel()
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
 
 		config := Config{
-			Listener:            listener,
-			ReadDeadline:        time.Millisecond,
+			Listener: listener,
+			// Set read deadline in the past to remove reliance on real time
+			// and simulate scenario when read deadline has elapsed.
+			ReadDeadline:        -time.Millisecond,
 			EnableProxyProtocol: true,
 		}
 		mux, err := New(config)
@@ -334,9 +333,6 @@ func TestMux(t *testing.T) {
 		conn, err := net.Dial("tcp", parsedURL.Host)
 		require.NoError(t, err)
 		defer conn.Close()
-
-		// sleep until well after the deadline
-		time.Sleep(config.ReadDeadline + 50*time.Millisecond)
 
 		// upgrade connection to TLS
 		tlsConn := tls.Client(conn, clientConfig(backend1))
@@ -813,7 +809,9 @@ func TestProtocolString(t *testing.T) {
 }
 
 // server is used to implement test.PingerServer
-type server struct{}
+type server struct {
+	test.UnimplementedPingerServer
+}
 
 func (s *server) Ping(ctx context.Context, req *test.Request) (*test.Response, error) {
 	return &test.Response{Payload: "grpc backend"}, nil

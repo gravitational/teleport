@@ -69,7 +69,7 @@ $ helm install teleport-cluster teleport/teleport-cluster \
 This command installs the required Kubernetes CRDs and deploys the Teleport Kubernetes Operator next to the Teleport
 cluster. All resources (except CRDs, which are cluster-scoped) are created in the `teleport-cluster` namespace.
 
-All subsequents commands will take place in the `teleport-cluster` namespace, so let's use it by default:
+All subsequent commands will take place in the `teleport-cluster` namespace, so let's use it by default:
 ```code
 $ kubectl config set-context --current --namespace teleport-cluster
 ```

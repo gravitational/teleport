@@ -20,22 +20,21 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
-
-	"github.com/gravitational/trace"
 )
 
 // MessageOpMsg represents parsed OP_MSG wire message.
 //
 // https://docs.mongodb.com/master/reference/mongodb-wire-protocol/#op-msg
 //
-// OP_MSG {
-//     MsgHeader header;          // standard message header
-//     uint32 flagBits;           // message flags
-//     Sections[] sections;       // data sections
-//     optional<uint32> checksum; // optional CRC-32C checksum
-// }
+//	OP_MSG {
+//	    MsgHeader header;          // standard message header
+//	    uint32 flagBits;           // message flags
+//	    Sections[] sections;       // data sections
+//	    optional<uint32> checksum; // optional CRC-32C checksum
+//	}
 type MessageOpMsg struct {
 	Header                   MessageHeader
 	Flags                    wiremessage.MsgFlag
@@ -256,7 +255,7 @@ func readOpMsg(header MessageHeader, payload []byte) (*MessageOpMsg, error) {
 				return nil, trace.BadParameter("malformed OP_MSG: %v %v", err, payload)
 			}
 
-			id, docs, rem, ok = wiremessage.ReadMsgSectionDocumentSequence(rem)
+			id, docs, rem, ok = ReadMsgSectionDocumentSequence(rem)
 			if !ok {
 				return nil, trace.BadParameter("malformed OP_MSG: missing document sequence section %v", payload)
 			}
@@ -311,4 +310,41 @@ func (m *MessageOpMsg) ToWire(responseTo int32) (dst []byte) {
 		dst = bsoncore.AppendInt32(dst, int32(m.Checksum))
 	}
 	return bsoncore.UpdateLength(dst, idx, int32(len(dst[idx:])))
+}
+
+// ReadMsgSectionDocumentSequence reads multiple documents from the source.
+//
+// This function works in the same way as wiremessage.ReadMsgSectionDocumentSequence except that it
+// validate the rem index before reading the document.
+func ReadMsgSectionDocumentSequence(src []byte) (identifier string, docs []bsoncore.Document, rem []byte, ok bool) {
+	length, rem, ok := readi32(src)
+	if !ok || int(length) > len(src) {
+		return "", nil, rem, false
+	}
+	// Ensure that idx is not negative.
+	if length-4 < 0 {
+		return "", nil, rem, false
+	}
+
+	rem, ret := rem[:length-4], rem[length-4:] // reslice so we can just iterate a loop later
+
+	identifier, rem, ok = readcstring(rem)
+	if !ok {
+		return "", nil, rem, false
+	}
+
+	docs = make([]bsoncore.Document, 0)
+	var doc bsoncore.Document
+	for {
+		doc, rem, ok = bsoncore.ReadDocument(rem)
+		if !ok {
+			break
+		}
+		docs = append(docs, doc)
+	}
+	if len(rem) > 0 {
+		return "", nil, append(rem, ret...), false
+	}
+
+	return identifier, docs, ret, true
 }

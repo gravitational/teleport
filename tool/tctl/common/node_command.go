@@ -26,10 +26,10 @@ import (
 	"time"
 
 	"github.com/gravitational/kingpin"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -116,7 +116,7 @@ This token will expire in %d minutes
 Use this token when defining a trusted cluster resource on a remote cluster.
 `
 
-var nodeMessageTemplate = template.Must(template.New("node").Parse(`The invite token: {{.token}}.
+var nodeMessageTemplate = template.Must(template.New("node").Parse(`The invite token: {{.token}}
 This token will expire in {{.minutes}} minutes.
 
 Run this on the new node to join the cluster:
@@ -225,15 +225,6 @@ func (c *NodeCommand) ListActive(ctx context.Context, clt auth.ClientI) error {
 		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),
 	})
 	switch {
-	// Underlying ListResources for nodes not available, use fallback.
-	// Using filter flags with older auth will silently do nothing.
-	//
-	// DELETE IN 11.0.0
-	case trace.IsNotImplemented(err):
-		nodes, err = clt.GetNodes(ctx, c.namespace)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 	case err != nil:
 		if utils.IsPredicateError(err) {
 			return trace.Wrap(utils.PredicateError{Err: err})

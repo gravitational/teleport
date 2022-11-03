@@ -219,12 +219,18 @@
               "title": "Moderated Sessions",
               "slug": "/access-controls/guides/moderated-sessions/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Hardware Key Support (Preview)",
+              "slug": "/access-controls/guides/hardware-key-support/",
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
         {
           "title": "Single Sign-On (SSO)",
           "slug": "/access-controls/sso/",
+          "forScopes": ["enterprise", "oss", "cloud"],
           "entries": [
             {
               "title": "GitHub SSO",
@@ -291,6 +297,11 @@
             {
               "title": "Mattermost",
               "slug": "/access-controls/access-request-plugins/ssh-approval-mattermost/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Microsoft Teams",
+              "slug": "/access-controls/access-request-plugins/ssh-approval-msteams/",
               "forScopes": ["enterprise", "cloud"]
             },
             {
@@ -375,7 +386,7 @@
             {
               "title": "Troubleshooting",
               "slug": "/management/admin/troubleshooting/",
-              "forScopes": ["oss", "enterprise"]
+              "forScopes": ["oss", "enterprise", "cloud"]
             },
             {
               "title": "Upgrading the Teleport Binary",
@@ -384,6 +395,10 @@
             {
               "title": "Run Teleport as a Daemon",
               "slug": "/management/admin/daemon/"
+            },
+            {
+              "title": "Run Teleport with Self-Signed Certificates",
+              "slug": "/management/admin/self-signed-certs/"
             }
           ]
         },
@@ -413,6 +428,11 @@
               "title": "TLS Routing Migration",
               "slug": "/management/operations/tls-routing/",
               "forScopes": ["oss", "enterprise"]
+            },
+            {
+              "title": "Proxy Peering Migration",
+              "slug": "/management/operations/proxy-peering/",
+              "forScopes": ["enterprise"]
             }
           ]
         },
@@ -444,7 +464,13 @@
             },
             {
               "title": "Fluentd",
-              "slug": "/management/guides/fluentd/"
+              "slug": "/management/guides/fluentd/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Monitor Audit Events with the Elastic Stack",
+              "slug": "/management/guides/elastic-stack/",
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "EC2 Tags",
@@ -462,6 +488,32 @@
             {
               "title": "Using Teleport's CA with GitHub",
               "slug": "/management/guides/ssh-key-extensions/"
+            }
+          ]
+        },
+        {
+          "title": "Diagnostics",
+          "slug": "/management/diagnostics/",
+          "entries": [
+            {
+              "title": "Health Monitoring",
+              "slug": "/management/diagnostics/monitoring/",
+              "forScopes": ["oss", "enterprise", "cloud"]
+            },
+            {
+              "title": "Metrics",
+              "slug": "/management/diagnostics/metrics/",
+              "forScopes": ["oss", "enterprise", "cloud"]
+            },
+            {
+              "title": "Collecting Profiles",
+              "slug": "/management/diagnostics/profiles/",
+              "forScopes": ["oss", "enterprise", "cloud"]
+            },
+            {
+              "title": "Distributed Tracing",
+              "slug": "/management/diagnostics/tracing/",
+              "forScopes": ["oss", "enterprise", "cloud"]
             }
           ]
         }
@@ -515,7 +567,7 @@
               "slug": "/application-access/guides/api-access/"
             },
             {
-              "title": "AWS Console Access",
+              "title": "AWS Access",
               "slug": "/application-access/guides/aws-console/"
             },
             {
@@ -590,8 +642,16 @@
               "slug": "/server-access/guides/vscode/"
             },
             {
+              "title": "JetBrains SFTP",
+              "slug": "/server-access/guides/jetbrains-sftp/"
+            },
+            {
               "title": "Host User Creation",
               "slug": "/server-access/guides/host-user-creation/"
+            },
+            {
+              "title": "EC2 Instance Discovery (Preview)",
+              "slug": "/server-access/guides/ec2-discovery/"
             }
           ]
         }
@@ -682,8 +742,20 @@
               "slug": "/database-access/guides/azure-postgres-mysql/"
             },
             {
+              "title": "Azure Cache for Redis",
+              "slug": "/database-access/guides/azure-redis/"
+            },
+            {
+              "title": "Azure SQL Server (Preview)",
+              "slug": "/database-access/guides/azure-sql-server-ad/"
+            },
+            {
               "title": "MongoDB Atlas",
               "slug": "/database-access/guides/mongodb-atlas/"
+            },
+            {
+              "title": "Self-Hosted Elasticsearch",
+              "slug": "/database-access/guides/elastic/"
             },
             {
               "title": "Self-Hosted PostgreSQL",
@@ -760,6 +832,10 @@
         {
           "title": "FAQ",
           "slug": "/database-access/faq/"
+        },
+        {
+          "title": "Troubleshooting",
+          "slug": "/database-access/troubleshooting/"
         }
       ]
     },
@@ -778,6 +854,10 @@
         {
           "title": "Access Controls",
           "slug": "/desktop-access/rbac/"
+        },
+        {
+          "title": "Directory Sharing",
+          "slug": "/desktop-access/directory-sharing/"
         },
         {
           "title": "Reference",
@@ -824,6 +904,10 @@
           "slug": "/machine-id/getting-started/"
         },
         {
+          "title": "Architecture",
+          "slug": "/machine-id/architecture/"
+        },
+        {
           "title": "Troubleshooting",
           "slug": "/machine-id/troubleshooting/"
         },
@@ -838,10 +922,6 @@
             {
               "title": "Configuration",
               "slug": "/machine-id/reference/configuration/"
-            },
-            {
-              "title": "CLI",
-              "slug": "/machine-id/reference/cli/"
             }
           ]
         },
@@ -868,6 +948,10 @@
             {
               "title": "Applications",
               "slug": "/machine-id/guides/applications/"
+            },
+            {
+              "title": "Host Certificates",
+              "slug": "/machine-id/guides/host-certificate/"
             }
           ]
         }
@@ -962,10 +1046,26 @@
               "title": "teleport-kube-agent",
               "slug": "/reference/helm-reference/teleport-kube-agent/"
             },
-	    {
-	    	"title": "teleport-plugin-event-handler",
-	    	"slug": "/reference/helm-reference/teleport-plugin-event-handler/"
-	    }
+            {
+              "title": "teleport-plugin-event-handler",
+              "slug": "/reference/helm-reference/teleport-plugin-event-handler/"
+            },
+            {
+              "title": "teleport-plugin-jira",
+              "slug": "/reference/helm-reference/teleport-plugin-jira/"
+            },
+            {
+              "title": "teleport-plugin-pagerduty",
+              "slug": "/reference/helm-reference/teleport-plugin-pagerduty/"
+            },
+            {
+              "title": "teleport-plugin-mattermost",
+              "slug": "/reference/helm-reference/teleport-plugin-mattermost/"
+            },
+            {
+              "title": "teleport-plugin-slack",
+              "slug": "/reference/helm-reference/teleport-plugin-slack/"
+            }
           ]
         }
       ]
@@ -1001,6 +1101,10 @@
         {
           "title": "TLS Routing",
           "slug": "/architecture/tls-routing/"
+        },
+        {
+          "title": "Proxy Peering",
+          "slug": "/architecture/proxy-peering/"
         }
       ]
     },
@@ -1053,7 +1157,7 @@
       "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "10.1.2",
+      "version": "10.3.2",
       "major_version": "10",
       "sla": {
         "monthly_percentage": "99.5%",
@@ -1087,7 +1191,7 @@
       "version": "9.0.4",
       "golang": "1.17",
       "plugin": {
-        "version": "9.0.4"
+        "version": "10.2.6"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
       "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport:9.1.2",
@@ -1132,7 +1236,7 @@
     },
     {
       "source": "/metrics-logs-reference/",
-      "destination": "/reference/metrics/",
+      "destination": "/management/diagnostics/metrics/",
       "permanent": true
     },
     {
@@ -1431,7 +1535,7 @@
       "permanent": true
     },
     {
-      "source": "/enterprise/workflow/ssh-approval-mattermost/",
+      "source": "/enterprise/workflow/ssh-approval-pagerduty/",
       "destination": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
       "permanent": true
     },
@@ -1743,6 +1847,11 @@
     {
       "source": "/setup/operations/ca-rotation/",
       "destination": "/management/operations/ca-rotation/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/operations/proxy-peering/",
+      "destination": "/management/operations/proxy-peering/",
       "permanent": true
     },
     {
