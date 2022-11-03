@@ -16,6 +16,7 @@ package reversetunnel
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"sort"
 	"sync/atomic"
@@ -135,9 +136,9 @@ func TestProxyResync(t *testing.T) {
 	reqHandler := func(name string, wantReply bool, payload []byte) (bool, error) {
 		assert.Equal(t, name, chanDiscoveryReq)
 
-		req, err := unmarshalDiscoveryRequest(payload)
-		assert.NoError(t, err)
-		discoveryCh <- req
+		var req discoveryRequest
+		assert.NoError(t, json.Unmarshal(payload, &req))
+		discoveryCh <- &req
 		return true, nil
 	}
 	channelCreator := func(name string) ssh.Channel {
