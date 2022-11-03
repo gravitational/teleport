@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/x509"
+	"os"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -198,6 +200,11 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 		}
 	} else if params.JoinMethod == types.JoinMethodGitHub {
 		params.IDToken, err = githubactions.NewIDTokenSource().GetIDToken(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else if params.JoinMethod == types.JoinMethodCircleCI {
+		params.IDToken, err = circleci.GetIDToken(os.Getenv)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

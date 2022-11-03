@@ -109,6 +109,9 @@ type SessionTracker interface {
 
 	// GetLastActive returns the time at which the session was last active (i.e used by any participant).
 	GetLastActive() time.Time
+
+	// GetDesktopName returns the name of the Windows desktop the session is for.
+	GetDesktopName() string
 }
 
 func NewSessionTracker(spec SessionTrackerSpecV1) (SessionTracker, error) {
@@ -348,4 +351,23 @@ func (s *SessionTrackerV1) GetLastActive() time.Time {
 	}
 
 	return last
+}
+
+// GetDesktopName returns the name of the Windows desktop the session is for.
+func (s *SessionTrackerV1) GetDesktopName() string {
+	return s.Spec.DesktopName
+}
+
+// Match checks if a given session tracker matches this filter.
+func (f *SessionTrackerFilter) Match(s SessionTracker) bool {
+	if f.Kind != "" && string(s.GetSessionKind()) != f.Kind {
+		return false
+	}
+	if f.State != nil && s.GetState() != f.State.State {
+		return false
+	}
+	if f.DesktopName != "" && s.GetDesktopName() != f.DesktopName {
+		return false
+	}
+	return true
 }
