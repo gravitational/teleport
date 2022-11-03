@@ -65,28 +65,7 @@ In our example:
 - `teleport.example.com` will host the Access Plane.
 - `*.teleport.example.com` will host all of the applications e.g. `grafana.teleport.example.com`.
 
-You can either configure Teleport to obtain a TLS certificate via Let's Encrypt or use an existing certificate and private key (e.g. using [certbot](https://certbot.eff.org/)).
-<Tabs>
-<TabItem label="Let's Encrypt">
-(!docs/pages/includes/acme.mdx!)
-</TabItem>
-<TabItem label="Existing Credentials">
-If you have obtained certificate/key pairs for your domain they can be provided directly
-to the proxy service:
-
-```yaml
-proxy_service:
-  enabled: "yes"
-  web_listen_addr: "0.0.0.0:443"
-  public_addr: "teleport.example.com:443"
-  https_keypairs:
-  - key_file: "/etc/letsencrypt/live/teleport.example.com/privkey.pem"
-    cert_file: "/etc/letsencrypt/live/teleport.example.com/fullchain.pem"
-  - key_file: "/etc/letsencrypt/live/*.teleport.example.com/privkey.pem"
-    cert_file: "/etc/letsencrypt/live/*.teleport.example.com/fullchain.pem"
-```
-</TabItem>
-</Tabs>
+(!docs/pages/includes/tls-certificate-setup.mdx!)
 
 ### Create a user
 

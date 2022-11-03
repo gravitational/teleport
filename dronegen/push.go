@@ -18,6 +18,7 @@ import "fmt"
 
 // pushCheckoutCommands builds a list of commands for Drone to check out a git commit on a push build
 func pushCheckoutCommands(b buildType) []string {
+	cloneDirectory := "/go/src/github.com/gravitational/teleport"
 	var commands []string
 
 	if b.hasTeleportConnect() {
@@ -25,12 +26,9 @@ func pushCheckoutCommands(b buildType) []string {
 		commands = append(commands, `mkdir -p /go/src/github.com/gravitational/webapps`)
 	}
 
+	commands = append(commands, cloneRepoCommands(cloneDirectory, "${DRONE_COMMIT_SHA}")...)
+
 	commands = append(commands,
-		`mkdir -p /go/src/github.com/gravitational/teleport /go/cache`,
-		`cd /go/src/github.com/gravitational/teleport`,
-		`git init && git remote add origin ${DRONE_REMOTE_URL}`,
-		`git fetch origin`,
-		`git checkout -qf ${DRONE_COMMIT_SHA}`,
 		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
 		`git submodule update --init webassets || true`,
 		`mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa`,
@@ -39,6 +37,7 @@ func pushCheckoutCommands(b buildType) []string {
 		// do a recursive submodule checkout to get both webassets and webassets/e
 		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
 		`git submodule update --init --recursive webassets || true`,
+		`mkdir -pv /go/cache`,
 	)
 
 	if b.hasTeleportConnect() {

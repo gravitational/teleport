@@ -128,6 +128,12 @@ func (r ResourceURI) AppendApp(name string) ResourceURI {
 	return r
 }
 
+// AppendAccessRequest appends access request segment to the URI
+func (r ResourceURI) AppendAccessRequest(id string) ResourceURI {
+	r.path = fmt.Sprintf("%v/access_requests/%v", r.path, id)
+	return r
+}
+
 // String returns string representation of the Resource URI
 func (r ResourceURI) String() string {
 	return r.path

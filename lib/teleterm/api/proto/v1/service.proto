@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.terminal.v1;
 
+import "v1/access_request.proto";
 import "v1/app.proto";
 import "v1/auth_settings.proto";
 import "v1/cluster.proto";
@@ -29,17 +30,39 @@ option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
 // TerminalService describes Teleterm service
 service TerminalService {
   // ListRootClusters lists root clusters
+  // Does not include detailed cluster information that would require a network request.
   rpc ListRootClusters(ListClustersRequest) returns (ListClustersResponse);
   // ListLeafClusters lists leaf clusters
+  // Does not include detailed cluster information that would require a network request.
   rpc ListLeafClusters(ListLeafClustersRequest) returns (ListClustersResponse);
-  // ListDatabases lists databases
-  rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
+  // GetAllDatabases lists all databases without pagination
+  rpc GetAllDatabases(GetAllDatabasesRequest) returns (GetAllDatabasesResponse);
+  // GetDatabases returns a filtered and paginated list of databases
+  rpc GetDatabases(GetDatabasesRequest) returns (GetDatabasesResponse);
   // ListDatabaseUsers lists allowed users for the given database based on the role set.
   rpc ListDatabaseUsers(ListDatabaseUsersRequest) returns (ListDatabaseUsersResponse);
-  // ListServers lists servers
-  rpc ListServers(ListServersRequest) returns (ListServersResponse);
-  // ListKubes list kubes
-  rpc ListKubes(ListKubesRequest) returns (ListKubesResponse);
+  // GetAllServers returns all servers
+  rpc GetAllServers(GetAllServersRequest) returns (GetAllServersResponse);
+  // GetServers returns filtered, sorted, and paginated servers
+  rpc GetServers(GetServersRequest) returns (GetServersResponse);
+  // GetAccessRequests lists filtered AccessRequests
+  rpc GetAccessRequests(GetAccessRequestsRequest) returns (GetAccessRequestsResponse);
+  // GetAccessRequest retreives a single Access Request
+  rpc GetAccessRequest(GetAccessRequestRequest) returns (GetAccessRequestResponse);
+  // DeleteAccessRequest deletes the access request by id
+  rpc DeleteAccessRequest(DeleteAccessRequestRequest) returns (EmptyResponse);
+  // CreateAccessRequest creates an access request
+  rpc CreateAccessRequest(CreateAccessRequestRequest) returns (CreateAccessRequestResponse);
+  // ReviewAccessRequest submits a review for an Access Request
+  rpc ReviewAccessRequest(ReviewAccessRequestRequest) returns (ReviewAccessRequestResponse);
+  // GetRequestableRoles gets all requestable roles
+  rpc GetRequestableRoles(GetRequestableRolesRequest) returns (GetRequestableRolesResponse);
+  // AssumeRole assumes the role of the given access request
+  rpc AssumeRole(AssumeRoleRequest) returns (EmptyResponse);
+  // GetAllKubes list all kubes
+  rpc GetAllKubes(GetAllKubesRequest) returns (GetAllKubesResponse);
+  // GetKubes returns filtered, sorted, and paginated kubes
+  rpc GetKubes(GetKubesRequest) returns (GetKubesResponse);
   // ListApps list apps
   rpc ListApps(ListAppsRequest) returns (ListAppsResponse);
   // AddCluster adds a cluster to profile
@@ -68,7 +91,8 @@ service TerminalService {
 
   // GetAuthSettings returns cluster auth settigns
   rpc GetAuthSettings(GetAuthSettingsRequest) returns (AuthSettings);
-  // GetCluster returns a cluster
+  // GetCluster returns cluster. Makes a network request and includes detailed
+  // information about enterprise features availabed on the connected auth server
   rpc GetCluster(GetClusterRequest) returns (Cluster);
   // Login logs in a user to a cluster
   rpc Login(LoginRequest) returns (EmptyResponse);
@@ -124,6 +148,68 @@ enum PasswordlessPrompt {
   // PASSWORDLESS_PROMPT_CREDENTIAL is used when we require a user to select a username
   // associated with their account.
   PASSWORDLESS_PROMPT_CREDENTIAL = 3;
+}
+
+message GetAccessRequestRequest {
+  string cluster_uri = 1;
+  // specifcies a specific request id
+  string access_request_id = 2;
+}
+
+message GetAccessRequestsRequest {
+  // cluster_uri is the cluster uri
+  string cluster_uri = 1;
+}
+
+message GetAccessRequestResponse {
+  AccessRequest request = 1;
+}
+
+message GetAccessRequestsResponse {
+  repeated AccessRequest requests = 1;
+}
+
+message DeleteAccessRequestRequest {
+  string root_cluster_uri = 1;
+  string access_request_id = 2;
+}
+
+message CreateAccessRequestRequest {
+  string root_cluster_uri = 1;
+  string reason = 2;
+  repeated string roles = 3;
+  repeated string suggested_reviewers = 4;
+  repeated ResourceID resource_ids = 5;
+}
+
+message CreateAccessRequestResponse {
+  AccessRequest request = 1;
+}
+
+message AssumeRoleRequest {
+  string root_cluster_uri = 1;
+  repeated string access_request_ids = 2;
+  repeated string drop_request_ids = 3;
+}
+
+message GetRequestableRolesRequest {
+  string cluster_uri = 1;
+}
+
+message GetRequestableRolesResponse {
+  repeated string roles = 1;
+}
+
+message ReviewAccessRequestRequest {
+  string root_cluster_uri = 1;
+  string state = 2;
+  string reason = 3;
+  repeated string roles = 4;
+  string access_request_id = 5;
+}
+
+message ReviewAccessRequestResponse {
+  AccessRequest request = 1;
 }
 
 // CredentialInfo holds fields related to a user's WebAuthn credential.
@@ -225,10 +311,6 @@ message AddClusterRequest {
   string name = 1;
 }
 
-message ListKubesRequest {
-  string cluster_uri = 1;
-}
-
 message ListAppsRequest {
   string cluster_uri = 1;
 }
@@ -239,15 +321,25 @@ message ListClustersResponse {
   repeated Cluster clusters = 1;
 }
 
-message ListDatabasesRequest {
+message GetAllDatabasesRequest {
   string cluster_uri = 1;
+}
+
+message GetDatabasesRequest {
+  string cluster_uri = 1;
+  int32 limit = 2;
+  string start_key = 3;
+  string search = 4;
+  string query = 5;
+  string sort_by = 6;
+  string search_as_roles = 7;
 }
 
 message ListLeafClustersRequest {
   string cluster_uri = 1;
 }
 
-message ListDatabasesResponse {
+message GetAllDatabasesResponse {
   repeated Database databases = 1;
 }
 
@@ -292,16 +384,58 @@ message SetGatewayLocalPortRequest {
   string local_port = 2;
 }
 
-message ListServersRequest {
+message GetAllServersRequest {
   string cluster_uri = 1;
 }
 
-message ListServersResponse {
+message GetAllServersResponse {
   repeated Server servers = 1;
 }
 
-message ListKubesResponse {
+message GetServersRequest {
+  string cluster_uri = 1;
+  int32 limit = 2;
+  string start_key = 3;
+  string search = 4;
+  string query = 5;
+  string sort_by = 6;
+  string search_as_roles = 7;
+}
+
+message GetServersResponse {
+  repeated Server agents = 1;
+  int32 total_count = 2;
+  string start_key = 3;
+}
+
+message GetDatabasesResponse {
+  repeated Database agents = 1;
+  int32 total_count = 2;
+  string start_key = 3;
+}
+
+message GetAllKubesRequest {
+  string cluster_uri = 1;
+}
+
+message GetAllKubesResponse {
   repeated Kube kubes = 1;
+}
+
+message GetKubesRequest {
+  string cluster_uri = 1;
+  int32 limit = 2;
+  string start_key = 3;
+  string search = 4;
+  string query = 5;
+  string sort_by = 6;
+  string search_as_roles = 7;
+}
+
+message GetKubesResponse {
+  repeated Kube agents = 1;
+  int32 total_count = 2;
+  string start_key = 3;
 }
 
 message ListAppsResponse {

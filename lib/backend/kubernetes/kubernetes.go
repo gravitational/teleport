@@ -23,14 +23,15 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/backend"
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/trace"
 	corev1 "k8s.io/api/core/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	applyconfigv1 "k8s.io/client-go/applyconfigurations/core/v1"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/gravitational/teleport/lib/backend"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 )
 
 const (

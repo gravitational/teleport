@@ -389,6 +389,11 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "memorydb,omitempty"
   ];
+  // RDSProxy contains AWS Proxy specific metadata.
+  RDSProxy RDSProxy = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "rdsproxy,omitempty"
+  ];
 }
 
 // SecretStore contains secret store configurations.
@@ -415,6 +420,16 @@ message RDS {
   string ResourceID = 3 [(gogoproto.jsontag) = "resource_id,omitempty"];
   // IAMAuth indicates whether database IAM authentication is enabled.
   bool IAMAuth = 4 [(gogoproto.jsontag) = "iam_auth"];
+}
+
+// RDSProxy contains AWS RDS Proxy specific database metadata.
+message RDSProxy {
+  // Name is the identifier of an RDS Proxy.
+  string Name = 1 [(gogoproto.jsontag) = "name,omitempty"];
+  // CustomEndpointName is the identifier of an RDS Proxy custom endpoint.
+  string CustomEndpointName = 2 [(gogoproto.jsontag) = "custom_endpoint_name,omitempty"];
+  // ResourceID is the RDS instance resource identifier (prx-xxx).
+  string ResourceID = 3 [(gogoproto.jsontag) = "resource_id,omitempty"];
 }
 
 // ElastiCache contains AWS ElastiCache Redis specific metadata.
@@ -974,6 +989,8 @@ message ProvisionTokenSpecV2 {
   ];
   // GitHub allows the configuration of options specific to the "github" join method.
   ProvisionTokenSpecV2GitHub GitHub = 7 [(gogoproto.jsontag) = "github,omitempty"];
+  // CircleCI allows the configuration of options specific to the "circleci" join method.
+  ProvisionTokenSpecV2CircleCI CircleCI = 8 [(gogoproto.jsontag) = "circleci,omitempty"];
 }
 
 message ProvisionTokenSpecV2GitHub {
@@ -1005,6 +1022,17 @@ message ProvisionTokenSpecV2GitHub {
   // Allow is a list of TokenRules, nodes using this token must match one
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+}
+
+message ProvisionTokenSpecV2CircleCI {
+  message Rule {
+    string ProjectID = 1 [(gogoproto.jsontag) = "project_id,omitempty"];
+    string ContextID = 2 [(gogoproto.jsontag) = "context_id,omitempty"];
+  }
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  string OrganizationID = 2 [(gogoproto.jsontag) = "organization_id,omitempty"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -2269,9 +2297,10 @@ message AccessRequestConditions {
   // that is not a requirement.
   repeated string SuggestedReviewers = 5 [(gogoproto.jsontag) = "suggested_reviewers,omitempty"];
 
-  // SearchAsRoles is a list of roles which the user should be able to "assume"
-  // while searching for resources, and should be able to request with a
-  // search-based access request.
+  // SearchAsRoles is a list of extra roles which should apply to a user while
+  // they are searching for resources as part of a Resource Access Request, and
+  // defines the underlying roles which will be requested as part of any
+  // Resource Access Request.
   repeated string SearchAsRoles = 6 [(gogoproto.jsontag) = "search_as_roles,omitempty"];
 }
 
@@ -2290,6 +2319,11 @@ message AccessReviewConditions {
   // Where is an optional predicate which further limits which requests are
   // reviewable.
   string Where = 3 [(gogoproto.jsontag) = "where,omitempty"];
+
+  // PreviewAsRoles is a list of extra roles which should apply to a reviewer
+  // while they are viewing a Resource Access Request for the purposes of
+  // viewing details such as the hostname and labels of requested resources.
+  repeated string PreviewAsRoles = 4 [(gogoproto.jsontag) = "preview_as_roles,omitempty"];
 }
 
 // ClaimMapping maps a claim to teleport roles.
@@ -2933,6 +2967,38 @@ message KubernetesClusterSpecV3 {
   // Kubeconfig is the kubeconfig file payload that grants access to the cluster.
   // If multiple contexts are specified, the first will be selected.
   bytes Kubeconfig = 2 [(gogoproto.jsontag) = "kubeconfig,omitempty"];
+  // Azure holds the required Azure information for Teleport to access the cluster.
+  KubeAzure Azure = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "azure,omitempty"
+  ];
+  // AWS holds the required AWS information for Teleport to access the cluster.
+  KubeAWS AWS = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "aws,omitempty"
+  ];
+}
+
+// KubeAzure contains the Azure information about the cluster.
+message KubeAzure {
+  // ResourceName is the AKS cluster name.
+  string ResourceName = 1 [(gogoproto.jsontag) = "resource_name,omitempty"];
+  // ResourceGroup is the Azure resource group name.
+  string ResourceGroup = 2 [(gogoproto.jsontag) = "resource_group,omitempty"];
+  // TenantID is the AKS cluster Tenant ID.
+  string TenantID = 3 [(gogoproto.jsontag) = "tenant_id,omitempty"];
+  // SubscriptionID is the AKS cluster SubscriptionID.
+  string SubscriptionID = 4 [(gogoproto.jsontag) = "subscription_id,omitempty"];
+}
+
+// KubeAWS contains the AWS information about the cluster.
+message KubeAWS {
+  // Region is a AWS cloud region.
+  string Region = 1 [(gogoproto.jsontag) = "region,omitempty"];
+  // AccountID is a AWS Account ID.
+  string AccountID = 2 [(gogoproto.jsontag) = "account_id,omitempty"];
+  // Name is a AWS EKS cluster name.
+  string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
 }
 
 // KubernetesClusterV3List represents a list of kubernetes clusters.
@@ -3925,6 +3991,13 @@ message RegisterUsingTokenRequest {
   // IDToken is a token provided by a workload identity provider as part of
   // OIDC join types such as GitHub.
   string IDToken = 11 [(gogoproto.jsontag) = "id_token"];
+  // Expires is a desired time of the expiry of user certificates returned by
+  // registration. This only applies to bot joining, and will be ignored by
+  // node joining.
+  google.protobuf.Timestamp Expires = 12 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.jsontag) = "expires,omitempty"
+  ];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
@@ -3973,6 +4046,26 @@ message RecoveryCode {
   bytes HashedCode = 1 [(gogoproto.jsontag) = "hashed_code"];
   // IsUsed determines if this recovery code was used.
   bool IsUsed = 2 [(gogoproto.jsontag) = "is_used"];
+}
+
+message NullableSessionState {
+  SessionState State = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "state,omitempty"
+  ];
+}
+
+// SessionTrackerFilter are filters to apply when searching for session trackers.
+message SessionTrackerFilter {
+  // Kind describes what kind of session this is.
+  string Kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
+  // State is the current state of this session.
+  NullableSessionState State = 2 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "state,omitempty"
+  ];
+  // DesktopName is the windows desktop server this session belongs to.
+  string DesktopName = 3 [(gogoproto.jsontag) = "desktop_name,omitempty"];
 }
 
 // SessionTrackerV1 represents a live session resource.

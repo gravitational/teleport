@@ -155,7 +155,6 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 			KubeconfigPath:    kubeConfigLocation,
 			KubeServiceType:   KubeService,
 			Component:         teleport.ComponentKube,
-			DynamicLabels:     nil,
 			LockWatcher:       proxyLockWatcher,
 			// skip Impersonation validation
 			CheckImpersonationPermissions: func(ctx context.Context, clusterName string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
@@ -163,8 +162,9 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 			},
 			Clock: clockwork.NewRealClock(),
 		},
-		TLS:         tlsConfig,
-		AccessPoint: testCtx.authClient,
+		DynamicLabels: nil,
+		TLS:           tlsConfig,
+		AccessPoint:   testCtx.authClient,
 		LimiterConfig: limiter.Config{
 			MaxConnections:   1000,
 			MaxNumberOfUsers: 1000,

@@ -27,10 +27,11 @@ import (
 	"text/template"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TODO(jakule): remove PubkeyAcceptedKeyTypes once we finish deprecating SHA1.

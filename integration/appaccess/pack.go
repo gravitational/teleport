@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
@@ -655,6 +656,14 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 							Name:  forward.XForwardedServer,
 							Value: "rewritten-x-forwarded-server-header",
 						},
+						{
+							Name:  common.XForwardedSSL,
+							Value: "rewritten-x-forwarded-ssl-header",
+						},
+						{
+							Name:  forward.XForwardedPort,
+							Value: "rewritten-x-forwarded-port-header",
+						},
 						// Make sure we can insert JWT token in custom header.
 						{
 							Name:  "X-JWT",
@@ -783,6 +792,14 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 						{
 							Name:  forward.XForwardedServer,
 							Value: "rewritten-x-forwarded-server-header",
+						},
+						{
+							Name:  common.XForwardedSSL,
+							Value: "rewritten-x-forwarded-ssl-header",
+						},
+						{
+							Name:  forward.XForwardedPort,
+							Value: "rewritten-x-forwarded-port-header",
 						},
 					},
 				},

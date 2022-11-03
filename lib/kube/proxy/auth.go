@@ -14,26 +14,19 @@
 
 package proxy
 
+//nolint:goimports
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net"
-	"net/http"
 	"net/url"
 
-	"github.com/gravitational/teleport/api/types"
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
 	authzapi "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/transport"
-
 	// Load kubeconfig auth plugins for gcp and azure.
 	// Without this, users can't provide a kubeconfig using those.
 	//
@@ -41,22 +34,11 @@ import (
 	// support for popular hosting providers and minimizing attack surface.
 	_ "k8s.io/client-go/plugin/pkg/client/auth/azure"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-)
+	"k8s.io/client-go/rest"
 
-// kubeCreds contain authentication-related fields from kubeconfig.
-//
-// TODO(awly): make this an interface, one implementation for local k8s cluster
-// and another for a remote teleport cluster.
-type kubeCreds struct {
-	// tlsConfig contains (m)TLS configuration.
-	tlsConfig *tls.Config
-	// transportConfig contains HTTPS-related configuration.
-	// Note: use wrapTransport method if working with http.RoundTrippers.
-	transportConfig *transport.Config
-	// targetAddr is a kubernetes API address.
-	targetAddr string
-	kubeClient *kubernetes.Clientset
-}
+	"github.com/gravitational/teleport/api/types"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+)
 
 // ImpersonationPermissionsChecker describes a function that can be used to check
 // for the required impersonation permissions on a Kubernetes cluster. Return nil
@@ -155,7 +137,7 @@ func getKubeDetails(ctx context.Context, log logrus.FieldLogger, tpClusterName, 
 	return res, nil
 }
 
-func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Config, log logrus.FieldLogger, checkPermissions ImpersonationPermissionsChecker) (*kubeCreds, error) {
+func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Config, log logrus.FieldLogger, checkPermissions ImpersonationPermissionsChecker) (*staticKubeCreds, error) {
 	log = log.WithField("cluster", cluster)
 
 	log.Debug("Checking Kubernetes impersonation permissions.")
@@ -190,7 +172,7 @@ func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Confi
 	}
 
 	log.Debug("Initialized Kubernetes credentials")
-	return &kubeCreds{
+	return &staticKubeCreds{
 		tlsConfig:       tlsConfig,
 		transportConfig: transportConfig,
 		targetAddr:      targetAddr,
@@ -211,13 +193,6 @@ func parseKubeHost(host string) (string, error) {
 		return fmt.Sprintf("%v:443", u.Host), nil
 	}
 	return u.Host, nil
-}
-
-func (c *kubeCreds) wrapTransport(rt http.RoundTripper) (http.RoundTripper, error) {
-	if c == nil {
-		return rt, nil
-	}
-	return transport.HTTPWrappersForConfig(c.transportConfig, rt)
 }
 
 func checkImpersonationPermissions(ctx context.Context, cluster string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {

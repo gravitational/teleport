@@ -21,15 +21,15 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 type commandPathBehavior = int
@@ -754,4 +754,91 @@ func TestGetConnectCommandNoAbsPathIsNoopWhenGivenRelativePath(t *testing.T) {
 	got, err := c.GetConnectCommandNoAbsPath()
 	require.NoError(t, err)
 	require.Equal(t, "psql postgres://myUser@localhost:12345/mydb", got.String())
+}
+
+func TestConvertCommandError(t *testing.T) {
+	t.Parallel()
+	homePath := t.TempDir()
+	conf := &client.Config{
+		HomePath:     homePath,
+		Host:         "localhost",
+		WebProxyAddr: "localhost",
+		SiteName:     "db.example.com",
+		Tracer:       tracing.NoopProvider().Tracer("test"),
+	}
+
+	tc, err := client.NewClient(conf)
+	require.NoError(t, err)
+
+	profile := &client.ProfileStatus{
+		Name:     "example.com",
+		Username: "bob",
+		Dir:      homePath,
+	}
+
+	tests := []struct {
+		desc       string
+		dbProtocol string
+		stderr     []byte
+		wantBin    string
+		wantStdErr string
+	}{
+		{
+			desc:       "converts access denied to helpful message",
+			dbProtocol: defaults.ProtocolMySQL,
+			stderr:     []byte("access to db denied"),
+			wantBin:    mysqlBin,
+			wantStdErr: "see your available logins, or ask your Teleport administrator",
+		},
+		{
+			desc:       "converts unrecognized redis error to helpful message",
+			dbProtocol: defaults.ProtocolRedis,
+			stderr:     []byte("Unrecognized option or bad number of args for"),
+			wantBin:    redisBin,
+			wantStdErr: "Please make sure 'redis-cli' with version 6.2 or newer is installed",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
+
+			database := &tlsca.RouteToDatabase{
+				Protocol:    tt.dbProtocol,
+				Database:    "DBName",
+				Username:    "myUser",
+				ServiceName: "DBService",
+			}
+
+			opts := []ConnectCommandFunc{
+				WithLocalProxy("localhost", 12345, ""),
+				WithNoTLS(),
+				WithExecer(&fakeExec{
+					commandPathBehavior: forceBasePath,
+					execOutput: map[string][]byte{
+						tt.wantBin: tt.stderr,
+					},
+				}),
+			}
+			c := NewCmdBuilder(tc, profile, database, "root", opts...)
+			c.uid = utils.NewFakeUID()
+
+			cmd, err := c.GetConnectCommand()
+			require.NoError(t, err)
+
+			// make sure the expected test bin is the command bin we got
+			require.Equal(t, cmd.Path, tt.wantBin)
+
+			out, err := c.options.exe.RunCommand(cmd.Path)
+			require.NoError(t, err, "fakeExec.execOutput is not configured for bin %v", tt.wantBin)
+
+			peakStderr := utils.NewCaptureNBytesWriter(PeakStderrSize)
+			_, peakErr := peakStderr.Write(out)
+			require.NoError(t, peakErr, "CaptureNBytesWriter should never return error")
+
+			convertedErr := ConvertCommandError(cmd, nil, string(peakStderr.Bytes()))
+			require.ErrorContains(t, convertedErr, tt.wantStdErr)
+		})
+	}
 }
