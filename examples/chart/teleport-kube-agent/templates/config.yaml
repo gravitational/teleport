@@ -19,12 +19,18 @@ metadata:
   {{- end }}
 data:
   teleport.yaml: |
+    {{- if (ge (semver .teleportVersion).Major 11) }}
     version: v3
+    {{- end }}
     teleport:
       join_params:
         method: "{{ .Values.joinParams.method }}"
         token_name: "/etc/teleport-secrets/auth-token"
+      {{- if (ge (semver .teleportVersion).Major 11) }}
       proxy_server: {{ required "proxyAddr is required in chart values" .Values.proxyAddr }}
+      {{- else }}
+      auth_servers: ["{{ required "proxyAddr is required in chart values" .Values.proxyAddr }}"]
+      {{- end }}
       {{- if .Values.caPin }}
       ca_pin: {{- toYaml .Values.caPin | nindent 8 }}
       {{- end }}
