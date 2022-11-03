@@ -33,9 +33,12 @@ export interface Session {
   // of resource that the session is running in:
   //  - ssh: is referring to the hostname
   //  - k8s: is referring to the kubernetes cluster name
+  //  - db: is referring to the database
+  //  - desktop: is referring to the desktop
+  //  - app: is referring to the app
   resourceName: string;
 }
 
 export type ParticipantList = Record<string, Participant[]>;
 
-export type SessionKind = 'ssh' | 'k8s';
+export type SessionKind = 'ssh' | 'k8s' | 'db' | 'app' | 'desktop';

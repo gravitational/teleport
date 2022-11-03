@@ -51,4 +51,55 @@ export const sessions: Session[] = [
     addr: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
     clusterId: 'im-a-cluster-name',
   },
+  {
+    kind: 'desktop',
+    sid: 'acacfbb4-3885-4d08-a466-de832a73ffac',
+    namespace: 'default',
+    parties: [
+      {
+        user: 'lisa2',
+      },
+    ],
+    login: 'root',
+    created: new Date('2022-07-11T14:36:14.491402068Z'),
+    durationText: '5 seconds',
+    serverId: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
+    resourceName: 'desktop-2',
+    addr: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
+    clusterId: 'im-a-cluster-name',
+  },
+  {
+    kind: 'db',
+    sid: '2314fbb4-3885-4d08-a466-de832a731222',
+    namespace: 'default',
+    parties: [
+      {
+        user: 'lisa2',
+      },
+    ],
+    login: 'root',
+    created: new Date('2022-07-11T14:36:14.491402068Z'),
+    durationText: '3 minutes',
+    serverId: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
+    resourceName: 'databse-32',
+    addr: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
+    clusterId: 'im-a-cluster-name',
+  },
+  {
+    kind: 'app',
+    sid: 'cafefbb4-3885-4d08-a466-de832a7313131',
+    namespace: 'default',
+    parties: [
+      {
+        user: 'lisa2',
+      },
+    ],
+    login: 'root',
+    created: new Date('2022-07-11T14:36:14.491402068Z'),
+    durationText: '13 minutes',
+    serverId: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
+    resourceName: 'grafana',
+    addr: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
+    clusterId: 'im-a-cluster-name',
+  },
 ];
