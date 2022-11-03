@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
+	kubeserver "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -73,6 +74,14 @@ func TestListKube(t *testing.T) {
 			require.NoError(t, err)
 			return len(rootClusters) >= 2
 		}),
+		withNewTeleportOption(
+			// Disables cloud auto-imported labels when running tests in cloud envs such as
+			// Github Actions.
+			// This is required otherwise Teleport will import cloud instance labels and use them
+			// as labels in Kubernetes Service and this test would fail because the output
+			// includes unexpected labels.
+			service.WithIMDSClient(&fakeCloudMetadata{}),
+		),
 	)
 
 	mustLoginSetEnv(t, s)
@@ -152,7 +161,6 @@ func TestListKube(t *testing.T) {
 			require.Contains(t, captureStdout.String(), tc.wantTable())
 		})
 	}
-
 }
 
 func newKubeConfigFile(t *testing.T, clusterNames ...string) string {
@@ -161,7 +169,7 @@ func newKubeConfigFile(t *testing.T, clusterNames ...string) string {
 	kubeConf := clientcmdapi.NewConfig()
 	for _, name := range clusterNames {
 		kubeConf.Clusters[name] = &clientcmdapi.Cluster{
-			Server:                "http://localhost:8080",
+			Server:                newKubeSelfSubjectServer(t),
 			InsecureSkipTLSVerify: true,
 		}
 		kubeConf.AuthInfos[name] = &clientcmdapi.AuthInfo{}
@@ -185,4 +193,39 @@ func formatServiceLabels(labels map[string]string) string {
 
 	sort.Strings(labelSlice)
 	return strings.Join(labelSlice, " ")
+}
+
+type fakeCloudMetadata struct{}
+
+func (f *fakeCloudMetadata) IsAvailable(ctx context.Context) bool {
+	return true
+}
+
+// GetTags gets all of the instance's tags.
+func (f *fakeCloudMetadata) GetTags(ctx context.Context) (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
+// GetHostname gets the hostname set by the cloud instance that Teleport
+// should use, if any.
+func (f *fakeCloudMetadata) GetHostname(ctx context.Context) (string, error) {
+	return "hostname", nil
+}
+
+// GetType gets the cloud instance type.
+func (f *fakeCloudMetadata) GetType() types.InstanceMetadataType {
+	return types.InstanceMetadataTypeDisabled
+}
+
+// GetID gets the cloud instance ID.
+func (f *fakeCloudMetadata) GetID(ctx context.Context) (string, error) {
+	return "id", nil
+}
+
+func newKubeSelfSubjectServer(t *testing.T) string {
+	srv, err := kubeserver.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { srv.Close() })
+
+	return srv.URL
 }
