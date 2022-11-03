@@ -184,14 +184,14 @@ func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput, flags *
 		steps = append(steps, pushStep)
 	}
 
-	// Create and push a manifest for each tag, referencing multiple architectures in the manifest
-	for _, imageTag := range imageTags {
-		multiarchImageTag := *imageTag
-		multiarchImageTag.Arch = ""
-		manifestImage := buildStepDetails[0].Product.ImageBuilder(cr, &multiarchImageTag)
-		manifestStepName := cr.createAndPushManifestStep(manifestImage, pushStepNames, pushedImages[imageTag])
-		steps = append(steps, manifestStepName)
-	}
+	// // Create and push a manifest for each tag, referencing multiple architectures in the manifest
+	// for _, imageTag := range imageTags {
+	// 	multiarchImageTag := *imageTag
+	// 	multiarchImageTag.Arch = ""
+	// 	manifestImage := buildStepDetails[0].Product.ImageBuilder(cr, &multiarchImageTag)
+	// 	manifestStep := cr.createAndPushManifestStep(manifestImage, pushStepNames, pushedImages[imageTag])
+	// 	steps = append(steps, manifestStep)
+	// }
 
 	return steps
 }
