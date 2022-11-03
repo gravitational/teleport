@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -2753,13 +2754,13 @@ func TestSerializeDatabases(t *testing.T) {
 	})
 	require.NoError(t, err)
 	testSerialization(t, expected, func(f string) (string, error) {
-		return serializeDatabases([]types.Database{db}, f)
+		return serializeDatabases([]types.Database{db}, f, nil)
 	})
 }
 
 func TestSerializeDatabasesEmpty(t *testing.T) {
 	testSerialization(t, "[]", func(f string) (string, error) {
-		return serializeDatabases(nil, f)
+		return serializeDatabases(nil, f, nil)
 	})
 }
 
@@ -3269,7 +3270,8 @@ func TestSerializeMFADevices(t *testing.T) {
 	})
 }
 
-func Test_getUsersForDb(t *testing.T) {
+func TestListDatabasesWithUsers(t *testing.T) {
+	t.Parallel()
 	dbStage, err := types.NewDatabaseV3(types.Metadata{
 		Name:   "stage",
 		Labels: map[string]string{"env": "stage"},
@@ -3313,60 +3315,136 @@ func Test_getUsersForDb(t *testing.T) {
 		},
 	}
 
-	testCases := []struct {
-		name     string
-		roles    services.RoleSet
-		database types.Database
-		result   string
+	tests := []struct {
+		name          string
+		roles         services.RoleSet
+		database      types.Database
+		wantText      string
+		wantFormatted []databaseWithUsers
 	}{
 		{
 			name:     "developer allowed any username in stage database except superuser",
 			roles:    services.RoleSet{roleDevStage, roleDevProd},
 			database: dbStage,
-			result:   "[* dev], except: [superuser]",
+			wantText: "[* dev], except: [superuser]",
+			wantFormatted: []databaseWithUsers{
+				{
+					Database: dbStage,
+					DbUsers: &dbUsers{
+						Allowed: []string{"*", "dev"},
+						Denied:  []string{"superuser"},
+					},
+				},
+			},
 		},
 		{
 			name:     "developer allowed only specific username/database in prod database",
 			roles:    services.RoleSet{roleDevStage, roleDevProd},
 			database: dbProd,
-			result:   "[dev]",
+			wantText: "[dev]",
+			wantFormatted: []databaseWithUsers{
+				{
+					Database: dbProd,
+					DbUsers: &dbUsers{
+						Allowed: []string{"dev"},
+						Denied:  []string{},
+					},
+				},
+			},
 		},
 		{
 			name:     "roleDevStage x dbStage",
 			roles:    services.RoleSet{roleDevStage},
 			database: dbStage,
-			result:   "[*], except: [superuser]",
+			wantText: "[*], except: [superuser]",
+			wantFormatted: []databaseWithUsers{
+				{
+					Database: dbStage,
+					DbUsers: &dbUsers{
+						Allowed: []string{"*"},
+						Denied:  []string{"superuser"},
+					},
+				},
+			},
 		},
 		{
 			name:     "roleDevStage x dbProd",
 			roles:    services.RoleSet{roleDevStage},
 			database: dbProd,
-			result:   "(none)",
+			wantText: "(none)",
+			wantFormatted: []databaseWithUsers{
+				{
+					Database: dbProd,
+					DbUsers: &dbUsers{
+						Allowed: []string{},
+						Denied:  []string{},
+					},
+				},
+			},
 		},
 		{
 			name:     "roleDevProd x dbStage",
 			roles:    services.RoleSet{roleDevProd},
 			database: dbStage,
-			result:   "(none)",
+			wantText: "(none)",
+			wantFormatted: []databaseWithUsers{
+				{
+					Database: dbStage,
+					DbUsers: &dbUsers{
+						Allowed: []string{},
+						Denied:  []string{},
+					},
+				},
+			},
 		},
 		{
 			name:     "roleDevProd x dbProd",
 			roles:    services.RoleSet{roleDevProd},
 			database: dbProd,
-			result:   "[dev]",
-		},
-		{
-			name:     "no role set",
-			roles:    nil,
-			database: dbProd,
-			result:   "(unknown)",
+			wantText: "[dev]",
+			wantFormatted: []databaseWithUsers{
+				{
+					Database: dbProd,
+					DbUsers: &dbUsers{
+						Allowed: []string{"dev"},
+						Denied:  []string{},
+					},
+				},
+			},
 		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := getUsersForDb(tc.database, tc.roles)
-			require.Equal(t, tc.result, got)
+	formats := []string{teleport.JSON, teleport.YAML}
+	for _, tt := range tests {
+		tt := tt
+		for _, f := range formats {
+			f := f
+			testName := fmt.Sprintf("%s %s", f, tt.name)
+			t.Run(testName, func(t *testing.T) {
+				t.Parallel()
+				out, err := serializeDatabases([]types.Database{tt.database}, f, tt.roles)
+				require.NoError(t, err)
+
+				var want []byte
+				switch f {
+				case teleport.JSON:
+					want, err = utils.FastMarshalIndent(tt.wantFormatted, "", "  ")
+				case teleport.YAML:
+					want, err = yaml.Marshal(tt.wantFormatted)
+				}
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(string(want), string(out)))
+			})
+		}
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		testName := fmt.Sprintf("text %s", tt.name)
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+			got := getUsersForDb(tt.database, tt.roles)
+			require.Equal(t, tt.wantText, got)
 		})
 	}
 }
