@@ -17,7 +17,6 @@ limitations under the License.
 package srv
 
 import (
-	"context"
 	"crypto/rand"
 	"io"
 	"testing"
@@ -100,8 +99,6 @@ func TestNoReadWhenOff(t *testing.T) {
 	t.Parallel()
 
 	m := NewTermManager()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
-	defer cancel()
 
 	r, w := io.Pipe()
 	data := make([]byte, 90)
@@ -122,8 +119,8 @@ func TestNoReadWhenOff(t *testing.T) {
 	// and continue execution
 	select {
 	case <-discarded:
-	case <-ctx.Done():
-		t.Fatal(ctx.Err())
+	case <-time.After(15 * time.Second):
+		t.Fatal("Timed out waiting for data to be read")
 	}
 
 	// enable the multiplexer, data should now flow through instead of being dropped
