@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto"
 	"fmt"
 	"net"
 	"net/url"
@@ -30,6 +31,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -37,7 +39,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
-	"go.uber.org/atomic"
 	"golang.org/x/crypto/ssh"
 	yamlv2 "gopkg.in/yaml.v2"
 
@@ -51,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -133,13 +135,17 @@ func (p *cliModules) Features() modules.Features {
 		App:                     true,
 		AdvancedAccessWorkflows: true,
 		AccessControls:          true,
-		ResourceAccessRequests:  true,
 	}
 }
 
 // IsBoringBinary checks if the binary was compiled with BoringCrypto.
 func (p *cliModules) IsBoringBinary() bool {
 	return false
+}
+
+// AttestHardwareKey attests a hardware key.
+func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
+	return keys.PrivateKeyPolicyNone, nil
 }
 
 func TestAlias(t *testing.T) {
@@ -278,7 +284,7 @@ func TestFailedLogin(t *testing.T) {
 
 	// build a mock SSO login function to patch into tsh
 	loginFailed := trace.AccessDenied("login failed")
-	ssoLogin := func(ctx context.Context, connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error) {
+	ssoLogin := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
 		return nil, loginFailed
 	}
 
@@ -337,15 +343,19 @@ func TestOIDCLogin(t *testing.T) {
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
-	didAutoRequest := atomic.NewBool(false)
+	var didAutoRequest atomic.Bool
 
+	errCh := make(chan error)
 	go func() {
 		watcher, err := authServer.NewWatcher(ctx, types.Watch{
 			Kinds: []types.WatchKind{
 				{Kind: types.KindAccessRequest},
 			},
 		})
-		require.NoError(t, err)
+		if err != nil {
+			errCh <- err
+			return
+		}
 		for {
 			select {
 			case event := <-watcher.Events():
@@ -356,12 +366,14 @@ func TestOIDCLogin(t *testing.T) {
 					RequestID: event.Resource.(types.AccessRequest).GetName(),
 					State:     types.RequestState_APPROVED,
 				})
-				require.NoError(t, err)
 				didAutoRequest.Store(true)
+				errCh <- err
 				return
 			case <-watcher.Done():
+				errCh <- nil
 				return
 			case <-ctx.Done():
+				errCh <- nil
 				return
 			}
 		}
@@ -384,6 +396,7 @@ func TestOIDCLogin(t *testing.T) {
 	})
 
 	require.NoError(t, err)
+	require.NoError(t, <-errCh)
 
 	// verify that auto-request happened
 	require.True(t, didAutoRequest.Load())
@@ -745,11 +758,11 @@ func TestMakeClient(t *testing.T) {
 	require.NotNil(t, tc)
 	require.Equal(t, proxyWebAddr.String(), tc.Config.WebProxyAddr)
 	require.Equal(t, proxySSHAddr.Addr, tc.Config.SSHProxyAddr)
-	require.NotNil(t, tc.LocalAgent().Agent)
+	require.NotNil(t, tc.LocalAgent().ExtendedAgent)
 
 	// Client should have an in-memory agent with keys loaded, in case agent
 	// forwarding is required for proxy recording mode.
-	agentKeys, err := tc.LocalAgent().Agent.List()
+	agentKeys, err := tc.LocalAgent().ExtendedAgent.List()
 	require.NoError(t, err)
 	require.Greater(t, len(agentKeys), 0)
 }
@@ -794,7 +807,6 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	// Running ssh 'echo test' command should work when referencing
 	// multiple nodes by labels, without and with mfa_per_session.
 	t.Parallel()
-	tmpHomePath := t.TempDir()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -810,6 +822,15 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+
+	perSessionMFARole, err := types.NewRoleV3("mfa-login", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins: []string{user.Username},
+		},
+		Options: types.RoleOptions{RequireSessionMFA: true},
+	})
+	require.NoError(t, err)
+
 	alice, err := types.NewUser("alice")
 	require.NoError(t, err)
 	alice.SetRoles([]string{"access", "ssh-login"})
@@ -819,9 +840,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	require.NoError(t, err)
 	device.SetPasswordless()
 
-	rootAuth, rootProxy := makeTestServers(t,
-		withBootstrap(connector, alice, sshLoginRole),
-	)
+	rootAuth, rootProxy := makeTestServers(t, withBootstrap(connector, alice, sshLoginRole, perSessionMFARole))
 
 	authAddr, err := rootAuth.AuthAddr()
 	require.NoError(t, err)
@@ -927,6 +946,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 		name            string
 		hostLabels      string
 		authPreference  types.AuthPreference
+		roles           []string
 		setup           func(t *testing.T)
 		errAssertion    require.ErrorAssertionFunc
 		stdoutAssertion require.ValueAssertionFunc
@@ -1048,18 +1068,38 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					RequireSessionMFA: true,
 				},
 			},
-			setup:        registerPasswordlessDeviceWithWebauthnSolver,
-			hostLabels:   "env=dev",
-			errAssertion: require.Error,
-			// label is missing however tsh will try to connect over to agent "env=dev:3022"
-			// and fail, however that's why it require sign
-			deviceSignCount: 1,
+			setup:           registerPasswordlessDeviceWithWebauthnSolver,
+			hostLabels:      "env=dev",
+			errAssertion:    require.Error,
+			deviceSignCount: 0,
 			stdoutAssertion: require.Empty,
+		},
+		{
+			name: "role requires per session mfa - 2 stage nodes",
+			authPreference: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOptional,
+					Webauthn: &types.Webauthn{
+						RPID: "127.0.0.1",
+					},
+				},
+			},
+			roles:      []string{"access", sshLoginRole.GetName(), perSessionMFARole.GetName()},
+			setup:      registerPasswordlessDeviceWithWebauthnSolver,
+			hostLabels: "env=stage",
+			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.Equal(t, "test\ntest\n", i, i2...)
+			},
+			deviceSignCount: 2,
+			errAssertion:    require.NoError,
 		},
 	}
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
+			tmpHomePath := t.TempDir()
+
 			require.NoError(t, rootAuth.GetAuthServer().SetAuthPreference(ctx, tt.authPreference))
 			t.Cleanup(func() {
 				require.NoError(t, rootAuth.GetAuthServer().SetAuthPreference(ctx, defaultPreference))
@@ -1067,6 +1107,16 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 
 			if tt.setup != nil {
 				tt.setup(t)
+			}
+
+			if tt.roles != nil {
+				roles := alice.GetRoles()
+				t.Cleanup(func() {
+					alice.SetRoles(roles)
+					require.NoError(t, rootAuth.GetAuthServer().UpsertUser(alice))
+				})
+				alice.SetRoles(tt.roles)
+				require.NoError(t, rootAuth.GetAuthServer().UpsertUser(alice))
 			}
 
 			err = Run(ctx, []string{
@@ -1132,7 +1182,7 @@ func (o *output) String() string {
 // ssh server using a resource access request when "tsh ssh" fails with
 // AccessDenied.
 func TestSSHAccessRequest(t *testing.T) {
-	t.Parallel()
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 	tmpHomePath := t.TempDir()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -2282,7 +2332,7 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 	cfg.Hostname = "node"
 	cfg.DataDir = t.TempDir()
 
-	cfg.AuthServers = []utils.NetAddr{*authAddr}
+	cfg.SetAuthServerAddress(*authAddr)
 	cfg.SetToken(staticToken)
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = false
@@ -2328,7 +2378,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 
-	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}}
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())})
 	cfg.Auth.Resources = options.bootstrap
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
@@ -2373,7 +2423,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 
-	cfg.AuthServers = []utils.NetAddr{*authAddr}
+	cfg.SetAuthServerAddress(*authAddr)
 	cfg.SetToken(staticToken)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = false
@@ -2420,10 +2470,10 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 }
 
 func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client.SSOLoginFunc {
-	return func(ctx context.Context, connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error) {
+	return func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
 		// generate certificates for our user
 		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(
-			pub, user.GetName(), time.Hour,
+			priv.MarshalSSHPublicKey(), user.GetName(), time.Hour,
 			constants.CertificateFormatStandard,
 			"localhost", "",
 		)
@@ -2593,11 +2643,14 @@ func TestSerializeDatabases(t *testing.T) {
         },
         "elasticache": {},
         "secret_store": {},
-        "memorydb": {}
+        "memorydb": {},
+        "rdsproxy": {}
       },
       "mysql": {},
       "gcp": {},
-      "azure": {},
+      "azure": {
+	    "redis": {}
+	  },
       "tls": {
         "mode": 0
       },
@@ -2616,9 +2669,12 @@ func TestSerializeDatabases(t *testing.T) {
         },
         "elasticache": {},
         "secret_store": {},
-        "memorydb": {}
+        "memorydb": {},
+        "rdsproxy": {}
       },
-      "azure": {}
+      "azure": {
+	    "redis": {}
+	  }
     }
   }]
 	`

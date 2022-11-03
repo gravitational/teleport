@@ -1062,7 +1062,7 @@ Configure Database Access following the [Getting Started](https://goteleport.com
 * [AWS RDS/Aurora MySQL](https://goteleport.com/teleport/docs/database-access/guides/mysql-aws/)
 * [Self-hosted PostgreSQL](https://goteleport.com/teleport/docs/database-access/guides/postgres-self-hosted/)
 * [Self-hosted MySQL](https://goteleport.com/teleport/docs/database-access/guides/mysql-self-hosted/)
-* [GUI clients](https://goteleport.com/teleport/docs/database-access/guides/gui-clients/)
+* [GUI clients](https://goteleport.com/docs/connect-your-client/gui-clients/)
 
 ##### Resources
 

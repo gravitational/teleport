@@ -59,13 +59,34 @@ func IsMemoryDBEndpoint(uri string) bool {
 	return isAWSServiceEndpoint(uri, MemoryDBSServiceName)
 }
 
+// RDSEndpointDetails contains information about an RDS endpoint.
+type RDSEndpointDetails struct {
+	// InstanceID is the identifier of an RDS instance.
+	InstanceID string
+	// ClusterID is the identifier of an RDS Aurora cluster.
+	ClusterID string
+	// ClusterCustomEndpointName is the identifier of an Aurora cluster custom endpoint.
+	ClusterCustomEndpointName string
+	// ProxyName is the identifier of an RDS proxy.
+	ProxyName string
+	// ProxyCustomEndpointName is the identifier of an RDS proxy custom endpoint.
+	ProxyCustomEndpointName string
+	// Region is the AWS region the database resides in.
+	Region string
+}
+
+// IsProxy returns true if the RDS endpoint is an RDS Proxy.
+func (d RDSEndpointDetails) IsProxy() bool {
+	return d.ProxyName != "" || d.ProxyCustomEndpointName != ""
+}
+
 // ParseRDSEndpoint extracts the identifier and region from the provided RDS
 // endpoint.
-func ParseRDSEndpoint(endpoint string) (id, region string, err error) {
+func ParseRDSEndpoint(endpoint string) (d *RDSEndpointDetails, err error) {
 	if strings.ContainsRune(endpoint, ':') {
 		endpoint, _, err = net.SplitHostPort(endpoint)
 		if err != nil {
-			return "", "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -80,12 +101,19 @@ func ParseRDSEndpoint(endpoint string) (id, region string, err error) {
 //
 // RDS/Aurora endpoints look like this:
 // aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com
-func parseRDSEndpoint(endpoint string) (id, region string, err error) {
+func parseRDSEndpoint(endpoint string) (*RDSEndpointDetails, error) {
 	parts := strings.Split(endpoint, ".")
-	if !strings.HasSuffix(endpoint, AWSEndpointSuffix) || len(parts) != 6 || parts[3] != RDSServiceName {
-		return "", "", trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
+	hasCorrectLen := len(parts) == 6 || len(parts) == 7
+	serviceNameIndex := len(parts) - 3
+	regionIndex := len(parts) - 4
+	suffixStart := regionIndex
+
+	if !strings.HasSuffix(endpoint, AWSEndpointSuffix) || !hasCorrectLen || parts[serviceNameIndex] != RDSServiceName {
+		return nil, trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
 	}
-	return parts[0], parts[2], nil
+
+	details, err := parseRDSWithoutSuffixes(endpoint, parts[:suffixStart], parts[regionIndex])
+	return details, trace.Wrap(err)
 }
 
 // parseRDSEndpoint extracts the identifier and region from the provided RDS
@@ -93,12 +121,87 @@ func parseRDSEndpoint(endpoint string) (id, region string, err error) {
 //
 // RDS/Aurora endpoints look like this for AWS China regions:
 // aurora-instance-2.abcdefghijklmnop.rds.cn-north-1.amazonaws.com.cn
-func parseRDSCNEndpoint(endpoint string) (id, region string, err error) {
+func parseRDSCNEndpoint(endpoint string) (*RDSEndpointDetails, error) {
 	parts := strings.Split(endpoint, ".")
-	if !strings.HasSuffix(endpoint, AWSCNEndpointSuffix) || len(parts) != 7 || parts[2] != RDSServiceName {
-		return "", "", trace.BadParameter("failed to parse %v as RDS CN endpoint", endpoint)
+	hasCorrectLen := len(parts) == 7 || len(parts) == 8
+	regionIndex := len(parts) - 4
+	serviceNameIndex := len(parts) - 5
+	suffixStart := serviceNameIndex
+
+	if !strings.HasSuffix(endpoint, AWSCNEndpointSuffix) || !hasCorrectLen || parts[serviceNameIndex] != RDSServiceName {
+		return nil, trace.BadParameter("failed to parse %v as RDS CN endpoint", endpoint)
 	}
-	return parts[0], parts[3], nil
+
+	details, err := parseRDSWithoutSuffixes(endpoint, parts[:suffixStart], parts[regionIndex])
+	return details, trace.Wrap(err)
+}
+
+// parseRDSWithoutSuffixes extracts identifiers from provided parts and returns
+// RDSEndpointDetails. It is expected that the provided parts has either:
+// - two parts (e.g. aurora-instance-1.abcdefghijklmnop)
+// - or three parts (e.g. my-proxy-custom.endpoint.proxy-abcdefghijklmnop)
+// as region/service/partition suffixes are removed by the caller.
+func parseRDSWithoutSuffixes(endpoint string, parts []string, region string) (*RDSEndpointDetails, error) {
+	// RDS/Aurora instance endpoints look like this:
+	// aurora-instance-1.abcdefghijklmnop.<suffixes>
+	//
+	// Aurora cluster endpoints look like this:
+	// my-cluster.cluster-abcdefghijklmnop.<suffixes>
+	// my-cluster.cluster-ro-abcdefghijklmnop.<suffixes>
+	// my-custom.cluster-custom-abcdefghijklmnop.<suffixes>
+	//
+	// RDS Proxy "default" endpoints look like this:
+	// my-proxy.proxy-abcdefghijklmnop.<suffixes>
+	//
+	// RDS Proxy custom endpoints look like this:
+	// my-proxy-custom.endpoint.proxy-abcdefghijklmnop.<suffixes>
+	//
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html
+	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy-setup.html#rds-proxy-connecting
+	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy-endpoints.html
+	switch len(parts) {
+	case 2:
+		switch {
+		case strings.HasPrefix(parts[1], "cluster-custom-"):
+			// Note that we are not able to get the cluster ID from the cluster
+			// custom endpoints. The cluster ID must be provided separately in
+			// addition to the endpoints.
+			return &RDSEndpointDetails{
+				ClusterCustomEndpointName: parts[0],
+				Region:                    region,
+			}, nil
+
+		case strings.HasPrefix(parts[1], "cluster-"):
+			return &RDSEndpointDetails{
+				ClusterID: parts[0],
+				Region:    region,
+			}, nil
+
+		case strings.HasPrefix(parts[1], "proxy-"):
+			return &RDSEndpointDetails{
+				ProxyName: parts[0],
+				Region:    region,
+			}, nil
+
+		default:
+			return &RDSEndpointDetails{
+				InstanceID: parts[0],
+				Region:     region,
+			}, nil
+		}
+
+	case 3:
+		if strings.HasPrefix(parts[2], "proxy-") && parts[1] == "endpoint" {
+			return &RDSEndpointDetails{
+				ProxyCustomEndpointName: parts[0],
+				Region:                  region,
+			}, nil
+		}
+		return nil, trace.BadParameter("failed to parse %v as RDS Proxy custom endpoint", endpoint)
+
+	default:
+		return nil, trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
+	}
 }
 
 // ParseRedshiftEndpoint extracts cluster ID and region from the provided
@@ -164,7 +267,7 @@ const (
 	// ElastiCachePrimaryEndpoint is the endpoint of the primary node in the
 	// node group.
 	ElastiCachePrimaryEndpoint = "primary"
-	// ElastiCachePrimaryEndpoint is the endpoint of the replica nodes in the
+	// ElastiCacheReaderEndpoint is the endpoint of the replica nodes in the
 	// node group.
 	ElastiCacheReaderEndpoint = "reader"
 	// ElastiCacheNodeEndpoint is the endpoint that used to connect to an
@@ -469,3 +572,31 @@ const (
 	// MemoryDBSServiceName is the service name for AWS MemoryDB.
 	MemoryDBSServiceName = "memorydb"
 )
+
+// CassandraEndpointURLForRegion returns a Cassandra endpoint based on the provided region.
+// https://docs.aws.amazon.com/keyspaces/latest/devguide/programmatic.endpoints.html
+func CassandraEndpointURLForRegion(region string) string {
+	switch strings.ToLower(region) {
+	case "cn-north-1", "cn-northwest-1":
+		return fmt.Sprintf("cassandra.%s%s:9142", region, AWSCNEndpointSuffix)
+	}
+	return fmt.Sprintf("cassandra.%s%s:9142", region, AWSEndpointSuffix)
+}
+
+// CassandraEndpointRegion returns an AWS region from cassandra endpoint:
+// where endpoint looks like cassandra.us-east-2.amazonaws.com
+// https://docs.aws.amazon.com/keyspaces/latest/devguide/programmatic.endpoints.html
+func CassandraEndpointRegion(endpoint string) (string, error) {
+	endpoint, err := removeSchemaAndPort(endpoint)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	endpoint = strings.TrimSuffix(endpoint, AWSCNEndpointSuffix)
+	endpoint = strings.TrimSuffix(endpoint, AWSEndpointSuffix)
+	parts := strings.Split(endpoint, ".")
+	if len(parts) != 2 {
+		return "", trace.BadParameter("invalid Cassandra endpoint")
+	}
+	return parts[1], nil
+}

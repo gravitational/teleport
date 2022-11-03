@@ -23,12 +23,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -43,9 +44,9 @@ const (
 type EC2Instances struct {
 	// Region is the AWS region where the instances are located.
 	Region string
-	// Document is the SSM document that should be executed on the EC2
+	// DocumentName is the SSM document that should be executed on the EC2
 	// instances.
-	Document string
+	DocumentName string
 	// Parameters are parameters passed to the SSM document.
 	Parameters map[string]string
 	// AccountID is the AWS account the instances belong to.
@@ -138,11 +139,11 @@ type ec2FetcherConfig struct {
 }
 
 type ec2InstanceFetcher struct {
-	Filters    []*ec2.Filter
-	EC2        ec2iface.EC2API
-	Region     string
-	Document   string
-	Parameters map[string]string
+	Filters      []*ec2.Filter
+	EC2          ec2iface.EC2API
+	Region       string
+	DocumentName string
+	Parameters   map[string]string
 }
 
 func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
@@ -158,12 +159,13 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 		})
 	}
 	fetcherConfig := ec2InstanceFetcher{
-		EC2:      cfg.EC2Client,
-		Filters:  tagFilters,
-		Region:   cfg.Region,
-		Document: cfg.Document,
+		EC2:          cfg.EC2Client,
+		Filters:      tagFilters,
+		Region:       cfg.Region,
+		DocumentName: cfg.Document,
 		Parameters: map[string]string{
-			"token": cfg.Matcher.Params.JoinToken,
+			"token":      cfg.Matcher.Params.JoinToken,
+			"scriptName": cfg.Matcher.Params.ScriptName,
 		},
 	}
 	return &fetcherConfig
@@ -176,14 +178,22 @@ func (f *ec2InstanceFetcher) GetEC2Instances(ctx context.Context) ([]EC2Instance
 		Filters: f.Filters,
 	},
 		func(dio *ec2.DescribeInstancesOutput, b bool) bool {
+			const chunkSize = 50 // max number of instances SSM will send commands to at a time
 			for _, res := range dio.Reservations {
-				instances = append(instances, EC2Instances{
-					AccountID:  aws.StringValue(res.OwnerId),
-					Region:     f.Region,
-					Document:   f.Document,
-					Instances:  res.Instances,
-					Parameters: f.Parameters,
-				})
+				for i := 0; i < len(res.Instances); i += chunkSize {
+					end := i + chunkSize
+					if end > len(res.Instances) {
+						end = len(res.Instances)
+					}
+					inst := EC2Instances{
+						AccountID:    aws.StringValue(res.OwnerId),
+						Region:       f.Region,
+						DocumentName: f.DocumentName,
+						Instances:    res.Instances[i:end],
+						Parameters:   f.Parameters,
+					}
+					instances = append(instances, inst)
+				}
 			}
 			return true
 		})

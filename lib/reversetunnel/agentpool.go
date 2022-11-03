@@ -25,10 +25,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -36,11 +42,6 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -84,7 +85,7 @@ type AgentPool struct {
 	cancel context.CancelFunc
 
 	// backoff limits the rate at which new agents are created.
-	backoff utils.Retry
+	backoff retryutils.Retry
 	log     logrus.FieldLogger
 }
 
@@ -177,10 +178,10 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	retry, err := utils.NewLinear(utils.LinearConfig{
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step:      time.Second,
 		Max:       maxBackoff,
-		Jitter:    utils.NewJitter(),
+		Jitter:    retryutils.NewJitter(),
 		AutoReset: 4,
 	})
 	if err != nil {
@@ -459,7 +460,7 @@ func (p *AgentPool) getStateCallback(agent Agent) AgentStateCallback {
 
 // newAgent creates a new agent instance.
 func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease track.Lease) (Agent, error) {
-	addr, err := p.Resolver(ctx)
+	addr, _, err := p.Resolver(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

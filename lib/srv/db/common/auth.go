@@ -25,28 +25,33 @@ import (
 	"io"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
-	libauth "github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
-
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
 	"github.com/aws/aws-sdk-go/service/redshift"
-
-	sqladmin "google.golang.org/api/sqladmin/v1beta4"
-	gcpcredentialspb "google.golang.org/genproto/googleapis/iam/credentials/v1"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	sqladmin "google.golang.org/api/sqladmin/v1beta4"
+	gcpcredentialspb "google.golang.org/genproto/googleapis/iam/credentials/v1"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	azureutils "github.com/gravitational/teleport/api/utils/azure"
+	"github.com/gravitational/teleport/api/utils/retryutils"
+	libauth "github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cloud"
+	libazure "github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+// azureVirtualMachineCacheTTL is the default TTL for Azure virtual machine
+// cache entries.
+const azureVirtualMachineCacheTTL = 5 * time.Minute
 
 // Auth defines interface for creating auth tokens and TLS configurations.
 type Auth interface {
@@ -60,18 +65,34 @@ type Auth interface {
 	GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetAzureAccessToken generates Azure database access token.
 	GetAzureAccessToken(ctx context.Context, sessionCtx *Session) (string, error)
+	// GetAzureCacheForRedisToken retrieves auth token for Azure Cache for Redis.
+	GetAzureCacheForRedisToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetTLSConfig builds the client TLS configuration for the session.
 	GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error)
 	// GetAuthPreference returns the cluster authentication config.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+	// GetAzureIdentityResourceID returns the Azure identity resource ID
+	// attached to the current compute instance. If Teleport is not running on
+	// Azure VM returns an error.
+	GetAzureIdentityResourceID(ctx context.Context, identityName string) (string, error)
 	// Closer releases all resources used by authenticator.
 	io.Closer
+}
+
+// AuthClient is an interface that defines a subset of libauth.Client's
+// functions that are required for database auth.
+type AuthClient interface {
+	// GenerateDatabaseCert generates client certificate used by a database
+	// service to authenticate with the database instance.
+	GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
+	// GetAuthPreference returns the cluster authentication config.
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 }
 
 // AuthConfig is the database access authenticator configuration.
 type AuthConfig struct {
 	// AuthClient is the cluster auth client.
-	AuthClient *libauth.Client
+	AuthClient AuthClient
 	// Clients provides interface for obtaining cloud provider clients.
 	Clients cloud.Clients
 	// Clock is the clock implementation.
@@ -101,6 +122,10 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 // generating auth tokens when connecting to databases.
 type dbAuth struct {
 	cfg AuthConfig
+	// azureVirtualMachineCache caches the current Azure virtual machine.
+	// Avoiding the need to query the metadata server on every database
+	// connection.
+	azureVirtualMachineCache *utils.FnCache
 }
 
 // NewAuth returns a new instance of database access authenticator.
@@ -108,8 +133,18 @@ func NewAuth(config AuthConfig) (Auth, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	azureVirtualMachineCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:   azureVirtualMachineCacheTTL,
+		Clock: config.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &dbAuth{
-		cfg: config,
+		cfg:                      config,
+		azureVirtualMachineCache: azureVirtualMachineCache,
 	}, nil
 }
 
@@ -238,7 +273,7 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 	// Cloud SQL will return 409 to a user update operation if there is another
 	// one in progress, so retry upon encountering it. Also, be nice to the API
 	// and retry with a backoff.
-	retry, err := utils.NewConstant(time.Second)
+	retry, err := retryutils.NewConstant(time.Second)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -249,7 +284,7 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 			Password: token,
 		})
 		if err != nil && !trace.IsCompareFailed(ConvertError(err)) { // We only want to retry on 409.
-			return utils.PermanentRetryError(err)
+			return retryutils.PermanentRetryError(err)
 		}
 		return trace.Wrap(err)
 	})
@@ -293,6 +328,51 @@ func (a *dbAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *Session) (
 	return token.Token, nil
 }
 
+// GetAzureCacheForRedisToken retrieves auth token for Azure Cache for Redis.
+func (a *dbAuth) GetAzureCacheForRedisToken(ctx context.Context, sessionCtx *Session) (string, error) {
+	resourceID, err := arm.ParseResourceID(sessionCtx.Database.GetAzure().ResourceID)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	var client libazure.CacheForRedisClient
+	switch resourceID.ResourceType.String() {
+	case "Microsoft.Cache/Redis":
+		client, err = a.cfg.Clients.GetAzureRedisClient(resourceID.SubscriptionID)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+	case "Microsoft.Cache/redisEnterprise", "Microsoft.Cache/redisEnterprise/databases":
+		client, err = a.cfg.Clients.GetAzureRedisEnterpriseClient(resourceID.SubscriptionID)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+	default:
+		return "", trace.BadParameter("unknown Azure Cache for Redis resource type: %v", resourceID.ResourceType)
+	}
+	token, err := client.GetToken(ctx, sessionCtx.Database.GetAzure().ResourceID)
+	if err != nil {
+		// Some Azure error messages are long, multi-lined, and may even
+		// contain divider lines like "------". It's unreadable in redis-cli as
+		// the message has to be merged to a single line string. Thus logging
+		// the original error as debug and returning a more user friendly
+		// message.
+		a.cfg.Log.WithError(err).Debugf("Failed to get token for Azure Redis %q.", sessionCtx.Database.GetName())
+		switch {
+		case trace.IsAccessDenied(err):
+			return "", trace.AccessDenied("Failed to get token for Azure Redis %q. Please make sure the database agent has the \"listKeys\" permission to the database.", sessionCtx.Database.GetName())
+		case trace.IsNotFound(err):
+			// Note that Azure Cache for Redis should always have both keys
+			// generated at all time. Here just checking in case something
+			// wrong with the API.
+			return "", trace.AccessDenied("Failed to get token for Azure Redis %q. Please make sure either the primary key or the secondary key is generated.", sessionCtx.Database.GetName())
+		default:
+			return "", trace.Errorf("Failed to get token for Azure Redis %q.", sessionCtx.Database.GetName())
+		}
+	}
+	return token, nil
+}
+
 // GetTLSConfig builds the client TLS configuration for the session.
 //
 // For RDS/Aurora, the config must contain RDS root certificate as a trusted
@@ -315,29 +395,13 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 // getTLSConfigVerifyFull returns tls.Config with full verification enabled ('verify-full' mode).
 // Config also includes database specific adjustment.
 func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
-	tlsConfig := &tls.Config{
-		RootCAs: x509.NewCertPool(),
-	}
-
-	switch sessionCtx.Database.GetProtocol() {
-	case defaults.ProtocolMongoDB, defaults.ProtocolRedis:
-		// Mongo and Redis are using custom URI schema.
-	default:
-		// Don't set the ServerName when connecting to a MongoDB cluster - in case
-		// of replica set the driver may dial multiple servers and will set
-		// ServerName itself. For Postgres/MySQL we're always connecting to the
-		// server specified in URI so set ServerName ourselves.
-		addr, err := utils.ParseAddr(sessionCtx.Database.GetURI())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tlsConfig.ServerName = addr.Host()
-	}
+	tlsConfig := &tls.Config{}
 
 	// Add CA certificate to the trusted pool if it's present, e.g. when
 	// connecting to RDS/Aurora which require AWS CA or when was provided in config file.
-	tlsConfig, err := appendCAToRoot(tlsConfig, sessionCtx)
-	if err != nil {
+	//
+	// Some databases may also require the system cert pool, e.g Azure Redis.
+	if err := setupTLSConfigRootCAs(tlsConfig, sessionCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -370,10 +434,9 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 		tlsConfig.VerifyConnection = getVerifyCloudSQLCertificate(tlsConfig.RootCAs)
 	}
 
-	dbTLSConfig := sessionCtx.Database.GetTLS()
-	// Use user provided server name if set. Override the current value if needed.
-	if dbTLSConfig.ServerName != "" {
-		tlsConfig.ServerName = dbTLSConfig.ServerName
+	// Setup server name for verification.
+	if err := setupTLSConfigServerName(tlsConfig, sessionCtx); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// RDS/Aurora/Redshift/ElastiCache and Cloud SQL auth is done with an auth
@@ -440,15 +503,103 @@ func (a *dbAuth) appendClientCert(ctx context.Context, sessionCtx *Session, tlsC
 	return tlsConfig, nil
 }
 
-// appendCAToRoot appends CA certificate from session context to provided tlsConfig.
-func appendCAToRoot(tlsConfig *tls.Config, sessionCtx *Session) (*tls.Config, error) {
+// setupTLSConfigRootCAs initializes the root CA cert pool for the provided
+// tlsConfig based on session context.
+func setupTLSConfigRootCAs(tlsConfig *tls.Config, sessionCtx *Session) error {
+	// Start with an empty pool.
+	tlsConfig.RootCAs = x509.NewCertPool()
+
+	// If CA is provided by the database object, always use it.
 	if len(sessionCtx.Database.GetCA()) != 0 {
 		if !tlsConfig.RootCAs.AppendCertsFromPEM([]byte(sessionCtx.Database.GetCA())) {
-			return nil, trace.BadParameter("invalid server CA certificate")
+			return trace.BadParameter("invalid server CA certificate")
 		}
+		return nil
 	}
 
-	return tlsConfig, nil
+	// Overwrite with the system cert pool, if required.
+	if shouldUseSystemCertPool(sessionCtx) {
+		systemCertPool, err := x509.SystemCertPool()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		tlsConfig.RootCAs = systemCertPool
+		return nil
+	}
+
+	// Use the empty pool. Client cert will be added later.
+	return nil
+}
+
+// shouldUseSystemCertPool returns true for database servers presenting
+// certificates signed by publicly trusted CAs so a system cert pool can be
+// used.
+func shouldUseSystemCertPool(sessionCtx *Session) bool {
+	switch sessionCtx.Database.GetType() {
+	case types.DatabaseTypeAzure:
+		// Azure Cache for Redis certificates are signed by DigiCert Global Root G2.
+		if sessionCtx.Database.GetProtocol() == defaults.ProtocolRedis {
+			return true
+		}
+
+	case types.DatabaseTypeRDSProxy:
+		// AWS RDS Proxy uses Amazon Root CAs.
+		//
+		// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.howitworks.html#rds-proxy-security.tls
+		return true
+	}
+	return false
+}
+
+// setupTLSConfigServerName initializes the server name for the provided
+// tlsConfig based on session context.
+func setupTLSConfigServerName(tlsConfig *tls.Config, sessionCtx *Session) error {
+	// Use user provided server name if set. Override the current value if needed.
+	if dbTLSConfig := sessionCtx.Database.GetTLS(); dbTLSConfig.ServerName != "" {
+		tlsConfig.ServerName = dbTLSConfig.ServerName
+		return nil
+	}
+
+	// If server name is set prior to this function, use that.
+	if tlsConfig.ServerName != "" {
+		return nil
+	}
+
+	switch sessionCtx.Database.GetProtocol() {
+	case defaults.ProtocolMongoDB:
+		// Don't set the ServerName when connecting to a MongoDB cluster - in case
+		// of replica set the driver may dial multiple servers and will set
+		// ServerName itself.
+		return nil
+
+	case defaults.ProtocolRedis:
+		// Azure Redis servers always serve the certificates with the proper
+		// hostnames. However, OSS cluster mode may redirect to an IP address,
+		// and without correct ServerName the handshake will fail as the IPs
+		// are not in SANs.
+		if sessionCtx.Database.IsAzure() {
+			serverName, err := azureutils.GetHostFromRedisURI(sessionCtx.Database.GetURI())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			tlsConfig.ServerName = serverName
+			return nil
+		}
+
+		// Redis is using custom URI schema.
+		return nil
+
+	default:
+		// For other databases we're always connecting to the server specified
+		// in URI so set ServerName ourselves.
+		addr, err := utils.ParseAddr(sessionCtx.Database.GetURI())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		tlsConfig.ServerName = addr.Host()
+		return nil
+	}
 }
 
 // verifyConnectionFunc returns a certificate validation function. serverName if empty will skip the hostname validation.
@@ -513,6 +664,62 @@ func (a *dbAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, e
 	return a.cfg.AuthClient.GetAuthPreference(ctx)
 }
 
+// GetAzureIdentityResourceID returns the Azure identity resource ID attached to
+// the current compute instance.
+func (a *dbAuth) GetAzureIdentityResourceID(ctx context.Context, identityName string) (string, error) {
+	if identityName == "" {
+		return "", trace.BadParameter("empty identity name")
+	}
+
+	vm, err := utils.FnCacheGet(ctx, a.azureVirtualMachineCache, "", a.getCurrentAzureVM)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	for _, identity := range vm.Identities {
+		if matchAzureResourceName(identity.ResourceID, identityName) {
+			return identity.ResourceID, nil
+		}
+	}
+
+	return "", trace.NotFound("could not find identity %q attached to the instance", identityName)
+}
+
+// getCurrentAzureVM fetches current Azure Virtual Machine struct. If Teleport
+// is not running on Azure, returns an error.
+func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*libazure.VirtualMachine, error) {
+	metadataClient, err := a.cfg.Clients.GetInstanceMetadataClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if metadataClient.GetType() != types.InstanceMetadataTypeAzure {
+		return nil, trace.BadParameter("fetching Azure identity resource ID is only supported on Azure")
+	}
+
+	instanceID, err := metadataClient.GetID(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	parsedInstanceID, err := arm.ParseResourceID(instanceID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	vmClient, err := a.cfg.Clients.GetAzureVirtualMachinesClient(parsedInstanceID.SubscriptionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	vm, err := vmClient.Get(ctx, instanceID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return vm, nil
+}
+
 // Close releases all resources used by authenticator.
 func (a *dbAuth) Close() error {
 	return a.cfg.Clients.Close()
@@ -538,4 +745,15 @@ func getVerifyCloudSQLCertificate(roots *x509.CertPool) func(tls.ConnectionState
 		_, err := cs.PeerCertificates[0].Verify(opts)
 		return err
 	}
+}
+
+// matchAzureResourceName receives a resource ID and checks if the resource name
+// matches.
+func matchAzureResourceName(resourceID, name string) bool {
+	parsedResource, err := arm.ParseResourceID(resourceID)
+	if err != nil {
+		return false
+	}
+
+	return parsedResource.Name == name
 }

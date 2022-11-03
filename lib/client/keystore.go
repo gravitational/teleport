@@ -29,9 +29,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gofrs/flock"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -42,10 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/sirupsen/logrus"
-
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -582,24 +578,11 @@ func (fs *fsLocalNonSessionKeyStore) kubeCertPath(idx KeyIndex, kubename string)
 	return keypaths.KubeCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, kubename)
 }
 
-// acquireFileLock is trying to lock the file, until it's successful or timeout is exceeded.
-// File will be created if it doesn't exist.
-func acquireFileLock(filePath string, timeout time.Duration) (func() error, error) {
-	fileLock := flock.New(filePath)
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	if _, err := fileLock.TryLockContext(ctx, 10*time.Millisecond); err != nil {
-		return nil, err
-	}
-
-	return fileLock.Unlock, nil
-}
-
 // AddKnownHostKeys adds a new entry to `known_hosts` file.
 func (fs *fsLocalNonSessionKeyStore) AddKnownHostKeys(hostname, proxyHost string, hostKeys []ssh.PublicKey) (retErr error) {
 	// We're trying to serialize our writes to the 'known_hosts' file to avoid corruption, since there
 	// are cases when multiple tsh instances will try to write to it.
-	unlock, err := acquireFileLock(fs.knownHostsPath(), 5*time.Second)
+	unlock, err := utils.FSTryWriteLockTimeout(context.Background(), fs.knownHostsPath(), 5*time.Second)
 	if err != nil {
 		return trace.WrapWithMessage(err, "could not acquire lock for the `known_hosts` file")
 	}
@@ -695,7 +678,7 @@ func matchesWildcard(hostname, pattern string) bool {
 
 // GetKnownHostKeys returns all known public keys from `known_hosts`.
 func (fs *fsLocalNonSessionKeyStore) GetKnownHostKeys(hostname string) (keys []ssh.PublicKey, retErr error) {
-	unlock, err := acquireFileLock(fs.knownHostsPath(), 5*time.Second)
+	unlock, err := utils.FSTryReadLockTimeout(context.Background(), fs.knownHostsPath(), 5*time.Second)
 	if err != nil {
 		return nil, trace.WrapWithMessage(err, "could not acquire lock for the `known_hosts` file")
 	}

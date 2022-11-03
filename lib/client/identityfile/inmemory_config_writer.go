@@ -22,8 +22,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // NewInMemoryConfigWriter creates a new virtual file system
@@ -36,7 +37,8 @@ func NewInMemoryConfigWriter() *InMemoryConfigWriter {
 }
 
 // InMemoryConfigWriter is a basic virtual file system abstraction that writes into memory
-//  instead of writing to a more persistent storage.
+//
+//	instead of writing to a more persistent storage.
 type InMemoryConfigWriter struct {
 	mux   *sync.RWMutex
 	files map[string]*utils.InMemoryFile

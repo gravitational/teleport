@@ -18,11 +18,11 @@ limitations under the License.
 //
 // It has the following components:
 //
-// * Proxy. Runs inside Teleport proxy and proxies connections from MySQL
-//   clients to appropriate Teleport database services over reverse tunnel.
+//   - Proxy. Runs inside Teleport proxy and proxies connections from MySQL
+//     clients to appropriate Teleport database services over reverse tunnel.
 //
-// * Engine. Runs inside Teleport database service, accepts connections coming
-//   from proxy over reverse tunnel and proxies them to MySQL databases.
+//   - Engine. Runs inside Teleport database service, accepts connections coming
+//     from proxy over reverse tunnel and proxies them to MySQL databases.
 //
 // Protocol
 // --------
@@ -33,14 +33,14 @@ limitations under the License.
 // get client's x509 certificate which contains all the auth and routing
 // information in it:
 //
-//   https://dev.mysql.com/doc/internals/en/connection-phase.html
-//   https://dev.mysql.com/doc/internals/en/ssl-handshake.html
-//   https://dev.mysql.com/doc/internals/en/connection-phase-packets.html
+//	https://dev.mysql.com/doc/internals/en/connection-phase.html
+//	https://dev.mysql.com/doc/internals/en/ssl-handshake.html
+//	https://dev.mysql.com/doc/internals/en/connection-phase-packets.html
 //
 // The engine component plugs into the command phase and interperts all protocol
 // messages flying through it:
 //
-//   https://dev.mysql.com/doc/internals/en/command-phase.html
+//	https://dev.mysql.com/doc/internals/en/command-phase.html
 //
 // MySQL protocol is server-initiated meaning the first "handshake" packet
 // is sent by MySQL server, as such the proxy (which acts as a server) has
@@ -49,28 +49,33 @@ limitations under the License.
 // Connection sequence diagram:
 //
 // mysql                   proxy
-//  |                        |
-//  | <--- HandshakeV10 ---  |
-//  |                        |
-//  | - HandshakeResponse -> |
-//  |                        |
+//
+//	|                        |
+//	| <--- HandshakeV10 ---  |
+//	|                        |
+//	| - HandshakeResponse -> |
+//	|                        |
+//
 // ------- TLS upgrade --------                  engine
-//  |                        |                      |
-//  |                        | ----- connect -----> |
-//  |                        |                      |
-//  |                        |               ---- authz ----            MySQL
-//  |                        |                      |                     |
-//  |                        |                      | ----- connect ----> |
-//  |                        |                      |                     |
-//  |                        | <------- OK -------- |                     |
-//  |                        |                      |                     |
-//  | <-------- OK --------- |                      |                     |
-//  |                        |                      |                     |
+//
+//	|                        |                      |
+//	|                        | ----- connect -----> |
+//	|                        |                      |
+//	|                        |               ---- authz ----            MySQL
+//	|                        |                      |                     |
+//	|                        |                      | ----- connect ----> |
+//	|                        |                      |                     |
+//	|                        | <------- OK -------- |                     |
+//	|                        |                      |                     |
+//	| <-------- OK --------- |                      |                     |
+//	|                        |                      |                     |
+//
 // ------------------------------ Command phase ----------------------------
-//  |                        |                      |                     |
-//  | ----------------------------- COM_QUERY --------------------------> |
-//  | <---------------------------- Response ---------------------------- |
-//  |                        |                      |                     |
-//  | ----------------------------- COM_QUIT ---------------------------> |
-//  |                        |                      |                     |
+//
+//	|                        |                      |                     |
+//	| ----------------------------- COM_QUERY --------------------------> |
+//	| <---------------------------- Response ---------------------------- |
+//	|                        |                      |                     |
+//	| ----------------------------- COM_QUIT ---------------------------> |
+//	|                        |                      |                     |
 package mysql

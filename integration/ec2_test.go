@@ -41,7 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/labels/ec2"
+	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -63,7 +63,7 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 	config.Auth.Enabled = false
 	config.Proxy.Enabled = false
 	config.DataDir = t.TempDir()
-	config.AuthServers = append(config.AuthServers, authAddr)
+	config.SetAuthServerAddress(authAddr)
 	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return config
@@ -84,7 +84,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 	config.Proxy.EnableProxyProtocol = true
 
 	config.DataDir = t.TempDir()
-	config.AuthServers = append(config.AuthServers, authAddr)
+	config.SetAuthServerAddress(authAddr)
 	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return config
@@ -107,7 +107,7 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 		ClusterName: "testcluster",
 	})
 	require.NoError(t, err)
-	config.AuthServers = append(config.AuthServers, config.Auth.ListenAddr)
+	config.SetAuthServerAddress(config.Auth.ListenAddr)
 	config.Auth.StorageConfig = storageConfig
 	config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 	config.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
@@ -301,19 +301,24 @@ func (m *mockIMDSClient) IsAvailable(ctx context.Context) bool {
 	return true
 }
 
-func (m *mockIMDSClient) GetTagKeys(ctx context.Context) ([]string, error) {
-	keys := make([]string, 0, len(m.tags))
-	for k := range m.tags {
-		keys = append(keys, k)
-	}
-	return keys, nil
+func (m *mockIMDSClient) GetTags(ctx context.Context) (map[string]string, error) {
+	return m.tags, nil
 }
 
-func (m *mockIMDSClient) GetTagValue(ctx context.Context, key string) (string, error) {
-	if value, ok := m.tags[key]; ok {
-		return value, nil
+func (m *mockIMDSClient) GetHostname(ctx context.Context) (string, error) {
+	value, ok := m.tags[types.CloudHostnameTag]
+	if !ok {
+		return "", trace.NotFound("cloud hostname key not found")
 	}
-	return "", trace.NotFound("Tag %q not found", key)
+	return value, nil
+}
+
+func (m *mockIMDSClient) GetType() types.InstanceMetadataType {
+	return types.InstanceMetadataTypeEC2
+}
+
+func (m *mockIMDSClient) GetID(ctx context.Context) (string, error) {
+	return "", nil
 }
 
 // TestEC2Labels is an integration test which asserts that Teleport correctly picks up
@@ -337,7 +342,7 @@ func TestEC2Labels(t *testing.T) {
 	tconf.Proxy.DisableWebInterface = true
 	tconf.Auth.StorageConfig = storageConfig
 	tconf.Auth.ListenAddr.Addr = helpers.NewListener(t, service.ListenerAuth, &tconf.FileDescriptors)
-	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.ListenAddr)
+	tconf.SetAuthServerAddress(tconf.Auth.ListenAddr)
 
 	tconf.SSH.Enabled = true
 	tconf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &tconf.FileDescriptors)
@@ -378,7 +383,6 @@ func TestEC2Labels(t *testing.T) {
 	var apps []types.AppServer
 	var databases []types.DatabaseServer
 	var kubes []types.KubeServer
-
 	// Wait for everything to come online.
 	require.Eventually(t, func() bool {
 		var err error
@@ -390,10 +394,25 @@ func TestEC2Labels(t *testing.T) {
 		require.NoError(t, err)
 		kubes, err = authServer.GetKubernetesServers(ctx)
 		require.NoError(t, err)
-		return len(nodes) == 1 && len(apps) == 1 && len(databases) == 1 && len(kubes) == 1
+
+		// dedupClusters is required because GetKubernetesServers returns duplicated servers
+		// because it lists the KindKubeServer and KindKubeService.
+		// We must remove this once legacy heartbeat is removed.
+		// DELETE IN 12.0.0
+		var dedupClusters []types.KubeServer
+		dedup := map[string]struct{}{}
+		for _, kube := range kubes {
+			if _, ok := dedup[kube.GetName()]; ok {
+				continue
+			}
+			dedup[kube.GetName()] = struct{}{}
+			dedupClusters = append(dedupClusters, kube)
+		}
+
+		return len(nodes) == 1 && len(apps) == 1 && len(databases) == 1 && len(dedupClusters) == 1
 	}, 10*time.Second, time.Second)
 
-	tagName := fmt.Sprintf("%s/Name", ec2.AWSNamespace)
+	tagName := fmt.Sprintf("%s/Name", labels.AWSLabelNamespace)
 
 	// Check that EC2 labels were applied.
 	require.Eventually(t, func() bool {
@@ -442,14 +461,14 @@ func TestEC2Hostname(t *testing.T) {
 	tconf.Proxy.WebAddr.Addr = helpers.NewListener(t, service.ListenerProxyWeb, &tconf.FileDescriptors)
 	tconf.Auth.StorageConfig = storageConfig
 	tconf.Auth.ListenAddr.Addr = helpers.NewListener(t, service.ListenerAuth, &tconf.FileDescriptors)
-	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.ListenAddr)
+	tconf.SetAuthServerAddress(tconf.Auth.ListenAddr)
 
 	tconf.SSH.Enabled = true
 	tconf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &tconf.FileDescriptors)
 
 	imClient := &mockIMDSClient{
 		tags: map[string]string{
-			types.EC2HostnameTag: teleportHostname,
+			types.CloudHostnameTag: teleportHostname,
 		},
 	}
 

@@ -23,6 +23,12 @@ import (
 	"net"
 	"sync"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -33,21 +39,16 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
-	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 // Server is a forwarding server. Server is used to create a single in-memory
@@ -421,21 +422,12 @@ func (s *Server) UseTunnel() bool {
 	return s.useTunnel
 }
 
-// OpenBPFSession is a nop since the session must be run on the actual node
-func (s *Server) OpenBPFSession(ctx *srv.ServerContext) (uint64, error) {
-	return 0, nil
+// GetBPF returns the BPF service used by enhanced session recording. BPF
+// for the forwarding server makes no sense (it has to run on the actual
+// node), so return a NOP implementation.
+func (s Server) GetBPF() bpf.BPF {
+	return &bpf.NOP{}
 }
-
-// CloseBPFSession is a nop since the session must be run on the actual node
-func (s *Server) CloseBPFSession(ctx *srv.ServerContext) error {
-	return nil
-}
-
-// OpenRestrictedSession is a nop since the session must be run on the actual node
-func (s *Server) OpenRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {}
-
-// CloseRestrictedSession is a nop since the session must be run on the actual node
-func (s *Server) CloseRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {}
 
 // GetCreateHostUser determines whether users should be created on the
 // host automatically
@@ -443,10 +435,17 @@ func (s *Server) GetCreateHostUser() bool {
 	return false
 }
 
-// GetHostUsers returns the HostUsers instance being used to manage
+// GetHostUser returns the HostUsers instance being used to manage
 // host user provisioning, unimplemented for the forwarder server.
 func (s *Server) GetHostUsers() srv.HostUsers {
 	return nil
+}
+
+// GetRestrictedSessionManager returns a NOP manager since for a
+// forwarding server it makes no sense (it has to run on the actual
+// node).
+func (s Server) GetRestrictedSessionManager() restricted.Manager {
+	return &restricted.NOP{}
 }
 
 // GetInfo returns a services.Server that represents this server.
@@ -524,7 +523,7 @@ func (s *Server) Serve() {
 	s.sconn = sconn
 
 	ctx := context.Background()
-	ctx, s.connectionContext = sshutils.NewConnectionContext(ctx, s.serverConn, s.sconn)
+	ctx, s.connectionContext = sshutils.NewConnectionContext(ctx, s.serverConn, s.sconn, sshutils.SetConnectionContextClock(s.clock))
 
 	// Take connection and extract identity information for the user from it.
 	s.identityContext, err = s.authHandlers.CreateIdentityContext(sconn)

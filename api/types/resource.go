@@ -21,10 +21,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
-
-	"github.com/gravitational/trace"
 )
 
 // Resource represents common properties for all resources.
@@ -170,6 +170,19 @@ func (r ResourcesWithLabels) AsWindowsDesktops() ([]WindowsDesktop, error) {
 		desktops = append(desktops, desktop)
 	}
 	return desktops, nil
+}
+
+// AsWindowsDesktopServices converts each resource into type WindowsDesktop.
+func (r ResourcesWithLabels) AsWindowsDesktopServices() ([]WindowsDesktopService, error) {
+	desktopServices := make([]WindowsDesktopService, 0, len(r))
+	for _, resource := range r {
+		desktopService, ok := resource.(WindowsDesktopService)
+		if !ok {
+			return nil, trace.BadParameter("expected types.WindowsDesktopService, got: %T", resource)
+		}
+		desktopServices = append(desktopServices, desktopService)
+	}
+	return desktopServices, nil
 }
 
 // AsKubeClusters converts each resource into type KubeCluster.

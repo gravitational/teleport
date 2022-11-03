@@ -24,6 +24,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -37,13 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -542,11 +540,8 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, mfaVerified := cert.Extensions[teleport.CertExtensionMFAVerified]
-	mfaParams := services.AccessMFAParams{
-		Verified:       mfaVerified,
-		AlwaysRequired: ap.GetRequireSessionMFA(),
-	}
+	mfaParams := accessChecker.MFAParams(ap.GetRequireMFAType())
+	_, mfaParams.Verified = cert.Extensions[teleport.CertExtensionMFAVerified]
 
 	// check if roles allow access to server
 	if err := accessChecker.CheckAccess(

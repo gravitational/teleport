@@ -19,6 +19,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -26,12 +27,12 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils/tlsutils"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
 
 // ParseKeyStorePEM parses signing key store from PEM encoded key pair
@@ -147,14 +148,14 @@ func VerifyCertificateExpiry(c *x509.Certificate, clock clockwork.Clock) error {
 		return x509.CertificateInvalidError{
 			Cert:   c,
 			Reason: x509.Expired,
-			Detail: fmt.Sprintf("current time %s is before %s", now.Format(time.RFC3339), c.NotBefore.Format(time.RFC3339)),
+			Detail: fmt.Sprintf("current time %s is before %s", now.UTC().Format(time.RFC3339), c.NotBefore.UTC().Format(time.RFC3339)),
 		}
 	}
 	if now.After(c.NotAfter) {
 		return x509.CertificateInvalidError{
 			Cert:   c,
 			Reason: x509.Expired,
-			Detail: fmt.Sprintf("current time %s is after %s", now.Format(time.RFC3339), c.NotAfter.Format(time.RFC3339)),
+			Detail: fmt.Sprintf("current time %s is after %s", now.UTC().Format(time.RFC3339), c.NotAfter.UTC().Format(time.RFC3339)),
 		}
 	}
 	return nil
@@ -202,13 +203,12 @@ func VerifyCertificateChain(certificateChain []*x509.Certificate) error {
 //
 // From RFC5280: https://tools.ietf.org/html/rfc5280#section-4.2.1.1
 //
-//   The signature on a self-signed certificate is generated with the private
-//   key associated with the certificate's subject public key. (This
-//   proves that the issuer possesses both the public and private keys.)
-//   In this case, the subject and authority key identifiers would be
-//   identical, but only the subject key identifier is needed for
-//   certification path building.
-//
+//	The signature on a self-signed certificate is generated with the private
+//	key associated with the certificate's subject public key. (This
+//	proves that the issuer possesses both the public and private keys.)
+//	In this case, the subject and authority key identifiers would be
+//	identical, but only the subject key identifier is needed for
+//	certification path building.
 func IsSelfSigned(certificateChain []*x509.Certificate) bool {
 	if len(certificateChain) != 1 {
 		return false
@@ -284,6 +284,15 @@ func NewCertPoolFromPath(path string) (*x509.CertPool, error) {
 		pool.AddCert(ca)
 	}
 	return pool, nil
+}
+
+// TLSCertToX509 is a helper function that converts a tls.Certificate into an *x509.Certificate
+func TLSCertToX509(cert tls.Certificate) (*x509.Certificate, error) {
+	if len(cert.Certificate) < 1 {
+		return nil, trace.NotFound("invalid certificate length")
+	}
+	x509cert, err := x509.ParseCertificate(cert.Certificate[0])
+	return x509cert, trace.Wrap(err)
 }
 
 const pemBlockCertificate = "CERTIFICATE"

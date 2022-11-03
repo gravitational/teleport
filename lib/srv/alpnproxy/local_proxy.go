@@ -72,6 +72,17 @@ type LocalProxyConfig struct {
 	RootCAs *x509.CertPool
 	// ALPNConnUpgradeRequired specifies if ALPN connection upgrade is required.
 	ALPNConnUpgradeRequired bool
+	// Middleware provides callback functions to the local proxy.
+	Middleware LocalProxyMiddleware
+}
+
+// LocalProxyMiddleware provides callback functions for LocalProxy.
+type LocalProxyMiddleware interface {
+	// OnNewConnection is a callback triggered when a new downstream connection is
+	// accepted by the local proxy.
+	OnNewConnection(ctx context.Context, lp *LocalProxy, conn net.Conn) error
+	// OnStart is a callback triggered when the local proxy starts.
+	OnStart(ctx context.Context, lp *LocalProxy) error
 }
 
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
@@ -114,6 +125,12 @@ func NewLocalProxy(cfg LocalProxyConfig) (*LocalProxy, error) {
 
 // Start starts the LocalProxy.
 func (l *LocalProxy) Start(ctx context.Context) error {
+	if l.cfg.Middleware != nil {
+		err := l.cfg.Middleware.OnStart(ctx, l)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -129,6 +146,14 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 			log.WithError(err).Errorf("Failed to accept client connection.")
 			return trace.Wrap(err)
 		}
+
+		if l.cfg.Middleware != nil {
+			if err := l.cfg.Middleware.OnNewConnection(ctx, l, conn); err != nil {
+				log.WithError(err).Errorf("Middleware failed to handle new connection.")
+				continue
+			}
+		}
+
 		go func() {
 			if err := l.handleDownstreamConnection(ctx, conn); err != nil {
 				if utils.IsOKNetworkError(err) {
@@ -156,7 +181,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 			NextProtos:         l.cfg.GetProtocols(),
 			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
 			ServerName:         l.cfg.SNI,
-			Certificates:       l.cfg.Certs,
+			Certificates:       l.GetCerts(),
 			RootCAs:            l.cfg.RootCAs,
 		},
 	})
@@ -191,7 +216,7 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 			NextProtos:         l.cfg.GetProtocols(),
 			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
 			ServerName:         l.cfg.SNI,
-			Certificates:       l.cfg.Certs,
+			Certificates:       l.GetCerts(),
 		},
 	}
 	proxy := &httputil.ReverseProxy{
@@ -220,4 +245,12 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func (l *LocalProxy) GetCerts() []tls.Certificate {
+	return l.cfg.Certs
+}
+
+func (l *LocalProxy) SetCerts(certs []tls.Certificate) {
+	l.cfg.Certs = certs
 }

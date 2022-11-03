@@ -488,10 +488,10 @@ func (t *remoteTerminal) Run(ctx context.Context) error {
 	}
 
 	// we want to run a "exec" command within a pty
-	if t.ctx.ExecRequest.GetCommand() != "" {
+	if execRequest, err := t.ctx.GetExecRequest(); err == nil && execRequest.GetCommand() != "" {
 		t.log.Debugf("Running exec request within a PTY")
 
-		if err := t.session.Start(ctx, t.ctx.ExecRequest.GetCommand()); err != nil {
+		if err := t.session.Start(ctx, execRequest.GetCommand()); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -507,24 +507,29 @@ func (t *remoteTerminal) Run(ctx context.Context) error {
 }
 
 func (t *remoteTerminal) Wait() (*ExecResult, error) {
-	err := t.session.Wait()
+	execRequest, err := t.ctx.GetExecRequest()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = t.session.Wait()
 	if err != nil {
 		if exitErr, ok := err.(*ssh.ExitError); ok {
 			return &ExecResult{
 				Code:    exitErr.ExitStatus(),
-				Command: t.ctx.ExecRequest.GetCommand(),
+				Command: execRequest.GetCommand(),
 			}, err
 		}
 
 		return &ExecResult{
 			Code:    teleport.RemoteCommandFailure,
-			Command: t.ctx.ExecRequest.GetCommand(),
+			Command: execRequest.GetCommand(),
 		}, err
 	}
 
 	return &ExecResult{
 		Code:    teleport.RemoteCommandSuccess,
-		Command: t.ctx.ExecRequest.GetCommand(),
+		Command: execRequest.GetCommand(),
 	}, nil
 }
 

@@ -16,7 +16,7 @@ limitations under the License.
 
 package main
 
-import "github.com/Clever/go-utils/stringset"
+type stringSet map[string]struct{}
 
 /*
 Fields that we are ignoring when creating a CRD
@@ -27,6 +27,11 @@ CRD do not support readonly logic
 This should be removed when the following feature is implemented
 https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#transition-rules
 */
-var ignoredFields = map[string]stringset.StringSet{
-	"UserSpecV2": stringset.New("LocalAuth", "Expires", "CreatedBy", "Status"),
+var ignoredFields = map[string]stringSet{
+	"UserSpecV2": stringSet{
+		"LocalAuth": struct{}{}, // struct{}{} is used to signify "no value".
+		"Expires":   struct{}{},
+		"CreatedBy": struct{}{},
+		"Status":    struct{}{},
+	},
 }

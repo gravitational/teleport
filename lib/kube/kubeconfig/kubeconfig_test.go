@@ -15,25 +15,25 @@
 package kubeconfig
 
 import (
+	"bytes"
 	"crypto/x509/pkix"
 	"fmt"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/tlsca"
-
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func setup(t *testing.T) (string, clientcmdapi.Config) {
@@ -172,13 +172,13 @@ func TestUpdate(t *testing.T) {
 		clusterAddr = "https://1.2.3.6:3080"
 	)
 	kubeconfigPath, initialConfig := setup(t)
-	creds, caCertPEM, err := genUserKey()
+	creds, caCertPEM, err := genUserKey("localhost")
 	require.NoError(t, err)
 	err = Update(kubeconfigPath, Values{
 		TeleportClusterName: clusterName,
 		ClusterAddr:         clusterAddr,
 		Credentials:         creds,
-	})
+	}, false)
 	require.NoError(t, err)
 
 	wantConfig := initialConfig.DeepCopy()
@@ -217,7 +217,7 @@ func TestUpdateWithExec(t *testing.T) {
 		home        = "/alt/home"
 	)
 	kubeconfigPath, initialConfig := setup(t)
-	creds, caCertPEM, err := genUserKey()
+	creds, caCertPEM, err := genUserKey("localhost")
 	require.NoError(t, err)
 	err = Update(kubeconfigPath, Values{
 		TeleportClusterName: clusterName,
@@ -230,7 +230,7 @@ func TestUpdateWithExec(t *testing.T) {
 				homeEnvVar: home,
 			},
 		},
-	})
+	}, false)
 	require.NoError(t, err)
 
 	wantConfig := initialConfig.DeepCopy()
@@ -277,7 +277,7 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 		home        = "/alt/home"
 	)
 	kubeconfigPath, initialConfig := setup(t)
-	creds, caCertPEM, err := genUserKey()
+	creds, caCertPEM, err := genUserKey("localhost")
 	require.NoError(t, err)
 	err = Update(kubeconfigPath, Values{
 		TeleportClusterName: clusterName,
@@ -291,7 +291,7 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 				homeEnvVar: home,
 			},
 		},
-	})
+	}, false)
 	require.NoError(t, err)
 
 	wantConfig := initialConfig.DeepCopy()
@@ -329,13 +329,53 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 	require.Equal(t, wantConfig, config)
 }
 
+func TestUpdateLoadAllCAs(t *testing.T) {
+	const (
+		clusterName     = "teleport-cluster"
+		leafClusterName = "leaf-teleport-cluster"
+		clusterAddr     = "https://1.2.3.6:3080"
+	)
+	kubeconfigPath, _ := setup(t)
+	creds, _, err := genUserKey("localhost")
+	require.NoError(t, err)
+	_, leafCACertPEM, err := genUserKey("example.com")
+	require.NoError(t, err)
+	creds.TrustedCA[0].ClusterName = clusterName
+	creds.TrustedCA = append(creds.TrustedCA, auth.TrustedCerts{
+		ClusterName:     leafClusterName,
+		TLSCertificates: [][]byte{leafCACertPEM},
+	})
+
+	tests := []struct {
+		loadAllCAs     bool
+		expectedNumCAs int
+	}{
+		{loadAllCAs: false, expectedNumCAs: 1},
+		{loadAllCAs: true, expectedNumCAs: 2},
+	}
+	for _, tc := range tests {
+		t.Run(fmt.Sprintf("LoadAllCAs=%v", tc.loadAllCAs), func(t *testing.T) {
+			require.NoError(t, Update(kubeconfigPath, Values{
+				TeleportClusterName: clusterName,
+				ClusterAddr:         clusterAddr,
+				Credentials:         creds,
+			}, tc.loadAllCAs))
+
+			config, err := Load(kubeconfigPath)
+			require.NoError(t, err)
+			numCAs := bytes.Count(config.Clusters[clusterName].CertificateAuthorityData, []byte("-----BEGIN CERTIFICATE-----"))
+			require.Equal(t, tc.expectedNumCAs, numCAs)
+		})
+	}
+}
+
 func TestRemove(t *testing.T) {
 	const (
 		clusterName = "teleport-cluster"
 		clusterAddr = "https://1.2.3.6:3080"
 	)
 	kubeconfigPath, initialConfig := setup(t)
-	creds, _, err := genUserKey()
+	creds, _, err := genUserKey("localhost")
 	require.NoError(t, err)
 
 	// Add teleport-generated entries to kubeconfig.
@@ -343,7 +383,7 @@ func TestRemove(t *testing.T) {
 		TeleportClusterName: clusterName,
 		ClusterAddr:         clusterAddr,
 		Credentials:         creds,
-	})
+	}, false)
 	require.NoError(t, err)
 
 	// Remove those generated entries from kubeconfig.
@@ -365,7 +405,7 @@ func TestRemove(t *testing.T) {
 		TeleportClusterName: clusterName,
 		ClusterAddr:         clusterAddr,
 		Credentials:         creds,
-	})
+	}, false)
 	require.NoError(t, err)
 
 	// This time, explicitly switch CurrentContext to "prod".
@@ -390,10 +430,10 @@ func TestRemove(t *testing.T) {
 	require.Equal(t, wantConfig, config)
 }
 
-func genUserKey() (*client.Key, []byte, error) {
+func genUserKey(hostname string) (*client.Key, []byte, error) {
 	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
-		CommonName:   "localhost",
-		Organization: []string{"localhost"},
+		CommonName:   hostname,
+		Organization: []string{hostname},
 	}, nil, defaults.CATTL)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

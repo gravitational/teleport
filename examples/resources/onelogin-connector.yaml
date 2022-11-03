@@ -8,8 +8,6 @@ spec:
     - {name: "groups", value: "admin", roles: ["editor"]}
     - {name: "groups", value: "dev", roles: ["access"]}
   display: OneLogin
-  issuer: https://app.onelogin.com/saml/metadata/123456
-  sso: https://mycompany.onelogin.com/trust/saml2/http-redirect/sso/123456
   entity_descriptor: |
     # Paste in downloaded content from OneLogin Dashboard.
     <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="http://www.example.com/00000000000000000000">

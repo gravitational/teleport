@@ -22,8 +22,9 @@ import (
 	"net"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/srv"
 )
 
 // Conn is a desktop protocol connection.
@@ -77,8 +78,12 @@ func (c *Conn) Close() error {
 	return err
 }
 
-// InputMessage reads the next incoming message from the connection.
-func (c *Conn) InputMessage() (Message, error) {
+func (c *Conn) ReadRaw() ([]byte, error) {
+	return readRaw(c.bufr)
+}
+
+// ReadMessage reads the next incoming message from the connection.
+func (c *Conn) ReadMessage() (Message, error) {
 	m, err := decode(c.bufr)
 	if c.OnRecv != nil {
 		c.OnRecv(m)
@@ -86,8 +91,8 @@ func (c *Conn) InputMessage() (Message, error) {
 	return m, trace.Wrap(err)
 }
 
-// OutputMessage sends a message to the connection.
-func (c *Conn) OutputMessage(m Message) error {
+// WriteMessage sends a message to the connection.
+func (c *Conn) WriteMessage(m Message) error {
 	buf, err := m.Encode()
 	if err != nil {
 		return trace.Wrap(err)
@@ -102,7 +107,7 @@ func (c *Conn) OutputMessage(m Message) error {
 
 // SendError is a convenience function for sending an error message.
 func (c *Conn) SendError(message string) error {
-	return c.OutputMessage(Error{Message: message})
+	return c.WriteMessage(Error{Message: message})
 }
 
 // LocalAddr returns local address

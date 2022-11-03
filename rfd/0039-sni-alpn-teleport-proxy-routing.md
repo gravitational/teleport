@@ -87,7 +87,7 @@ ALPN SNI proxy service will be responsible for routing incoming traffic to appro
 ALPN (Application-Layer Protocol Negotiation) is a TLS extension that allows the application layer to negotiate which protocol should be performed over a TLS connection. Teleport proxy will leverage ALPN routing in order to reduce the number of exposed ports.
 
 Outgoing traffic send to the ssh-proxy, reverse tunnel, MySQL, Postgres and MongoDB proxy services will be wrapped in TLS protocol where the teleport proxy clients (tsh, teleport internal libs, local db proxy) will be responsible for setting one of the following teleport protocols:
-- teleport-ssh-proxy
+- teleport-proxy-ssh
 - teleport-reverse-tunnel
 - teleport-mysql
 - teleport-postgres
@@ -119,7 +119,7 @@ clusters:
 ### Local teleport proxy
 To handle connections established to teleport proxy by external clients like mysql, psql CLIs where setting custom ALPN value is not possible we will run local teleport proxy. Traffic sent from external teleport clients will be forwarded through the local proxy where the proxy will be responsible for wrapping incoming connections in TLS protocol, setting appropriate ALPN protocol and establishing a connection to the remote teleport proxy.
 
-For the tsh ssh and tsh scp commands scope forwarding traffic through local proxy seems to be superfluous. SSH traffic can be easily wrapped in TLS with custom teleport-ssh-proxy ALPN protocol inside tsh ssh handler after detecting that the teleport proxy_listener_addr listener was enabled but we should consider adding support for ssh proxy in order to enable external SSH and SCP clients like FileZilla, WinSCP and Putty.
+For the tsh ssh and tsh scp commands scope forwarding traffic through local proxy seems to be superfluous. SSH traffic can be easily wrapped in TLS with custom teleport-proxy-ssh ALPN protocol inside tsh ssh handler after detecting that the teleport proxy_listener_addr listener was enabled but we should consider adding support for ssh proxy in order to enable external SSH and SCP clients like FileZilla, WinSCP and Putty.
 
 Question:
 - Do we want to support Unix sockets in local proxy ?

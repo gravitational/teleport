@@ -32,6 +32,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"k8s.io/client-go/transport"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -44,18 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
-
-	"k8s.io/client-go/transport"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -85,7 +83,7 @@ func TestRequestCertificate(t *testing.T) {
 			Keygen:     testauthority.New(),
 			AuthClient: cl,
 		},
-		log: logrus.New(),
+		log: logrus.NewEntry(logrus.New()),
 	}
 	user, err := types.NewUser("bob")
 	require.NoError(t, err)
@@ -148,7 +146,7 @@ func TestAuthenticate(t *testing.T) {
 	}
 
 	f := &Forwarder{
-		log: logrus.New(),
+		log: logrus.NewEntry(logrus.New()),
 		cfg: ForwarderConfig{
 			ClusterName:       "local",
 			CachingAuthClient: ap,
@@ -533,9 +531,9 @@ func TestAuthenticate(t *testing.T) {
 			req = req.WithContext(ctx)
 
 			if tt.haveKubeCreds {
-				f.creds = map[string]*kubeCreds{tt.routeToCluster: {targetAddr: "k8s.example.com"}}
+				f.clusterDetails = map[string]*kubeDetails{tt.routeToCluster: {kubeCreds: &staticKubeCreds{targetAddr: "k8s.example.com"}}}
 			} else {
-				f.creds = nil
+				f.clusterDetails = nil
 			}
 
 			gotCtx, err := f.authenticate(req)
@@ -704,17 +702,19 @@ func TestNewClusterSessionLocal(t *testing.T) {
 	authCtx := mockAuthCtx(ctx, t, "kube-cluster", false)
 
 	// Set creds for kube cluster local
-	f.creds = map[string]*kubeCreds{
+	f.clusterDetails = map[string]*kubeDetails{
 		"local": {
-			targetAddr: "k8s.example.com:443",
-			tlsConfig: &tls.Config{
-				Certificates: []tls.Certificate{
-					{
-						Certificate: [][]byte{[]byte("cert")},
+			kubeCreds: &staticKubeCreds{
+				targetAddr: "k8s.example.com:443",
+				tlsConfig: &tls.Config{
+					Certificates: []tls.Certificate{
+						{
+							Certificate: [][]byte{[]byte("cert")},
+						},
 					},
 				},
+				transportConfig: &transport.Config{},
 			},
-			transportConfig: &transport.Config{},
 		},
 	}
 
@@ -736,16 +736,16 @@ func TestNewClusterSessionLocal(t *testing.T) {
 	authCtx.kubeCluster = "local"
 	sess, err := f.newClusterSession(authCtx)
 	require.NoError(t, err)
-	require.Equal(t, []kubeClusterEndpoint{{addr: f.creds["local"].targetAddr}}, sess.kubeClusterEndpoints)
+	require.Equal(t, []kubeClusterEndpoint{{addr: f.clusterDetails["local"].getTargetAddr()}}, sess.kubeClusterEndpoints)
 
 	// Make sure newClusterSession used provided creds
 	// instead of requesting a Teleport client cert.
 	// this validates the equality of the referenced values
-	require.Equal(t, f.creds["local"].tlsConfig, sess.tlsConfig)
+	require.Equal(t, f.clusterDetails["local"].getTLSConfig(), sess.tlsConfig)
 
 	// Make sure that sess.tlsConfig was cloned from the value we store in f.creds["local"].tlsConfig.
 	// This is important because each connection must refer to a different memory address so it can be manipulated to enable/disable http2
-	require.NotSame(t, f.creds["local"].tlsConfig, sess.tlsConfig)
+	require.NotSame(t, f.clusterDetails["local"].getTLSConfig(), sess.tlsConfig)
 
 	require.Nil(t, f.cfg.AuthClient.(*mockCSRClient).lastCert)
 	require.Empty(t, 0, f.clientCredentials.Len())
@@ -768,7 +768,7 @@ func TestNewClusterSessionRemote(t *testing.T) {
 	// getClientCreds returns the cached version of the client tlsConfig.
 	require.NotNil(t, f.getClientCreds(authCtx))
 	require.NotSame(t, f.getClientCreds(authCtx), sess.tlsConfig)
-	//lint:ignore SA1019 there's no non-deprecated public API for testing the contents of the RootCAs pool
+	//nolint:staticcheck // SA1019 there's no non-deprecated public API for testing the contents of the RootCAs pool
 	require.Equal(t, [][]byte{f.cfg.AuthClient.(*mockCSRClient).ca.Cert.RawSubject}, sess.tlsConfig.RootCAs.Subjects())
 	require.Equal(t, 1, f.clientCredentials.Len())
 }
@@ -821,7 +821,7 @@ func TestNewClusterSessionDirect(t *testing.T) {
 
 	// Make sure newClusterSession obtained a new client cert instead of using f.creds.
 	require.Equal(t, f.cfg.AuthClient.(*mockCSRClient).lastCert.Raw, sess.tlsConfig.Certificates[0].Certificate[0])
-	//lint:ignore SA1019 there's no non-deprecated public API for testing the contents of the RootCAs pool
+	//nolint:staticcheck // SA1019 there's no non-deprecated public API for testing the contents of the RootCAs pool
 	require.Equal(t, [][]byte{f.cfg.AuthClient.(*mockCSRClient).ca.Cert.RawSubject}, sess.tlsConfig.RootCAs.Subjects())
 	// Make sure that sess.tlsConfig was cloned from the value we store in the cache.
 	// This is important because each connection must refer to a different memory address so it can be manipulated to enable/disable http2
@@ -902,12 +902,14 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 		return rt
 	}
 
-	f.creds = map[string]*kubeCreds{
+	f.clusterDetails = map[string]*kubeDetails{
 		"local": {
-			targetAddr: mockKubeAPI.URL,
-			tlsConfig:  mockKubeAPI.TLS,
-			transportConfig: &transport.Config{
-				WrapTransport: checkTransportProxy,
+			kubeCreds: &staticKubeCreds{
+				targetAddr: mockKubeAPI.URL,
+				tlsConfig:  mockKubeAPI.TLS,
+				transportConfig: &transport.Config{
+					WrapTransport: checkTransportProxy,
+				},
 			},
 		},
 	}
@@ -915,7 +917,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 	authCtx.kubeCluster = "local"
 	sess, err := f.newClusterSession(authCtx)
 	require.NoError(t, err)
-	require.Equal(t, []kubeClusterEndpoint{{addr: f.creds["local"].targetAddr}}, sess.kubeClusterEndpoints)
+	require.Equal(t, []kubeClusterEndpoint{{addr: f.clusterDetails["local"].getTargetAddr()}}, sess.kubeClusterEndpoints)
 
 	sess.tlsConfig.InsecureSkipVerify = true
 
@@ -952,7 +954,7 @@ func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 	require.NoError(t, err)
 
 	return &Forwarder{
-		log:    logrus.New(),
+		log:    logrus.NewEntry(logrus.New()),
 		router: *httprouter.New(),
 		cfg: ForwarderConfig{
 			Keygen:            testauthority.New(),
@@ -1126,7 +1128,7 @@ func (m *mockWatcher) Done() <-chan struct{} {
 
 func newTestForwarder(ctx context.Context, cfg ForwarderConfig) *Forwarder {
 	return &Forwarder{
-		log:            logrus.New(),
+		log:            logrus.NewEntry(logrus.New()),
 		router:         *httprouter.New(),
 		cfg:            cfg,
 		activeRequests: make(map[string]context.Context),

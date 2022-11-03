@@ -24,14 +24,15 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v3"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -58,6 +59,10 @@ const (
 	// TemplateKubernetesName is the config name for generating Kubernetes
 	// client config files
 	TemplateKubernetesName = "kubernetes"
+
+	// TemplateSSHHostCertName is the config name for generating SSH host
+	// certificates
+	TemplateSSHHostCertName = "ssh_host_cert"
 )
 
 // AllConfigTemplates lists all valid config templates, intended for help
@@ -70,6 +75,7 @@ var AllConfigTemplates = [...]string{
 	TemplateMongoName,
 	TemplateCockroachName,
 	TemplateKubernetesName,
+	TemplateSSHHostCertName,
 }
 
 // FileDescription is a minimal spec needed to create an empty end-user-owned
@@ -103,13 +109,14 @@ type Template interface {
 // TemplateConfig contains all possible config template variants. Exactly one
 // variant must be set to be considered valid.
 type TemplateConfig struct {
-	SSHClient  *TemplateSSHClient  `yaml:"ssh_client,omitempty"`
-	Identity   *TemplateIdentity   `yaml:"identity,omitempty"`
-	TLS        *TemplateTLS        `yaml:"tls,omitempty"`
-	TLSCAs     *TemplateTLSCAs     `yaml:"tls_cas,omitempty"`
-	Mongo      *TemplateMongo      `yaml:"mongo,omitempty"`
-	Cockroach  *TemplateCockroach  `yaml:"cockroach,omitempty"`
-	Kubernetes *TemplateKubernetes `yaml:"kubernetes,omitempty"`
+	SSHClient   *TemplateSSHClient   `yaml:"ssh_client,omitempty"`
+	Identity    *TemplateIdentity    `yaml:"identity,omitempty"`
+	TLS         *TemplateTLS         `yaml:"tls,omitempty"`
+	TLSCAs      *TemplateTLSCAs      `yaml:"tls_cas,omitempty"`
+	Mongo       *TemplateMongo       `yaml:"mongo,omitempty"`
+	Cockroach   *TemplateCockroach   `yaml:"cockroach,omitempty"`
+	Kubernetes  *TemplateKubernetes  `yaml:"kubernetes,omitempty"`
+	SSHHostCert *TemplateSSHHostCert `yaml:"ssh_host_cert,omitempty"`
 }
 
 func (c *TemplateConfig) UnmarshalYAML(node *yaml.Node) error {
@@ -136,6 +143,8 @@ func (c *TemplateConfig) UnmarshalYAML(node *yaml.Node) error {
 			c.Cockroach = &TemplateCockroach{}
 		case TemplateKubernetesName:
 			c.Kubernetes = &TemplateKubernetes{}
+		case TemplateSSHHostCertName:
+			c.SSHHostCert = &TemplateSSHHostCert{}
 		default:
 			return trace.BadParameter(
 				"invalid config template '%s' on line %d, expected one of: %s",
@@ -160,6 +169,7 @@ func (c *TemplateConfig) CheckAndSetDefaults() error {
 		c.Mongo,
 		c.Cockroach,
 		c.Kubernetes,
+		c.SSHHostCert,
 	}
 
 	notNilCount := 0
@@ -200,6 +210,7 @@ func (c *TemplateConfig) GetConfigTemplate() (Template, error) {
 		c.Mongo,
 		c.Cockroach,
 		c.Kubernetes,
+		c.SSHHostCert,
 	}
 
 	for _, template := range templates {

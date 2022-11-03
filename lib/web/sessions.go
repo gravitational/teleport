@@ -26,8 +26,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -44,11 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
 )
 
 // SessionContext is a context associated with a user's
@@ -285,7 +284,7 @@ func (c *SessionContext) extendWebSession(ctx context.Context, req renewSessionR
 
 // GetAgent returns agent that can be used to answer challenges
 // for the web to ssh connection as well as certificate
-func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
+func (c *SessionContext) GetAgent() (agent.ExtendedAgent, *ssh.Certificate, error) {
 	cert, err := c.GetSSHCertificate()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -298,7 +297,10 @@ func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
 		return nil, nil, trace.Wrap(err, "failed to parse SSH private key")
 	}
 
-	keyring := agent.NewKeyring()
+	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
+	if !ok {
+		return nil, nil, trace.Errorf("unexpected keyring type: %T, expected agent.ExtendedKeyring", keyring)
+	}
 	err = keyring.Add(agent.AddedKey{
 		PrivateKey:  privateKey,
 		Certificate: cert,
@@ -611,11 +613,12 @@ func (s *sessionCache) GetCertificateWithoutOTP(
 			},
 			ClientMetadata: clientMeta,
 		},
-		PublicKey:         c.PubKey,
-		CompatibilityMode: c.Compatibility,
-		TTL:               c.TTL,
-		RouteToCluster:    c.RouteToCluster,
-		KubernetesCluster: c.KubernetesCluster,
+		PublicKey:            c.PubKey,
+		CompatibilityMode:    c.Compatibility,
+		TTL:                  c.TTL,
+		RouteToCluster:       c.RouteToCluster,
+		KubernetesCluster:    c.KubernetesCluster,
+		AttestationStatement: c.AttestationStatement,
 	})
 }
 
@@ -633,11 +636,12 @@ func (s *sessionCache) GetCertificateWithOTP(
 			},
 			ClientMetadata: clientMeta,
 		},
-		PublicKey:         c.PubKey,
-		CompatibilityMode: c.Compatibility,
-		TTL:               c.TTL,
-		RouteToCluster:    c.RouteToCluster,
-		KubernetesCluster: c.KubernetesCluster,
+		PublicKey:            c.PubKey,
+		CompatibilityMode:    c.Compatibility,
+		TTL:                  c.TTL,
+		RouteToCluster:       c.RouteToCluster,
+		KubernetesCluster:    c.KubernetesCluster,
+		AttestationStatement: c.AttestationStatement,
 	})
 }
 
@@ -667,6 +671,7 @@ func (s *sessionCache) AuthenticateSSHUser(
 		TTL:                     c.TTL,
 		RouteToCluster:          c.RouteToCluster,
 		KubernetesCluster:       c.KubernetesCluster,
+		AttestationStatement:    c.AttestationStatement,
 	})
 }
 

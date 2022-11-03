@@ -12,8 +12,11 @@ spec:
   # button on the cluster login screen so it will say "Login with Okta"
   display: Okta
   # SAML provider will make a callback to this URL after successful authentication
-  # cluster-url is the address the cluster UI is reachable at
-  acs: https://<cluster-url>/v1/webapi/saml/acs
+  # cluster-url is the address the cluster UI is reachable at.
+  # The last segment of the URL must be identical to the connector metadata name.
+  acs: https://<cluster-url>/v1/webapi/saml/acs/new_saml_connector
+  # Controls whether IdP-initiated SSO is allowed. If false, all such requests will be rejected with an error.
+  allow_idp_initiated: false
   attributes_to_roles:
   - name: groups
     roles:

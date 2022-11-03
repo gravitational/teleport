@@ -28,13 +28,13 @@ import (
 	"sync"
 
 	gwebsocket "github.com/gorilla/websocket"
-	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	clientremotecommand "k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport"
-	"k8s.io/utils/strings/slices"
+
+	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 )
 
 var (
@@ -92,9 +92,18 @@ func (e *wsStreamExecutor) Stream(options clientremotecommand.StreamOptions) err
 	// stream will block until execution is finished.
 	defer conn.Close()
 	streamingProto := conn.Subprotocol()
-	if !slices.Contains(supportedProtocols, streamingProto) {
+
+	found := false
+	for _, p := range supportedProtocols {
+		if p == streamingProto {
+			found = true
+			break
+		}
+	}
+	if !found {
 		return fmt.Errorf("unsupported streaming protocol: %q", streamingProto)
 	}
+
 	// hang until server closes streams.
 	return e.stream(conn, options)
 }
@@ -310,7 +319,9 @@ func (e *wsStreamExecutor) RoundTrip(request *http.Request) (retResp *http.Respo
 // parseError parses the error received from Kube API and checks if the returned error is *metav1.Status
 func parseError(errorBytes []byte) (bool, error) {
 	if obj, _, err := statusCodecs.UniversalDecoder().Decode(errorBytes, nil, &metav1.Status{}); err == nil {
-		if status, ok := obj.(*metav1.Status); ok {
+		if status, ok := obj.(*metav1.Status); ok && status.Status == metav1.StatusSuccess {
+			return true, nil
+		} else if ok {
 			return true, &apierrors.StatusError{ErrStatus: *status}
 		}
 		return false, fmt.Errorf("unexpected error type: %T", obj)

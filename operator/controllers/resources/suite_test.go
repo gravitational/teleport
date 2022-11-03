@@ -23,25 +23,27 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/identityfile"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/sirupsen/logrus"
-
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
+	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/utils"
 	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
 	//+kubebuilder:scaffold:imports
@@ -112,63 +114,51 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 	return teleportServer, operatorName
 }
 
-func startKubernetesOperator(t *testing.T, teleportClient auth.ClientI) kclient.Client {
-	testEnv := &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
-		ErrorIfCRDPathMissing: true,
+// startKubernetesOperator creates and start a new operator
+func (s *testSetup) startKubernetesOperator(t *testing.T) {
+	// If there was an operator running previously we make sure it is stopped
+	if s.operatorCancel != nil {
+		s.stopKubernetesOperator()
 	}
 
-	cfg, err := testEnv.Start()
-	require.NoError(t, err)
-	require.NotNil(t, cfg)
-
-	err = resourcesv5.AddToScheme(scheme.Scheme)
-	require.NoError(t, err)
-
-	err = resourcesv2.AddToScheme(scheme.Scheme)
-	require.NoError(t, err)
-
-	k8sClient, err := kclient.New(cfg, kclient.Options{Scheme: scheme.Scheme})
-	require.NoError(t, err)
-	require.NotNil(t, k8sClient)
-
+	// We have to create a new Manager on each start because the Manager does not support to be restarted
 	clientAccessor := func(ctx context.Context) (auth.ClientI, error) {
-		return teleportClient, nil
+		return s.tClient, nil
 	}
 
-	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
+	k8sManager, err := ctrl.NewManager(s.k8sRestConfig, ctrl.Options{
 		Scheme:             scheme.Scheme,
 		MetricsBindAddress: "0",
 	})
 	require.NoError(t, err)
 
 	err = (&RoleReconciler{
-		Client:                 k8sClient,
+		Client:                 s.k8sClient,
 		Scheme:                 k8sManager.GetScheme(),
 		TeleportClientAccessor: clientAccessor,
 	}).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
 	err = (&UserReconciler{
-		Client:                 k8sClient,
+		Client:                 s.k8sClient,
 		Scheme:                 k8sManager.GetScheme(),
 		TeleportClientAccessor: clientAccessor,
 	}).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
+
+	s.operator = k8sManager
+	s.operatorCancel = ctxCancel
+
 	go func() {
-		err = k8sManager.Start(ctx)
-		require.NoError(t, err)
+		err := s.operator.Start(ctx)
+		assert.NoError(t, err)
 	}()
+}
 
-	t.Cleanup(func() {
-		ctxCancel()
-		err = testEnv.Stop()
-		require.NoError(t, err)
-	})
-
-	return k8sClient
+func (s *testSetup) stopKubernetesOperator() {
+	s.operatorCancel()
 }
 
 func createNamespaceForTest(t *testing.T, kc kclient.Client) *core.Namespace {
@@ -178,10 +168,6 @@ func createNamespaceForTest(t *testing.T, kc kclient.Client) *core.Namespace {
 
 	err := kc.Create(context.Background(), ns)
 	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		deleteNamespaceForTest(t, kc, ns)
-	})
 
 	return ns
 }
@@ -202,20 +188,21 @@ func validRandomResourceName(prefix string) string {
 }
 
 type testSetup struct {
-	tClient   auth.ClientI
-	k8sClient kclient.Client
-	namespace *core.Namespace
+	tClient        auth.ClientI
+	k8sClient      kclient.Client
+	k8sRestConfig  *rest.Config
+	namespace      *core.Namespace
+	operator       manager.Manager
+	operatorCancel context.CancelFunc
+	operatorName   string
 }
 
-func setupKubernetesAndTeleport(t *testing.T) testSetup {
+// setupTestEnv creates a Kubernetes server, a teleport server and starts the operator
+func setupTestEnv(t *testing.T) *testSetup {
+	// Create a Teleport server and its client
 	teleportServer, operatorName := defaultTeleportServiceConfig(t)
-
 	require.NoError(t, teleportServer.Start())
-
 	tClient := clientForTeleport(t, teleportServer, operatorName)
-	k8sClient := startKubernetesOperator(t, tClient)
-
-	ns := createNamespaceForTest(t, k8sClient)
 
 	t.Cleanup(func() {
 		err := tClient.Close()
@@ -223,7 +210,51 @@ func setupKubernetesAndTeleport(t *testing.T) testSetup {
 		err = teleportServer.StopAll()
 		require.NoError(t, err)
 	})
-	return testSetup{tClient: tClient, k8sClient: k8sClient, namespace: ns}
+
+	// Create a Kubernetes server, its client and the namespace we are testing in
+	testEnv := &envtest.Environment{
+		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
+		ErrorIfCRDPathMissing: true,
+	}
+
+	cfg, err := testEnv.Start()
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+
+	err = resourcesv5.AddToScheme(scheme.Scheme)
+	require.NoError(t, err)
+
+	err = resourcesv2.AddToScheme(scheme.Scheme)
+	require.NoError(t, err)
+
+	k8sClient, err := kclient.New(cfg, kclient.Options{Scheme: scheme.Scheme})
+	require.NoError(t, err)
+	require.NotNil(t, k8sClient)
+
+	ns := createNamespaceForTest(t, k8sClient)
+
+	t.Cleanup(func() {
+		deleteNamespaceForTest(t, k8sClient, ns)
+		err = testEnv.Stop()
+		require.NoError(t, err)
+	})
+
+	setup := &testSetup{
+		tClient:       tClient,
+		k8sClient:     k8sClient,
+		namespace:     ns,
+		k8sRestConfig: cfg,
+		operatorName:  operatorName,
+	}
+
+	// Create and start the Kubernetes operator
+	setup.startKubernetesOperator(t)
+
+	t.Cleanup(func() {
+		setup.stopKubernetesOperator()
+	})
+
+	return setup
 }
 
 func teleportCreateDummyRole(ctx context.Context, t *testing.T, roleName string, tClient auth.ClientI) {

@@ -30,6 +30,14 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
+	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -37,9 +45,9 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -52,19 +60,10 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/srv/server"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
-	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 const sftpSubsystem = "sftp"
@@ -221,14 +220,6 @@ type Server struct {
 	// users is used to start the automatic user deletion loop
 	users srv.HostUsers
 
-	// cloudWatcher periodically retrieves cloud resources, currently
-	// only EC2
-	cloudWatcher *server.Watcher
-	// awsMatchers are used to match EC2 instances
-	awsMatchers []services.AWSMatcher
-	// clients is used to retrieve clients used for AWS EC2 discovery
-	clients cloud.Clients
-
 	// tracerProvider is used to create tracers capable
 	// of starting spans.
 	tracerProvider oteltrace.TracerProvider
@@ -279,25 +270,14 @@ func (s *Server) UseTunnel() bool {
 	return s.useTunnel
 }
 
-// OpenBPFSession will start monitoring all events within a session and
-// emitting them to the Audit Log.
-func (s *Server) OpenBPFSession(ctx *srv.ServerContext) (uint64, error) {
-	return s.ebpf.OpenSession(ctx)
+// GetBPF returns the BPF service used by enhanced session recording.
+func (s *Server) GetBPF() bpf.BPF {
+	return s.ebpf
 }
 
-// CloseBPFSession will stop monitoring events for a particular session.
-func (s *Server) CloseBPFSession(ctx *srv.ServerContext) error {
-	return s.ebpf.CloseSession(ctx)
-}
-
-// OpenRestrictedSession  starts enforcing restrictions for a cgroup with cgroupID
-func (s *Server) OpenRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {
-	s.restrictedMgr.OpenSession(ctx, cgroupID)
-}
-
-// CloseRestrictedSession stops enforcing restrictions for a cgroup with cgroupID
-func (s *Server) CloseRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {
-	s.restrictedMgr.CloseSession(ctx, cgroupID)
+// GetRestrictedSessionManager returns the manager for restricting user activity.
+func (s *Server) GetRestrictedSessionManager() restricted.Manager {
+	return s.restrictedMgr
 }
 
 // GetLockWatcher gets the server's lock watcher.
@@ -335,6 +315,7 @@ func (s *Server) close() {
 	if s.users != nil {
 		s.users.Shutdown()
 	}
+
 }
 
 // Close closes listening socket and stops accepting connections
@@ -663,26 +644,10 @@ func SetInventoryControlHandle(handle inventory.DownstreamHandle) ServerOption {
 	}
 }
 
-// SetAWSMatchers sets the matchers used for matching EC2 instances
-func SetAWSMatchers(matchers []services.AWSMatcher) ServerOption {
-	return func(s *Server) error {
-		s.awsMatchers = matchers
-		return nil
-	}
-}
-
 // SetTracerProvider sets the tracer provider.
 func SetTracerProvider(provider oteltrace.TracerProvider) ServerOption {
 	return func(s *Server) error {
 		s.tracerProvider = provider
-		return nil
-	}
-}
-
-// SetCloudClients returns a server option that sets cloud API clients
-func SetCloudClients(clients cloud.Clients) ServerOption {
-	return func(s *Server) error {
-		s.clients = clients
 		return nil
 	}
 }
@@ -808,17 +773,6 @@ func New(addr utils.NetAddr,
 		SessionRegistry: s.reg,
 	}
 
-	if len(s.awsMatchers) != 0 {
-		if s.clients == nil {
-			s.clients = cloud.NewClients()
-		}
-
-		s.cloudWatcher, err = server.NewCloudWatcher(s.ctx, s.awsMatchers, s.clients)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	server, err := sshutils.NewServer(
 		component,
 		addr, s, signers,
@@ -830,6 +784,7 @@ func New(addr utils.NetAddr,
 		sshutils.SetKEXAlgorithms(s.kexAlgorithms),
 		sshutils.SetMACAlgorithms(s.macAlgorithms),
 		sshutils.SetFIPS(s.fips),
+		sshutils.SetClock(s.clock),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1084,7 +1039,9 @@ func (s *Server) HandleRequest(ctx context.Context, r *ssh.Request) {
 	case teleport.KeepAliveReqType:
 		s.handleKeepAlive(r)
 	case teleport.RecordingProxyReqType:
-		s.handleRecordingProxy(r)
+		s.handleRecordingProxy(ctx, r)
+	case teleport.ClusterDetailsReqType:
+		s.handleClusterDetails(ctx, r)
 	case teleport.VersionRequest:
 		s.handleVersionRequest(r)
 	case teleport.TerminalSizeRequest:
@@ -1140,6 +1097,14 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 			s.Logger.WithError(err).Warn("Failed to emit session reject event.")
 		}
 		return ctx, trace.Wrap(lockErr)
+	}
+
+	// Check that the required private key policy, defined by roles and auth pref,
+	// is met by this Identity's ssh certificate.
+	identityPolicy := identityContext.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy]
+	requiredPolicy := identityContext.AccessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if err := requiredPolicy.VerifyPolicy(keys.PrivateKeyPolicy(identityPolicy)); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Don't apply the following checks in non-node contexts.
@@ -1700,10 +1665,16 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	case tracessh.TracingRequest:
 		return nil
 	case sshutils.ExecRequest:
+		if _, err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
+			return trace.Wrap(err)
+		}
 		return s.termHandlers.HandleExec(ctx, ch, req, serverContext)
 	case sshutils.PTYRequest:
 		return s.termHandlers.HandlePTYReq(ctx, ch, req, serverContext)
 	case sshutils.ShellRequest:
+		if _, err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
+			return trace.Wrap(err)
+		}
 		return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
 	case sshutils.WindowChangeRequest:
 		return s.termHandlers.HandleWinChange(ctx, ch, req, serverContext)
@@ -1724,6 +1695,10 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// https://tools.ietf.org/html/draft-ietf-secsh-agent-02
 		// the open ssh proto spec that we implement is here:
 		// http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent
+		if _, err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
+			s.Logger.Warn(err)
+			return nil
+		}
 
 		// to maintain interoperability with OpenSSH, agent forwarding requests
 		// should never fail, all errors should be logged and we should continue
@@ -1899,32 +1874,63 @@ func (s *Server) handleKeepAlive(req *ssh.Request) {
 	s.Logger.Debugf("Replied to %q", req.Type)
 }
 
-// handleRecordingProxy responds to global out-of-band with a bool which
-// indicates if it is in recording mode or not.
-func (s *Server) handleRecordingProxy(req *ssh.Request) {
-	var recordingProxy bool
-
+// handleClusterDetails responds to global out-of-band with details about the cluster.
+func (s *Server) handleClusterDetails(ctx context.Context, req *ssh.Request) {
 	s.Logger.Debugf("Global request (%v, %v) received", req.Type, req.WantReply)
 
-	if req.WantReply {
-		// get the cluster config, if we can't get it, reply false
-		recConfig, err := s.authService.GetSessionRecordingConfig(s.ctx)
-		if err != nil {
-			err := req.Reply(false, nil)
-			if err != nil {
-				s.Logger.Warnf("Unable to respond to global request (%v, %v): %v", req.Type, req.WantReply, err)
-			}
-			return
+	if !req.WantReply {
+		return
+	}
+	// get the cluster config, if we can't get it, reply false
+	recConfig, err := s.authService.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		if err := req.Reply(false, nil); err != nil {
+			s.Logger.Warnf("Unable to respond to global request (%v, %v): %v", req.Type, req.WantReply, err)
 		}
+		return
+	}
 
-		// reply true that we were able to process the message and reply with a
-		// bool if we are in recording mode or not
-		recordingProxy = services.IsRecordAtProxy(recConfig.GetMode())
-		err = req.Reply(true, []byte(strconv.FormatBool(recordingProxy)))
-		if err != nil {
-			s.Logger.Warnf("Unable to respond to global request (%v, %v): %v: %v", req.Type, req.WantReply, recordingProxy, err)
-			return
+	details := sshutils.ClusterDetails{
+		RecordingProxy: services.IsRecordAtProxy(recConfig.GetMode()),
+		FIPSEnabled:    s.fips,
+	}
+
+	if err = req.Reply(true, ssh.Marshal(details)); err != nil {
+		s.Logger.Warnf("Unable to respond to global request (%v, %v): %v: %v", req.Type, req.WantReply, details, err)
+		return
+	}
+
+	s.Logger.Debugf("Replied to global request (%v, %v): %v", req.Type, req.WantReply, details)
+}
+
+// handleRecordingProxy responds to global out-of-band with a bool which
+// indicates if it is in recording mode or not.
+//
+// DEPRECATED: ClusterDetailsReqType should be used instead to avoid multiple round trips for
+// cluster information.
+// TODO(tross):DELETE IN 12.0
+func (s *Server) handleRecordingProxy(ctx context.Context, req *ssh.Request) {
+	s.Logger.Debugf("Global request (%v, %v) received", req.Type, req.WantReply)
+
+	if !req.WantReply {
+		return
+	}
+
+	// get the cluster config, if we can't get it, reply false
+	recConfig, err := s.authService.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		if err := req.Reply(false, nil); err != nil {
+			s.Logger.Warnf("Unable to respond to global request (%v, %v): %v", req.Type, req.WantReply, err)
 		}
+		return
+	}
+
+	// reply true that we were able to process the message and reply with a
+	// bool if we are in recording mode or not
+	recordingProxy := services.IsRecordAtProxy(recConfig.GetMode())
+	if err := req.Reply(true, []byte(strconv.FormatBool(recordingProxy))); err != nil {
+		s.Logger.Warnf("Unable to respond to global request (%v, %v): %v: %v", req.Type, req.WantReply, recordingProxy, err)
+		return
 	}
 
 	s.Logger.Debugf("Replied to global request (%v, %v): %v", req.Type, req.WantReply, recordingProxy)
@@ -2049,6 +2055,12 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 	}
 }
 
+// TODO: tsh scp will display neither the message sent in stderr or in
+// the reply; github.com/pkg/sftp ignores the SSH channel stderr, and
+// golang.org/x/crypto/ssh.channel.SendRequest ignores the message in
+// a channel reply. This is bad UX for users, as
+// 'ssh: subsystem request failed' will be the only error displayed when
+// access is denied.
 func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
 	s.Logger.Error(err)
 	// Terminate the error with a newline when writing to remote channel's
@@ -2075,11 +2087,11 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ch ssh.Channel, ctx *sr
 		return parseProxySubsys(r.Name, s, ctx)
 	case s.proxyMode && strings.HasPrefix(r.Name, "proxysites"):
 		return parseProxySitesSubsys(r.Name, s)
+	case r.Name == teleport.GetHomeDirSubsystem:
+		return newHomeDirSubsys(), nil
 	case r.Name == sftpSubsystem:
-		if err := ctx.CheckFileCopyingAllowed(); err != nil {
-			// Add an extra newline here to separate this error message
-			// from a potential OpenSSH error message
-			writeStderr(ch, err.Error()+"\n")
+		if err := ctx.CheckSFTPAllowed(); err != nil {
+			s.replyError(ch, req, err)
 			return nil, trace.Wrap(err)
 		}
 

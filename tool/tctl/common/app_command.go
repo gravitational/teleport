@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	libclient "github.com/gravitational/teleport/lib/client"
@@ -93,15 +92,6 @@ func (c *AppsCommand) ListApps(ctx context.Context, clt auth.ClientI) error {
 		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),
 	})
 	switch {
-	// Underlying ListResources for app servers not available, use fallback.
-	// Using filter flags with older auth will silently do nothing.
-	//
-	// DELETE IN 11.0.0
-	case trace.IsNotImplemented(err):
-		servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 	case err != nil:
 		if utils.IsPredicateError(err) {
 			return trace.Wrap(utils.PredicateError{Err: err})

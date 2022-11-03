@@ -21,16 +21,15 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	apiutils "github.com/gravitational/teleport/api/utils"
-
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
+
+	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 func TestFnCache_New(t *testing.T) {
@@ -63,8 +62,35 @@ func TestFnCache_New(t *testing.T) {
 }
 
 type result struct {
-	val interface{}
+	val any
 	err error
+}
+
+func TestFnCacheGet(t *testing.T) {
+	cache, err := NewFnCache(FnCacheConfig{
+		TTL:     time.Second,
+		Clock:   clockwork.NewFakeClock(),
+		Context: context.Background(),
+	})
+	require.NoError(t, err)
+
+	value, err := cache.get(context.Background(), "test", func(ctx context.Context) (any, error) {
+		return 123, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 123, value)
+
+	value2, err := FnCacheGet(context.Background(), cache, "test", func(ctx context.Context) (int, error) {
+		return value.(int), nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, value2, 123)
+
+	value3, err := FnCacheGet(context.Background(), cache, "test", func(ctx context.Context) (string, error) {
+		return "123", nil
+	})
+	require.ErrorIs(t, err, trace.BadParameter("value retrieved was int, expected string"))
+	require.Empty(t, value3)
 }
 
 // TestFnCacheConcurrentReads verifies that many concurrent reads result in exactly one
@@ -84,7 +110,7 @@ func TestFnCacheConcurrentReads(t *testing.T) {
 
 	for i := 0; i < workers; i++ {
 		go func(n int) {
-			val, err := cache.Get(ctx, "key", func(context.Context) (interface{}, error) {
+			val, err := cache.get(ctx, "key", func(context.Context) (any, error) {
 				// return a unique value for each worker so that we can verify whether
 				// the values we get come from the same loadfn or not.
 				return fmt.Sprintf("val-%d", n), nil
@@ -120,12 +146,12 @@ func TestFnCacheExpiry(t *testing.T) {
 
 	// get is helper for checking if we hit/miss
 	get := func() (load bool) {
-		val, err := cache.Get(ctx, "key", func(context.Context) (interface{}, error) {
+		val, err := FnCacheGet(ctx, cache, "key", func(context.Context) (string, error) {
 			load = true
 			return "val", nil
 		})
 		require.NoError(t, err)
-		require.Equal(t, "val", val.(string))
+		require.Equal(t, "val", val)
 		return
 	}
 
@@ -187,10 +213,10 @@ func testFnCacheFuzzy(t *testing.T, ttl time.Duration, delay time.Duration) {
 	require.NoError(t, err)
 
 	// readCounter is incremented upon each cache miss.
-	readCounter := atomic.NewInt64(0)
+	var readCounter atomic.Int64
 
 	// getCounter is incremented upon each get made against the cache, hit or miss.
-	getCounter := atomic.NewInt64(0)
+	var getCounter atomic.Int64
 
 	readTime := make(chan time.Time, 1)
 
@@ -211,7 +237,7 @@ func testFnCacheFuzzy(t *testing.T, ttl time.Duration, delay time.Duration) {
 				case <-done:
 					return
 				}
-				vi, err := cache.Get(ctx, "key", func(context.Context) (interface{}, error) {
+				vi, err := FnCacheGet(ctx, cache, "key", func(context.Context) (int64, error) {
 					if delay > 0 {
 						<-time.After(delay)
 					}
@@ -221,13 +247,13 @@ func testFnCacheFuzzy(t *testing.T, ttl time.Duration, delay time.Duration) {
 					default:
 					}
 
-					val := readCounter.Inc()
+					val := readCounter.Add(1)
 					return val, nil
 				})
 				require.NoError(t, err)
-				require.GreaterOrEqual(t, vi.(int64), lastValue)
-				lastValue = vi.(int64)
-				getCounter.Inc()
+				require.GreaterOrEqual(t, vi, lastValue)
+				lastValue = vi
+				getCounter.Add(1)
 			}
 		}()
 	}
@@ -266,13 +292,13 @@ func TestFnCacheCancellation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
 	defer cancel()
 
-	v, err := cache.Get(ctx, "key", func(context.Context) (interface{}, error) {
+	v, err := FnCacheGet(ctx, cache, "key", func(context.Context) (string, error) {
 		cancel()
 		<-blocker
 		return "val", nil
 	})
 
-	require.Nil(t, v)
+	require.Empty(t, v)
 	require.Equal(t, context.Canceled, trace.Unwrap(err), "context should have been canceled immediately")
 
 	// unblock the loading operation which is still in progress
@@ -284,16 +310,16 @@ func TestFnCacheCancellation(t *testing.T) {
 	ctx, cancel = context.WithTimeout(context.Background(), longTimeout)
 	defer cancel()
 
-	loadFnWasRun := atomic.NewBool(false)
-	v, err = cache.Get(ctx, "key", func(context.Context) (interface{}, error) {
+	var loadFnWasRun atomic.Bool
+	v, err = FnCacheGet(ctx, cache, "key", func(context.Context) (string, error) {
 		loadFnWasRun.Store(true)
-		return nil, nil
+		return "", nil
 	})
 
 	require.False(t, loadFnWasRun.Load(), "loadfn should not have been run")
 
 	require.NoError(t, err)
-	require.Equal(t, "val", v.(string))
+	require.Equal(t, "val", v)
 }
 
 func TestFnCacheContext(t *testing.T) {
@@ -306,15 +332,67 @@ func TestFnCacheContext(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = cache.Get(context.Background(), "key", func(context.Context) (interface{}, error) {
+	_, err = cache.get(context.Background(), "key", func(context.Context) (any, error) {
 		return "val", nil
 	})
 	require.NoError(t, err)
 
 	cancel()
 
-	_, err = cache.Get(context.Background(), "key", func(context.Context) (interface{}, error) {
+	_, err = cache.get(context.Background(), "key", func(context.Context) (any, error) {
 		return "val", nil
 	})
 	require.ErrorIs(t, err, ErrFnCacheClosed)
+}
+
+func TestFnCacheReloadOnErr(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cache, err := NewFnCache(FnCacheConfig{
+		TTL:         time.Minute,
+		ReloadOnErr: true,
+	})
+	require.NoError(t, err)
+
+	var happy, sad atomic.Int64
+
+	// test synchronous case, all sad path loads should result in
+	// calls to loadfn.
+	for i := 0; i < 100; i++ {
+		FnCacheGet(ctx, cache, "happy", func(ctx context.Context) (string, error) {
+			happy.Add(1)
+			return "yay!", nil
+		})
+
+		FnCacheGet(ctx, cache, "sad", func(ctx context.Context) (string, error) {
+			sad.Add(1)
+			return "", fmt.Errorf("uh-oh")
+		})
+	}
+	require.Equal(t, int64(1), happy.Load())
+	require.Equal(t, int64(100), sad.Load())
+
+	// test concurrent case. some "sad" loads should overlap now.
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			FnCacheGet(ctx, cache, "happy", func(ctx context.Context) (string, error) {
+				happy.Add(1)
+				return "yay!", nil
+			})
+		}()
+
+		go func() {
+			defer wg.Done()
+			FnCacheGet(ctx, cache, "sad", func(ctx context.Context) (string, error) {
+				sad.Add(1)
+				return "", fmt.Errorf("uh-oh")
+			})
+		}()
+	}
+	require.Equal(t, int64(1), happy.Load())
+	require.Greater(t, int64(200), sad.Load())
 }

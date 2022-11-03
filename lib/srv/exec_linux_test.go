@@ -52,7 +52,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestOSCommandPrep(t *testing.T) {
-	srv := NewMockServer(t)
+	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
 
 	usr, err := user.Current()
@@ -90,7 +90,7 @@ func TestOSCommandPrep(t *testing.T) {
 	require.Equal(t, syscall.SIGKILL, cmd.SysProcAttr.Pdeathsig)
 
 	// Non-empty command (exec a prog).
-	scx.ExecRequest.SetCommand("ls -lh /etc")
+	scx.execRequest.SetCommand("ls -lh /etc")
 	execCmd, err = scx.ExecCommand()
 	require.NoError(t, err)
 
@@ -105,7 +105,7 @@ func TestOSCommandPrep(t *testing.T) {
 	require.Equal(t, syscall.SIGKILL, cmd.SysProcAttr.Pdeathsig)
 
 	// Command without args.
-	scx.ExecRequest.SetCommand("top")
+	scx.execRequest.SetCommand("top")
 	execCmd, err = scx.ExecCommand()
 	require.NoError(t, err)
 
@@ -135,14 +135,14 @@ func TestOSCommandPrep(t *testing.T) {
 // TestContinue tests if the process hangs if a continue signal is not sent
 // and makes sure the process continues once it has been sent.
 func TestContinue(t *testing.T) {
-	srv := NewMockServer(t)
+	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
 
 	// Configure Session Context to re-exec "ls".
 	var err error
 	lsPath, err := os_exec.LookPath("ls")
 	require.NoError(t, err)
-	scx.ExecRequest.SetCommand(lsPath)
+	scx.execRequest.SetCommand(lsPath)
 
 	// Create an exec.Cmd to execute through Teleport.
 	cmd, err := ConfigureCommand(scx)

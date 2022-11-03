@@ -23,6 +23,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jackc/pgconn"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
@@ -35,14 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
 
 type proxyTunnelStrategy struct {
@@ -125,6 +124,7 @@ func testProxyTunnelStrategyAgentMesh(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			p := newProxyTunnelStrategy(t, "proxy-tunnel-agent-mesh",
@@ -268,9 +268,7 @@ func (p *proxyTunnelStrategy) makeLoadBalancer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	// TODO(tcsc): fix ports before merging
 	lbAddr := utils.MustParseAddr(net.JoinHostPort(helpers.Loopback, "0"))
-	//lbAddr := utils.MustParseAddr(net.JoinHostPort(helpers.Loopback, helpers.NewPortStr()))
 	lb, err := utils.NewLoadBalancer(ctx, *lbAddr)
 	require.NoError(t, err)
 
@@ -330,7 +328,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	authAddr := utils.MustParseAddr(p.auth.Auth)
 
 	conf := service.MakeDefaultConfig()
-	conf.AuthServers = append(conf.AuthServers, *authAddr)
+	conf.SetAuthServerAddress(*authAddr)
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 
@@ -373,7 +371,7 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	})
 
 	conf := service.MakeDefaultConfig()
-	conf.AuthServers = append(conf.AuthServers, utils.FromAddr(p.lb.Addr()))
+	conf.SetAuthServerAddress(utils.FromAddr(p.lb.Addr()))
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 
@@ -415,7 +413,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	})
 
 	conf := service.MakeDefaultConfig()
-	conf.AuthServers = append(conf.AuthServers, utils.FromAddr(p.lb.Addr()))
+	conf.SetAuthServerAddress(utils.FromAddr(p.lb.Addr()))
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 

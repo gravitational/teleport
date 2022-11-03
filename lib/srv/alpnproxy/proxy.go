@@ -27,7 +27,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth"
@@ -35,9 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // ProxyConfig  is the configuration for an ALPN proxy server.
@@ -353,14 +352,14 @@ type ConnectionInfo struct {
 type HandlerFuncWithInfo func(ctx context.Context, conn net.Conn, info ConnectionInfo) error
 
 // handleConn routes incoming connection based on SNI TLS information to the proper Handler by following steps:
-// 1) Read TLS hello message without TLS termination and returns conn that will be used for further operations.
-// 2) Get routing rules for p.Router.Router based on SNI and ALPN fields read in step 1.
-// 3) If the selected handler was configured with the ForwardTLS
-//    forwards the connection to the handler without TLS termination.
-// 4) Trigger TLS handshake and terminates the TLS connection.
-// 5) For backward compatibility check RouteToDatabase identity field
-//    was set if yes forward to the generic TLS DB handler.
-// 6) Forward connection to the handler obtained in step 2.
+//  1. Read TLS hello message without TLS termination and returns conn that will be used for further operations.
+//  2. Get routing rules for p.Router.Router based on SNI and ALPN fields read in step 1.
+//  3. If the selected handler was configured with the ForwardTLS
+//     forwards the connection to the handler without TLS termination.
+//  4. Trigger TLS handshake and terminates the TLS connection.
+//  5. For backward compatibility check RouteToDatabase identity field
+//     was set if yes forward to the generic TLS DB handler.
+//  6. Forward connection to the handler obtained in step 2.
 func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOverride *tls.Config) error {
 	hello, conn, err := p.readHelloMessageWithoutTLSTermination(clientConn)
 	if err != nil {
@@ -562,7 +561,7 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 }
 
 func shouldRouteToKubeService(sni string) bool {
-	// DELETE IN 11.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
+	// DELETE IN 13.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
 	if strings.HasPrefix(sni, constants.KubeSNIPrefix) {
 		return true
 	}

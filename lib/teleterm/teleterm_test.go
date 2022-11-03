@@ -24,8 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/teleterm"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/teleterm"
 )
 
 func TestStart(t *testing.T) {

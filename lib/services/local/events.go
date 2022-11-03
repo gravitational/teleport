@@ -20,15 +20,15 @@ import (
 	"bytes"
 	"context"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
 
 // EventsService implements service to watch for events
@@ -138,6 +138,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newWindowsDesktopsParser()
 		case types.KindInstaller:
 			parser = newInstallerParser()
+		case types.KindKubernetesCluster:
+			parser = newKubeClusterParser()
 		default:
 			return nil, trace.BadParameter("watcher on object kind %q is not supported", kind.Kind)
 		}
@@ -1031,6 +1033,30 @@ func (p *databaseServerParser) parse(event backend.Event) (types.Resource, error
 	case types.OpPut:
 		return services.UnmarshalDatabaseServer(
 			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newKubeClusterParser() *kubeClusterParser {
+	return &kubeClusterParser{
+		baseParser: newBaseParser(backend.Key(kubernetesPrefix)),
+	}
+}
+
+type kubeClusterParser struct {
+	baseParser
+}
+
+func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindKubernetesCluster, types.V3, 0)
+	case types.OpPut:
+		return services.UnmarshalKubeCluster(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)

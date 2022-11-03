@@ -16,7 +16,7 @@ no need to configure a backend.
 
 | Data type | Description | Supported storage backends |
 | - | - | - |
-| core cluster state | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, AWS DynamoDB, GCP Firestore, self-hosted PostgreSQL/CockroachDB (Preview) |
+| core cluster state | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, AWS DynamoDB, GCP Firestore |
 | audit events | JSON-encoded events from the audit log (e.g. user logins, RBAC changes) | Local directory, AWS DynamoDB, GCP Firestore |
 | session recordings | Raw terminal recordings of interactive user sessions | Local directory, AWS S3 (and any S3-compatible product), GCP Cloud Storage |
 | teleport instance state | ID and credentials of a non-auth teleport instance (e.g. node, proxy) | Local directory |
@@ -42,10 +42,9 @@ run in a highly available fashion.
 
 ## Auth Server State
 
-To run multiple instances of Teleport Auth Server, you must switch to a High Availability secrets back-end first. Also, you must tell each node in a cluster that there is more than one auth server available. There are two ways to do this:
+To run multiple instances of Teleport Auth Server, you must switch to a High Availability secrets back-end first.
 
-- Use a load balancer to create a single auth API access point (AP) and specify this AP in `auth_servers` section of Teleport configuration for all nodes in a cluster. This load balancer should do TCP level forwarding.
-- If a load balancer is not an option, you must specify each instance of an auth server in `auth_servers` section of Teleport configuration.
+To do this, use a load balancer to create a single auth API access point (AP) and specify this AP in the `auth_server` field of the Teleport configuration file for all Nodes in a cluster. This load balancer should do TCP-level forwarding.
 
 **IMPORTANT:** with multiple instances of the auth servers running, special
 attention needs to be paid to keeping their configuration identical. Settings
@@ -72,7 +71,7 @@ Teleport will handle its own SSL on top of that with its own certificates.
 </Admonition>
 
 If your load balancer supports HTTP health checks, configure it to hit the
-`/readyz` [diagnostics endpoint](../reference/metrics.mdx) on machines running Teleport. This endpoint
+`/readyz` [diagnostics endpoint](../management/diagnostics/monitoring.mdx) on machines running Teleport. This endpoint
 must be enabled by using the `--diag-addr` flag to teleport start: `teleport start --diag-addr=127.0.0.1:3000`
 The [http://127.0.0.1:3000/readyz](http://127.0.0.1:3000/readyz) endpoint will reply `{"status":"ok"}` if the Teleport service
 is running without problems.
@@ -119,8 +118,7 @@ To configure Teleport for using etcd as a storage backend:
     don't already have a TLS setup.
 - Configure all Teleport Auth servers to use etcd in the "storage" section of the config file as shown below.
 - Deploy several auth servers connected to etcd backend.
-- Deploy several proxy nodes that have `auth_servers` pointed to the list of auth
-  servers to connect to.
+- Deploy several Proxy Service instances that have `auth_server` pointed to the auth server to connect to.
 
 ```yaml
 teleport:
@@ -195,8 +193,14 @@ teleport:
 </Admonition>
 
 S3 buckets can only be used as storage for the recorded sessions. S3 cannot
-store the audit log or the cluster state. Below is an example of how to
-configure a Teleport auth server to store the recorded sessions in an S3 bucket.
+store the audit log or the cluster state.
+
+S3 buckets must have versioning enabled, which ensures that a session log cannot
+be permanently altered or deleted. Teleport will always look at the oldest
+version of a recording.
+
+Below is an example of how to configure the Teleport Auth Service to store the
+recorded sessions in an S3 bucket.
 
 ```yaml
 teleport:
@@ -221,12 +225,16 @@ Service reads these parameters to configure its interactions with S3:
 `s3://bucket/path?region=us-east-1&endpoint=mys3.example.com&insecure=false&disablesse=false&acl=private&use_fips_endpoint=true`
 
 - `region=us-east-1` - set the Amazon region to use.
-- `endpoint=mys3.example.com` - connect to a custom S3 endpoint.
-- `insecure=true` - set to `true` or `false`. If `true`, TLS will be disabled.
-- `disablesse=true` - set to `true` or `false`. If `true`, S3 server-side encryption will be disabled. If `false`, aws:kms (Key Management Service) will be used for server-side encryption. Other SSE types are not supported at this time.
+- `endpoint=mys3.example.com` - connect to a custom S3 endpoint. Optional.
+- `insecure=true` - set to `true` or `false`. If `true`, TLS will be disabled. Default value is `false`.
+- `disablesse=true` - set to `true` or `false`. If `true`, S3 server-side encryption will be disabled. If `false`, aws:kms (Key Management Service) will be used for server-side encryption. Other SSE types are not supported at this time. Setting `insecure=true` implicitly sets `disablesse=true`.
 - `sse_kms_key=kms_key_id` - If set to a valid AWS KMS CMK key ID all objects uploaded to S3 will be encrypted with this key. Details can be found below.
 - `acl=private` - set the [canned ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl) to use. Must be one of the predefined ACL values.
 - `use_fips_endpoint=true` -  [Configure S3 FIPS endpoints](#configuring-aws-fips-endpoints)
+
+### S3 IAM policy
+
+(!docs/pages/includes/s3-iam-policy.mdx!)
 
 ### S3 Server Side Encryption
 
@@ -431,7 +439,7 @@ teleport:
     # This setting configures Teleport to save the recorded sessions in an S3 bucket:
     audit_sessions_uri: s3://Example_TELEPORT_S3_BUCKET/records
 
-    # By default, Teleport stores stores audit events with an AWS TTL of 1 year.
+    # By default, Teleport stores audit events with an AWS TTL of 1 year.
     # This value can be configured as shown below. If set to 0 seconds, TTL is disabled.
     audit_retention_period: 365d
 ```
@@ -675,68 +683,6 @@ teleport:
   bucket, i.e.both `audit_xxx` settings must be present. If they are not set,
   Teleport will default to a local file  system for the audit log, i.e.
   `/var/lib/teleport/log` on an auth server.
-
-## PostgreSQL/CockroachDB (Preview)
-
-The PostgreSQL/CockroachDB backend supports storing Teleport cluster state
-in a self-hosted database instance.
-
-<Admonition
-  type="tip"
-  title="NOTE"
->
-  The PostgreSQL/CockroachDB backend is currently in Preview.
-</Admonition>
-
-Connections require mutual TLS authentication. Be sure to configure your
-database instance to support certificate authentication before configuring
-the Teleport PostgreSQL/CockroachDB backend.
-See [PostgreSQL Certificate Authentication](https://www.postgresql.org/docs/current/auth-cert.html) to configure PostgreSQL
-or [Authenticating to CockroachDB Self-Hosted Clusters](https://www.cockroachlabs.com/docs/stable/authentication.html) to configure CockroachDB.
-
-Once your self-hosted database instance has been configured to support
-certificate authentication, configure all Teleport Auth servers to use the backend
-by setting the storage section in the Teleport configuration file.
-
-```yaml
-teleport:
-  storage:
-    # Type of backend: either "postgres" or "cockroachdb".
-    type: cockroachdb
-    # The host:port of the database instance.
-    addr: "cockroachdb.example.com:26257"
-    # Optional database name. Defaults to "teleport".
-    database: "teleport"
-    # Authentication settings.
-    tls:
-      # Path to the database user's certificate.
-      client_cert_file: "/path/to/certs/client.dbuser.crt"
-      # Path to the database user's private key.
-      client_key_file: "/path/to/certs/client.dbuser.key"
-      # Path to the trusted certificate authority
-      # used to generate the client certificates.
-      ca_file: "/path/to/cockroachdb.cas"
-```
-
-Teleport will attempt to create a new database if the configured database does
-not exist. Creating a database requires `CREATEDB` privileges for the Teleport
-user. See PostgreSQL's [CREATE ROLE](https://www.postgresql.org/docs/current/sql-createrole.html)
-documentation for details.
-
-```shell
-$ psql -d postgres
-postgres=# CREATE ROLE dbuser CREATEDB;
-```
-
-If you do not wish to grant `CREATEDB` privileges to the Teleport user, be
-sure to create a database and grant all privileges on the database
-to the Teleport user before starting Teleport.
-
-```shell
-$ psql -d postgres
-postgres=# CREATE DATABASE teleport;
-postgres=# GRANT ALL PRIVILEGES ON DATABASE teleport TO dbuser;
-```
 
 ## SQLite
 

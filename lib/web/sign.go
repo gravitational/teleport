@@ -39,13 +39,15 @@ signDatabaseCertificate returns the necessary files to set up mTLS using the `db
 This is the equivalent of running the tctl command
 As an example, requesting:
 POST /webapi/sites/mycluster/sign/db
-{
-	"hostname": "pg.example.com",
-	"ttl": "2190h"
-}
+
+	{
+		"hostname": "pg.example.com",
+		"ttl": "2190h"
+	}
 
 Should be equivalent to running:
-   tctl auth sign --host=pg.example.com --ttl=2190h --format=db
+
+	tctl auth sign --host=pg.example.com --ttl=2190h --format=db
 
 This endpoint returns a tar.gz compressed archive containing the required files to setup mTLS for the database.
 */

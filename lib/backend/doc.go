@@ -18,6 +18,6 @@ limitations under the License.
 // backend package allows for pluggable back-ends for secrets storage.
 // To implement a new storage back-end you have to supply an object
 // which:
-//	 - implements backend.Backend interface
+//   - implements backend.Backend interface
 //   - implements backend.NewFunc function
 package backend

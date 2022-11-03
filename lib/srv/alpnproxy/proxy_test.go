@@ -23,17 +23,18 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/stretchr/testify/require"
 )
 
 // TestProxySSHHandler tests the ALPN routing. Connection with ALPN 'teleport-proxy-ssh' value should
@@ -398,9 +399,14 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	require.Equal(t, string(common.ProtocolHTTP), clientTLSConn.ConnectionState().NegotiatedProtocol)
 	require.NoError(t, req.Write(clientTLSConn))
 
-	response, err := http.ReadResponse(bufio.NewReader(clientTLSConn), req)
+	resp, err := http.ReadResponse(bufio.NewReader(clientTLSConn), req)
 	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, response.StatusCode)
+
+	// Always drain/close the body.
+	io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// Wait until handler is done. And verify context is canceled, NOT deadline exceeded.
 	<-handlerCtx.Done()

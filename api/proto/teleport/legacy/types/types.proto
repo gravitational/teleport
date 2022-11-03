@@ -18,6 +18,7 @@ package types;
 
 import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
+import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
 option go_package = "github.com/gravitational/teleport/api/types";
@@ -388,6 +389,11 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "memorydb,omitempty"
   ];
+  // RDSProxy contains AWS Proxy specific metadata.
+  RDSProxy RDSProxy = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "rdsproxy,omitempty"
+  ];
 }
 
 // SecretStore contains secret store configurations.
@@ -414,6 +420,16 @@ message RDS {
   string ResourceID = 3 [(gogoproto.jsontag) = "resource_id,omitempty"];
   // IAMAuth indicates whether database IAM authentication is enabled.
   bool IAMAuth = 4 [(gogoproto.jsontag) = "iam_auth"];
+}
+
+// RDSProxy contains AWS RDS Proxy specific database metadata.
+message RDSProxy {
+  // Name is the identifier of an RDS Proxy.
+  string Name = 1 [(gogoproto.jsontag) = "name,omitempty"];
+  // CustomEndpointName is the identifier of an RDS Proxy custom endpoint.
+  string CustomEndpointName = 2 [(gogoproto.jsontag) = "custom_endpoint_name,omitempty"];
+  // ResourceID is the RDS instance resource identifier (prx-xxx).
+  string ResourceID = 3 [(gogoproto.jsontag) = "resource_id,omitempty"];
 }
 
 // ElastiCache contains AWS ElastiCache Redis specific metadata.
@@ -454,6 +470,17 @@ message Azure {
   string Name = 1 [(gogoproto.jsontag) = "name,omitempty"];
   // ResourceID is the Azure fully qualified ID for the resource.
   string ResourceID = 2 [(gogoproto.jsontag) = "resource_id,omitempty"];
+  // Redis contains Azure Cache for Redis specific database metadata.
+  AzureRedis Redis = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "redis,omitempty"
+  ];
+}
+
+// AzureRedis contains Azure Cache for Redis specific database metadata.
+message AzureRedis {
+  // ClusteringPolicy is the clustering policy for Redis Enterprise.
+  string ClusteringPolicy = 1 [(gogoproto.jsontag) = "clustering_policy,omitempty"];
 }
 
 // AD contains Active Directory specific database configuration.
@@ -792,6 +819,7 @@ message CertAuthorityV2 {
 // CertAuthoritySpecV2 is a host or user certificate authority that
 // can check and if it has private key stored as well, sign it too
 message CertAuthoritySpecV2 {
+  reserved 3, 4, 7, 10;
   // Type is either user or host certificate authority
   string Type = 1 [
     (gogoproto.jsontag) = "type",
@@ -804,35 +832,12 @@ message CertAuthoritySpecV2 {
   // for host authorities that means base hostname of all servers,
   // for user authorities that means organization name
   string ClusterName = 2 [(gogoproto.jsontag) = "cluster_name"];
-  // Checkers is a list of SSH public keys that can be used to check
-  // certificate signatures
-  //
-  // DEPRECATED: use ActiveKeys and AdditionalTrustedKeys instead.
-  repeated bytes CheckingKeys = 3 [
-    (gogoproto.jsontag) = "checking_keys,omitempty",
-    deprecated = true
-  ];
-  // SigningKeys is a list of private keys used for signing
-  //
-  // DEPRECATED: use ActiveKeys instead.
-  repeated bytes SigningKeys = 4 [
-    (gogoproto.jsontag) = "signing_keys,omitempty",
-    deprecated = true
-  ];
   // Roles is a list of roles assumed by users signed by this CA
   repeated string Roles = 5 [(gogoproto.jsontag) = "roles,omitempty"];
   // RoleMap specifies role mappings to remote roles
   repeated RoleMapping RoleMap = 6 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "role_map,omitempty"
-  ];
-  // TLS is a list of TLS key pairs
-  //
-  // DEPRECATED: use ActiveKeys and AdditionalTrustedKeys instead.
-  repeated TLSKeyPair TLSKeyPairs = 7 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "tls_key_pairs,omitempty",
-    deprecated = true
   ];
   // Rotation is a status of the certificate authority rotation
   Rotation Rotation = 8 [
@@ -848,15 +853,6 @@ message CertAuthoritySpecV2 {
     RSA_SHA2_512 = 3;
   }
   SigningAlgType SigningAlg = 9 [(gogoproto.jsontag) = "signing_alg,omitempty"];
-  // JWTKeyPair is a list of JWT key pairs.
-  //
-  // DEPRECATED: use ActiveKeys and AdditionalTrustedKeys instead.
-  repeated JWTKeyPair JWTKeyPairs = 10 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "jwt_key_pairs,omitempty",
-    deprecated = true
-  ];
-
   // ActiveKeys are the CA key sets used to sign any new certificates.
   CAKeySet ActiveKeys = 11 [
     (gogoproto.nullable) = false,
@@ -991,6 +987,52 @@ message ProvisionTokenSpecV2 {
     (gogoproto.jsontag) = "suggested_labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];
+  // GitHub allows the configuration of options specific to the "github" join method.
+  ProvisionTokenSpecV2GitHub GitHub = 7 [(gogoproto.jsontag) = "github,omitempty"];
+  // CircleCI allows the configuration of options specific to the "circleci" join method.
+  ProvisionTokenSpecV2CircleCI CircleCI = 8 [(gogoproto.jsontag) = "circleci,omitempty"];
+}
+
+message ProvisionTokenSpecV2GitHub {
+  // Rule includes fields mapped from `lib/githubactions.IDToken`
+  // Not all fields should be included, only ones that we expect to be useful
+  // when trying to create rules around which workflows should be allowed to
+  // authenticate against a cluster.
+  message Rule {
+    // Sub also known as Subject is a string that roughly uniquely indentifies
+    // the workload. The format of this varies depending on the type of
+    // github action run.
+    string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];
+    // The repository from where the workflow is running.
+    // This includes the name of the owner e.g `gravitational/teleport`
+    string Repository = 2 [(gogoproto.jsontag) = "repository,omitempty"];
+    // The name of the organization in which the repository is stored.
+    string RepositoryOwner = 3 [(gogoproto.jsontag) = "repository_owner,omitempty"];
+    // The name of the workflow.
+    string Workflow = 4 [(gogoproto.jsontag) = "workflow,omitempty"];
+    // The name of the environment used by the job.
+    string Environment = 5 [(gogoproto.jsontag) = "environment,omitempty"];
+    // The personal account that initiated the workflow run.
+    string Actor = 6 [(gogoproto.jsontag) = "actor,omitempty"];
+    // The git ref that triggered the workflow run.
+    string Ref = 7 [(gogoproto.jsontag) = "ref,omitempty"];
+    // The type of ref, for example: "branch".
+    string RefType = 8 [(gogoproto.jsontag) = "ref_type,omitempty"];
+  }
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+}
+
+message ProvisionTokenSpecV2CircleCI {
+  message Rule {
+    string ProjectID = 1 [(gogoproto.jsontag) = "project_id,omitempty"];
+    string ContextID = 2 [(gogoproto.jsontag) = "context_id,omitempty"];
+  }
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  string OrganizationID = 2 [(gogoproto.jsontag) = "organization_id,omitempty"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -1330,7 +1372,9 @@ message AuthPreferenceSpecV2 {
 
   // RequireSessionMFA causes all sessions in this cluster to require MFA
   // checks.
-  bool RequireSessionMFA = 5 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
+  //
+  // DELETE IN 13.0.0 in favor of RequireMFAType
+  bool RequireSessionMFA = 5 [(gogoproto.jsontag) = "-"];
 
   // DisconnectExpiredCert provides disconnect expired certificate setting -
   // if true, connections with expired client certificates will get disconnected
@@ -1367,9 +1411,14 @@ message AuthPreferenceSpecV2 {
     (gogoproto.jsontag) = "allow_passwordless,omitempty",
     (gogoproto.customtype) = "BoolOption"
   ];
+
+  // RequireMFAType is the type of MFA requirement enforced for this cluster.
+  RequireMFAType RequireMFAType = 12 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
 }
 
 // U2F defines settings for U2F device.
+// Deprecated: U2F is transparently converted to WebAuthn by Teleport. Prefer
+// using WebAuthn instead.
 message U2F {
   // AppID returns the application ID for universal second factor.
   string AppID = 1 [(gogoproto.jsontag) = "app_id,omitempty"];
@@ -1381,7 +1430,6 @@ message U2F {
 
   // DeviceAttestationCAs contains the trusted attestation CAs for U2F
   // devices.
-  // DELETE IN 11.0, time to sunset U2F (codingllama).
   repeated string DeviceAttestationCAs = 3 [(gogoproto.jsontag) = "device_attestation_cas,omitempty"];
 }
 
@@ -1961,7 +2009,9 @@ message RoleOptions {
 
   // RequireSessionMFA specifies whether a user is required to do an MFA
   // check for every session.
-  bool RequireSessionMFA = 13 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
+  //
+  // DELETE IN 13.0.0 in favor of RequireMFAType
+  bool RequireSessionMFA = 13 [(gogoproto.jsontag) = "-"];
 
   // Lock specifies the locking mode (strict|best_effort) to be applied with
   // the role.
@@ -2019,6 +2069,9 @@ message RoleOptions {
     (gogoproto.jsontag) = "ssh_file_copy",
     (gogoproto.customtype) = "BoolOption"
   ];
+
+  // RequireMFAType is the type of MFA requirement enforced for this user.
+  RequireMFAType RequireMFAType = 23 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
 }
 
 message RecordSession {
@@ -2244,9 +2297,10 @@ message AccessRequestConditions {
   // that is not a requirement.
   repeated string SuggestedReviewers = 5 [(gogoproto.jsontag) = "suggested_reviewers,omitempty"];
 
-  // SearchAsRoles is a list of roles which the user should be able to "assume"
-  // while searching for resources, and should be able to request with a
-  // search-based access request.
+  // SearchAsRoles is a list of extra roles which should apply to a user while
+  // they are searching for resources as part of a Resource Access Request, and
+  // defines the underlying roles which will be requested as part of any
+  // Resource Access Request.
   repeated string SearchAsRoles = 6 [(gogoproto.jsontag) = "search_as_roles,omitempty"];
 }
 
@@ -2265,6 +2319,11 @@ message AccessReviewConditions {
   // Where is an optional predicate which further limits which requests are
   // reviewable.
   string Where = 3 [(gogoproto.jsontag) = "where,omitempty"];
+
+  // PreviewAsRoles is a list of extra roles which should apply to a reviewer
+  // while they are viewing a Resource Access Request for the purposes of
+  // viewing details such as the hostname and labels of requested resources.
+  repeated string PreviewAsRoles = 4 [(gogoproto.jsontag) = "preview_as_roles,omitempty"];
 }
 
 // ClaimMapping maps a claim to teleport roles.
@@ -2905,6 +2964,47 @@ message KubernetesClusterSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "dynamic_labels,omitempty"
   ];
+  // Kubeconfig is the kubeconfig file payload that grants access to the cluster.
+  // If multiple contexts are specified, the first will be selected.
+  bytes Kubeconfig = 2 [(gogoproto.jsontag) = "kubeconfig,omitempty"];
+  // Azure holds the required Azure information for Teleport to access the cluster.
+  KubeAzure Azure = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "azure,omitempty"
+  ];
+  // AWS holds the required AWS information for Teleport to access the cluster.
+  KubeAWS AWS = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "aws,omitempty"
+  ];
+}
+
+// KubeAzure contains the Azure information about the cluster.
+message KubeAzure {
+  // ResourceName is the AKS cluster name.
+  string ResourceName = 1 [(gogoproto.jsontag) = "resource_name,omitempty"];
+  // ResourceGroup is the Azure resource group name.
+  string ResourceGroup = 2 [(gogoproto.jsontag) = "resource_group,omitempty"];
+  // TenantID is the AKS cluster Tenant ID.
+  string TenantID = 3 [(gogoproto.jsontag) = "tenant_id,omitempty"];
+  // SubscriptionID is the AKS cluster SubscriptionID.
+  string SubscriptionID = 4 [(gogoproto.jsontag) = "subscription_id,omitempty"];
+}
+
+// KubeAWS contains the AWS information about the cluster.
+message KubeAWS {
+  // Region is a AWS cloud region.
+  string Region = 1 [(gogoproto.jsontag) = "region,omitempty"];
+  // AccountID is a AWS Account ID.
+  string AccountID = 2 [(gogoproto.jsontag) = "account_id,omitempty"];
+  // Name is a AWS EKS cluster name.
+  string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
+}
+
+// KubernetesClusterV3List represents a list of kubernetes clusters.
+message KubernetesClusterV3List {
+  // KubernetesClusters is a list of kubernetes clusters resources.
+  repeated KubernetesClusterV3 KubernetesClusters = 1;
 }
 
 // KubernetesServerV3 represents a Kubernetes server.
@@ -3079,18 +3179,14 @@ message OIDCConnectorV3List {
 // It specifies configuration for Open ID Connect compatible external
 // identity provider: https://openid.net/specs/openid-connect-core-1_0.html
 message OIDCConnectorSpecV3 {
+  reserved 4;
+
   // IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.
   string IssuerURL = 1 [(gogoproto.jsontag) = "issuer_url"];
   // ClientID is the id of the authentication client (Teleport Auth server).
   string ClientID = 2 [(gogoproto.jsontag) = "client_id"];
   // ClientSecret is used to authenticate the client.
   string ClientSecret = 3 [(gogoproto.jsontag) = "client_secret"];
-  // RedirectURL is a URL that will redirect the client's browser
-  // back to the identity provider after successful authentication.
-  // This should match the URL on the Provider's side.
-  //
-  // DELETE IN 11.0.0 in favor of RedirectURLs
-  string RedirectURL = 4 [(gogoproto.jsontag) = "-"];
   // ACR is an Authentication Context Class Reference value. The meaning of the ACR
   // value is context-specific and varies for identity providers.
   string ACR = 5 [(gogoproto.jsontag) = "acr_values,omitempty"];
@@ -3192,6 +3288,9 @@ message OIDCAuthRequest {
   // the address. If there is no match, the default redirect
   // url will be used.
   string ProxyAddress = 16 [(gogoproto.jsontag) = "proxy_address,omitempty"];
+
+  // attestation_statement is an attestation statement for the given public key.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 17 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -3322,6 +3421,9 @@ message SAMLAuthRequest {
 
   // ConnectorSpec is embedded connector spec for use in test flow.
   SAMLConnectorSpecV2 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
+
+  // attestation_statement is an attestation statement for the given public key.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -3435,6 +3537,8 @@ message GithubAuthRequest {
   bool SSOTestFlow = 14 [(gogoproto.jsontag) = "sso_test_flow"];
   // ConnectorSpec is embedded connector spec for use in test flow.
   GithubConnectorSpecV3 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
+  // attestation_statement is an attestation statement for the given public key.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
@@ -3884,6 +3988,16 @@ message RegisterUsingTokenRequest {
   // EC2IdentityDocument is used for the EC2 join method to prove the identity
   // of a joining EC2 instance.
   bytes EC2IdentityDocument = 10 [(gogoproto.jsontag) = "ec2_id"];
+  // IDToken is a token provided by a workload identity provider as part of
+  // OIDC join types such as GitHub.
+  string IDToken = 11 [(gogoproto.jsontag) = "id_token"];
+  // Expires is a desired time of the expiry of user certificates returned by
+  // registration. This only applies to bot joining, and will be ignored by
+  // node joining.
+  google.protobuf.Timestamp Expires = 12 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.jsontag) = "expires,omitempty"
+  ];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
@@ -3932,6 +4046,26 @@ message RecoveryCode {
   bytes HashedCode = 1 [(gogoproto.jsontag) = "hashed_code"];
   // IsUsed determines if this recovery code was used.
   bool IsUsed = 2 [(gogoproto.jsontag) = "is_used"];
+}
+
+message NullableSessionState {
+  SessionState State = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "state,omitempty"
+  ];
+}
+
+// SessionTrackerFilter are filters to apply when searching for session trackers.
+message SessionTrackerFilter {
+  // Kind describes what kind of session this is.
+  string Kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
+  // State is the current state of this session.
+  NullableSessionState State = 2 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "state,omitempty"
+  ];
+  // DesktopName is the windows desktop server this session belongs to.
+  string DesktopName = 3 [(gogoproto.jsontag) = "desktop_name,omitempty"];
 }
 
 // SessionTrackerV1 represents a live session resource.
@@ -4170,6 +4304,10 @@ message ConnectionDiagnosticTrace {
     RBAC_PRINCIPAL = 4;
     // NODE_PRINCIPAL is used when checking if the Node has the requested principal.
     NODE_PRINCIPAL = 5;
+    // RBAC_KUBE is for RBAC checks to kubernetes the cluster.
+    RBAC_KUBE = 6;
+    // KUBE_PRINCIPAL is used when checking if the Kube Cluster has at least one user principals.
+    KUBE_PRINCIPAL = 7;
   }
   TraceType Type = 1 [(gogoproto.jsontag) = "type"];
   // StatusType describes whether this was a success or a failure.
@@ -4228,4 +4366,21 @@ message GetClusterAlertsRequest {
   string AlertID = 2;
   // Labels is an optional label selector.
   map<string, string> Labels = 3;
+}
+
+// RequireMFAType is a type of MFA requirement enforced outside of login,
+// such as per-session MFA or per-request PIV touch.
+enum RequireMFAType {
+  // OFF means additional MFA enforcement is not enabled.
+  OFF = 0;
+  // SESSION means MFA is required to begin server sessions.
+  SESSION = 1;
+  // SESSION_AND_HARDWARE_KEY means MFA is required to begin server sessions,
+  // and login sessions must use a private key backed by a hardware key.
+  SESSION_AND_HARDWARE_KEY = 2;
+  // HARDWARE_KEY_TOUCH means login sessions must use a hardware private key that
+  // requires touch to be used. This touch requirement applies to all API requests
+  // rather than only session requests. This touch is different from MFA, so to prevent
+  // requiring double touch on session requests, normal Session MFA is disabled.
+  HARDWARE_KEY_TOUCH = 3;
 }

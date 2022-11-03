@@ -23,6 +23,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -34,11 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // ResourceCreateHandler is the generic implementation of a resource creation handler
@@ -104,6 +104,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindNetworkRestrictions:     rc.createNetworkRestrictions,
 		types.KindApp:                     rc.createApp,
 		types.KindDatabase:                rc.createDatabase,
+		types.KindKubernetesCluster:       rc.createKubeCluster,
 		types.KindToken:                   rc.createToken,
 		types.KindInstaller:               rc.createInstaller,
 	}
@@ -274,7 +275,7 @@ func (rc *ResourceCommand) Create(ctx context.Context, client auth.ClientI) (err
 		if !found {
 			// if we're trying to create an OIDC/SAML connector with the OSS version of tctl, return a specific error
 			if raw.Kind == "oidc" || raw.Kind == "saml" {
-				return trace.BadParameter("creating resources of type %q is only supported in Teleport Enterprise. If you connecting to a Teleport Enterprise Cluster you must install the enterprise version of tctl. https://goteleport.com/teleport/docs/enterprise/", raw.Kind)
+				return trace.BadParameter("creating resources of type %q is only supported in Teleport Enterprise. If you are connecting to a Teleport Enterprise Cluster you must install the enterprise version of tctl. https://goteleport.com/teleport/docs/enterprise/", raw.Kind)
 			}
 			return trace.BadParameter("creating resources of type %q is not supported", raw.Kind)
 		}
@@ -562,6 +563,28 @@ func (rc *ResourceCommand) createApp(ctx context.Context, client auth.ClientI, r
 	return nil
 }
 
+func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	cluster, err := services.UnmarshalKubeCluster(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := client.CreateKubernetesCluster(ctx, cluster); err != nil {
+		if trace.IsAlreadyExists(err) {
+			if !rc.force {
+				return trace.AlreadyExists("kubernetes cluster %q already exists", cluster.GetName())
+			}
+			if err := client.UpdateKubernetesCluster(ctx, cluster); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("kubernetes cluster %q has been updated\n", cluster.GetName())
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+	fmt.Printf("kubernetes cluster %q has been created\n", cluster.GetName())
+	return nil
+}
+
 func (rc *ResourceCommand) createDatabase(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	database, err := services.UnmarshalDatabase(raw.Raw)
 	if err != nil {
@@ -744,6 +767,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("database %q has been deleted\n", rc.ref.Name)
+	case types.KindKubernetesCluster:
+		if err = client.DeleteKubernetesCluster(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("kubernetes cluster %q has been deleted\n", rc.ref.Name)
 	case types.KindWindowsDesktopService:
 		if err = client.DeleteWindowsDesktopService(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -761,7 +789,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		deleted := 0
 		var errs []error
 		for _, desktop := range desktops {
-			if desktop.GetName() != rc.ref.Name {
+			if desktop.GetName() == rc.ref.Name {
 				if err = client.DeleteWindowsDesktop(ctx, desktop.GetHostID(), rc.ref.Name); err != nil {
 					errs = append(errs, err)
 					continue
@@ -1225,7 +1253,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			}
 		}
 		if len(out) == 0 {
-			return nil, trace.NotFound("database server %q not found", rc.ref.Name)
+			return nil, trace.NotFound("kubernetes server %q not found", rc.ref.Name)
 		}
 		return &kubeServerCollection{servers: out}, nil
 	case types.KindNetworkRestrictions:
@@ -1260,6 +1288,19 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &databaseCollection{databases: []types.Database{database}}, nil
+	case types.KindKubernetesCluster:
+		if rc.ref.Name == "" {
+			clusters, err := client.GetKubernetesClusters(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &kubeClusterCollection{clusters: clusters}, nil
+		}
+		cluster, err := client.GetKubernetesCluster(ctx, rc.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &kubeClusterCollection{clusters: []types.KubeCluster{cluster}}, nil
 	case types.KindWindowsDesktopService:
 		services, err := client.GetWindowsDesktopServices(ctx)
 		if err != nil {

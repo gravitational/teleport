@@ -25,17 +25,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/stretchr/testify/require"
 )
 
 type AppTestOptions struct {
@@ -339,28 +337,8 @@ var forwardedHeaderNames = []string{
 	"X-Forwarded-Host",
 	"X-Forwarded-Server",
 	"X-Forwarded-For",
-}
-
-// waitAppServerTunnel waits for application server tunnel connections.
-func waitAppServerTunnel(t *testing.T, tunnel reversetunnel.Server, clusterName, serverUUID string) {
-	t.Helper()
-	cluster, err := tunnel.GetSite(clusterName)
-	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		conn, err := cluster.Dial(reversetunnel.DialParams{
-			From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"},
-			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
-			ServerID: fmt.Sprintf("%v.%v", serverUUID, clusterName),
-			ConnType: types.AppTunnel,
-		})
-		if err != nil {
-			return false
-		}
-
-		require.NoError(t, conn.Close())
-		return true
-	}, 10*time.Second, time.Second)
+	"X-Forwarded-Ssl",
+	"X-Forwarded-Port",
 }
 
 type appAccessTestFunc func(*Pack, *testing.T)

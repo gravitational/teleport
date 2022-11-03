@@ -17,25 +17,31 @@ limitations under the License.
 package auth
 
 import (
+	"bytes"
 	"context"
+	"io"
+	"net"
+	"net/http"
 	"net/url"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/trace"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type githubContext struct {
@@ -68,6 +74,11 @@ func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
 		Backend:                tt.b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
+		},
 	}
 	tt.a, err = NewServer(authConfig)
 	require.NoError(t, err)
@@ -85,7 +96,13 @@ func (tt *githubContext) Close() error {
 }
 
 func TestPopulateClaims(t *testing.T) {
-	claims, err := populateGithubClaims(&testGithubAPIClient{})
+	client := &testGithubAPIClient{}
+	user, err := client.getUser()
+	require.NoError(t, err)
+	teams, err := client.getTeams()
+	require.NoError(t, err)
+
+	claims, err := populateGithubClaims(user, teams)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(claims, &types.GithubClaims{
 		Username: "octocat",
@@ -280,4 +297,143 @@ func TestCalculateGithubUserNoTeams(t *testing.T) {
 		Teams: []string{"team1", "team2", "team1"},
 	}, &types.GithubAuthRequest{})
 	require.ErrorIs(t, err, ErrGithubNoTeams)
+}
+
+type mockHTTPRequester struct {
+	succeed    bool
+	statusCode int
+}
+
+func (m mockHTTPRequester) Do(req *http.Request) (*http.Response, error) {
+	if !m.succeed {
+		return nil, &url.Error{
+			URL: req.URL.String(),
+			Err: &net.DNSError{
+				IsTimeout: true,
+			},
+		}
+	}
+
+	resp := new(http.Response)
+	resp.Body = io.NopCloser(bytes.NewReader([]byte{}))
+	resp.StatusCode = m.statusCode
+
+	return resp, nil
+}
+
+func TestCheckGithubOrgSSOSupport(t *testing.T) {
+	noSSOOrg, err := types.NewGithubConnector("github-no-sso", types.GithubConnectorSpecV3{
+		TeamsToRoles: []types.TeamRolesMapping{
+			{
+				Organization: "no-sso-org",
+				Team:         "team",
+				Roles:        []string{"role"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	ssoOrg, err := types.NewGithubConnector("github-sso", types.GithubConnectorSpecV3{
+		TeamsToRoles: []types.TeamRolesMapping{
+			{
+				Organization: "sso-org",
+				Team:         "team",
+				Roles:        []string{"role"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		testName             string
+		connector            types.GithubConnector
+		isEnterprise         bool
+		requestShouldSucceed bool
+		httpStatusCode       int
+		reuseCache           bool
+		errFunc              func(error) bool
+	}{
+		{
+			testName:             "OSS HTTP connection failure",
+			connector:            ssoOrg,
+			isEnterprise:         false,
+			requestShouldSucceed: false,
+			reuseCache:           false,
+			errFunc:              trace.IsConnectionProblem,
+		},
+		{
+			testName:             "Enterprise skips HTTP check",
+			connector:            ssoOrg,
+			isEnterprise:         true,
+			requestShouldSucceed: false,
+			reuseCache:           false,
+			errFunc:              nil,
+		},
+		{
+			testName:             "OSS has SSO",
+			connector:            ssoOrg,
+			isEnterprise:         false,
+			requestShouldSucceed: true,
+			httpStatusCode:       http.StatusOK,
+			reuseCache:           false,
+			errFunc:              trace.IsAccessDenied,
+		},
+		{
+			testName:             "OSS has SSO with cache",
+			connector:            ssoOrg,
+			isEnterprise:         false,
+			requestShouldSucceed: false,
+			reuseCache:           true,
+			errFunc:              trace.IsAccessDenied,
+		},
+		{
+			testName:             "OSS doesn't have SSO",
+			connector:            noSSOOrg,
+			isEnterprise:         false,
+			requestShouldSucceed: true,
+			httpStatusCode:       404,
+			reuseCache:           true,
+			errFunc:              nil,
+		},
+		{
+			testName:             "OSS doesn't have SSO with cache",
+			connector:            noSSOOrg,
+			isEnterprise:         false,
+			requestShouldSucceed: false,
+			reuseCache:           true,
+			errFunc:              nil,
+		},
+	}
+
+	var orgCache *utils.FnCache
+	ctx := context.Background()
+
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			client := mockHTTPRequester{
+				succeed:    tt.requestShouldSucceed,
+				statusCode: tt.httpStatusCode,
+			}
+
+			if tt.isEnterprise {
+				modules.SetTestModules(t, &modules.TestModules{
+					TestBuildType: modules.BuildEnterprise,
+				})
+			}
+
+			if !tt.reuseCache {
+				orgCache, err = utils.NewFnCache(utils.FnCacheConfig{
+					TTL: time.Minute,
+				})
+				require.NoError(t, err)
+			}
+
+			err := checkGithubOrgSSOSupport(ctx, tt.connector, nil, orgCache, client)
+			if tt.errFunc == nil {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				require.True(t, tt.errFunc(err))
+			}
+		})
+	}
 }

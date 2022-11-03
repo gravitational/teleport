@@ -36,7 +36,7 @@ import (
 func TestEmitExecAuditEvent(t *testing.T) {
 	t.Parallel()
 
-	srv := NewMockServer(t)
+	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
 
 	expectedUsr, err := user.Current()
@@ -111,7 +111,7 @@ func TestLoginDefsParser(t *testing.T) {
 }
 
 func newExecServerContext(t *testing.T, srv Server) *ServerContext {
-	scx := NewTestServerContext(t, srv, nil)
+	scx := newTestServerContext(t, srv, nil)
 
 	term, err := newLocalTerminal(scx)
 	require.NoError(t, err)
@@ -119,7 +119,8 @@ func newExecServerContext(t *testing.T, srv Server) *ServerContext {
 
 	scx.session = &session{id: "xxx"}
 	scx.session.term = term
-	scx.request = &ssh.Request{Type: sshutils.ExecRequest}
+	err = scx.SetSSHRequest(&ssh.Request{Type: sshutils.ExecRequest})
+	require.NoError(t, err)
 
 	t.Cleanup(func() { require.NoError(t, scx.session.term.Close()) })
 
