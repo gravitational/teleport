@@ -28,10 +28,12 @@ lint:
     # Allow package/directory mismatch for legacy protos.
     PACKAGE_DIRECTORY_MATCH:
       - teleport/legacy/client/proto/joinservice.proto
+      - teleport/legacy/types/events/devicetrust.proto
       - teleport/legacy/types/webauthn/webauthn.proto
     # Allow non-versioned packages for legacy protos.
     PACKAGE_VERSION_SUFFIX:
       - teleport/legacy/client/proto/joinservice.proto
+      - teleport/legacy/types/events/devicetrust.proto
       - teleport/legacy/types/webauthn/webauthn.proto
 breaking:
   use:
