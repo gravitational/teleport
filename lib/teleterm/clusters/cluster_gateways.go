@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type CreateGatewayParams struct {
@@ -45,7 +46,13 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		return nil, trace.Wrap(err)
 	}
 
-	if err := c.ReissueDBCerts(ctx, params.TargetUser, db); err != nil {
+	routeToDatabase := tlsca.RouteToDatabase{
+		ServiceName: db.GetName(),
+		Protocol:    db.GetProtocol(),
+		Username:    params.TargetUser,
+	}
+
+	if err := c.ReissueDBCerts(ctx, routeToDatabase); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
