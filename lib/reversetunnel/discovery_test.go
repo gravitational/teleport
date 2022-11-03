@@ -30,14 +30,14 @@ import (
 
 // discoveryRequestRaw is the legacy type that was used
 // as the payload for discoveryRequests. It exists
-// here for the sake of ensuring backward compatability.
+// here for the sake of ensuring backward compatibility.
 type discoveryRequestRaw struct {
 	ClusterName string            `json:"cluster_name"`
 	Type        string            `json:"type"`
 	Proxies     []json.RawMessage `json:"proxies"`
 }
 
-// marshalDiscoveryRequest is the legacy method of marshalling a discoveryRequest
+// marshalDiscoveryRequest is the legacy method of marshaling a discoveryRequest
 func marshalDiscoveryRequest(req discoveryRequest) ([]byte, error) {
 	out := discoveryRequestRaw{
 		Proxies: make([]json.RawMessage, 0, len(req.Proxies)),
@@ -54,12 +54,11 @@ func marshalDiscoveryRequest(req discoveryRequest) ([]byte, error) {
 		}
 		out.Proxies = append(out.Proxies, data)
 	}
-	out.ClusterName = req.ClusterName
-	out.Type = req.Type
+
 	return json.Marshal(out)
 }
 
-// unmarshalDiscoveryRequest is the legacy method of unmarshalling a discoveryRequest
+// unmarshalDiscoveryRequest is the legacy method of unmarshaling a discoveryRequest
 func unmarshalDiscoveryRequest(data []byte) (*discoveryRequest, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing payload in discovery request")
@@ -81,8 +80,7 @@ func unmarshalDiscoveryRequest(data []byte) (*discoveryRequest, error) {
 
 		out.Proxies = append(out.Proxies, proxy)
 	}
-	out.ClusterName = raw.ClusterName
-	out.Type = raw.Type
+
 	return &out, nil
 }
 
@@ -91,9 +89,7 @@ func TestDiscoveryRequestMarshalling(t *testing.T) {
 
 	// create a discovery request
 	req := discoveryRequest{
-		ClusterName: "test",
-		Type:        "test",
-		Proxies:     make([]types.Server, 0, proxyCount),
+		Proxies: make([]types.Server, 0, proxyCount),
 	}
 
 	// populate the proxies
@@ -103,7 +99,7 @@ func TestDiscoveryRequestMarshalling(t *testing.T) {
 		req.Proxies = append(req.Proxies, p)
 	}
 
-	// test marshalling the request with the legacy mechanism and unmarshalling
+	// test marshaling the request with the legacy mechanism and unmarshaling
 	// with the new mechanism
 	t.Run("marshal=legacy unmarshal=new", func(t *testing.T) {
 		payload, err := marshalDiscoveryRequest(req)
@@ -112,12 +108,10 @@ func TestDiscoveryRequestMarshalling(t *testing.T) {
 		var got discoveryRequest
 		require.NoError(t, json.Unmarshal(payload, &got))
 
-		require.Equal(t, req.ClusterName, got.ClusterName)
-		require.Equal(t, req.Type, got.Type)
 		require.Empty(t, cmp.Diff(req.ProxyNames(), got.ProxyNames()))
 	})
 
-	// test marshalling the request with the new mechanism and unmarshalling
+	// test marshaling the request with the new mechanism and unmarshaling
 	// with the legacy mechanism
 	t.Run("marshal=new unmarshal=legacy", func(t *testing.T) {
 		payload, err := json.Marshal(req)
@@ -126,12 +120,10 @@ func TestDiscoveryRequestMarshalling(t *testing.T) {
 		got, err := unmarshalDiscoveryRequest(payload)
 		require.NoError(t, err)
 
-		require.Equal(t, req.ClusterName, got.ClusterName)
-		require.Equal(t, req.Type, got.Type)
 		require.Empty(t, cmp.Diff(req.ProxyNames(), got.ProxyNames()))
 	})
 
-	// test marshalling and unmarshalling the request with the new mechanism
+	// test marshaling and unmarshaling the request with the new mechanism
 	t.Run("marshal=new unmarshal=new", func(t *testing.T) {
 		payload, err := json.Marshal(req)
 		require.NoError(t, err)
@@ -139,12 +131,10 @@ func TestDiscoveryRequestMarshalling(t *testing.T) {
 		var got discoveryRequest
 		require.NoError(t, json.Unmarshal(payload, &got))
 
-		require.Equal(t, req.ClusterName, got.ClusterName)
-		require.Equal(t, req.Type, got.Type)
 		require.Empty(t, cmp.Diff(req.ProxyNames(), got.ProxyNames()))
 	})
 
-	// test marshalling and unmarshalling the request with the legacy mechanism
+	// test marshaling and unmarshaling the request with the legacy mechanism
 	t.Run("marshal=legacy unmarshal=legacy", func(t *testing.T) {
 		payload, err := marshalDiscoveryRequest(req)
 		require.NoError(t, err)
@@ -152,8 +142,6 @@ func TestDiscoveryRequestMarshalling(t *testing.T) {
 		got, err := unmarshalDiscoveryRequest(payload)
 		require.NoError(t, err)
 
-		require.Equal(t, req.ClusterName, got.ClusterName)
-		require.Equal(t, req.Type, got.Type)
 		require.Empty(t, cmp.Diff(req.ProxyNames(), got.ProxyNames()))
 	})
 }
