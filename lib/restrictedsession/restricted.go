@@ -27,13 +27,13 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/aquasecurity/libbpfgo"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/aquasecurity/libbpfgo"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/bpf"
 )
 
 var log = logrus.WithFields(logrus.Fields{

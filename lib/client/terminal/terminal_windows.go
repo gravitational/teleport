@@ -23,10 +23,11 @@ import (
 	"syscall"
 
 	"github.com/Azure/go-ansiterm/winterm"
-	"github.com/gravitational/teleport/lib/client/tncon"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/moby/term"
+
+	"github.com/gravitational/teleport/lib/client/tncon"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // initTerminal configures the terminal for raw, VT compatible output and
