@@ -890,7 +890,7 @@ docker:
 # Dockerized build: useful for making Linux binaries on macOS
 .PHONY:docker-binaries
 docker-binaries: clean
-	make -C build.assets build-binaries
+	make -C build.assets build-binaries PIV=$(PIV)
 
 # Interactively enters a Docker container (which you can build and run Teleport inside of)
 .PHONY:enter
@@ -1027,7 +1027,7 @@ publish-ecr: image
 image-ci: clean docker-binaries
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
 	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_STAGING):$(VERSION)
-	if [ -f e/Makefile ]; then $(MAKE) -C e image-ci; fi
+	if [ -f e/Makefile ]; then $(MAKE) -C e image-ci PIV=$(PIV); fi
 
 
 # DOCKER_CLI_EXPERIMENTAL=enabled is set to allow inspecting the manifest for present images.
