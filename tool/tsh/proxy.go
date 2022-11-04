@@ -742,7 +742,7 @@ var dbProxyAuthMultiTpl = template.Must(template.New("").Parse(
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
-Use one of the following commands to connect to the database or via other database GUI/CLI clients:
+Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 {{range $item := .commands}}
   * {{$item.Description}}: 
 
