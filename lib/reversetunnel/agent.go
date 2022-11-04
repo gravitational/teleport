@@ -641,7 +641,7 @@ func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 
 			var r discoveryRequest
 			if err := json.Unmarshal(req.Payload, &r); err != nil {
-				a.log.WithError(err).Warningf("Bad payload")
+				a.log.WithError(err).Warn("Bad payload")
 				return
 			}
 
