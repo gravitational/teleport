@@ -251,7 +251,7 @@ func signTshStep(workspace string) step {
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`cd $TeleportSrc`,
-			`[Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) > windows-signing-cert.pfx`,
+			`([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content windows-signing-cert.pfx -Encoding Byte`,
 			`& 'C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe' sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com /du https://goteleport.com /fd sha256 build\tsh-unsigned.exe`,
 			`mv build\tsh-unsigned.exe build\tsh.exe`,
 			`rm -r windows-signing-cert.pfx`,

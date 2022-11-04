@@ -763,8 +763,8 @@ steps:
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - cd $TeleportSrc
-  - '[Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT))
-    > windows-signing-cert.pfx'
+  - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
+    windows-signing-cert.pfx -Encoding Byte
   - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
     sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
     /du https://goteleport.com /fd sha256 build\tsh-unsigned.exe'
@@ -1050,8 +1050,8 @@ steps:
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - cd $TeleportSrc
-  - '[Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT))
-    > windows-signing-cert.pfx'
+  - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
+    windows-signing-cert.pfx -Encoding Byte
   - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
     sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
     /du https://goteleport.com /fd sha256 build\tsh-unsigned.exe'
@@ -18844,6 +18844,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 307a4c57cdba83a4ea303630df458c22f46cfc5264a8cb77bb2550c9f792d890
+hmac: 0ebd9da44dbc2849a0af6d86deb0cb2e305d5196a535f35d8978e9d89af949c0
 
 ...
