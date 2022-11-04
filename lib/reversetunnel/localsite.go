@@ -37,16 +37,38 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy"
+	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/utils"
 	proxyutils "github.com/gravitational/teleport/lib/utils/proxy"
 )
 
-// periodicFunctionInterval is the interval at which periodic stats are calculated.
-var periodicFunctionInterval = 3 * time.Minute
+const (
+	// periodicFunctionInterval is the interval at which periodic stats are calculated.
+	periodicFunctionInterval = 3 * time.Minute
 
-func newlocalSite(srv *server, domainName string, authServers []string) (*localSite, error) {
+	// proxySyncInterval is the interval at which the current proxies are synchronized to
+	// connected agents via a discovery request. It is a function of track.DefaultProxyExpiry
+	// to ensure that the proxies are always synced before the tracker expiry.
+	proxySyncInterval = track.DefaultProxyExpiry * 2 / 3
+)
+
+// withPeriodicFunctionInterval adjusts the periodic function interval
+func withPeriodicFunctionInterval(interval time.Duration) func(site *localSite) {
+	return func(site *localSite) {
+		site.periodicFunctionInterval = interval
+	}
+}
+
+// withProxySyncInterval adjusts the proxy sync interval
+func withProxySyncInterval(interval time.Duration) func(site *localSite) {
+	return func(site *localSite) {
+		site.proxySyncInterval = interval
+	}
+}
+
+func newlocalSite(srv *server, domainName string, authServers []string, opts ...func(*localSite)) (*localSite, error) {
 	err := metrics.RegisterPrometheusCollectors(localClusterCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -76,8 +98,14 @@ func newlocalSite(srv *server, domainName string, authServers []string) (*localS
 				"cluster": domainName,
 			},
 		}),
-		offlineThreshold: srv.offlineThreshold,
-		peerClient:       srv.PeerClient,
+		offlineThreshold:         srv.offlineThreshold,
+		peerClient:               srv.PeerClient,
+		periodicFunctionInterval: periodicFunctionInterval,
+		proxySyncInterval:        proxySyncInterval,
+	}
+
+	for _, opt := range opts {
+		opt(s)
 	}
 
 	// Start periodic functions for the local cluster in the background.
@@ -118,7 +146,15 @@ type localSite struct {
 	// marking a reverse tunnel connection as invalid.
 	offlineThreshold time.Duration
 
+	// peerClient is the proxy peering client
 	peerClient *proxy.Client
+
+	// periodicFunctionInterval defines the interval period functions run at
+	periodicFunctionInterval time.Duration
+
+	// proxySyncInterval defines the interval at which discovery requests are
+	// sent to keep agents in sync
+	proxySyncInterval time.Duration
 }
 
 // GetTunnelsCount always the number of tunnel connections to this cluster.
@@ -494,13 +530,16 @@ func (s *localSite) fanOutProxies(proxies []types.Server) {
 	}
 }
 
-// handleHearbeat receives heartbeat messages from the connected agent
+// handleHeartbeat receives heartbeat messages from the connected agent
 // if the agent has missed several heartbeats in a row, Proxy marks
 // the connection as invalid.
 func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
+	proxyResyncTicker := s.clock.NewTicker(s.proxySyncInterval)
+
 	defer func() {
 		s.log.Debugf("Cluster connection closed.")
 		rconn.Close()
+		proxyResyncTicker.Stop()
 	}()
 
 	firstHeartbeat := true
@@ -509,14 +548,23 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 		case <-s.srv.ctx.Done():
 			s.log.Infof("closing")
 			return
+		case <-proxyResyncTicker.Chan():
+			req := discoveryRequest{
+				Proxies: s.srv.proxyWatcher.GetCurrent(),
+			}
+
+			if err := rconn.sendDiscoveryRequest(req); err != nil {
+				s.log.WithError(err).Debugf("Marking connection invalid on error")
+				rconn.markInvalid(err)
+				return
+			}
 		case proxies := <-rconn.newProxiesC:
 			req := discoveryRequest{
-				ClusterName: s.srv.ClusterName,
-				Type:        rconn.tunnelType,
-				Proxies:     proxies,
+				Proxies: proxies,
 			}
+
 			if err := rconn.sendDiscoveryRequest(req); err != nil {
-				s.log.Debugf("Marking connection invalid on error: %v.", err)
+				s.log.WithError(err).Debugf("Marking connection invalid on error")
 				rconn.markInvalid(err)
 				return
 			}
@@ -549,10 +597,10 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 			} else {
 				s.log.WithFields(log.Fields{"nodeID": rconn.nodeID}).Debugf("Ping <- %v", rconn.conn.RemoteAddr())
 			}
-			tm := time.Now().UTC()
+			tm := s.clock.Now().UTC()
 			rconn.setLastHeartbeat(tm)
 		// Note that time.After is re-created everytime a request is processed.
-		case <-time.After(s.offlineThreshold):
+		case <-s.clock.After(s.offlineThreshold):
 			rconn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", s.offlineThreshold))
 		}
 	}
@@ -611,14 +659,14 @@ func (s *localSite) chanTransportConn(rconn *remoteConn, dreq *sshutils.DialReq)
 
 // periodicFunctions runs functions periodic functions for the local cluster.
 func (s *localSite) periodicFunctions() {
-	ticker := time.NewTicker(periodicFunctionInterval)
+	ticker := s.clock.NewTicker(s.periodicFunctionInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-s.srv.ctx.Done():
 			return
-		case <-ticker.C:
+		case <-ticker.Chan():
 			if err := s.sshTunnelStats(); err != nil {
 				s.log.Warningf("Failed to report SSH tunnel statistics for: %v: %v.", s.domainName, err)
 			}
