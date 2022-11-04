@@ -11,7 +11,6 @@ jobs:
     container: 
       image: public.ecr.aws/gravitational/teleport-buildbox:teleport11
       env:
-        GOCACHE: /tmp/gocache
         HELM_PLUGINS: /root/.local/share/helm/plugins # See Makefile:533, Dockerfile needs to be fixed
       volumes:
         - ${{ github.workspace }}:/workspace
@@ -28,12 +27,23 @@ jobs:
           git config --global --add safe.directory /workspace/webassets
       - name: Checkout Teleport
         uses: actions/checkout@v3
+      - name: Go cache paths
+        id: go-cache-paths
+        run: |
+          echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
       - name: Go build cache
         uses: actions/cache@v3
         with:
-          path: /tmp/gocache
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-build-unit-${{ hashFiles('/workspace/**/go.sum') }}
           restore-keys: ${{ runner.os }}-go-build-unit-
+      - name: Go mod cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-go-mod-unit-${{ hashFiles('/workspace/**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-mod-unit-
       - name: Rust cargo cache
         uses: actions/cache@v3
         with:
