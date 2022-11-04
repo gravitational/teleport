@@ -378,9 +378,6 @@ const (
 	// SchemeStdout outputs audit log entries to stdout
 	SchemeStdout = "stdout"
 
-	// SchemeUsageReporting reports anonymized usage statistics
-	SchemeUsageReporting = "usage"
-
 	// LogsDir is a log subdirectory for events and logs
 	LogsDir = "log"
 
