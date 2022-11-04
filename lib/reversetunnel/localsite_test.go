@@ -37,15 +37,105 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+func TestRemoteConnCleanup(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	clock := clockwork.NewFakeClock()
+
+	watcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Log:       utils.NewLoggerForTests(),
+			Clock:     clock,
+			Client:    &mockLocalSiteClient{},
+		},
+		ProxiesC: make(chan []types.Server, 2),
+	})
+	require.NoError(t, err)
+	require.NoError(t, watcher.WaitInitialization())
+
+	// setup the site
+	srv := &server{
+		ctx:              ctx,
+		Config:           Config{Clock: clock},
+		localAuthClient:  &mockLocalSiteClient{},
+		log:              utils.NewLoggerForTests(),
+		offlineThreshold: time.Second,
+		proxyWatcher:     watcher,
+	}
+
+	site, err := newlocalSite(srv, "clustername", nil, withPeriodicFunctionInterval(time.Hour), withProxySyncInterval(time.Hour))
+	require.NoError(t, err)
+
+	// add a connection
+	rconn := &mockRemoteConnConn{}
+	sconn := &mockedSSHConn{}
+	conn1, err := site.addConn(uuid.NewString(), types.NodeTunnel, rconn, sconn)
+	require.NoError(t, err)
+
+	reqs := make(chan *ssh.Request)
+
+	// terminated by too many missed heartbeats
+	go func() {
+		site.handleHeartbeat(conn1, nil, reqs)
+		cancel()
+	}()
+
+	// send an initial heartbeat
+	reqs <- &ssh.Request{Type: "heartbeat"}
+
+	// create a fake session
+	fakeSession := newSessionTrackingConn(conn1, &mockRemoteConnConn{})
+
+	// advance the clock to trigger missing a heartbeat, the last advance
+	// should not force the connection to close since there is still an active session
+	for i := 0; i <= missedHeartBeatThreshold+1; i++ {
+		// wait until the heartbeat loop has created the timer
+		clock.BlockUntil(3) // periodic ticker + heart beat timer + resync ticker = 3
+		clock.Advance(srv.offlineThreshold)
+	}
+
+	// the fake session should have prevented anything from closing
+	require.False(t, conn1.closed.Load())
+	require.False(t, sconn.closed.Load())
+
+	// send another heartbeat to reset exceeding the threshold
+	reqs <- &ssh.Request{Type: "heartbeat"}
+
+	// close the fake session
+	clock.BlockUntil(3) // periodic ticker + heart beat timer + resync ticker = 3
+	require.NoError(t, fakeSession.Close())
+
+	// advance the clock to trigger missing a heartbeat, the last advance
+	// should force the connection to close since there are no active sessions
+	for i := 0; i <= missedHeartBeatThreshold; i++ {
+		// wait until the heartbeat loop has created the timer
+		clock.BlockUntil(3) // periodic ticker + heart beat timer + resync ticker = 3
+		clock.Advance(srv.offlineThreshold)
+	}
+
+	// wait for handleHeartbeat to finish
+	select {
+	case <-ctx.Done():
+	case <-time.After(30 * time.Second): // artificially high to prevent flakiness
+		t.Fatal("LocalSite heart beat handler never terminated")
+	}
+
+	// assert the connections were closed
+	require.True(t, conn1.closed.Load())
+	require.True(t, sconn.closed.Load())
+}
+
 func TestLocalSiteOverlap(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-
 	srv := &server{
-		ctx:             ctx,
-		localAuthClient: &mockLocalSiteClient{},
 		Config:          Config{Clock: clockwork.NewFakeClock()},
+		ctx:             context.Background(),
+		localAuthClient: &mockLocalSiteClient{},
 	}
 
 	site, err := newlocalSite(srv, "clustername", nil, withPeriodicFunctionInterval(time.Hour))
@@ -58,35 +148,76 @@ func TestLocalSiteOverlap(t *testing.T) {
 		ConnType: connType,
 	}
 
-	conn1, err := site.addConn(nodeID, connType, mockRemoteConnConn{}, nil)
+	// add a few connections for the same node id
+	conn1, err := site.addConn(nodeID, connType, &mockRemoteConnConn{}, nil)
 	require.NoError(t, err)
 
-	conn2, err := site.addConn(nodeID, connType, mockRemoteConnConn{}, nil)
+	conn2, err := site.addConn(nodeID, connType, &mockRemoteConnConn{}, nil)
 	require.NoError(t, err)
 
+	conn3, err := site.addConn(nodeID, connType, &mockRemoteConnConn{}, nil)
+	require.NoError(t, err)
+
+	// no heartbeats from any of them shouldn't return a connection
 	c, err := site.getRemoteConn(dreq)
 	require.True(t, trace.IsNotFound(err))
 	require.Nil(t, c)
 
+	// ensure conn1 is ready
 	conn1.setLastHeartbeat(time.Now())
+
+	// getRemoteConn returns the only healthy connection
 	c, err = site.getRemoteConn(dreq)
 	require.NoError(t, err)
 	require.Equal(t, conn1, c)
 
+	// ensure conn2 is ready
 	conn2.setLastHeartbeat(time.Now())
+
+	// getRemoteConn returns the newest healthy connection
 	c, err = site.getRemoteConn(dreq)
 	require.NoError(t, err)
 	require.Equal(t, conn2, c)
 
+	// mark conn2 invalid
 	conn2.markInvalid(nil)
+
+	// getRemoteConn returns the only healthy connection
 	c, err = site.getRemoteConn(dreq)
 	require.NoError(t, err)
 	require.Equal(t, conn1, c)
 
+	// mark conn1 invalid
 	conn1.markInvalid(nil)
+
+	// getRemoteConn returns the only healthy connection
+	c, err = site.getRemoteConn(dreq)
+	require.NoError(t, err)
+	require.Equal(t, conn2, c)
+
+	// remove conn2
+	site.removeRemoteConn(conn2)
+
+	// getRemoteConn returns the only invalid connection
+	c, err = site.getRemoteConn(dreq)
+	require.NoError(t, err)
+	require.Equal(t, conn1, c)
+
+	// remove conn1
+	site.removeRemoteConn(conn1)
+
+	// no ready connections exist
 	c, err = site.getRemoteConn(dreq)
 	require.True(t, trace.IsNotFound(err))
 	require.Nil(t, c)
+
+	// mark conn3 as ready
+	conn3.setLastHeartbeat(time.Now())
+
+	// getRemoteConn returns the only healthy connection
+	c, err = site.getRemoteConn(dreq)
+	require.NoError(t, err)
+	require.Equal(t, conn3, c)
 }
 
 func TestProxyResync(t *testing.T) {
@@ -239,10 +370,16 @@ func (mockLocalSiteClient) NewWatcher(context.Context, types.Watch) (types.Watch
 
 type mockRemoteConnConn struct {
 	net.Conn
+	closed atomic.Bool
+}
+
+func (c *mockRemoteConnConn) Close() error {
+	c.closed.Store(true)
+	return nil
 }
 
 // called for logging by (*remoteConn).markInvalid()
-func (mockRemoteConnConn) RemoteAddr() net.Addr {
+func (*mockRemoteConnConn) RemoteAddr() net.Addr {
 	return &utils.NetAddr{
 		Addr:        "localhost",
 		AddrNetwork: "tcp",
