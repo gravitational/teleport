@@ -92,8 +92,12 @@ func NewDialer(ctx context.Context, keepAlivePeriod, dialTimeout time.Duration) 
 func NewProxyDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure bool) ContextDialer {
 	dialer := newTunnelDialer(ssh, keepAlivePeriod, dialTimeout)
 	return ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
-		tunnelAddr, err := webclient.GetTunnelAddr(
-			&webclient.Config{Context: ctx, ProxyAddr: discoveryAddr, Insecure: insecure})
+		resp, err := webclient.Find(&webclient.Config{Context: ctx, ProxyAddr: discoveryAddr, Insecure: insecure})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		tunnelAddr, err := resp.Proxy.TunnelAddr()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -102,6 +106,7 @@ func NewProxyDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dura
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		return conn, nil
 	})
 }
@@ -127,11 +132,20 @@ func newTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dur
 // through the SSH reverse tunnel on the proxy.
 func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure bool) ContextDialer {
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
-		tunnelAddr, err := webclient.GetTunnelAddr(
-			&webclient.Config{Context: ctx, ProxyAddr: discoveryAddr, Insecure: insecure})
+		resp, err := webclient.Find(&webclient.Config{Context: ctx, ProxyAddr: discoveryAddr, Insecure: insecure})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		if !resp.Proxy.TLSRoutingEnabled {
+			return nil, trace.NotImplemented("TLS routing is not enabled")
+		}
+
+		tunnelAddr, err := resp.Proxy.TunnelAddr()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		dialer := &net.Dialer{
 			Timeout:   dialTimeout,
 			KeepAlive: keepAlivePeriod,
@@ -139,13 +153,13 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeou
 		conn, err = dialer.DialContext(ctx, network, tunnelAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
-
 		}
 
 		host, err := webclient.ExtractHost(tunnelAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		tlsConn := tls.Client(conn, &tls.Config{
 			NextProtos:         []string{constants.ALPNSNIProtocolReverseTunnel},
 			InsecureSkipVerify: insecure,
@@ -159,6 +173,7 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeou
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		return sconn, nil
 	})
 }
