@@ -898,7 +898,8 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	c.Arg("kube-cluster", "Name of the kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").Required().StringVar(&c.kubeCluster)
 	c.Flag("as", "Configure custom Kubernetes user impersonation.").StringVar(&c.impersonateUser)
 	c.Flag("as-groups", "Configure custom Kubernetes group impersonation.").StringsVar(&c.impersonateGroups)
-	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
+	// TODO (tigrato): move this back to namespace once teleport drops the namespace variable.
+	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	c.Flag("all", "Generate a kubeconfig with every cluster the user has access to.").BoolVar(&c.all)
 	return c
 }
