@@ -188,6 +188,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.TraceClient == nil {
 		cfg.TraceClient = tracing.NewNoopClient()
 	}
+	if cfg.UsageReporter == nil {
+		cfg.UsageReporter = local.NewDiscardUsageReporter()
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -226,6 +229,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Enforcer:              cfg.Enforcer,
 		ConnectionsDiagnostic: cfg.ConnectionsDiagnostic,
 		StatusInternal:        cfg.Status,
+		UsageReporter:         cfg.UsageReporter,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -303,6 +307,7 @@ type Services struct {
 	services.Enforcer
 	services.ConnectionsDiagnostic
 	services.StatusInternal
+	services.UsageReporter
 	types.Events
 	events.IAuditLog
 }
@@ -835,9 +840,18 @@ func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
 	a.Services.IAuditLog = auditLog
 }
 
+func (a *Server) SetEmitter(emitter apievents.Emitter) {
+	a.emitter = emitter
+}
+
 // SetEnforcer sets the server's enforce service
 func (a *Server) SetEnforcer(enforcer services.Enforcer) {
 	a.Services.Enforcer = enforcer
+}
+
+// SetUsageReporter sets the server's usage reporter
+func (a *Server) SetUsageReporter(reporter services.UsageReporter) {
+	a.Services.UsageReporter = reporter
 }
 
 // GetDomainName returns the domain name that identifies this authority server.

@@ -197,6 +197,9 @@ type InitConfig struct {
 
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
+
+	// UsageReporter is a service that forwards cluster usage events.
+	UsageReporter services.UsageReporter
 }
 
 // Init instantiates and configures an instance of AuthServer

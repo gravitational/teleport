@@ -258,6 +258,9 @@ const (
 	// ComponentVersionControl is the component common to all version control operations.
 	ComponentVersionControl = "version-control"
 
+	// ComponentUsageReporting is the component responsible for reporting usage metrics.
+	ComponentUsageReporting = "usage-reporting"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 
@@ -374,6 +377,9 @@ const (
 
 	// SchemeStdout outputs audit log entries to stdout
 	SchemeStdout = "stdout"
+
+	// SchemeUsageReporting reports anonymized usage statistics
+	SchemeUsageReporting = "usage"
 
 	// LogsDir is a log subdirectory for events and logs
 	LogsDir = "log"
