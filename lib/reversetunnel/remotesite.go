@@ -376,9 +376,7 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 			return
 		case proxies := <-conn.newProxiesC:
 			req := discoveryRequest{
-				ClusterName: s.srv.ClusterName,
-				Type:        conn.tunnelType,
-				Proxies:     proxies,
+				Proxies: proxies,
 			}
 			if err := conn.sendDiscoveryRequest(req); err != nil {
 				s.Debugf("Marking connection invalid on error: %v.", err)
