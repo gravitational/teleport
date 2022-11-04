@@ -84,6 +84,8 @@ func innerMain() error {
 		"GOMODCACHE": filepath.Join(goCacheRoot, "pkg"),
 	}
 
+	log.Println("go cache directory", goCacheRoot)
+
 	log.Println("Analyzing code changes")
 	if args.forceRun {
 		log.Println("Forcing test run")
