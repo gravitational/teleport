@@ -137,32 +137,35 @@ func (g *TermManager) Write(p []byte) (int, error) {
 func (g *TermManager) Read(p []byte) (int, error) {
 	g.mu.Lock()
 	state := g.state
+	closed := g.isClosed()
+	// since the lock is already held, check to see if
+	// an early return is possible
+	switch {
+	case closed:
+		g.mu.Unlock()
+		return 0, io.EOF
+	case !closed && state == dataFlowOn && len(g.remaining) > 0:
+		n := copy(p, g.remaining)
+		g.remaining = g.remaining[n:]
+		g.mu.Unlock()
+		return n, nil
+	}
 	g.mu.Unlock()
 
-	for {
-		// wait until data flow is enabled and there is data to be read, or the session is terminated.
-		func() {
-			for state == dataFlowOff || len(g.remaining) == 0 {
-				select {
-				case <-g.closed:
-					return
-				case <-g.stateUpdate:
-					return
-				case data := <-g.incoming:
-					g.remaining = append(g.remaining, data...)
-				}
-			}
-		}()
-
-		if g.isClosed() {
+	// wait until data flow is enabled and there is data to be read, or the session is terminated.
+	for state == dataFlowOff || len(g.remaining) == 0 {
+		select {
+		case <-g.closed:
 			return 0, io.EOF
+		case <-g.stateUpdate:
+		case data := <-g.incoming:
+			g.remaining = append(g.remaining, data...)
 		}
 
-		// ensure that data flow wasn't changed and can't change
-		// until the data has been returned
+		// ensure that data flow is on and there is data to be read
 		g.mu.Lock()
 		state = g.state
-		if state == dataFlowOff {
+		if state == dataFlowOff || len(g.remaining) == 0 {
 			g.mu.Unlock()
 			continue
 		}
@@ -173,6 +176,9 @@ func (g *TermManager) Read(p []byte) (int, error) {
 		g.mu.Unlock()
 		return n, nil
 	}
+
+	// should never get here
+	return 0, io.EOF
 }
 
 // BroadcastMessage injects a message into the stream.

@@ -129,3 +129,209 @@ func TestNoReadWhenOff(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []byte{1, 2, 3}, data[:n])
 }
+
+// wrappedTermManagerReader wraps a TermManager and alerts
+// that a Read is attempted via the reading chanel
+type wrappedTermManagerReader struct {
+	m       *TermManager
+	reading chan struct{}
+}
+
+func (r *wrappedTermManagerReader) Read(p []byte) (int, error) {
+	r.reading <- struct{}{}
+	return r.m.Read(p)
+}
+
+func TestTermManagerRead(t *testing.T) {
+	t.Parallel()
+
+	data := []byte{1, 2, 3}
+	const timeout = 10 * time.Second
+
+	cases := []struct {
+		name          string
+		reader        func() io.Reader
+		dataAssertion require.ValueAssertionFunc
+		nAssertion    require.ValueAssertionFunc
+		errAssertion  require.ErrorAssertionFunc
+	}{
+		{
+			name: "data flow on and data to read",
+			reader: func() io.Reader {
+				m := NewTermManager()
+				m.On()
+				m.remaining = data
+
+				return m
+			},
+			dataAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.Equal(t, i, data, i2...)
+			},
+			nAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.Equal(t, i, len(data), i2...)
+			},
+			errAssertion: require.NoError,
+		},
+		{
+			name: "data flow on and data to read but closed",
+			reader: func() io.Reader {
+				m := NewTermManager()
+				m.On()
+				m.remaining = data
+				m.Close()
+
+				return m
+			},
+			dataAssertion: require.Empty,
+			nAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.Equal(t, i, 0, i2...)
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, io.EOF, i...)
+			},
+		},
+		{
+			name: "closed while waiting",
+			reader: func() io.Reader {
+				m := NewTermManager()
+				m.Off()
+
+				r := &wrappedTermManagerReader{
+					m:       m,
+					reading: make(chan struct{}, 1),
+				}
+
+				go func() {
+					// wait until read occurs
+					select {
+					case <-r.reading:
+					case <-time.After(timeout):
+						m.Close()
+						return
+					}
+
+					// transition between on and off a few times
+					for i := 0; i < 5; i++ {
+						if i%2 == 0 {
+							m.Off()
+						} else {
+							m.On()
+						}
+					}
+
+					// close the reader and return
+					m.Close()
+				}()
+
+				return r
+			},
+			dataAssertion: require.Empty,
+			nAssertion:    require.Zero,
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, io.EOF, i...)
+			},
+		},
+		{
+			name: "data flow changes to on while waiting with existing data to read",
+			reader: func() io.Reader {
+				m := NewTermManager()
+				m.Off()
+				m.remaining = data
+
+				r := &wrappedTermManagerReader{
+					m:       m,
+					reading: make(chan struct{}, 1),
+				}
+
+				go func() {
+					// wait until read occurs
+					select {
+					case <-r.reading:
+					case <-time.After(timeout):
+						m.Close()
+						return
+					}
+
+					// transition between on and off a few times
+					for i := 0; i <= 5; i++ {
+						if i < 5 {
+							m.Off()
+						} else {
+							m.On()
+						}
+					}
+				}()
+
+				return r
+			},
+			dataAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.Equal(t, i, data, i2...)
+			},
+			nAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.Equal(t, i, len(data), i2...)
+			},
+			errAssertion: require.NoError,
+		},
+		{
+			name: "data flow is on but waits for data to read",
+			reader: func() io.Reader {
+				m := NewTermManager()
+				m.On()
+
+				r := &wrappedTermManagerReader{
+					m:       m,
+					reading: make(chan struct{}, 1),
+				}
+
+				go func() {
+					// wait until read occurs
+					select {
+					case <-r.reading:
+					case <-time.After(timeout):
+						m.Close()
+						return
+					}
+
+					// transition between on and off a few times
+					for i := 0; i < 5; i++ {
+						if i%2 == 0 {
+							m.Off()
+						} else {
+							m.On()
+						}
+					}
+
+					// explicitly set on
+					m.On()
+
+					// send empty data first
+					m.incoming <- []byte{}
+
+					// send actual data that should be read
+					m.incoming <- data
+				}()
+
+				return r
+			},
+			dataAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.Equal(t, i, data, i2...)
+			},
+			nAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.Equal(t, i, len(data), i2...)
+			},
+			errAssertion: require.NoError,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			r := tt.reader()
+			d := make([]byte, 100)
+			n, err := r.Read(d)
+			tt.errAssertion(t, err)
+			tt.nAssertion(t, n)
+			tt.dataAssertion(t, d[:n])
+		})
+	}
+
+}
