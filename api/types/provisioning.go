@@ -317,8 +317,8 @@ func (p *ProvisionTokenV2) GetSuggestedLabels() Labels {
 // An example of this is the Database Agent.
 // When using the install-database.sh script, the script will add those labels as part of the `teleport.yaml` configuration.
 // They are added to `db_service.resources.0.labels`.
-func (p *ProvisionTokenV2) GetAgentMatcherLabels() Labels {
-	return p.Spec.AgentMatcherLabels
+func (p *ProvisionTokenV2) GetSuggestedAgentMatcherLabels() Labels {
+	return p.Spec.SuggestedAgentMatcherLabels
 }
 
 // V1 returns V1 version of the resource
