@@ -92,10 +92,6 @@ func MakeServers(clusterName string, servers []types.Server, userRoles services.
 		sort.Sort(sortedLabels(uiLabels))
 
 		serverLogins := userRoles.EnumerateServerLogins(server)
-		sshLogins := serverLogins.Allowed()
-		if sshLogins == nil {
-			sshLogins = []string{}
-		}
 
 		uiServers = append(uiServers, Server{
 			ClusterName: clusterName,
@@ -104,7 +100,7 @@ func MakeServers(clusterName string, servers []types.Server, userRoles services.
 			Hostname:    server.GetHostname(),
 			Addr:        server.GetAddr(),
 			Tunnel:      server.GetUseTunnel(),
-			SSHLogins:   sshLogins,
+			SSHLogins:   serverLogins.Allowed(),
 		})
 	}
 
@@ -117,10 +113,14 @@ type KubeCluster struct {
 	Name string `json:"name"`
 	// Labels is a map of static and dynamic labels associated with an kube cluster.
 	Labels []Label `json:"labels"`
+	// KubeUsers is the list of allowed Kubernetes RBAC users that the user can impersonate.
+	KubeUsers []string `json:"kubernetes_users"`
+	// KubeGroups is the list of allowed Kubernetes RBAC groups that the user can impersonate.
+	KubeGroups []string `json:"kubernetes_groups"`
 }
 
-// MakeKubes creates ui kube objects and returns a list..
-func MakeKubeClusters(clusters []types.KubeCluster) []KubeCluster {
+// MakeKubeClusters creates ui kube objects and returns a list.
+func MakeKubeClusters(clusters []types.KubeCluster, userRoles services.RoleSet) []KubeCluster {
 	uiKubeClusters := make([]KubeCluster, 0, len(clusters))
 	for _, cluster := range clusters {
 		staticLabels := cluster.GetStaticLabels()
@@ -143,13 +143,34 @@ func MakeKubeClusters(clusters []types.KubeCluster) []KubeCluster {
 
 		sort.Sort(sortedLabels(uiLabels))
 
+		kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(userRoles, cluster)
+
 		uiKubeClusters = append(uiKubeClusters, KubeCluster{
-			Name:   cluster.GetName(),
-			Labels: uiLabels,
+			Name:       cluster.GetName(),
+			Labels:     uiLabels,
+			KubeUsers:  kubeUsers,
+			KubeGroups: kubeGroups,
 		})
 	}
 
 	return uiKubeClusters
+}
+
+// getAllowedKubeUsersAndGroupsForCluster works on a given set of roles to return
+// a list of allowed `kubernetes_users` and `kubernetes_groups` that can be used
+// to access a given kubernetes cluster.
+// This function ignores any verification of the TTL associated with
+// each Role, and focuses only on listing all users and groups that the user may
+// have access to.
+func getAllowedKubeUsersAndGroupsForCluster(roles services.RoleSet, kube types.KubeCluster) (kubeUsers []string, kubeGroups []string) {
+	matcher := services.NewKubernetesClusterLabelMatcher(kube.GetAllLabels())
+	// We ignore the TTL verification because we want to include every possibility.
+	// Later, if the user certificate expiration is longer than the maximum allowed TTL
+	// for the role that defines the `kubernetes_*` principals the request will be
+	// denied by Kubernetes Service.
+	// We ignore the returning error since we are only interested in allowed users and groups.
+	kubeGroups, kubeUsers, _ = roles.CheckKubeGroupsAndUsers(0, true /* force ttl override*/, matcher)
+	return
 }
 
 // ConnectionDiagnostic describes a connection diagnostic.
