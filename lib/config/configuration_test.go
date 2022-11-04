@@ -29,7 +29,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -45,12 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/testing/protocmp"
 )
 
 type testConfigFiles struct {
@@ -832,10 +831,10 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 		},
 	}, protocmp.Transform()))
 
-	require.Equal(t, pkcs11LibPath, cfg.Auth.KeyStore.Path)
-	require.Equal(t, "example_token", cfg.Auth.KeyStore.TokenLabel)
-	require.Equal(t, 1, *cfg.Auth.KeyStore.SlotNumber)
-	require.Equal(t, "example_pin", cfg.Auth.KeyStore.Pin)
+	require.Equal(t, pkcs11LibPath, cfg.Auth.KeyStore.PKCS11.Path)
+	require.Equal(t, "example_token", cfg.Auth.KeyStore.PKCS11.TokenLabel)
+	require.Equal(t, 1, *cfg.Auth.KeyStore.PKCS11.SlotNumber)
+	require.Equal(t, "example_pin", cfg.Auth.KeyStore.PKCS11.Pin)
 	require.ElementsMatch(t, []string{"ca-pin-from-string", "ca-pin-from-file1", "ca-pin-from-file2"}, cfg.CAPins)
 
 	require.True(t, cfg.Databases.Enabled)
@@ -2700,10 +2699,12 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 				},
 			},
 			want: keystore.Config{
-				TokenLabel: "foo",
-				SlotNumber: &slotNumber,
-				Pin:        "pin",
-				Path:       securePKCS11LibPath,
+				PKCS11: keystore.PKCS11Config{
+					TokenLabel: "foo",
+					SlotNumber: &slotNumber,
+					Pin:        "pin",
+					Path:       securePKCS11LibPath,
+				},
 			},
 		},
 		{
@@ -2719,10 +2720,12 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 				},
 			},
 			want: keystore.Config{
-				TokenLabel: "foo",
-				SlotNumber: &slotNumber,
-				Pin:        "secure-pin-file",
-				Path:       securePKCS11LibPath,
+				PKCS11: keystore.PKCS11Config{
+					TokenLabel: "foo",
+					SlotNumber: &slotNumber,
+					Pin:        "secure-pin-file",
+					Path:       securePKCS11LibPath,
+				},
 			},
 		},
 		{

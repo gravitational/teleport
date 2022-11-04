@@ -117,6 +117,9 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 			process.log.Error("Can not join the cluster as node, the token expired or not found. Regenerate the token and try again.")
 		case connectErr != nil:
 			process.log.Errorf("%v failed to establish connection to cluster: %v.", role, connectErr)
+			if process.Config.Version == defaults.TeleportConfigVersionV3 && process.Config.ProxyServer.IsEmpty() {
+				process.log.Errorf("Check to see if the config has auth_server pointing to a Teleport Proxy. If it does, use proxy_server instead of auth_server.")
+			}
 		}
 
 		// Used for testing that auth service will attempt to reconnect in the provided duration.

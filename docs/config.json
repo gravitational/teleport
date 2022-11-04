@@ -742,6 +742,14 @@
               "slug": "/database-access/guides/azure-postgres-mysql/"
             },
             {
+              "title": "Azure Cache for Redis",
+              "slug": "/database-access/guides/azure-redis/"
+            },
+            {
+              "title": "Azure SQL Server (Preview)",
+              "slug": "/database-access/guides/azure-sql-server-ad/"
+            },
+            {
               "title": "MongoDB Atlas",
               "slug": "/database-access/guides/mongodb-atlas/"
             },
@@ -914,10 +922,6 @@
             {
               "title": "Configuration",
               "slug": "/machine-id/reference/configuration/"
-            },
-            {
-              "title": "CLI",
-              "slug": "/machine-id/reference/cli/"
             }
           ]
         },
@@ -928,6 +932,10 @@
             {
               "title": "Ansible",
               "slug": "/machine-id/guides/ansible/"
+            },
+            {
+              "title": "GitHub Actions",
+              "slug": "/machine-id/guides/github-actions/"
             },
             {
               "title": "Jenkins",
@@ -944,6 +952,10 @@
             {
               "title": "Applications",
               "slug": "/machine-id/guides/applications/"
+            },
+            {
+              "title": "Host Certificates",
+              "slug": "/machine-id/guides/host-certificate/"
             }
           ]
         }
@@ -1149,7 +1161,7 @@
       "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "10.3.2",
+      "version": "10.3.6",
       "major_version": "10",
       "sla": {
         "monthly_percentage": "99.5%",

@@ -22,8 +22,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gravitational/teleport/lib/srv/db/common"
-
+	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/mongo/address"
 	"go.mongodb.org/mongo-driver/mongo/description"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
@@ -33,7 +32,7 @@ import (
 	"go.mongodb.org/mongo-driver/x/mongo/driver/ocsp"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/topology"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 // connect returns connection to a MongoDB server.
