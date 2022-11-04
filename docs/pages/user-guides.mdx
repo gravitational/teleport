@@ -60,8 +60,8 @@ provde the details required for your particular use case.
 The Teleport Connect app provides all the same access to resources as `tsh` and
 more, in a friendly graphic user interface. After
 [downloading](https://goteleport.com/download/) and installing Teleport Connect,
-you can log in initiate sessions for Server, Database, and Desktop Access all
-within a single window.
+you can log in initiate sessions for Server and Database Access all, within a
+single window.
 
 1. Click **CONNECT** to connect to the Teleport cluster:
 
@@ -99,8 +99,8 @@ server2.example.com 192.0.2.32:3022 access=servers,hostname=server2
 To connect to a server:
 
 ```code
-$tsh ssh server1.example.com
-root@server1:~$
+$ tsh ssh ubuntu@server1.example.com
+ubuntu@server1:~$
 ```
 
 </TabItem>
@@ -161,7 +161,7 @@ SHOW DATABASES;
 4 rows in set (0.09 sec)
 ```
 
-For other connection types, you can create a local tunnel to point your software to:
+For other connection types, or to connect a graphic database client, you can create a local tunnel to point your software to:
 
 ```code
 $ tsh proxy db myelastic --db-user=alice --tunnel
