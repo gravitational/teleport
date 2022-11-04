@@ -62,5 +62,5 @@ roleRef:
   name: {{ .Release.Name }}-psp
 subjects:
 - kind: ServiceAccount
-  name: {{ .Values.serviceAccountName | default .Release.Name }}
+  name: {{ template "teleport.serviceAccountName" . }}
 {{- end -}}

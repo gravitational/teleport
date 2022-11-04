@@ -225,6 +225,7 @@
         {
           "title": "Single Sign-On (SSO)",
           "slug": "/access-controls/sso/",
+          "forScopes": ["enterprise", "oss", "cloud"],
           "entries": [
             {
               "title": "GitHub SSO",
@@ -1106,7 +1107,7 @@
       "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "10.3.1",
+      "version": "10.3.6",
       "major_version": "10",
       "sla": {
         "monthly_percentage": "99.5%",
