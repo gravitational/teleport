@@ -715,9 +715,9 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	if reqExpiry.Sub(expires) > time.Minute {
 		maxAllowedTTL := time.Until(expires).Round(time.Second)
 		return trace.Errorf(`The credential was not issued because the requested TTL exceeded the maximum allowable value of %s. To successfully request a credential, please replace requested TTL %s with %s`,
-			max_allowable_ttl,
+			maxAllowedTTL,
 			a.genTTL,
-			max_allowable_ttl)
+			maxAllowedTTL)
 	}
 
 	return nil
