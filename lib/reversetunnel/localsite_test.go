@@ -379,7 +379,7 @@ func (c *mockRemoteConnConn) Close() error {
 }
 
 // called for logging by (*remoteConn).markInvalid()
-func (mockRemoteConnConn) RemoteAddr() net.Addr {
+func (*mockRemoteConnConn) RemoteAddr() net.Addr {
 	return &utils.NetAddr{
 		Addr:        "localhost",
 		AddrNetwork: "tcp",
