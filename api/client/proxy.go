@@ -46,17 +46,17 @@ func DialProxyWithDialer(
 
 	switch proxyURL.Scheme {
 	case "http":
-		if conn, err := dialProxyWithHTTPDialer(ctx, proxyURL, addr, dialer); err != nil {
+		conn, err := dialProxyWithHTTPDialer(ctx, proxyURL, addr, dialer)
+		if err != nil {
 			return nil, trace.Wrap(err)
-		} else {
-			return conn, nil
 		}
+		return conn, nil
 	case "socks5":
-		if conn, err := dialProxyWithSOCKSDialer(ctx, proxyURL, addr, dialer); err != nil {
+		conn, err := dialProxyWithSOCKSDialer(ctx, proxyURL, addr, dialer)
+		if err != nil {
 			return nil, trace.Wrap(err)
-		} else {
-			return conn, nil
 		}
+		return conn, nil
 	default:
 		return nil, trace.BadParameter("proxy url scheme %q not supported", proxyURL.Scheme)
 	}

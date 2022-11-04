@@ -125,9 +125,7 @@ func serveSOCKSProxy(errChan chan error, l net.Listener) {
 // serveHTTPProxy starts a limited HTTP proxy on the supplied listener.
 // It performs the HTTP handshake then writes back the requested remote address.
 func serveHTTPProxy(errChan chan error, l net.Listener) {
-	defer func() {
-		close(errChan)
-	}()
+	defer close(errChan)
 
 	s := &http.Server{
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
