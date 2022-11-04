@@ -1048,7 +1048,7 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 
 	// Validate if cf.KubernetesCluster is part of the returned list of clusters
 	if cf.KubernetesCluster != "" && !apiutils.SliceContainsStr(clusterNames, cf.KubernetesCluster) {
-		return nil, trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'.", cf.KubernetesCluster)
+		return nil, trace.NotFound("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'.", cf.KubernetesCluster)
 	}
 	// If ListAll is not enabled, update only cf.KubernetesCluster cluster.
 	if cf.KubernetesCluster != "" && !cf.ListAll {
