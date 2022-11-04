@@ -23,7 +23,6 @@ import (
 	"encoding/asn1"
 	"encoding/pem"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -39,60 +38,6 @@ const (
 	// single desktop session.
 	CertTTL = 5 * time.Minute
 )
-
-// LDAPConfig contains parameters for connecting to an LDAP server.
-type LDAPConfig struct {
-	// Addr is the LDAP server address in the form host:port.
-	// Standard port is 636 for LDAPS.
-	Addr string
-	// Domain is an Active Directory domain name, like "example.com".
-	Domain string
-	// Username is an LDAP username, like "EXAMPLE\Administrator", where
-	// "EXAMPLE" is the NetBIOS version of Domain.
-	Username string
-	// InsecureSkipVerify decides whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
-	InsecureSkipVerify bool
-	// ServerName is the name of the LDAP server for TLS.
-	ServerName string
-	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
-	CA *x509.Certificate
-}
-
-// Check verifies this LDAPConfig
-func (cfg LDAPConfig) Check() error {
-	if cfg.Addr == "" {
-		return trace.BadParameter("missing Addr in LDAPConfig")
-	}
-	if cfg.Domain == "" {
-		return trace.BadParameter("missing Domain in LDAPConfig")
-	}
-	if cfg.Username == "" {
-		return trace.BadParameter("missing Username in LDAPConfig")
-	}
-	return nil
-}
-
-// DomainDN returns the distinguished name for the domain
-func (cfg LDAPConfig) DomainDN() string {
-	var sb strings.Builder
-	parts := strings.Split(cfg.Domain, ".")
-	for _, p := range parts {
-		if sb.Len() > 0 {
-			sb.WriteString(",")
-		}
-		sb.WriteString("DC=")
-		sb.WriteString(p)
-	}
-	return sb.String()
-}
-
-func crlContainerDN(config LDAPConfig) string {
-	return "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration," + config.DomainDN()
-}
-
-func crlDN(clusterName string, config LDAPConfig) string {
-	return "CN=" + clusterName + "," + crlContainerDN(config)
-}
 
 // GenerateCredentials generates a private key / certificate pair for the given
 // Windows username. The certificate has certain special fields different from

@@ -981,7 +981,8 @@ message ProvisionTokenSpecV2 {
   // BotName is the name of the bot this token grants access to, if any
   string BotName = 5 [(gogoproto.jsontag) = "bot_name,omitempty"];
   // SuggestedLabels is a set of labels that resources should set when using this token to enroll
-  // themselves in the cluster
+  // themselves in the cluster.
+  // Currently, only node-join scripts create a configuration according to the suggestion.
   wrappers.LabelValues SuggestedLabels = 6 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "suggested_labels,omitempty",
@@ -991,6 +992,15 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2GitHub GitHub = 7 [(gogoproto.jsontag) = "github,omitempty"];
   // CircleCI allows the configuration of options specific to the "circleci" join method.
   ProvisionTokenSpecV2CircleCI CircleCI = 8 [(gogoproto.jsontag) = "circleci,omitempty"];
+  // SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources.
+  // When an agent uses this token, the agent should monitor resources that match those labels.
+  // For databases, this means adding the labels to `db_service.resources.labels`.
+  // Currently, only node-join scripts create a configuration according to the suggestion.
+  wrappers.LabelValues SuggestedAgentMatcherLabels = 9 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "suggested_agent_matcher_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
 
 message ProvisionTokenSpecV2GitHub {
