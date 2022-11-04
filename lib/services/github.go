@@ -28,13 +28,13 @@ import (
 
 var ErrRequiresEnterprise = trace.AccessDenied("this feature requires Teleport Enterprise")
 
-// githubConnectorMutex is a mutex for the Github auth connector creator.
+// githubConnectorMutex is a mutex for the Github auth connector
+// registration functions.
 var githubConnectorMutex sync.RWMutex
 
 // GithubAuthCreator creates a new Github connector.
 type GithubAuthCreator func(string, types.GithubConnectorSpecV3) (types.GithubConnector, error)
 
-// githubAuthCreator is the factory function that will create Github auth connectors.
 var githubAuthCreator GithubAuthCreator
 
 // RegisterGithubAuthCreator registers a function to create Github auth connectors.
@@ -51,40 +51,42 @@ func NewGithubConnector(name string, spec types.GithubConnectorSpecV3) (types.Gi
 	return githubAuthCreator(name, spec)
 }
 
-// GithubAuthInitializer creates a new Github connector.
+// GithubAuthInitializer initializes a Github auth connector.
 type GithubAuthInitializer func(types.GithubConnector) (types.GithubConnector, error)
 
-// githubAuthInitializer
 var githubAuthInitializer GithubAuthInitializer
 
-// RegisterGithubAuthCreator registers a function to create Github auth connectors.
+// RegisterGithubAuthCreator registers a function to initialize Github auth connectors.
 func RegisterGithubAuthInitializer(init GithubAuthInitializer) {
 	githubConnectorMutex.Lock()
 	defer githubConnectorMutex.Unlock()
 	githubAuthInitializer = init
 }
 
-// InitGithubConnector creates a new Github auth connector.
+// InitGithubConnector initializes c and returns a [types.GithubConnector]
+// ready for use. InitGithubConnector must be used to initialize any
+// uninitialized [types.GithubConnector]s before they can be used.
 func InitGithubConnector(c types.GithubConnector) (types.GithubConnector, error) {
 	githubConnectorMutex.RLock()
 	defer githubConnectorMutex.RUnlock()
 	return githubAuthInitializer(c)
 }
 
-// GithubAuthConverter
+// GithubAuthConverter converts a Github auth connector so it can be
+// sent over gRPC.
 type GithubAuthConverter func(types.GithubConnector) (*types.GithubConnectorV3, error)
 
-// githubAuthConverter
 var githubAuthConverter GithubAuthConverter
 
-// RegisterGithubAuthCreator registers a function to create Github auth connectors.
+// RegisterGithubAuthCreator registers a function to convert Github auth connectors.
 func RegisterGithubAuthConverter(convert GithubAuthConverter) {
 	githubConnectorMutex.Lock()
 	defer githubConnectorMutex.Unlock()
 	githubAuthConverter = convert
 }
 
-// ConvertGithubConnector
+// GithubAuthConverter converts a Github auth connector so it can be
+// sent over gRPC.
 func ConvertGithubConnector(c types.GithubConnector) (*types.GithubConnectorV3, error) {
 	githubConnectorMutex.RLock()
 	defer githubConnectorMutex.RUnlock()

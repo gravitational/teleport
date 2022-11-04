@@ -763,7 +763,7 @@ type githubAPIClient struct {
 	token string
 	// authServer points to the Auth Server.
 	authServer *Server
-
+	// endpointHostname is the Github hostname to connect to.
 	endpointHostname string
 }
 
