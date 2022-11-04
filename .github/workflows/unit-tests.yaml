@@ -12,7 +12,7 @@ jobs:
       image: public.ecr.aws/gravitational/teleport-buildbox:teleport11
       env:
         GOCACHE: /tmp/gocache
-        HELM_PLUGINS: /root/.local/share/helm/plugins # See Makefile:533
+        HELM_PLUGINS: /root/.local/share/helm/plugins # See Makefile:533, Dockerfile needs to be fixed
       volumes:
         - ${{ github.workspace }}:/workspace
       options: --cap-add=SYS_ADMIN --privileged
