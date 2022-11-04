@@ -753,7 +753,23 @@ steps:
   - Enable-Go -ToolchainDir "$Workspace/toolchains"
   - cd $TeleportSrc
   - $Env:GCO_ENABLED=1
-  - go build -o build/tsh.exe ./tool/tsh
+  - go build -o build/tsh-unsigned.exe ./tool/tsh
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+- name: Sign tsh
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - cd $TeleportSrc
+  - '[Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT))
+    > windows-signing-cert.pfx'
+  - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
+    sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
+    /du https://goteleport.com /fd sha256 build\tsh-unsigned.exe'
+  - mv build\tsh-unsigned.exe build\tsh.exe
+  - rm -r windows-signing-cert.pfx
   environment:
     WINDOWS_SIGNING_CERT:
       from_secret: WINDOWS_SIGNING_CERT
@@ -1024,7 +1040,23 @@ steps:
   - Enable-Go -ToolchainDir "$Workspace/toolchains"
   - cd $TeleportSrc
   - $Env:GCO_ENABLED=1
-  - go build -o build/tsh.exe ./tool/tsh
+  - go build -o build/tsh-unsigned.exe ./tool/tsh
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+- name: Sign tsh
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - cd $TeleportSrc
+  - '[Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT))
+    > windows-signing-cert.pfx'
+  - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
+    sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
+    /du https://goteleport.com /fd sha256 build\tsh-unsigned.exe'
+  - mv build\tsh-unsigned.exe build\tsh.exe
+  - rm -r windows-signing-cert.pfx
   environment:
     WINDOWS_SIGNING_CERT:
       from_secret: WINDOWS_SIGNING_CERT
@@ -18812,6 +18844,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 9732eb0c3ec2fb74845174e68847320a4c2d88486209fe5326f9f89bbb07152b
+hmac: 307a4c57cdba83a4ea303630df458c22f46cfc5264a8cb77bb2550c9f792d890
 
 ...
