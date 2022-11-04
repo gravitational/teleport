@@ -49,6 +49,20 @@ func TestService_authz(t *testing.T) {
 			assertErr: trace.IsBadParameter,
 		},
 		{
+			name: "DeleteDevice",
+			checker: &fakeChecker{
+				wantRule: types.KindDevice,
+				wantVerb: types.VerbDelete,
+			},
+			rpc: func() error {
+				_, err := devices.DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{
+					DeviceId: "unknown",
+				})
+				return err
+			},
+			assertErr: trace.IsNotFound,
+		},
+		{
 			name: "FindDevices",
 			checker: &fakeChecker{
 				wantRule: types.KindDevice,
@@ -252,6 +266,83 @@ func TestService_CreateDevice(t *testing.T) {
 				})
 			}
 			assertEvents(t, emitter.Events(), wantEvents)
+		})
+	}
+}
+
+func TestService_DeleteDevice(t *testing.T) {
+	emitter := &eventstest.MockEmitter{}
+	env := testenv.MustNew(testenv.WithEmitter(emitter))
+	defer env.Close()
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	// Create a device so we can delete it below.
+	dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+		Device: &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "llama",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		deviceID  string
+		assertErr func(error) bool
+	}{
+		{
+			name:      "device ID required",
+			deviceID:  "",
+			assertErr: trace.IsBadParameter,
+		},
+		{
+			name:      "unknown device fails",
+			deviceID:  "unknown",
+			assertErr: trace.IsNotFound,
+		},
+		{
+			name:      "ok",
+			deviceID:  dev.Id,
+			assertErr: func(err error) bool { return err == nil },
+		},
+		{
+			name:      "double deletion fails",
+			deviceID:  dev.Id,
+			assertErr: trace.IsNotFound,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			emitter.Reset()
+
+			_, err := devices.DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{
+				DeviceId: test.deviceID,
+			})
+			if !test.assertErr(err) {
+				t.Fatalf("DeleteDevice: assertErr failed, err=%v", err)
+			}
+			if err != nil {
+				return
+			}
+
+			// Verify deletion via read.
+			if _, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{
+				DeviceId: test.deviceID,
+			}); !trace.IsNotFound(err) {
+				t.Errorf("GetDevice returned an unexpected error (want not found): %v", err)
+			}
+
+			// Verify audit log.
+			assertEvents(t, emitter.Events(), []wantEvent{
+				{
+					Type: events.DeviceEvent,
+					Code: events.DeviceDeleteCode,
+				},
+			})
 		})
 	}
 }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -98,6 +99,31 @@ func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRe
 	}
 
 	return dev, nil
+}
+func (s *Service) DeleteDevice(ctx context.Context, req *devicepb.DeleteDeviceRequest) (*emptypb.Empty, error) {
+	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.storage.DeleteDevice(ctx, req.DeviceId); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s.emitAuditEvent(ctx, &apievents.DeviceEvent{
+		Metadata: apievents.Metadata{
+			Type: events.DeviceEvent,
+			Code: events.DeviceDeleteCode,
+		},
+		Status: &apievents.Status{
+			Success: true,
+		},
+		Device: &apievents.DeviceMetadata{
+			// Without extra queries, the device ID is all we got here.
+			DeviceId: req.DeviceId,
+		},
+		User: getUserMetadata(ctx),
+	})
+
+	return &emptypb.Empty{}, nil
 }
 
 func (s *Service) FindDevices(ctx context.Context, req *devicepb.FindDevicesRequest) (*devicepb.FindDevicesResponse, error) {
