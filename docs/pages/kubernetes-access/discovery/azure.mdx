@@ -87,7 +87,7 @@ in the following cases:
 - Teleport's AD identity has permissions that allow access to the static [cluster administrator credentials](https://learn.microsoft.com/en-us/rest/api/aks/managed-clusters/list-cluster-admin-credentials) (local accounts).
 - Teleport's AD identity belongs to the cluster's administrator group.
 - Teleport's AD identity has permissions to create `ClusterRole` and `ClusterRoleBinding` on the 
-cluster and permissions to execute [remote commands](https://learn.microsoft.com/pt-pt/rest/api/aks/managed-clusters/run-command).
+cluster and permissions to execute [remote commands](https://learn.microsoft.com/en-us/rest/api/aks/managed-clusters/run-command).
 
 In either of the specified cases, Teleport will be able to create the `ClusterRole` and bind 
 it to the first AD group it belongs. To make this possible, associate the 
@@ -176,7 +176,7 @@ subjects:
   apiGroup: rbac.authorization.k8s.io
 ```
 
-Please replace `{azure_ad_group_id}` with the appropriate Azure AD group id
+Replace `{azure_ad_group_id}` with the appropriate Azure AD group id
 associated with Teleport identity.
 
 </Details>

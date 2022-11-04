@@ -26,7 +26,8 @@ requests to EKS clusters.
 This limitation exists because the authorization method on EKS clusters requires that the IAM role -
 used for authentication - exists in the 
 [`aws-auth`](https://docs.aws.amazon.com/eks/latest/userguide/add-user-role.html) `ConfigMap`. 
-In this `ConfigMap``, IAM roles are mapped to Kubernetes RBAC users or groups that are then 
+
+In this `ConfigMap`, IAM roles are mapped to Kubernetes RBAC users or groups that are then 
 used by Kubernetes RBAC to grant access permissions. If the mapping does not exist, it results in 
 unauthorized requests. Therefore, Teleport cannot edit the `ConfigMap`
 without first having access to the cluster.
@@ -64,7 +65,7 @@ creates the clusters, you need to edit the `aws-auth` `Configmap` and append the
 mapping between the Teleport IAM role and the RBAC permissions on each of the 
 discovered clusters. 
 
-For simplicity, it is possible to map the Teleport IAM role into an existing 
+For simplicity, it is possible to map the Teleport IAM role onto an existing 
 Kubernetes RBAC group such as `system:masters`, but Teleport recommends setting 
 up a separate Kubernetes RBAC group with the minimum required permissions.
 
@@ -130,7 +131,7 @@ subjects:
 ### IAM mapping
 
 Finally, edit the `configmap/aws-auth` in the `kube-system` namespace and append 
-the following to `mapRoles`. Please replace `{teleport_aws_iam_role}` with the 
+the following to `mapRoles`. Replace `{teleport_aws_iam_role}` with the 
 appropriate IAM role that Teleport Kubernetes Service will use. This step will 
 link the Teleport IAM role into the Kubernetes RBAC group `teleport`.
 
@@ -148,11 +149,11 @@ data:
   <TabItem label="system:masters permissions" >
     <Notice type="warning">
 Granting the `system:masters` group to the IAM role associated with the Teleport 
-service means granting administrator-level permissions on the Kubernetes cluster.
+service means granting administrator-level permissions on the Kubernetes cluster.  **Do not use this method in production.**
   </Notice>
 
-To associate the Teleport IAM role into the `system:masters` RBAC group, 
-please edit the `configmap/aws-auth` in the `kube-system` namespace and append 
+To associate the Teleport IAM role with the `system:masters` RBAC group, 
+edit the `configmap/aws-auth` in the `kube-system` namespace and append 
 the following to `mapRoles`. 
 
 ```yaml
