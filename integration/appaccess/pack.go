@@ -161,7 +161,7 @@ func (p *Pack) LeafAppPublicAddr() string {
 }
 
 // initUser will create a user within the root cluster.
-func (p *Pack) initUser(t *testing.T, opts AppTestOptions) {
+func (p *Pack) initUser(t *testing.T) {
 	p.username = uuid.New().String()
 	p.password = uuid.New().String()
 
@@ -240,10 +240,11 @@ func (p *Pack) initWebSession(t *testing.T) {
 
 // initTeleportClient initializes a Teleport client with this pack's user
 // credentials.
-func (p *Pack) initTeleportClient(t *testing.T) {
+func (p *Pack) initTeleportClient(t *testing.T, opts AppTestOptions) {
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
-		Process:  p.rootCluster.Process,
-		Username: p.user.GetName(),
+		Process:        p.rootCluster.Process,
+		Username:       p.user.GetName(),
+		CertificateTTL: opts.CertificateTTL,
 	})
 	require.NoError(t, err)
 
