@@ -1008,13 +1008,21 @@
               "title": "teleport-plugin-event-handler",
               "slug": "/reference/helm-reference/teleport-plugin-event-handler/"
             },
-	    {
-              "title": "teleport-plugin-mattermost",
-              "slug": "/reference/helm-reference/teleport-plugin-mattermost/"
-	    },
+            {
+              "title": "teleport-plugin-jira",
+              "slug": "/reference/helm-reference/teleport-plugin-jira/"
+            },
             {
               "title": "teleport-plugin-pagerduty",
               "slug": "/reference/helm-reference/teleport-plugin-pagerduty/"
+            },
+            {
+              "title": "teleport-plugin-mattermost",
+              "slug": "/reference/helm-reference/teleport-plugin-mattermost/"
+            },
+            {
+              "title": "teleport-plugin-slack",
+              "slug": "/reference/helm-reference/teleport-plugin-slack/"
             }
           ]
         }
