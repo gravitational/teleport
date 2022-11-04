@@ -42,6 +42,7 @@ type AppTestOptions struct {
 	ExtraLeafApps        []service.App
 	RootClusterListeners helpers.InstanceListenerSetupFunc
 	LeafClusterListeners helpers.InstanceListenerSetupFunc
+	CertificateTTL       time.Duration
 
 	RootConfig func(config *service.Config)
 	LeafConfig func(config *service.Config)
@@ -167,7 +168,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 		}
 		c.Close()
 	})
-	t.Cleanup(func() { rootTCPServer.Close() })
+	t.Cleanup(func() { rootTCPTwoWayServer.Close() })
 	// HTTP server in leaf cluster.
 	leafServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, p.leafMessage)
@@ -289,6 +290,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.Preference.SetSecondFactor("off")
+	rcConf.Auth.Preference.SetDisconnectExpiredCert(true)
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebService = false
 	rcConf.Proxy.DisableWebInterface = true
@@ -305,6 +307,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	lcConf.DataDir = t.TempDir()
 	lcConf.Auth.Enabled = true
 	lcConf.Auth.Preference.SetSecondFactor("off")
+	lcConf.Auth.Preference.SetDisconnectExpiredCert(true)
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebService = false
 	lcConf.Proxy.DisableWebInterface = true
@@ -336,7 +339,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	p.leafAppServers = p.startLeafAppServers(t, leafAppServersCount, opts.ExtraLeafApps)
 
 	// Create user for tests.
-	p.initUser(t, opts)
+	p.initUser(t)
 
 	// Create Web UI session.
 	p.initWebSession(t)
@@ -345,7 +348,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	p.initCertPool(t)
 
 	// Initialize Teleport client with the user's credentials.
-	p.initTeleportClient(t)
+	p.initTeleportClient(t, opts)
 
 	return p
 }

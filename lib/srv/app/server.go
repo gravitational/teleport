@@ -618,9 +618,11 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// httpServer will initiate the close call.
 	closerConn := utils.NewCloserConn(conn)
 
-	tlsConn, err := s.handleConnection(closerConn)
-	// Make sure that the conn auth error is cleaned up.
-	defer s.deleteConnAuth(tlsConn)
+	cleanup, err := s.handleConnection(closerConn)
+	// Make sure that the cleanup function is run
+	if cleanup != nil {
+		defer cleanup()
+	}
 
 	if err != nil {
 		s.log.WithError(err).Warnf("Failed to handle client connection.")
@@ -634,7 +636,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	closerConn.Wait()
 }
 
-func (s *Server) handleConnection(conn net.Conn) (net.Conn, error) {
+func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 	// Make sure everything here is wrapped in the tracking read connection for monitoring.
 	ctx, cancel := context.WithCancel(s.closeContext)
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
@@ -651,19 +653,26 @@ func (s *Server) handleConnection(conn net.Conn) (net.Conn, error) {
 	// extract it and run authorization checks on it.
 	tlsConn, user, app, err := s.getConnectionInfo(ctx, tc)
 	if err != nil {
-		return tlsConn, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	authCtx, _, err := s.authorizeContext(context.WithValue(ctx, auth.ContextUser, user))
+
+	// The behavior here is a little hard to track. To be clear here, if authorization fails
+	// the following will occur:
+	// 1. If the application is a TCP application, error out immediately as expected.
+	// 2. If the application is an HTTP application, store the error and let the HTTP handler
+	//    serve the error directly so that it's properly converted to an HTTP status code.
+	//    This will ensure users will get a 403 when authorization fails.
 	if err != nil {
 		if !app.IsTCP() {
 			s.setConnAuth(tlsConn, err)
 		} else {
-			return tlsConn, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	} else {
 		err = s.monitorConn(ctx, tc, authCtx)
 		if err != nil {
-			return tlsConn, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -671,10 +680,12 @@ func (s *Server) handleConnection(conn net.Conn) (net.Conn, error) {
 	// differently than HTTP requests from web apps.
 	if app.IsTCP() {
 		identity := authCtx.Identity.GetIdentity()
-		return tlsConn, s.handleTCPApp(ctx, tlsConn, &identity, app)
+		return nil, s.handleTCPApp(ctx, tlsConn, &identity, app)
 	}
 
-	return tlsConn, s.handleHTTPApp(ctx, tlsConn)
+	return func() {
+		s.deleteConnAuth(tlsConn)
+	}, s.handleHTTPApp(ctx, tlsConn)
 }
 
 // monitorConn takes a TrackingReadConn and starts a connection monitor. The tracking connection will be
@@ -750,7 +761,11 @@ func (s *Server) handleHTTPApp(ctx context.Context, conn net.Conn) error {
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// See if the initial auth failed. If it didn't, serve the HTTP regularly, which
 	// will include subsequent auth attempts to prevent race-type conditions.
-	err := s.getAndDeleteConnAuth(r.Context().Value(connContextKey).(net.Conn))
+	conn, ok := r.Context().Value(connContextKey).(net.Conn)
+	if !ok {
+		s.log.Errorf("unable to extract connection from context")
+	}
+	err := s.getAndDeleteConnAuth(conn)
 	if err == nil {
 		err = s.serveHTTP(w, r)
 	}
