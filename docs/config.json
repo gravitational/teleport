@@ -934,6 +934,10 @@
               "slug": "/machine-id/guides/ansible/"
             },
             {
+              "title": "GitHub Actions",
+              "slug": "/machine-id/guides/github-actions/"
+            },
+            {
               "title": "Jenkins",
               "slug": "/machine-id/guides/jenkins/"
             },
