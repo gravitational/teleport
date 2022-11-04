@@ -1,6 +1,6 @@
 ---
 title: Database Access with Cassandra and ScyllaDB
-description: How to configure Teleport Database Access with Azure Database for Cassandra and ScyllaDB.
+description: How to configure Teleport Database Access with Cassandra and ScyllaDB.
 ---
 
 <Details
@@ -30,10 +30,8 @@ This guide will help you to:
 ## Prerequisites
 
 - Self-hosted Cassandra or ScyllaDB instance.
-- cqlsh cassandra client installed and added to your system's `PATH` environment variable.
+- The `cqlsh` Cassandra client installed and added to your system's `PATH` environment variable.
 
-
-See [Installation](../../installation.mdx) for details.
 
 (!docs/pages/includes/user-client-prereqs.mdx!)
 
@@ -107,15 +105,14 @@ $ teleport db start \
 
 (!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
 
-We will show you how to use `tctl auth sign` below.
-
-When connecting to  Cassandra, sign the certificate for the hostname over
-which Teleport will be connecting to it.
+Follow the instructions below to generate TLS credentials for your database.
 
 <Tabs>
   <TabItem label="Cassandra">
+    When connecting to Cassandra, sign the certificate for the hostname over which Teleport will be connecting to it.
+
     ```code
-    $ auth sign --format=cassandra --host=cassandra.example.com --out=server --ttl=2190h
+    $ tctl auth sign --format=cassandra --host=cassandra.example.com --out=server --ttl=2190h
     ```
 
     (!docs/pages/includes/database-access/ttl-note.mdx!)
@@ -125,6 +122,8 @@ which Teleport will be connecting to it.
     - `server.truststore` with Teleport's certificate authority in JKS format.
   </TabItem>
   <TabItem label="Scylla">
+    When connecting to Scylla, sign the certificate for the hostname over which Teleport will be connecting to it.
+
     ```code
     $ tctl auth sign --format=scylla --host=scylla.example.com --out=server --ttl=2190h
     ```
@@ -139,6 +138,8 @@ which Teleport will be connecting to it.
 </Tabs>
 
 ## Step 4/5. Configure Cassandra/Scylla
+
+Follow the instructions for your database to enable TLS communication with your Teleport cluster:
 
 <Tabs>
   <TabItem label="Cassandra">
@@ -158,12 +159,11 @@ which Teleport will be connecting to it.
       store_type: JKS
       cipher_suites: [TLS_RSA_WITH_AES_256_CBC_SHA]
     ```
-    Where the `password` is the value generated in the previous. step by `tctl auth sign` command.
+    In the configuration above, replace `"password"` with the value generated in the previous step by the `tctl auth sign` command.
 
   </TabItem>
   <TabItem label="Scylla">
-    To configure Cassandra to accept TLS connections, add the following to your
-    Cassandra configuration file, `scylla.yaml`:
+    To configure Scylla to accept TLS connections, add the following to your Scylla configuration file, `scylla.yaml`:
     ```conf
     client_encryption_options:
       enabled: true

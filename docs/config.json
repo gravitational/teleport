@@ -807,7 +807,7 @@
               "slug": "/database-access/guides/snowflake/"
             },
             {
-              "title": "Self-hosted Cassandra & ScyllaDB",
+              "title": "Self-Hosted Cassandra & ScyllaDB",
               "slug": "/database-access/guides/cassandra-self-hosted/"
             },
             {
