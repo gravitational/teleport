@@ -261,6 +261,13 @@ grpc-teleterm: buildbox-teleterm
 		$(DOCKERFLAGS) -e CLANG_FORMAT=/usr/bin/clang-format-10 -t $(BUILDBOX_TELETERM) \
 		make -C /go/src/github.com/gravitational/teleport grpc-teleterm/host
 
+# fix-imports runs GCI to sort and re-order Go imports in a deterministic way.
+.PHONY: fix-imports
+fix-imports: buildbox
+	docker run \
+		$(DOCKERFLAGS) -t $(BUILDBOX) \
+		make -C /go/src/github.com/gravitational/teleport fix-imports/host
+
 #
 # Removes the docker image
 #

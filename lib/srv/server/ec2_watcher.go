@@ -24,7 +24,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -55,61 +54,15 @@ type EC2Instances struct {
 	Instances []*ec2.Instance
 }
 
-// Watcher allows callers to discover AWS instances matching specified filters.
-type Watcher struct {
-	// InstancesC can be used to consume newly discovered EC2 instances
-	InstancesC chan EC2Instances
-
-	fetchers      []*ec2InstanceFetcher
-	fetchInterval time.Duration
-	ctx           context.Context
-	cancel        context.CancelFunc
-}
-
-// Run starts the watcher's main watch loop.
-func (w *Watcher) Run() {
-	ticker := time.NewTicker(w.fetchInterval)
-	defer ticker.Stop()
-	for {
-		for _, fetcher := range w.fetchers {
-			instancesColl, err := fetcher.GetEC2Instances(w.ctx)
-			if err != nil {
-				if trace.IsNotFound(err) {
-					continue
-				}
-				log.WithError(err).Error("Failed to fetch EC2 instances")
-				continue
-			}
-			for _, inst := range instancesColl {
-				select {
-				case w.InstancesC <- inst:
-				case <-w.ctx.Done():
-				}
-			}
-		}
-		select {
-		case <-ticker.C:
-			continue
-		case <-w.ctx.Done():
-			return
-		}
-	}
-}
-
-// Stop stops the watcher
-func (w *Watcher) Stop() {
-	w.cancel()
-}
-
-// NewCloudWatcher creates a new cloud watcher instance.
-func NewCloudWatcher(ctx context.Context, matchers []services.AWSMatcher, clients cloud.Clients) (*Watcher, error) {
+// NewEC2Watcher creates a new EC2 watcher instance.
+func NewEC2Watcher(ctx context.Context, matchers []services.AWSMatcher, clients cloud.Clients) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher{
-		fetchers:      []*ec2InstanceFetcher{},
+		fetchers:      []Fetcher{},
 		ctx:           cancelCtx,
 		cancel:        cancelFn,
 		fetchInterval: time.Minute,
-		InstancesC:    make(chan EC2Instances, 2),
+		InstancesC:    make(chan Instances),
 	}
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
@@ -171,9 +124,9 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 	return &fetcherConfig
 }
 
-// GetEC2Instances fetches all EC2 instances matching configured filters.
-func (f *ec2InstanceFetcher) GetEC2Instances(ctx context.Context) ([]EC2Instances, error) {
-	var instances []EC2Instances
+// GetInstances fetches all EC2 instances matching configured filters.
+func (f *ec2InstanceFetcher) GetInstances(ctx context.Context) ([]Instances, error) {
+	var instances []Instances
 	err := f.EC2.DescribeInstancesPagesWithContext(ctx, &ec2.DescribeInstancesInput{
 		Filters: f.Filters,
 	},
@@ -192,7 +145,7 @@ func (f *ec2InstanceFetcher) GetEC2Instances(ctx context.Context) ([]EC2Instance
 						Instances:    res.Instances[i:end],
 						Parameters:   f.Parameters,
 					}
-					instances = append(instances, inst)
+					instances = append(instances, Instances{EC2Instances: &inst})
 				}
 			}
 			return true
