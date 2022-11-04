@@ -20,10 +20,12 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
@@ -528,12 +530,16 @@ func TestReviewThresholds(t *testing.T) {
 		req, err := types.NewAccessRequest("some-id", tt.requestor, tt.roles...)
 		require.NoError(t, err, "scenario=%q", tt.desc)
 
+		clock := clockwork.NewFakeClock()
+		now := clock.Now().UTC()
+		identityExpires := now.Add(8 * time.Hour)
+
 		// perform request validation (necessary in order to initialize internal
 		// request variables like annotations and thresholds).
 		validator, err := NewRequestValidator(context.Background(), g, tt.requestor, ExpandVars(true))
 		require.NoError(t, err, "scenario=%q", tt.desc)
 
-		require.NoError(t, validator.Validate(context.Background(), req), "scenario=%q", tt.desc)
+		require.NoError(t, validator.Validate(context.Background(), clock, req, identityExpires), "scenario=%q", tt.desc)
 
 	Inner:
 		for ri, rt := range tt.reviews {
@@ -1037,7 +1043,11 @@ func TestRolesForResourceRequest(t *testing.T) {
 			validator, err := NewRequestValidator(context.Background(), g, user.GetName(), ExpandVars(true))
 			require.NoError(t, err)
 
-			err = validator.Validate(context.Background(), req)
+			clock := clockwork.NewFakeClock()
+			now := clock.Now().UTC()
+			identityExpires := now.Add(8 * time.Hour)
+
+			err = validator.Validate(context.Background(), clock, req, identityExpires)
 			require.ErrorIs(t, err, tc.expectError)
 			if err != nil {
 				return
@@ -1393,7 +1403,11 @@ func TestPruneRequestRoles(t *testing.T) {
 
 			req.SetLoginHint(tc.loginHint)
 
-			err = ValidateAccessRequestForUser(ctx, g, req, ExpandVars(true))
+			clock := clockwork.NewFakeClock()
+			now := clock.Now().UTC()
+			identityExpires := now.Add(8 * time.Hour)
+
+			err = ValidateAccessRequestForUser(ctx, clock, g, req, identityExpires, ExpandVars(true))
 			if tc.expectError {
 				require.Error(t, err)
 				return
