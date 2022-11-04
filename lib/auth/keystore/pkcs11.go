@@ -21,15 +21,14 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 
+	"github.com/ThalesIgnite/crypto11"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
-
-	"github.com/ThalesIgnite/crypto11"
-	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 )
 
 // PKCS11Config is used to pass PKCS11 HSM client configuration parameters.

@@ -31,6 +31,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
@@ -42,11 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 func TestMain(m *testing.M) {
@@ -490,9 +491,9 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			name:        "ACME enabled, teleport ALPN protocols should be appended",
 			acmeEnabled: true,
 			wantNextProtos: []string{
-				// Ensure h2 has precedence over http/1.1.
-				"h2",
+				// Ensure http/1.1 has precedence over http2.
 				"http/1.1",
+				"h2",
 				"acme-tls/1",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",
@@ -528,9 +529,9 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-snowflake-ping",
 				"teleport-cassandra-ping",
 				"teleport-elasticsearch-ping",
-				// Ensure h2 has precedence over http/1.1.
-				"h2",
+				// Ensure http/1.1 has precedence over http2.
 				"http/1.1",
+				"h2",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",

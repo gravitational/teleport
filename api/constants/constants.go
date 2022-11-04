@@ -260,7 +260,7 @@ const (
 
 const (
 	// KubeSNIPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
-	// DELETE IN 12.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
+	// DELETE IN 13.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
 	KubeSNIPrefix = "kube."
 	// KubeTeleportProxyALPNPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
 	KubeTeleportProxyALPNPrefix = "kube-teleport-proxy-alpn."
@@ -344,11 +344,12 @@ var SupportedAWSDiscoveryServices = []string{AWSServiceTypeEC2, AWSServiceTypeEK
 // Constants for Azure discovery.
 const (
 	AzureServiceTypeKubernetes = "aks"
+	AzureServiceTypeVM         = "vm"
 )
 
 // SupportedAzureDiscoveryServices is list of Azure services currently
 // supported by the Teleport discovery service.
-var SupportedAzureDiscoveryServices = []string{AzureServiceTypeKubernetes}
+var SupportedAzureDiscoveryServices = []string{AzureServiceTypeKubernetes, AzureServiceTypeVM}
 
 const (
 	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh

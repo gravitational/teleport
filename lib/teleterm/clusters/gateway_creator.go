@@ -17,9 +17,9 @@ package clusters
 import (
 	"context"
 
-	"github.com/gravitational/teleport/lib/teleterm/gateway"
-
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/teleterm/gateway"
 )
 
 type GatewayCreator struct {
