@@ -4,8 +4,6 @@ ifneq ("$(wildcard /bin/bash)","")
 SHELL := /bin/bash -o pipefail
 endif
 BUILDDIR ?= build
-LOCALDIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
-WEBASSETS_BUILDDIR ?= $(LOCALDIR)../lib/web/build
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS)' -trimpath
 CGOFLAG ?= CGO_ENABLED=1
 RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
@@ -246,9 +244,9 @@ clean:
 # make deploy-cloud - Produces a docker image and deploys to a cloud
 # tenant in the staging cluster.
 .PHONY: deploy-cloud
-deploy-cloud: $(WEBASSETS_BUILDDIR)/webassets
+deploy-cloud: ensure-webassets-e
 	@echo "---> Building teleport binaries for deployment to cloud tenant."
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -buildvcs=false -tags "webassets_embed" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -buildvcs=false -tags "webassets_embed webassets_ent" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 	@if [ "$(CLOUD_DOCKERFILE)" != "-" ]; then \
 		echo "---> Building tbot, tctl and tsh."; \
 		GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -buildvcs=false -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl; \
@@ -312,22 +310,9 @@ release-unix: clean full
 
 # make full - produces a teleport binary with the web assets built-in
 .PHONY:full
-full: check-build-vars $(WEBASSETS_BUILDDIR)/webassets
+full: check-build-vars ensure-webassets-e
 	@echo "---> Attaching Enterprise web assets."
-	$(MAKE) all WEBASSETS_TAG="webassets_embed"
-
-# build/webassets.zip archive contains the web assets (UI) which gets
-# embedded into teleport binary
-.PHONY: $(WEBASSETS_BUILDDIR)/webassets
-$(WEBASSETS_BUILDDIR)/webassets: $(WEBASSETS_BUILDDIR)
-	@echo "---> Copying Enterprise web assets."
-	mkdir -p $(WEBASSETS_BUILDDIR)/webassets
-	cd ../webassets/e/teleport/ ; cp -r . $@
-
-.PHONY: $(WEBASSETS_BUILDDIR)
-$(WEBASSETS_BUILDDIR):
-	rm -fr $@
-	mkdir -p $@
+	$(MAKE) all WEBASSETS_TAG="webassets_embed webassets_ent"
 
 .PHONY: check-build-vars
 check-build-vars:
@@ -460,4 +445,3 @@ deb:
 .PHONY: ensure-webassets-e
 ensure-webassets-e:
 	$(MAKE) -s -C .. ensure-webassets-e
-
