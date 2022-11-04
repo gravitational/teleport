@@ -78,6 +78,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -2091,11 +2092,12 @@ func TestTokenGeneration(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "token")
 
 	tt := []struct {
-		name       string
-		roles      types.SystemRoles
-		shouldErr  bool
-		joinMethod types.JoinMethod
-		allow      []*types.TokenRule
+		name                        string
+		roles                       types.SystemRoles
+		shouldErr                   bool
+		joinMethod                  types.JoinMethod
+		suggestedAgentMatcherLabels types.Labels
+		allow                       []*types.TokenRule
 	}{
 		{
 			name:      "single node role",
@@ -2135,6 +2137,14 @@ func TestTokenGeneration(t *testing.T) {
 			allow:      []*types.TokenRule{{AWSAccount: "1234"}},
 			shouldErr:  false,
 		},
+		{
+			name:  "adds the agent match labels",
+			roles: types.SystemRoles{types.RoleDatabase},
+			suggestedAgentMatcherLabels: types.Labels{
+				"*": apiutils.Strings{"*"},
+			},
+			shouldErr: false,
+		},
 	}
 
 	for _, tc := range tt {
@@ -2142,9 +2152,10 @@ func TestTokenGeneration(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			re, err := pack.clt.PostJSON(context.Background(), endpoint, types.ProvisionTokenSpecV2{
-				Roles:      tc.roles,
-				JoinMethod: tc.joinMethod,
-				Allow:      tc.allow,
+				Roles:                       tc.roles,
+				JoinMethod:                  tc.joinMethod,
+				Allow:                       tc.allow,
+				SuggestedAgentMatcherLabels: tc.suggestedAgentMatcherLabels,
 			})
 
 			if tc.shouldErr {
@@ -2179,8 +2190,73 @@ func TestTokenGeneration(t *testing.T) {
 			}
 			// if no joinMethod is provided, expect token method
 			require.Equal(t, expectedJoinMethod, generatedToken.GetJoinMethod())
+
+			require.Equal(t, tc.suggestedAgentMatcherLabels, generatedToken.GetSuggestedAgentMatcherLabels())
 		})
 	}
+}
+
+func TestInstallDatabaseScriptGeneration(t *testing.T) {
+	const username = "test-user@example.com"
+
+	// Users should be able to create Tokens even if they can't update them
+	roleTokenCRD, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindToken,
+					[]string{types.VerbCreate, types.VerbRead}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, username, []types.Role{roleTokenCRD})
+
+	// Create a new token with the desired SuggestedAgentMatcherLabels
+	endpointGenerateToken := pack.clt.Endpoint("webapi", "token")
+	re, err := pack.clt.PostJSON(
+		context.Background(),
+		endpointGenerateToken,
+		types.ProvisionTokenSpecV2{
+			Roles: types.SystemRoles{types.RoleDatabase},
+			SuggestedAgentMatcherLabels: types.Labels{
+				"stage": apiutils.Strings{"prod"},
+			},
+		})
+	require.NoError(t, err)
+
+	var responseToken nodeJoinToken
+	require.NoError(t, json.Unmarshal(re.Bytes(), &responseToken))
+
+	// Generating the script with the token should return the SuggestedAgentMatcherLabels provided in the first request
+	endpointInstallDatabase := pack.clt.Endpoint("scripts", responseToken.ID, "install-database.sh")
+
+	t.Log(responseToken, endpointInstallDatabase)
+	req, err := http.NewRequest(http.MethodGet, endpointInstallDatabase, nil)
+	require.NoError(t, err)
+
+	anonHTTPClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+
+	resp, err := anonHTTPClient.Do(req)
+	require.NoError(t, err)
+
+	scriptBytes, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	require.NoError(t, resp.Body.Close())
+
+	script := string(scriptBytes)
+
+	// It contains the agenbtMatchLabels
+	require.Contains(t, script, "stage: prod")
 }
 
 func TestSignMTLS(t *testing.T) {
@@ -5278,7 +5354,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		client,
 		t.TempDir(),
 		"",
-		utils.NetAddr{},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "proxy-1.example.com:443"},
 		client,
 		regular.SetUUID(proxyID),
 		regular.SetProxyMode("", revTunServer, client),
