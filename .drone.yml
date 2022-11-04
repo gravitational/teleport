@@ -6638,7 +6638,7 @@ steps:
       - chown -R $UID:$GID /go
       - aws ecr get-login-password --region us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
       - cd /go/src/github.com/gravitational/teleport
-      - make image-ci publish-ci
+      - make image-ci publish-ci PIV=yes
 
   - name: Build/push FIPS Docker image
     image: docker
@@ -11579,6 +11579,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: ed4ed500db15dff4e3ac5d95d688140b6ff126a00a2bd1b01cf718eae7e0ba87
+hmac: 967e5fbb298cc3c457f855f83b80db7b86ce0062bbcc2b7278d41b8eb63bca70
 
 ...
