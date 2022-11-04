@@ -115,13 +115,13 @@ The necessary IAM permissions required for calling the two endpoints are:
 }         
 ```
 
-Besides the mentioned calls, the Kubernetes Service also calls `sts:GetCallerIdentity`, but this operation does not require any permissions.
+Besides the mentioned calls, Kubernetes Service also calls `sts:GetCallerIdentity`, but this operation does not require any permissions.
 
 ### UX
 
 #### Configuration
 
-The snippets bellow configure the Discovery Service to watch EKS resources with `tag:env=prod` in the `us-west-1` region and configures the Kubernetes Service to watch dynamic `kube_cluster` resources that include the label `env=prod
+The snippets bellow configure the Discovery Service to watch EKS resources with `tag:env=prod` in the `us-west-1` region and configures the Kubernetes Service to watch dynamic `kube_cluster` resources that include the label `env=prod`.
 
 ##### Discovery Service
 
@@ -209,7 +209,7 @@ The cluster is now ready to be discovered in the next iteration.
 
 ### Resource watcher
 
-AWS does not provide a method that returns the available EKS clusters and their details. Instead, Teleport will check for available EKS clusters by calling the [`eks:ListClusters`][listClusters] API at regular intervals. This endpoint returns the list of EKS cluster names that the IAM identity has access to but not their details. To extract the details such as name and tags, the Discovery Service will call [`eks:DescribeCluster`][descriptors] method for each cluster returned by the previous call. These calls will be made concurrently with a limit of 5 simultaneous calls to speed up the process.
+AWS does not provide a method that returns the available EKS clusters and their details. Instead, Teleport will check for available EKS clusters by calling the [`eks:ListClusters`][listClusters] API at regular intervals. This endpoint returns the list of EKS cluster names that the IAM identity has access to but not their details. To extract the details such as name and tags, the Discovery Service will call [`eks:DescribeCluster`][descclusters] method for each cluster returned by the previous call. These calls will be made concurrently with a limit of 5 simultaneous calls to speed up the process.
 
 ### Authentication & Authorization
 
@@ -237,7 +237,7 @@ As mentioned before, the [AWS IAM authenticator][awsiamauthenticator] has a data
 
 By default, the cluster creator and every member that shares his IAM role or federated user have immediate access to the cluster as `system:masters`. This rule is enforced by [AWS IAM authenticator][awsiamauthenticator] and cannot be seen or edited by manipulating `configmap/aws-auth`.
 
-If Teleport discovery shares the same IAM role as the cluster's creator, it immediately has full access to the cluster and no further action is necessary. This creates a limitation because EKS clusters must be created by users with the same IAM role as Teleport. If an EKS cluster is created by a different IAM role/federated user, Teleport does not have access to the cluster! For security purposes, it is not recommended running Teleport with the user's role.
+If Teleport discovery shares the same IAM role as the cluster's creator, it immediately has full access to the cluster and no further action is necessary. This creates a limitation because EKS clusters must be created by users with the same IAM role as Teleport otherwise if an EKS cluster is created by a different IAM role/federated user, Teleport does not have access to that cluster! For security purposes, it is not recommended running Teleport with the user's role.
 
 If the Teleport agent is running with a different IAM role, it is required that its IAM role is mapped into a Kubernetes RBAC group. This can be configured by appending an extra entry into `configmap/aws-auth`.
 
@@ -279,8 +279,6 @@ Without this entry in `configmap/aws-auth`, Teleport does not have access to the
 Summarizing, it is impossible for Teleport to escalate its privileges and grant access to the cluster from a no-access situation. A manual action is required to link Teleport IAM role into Kubernetes RBAC principals otherwise Teleport cannot forward requests to the cluster.
 
 ### Limitations
-
-Teleport will only provide access to API and will not enroll databases or applications like Prometheus or Grafana that configurable in a situation where Teleport Agent is present in the cluster.
 
 The IAM mapping between Teleport IAM Role and Kubernetes roles is a complex and tedious process that must happen per cluster. Without it, Teleport cannot forward requests to clusters. The AWS EKS team has a feature request to add an external API that allows configuring access to the cluster without manually editing the `configmap` ([aws/containers-roadmap#185](https://github.com/aws/containers-roadmap/issues/185)). Hopefully, once the feature is available, Teleport can leverage it to automatically configure its access to the cluster.
 
@@ -739,9 +737,9 @@ Once you define the permissions and the `ClusterRole` and `ClusterRoleBinding` r
 
 #### Resources watch
 
-The discovery of new resources and watcher mechanism is built on top of [`Microsoft.ContainerService/managedClusters`][listclustersaks] API endpoint. The discovery mechanism is similar to the one described for AWS, and consists on calling the endpoint at regular intervals while managing the differences between iterations. The API endpoint returns the complete cluster configuration, including authentication options, `TenantID` and `resourceID` fields that are required for authentication. 
+The discovery of new resources and watcher mechanism is built on top of [`Microsoft.ContainerService/managedClusters`][listclustersaks] API endpoint. The discovery mechanism is similar to the one described for AWS, and consists on calling the endpoint at regular intervals while managing the differences between iterations. 
 
-The API endpoint returns the complete cluster configuration, including authentication options, such as `TenantID` and `resourceID` fields that are required for authentication.
+The API endpoint returns the complete cluster configuration, including authentication options, `TenantID` and `resourceID` fields that are required for authentication. 
 
 ### Authentication
 
@@ -919,6 +917,8 @@ stage: GA
 title: KubeDiscovery
 ```
 
+Given a role with the above permissions, Teleport can access any cluster without the need for manual configuration of permissions and thus can discover and forward requests to every cluster available.
+
 ### UX
 
 
@@ -972,7 +972,7 @@ After the command finishes, the Discovery and Kubernetes Services can start.
 
 ### Resources watcher
 
-The discovery of new resources and watcher mechanism is built on top of [`container.clusters.list`][https://cloud.google.com/sdk/gcloud/reference/container/clusters/list] API endpoint. The discovery mechanism is similar to the one described for AWS, and consists on calling the endpoint at regular intervals while managing the differences between iterations.
+The discovery of new resources and watcher mechanism is built on top of [`container.clusters.list`](https://cloud.google.com/sdk/gcloud/reference/container/clusters/list) API endpoint. The discovery mechanism is similar to the one described for AWS, and consists on calling the endpoint at regular intervals while managing the differences between iterations.
 
 The API endpoint returns the complete cluster configuration, including labels and clusters' status.
 
