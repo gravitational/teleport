@@ -13,6 +13,7 @@ type Clock interface {
 	Now() time.Time
 	Since(t time.Time) time.Duration
 	NewTicker(d time.Duration) Ticker
+	NewTimer(d time.Duration) Timer
 }
 
 // FakeClock provides an interface for a clock which can be
@@ -70,6 +71,10 @@ func (rc *realClock) NewTicker(d time.Duration) Ticker {
 	return &realTicker{time.NewTicker(d)}
 }
 
+func (rc *realClock) NewTimer(d time.Duration) Timer {
+	return &realTimer{time.NewTimer(d)}
+}
+
 type fakeClock struct {
 	sleepers []*sleeper
 	blockers []*blocker
@@ -113,12 +118,12 @@ func (fc *fakeClock) After(d time.Duration) <-chan time.Time {
 	return done
 }
 
-// notifyBlockers notifies all the blockers waiting until the
-// given number of sleepers are waiting on the fakeClock. It
-// returns an updated slice of blockers (i.e. those still waiting)
+// notifyBlockers notifies all the blockers waiting until the at least the given
+// number of sleepers are waiting on the fakeClock. It returns an updated slice
+// of blockers (i.e. those still waiting)
 func notifyBlockers(blockers []*blocker, count int) (newBlockers []*blocker) {
 	for _, b := range blockers {
-		if b.count == count {
+		if b.count <= count {
 			close(b.ch)
 		} else {
 			newBlockers = append(newBlockers, b)
@@ -132,7 +137,7 @@ func (fc *fakeClock) Sleep(d time.Duration) {
 	<-fc.After(d)
 }
 
-// Time returns the current time of the fakeClock
+// Now returns the current time of the fakeClock
 func (fc *fakeClock) Now() time.Time {
 	fc.l.RLock()
 	t := fc.time
@@ -145,6 +150,8 @@ func (fc *fakeClock) Since(t time.Time) time.Duration {
 	return fc.Now().Sub(t)
 }
 
+// NewTicker returns a ticker that will expire only after calls to fakeClock
+// Advance have moved the clock passed the given duration
 func (fc *fakeClock) NewTicker(d time.Duration) Ticker {
 	ft := &fakeTicker{
 		c:      make(chan time.Time, 1),
@@ -153,6 +160,25 @@ func (fc *fakeClock) NewTicker(d time.Duration) Ticker {
 		period: d,
 	}
 	ft.runTickThread()
+	return ft
+}
+
+// NewTimer returns a timer that will fire only after calls to fakeClock
+// Advance have moved the clock passed the given duration
+func (fc *fakeClock) NewTimer(d time.Duration) Timer {
+	stopped := uint32(0)
+	if d <= 0 {
+		stopped = 1
+	}
+	ft := &fakeTimer{
+		c:       make(chan time.Time, 1),
+		stop:    make(chan struct{}, 1),
+		reset:   make(chan reset, 1),
+		clock:   fc,
+		stopped: stopped,
+	}
+
+	ft.run(d)
 	return ft
 }
 
@@ -179,12 +205,12 @@ func (fc *fakeClock) Advance(d time.Duration) {
 // (callers of Sleep or After)
 func (fc *fakeClock) BlockUntil(n int) {
 	fc.l.Lock()
-	// Fast path: current number of sleepers is what we're looking for
-	if len(fc.sleepers) == n {
+	// Fast path: we already have >= n sleepers.
+	if len(fc.sleepers) >= n {
 		fc.l.Unlock()
 		return
 	}
-	// Otherwise, set up a new blocker
+	// Otherwise, we have < n sleepers. Set up a new blocker to wait for more.
 	b := &blocker{
 		count: n,
 		ch:    make(chan struct{}),

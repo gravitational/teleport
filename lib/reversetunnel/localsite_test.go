@@ -258,13 +258,13 @@ func (mockRemoteConnConn) RemoteAddr() net.Addr {
 
 type mockedSSHConn struct {
 	ssh.Conn
-	closed atomic.Bool
+	closed int32
 
 	channelFn func(string) ssh.Channel
 }
 
 func (c *mockedSSHConn) Close() error {
-	c.closed.Store(true)
+	atomic.CompareAndSwapInt32(&c.closed, 0, 1)
 	return nil
 }
 
