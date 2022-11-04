@@ -1155,7 +1155,6 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			tt.stdoutAssertion(t, stdout.String())
 			require.Equal(t, tt.deviceSignCount, int(device.Counter()), "device sign count mismatch")
 		})
-
 	}
 }
 
@@ -1980,7 +1979,7 @@ func TestKubeConfigUpdate(t *testing.T) {
 				credentials: creds,
 			},
 			errorAssertion: func(t require.TestingT, err error, _ ...interface{}) {
-				require.True(t, trace.IsBadParameter(err))
+				require.True(t, trace.IsNotFound(err))
 			},
 			expectedValues: nil,
 		},
