@@ -65,19 +65,21 @@ The following fields are optional for `require_session_join`:
 |---|---|---|
 |`on_leave`|[On leave](#on-leave)|The action to take when the policy is no longer satisfied|
 
-#### Example
+#### Example Session Moderation Required Role
 
 The policy below specifies that the `prod-access` role must have a minimum of
 two users with the role `auditor` and the mode `moderator` present in the
 session to start it. The policy applies to SSH and Kubernetes sessions only.
 
 When a user with this require policy starts a session, it will be pending until
-the policy is fulfilled. 
+the policy is fulfilled. The role matches to `env: prod` labeled `ssh` and `k8s`
+resources. 
 
 ```yaml
 kind: role
 metadata:
   name: prod-access
+version: v5
 spec:
   allow:
     require_session_join:
@@ -85,7 +87,18 @@ spec:
         filter: 'contains(user.spec.roles, "auditor")'
         kinds: ['k8s', 'ssh']
         modes: ['moderator']
-        count: 2
+        count: 1
+    logins:
+    - ubuntu
+    - debian
+    node_labels:
+      env: prod
+    kubernetes_labels:
+      env: prod
+    kubernetes_groups:
+    - prodaccess
+    kubernetes_users:
+    - USER
 ```
 
 #### Combining Policies
@@ -105,7 +118,13 @@ The following are required options for `join_sessions`:
 |`kinds`|`[]`[Session kind](#session-kinds)|The kind of session that the policy applies to|
 |`modes`|`[]`[Participant mode](#participant-modes)|The participant mode that applies to the user joining the Moderated Session under this policy|
 
-#### Example
+<Admonition type="note">
+Moderator or observers can only join via CLI currently with `tsh join --mode=observer|moderator <session id>`.  Web joining is 
+not currently supported.
+</Admonition>
+
+
+#### Example Moderator Role
 
 The following allow policy attaches to the role `auditor` and allows one to
 join SSH and Kubernetes sessions started by a user with the role `prod-access`
@@ -115,6 +134,7 @@ as a moderator or observer.
 kind: role
 metadata:
   name: auditor
+version: v5
 spec:
   allow:
     join_sessions:
@@ -123,6 +143,39 @@ spec:
         kinds: ['k8s', 'ssh']
         modes: ['moderator', 'observer']
 ```
+
+#### Joining sessions example
+
+Here is an example of Jeff with role `prod-access` joining to a 
+production environment.  
+
+```code
+$ tsh ssh ubuntu@prod.teleport.example.com
+Teleport > Creating session with ID: 46e2af03-62d6-4e07-a886-43fe741ca044...
+Teleport > Controls
+  - CTRL-C: Leave the session
+  - t: Forcefully terminate the session (moderators only)
+Teleport > User jeff joined the session.
+Teleport > Waiting for required participants...
+```
+
+Now Alice with the `auditor` role joins as a moderator and
+the session can begin. 
+
+```code
+$ tsh join --mode=moderator 46e2af03-62d6-4e07-a886-43fe741ca044
+Teleport > Creating session with ID: 46e2af03-62d6-4e07-a886-43fe741ca044...
+Teleport > Controls
+  - CTRL-C: Leave the session
+  - t: Forcefully terminate the session (moderators only)
+Teleport > User jeff joined the session.
+Teleport > Waiting for required participants...
+Teleport > User alice joined the session.
+Teleport > Connecting to prod.teleport.example.com over SSH
+
+ubuntu@prod.teleport.example.com % 
+```
+
 
 ### Filters
 
