@@ -51,6 +51,9 @@ const (
 	// connected agents via a discovery request. It is a function of track.DefaultProxyExpiry
 	// to ensure that the proxies are always synced before the tracker expiry.
 	proxySyncInterval = track.DefaultProxyExpiry * 2 / 3
+
+	// missedHeartBeatThreshold is the number of missed heart beats needed to terminate a connection.
+	missedHeartBeatThreshold = 3
 )
 
 // withPeriodicFunctionInterval adjusts the periodic function interval
@@ -260,7 +263,9 @@ func (s *localSite) adviseReconnect(ctx context.Context) {
 
 			wg.Add(1)
 			go func(conn *remoteConn) {
-				conn.adviseReconnect()
+				if err := conn.adviseReconnect(); err != nil {
+					s.log.WithError(err).Warn("Failed sending reconnect advisory")
+				}
 				wg.Done()
 			}(conn)
 		}
@@ -295,15 +300,13 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	// return a connection to that node. Otherwise net.Dial to the target host.
 	targetConn, useTunnel, err := s.getConn(params)
 	if err != nil {
-		userAgent.Close()
-		return nil, trace.Wrap(err)
+		return nil, trace.NewAggregate(trace.Wrap(err), userAgent.Close())
 	}
 
 	// Get a host certificate for the forwarding node from the cache.
 	hostCertificate, err := s.certificateCache.getHostCertificate(params.Address, params.Principals)
 	if err != nil {
-		userAgent.Close()
-		return nil, trace.Wrap(err)
+		return nil, trace.NewAggregate(trace.Wrap(err), userAgent.Close())
 	}
 
 	// Create a forwarding server that serves a single SSH connection on it. This
@@ -533,15 +536,25 @@ func (s *localSite) fanOutProxies(proxies []types.Server) {
 // if the agent has missed several heartbeats in a row, Proxy marks
 // the connection as invalid.
 func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
-	proxyResyncTicker := s.clock.NewTicker(s.proxySyncInterval)
-
-	defer func() {
-		s.log.Debugf("Cluster connection closed.")
-		rconn.Close()
-		proxyResyncTicker.Stop()
-	}()
+	logger := s.log.WithFields(log.Fields{
+		"serverID": rconn.nodeID,
+		"addr":     rconn.conn.RemoteAddr().String(),
+	})
 
 	firstHeartbeat := true
+	proxyResyncTicker := s.clock.NewTicker(s.proxySyncInterval)
+	defer func() {
+		proxyResyncTicker.Stop()
+		logger.Warn("Closing remote connection to agent.")
+		s.removeRemoteConn(rconn)
+		if err := rconn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+			logger.WithError(err).Warn("Failed to close remote connection")
+		}
+		if !firstHeartbeat {
+			reverseSSHTunnels.WithLabelValues(rconn.tunnelType).Dec()
+		}
+	}()
+
 	for {
 		select {
 		case <-s.srv.ctx.Done():
@@ -553,7 +566,7 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 			}
 
 			if err := rconn.sendDiscoveryRequest(req); err != nil {
-				s.log.WithError(err).Debugf("Marking connection invalid on error")
+				s.log.WithError(err).Debug("Marking connection invalid on error")
 				rconn.markInvalid(err)
 				return
 			}
@@ -563,13 +576,13 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 			}
 
 			if err := rconn.sendDiscoveryRequest(req); err != nil {
-				s.log.WithError(err).Debugf("Marking connection invalid on error")
+				logger.WithError(err).Debug("Failed to send discovery request to agent")
 				rconn.markInvalid(err)
 				return
 			}
 		case req := <-reqC:
 			if req == nil {
-				s.log.Debugf("Cluster agent disconnected.")
+				logger.Debug("Agent disconnected.")
 				rconn.markInvalid(trace.ConnectionProblem(nil, "agent disconnected"))
 				return
 			}
@@ -581,7 +594,6 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 					rconn.updateProxies(current)
 				}
 				reverseSSHTunnels.WithLabelValues(rconn.tunnelType).Inc()
-				defer reverseSSHTunnels.WithLabelValues(rconn.tunnelType).Dec()
 				firstHeartbeat = false
 			}
 			var timeSent time.Time
@@ -591,16 +603,52 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 					roundtrip = s.srv.Clock.Now().Sub(timeSent)
 				}
 			}
+
+			log := logger
 			if roundtrip != 0 {
-				s.log.WithFields(log.Fields{"latency": roundtrip, "nodeID": rconn.nodeID}).Debugf("Ping <- %v", rconn.conn.RemoteAddr())
-			} else {
-				s.log.WithFields(log.Fields{"nodeID": rconn.nodeID}).Debugf("Ping <- %v", rconn.conn.RemoteAddr())
+				log = logger.WithField("latency", roundtrip)
 			}
-			tm := s.clock.Now().UTC()
-			rconn.setLastHeartbeat(tm)
+			log.Debugf("Ping <- %v", rconn.conn.RemoteAddr())
+
+			rconn.setLastHeartbeat(s.clock.Now().UTC())
+			rconn.markValid()
 		// Note that time.After is re-created everytime a request is processed.
-		case <-s.clock.After(s.offlineThreshold):
+		case t := <-s.clock.After(s.offlineThreshold):
 			rconn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", s.offlineThreshold))
+
+			// terminate and remove the connection after missing more than missedHeartBeatThreshold heartbeats if
+			// the connection isn't still servicing any sessions
+			hb := rconn.getLastHeartbeat()
+			if t.After(hb.Add(s.offlineThreshold * missedHeartBeatThreshold)) {
+				count := rconn.activeSessions()
+				if count == 0 {
+					logger.Errorf("Closing unhealthy and idle connection. Heartbeat last received at %s", hb)
+					return
+				}
+
+				logger.Warnf("Deferring closure of unhealthy connection due to %d active connections", count)
+			}
+		}
+	}
+}
+
+func (s *localSite) removeRemoteConn(rconn *remoteConn) {
+	s.remoteConnsMtx.Lock()
+	defer s.remoteConnsMtx.Unlock()
+
+	key := connKey{
+		uuid:     rconn.nodeID,
+		connType: types.TunnelType(rconn.tunnelType),
+	}
+
+	conns := s.remoteConns[key]
+	for i, conn := range conns {
+		if conn == rconn {
+			s.remoteConns[key] = append(conns[:i], conns[i+1:]...)
+			if len(s.remoteConns[key]) == 0 {
+				delete(s.remoteConns, key)
+			}
+			return
 		}
 	}
 }
@@ -609,36 +657,40 @@ func (s *localSite) getRemoteConn(dreq *sshutils.DialReq) (*remoteConn, error) {
 	s.remoteConnsMtx.Lock()
 	defer s.remoteConnsMtx.Unlock()
 
-	// Loop over all connections and remove and invalid connections from the
-	// connection map.
-	for key, conns := range s.remoteConns {
-		validConns := conns[:0]
-		for _, conn := range conns {
-			if !conn.isInvalid() {
-				validConns = append(validConns, conn)
-			}
-		}
-		if len(validConns) == 0 {
-			delete(s.remoteConns, key)
-		} else {
-			s.remoteConns[key] = validConns
-		}
-	}
-
 	key := connKey{
 		uuid:     dreq.ServerID,
 		connType: dreq.ConnType,
 	}
-	if len(s.remoteConns[key]) == 0 {
+
+	conns := s.remoteConns[key]
+	if len(conns) == 0 {
 		return nil, trace.NotFound("no %v reverse tunnel for %v found", dreq.ConnType, dreq.ServerID)
 	}
 
-	conns := s.remoteConns[key]
+	// Check the remoteConns from newest to oldest for one
+	// that has heartbeated and is valid. If none are valid, try
+	// the newest ready but invalid connection.
+	var newestInvalidConn *remoteConn
 	for i := len(conns) - 1; i >= 0; i-- {
-		if conns[i].isReady() {
+		switch {
+		case !conns[i].isReady(): // skip remoteConn that haven't heartbeated yet
+			continue
+		case !conns[i].isInvalid(): // return the first valid remoteConn that has heartbeated
 			return conns[i], nil
+		case newestInvalidConn == nil && conns[i].isInvalid(): // cache the first invalid remoteConn in case none are valid
+			newestInvalidConn = conns[i]
 		}
 	}
+
+	// This indicates that there were no ready and valid connections, but at least
+	// one ready and invalid connection. We can at least attempt to connect on the
+	// invalid connection instead of giving up entirely. If anything the error might
+	// be more informative than the default offline message returned below.
+	if newestInvalidConn != nil {
+		return newestInvalidConn, nil
+	}
+
+	// The agent is having issues and there is no way to connect
 	return nil, trace.NotFound("%v is offline: no active %v tunnels found", dreq.ConnType, dreq.ServerID)
 }
 
@@ -649,11 +701,43 @@ func (s *localSite) chanTransportConn(rconn *remoteConn, dreq *sshutils.DialReq)
 	if err != nil {
 		if markInvalid {
 			rconn.markInvalid(err)
+			// If not serving any connections close and remove this connection immediately.
+			// Otherwise, let the heartbeat handler detect this connection is down.
+			if rconn.activeSessions() == 0 {
+				s.removeRemoteConn(rconn)
+				return nil, trace.NewAggregate(trace.Wrap(err), rconn.Close())
+			}
 		}
 		return nil, trace.Wrap(err)
 	}
 
-	return conn, nil
+	return newSessionTrackingConn(rconn, conn), nil
+}
+
+// sessionTrackingConn wraps a net.Conn in order
+// to maintain the number of active sessions for
+// a remoteConn.
+type sessionTrackingConn struct {
+	net.Conn
+	rc *remoteConn
+}
+
+// newSessionTrackingConn wraps the provided net.Conn to alert the remoteConn
+// when it is no longer active. Prior to returning the remoteConn active sessions
+// are incremented. Close must be called to decrement the count.
+func newSessionTrackingConn(rconn *remoteConn, conn net.Conn) *sessionTrackingConn {
+	rconn.incrementActiveSessions()
+	return &sessionTrackingConn{
+		rc:   rconn,
+		Conn: conn,
+	}
+}
+
+// Close decrements the remoteConn active session count and then
+// closes the underlying net.Conn
+func (c *sessionTrackingConn) Close() error {
+	c.rc.decrementActiveSessions()
+	return c.Conn.Close()
 }
 
 // periodicFunctions runs functions periodic functions for the local cluster.
@@ -676,7 +760,7 @@ func (s *localSite) periodicFunctions() {
 // sshTunnelStats reports SSH tunnel statistics for the cluster.
 func (s *localSite) sshTunnelStats() error {
 	missing := s.srv.NodeWatcher.GetNodes(func(server services.Node) bool {
-		// Skip over any servers that that have a TTL larger than announce TTL (10
+		// Skip over any servers that have a TTL larger than announce TTL (10
 		// minutes) and are non-IoT SSH servers (they won't have tunnels).
 		//
 		// Servers with a TTL larger than the announce TTL skipped over to work around
