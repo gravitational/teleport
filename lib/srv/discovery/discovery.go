@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/gravitational/trace"
@@ -86,11 +87,12 @@ type Server struct {
 	// nodeWatcher is a node watcher.
 	nodeWatcher *services.NodeWatcher
 
-	// cloudWatcher periodically retrieves cloud resources, currently
-	// only EC2
-	cloudWatcher *server.Watcher
+	// ec2Watcher periodically retrieves EC2 instances.
+	ec2Watcher *server.Watcher
 	// ec2Installer is used to start the installation process on discovered EC2 nodes
 	ec2Installer *server.SSMInstaller
+	// azureWatcher periodically retrieves Azure virtual machines.
+	azureWatcher *server.Watcher
 	// kubeFetchers holds all kubernetes fetchers for Azure and other clouds.
 	kubeFetchers []fetchers.Fetcher
 }
@@ -116,7 +118,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if s.cloudWatcher != nil {
+	if s.ec2Watcher != nil || s.azureWatcher != nil {
 		if err := s.initTeleportNodeWatcher(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -132,7 +134,7 @@ func (s *Server) initAWSWatchers(matchers []services.AWSMatcher) error {
 	// start ec2 watchers
 	var err error
 	if len(ec2Matchers) > 0 {
-		s.cloudWatcher, err = server.NewCloudWatcher(s.ctx, ec2Matchers, s.Clients)
+		s.ec2Watcher, err = server.NewEC2Watcher(s.ctx, ec2Matchers, s.Clients)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -172,7 +174,17 @@ func (s *Server) initAWSWatchers(matchers []services.AWSMatcher) error {
 
 // initAzureWatchers starts Azure resource watchers based on types provided.
 func (s *Server) initAzureWatchers(ctx context.Context, matchers []services.AzureMatcher) error {
-	for _, matcher := range matchers {
+	vmMatchers, otherMatchers := splitAzureMatchers(matchers)
+
+	if len(vmMatchers) > 0 {
+		var err error
+		s.azureWatcher, err = server.NewAzureWatcher(s.ctx, vmMatchers, s.Clients)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	for _, matcher := range otherMatchers {
 		subscriptions, err := s.getAzureSubscriptions(ctx, matcher.Subscriptions)
 		if err != nil {
 			return trace.Wrap(err)
@@ -203,7 +215,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []services.Azur
 	return nil
 }
 
-func (s *Server) filterExistingNodes(instances *server.EC2Instances) {
+func (s *Server) filterExistingEC2Nodes(instances *server.EC2Instances) {
 	nodes := s.nodeWatcher.GetNodes(func(n services.Node) bool {
 		labels := n.GetAllLabels()
 		_, accountOK := labels[types.AWSAccountIDLabel]
@@ -228,14 +240,26 @@ outer:
 	instances.Instances = filtered
 }
 
-func genInstancesLogStr(instances []*ec2.Instance) string {
+func genEC2InstancesLogStr(instances []*ec2.Instance) string {
+	return genInstancesLogStr(instances, func(i *ec2.Instance) string {
+		return aws.StringValue(i.InstanceId)
+	})
+}
+
+func genAzureInstancesLogStr(instances []*armcompute.VirtualMachine) string {
+	return genInstancesLogStr(instances, func(i *armcompute.VirtualMachine) string {
+		return aws.StringValue(i.Name)
+	})
+}
+
+func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 	var logInstances strings.Builder
 	for idx, inst := range instances {
 		if idx == 10 || idx == (len(instances)-1) {
-			logInstances.WriteString(aws.StringValue(inst.InstanceId))
+			logInstances.WriteString(getID(inst))
 			break
 		}
-		logInstances.WriteString(aws.StringValue(inst.InstanceId) + ", ")
+		logInstances.WriteString(getID(inst) + ", ")
 	}
 	if len(instances) > 10 {
 		logInstances.WriteString(fmt.Sprintf("... + %d instance IDs truncated", len(instances)-10))
@@ -244,18 +268,18 @@ func genInstancesLogStr(instances []*ec2.Instance) string {
 	return fmt.Sprintf("[%s]", logInstances.String())
 }
 
-func (s *Server) handleInstances(instances *server.EC2Instances) error {
+func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	client, err := s.Clients.GetAWSSSMClient(instances.Region)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.filterExistingNodes(instances)
+	s.filterExistingEC2Nodes(instances)
 	if len(instances.Instances) == 0 {
 		return trace.NotFound("all fetched nodes already enrolled")
 	}
 
 	s.Log.Debugf("Running Teleport installation on these instances: AccountID: %s, Instances: %s",
-		instances.AccountID, genInstancesLogStr(instances.Instances))
+		instances.AccountID, genEC2InstancesLogStr(instances.Instances))
 	req := server.SSMRunRequest{
 		DocumentName: instances.DocumentName,
 		SSM:          client,
@@ -273,13 +297,14 @@ func (s *Server) handleEC2Discovery() {
 		return
 	}
 
-	go s.cloudWatcher.Run()
+	go s.ec2Watcher.Run()
 	for {
 		select {
-		case instances := <-s.cloudWatcher.InstancesC:
+		case instances := <-s.ec2Watcher.InstancesC:
+			ec2Instances := instances.EC2Instances
 			s.Log.Debugf("EC2 instances discovered (AccountID: %s, Instances: %v), starting installation",
-				instances.AccountID, genInstancesLogStr(instances.Instances))
-			if err := s.handleInstances(&instances); err != nil {
+				instances.AccountID, genEC2InstancesLogStr(ec2Instances.Instances))
+			if err := s.handleEC2Instances(ec2Instances); err != nil {
 				if trace.IsNotFound(err) {
 					s.Log.Debug("All discovered EC2 instances are already part of the cluster.")
 				} else {
@@ -287,15 +312,47 @@ func (s *Server) handleEC2Discovery() {
 				}
 			}
 		case <-s.ctx.Done():
-			s.cloudWatcher.Stop()
+			s.ec2Watcher.Stop()
+			return
+		}
+	}
+}
+
+func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
+	s.Log.Error("Automatic Azure node joining not implemented")
+	return nil
+}
+
+func (s *Server) handleAzureDiscovery() {
+	go s.azureWatcher.Run()
+	for {
+		select {
+		case instances := <-s.azureWatcher.InstancesC:
+			azureInstances := instances.AzureInstances
+			s.Log.Debugf("Azure instances discovered (SubscriptionID: %s, Instances: %v), starting installation",
+				instances.SubscriptionID, genAzureInstancesLogStr(azureInstances.Instances),
+			)
+			if err := s.handleAzureInstances(azureInstances); err != nil {
+				if trace.IsNotFound(err) {
+					s.Log.Debug("All discovered Azure VMs are already part of the cluster.")
+				} else {
+					s.Log.WithError(err).Error("Failed to enroll discovered Azure VMs.")
+				}
+			}
+		case <-s.ctx.Done():
+			s.azureWatcher.Stop()
+			return
 		}
 	}
 }
 
 // Start starts the discovery service.
 func (s *Server) Start() error {
-	if s.cloudWatcher != nil && s.ec2Installer != nil {
+	if s.ec2Watcher != nil {
 		go s.handleEC2Discovery()
+	}
+	if s.azureWatcher != nil {
+		go s.handleAzureDiscovery()
 	}
 	if len(s.kubeFetchers) > 0 {
 		if err := s.startKubeWatchers(); err != nil {
@@ -308,8 +365,11 @@ func (s *Server) Start() error {
 // Stop stops the discovery service.
 func (s *Server) Stop() {
 	s.cancelfn()
-	if s.cloudWatcher != nil {
-		s.cloudWatcher.Stop()
+	if s.ec2Watcher != nil {
+		s.ec2Watcher.Stop()
+	}
+	if s.azureWatcher != nil {
+		s.azureWatcher.Stop()
 	}
 }
 
@@ -365,6 +425,23 @@ func splitAWSMatchers(matchers []services.AWSMatcher) (ec2 []services.AWSMatcher
 	return
 }
 
+// splitAzureMatchers splits the matchers between Azure VM matchers and others.
+func splitAzureMatchers(matchers []services.AzureMatcher) (vm []services.AzureMatcher, other []services.AzureMatcher) {
+	for _, matcher := range matchers {
+		if utils.SliceContainsStr(matcher.Types, constants.AzureServiceTypeVM) {
+			vm = append(vm,
+				copyAzureMatcherWithNewTypes(matcher, []string{constants.AzureServiceTypeVM}),
+			)
+		}
+
+		otherTypes := excludeFromSlice(matcher.Types, constants.AzureServiceTypeVM)
+		if len(otherTypes) > 0 {
+			other = append(other, copyAzureMatcherWithNewTypes(matcher, otherTypes))
+		}
+	}
+	return
+}
+
 // excludeFromSlice excludes entry from the slice.
 func excludeFromSlice[T comparable](slice []T, entry T) []T {
 	newSlice := make([]T, 0, len(slice))
@@ -378,6 +455,13 @@ func excludeFromSlice[T comparable](slice []T, entry T) []T {
 
 // copyAWSMatcherWithNewTypes copies an AWS Matcher and replaces the types with newTypes
 func copyAWSMatcherWithNewTypes(matcher services.AWSMatcher, newTypes []string) services.AWSMatcher {
+	newMatcher := matcher
+	newMatcher.Types = newTypes
+	return newMatcher
+}
+
+// copyAzureMatcherWithNewTypes copies an Azure Matcher and replaces the types with newTypes.
+func copyAzureMatcherWithNewTypes(matcher services.AzureMatcher, newTypes []string) services.AzureMatcher {
 	newMatcher := matcher
 	newMatcher.Types = newTypes
 	return newMatcher
