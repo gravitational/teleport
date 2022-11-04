@@ -20,15 +20,14 @@ limitations under the License.
 package bpf
 
 import (
+	_ "embed"
+
 	"github.com/aquasecurity/libbpfgo"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/gravitational/teleport/lib/observability/metrics"
-
 	"github.com/gravitational/teleport"
-
-	_ "embed"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 var (
