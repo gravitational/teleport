@@ -26,6 +26,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+var ErrRequiresEnterprise = trace.AccessDenied("this feature requires Teleport Enterprise")
+
 // githubConnectorMutex is a mutex for the Github auth connector creator.
 var githubConnectorMutex sync.RWMutex
 
@@ -50,7 +52,7 @@ func NewGithubConnector(name string, spec types.GithubConnectorSpecV3) (types.Gi
 }
 
 // GithubAuthInitializer creates a new Github connector.
-type GithubAuthInitializer func(*types.GithubConnectorV3) types.GithubConnector
+type GithubAuthInitializer func(types.GithubConnector) (types.GithubConnector, error)
 
 // githubAuthInitializer
 var githubAuthInitializer GithubAuthInitializer
@@ -63,16 +65,43 @@ func RegisterGithubAuthInitializer(init GithubAuthInitializer) {
 }
 
 // InitGithubConnector creates a new Github auth connector.
-func InitGithubConnector(c *types.GithubConnectorV3) types.GithubConnector {
+func InitGithubConnector(c types.GithubConnector) (types.GithubConnector, error) {
 	githubConnectorMutex.RLock()
 	defer githubConnectorMutex.RUnlock()
 	return githubAuthInitializer(c)
 }
 
+// GithubAuthConverter
+type GithubAuthConverter func(types.GithubConnector) (*types.GithubConnectorV3, error)
+
+// githubAuthConverter
+var githubAuthConverter GithubAuthConverter
+
+// RegisterGithubAuthCreator registers a function to create Github auth connectors.
+func RegisterGithubAuthConverter(convert GithubAuthConverter) {
+	githubConnectorMutex.Lock()
+	defer githubConnectorMutex.Unlock()
+	githubAuthConverter = convert
+}
+
+// ConvertGithubConnector
+func ConvertGithubConnector(c types.GithubConnector) (*types.GithubConnectorV3, error) {
+	githubConnectorMutex.RLock()
+	defer githubConnectorMutex.RUnlock()
+	return githubAuthConverter(c)
+}
+
 func init() {
 	RegisterGithubAuthCreator(types.NewGithubConnector)
-	RegisterGithubAuthInitializer(func(c *types.GithubConnectorV3) types.GithubConnector {
-		return c
+	RegisterGithubAuthInitializer(func(c types.GithubConnector) (types.GithubConnector, error) {
+		return c, nil
+	})
+	RegisterGithubAuthConverter(func(c types.GithubConnector) (*types.GithubConnectorV3, error) {
+		connector, ok := c.(*types.GithubConnectorV3)
+		if !ok {
+			return nil, trace.BadParameter("unrecognized github connector version %T", c)
+		}
+		return connector, nil
 	})
 }
 
@@ -127,6 +156,10 @@ func marshalGithubConnector(githubConnector types.GithubConnector, opts ...Marsh
 
 	switch githubConnector := githubConnector.(type) {
 	case *types.GithubConnectorV3:
+		if githubConnector.Spec.EndpointURL != "" {
+			return nil, ErrRequiresEnterprise
+		}
+
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -1657,7 +1658,11 @@ func (c *Client) GetGithubConnector(ctx context.Context, name string, withSecret
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-	return resp, nil
+	connector, err := services.InitGithubConnector(resp)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return connector, nil
 }
 
 // GetGithubConnectors returns a list of Github connectors.
@@ -1669,18 +1674,21 @@ func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]t
 	}
 	githubConnectors := make([]types.GithubConnector, len(resp.GithubConnectors))
 	for i, githubConnector := range resp.GithubConnectors {
-		githubConnectors[i] = githubConnector
+		githubConnectors[i], err = services.InitGithubConnector(githubConnector)
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
 	}
 	return githubConnectors, nil
 }
 
 // UpsertGithubConnector creates or updates a Github connector.
 func (c *Client) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
-	githubConnector, ok := connector.(*types.GithubConnectorV3)
-	if !ok {
-		return trace.BadParameter("invalid type %T", connector)
+	githubConnector, err := services.ConvertGithubConnector(connector)
+	if err != nil {
+		return trail.FromGRPC(err)
 	}
-	_, err := c.grpc.UpsertGithubConnector(ctx, githubConnector, c.callOpts...)
+	_, err = c.grpc.UpsertGithubConnector(ctx, githubConnector, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 

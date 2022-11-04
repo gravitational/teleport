@@ -2622,7 +2622,10 @@ func (g *GRPCServer) UpsertGithubConnector(ctx context.Context, connector *types
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	githubConnector := services.InitGithubConnector(connector)
+	githubConnector, err := services.InitGithubConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err = auth.ServerWithRoles.UpsertGithubConnector(ctx, githubConnector); err != nil {
 		return nil, trace.Wrap(err)
 	}

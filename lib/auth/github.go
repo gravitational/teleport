@@ -383,6 +383,10 @@ func (a *Server) getGithubConnectorAndClient(ctx context.Context, request types.
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	connector, err = services.InitGithubConnector(connector)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	client, err := a.getGithubOAuth2Client(connector)
 	if err != nil {

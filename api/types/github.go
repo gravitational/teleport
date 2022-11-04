@@ -187,11 +187,6 @@ func (c *GithubConnectorV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("team_to_logins or team_to_roles mapping is invalid, no mappings defined.")
 	}
 
-	// this check must be last
-	if c.Spec.EndpointURL != "" {
-		return ErrGitHubEndpointURLUsed
-	}
-
 	return nil
 }
 
@@ -261,11 +256,7 @@ func (c *GithubConnectorV3) SetDisplay(display string) {
 
 // GetEndpointURL returns the endpoint URL
 func (c *GithubConnectorV3) GetEndpointURL() string {
-	if c.Spec.EndpointURL == "" {
-		return githubURL
-	}
-
-	return c.Spec.EndpointURL
+	return githubURL
 }
 
 // MapClaims returns a list of logins based on the provided claims,
