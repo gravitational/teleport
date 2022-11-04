@@ -603,7 +603,7 @@ func (s *Server) Close() error {
 	return trace.NewAggregate(errs...)
 }
 
-// newRemoteSession will create and return a *ssh.Client and *ssh.Session
+// newRemoteClient creates and returns a *ssh.Client and *ssh.Session
 // with a remote host.
 func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*tracessh.Client, error) {
 	// the proxy will use the agent that has been forwarded to it as the auth
@@ -612,25 +612,7 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*trac
 		return nil, trace.AccessDenied("agent must be forwarded to proxy")
 	}
 
-	authMethod := ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
-		signers, err := s.userAgent.Signers()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		mSingers := make([]ssh.Signer, 0, 2*len(signers))
-
-		for _, s := range signers {
-			mSingers = append(mSingers, s)
-
-			if s0, ok := s.(ssh.AlgorithmSigner); ok {
-				mSingers = append(mSingers, &LegacySigner{signer: s0})
-			} else {
-				mSingers = append(mSingers, s)
-			}
-		}
-
-		return mSingers, nil
-	})
+	authMethod := ssh.PublicKeysCallback(signersWithSHA1Fallback(s.userAgent.Signers))
 
 	clientConfig := &ssh.ClientConfig{
 		User: systemLogin,
@@ -659,16 +641,35 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*trac
 
 }
 
-type LegacySigner struct {
+func signersWithSHA1Fallback(signersCb func() ([]ssh.Signer, error)) func() ([]ssh.Signer, error) {
+	return func() ([]ssh.Signer, error) {
+		signers, err := signersCb()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		combinedSigners := make([]ssh.Signer, len(signers), 2*len(signers))
+		copy(combinedSigners[:], signers)
+
+		for _, signer := range signers {
+			if s, ok := signer.(ssh.AlgorithmSigner); ok {
+				combinedSigners = append(combinedSigners, &LegacySHA1Signer{signer: s})
+			}
+		}
+
+		return combinedSigners, nil
+	}
+}
+
+type LegacySHA1Signer struct {
 	signer ssh.AlgorithmSigner
 }
 
-func (x *LegacySigner) PublicKey() ssh.PublicKey {
-	return x.signer.PublicKey()
+func (s *LegacySHA1Signer) PublicKey() ssh.PublicKey {
+	return s.signer.PublicKey()
 }
 
-func (x *LegacySigner) Sign(rand io.Reader, data []byte) (*ssh.Signature, error) {
-	return x.signer.SignWithAlgorithm(rand, data, ssh.KeyAlgoRSA)
+func (s *LegacySHA1Signer) Sign(rand io.Reader, data []byte) (*ssh.Signature, error) {
+	return s.signer.SignWithAlgorithm(rand, data, ssh.KeyAlgoRSA)
 }
 
 func (s *Server) handleConnection(ctx context.Context, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
