@@ -23,7 +23,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"io"
 	"strings"
 	"sync"
 	"time"
@@ -212,30 +211,14 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 	cert.Permissions.Extensions[utils.CertExtensionRole] = c.Role.String()
 	cert.Permissions.Extensions[utils.CertExtensionAuthority] = c.ClusterName
 
-	x := &X{
-		signer: c.CASigner.(ssh.AlgorithmSigner),
-	}
-
 	// sign host certificate with private signing key of certificate authority
-	if err := cert.SignCert(rand.Reader, x); err != nil {
+	if err := cert.SignCert(rand.Reader, c.CASigner); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	log.Debugf("Generated SSH host certificate for role %v with principals: %v.",
 		c.Role, principals)
 	return ssh.MarshalAuthorizedKey(cert), nil
-}
-
-type X struct {
-	signer ssh.AlgorithmSigner
-}
-
-func (x *X) PublicKey() ssh.PublicKey {
-	return x.signer.PublicKey()
-}
-
-func (x *X) Sign(rand io.Reader, data []byte) (*ssh.Signature, error) {
-	return x.signer.SignWithAlgorithm(rand, data, ssh.KeyAlgoRSA)
 }
 
 // GenerateUserCert generates a user certificate with the passed in parameters.
