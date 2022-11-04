@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strings"
 	"sync"
 
 	"golang.org/x/crypto/ssh"
@@ -614,32 +613,25 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*trac
 		return nil, trace.AccessDenied("agent must be forwarded to proxy")
 	}
 
-	var authMethod ssh.AuthMethod
-	var isRetry bool
-	var keyExchanges []string
+	authMethod := ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
+		signers, err := s.userAgent.Signers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		mSingers := make([]ssh.Signer, 0, 2*len(signers))
 
-	if !isRetry {
-		authMethod = ssh.PublicKeysCallback(s.userAgent.Signers)
-		keyExchanges = s.kexAlgorithms // []string{"rsa-sha2-256-cert-v01@openssh.com", "rsa-sha2-512-cert-v01@openssh.com"}...)
-	} else {
-		authMethod = ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
-			signers, err := s.userAgent.Signers()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			mSingers := make([]ssh.Signer, 0, len(signers))
-			for _, s := range signers {
-				if s0, ok := s.(ssh.AlgorithmSigner); ok {
-					mSingers = append(mSingers, &X{signer: s0})
-				} else {
-					mSingers = append(mSingers, s)
-				}
-			}
+		for _, s := range signers {
+			mSingers = append(mSingers, s)
 
-			return mSingers, nil
-		})
-		keyExchanges = s.kexAlgorithms // TODO: just for now, but we should change it.
-	}
+			if s0, ok := s.(ssh.AlgorithmSigner); ok {
+				mSingers = append(mSingers, &LegacySigner{signer: s0})
+			} else {
+				mSingers = append(mSingers, s)
+			}
+		}
+
+		return mSingers, nil
+	})
 
 	clientConfig := &ssh.ClientConfig{
 		User: systemLogin,
@@ -653,7 +645,7 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*trac
 	// Ciphers, KEX, and MACs preferences are honored by both the in-memory
 	// server as well as the client in the connection to the target node.
 	clientConfig.Ciphers = s.ciphers
-	clientConfig.KeyExchanges = keyExchanges
+	clientConfig.KeyExchanges = s.kexAlgorithms
 	clientConfig.MACs = s.macAlgorithms
 
 	// Destination address is used to validate a connection was established to
@@ -662,25 +654,21 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*trac
 	dstAddr := net.JoinHostPort(s.address, "0")
 	client, err := tracessh.NewClientConnWithDeadline(ctx, s.targetConn, dstAddr, clientConfig)
 	if err != nil {
-		if !isRetry && strings.Contains(err.Error(), "unable to authenticate") {
-			s.log.Warnf("SSH conection error: [%T] %v", err, err)
-		}
-
 		return nil, trace.Wrap(err)
 	}
 	return client, nil
 
 }
 
-type X struct {
+type LegacySigner struct {
 	signer ssh.AlgorithmSigner
 }
 
-func (x *X) PublicKey() ssh.PublicKey {
+func (x *LegacySigner) PublicKey() ssh.PublicKey {
 	return x.signer.PublicKey()
 }
 
-func (x *X) Sign(rand io.Reader, data []byte) (*ssh.Signature, error) {
+func (x *LegacySigner) Sign(rand io.Reader, data []byte) (*ssh.Signature, error) {
 	return x.signer.SignWithAlgorithm(rand, data, ssh.KeyAlgoRSA)
 }
 
