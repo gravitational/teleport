@@ -13,7 +13,7 @@ accessing resources.
 
 `tsh` lets you authenticate to Teleport, list services, and initate either
 direct connections or proxy tunnels to them. After [downloading](/downloads)
-and installing `tsh`, sign in to your Teleport plane:
+and installing `tsh`, sign in to your Teleport cluster:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
@@ -36,7 +36,7 @@ Tap any security key
 <ScopedBlock scope={["cloud"]}>
 
 ```code
-$ tsh login --proxy=mytennant.teleport.sh --user=alice
+$ tsh login --proxy=mytenant.teleport.sh --user=alice
 Enter password for Teleport user alice:
 Tap any security key
 > Profile URL:        https://teleport.example.com:443
@@ -63,7 +63,7 @@ more, in a friendly graphic user interface. After
 you can log in initiate sessions for Server, Database, and Desktop Access all
 within a single window.
 
-1. Click **CONNECT** to connect to the Teleport plane:
+1. Click **CONNECT** to connect to the Teleport cluster:
 
    ![A new instance of Teleport Connect](../img/teleport-connect-init.png)
 
