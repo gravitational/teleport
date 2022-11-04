@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"github.com/gravitational/teleport/api/client/proxy"
 	"io"
 	"net"
 	"os"
@@ -225,6 +226,9 @@ func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyPara
 
 func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyParams) (net.Conn, error) {
 	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
+	if httpProxy := proxy.GetProxyURL(remoteProxyAddr); httpProxy != nil {
+		log.Warn("YOOO HTTP_PROXYing is enabled - we should TOTALLY do something about that here :D")
+	}
 
 	if !sp.tlsRouting {
 		conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", remoteProxyAddr)
