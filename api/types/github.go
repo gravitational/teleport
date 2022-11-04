@@ -29,9 +29,6 @@ import (
 
 const githubURL = "https://github.com"
 
-// ErrGitHubEndpointURLUsed results from endpoint_url field being set in Teleport OSS.
-var ErrGitHubEndpointURLUsed = trace.BadParameter("endpoint_url is an enterprise only feature")
-
 // GithubConnector defines an interface for a Github OAuth2 connector
 type GithubConnector interface {
 	// ResourceWithSecrets is a common interface for all resources
