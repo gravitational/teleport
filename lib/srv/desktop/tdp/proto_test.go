@@ -200,3 +200,15 @@ func TestMFA(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, respWant, respGot)
 }
+
+func TestIsNonFatalErr(t *testing.T) {
+	// Test that clipboard data which exceeds maxLen gives a non-fatal error
+	data, err := ClipboardData([]byte("This is too long")).Encode()
+	require.NoError(t, err)
+	byteReader := bytes.NewReader(data)
+	byteReader.ReadByte() // decodeClipboardData expects first byte to have been consumed
+
+	_, err = decodeClipboardData(byteReader, 1)
+	require.NotNil(t, err)
+	require.True(t, IsNonFatalErr(err))
+}

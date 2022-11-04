@@ -518,7 +518,7 @@ func decodeMouseWheel(in io.Reader) (MouseWheel, error) {
 	return w, trace.Wrap(err)
 }
 
-const maxClipboardDataLength = 10 // todo(isaiah): change to 1024 * 1024
+const maxClipboardDataLength = 1024 * 1024
 
 // ClipboardData represents shared clipboard data.
 type ClipboardData []byte

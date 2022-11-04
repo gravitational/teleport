@@ -29,7 +29,6 @@ use std::io::{Cursor, Read};
 ///
 /// To prevent memory DoS attacks that could take down the entire system running the Windows Desktop Service,
 /// Client drops all RDP messages > capacity.
-/// See https://github.com/gravitational/teleport-private/issues/178#issuecomment-1299185326 for context.
 pub struct Client {
     // capacity is effectively the maximum size of an RDP
     // message we will receive from the RDP server, minus any

@@ -18,6 +18,7 @@ package tdp
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"net"
 	"sync"
@@ -128,5 +129,5 @@ func IsNonFatalErr(err error) bool {
 		return false
 	}
 
-	return err.Error() == clipDataMaxLenErr
+	return errors.Is(err, trace.BadParameter(clipDataMaxLenErr))
 }
