@@ -3856,6 +3856,10 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
+		asyncEmitter, err := process.newAsyncEmitter(conn.Client)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		appServer, err := app.New(process.ExitContext(), &app.Config{
 			DataDir:          process.Config.DataDir,
 			AuthClient:       conn.Client,
@@ -3870,6 +3874,8 @@ func (process *TeleportProcess) initApps() {
 			CloudLabels:      process.cloudLabels,
 			ResourceMatchers: process.Config.Apps.ResourceMatchers,
 			OnHeartbeat:      process.onHeartbeat(teleport.ComponentApp),
+			LockWatcher:      lockWatcher,
+			Emitter:          asyncEmitter,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3921,6 +3927,7 @@ func (process *TeleportProcess) initApps() {
 			log.Infof("Shutting down.")
 			warnOnErr(appServer.Close(), log)
 			agentPool.Stop()
+			warnOnErr(asyncEmitter.Close(), log)
 			warnOnErr(conn.Close(), log)
 			log.Infof("Exited.")
 		})

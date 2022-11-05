@@ -155,6 +155,143 @@ func TestAppAccessWebsockets(t *testing.T) {
 	}
 }
 
+// TestWSSLock tests locks with WSS connections.
+func TestWSSLock(t *testing.T) {
+	pack := setup(t)
+
+	msg := []byte(uuid.New().String())
+
+	header := http.Header{}
+	dialer := websocket.Dialer{}
+
+	// Start the session for the two way communication app.
+	cookie := pack.createAppSession(t, pack.rootWSSTwoWayPublicAddr, pack.rootAppClusterName)
+	header.Set("Cookie", (&http.Cookie{
+		Name:  app.CookieName,
+		Value: cookie,
+	}).String())
+	dialer.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+	conn, httpResponse, err := dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, pack.rootCluster.GetPortWeb()), "/"), header)
+	require.NoError(t, err)
+
+	defer conn.Close()
+	defer httpResponse.Body.Close()
+	stream := &web.WebsocketIO{Conn: conn}
+
+	// Read, write, and read again to make sure its working as expected.
+	buf := make([]byte, 1024)
+	n, err := stream.Read(buf)
+	require.NoError(t, err)
+
+	resp := strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootWSSTwoWayMessage, resp)
+
+	_, err = stream.Write(msg)
+	require.NoError(t, err)
+
+	n, err = stream.Read(buf)
+	require.NoError(t, err)
+
+	resp = strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootWSSTwoWayMessage, resp)
+
+	// Lock the user and try to write
+	pack.lockUser(t)
+	require.Eventually(t, func() bool {
+		_, err := stream.Write(msg)
+		if err != nil {
+			return true
+		}
+
+		_, err = stream.Read(buf)
+		return err != nil
+	}, 5*time.Second, 100*time.Millisecond)
+	// Close and re-open the connection. We don't care about the error message here.
+	_ = conn.Close()
+
+	conn, httpResponse, err = dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, pack.rootCluster.GetPortWeb()), "/"), header)
+	require.Error(t, err)
+
+	if conn != nil {
+		defer conn.Close()
+	}
+
+	if httpResponse != nil {
+		defer httpResponse.Body.Close()
+	}
+}
+
+// TestWSSCertExpiration tests WSS application with certs expiring.
+func TestWSSCertExpiration(t *testing.T) {
+	pack := setupWithOptions(t, appTestOptions{
+		certificateTTL: 5 * time.Second,
+	})
+
+	msg := []byte(uuid.New().String())
+
+	header := http.Header{}
+	dialer := websocket.Dialer{}
+
+	// Start the session for the two way communication app.
+	cookie := pack.createAppSession(t, pack.rootWSSTwoWayPublicAddr, pack.rootAppClusterName)
+	header.Set("Cookie", (&http.Cookie{
+		Name:  app.CookieName,
+		Value: cookie,
+	}).String())
+	dialer.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+	conn, httpResponse, err := dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, pack.rootCluster.GetPortWeb()), "/"), header)
+	require.NoError(t, err)
+
+	defer conn.Close()
+	defer httpResponse.Body.Close()
+	stream := &web.WebsocketIO{Conn: conn}
+
+	// Read, write, and read again to make sure its working as expected.
+	buf := make([]byte, 1024)
+	n, err := stream.Read(buf)
+	require.NoError(t, err)
+
+	resp := strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootWSSTwoWayMessage, resp)
+
+	_, err = stream.Write(msg)
+	require.NoError(t, err)
+
+	n, err = stream.Read(buf)
+	require.NoError(t, err)
+
+	resp = strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootWSSTwoWayMessage, resp)
+
+	// Let the certificate expire
+	require.Eventually(t, func() bool {
+		_, err := stream.Write(msg)
+		if err != nil {
+			return true
+		}
+
+		_, err = stream.Read(buf)
+		return err != nil
+	}, 10*time.Second, 100*time.Millisecond)
+	// Close and re-open the connection. We don't care about the error message here.
+	_ = conn.Close()
+
+	conn, httpResponse, err = dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, pack.rootCluster.GetPortWeb()), "/"), header)
+	require.Error(t, err)
+
+	if conn != nil {
+		defer conn.Close()
+	}
+
+	if httpResponse != nil {
+		defer httpResponse.Body.Close()
+	}
+}
+
 // TestAppAccessClientCert tests mutual TLS authentication flow with application
 // access typically used in CLI by curl and other clients.
 func TestAppAccessClientCert(t *testing.T) {
@@ -870,6 +1007,11 @@ type pack struct {
 	rootWSSMessage    string
 	rootWSSAppURI     string
 
+	rootWSSTwoWayAppName    string
+	rootWSSTwoWayPublicAddr string
+	rootWSSTwoWayMessage    string
+	rootWSSTwoWayAppURI     string
+
 	jwtAppName        string
 	jwtAppPublicAddr  string
 	jwtAppClusterName string
@@ -912,6 +1054,7 @@ type appTestOptions struct {
 	userTraits          map[string][]string
 	rootClusterPorts    *InstancePorts
 	leafClusterPorts    *InstancePorts
+	certificateTTL      time.Duration
 	rootAppServersCount int
 	leafAppServersCount int
 
@@ -953,6 +1096,10 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		rootWSSAppName:    "wss-01",
 		rootWSSPublicAddr: "wss-01.example.com",
 		rootWSSMessage:    uuid.New().String(),
+
+		rootWSSTwoWayAppName:    "wss-twoway",
+		rootWSSTwoWayPublicAddr: "wss-twoway.example.com",
+		rootWSSTwoWayMessage:    uuid.New().String(),
 
 		leafAppName:        "app-02",
 		leafAppPublicAddr:  "app-02.example.com",
@@ -1010,6 +1157,20 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		conn.Close()
 	}))
 	t.Cleanup(rootWSSServer.Close)
+	// WSS application that reads after every write in the root cluster (tcp://).
+	rootWSSTwoWayServer := httptest.NewTLSServer(createHandler(func(conn *websocket.Conn) {
+		for {
+			if err := conn.WriteMessage(websocket.BinaryMessage, []byte(p.rootWSSTwoWayMessage)); err != nil {
+				break
+			}
+			if _, _, err := conn.ReadMessage(); err != nil {
+				break
+			}
+		}
+		conn.Close()
+	}))
+	t.Cleanup(func() { rootWSSTwoWayServer.Close() })
+	// HTTP server in leaf cluster.
 	leafServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, p.leafMessage)
 	}))
@@ -1059,6 +1220,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	p.rootAppURI = rootServer.URL
 	p.rootWSAppURI = rootWSServer.URL
 	p.rootWSSAppURI = rootWSSServer.URL
+	p.rootWSSTwoWayAppURI = rootWSSTwoWayServer.URL
 	p.leafAppURI = leafServer.URL
 	p.leafWSAppURI = leafWSServer.URL
 	p.leafWSSAppURI = leafWSSServer.URL
@@ -1097,6 +1259,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.Preference.SetSecondFactor("off")
+	rcConf.Auth.Preference.SetDisconnectExpiredCert(true)
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebService = false
 	rcConf.Proxy.DisableWebInterface = true
@@ -1112,6 +1275,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	lcConf.DataDir = t.TempDir()
 	lcConf.Auth.Enabled = true
 	lcConf.Auth.Preference.SetSecondFactor("off")
+	lcConf.Auth.Preference.SetDisconnectExpiredCert(true)
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebService = false
 	lcConf.Proxy.DisableWebInterface = true
@@ -1175,6 +1339,12 @@ func (p *pack) initUser(t *testing.T, opts appTestOptions) {
 		role.SetLogins(types.Allow, opts.userLogins)
 	} else {
 		role.SetLogins(types.Allow, []string{p.username})
+	}
+
+	if opts.certificateTTL > 0 {
+		roleOptions := role.GetOptions()
+		roleOptions.MaxSessionTTL = types.NewDuration(opts.certificateTTL)
+		role.SetOptions(roleOptions)
 	}
 	err = p.rootCluster.Process.GetAuthServer().UpsertRole(context.Background(), role)
 	require.NoError(t, err)
@@ -1285,6 +1455,21 @@ func (p *pack) createAppSession(t *testing.T, publicAddr, clusterName string) st
 	require.NoError(t, err)
 
 	return casResp.CookieValue
+}
+
+// LockUser will lock the configured user for this pack.
+func (p *pack) lockUser(t *testing.T) {
+	err := p.rootCluster.Process.GetAuthServer().UpsertLock(context.Background(), &types.LockV2{
+		Spec: types.LockSpecV2{
+			Target: types.LockTarget{
+				User: p.username,
+			},
+		},
+		Metadata: types.Metadata{
+			Name: "test-lock",
+		},
+	})
+	require.NoError(t, err)
 }
 
 // makeWebapiRequest makes a request to the root cluster Web API.
@@ -1570,6 +1755,11 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 				Name:       p.rootWSSAppName,
 				URI:        p.rootWSSAppURI,
 				PublicAddr: p.rootWSSPublicAddr,
+			},
+			{
+				Name:       p.rootWSSTwoWayAppName,
+				URI:        p.rootWSSTwoWayAppURI,
+				PublicAddr: p.rootWSSTwoWayPublicAddr,
 			},
 			{
 				Name:       p.jwtAppName,
