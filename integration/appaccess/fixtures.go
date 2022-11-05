@@ -167,7 +167,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 		}
 		c.Close()
 	})
-	t.Cleanup(func() { rootTCPServer.Close() })
+	t.Cleanup(func() { rootTCPTwoWayServer.Close() })
 	// HTTP server in leaf cluster.
 	leafServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, p.leafMessage)
