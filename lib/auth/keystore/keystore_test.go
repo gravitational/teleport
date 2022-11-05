@@ -127,6 +127,7 @@ JhuTMEqUaAOZBoQLn+txjl3nu9WwTThJzlY0L4w=
 )
 
 func TestKeyStore(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -144,8 +145,22 @@ func TestKeyStore(t *testing.T) {
 		softHSMConfig.PKCS11.HostUUID = "server1"
 	}
 
-	hostUUID, err := uuid.NewRandom()
-	require.NoError(t, err)
+	hostUUID := uuid.NewString()
+
+	gcpKMSConfig := GCPKMSConfig{
+		HostUUID:        hostUUID,
+		ProtectionLevel: "HSM",
+	}
+	if keyRing := os.Getenv("TEST_GCP_KMS_KEYRING"); keyRing != "" {
+		t.Logf("Running test with real GCP KMS keyring %s", keyRing)
+		gcpKMSConfig.KeyRing = keyRing
+	} else {
+		t.Log("Running test with fake GCP KMS service")
+		_, dialer := newTestGCPKMSService(t)
+		testClient := newTestGCPKMSClient(t, dialer)
+		gcpKMSConfig.kmsClientOverride = testClient
+		gcpKMSConfig.KeyRing = "test-keyring"
+	}
 
 	yubiSlotNumber := 0
 	backends := []struct {
@@ -182,7 +197,7 @@ func TestKeyStore(t *testing.T) {
 					Path:       os.Getenv("YUBIHSM_PKCS11_PATH"),
 					SlotNumber: &yubiSlotNumber,
 					Pin:        "0001password",
-					HostUUID:   hostUUID.String(),
+					HostUUID:   hostUUID,
 				},
 			},
 			shouldSkip: func() bool {
@@ -200,7 +215,7 @@ func TestKeyStore(t *testing.T) {
 					Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
 					TokenLabel: "cavium",
 					Pin:        os.Getenv("CLOUDHSM_PIN"),
-					HostUUID:   hostUUID.String(),
+					HostUUID:   hostUUID,
 				},
 			},
 			shouldSkip: func() bool {
@@ -214,17 +229,9 @@ func TestKeyStore(t *testing.T) {
 		{
 			desc: "gcp kms",
 			config: Config{
-				GCPKMS: GCPKMSConfig{
-					KeyRing:         os.Getenv("GCP_KMS_KEYRING"),
-					HostUUID:        hostUUID.String(),
-					ProtectionLevel: "HSM",
-				},
+				GCPKMS: gcpKMSConfig,
 			},
 			shouldSkip: func() bool {
-				if os.Getenv("GCP_KMS_KEYRING") == "" {
-					log.Println("Skipping GCP KMS test because GCP_KMS_KEYRING is not set.")
-					return true
-				}
 				return false
 			},
 		},
