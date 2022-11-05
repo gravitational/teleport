@@ -19,7 +19,7 @@ on:
 jobs:
   fuzzing:
     name: Fuzzing
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-32core
     permissions:
       contents: read
 
@@ -36,6 +36,10 @@ jobs:
         oss-fuzz-project-name: 'teleport'
         language: go
         fuzz-seconds: 600
+    - name: Fix permissions on output directory
+      run: sudo chmod -R g=u-w,o=u-w ./out
+      shell: bash
+      if: failure() && steps.build.outcome == 'success'
     - name: Upload Crash
       uses: actions/upload-artifact@v3
       if: failure() && steps.build.outcome == 'success'

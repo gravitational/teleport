@@ -153,6 +153,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindRemoteCluster, nil
 	case types.KindSemaphore, "semaphores", "sem", "sems":
 		return types.KindSemaphore, nil
+	case types.KindKubernetesCluster, "kube_clusters":
+		return types.KindKubernetesCluster, nil
 	case types.KindKubeService, "kube_services":
 		return types.KindKubeService, nil
 	case types.KindKubeServer, "kube_servers":

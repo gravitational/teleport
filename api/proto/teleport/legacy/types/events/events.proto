@@ -20,6 +20,7 @@ import "gogoproto/gogo.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
+import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
 option go_package = "github.com/gravitational/teleport/api/types/events";
@@ -2678,6 +2679,12 @@ message LockCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // Target describes the set of interactions that the lock applies to
+  types.LockTarget Target = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "target"
+  ];
 }
 
 // LockDelete is emitted when a lock is deleted
@@ -2945,6 +2952,18 @@ message OneOf {
     events.UpgradeWindowStartUpdate UpgradeWindowStartUpdate = 92;
     events.AppSessionEnd AppSessionEnd = 93;
     events.SessionRecordingAccess SessionRecordingAccess = 94;
+    events.KubernetesClusterCreate KubernetesClusterCreate = 96;
+    events.KubernetesClusterUpdate KubernetesClusterUpdate = 97;
+    events.KubernetesClusterDelete KubernetesClusterDelete = 98;
+    events.SSMRun SSMRun = 99;
+    events.ElasticsearchRequest ElasticsearchRequest = 100;
+    // Cassandra audit events.
+    events.CassandraBatch CassandraBatch = 101;
+    events.CassandraPrepare CassandraPrepare = 102;
+    events.CassandraRegister CassandraRegister = 103;
+    events.CassandraExecute CassandraExecute = 104;
+    // DynamoDB audit events.
+    events.AppSessionDynamoDBRequest AppSessionDynamoDBRequest = 105;
   }
 }
 
@@ -3611,6 +3630,121 @@ message DatabaseSessionMalformedPacket {
   bytes Payload = 5 [(gogoproto.jsontag) = "payload,omitempty"];
 }
 
+// ElasticsearchCategory specifies Elasticsearch request category.
+enum ElasticsearchCategory {
+  // GENERAL is for otherwise uncategorized calls.
+  GENERAL = 0;
+  // SECURITY is for _security and _ssl APIs.
+  SECURITY = 1;
+  // SEARCH is for search-related APIs.
+  SEARCH = 2;
+  // SQL covers _sql API.
+  SQL = 3;
+}
+
+// ElasticsearchRequest is emitted when user executes an Elasticsearch request, which isn't
+// covered by API-specific events.
+message ElasticsearchRequest {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Database contains database related metadata.
+  DatabaseMetadata Database = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Path is relative path in the URL.
+  string Path = 5 [(gogoproto.jsontag) = "path"];
+  // RawQuery are the encoded query values.
+  string RawQuery = 6 [(gogoproto.jsontag) = "raw_query"];
+  // Method is the request HTTP method, like GET/POST/DELETE/etc.
+  string Method = 7 [(gogoproto.jsontag) = "method"];
+  // Body is the request HTTP body.
+  bytes Body = 8 [(gogoproto.jsontag) = "body"];
+  // Headers are the HTTP request headers.
+  wrappers.LabelValues Headers = 9 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "headers,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+  ];
+
+  // Category represents the category if API being accessed in a given request.
+  ElasticsearchCategory Category = 10 [(gogoproto.jsontag) = "category"];
+
+  // Target is an optional field indicating the target index or set of indices used as a subject of request.
+  string Target = 11 [(gogoproto.jsontag) = "target"];
+
+  // Query is an optional text of query (e.g. an SQL select statement for _sql API), if a request includes it.
+  string Query = 12 [(gogoproto.jsontag) = "query"];
+}
+
+// AppSessionDynamoDBRequest is emitted when a user executes a DynamoDB request via app access.
+message AppSessionDynamoDBRequest {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // App is a common application resource metadata.
+  AppMetadata App = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // AWS contains extra AWS metadata of the request.
+  AWSRequestMetadata AWS = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionChunkID is the ID of the app session chunk that this request belongs to.
+  // This is more appropriate to include than the app session id, since it is the chunk
+  // id that is needed to play back the session chunk with tsh. The session chunk event
+  // already includes the app session id.
+  string SessionChunkID = 5 [(gogoproto.jsontag) = "session_chunk_id"];
+  // StatusCode the HTTP response code for the request.
+  uint32 StatusCode = 6 [(gogoproto.jsontag) = "status_code"];
+  // Path is relative path in the URL.
+  string Path = 7 [(gogoproto.jsontag) = "path"];
+  // RawQuery are the encoded query values.
+  string RawQuery = 8 [(gogoproto.jsontag) = "raw_query"];
+  // Method is the request HTTP method, like GET/POST/DELETE/etc.
+  string Method = 9 [(gogoproto.jsontag) = "method"];
+  // Target is the API target in the X-Amz-Target header.
+  string Target = 10 [(gogoproto.jsontag) = "target"];
+  // Body is the HTTP request json body.
+  // The Struct type is a wrapper around protobuf/types.Struct and is used to marshal the JSON body correctly.
+  google.protobuf.Struct Body = 11 [
+    (gogoproto.jsontag) = "body,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
+}
+
 // UpgradeWindowStartMetadata contains common upgrade window information.
 message UpgradeWindowStartMetadata {
   // UpgradeWindowStart is the upgrade window time.
@@ -3662,4 +3796,266 @@ message SessionRecordingAccess {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+}
+
+// KubeClusterMetadata contains common kubernetes cluster information.
+message KubeClusterMetadata {
+  // KubeLabels are the configured cluster labels.
+  map<string, string> KubeLabels = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "kube_labels,omitempty"
+  ];
+}
+
+// KubernetesClusterCreate is emitted when a new kubernetes cluster resource is created.
+message KubernetesClusterCreate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // KubeClusterMetadata is a common kubernetes resource metadata.
+  KubeClusterMetadata KubeClusterMetadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// KubernetesClusterUpdate is emitted when an existing kubernetes cluster resource is updated.
+message KubernetesClusterUpdate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // KubeClusterMetadata is a common kubernetes resource metadata.
+  KubeClusterMetadata KubeClusterMetadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// KubernetesClusterDelete is emitted when a kubernetes cluster resource is deleted.
+message KubernetesClusterDelete {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// SSMRun is emitted after an AWS SSM document completes execution.
+message SSMRun {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // CommandID is the id of the SSM command that was run.
+  string CommandID = 2 [(gogoproto.jsontag) = "command_id"];
+
+  // InstanceID is the id of the EC2 instance the command was run on.
+  string InstanceID = 3 [(gogoproto.jsontag) = "instance_id"];
+
+  // ExitCode is the exit code resulting from the script run.
+  int64 ExitCode = 4 [(gogoproto.jsontag) = "exit_code"];
+
+  // Status represents the success or failure status of a script run.
+  string Status = 5 [(gogoproto.jsontag) = "status"];
+
+  // AccountID is the id of the AWS account that ran the command.
+  string AccountID = 6 [(gogoproto.jsontag) = "account_id"];
+
+  // Region is the AWS region the command was ran in.
+  string Region = 7 [(gogoproto.jsontag) = "region"];
+}
+
+// CassandraSession is emitted when a Cassandra client sends
+// the prepare a CQL statement.
+message CassandraPrepare {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Database contains database related metadata.
+  DatabaseMetadata Database = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Query is the CQL statement.
+  string Query = 5 [(gogoproto.jsontag) = "query,omitempty"];
+  // Keyspace is the keyspace the statement is in.
+  string Keyspace = 6 [(gogoproto.jsontag) = "keyspace,omitempty"];
+}
+
+// CassandraExecute is emitted when a Cassandra client executes a CQL statement.
+message CassandraExecute {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Database contains database related metadata.
+  DatabaseMetadata Database = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // QueryId is the prepared query id to execute.
+  string QueryId = 5 [(gogoproto.jsontag) = "query_id,omitempty"];
+}
+
+// CassandraBatch is emitted when a Cassandra client executes a batch of CQL statements.
+message CassandraBatch {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Database contains database related metadata.
+  DatabaseMetadata Database = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Consistency is the consistency level to use.
+  string Consistency = 5 [(gogoproto.jsontag) = "consistency,omitempty"];
+  // Keyspace is the keyspace the statement is in.
+  string Keyspace = 6 [(gogoproto.jsontag) = "keyspace,omitempty"];
+  // BatchType is the type of batch.
+  string BatchType = 7 [(gogoproto.jsontag) = "batch_type,omitempty"];
+  // BatchChild represents a single child batch statement.
+  message BatchChild {
+    // Value is a single value to bind to the query.
+    message Value {
+      // Type is the type of the value.
+      uint32 Type = 1 [(gogoproto.jsontag) = "type,omitempty"];
+      // Contents is the value contents.
+      bytes Contents = 2 [(gogoproto.jsontag) = "contents,omitempty"];
+    }
+    // ID is the id of the statement.
+    string ID = 1 [(gogoproto.jsontag) = "id,omitempty"];
+    // Query the CQL statement to execute.
+    string Query = 2 [(gogoproto.jsontag) = "query,omitempty"];
+    // Values is the values to bind to the query.
+    repeated Value Values = 3 [(gogoproto.jsontag) = "values,omitempty"];
+  }
+  // Children is batch children statements.
+  repeated BatchChild Children = 8 [(gogoproto.jsontag) = "children,omitempty"];
+}
+
+// CassandraRegister is emitted when a Cassandra client
+// request to register for the specified event types.
+message CassandraRegister {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Database contains database related metadata.
+  DatabaseMetadata Database = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // EventTypes is the list of event types to register for.
+  repeated string EventTypes = 5 [(gogoproto.jsontag) = "event_types,omitempty"];
 }

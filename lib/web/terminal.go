@@ -152,7 +152,7 @@ type TerminalHandler struct {
 	// log holds the structured logger.
 	log *logrus.Entry
 
-	// params is the initial PTY size.
+	// params describes the request for a PTY
 	params TerminalRequest
 
 	// ctx is a web session context for the currently logged in user.
@@ -552,15 +552,7 @@ func (t *TerminalHandler) windowChange(ctx context.Context, params *session.Term
 		return
 	}
 
-	_, err := t.sshSession.SendRequest(
-		ctx,
-		sshutils.WindowChangeRequest,
-		false,
-		ssh.Marshal(sshutils.WinChangeReqParams{
-			W: uint32(params.W),
-			H: uint32(params.H),
-		}))
-	if err != nil {
+	if err := t.sshSession.WindowChange(ctx, params.H, params.W); err != nil {
 		t.log.Error(err)
 	}
 }

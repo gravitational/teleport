@@ -20,12 +20,12 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
-
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 // OIDCConnector specifies configuration for Open ID Connect compatible external
@@ -77,6 +77,8 @@ type OIDCConnector interface {
 	SetScope([]string)
 	// SetClaimsToRoles sets dynamic mapping from claims to roles
 	SetClaimsToRoles([]ClaimMapping)
+	// GetUsernameClaim gets the name of the claim from the OIDC connector to be used as the user's username.
+	GetUsernameClaim() string
 	// SetDisplay sets friendly name for this provider.
 	SetDisplay(string)
 	// GetGoogleServiceAccountURI returns path to google service account URI
@@ -89,6 +91,8 @@ type OIDCConnector interface {
 	// https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority
 	// "Note: Although you can use service accounts in applications that run from a Google Workspace (formerly G Suite) domain, service accounts are not members of your Google Workspace account and aren’t subject to domain policies set by  administrators. For example, a policy set in the Google Workspace admin console to restrict the ability of end users to share documents outside of the domain would not apply to service accounts."
 	GetGoogleAdminEmail() string
+	// GetAllowUnverifiedEmail returns true if unverified emails should be allowed in received users.
+	GetAllowUnverifiedEmail() bool
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -306,6 +310,11 @@ func (o *OIDCConnectorV3) GetScope() []string {
 	return o.Spec.Scope
 }
 
+// GetUsernameClaim gets the name of the claim from the OIDC connector to be used as the user's username.
+func (o *OIDCConnectorV3) GetUsernameClaim() string {
+	return o.Spec.UsernameClaim
+}
+
 // GetClaimsToRoles specifies dynamic mapping from claims to roles
 func (o *OIDCConnectorV3) GetClaimsToRoles() []ClaimMapping {
 	return o.Spec.ClaimsToRoles
@@ -376,9 +385,6 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("bad IssuerURL '%v', err: %v", o.GetIssuerURL(), err)
 	}
 
-	// DELETE IN 11.0.0
-	o.CheckSetRedirectURL()
-
 	if len(o.GetRedirectURLs()) == 0 {
 		return trace.BadParameter("RedirectURL: missing redirect_url")
 	}
@@ -414,14 +420,9 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 	return nil
 }
 
-// RedirectURL must be checked/set when communicating with an old server or client.
-// DELETE IN 11.0.0
-func (o *OIDCConnectorV3) CheckSetRedirectURL() {
-	if o.Spec.RedirectURL == "" && len(o.Spec.RedirectURLs) != 0 {
-		o.Spec.RedirectURL = o.Spec.RedirectURLs[0]
-	} else if len(o.Spec.RedirectURLs) == 0 && o.Spec.RedirectURL != "" {
-		o.Spec.RedirectURLs = []string{o.Spec.RedirectURL}
-	}
+// GetAllowUnverifiedEmail returns true if unverified emails should be allowed in received users.
+func (o *OIDCConnectorV3) GetAllowUnverifiedEmail() bool {
+	return o.Spec.AllowUnverifiedEmail
 }
 
 // Check returns nil if all parameters are great, err otherwise

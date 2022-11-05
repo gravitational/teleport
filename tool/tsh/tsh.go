@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path"
 	"path/filepath"
@@ -36,6 +37,14 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -61,21 +70,12 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/tool/common"
-
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/kingpin"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -97,7 +97,7 @@ const (
 	// mfaModeOTP utilizes only OTP devices.
 	mfaModeOTP = "otp"
 
-	hostnameOrIDPredicateTemplate = `resource.spec.hostname == "%[1]s" || name == "%[1]s"`
+	hostnameOrIDPredicateTemplate = `resource.spec.hostname == "%[1]s" || resource.metadata.name == "%[1]s"`
 )
 
 // CLIConf stores command line arguments and flags:
@@ -304,6 +304,8 @@ type CLIConf struct {
 	overrideStdout io.Writer
 	// overrideStderr allows to switch standard error source for resource command. Used in tests.
 	overrideStderr io.Writer
+	// overrideStdin allows to switch standard in source for resource command. Used in tests.
+	overrideStdin io.Reader
 
 	// mockSSOLogin used in tests to override sso login handler in teleport client.
 	mockSSOLogin client.SSOLoginFunc
@@ -372,6 +374,14 @@ type CLIConf struct {
 	// command is the selected command (and subcommands) parsed from command
 	// line args. Note that this command does not contain the binary (e.g. tsh).
 	command string
+
+	// cmdRunner is a custom function to execute provided exec.Cmd. Mainly used
+	// in testing.
+	cmdRunner func(*exec.Cmd) error
+	// kubernetesImpersonationConfig allows to configure custom kubernetes impersonation values.
+	kubernetesImpersonationConfig impersonationConfig
+	// kubeNamespace allows to configure the default Kubernetes namespace.
+	kubeNamespace string
 }
 
 // Stdout returns the stdout writer.
@@ -390,17 +400,25 @@ func (c *CLIConf) Stderr() io.Writer {
 	return os.Stderr
 }
 
+// Stdin returns the stdin reader.
+func (c *CLIConf) Stdin() io.Reader {
+	if c.overrideStdin != nil {
+		return c.overrideStdin
+	}
+	return os.Stdin
+}
+
 // CommandWithBinary returns the current/selected command with the binary.
 func (c *CLIConf) CommandWithBinary() string {
 	return fmt.Sprintf("%s %s", teleport.ComponentTSH, c.command)
 }
 
-type exitCodeError struct {
-	code int
-}
-
-func (e *exitCodeError) Error() string {
-	return fmt.Sprintf("exit code %d", e.code)
+// RunCommand executes provided command.
+func (c *CLIConf) RunCommand(cmd *exec.Cmd) error {
+	if c.cmdRunner != nil {
+		return trace.Wrap(c.cmdRunner(cmd))
+	}
+	return trace.Wrap(cmd.Run())
 }
 
 func main() {
@@ -424,9 +442,9 @@ func main() {
 	err := Run(ctx, cmdLine)
 	prompt.NotifyExit() // Allow prompt to restore terminal state on exit.
 	if err != nil {
-		var exitError *exitCodeError
+		var exitError *common.ExitCodeError
 		if errors.As(err, &exitError) {
-			os.Exit(exitError.code)
+			os.Exit(exitError.Code)
 		}
 		utils.FatalError(err)
 	}
@@ -552,7 +570,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	ver := app.Command("version", "Print the version of your tsh binary")
 	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	// ssh
-	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node")
+	// Use Interspersed(false) to forward all flags to ssh.
+	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node").Interspersed(false)
 	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
 	app.Flag("jumphost", "SSH jumphost").Short('J').StringVar(&cf.ProxyJump)
@@ -579,7 +598,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	daemonStart.Flag("certs-dir", "Directory containing certs used to create secure gRPC connection with daemon service").StringVar(&cf.DaemonCertsDir)
 
 	// AWS.
-	aws := app.Command("aws", "Access AWS API.")
+	// Use Interspersed(false) to forward all flags to AWS CLI.
+	aws := app.Command("aws", "Access AWS API.").Interspersed(false)
 	aws.Arg("command", "AWS command and subcommands arguments that are going to be forwarded to AWS CLI.").StringsVar(&cf.AWSCommandArgs)
 	aws.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
 	aws.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").
@@ -687,7 +707,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	play.Arg("session-id", "ID of the session to play").Required().StringVar(&cf.SessionID)
 
 	// scp
-	scp := app.Command("scp", "Secure file copy")
+	scp := app.Command("scp", "Transfer files to a remote Node")
 	scp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	scp.Arg("from, to", "Source and destination to copy").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
@@ -815,6 +835,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// touchid subcommands.
 	tid := newTouchIDCommand(app)
 
+	webauthnwin := newWebauthnwinCommand(app)
+
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
@@ -870,12 +892,13 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	// handle: help command, --help flag, version command, ...
 	if shouldTerminate != nil {
-		os.Exit(*shouldTerminate)
+		return trace.Wrap(&common.ExitCodeError{Code: *shouldTerminate})
 	}
 
-	cf.command = command
 	// Did we initially get the Username from flags/env?
 	cf.ExplicitUsername = cf.Username != ""
+
+	cf.command = command
 
 	// apply any options after parsing of arguments to ensure
 	// that defaults don't overwrite options.
@@ -1054,6 +1077,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onFIDO2Diag(&cf)
 	case tid.diag.FullCommand():
 		err = tid.diag.run(&cf)
+	case webauthnwin.diag.FullCommand():
+		err = webauthnwin.diag.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -1199,16 +1224,19 @@ func serializeVersion(format string, proxyVersion string) (string, error) {
 // onPlay is used to interact with recorded sessions.
 // It has several modes:
 //
-// 1. If --format is "pty" (the default), then the recorded
-//    session is played back in the user's terminal.
-// 2. Otherwise, `tsh play` is used to export a session from the
-//    binary protobuf format into YAML or JSON.
+//  1. If --format is "pty" (the default), then the recorded
+//     session is played back in the user's terminal.
+//  2. Otherwise, `tsh play` is used to export a session from the
+//     binary protobuf format into YAML or JSON.
 //
 // Each of these modes has two subcases:
 // a) --session-id ends with ".tar" - tsh operates on a local file
-//    containing a previously downloaded session
+//
+//	containing a previously downloaded session
+//
 // b) --session-id is the ID of a session - tsh operates on the session
-//    recording by connecting to the Teleport cluster
+//
+//	recording by connecting to the Teleport cluster
 func onPlay(cf *CLIConf) error {
 	if format := strings.ToLower(cf.Format); format == teleport.PTY {
 		return playSession(cf)
@@ -1368,11 +1396,12 @@ func onLogin(cf *CLIConf) error {
 			if err := tc.SaveProfile(cf.HomePath, true); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfig(cf, tc, ""); err != nil {
-				return trace.Wrap(err)
-			}
 
-			return trace.Wrap(onStatus(cf))
+			// Try updating kube config. If it fails, then we may have
+			// switched to an inactive profile. Continue to normal login.
+			if err := updateKubeConfig(cf, tc, ""); err == nil {
+				return trace.Wrap(onStatus(cf))
+			}
 
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but cluster is specified, treat this as selecting a new cluster
@@ -1439,6 +1468,7 @@ func onLogin(cf *CLIConf) error {
 		}
 		return trace.Wrap(err)
 	}
+
 	tc.AllowStdinHijack = false
 
 	// the login operation may update the username and should be considered the more
@@ -1447,7 +1477,6 @@ func onLogin(cf *CLIConf) error {
 
 	// TODO(fspmarshall): Refactor access request & cert reissue logic to allow
 	// access requests to be applied to identity files.
-
 	if makeIdentityFile {
 		if err := setupNoninteractiveClient(tc, key); err != nil {
 			return trace.Wrap(err)
@@ -1468,6 +1497,7 @@ func onLogin(cf *CLIConf) error {
 			Format:               cf.IdentityFormat,
 			KubeProxyAddr:        tc.KubeClusterAddr(),
 			OverwriteDestination: cf.IdentityOverwrite,
+			KubeStoreAllCAs:      tc.LoadAllCAs,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1485,6 +1515,11 @@ func onLogin(cf *CLIConf) error {
 		if err := updateKubeConfig(cf, tc, ""); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	pingResp, err := tc.Ping(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Regular login without -i flag.
@@ -1554,13 +1589,22 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	// Display any license compliance warnings
-	resp, err := tc.Ping(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, warning := range resp.LicenseWarnings {
+	for _, warning := range pingResp.LicenseWarnings {
 		fmt.Fprintf(os.Stderr, "%s\n\n", warning)
 	}
+
+	// Show on-login alerts, all high severity alerts are shown by onStatus
+	// so can be excluded here.
+	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, map[string]string{
+		types.AlertOnLogin: "yes",
+	}, types.AlertSeverity_LOW, types.AlertSeverity_MEDIUM); err != nil {
+		log.WithError(err).Warn("Failed to display cluster alerts.")
+	}
+
+	// NOTE: we currently print all alerts that are marked as `on-login`, because we
+	// don't use the alert API very heavily. If we start to make more use of it, we
+	// could probably add a separate `tsh alerts ls` command, and truncate the list
+	// with a message like "run 'tsh alerts ls' to view N additional alerts".
 
 	return nil
 }
@@ -1703,7 +1747,7 @@ func onLogout(cf *CLIConf) error {
 		if err != nil {
 			if trace.IsNotFound(err) {
 				fmt.Printf("User %v already logged out from %v.\n", cf.Username, proxyHost)
-				return trace.Wrap(&exitCodeError{code: 1})
+				return trace.Wrap(&common.ExitCodeError{Code: 1})
 			}
 			return trace.Wrap(err)
 		}
@@ -2639,7 +2683,7 @@ func onSSH(cf *CLIConf) error {
 				fmt.Fprintf(os.Stderr, "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
 				fmt.Fprintf(os.Stderr, "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
 				fmt.Fprintf(os.Stderr, "\n")
-				return trace.Wrap(&exitCodeError{code: 1})
+				return trace.Wrap(&common.ExitCodeError{Code: 1})
 			}
 			return trace.Wrap(err)
 		}
@@ -2647,7 +2691,7 @@ func onSSH(cf *CLIConf) error {
 	})
 	// Exit with the same exit status as the failed command.
 	if tc.ExitStatus != 0 {
-		var exitErr *exitCodeError
+		var exitErr *common.ExitCodeError
 		if errors.As(err, &exitErr) {
 			// Already have an exitCodeError, return that.
 			return trace.Wrap(err)
@@ -2656,7 +2700,7 @@ func onSSH(cf *CLIConf) error {
 			// Print the error here so we don't lose it when returning the exitCodeError.
 			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 		}
-		err = &exitCodeError{code: tc.ExitStatus}
+		err = &common.ExitCodeError{Code: tc.ExitStatus}
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(err)
@@ -2676,7 +2720,7 @@ func onBenchmark(cf *CLIConf) error {
 	result, err := cnf.Benchmark(cf.Context, tc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		return trace.Wrap(&exitCodeError{code: 255})
+		return trace.Wrap(&common.ExitCodeError{Code: 255})
 	}
 	fmt.Printf("\n")
 	fmt.Printf("* Requests originated: %v\n", result.RequestsOriginated)
@@ -2737,21 +2781,25 @@ func onSCP(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	flags := scp.Flags{
+
+	// allow the file transfer to be gracefully stopped if the user wishes
+	ctx, cancel := signal.NotifyContext(cf.Context, os.Interrupt)
+	cf.Context = ctx
+	defer cancel()
+
+	opts := sftp.Options{
 		Recursive:     cf.RecursiveCopy,
 		PreserveAttrs: cf.PreserveAttrs,
 	}
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.SCP(cf.Context, cf.CopySpec, int(cf.NodePort), flags, cf.Quiet)
+		return tc.SFTP(cf.Context, cf.CopySpec, int(cf.NodePort), opts, cf.Quiet)
 	})
-	if err == nil {
+	// don't print context canceled errors to the user
+	if err == nil || (err != nil && errors.Is(err, context.Canceled)) {
 		return nil
 	}
-	// exit with the same exit status as the failed command:
-	if tc.ExitStatus != 0 {
-		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		return trace.Wrap(&exitCodeError{code: tc.ExitStatus})
-	}
+	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+
 	return trace.Wrap(err)
 }
 
@@ -2844,6 +2892,8 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		c.JumpHosts = hosts
 	}
 
+	var key *client.Key
+
 	// Look if a user identity was given via -i flag
 	if cf.IdentityFileIn != "" {
 		// Ignore local authentication methods when identity file is provided
@@ -2853,7 +2903,6 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		c.UseKeyPrincipals = hostLogin == ""
 
 		var (
-			key          *client.Key
 			expiryDate   time.Time
 			hostAuthFunc ssh.HostKeyCallback
 		)
@@ -2870,6 +2919,8 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		clusters := []string{rootCluster}
 		if cf.SiteName != "" {
 			clusters = append(clusters, cf.SiteName)
+		} else {
+			cf.SiteName = rootCluster
 		}
 		hostAuthFunc, err = key.HostKeyCallbackForClusters(cf.InsecureSkipVerify, apiutils.Deduplicate(clusters))
 		if err != nil {
@@ -3069,7 +3120,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	// be found, or the key isn't supported as an agent key.
 	if profileSiteName != "" {
 		if err := tc.LoadKeyForCluster(profileSiteName); err != nil {
-			log.WithError(err).Debugf("Could not load key for %s into the local agent.", profileSiteName)
+			log.WithError(err).Infof("Could not load key for %s into the local agent.", profileSiteName)
 			if !trace.IsNotImplemented(err) && !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
 			}
@@ -3083,8 +3134,28 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	// addresses from the proxy (this is what Ping does).
 	if cf.IdentityFileIn != "" {
 		log.Debug("Pinging the proxy to fetch listening addresses for non-web ports.")
-		if _, err := tc.Ping(cf.Context); err != nil {
+		_, err := tc.Ping(cf.Context)
+		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		// If, after pinging the proxy, we've determined that the client should load
+		// all CAs, update the host key callback and TLS config.
+		if tc.LoadAllCAs {
+			sites, err := key.GetClusterNames()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			tc.Config.HostKeyCallback, err = key.HostKeyCallbackForClusters(cf.InsecureSkipVerify, sites)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if len(key.TLSCert) > 0 {
+				tc.Config.TLS, err = key.TeleportClientTLSConfig(nil, sites)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
 		}
 	}
 
@@ -3226,7 +3297,7 @@ func onShow(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Cert: %#v\nPriv: %#v\nPub: %#v\n", cert, key.GetBaseSigner(), key.MarshalSSHPublicKey())
+	fmt.Printf("Cert: %#v\nPriv: %#v\nPub: %#v\n", cert, key.Signer, key.MarshalSSHPublicKey())
 	fmt.Printf("Fingerprint: %s\n", ssh.FingerprintSHA256(key.SSHPublicKey()))
 	return nil
 }
@@ -3351,6 +3422,17 @@ func onStatus(cf *CLIConf) error {
 	duration := time.Until(profile.ValidUntil)
 	if !profile.ValidUntil.IsZero() && duration.Nanoseconds() <= 0 {
 		return trace.NotFound("Active profile expired.")
+	}
+
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		log.WithError(err).Warn("Failed to make client for retrieving cluster alerts.")
+		return nil
+	}
+
+	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
+		types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
+		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 
 	return nil

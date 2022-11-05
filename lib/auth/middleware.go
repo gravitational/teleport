@@ -25,17 +25,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
 	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
@@ -45,6 +34,18 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
+
+	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TLSServerConfig is a configuration for TLS server
@@ -166,7 +167,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	server := &TLSServer{
 		cfg: cfg,
 		httpServer: &http.Server{
-			Handler:           limiter,
+			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentAuth),
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 		},
 		log: logrus.WithFields(logrus.Fields{

@@ -19,22 +19,21 @@ package protocol
 import (
 	"fmt"
 
+	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
-
-	"github.com/gravitational/trace"
 )
 
 // MessageOpKillCursors represents parsed OP_KILL_CURSORS wire message.
 //
 // https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#op_kill_cursors
 //
-// struct {
-//     MsgHeader header;            // standard message header
-//     int32     ZERO;              // 0 - reserved for future use
-//     int32     numberOfCursorIDs; // number of cursorIDs in message
-//     int64*    cursorIDs;         // sequence of cursorIDs to close
-// }
+//	struct {
+//	    MsgHeader header;            // standard message header
+//	    int32     ZERO;              // 0 - reserved for future use
+//	    int32     numberOfCursorIDs; // number of cursorIDs in message
+//	    int64*    cursorIDs;         // sequence of cursorIDs to close
+//	}
 //
 // OP_KILL_CURSORS is deprecated starting MongoDB 5.0 in favor of OP_MSG.
 type MessageOpKillCursors struct {

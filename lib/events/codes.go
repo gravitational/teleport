@@ -29,12 +29,12 @@ type Event struct {
 // There is no strict algorithm for picking an event code, however existing
 // event codes are currently loosely categorized as follows:
 //
-//  * Teleport event codes start with "T" and belong in this const block.
+//   - Teleport event codes start with "T" and belong in this const block.
 //
-//  * Related events are grouped starting with the same number.
-//		eg: All user related events are grouped under 1xxx.
+//   - Related events are grouped starting with the same number.
+//     eg: All user related events are grouped under 1xxx.
 //
-//  * Suffix code with one of these letters: I (info), W (warn), E (error).
+//   - Suffix code with one of these letters: I (info), W (warn), E (error).
 const (
 	// UserLocalLoginCode is the successful local user login event code.
 	UserLocalLoginCode = "T1000I"
@@ -172,6 +172,18 @@ const (
 	// SQLServerRPCRequestCode is the db.session.sqlserver.rpc_request event code.
 	SQLServerRPCRequestCode = "TMS00I"
 
+	// CassandraBatchEventCode is the db.session.cassandra.batch event code.
+	CassandraBatchEventCode = "TCA01I"
+	// CassandraPrepareEventCode is the db.session.cassandra.prepare event code.
+	CassandraPrepareEventCode = "TCA02I"
+	// CassandraExecuteEventCode is the db.session.cassandra.execute event code.
+	CassandraExecuteEventCode = "TCA03I"
+	// CassandraRegisterEventCode is the db.session.cassandra.register event code.
+	CassandraRegisterEventCode = "TCA04I"
+
+	// ElasticsearchRequestCode is the db.session.elasticsearch.request event code.
+	ElasticsearchRequestCode = "TES00I"
+
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
 	// DatabaseUpdateCode is the db.update event code.
@@ -224,6 +236,13 @@ const (
 	// Note: some requests (like exec into a pod) use other codes (like
 	// ExecCode).
 	KubeRequestCode = "T3009I"
+
+	// KubernetesClusterCreateCode is the kube.create event code.
+	KubernetesClusterCreateCode = "T3010I"
+	// KubernetesClusterUpdateCode is the kube.update event code.
+	KubernetesClusterUpdateCode = "T3011I"
+	// KubernetesClusterDeleteCode is the kube.delete event code.
+	KubernetesClusterDeleteCode = "T3012I"
 
 	// The following codes correspond to SFTP file operations.
 	SFTPOpenCode            = "TS001I"
@@ -330,6 +349,24 @@ const (
 
 	// UpgradeWindowStartUpdatedCode is the edit code of UpgradeWindowStartUpdateEvent.
 	UpgradeWindowStartUpdatedCode = "TUW01I"
+
+	// SSMRunSuccessCode is the discovery script success code.
+	SSMRunSuccessCode = "TDS00I"
+	// SSMRunFailCode is the discovery script success code.
+	SSMRunFailCode = "TDS00W"
+
+	// DeviceCreateCode is the device creation/registration code.
+	DeviceCreateCode = "TV001I"
+	// DeviceDeleteCode is the device deletion code.
+	DeviceDeleteCode = "TV002I"
+	// DeviceEnrollTokenCreateCode is the device enroll token creation code
+	DeviceEnrollTokenCreateCode = "TV003I"
+	// DeviceEnrollTokenSpentCode is the device enroll token spent code.
+	DeviceEnrollTokenSpentCode = "TV004I"
+	// DeviceEnrollCode is the device enrollment completion code.
+	DeviceEnrollCode = "TV005I"
+	// DeviceAuthenticateCode is the device authentication code.
+	DeviceAuthenticateCode = "TV006I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

@@ -19,8 +19,6 @@ limitations under the License.
 
 package bpf
 
-// #cgo LDFLAGS: -ldl
-// #include <stdlib.h>
 import "C"
 
 import (
@@ -34,13 +32,13 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
+
 	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	controlgroup "github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/events"
-
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
 )
 
 //go:embed bytecode

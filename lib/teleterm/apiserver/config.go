@@ -15,11 +15,10 @@
 package apiserver
 
 import (
-	"github.com/gravitational/teleport/lib/teleterm/daemon"
-
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/teleterm/daemon"
 )
 
 // Config is the APIServer configuration

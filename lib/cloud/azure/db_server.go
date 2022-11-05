@@ -59,18 +59,18 @@ type ServerProperties struct {
 // ServerFromMySQLServer converts an Azure armmysql.Server into DBServer.
 func ServerFromMySQLServer(server *armmysql.Server) *DBServer {
 	result := &DBServer{
-		ID:       stringVal(server.ID),
-		Location: stringVal(server.Location),
-		Name:     stringVal(server.Name),
+		ID:       StringVal(server.ID),
+		Location: StringVal(server.Location),
+		Name:     StringVal(server.Name),
 		Port:     MySQLPort,
 		Protocol: defaults.ProtocolMySQL,
-		Tags:     convertTags(server.Tags),
+		Tags:     ConvertTags(server.Tags),
 	}
 	if server.Properties != nil {
 		result.Properties = ServerProperties{
-			FullyQualifiedDomainName: stringVal(server.Properties.FullyQualifiedDomainName),
-			UserVisibleState:         stringVal(server.Properties.UserVisibleState),
-			Version:                  stringVal(server.Properties.Version),
+			FullyQualifiedDomainName: StringVal(server.Properties.FullyQualifiedDomainName),
+			UserVisibleState:         StringVal(server.Properties.UserVisibleState),
+			Version:                  StringVal(server.Properties.Version),
 		}
 	}
 	return result
@@ -79,18 +79,18 @@ func ServerFromMySQLServer(server *armmysql.Server) *DBServer {
 // ServerFromPostgresServer converts an Azure armpostgresql.Server into DBServer.
 func ServerFromPostgresServer(server *armpostgresql.Server) *DBServer {
 	result := &DBServer{
-		ID:       stringVal(server.ID),
-		Location: stringVal(server.Location),
-		Name:     stringVal(server.Name),
+		ID:       StringVal(server.ID),
+		Location: StringVal(server.Location),
+		Name:     StringVal(server.Name),
 		Port:     PostgresPort,
 		Protocol: defaults.ProtocolPostgres,
-		Tags:     convertTags(server.Tags),
+		Tags:     ConvertTags(server.Tags),
 	}
 	if server.Properties != nil {
 		result.Properties = ServerProperties{
-			FullyQualifiedDomainName: stringVal(server.Properties.FullyQualifiedDomainName),
-			UserVisibleState:         stringVal(server.Properties.UserVisibleState),
-			Version:                  stringVal(server.Properties.Version),
+			FullyQualifiedDomainName: StringVal(server.Properties.FullyQualifiedDomainName),
+			UserVisibleState:         StringVal(server.Properties.UserVisibleState),
+			Version:                  StringVal(server.Properties.Version),
 		}
 	}
 	return result
@@ -126,17 +126,19 @@ func (s *DBServer) IsAvailable() bool {
 	}
 }
 
-func stringVal[T ~string](s *T) string {
+// StringVal converts a pointer of a string or a string alias to a string value.
+func StringVal[T ~string](s *T) string {
 	if s != nil {
 		return string(*s)
 	}
 	return ""
 }
 
-func convertTags(tags map[string]*string) map[string]string {
+// ConvertTags converts map of string pointers to map of strings.
+func ConvertTags(tags map[string]*string) map[string]string {
 	result := make(map[string]string, len(tags))
 	for k, v := range tags {
-		result[k] = stringVal(v)
+		result[k] = StringVal(v)
 	}
 	return result
 }

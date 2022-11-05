@@ -38,9 +38,15 @@ func TestListSubscriptionIDs(t *testing.T) {
 				Subscriptions: []*armsubscription.Subscription{
 					{
 						SubscriptionID: to.Ptr("sub1"),
+						State:          to.Ptr(armsubscription.SubscriptionStateEnabled),
 					},
 					{
 						SubscriptionID: to.Ptr("sub2"),
+						State:          to.Ptr(armsubscription.SubscriptionStateWarned),
+					},
+					{
+						SubscriptionID: to.Ptr("sub3"),
+						State:          to.Ptr(armsubscription.SubscriptionStateDeleted),
 					},
 				},
 			},

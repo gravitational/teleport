@@ -25,7 +25,6 @@ import (
 	"strings"
 	"time"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -33,8 +32,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	remotecommandconsts "k8s.io/apimachinery/pkg/util/remotecommand"
+	"k8s.io/apiserver/pkg/util/wsstream"
 	"k8s.io/client-go/tools/remotecommand"
 	utilexec "k8s.io/client-go/util/exec"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
 // remoteCommandRequest is a request to execute a remote command
@@ -54,13 +56,13 @@ type remoteCommandRequest struct {
 	pingPeriod         time.Duration
 }
 
-func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds *kubeCreds) apievents.KubernetesPodMetadata {
+func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds kubeCreds) apievents.KubernetesPodMetadata {
 	meta := apievents.KubernetesPodMetadata{
 		KubernetesPodName:       req.podName,
 		KubernetesPodNamespace:  req.podNamespace,
 		KubernetesContainerName: req.containerName,
 	}
-	if creds == nil || creds.kubeClient == nil {
+	if creds == nil || creds.getKubeClient() == nil {
 		return meta
 	}
 
@@ -68,7 +70,7 @@ func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds *kubeCre
 	//
 	// This can fail if a user has set tight RBAC rules for teleport. Failure
 	// here shouldn't prevent a session from starting.
-	pod, err := creds.kubeClient.CoreV1().Pods(req.podNamespace).Get(ctx, req.podName, metav1.GetOptions{})
+	pod, err := creds.getKubeClient().CoreV1().Pods(req.podNamespace).Get(ctx, req.podName, metav1.GetOptions{})
 	if err != nil {
 		log.WithError(err).Debugf("Failed fetching pod from kubernetes API; skipping additional metadata on the audit event")
 		return meta
@@ -93,6 +95,26 @@ func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds *kubeCre
 }
 
 func createRemoteCommandProxy(req remoteCommandRequest) (*remoteCommandProxy, error) {
+	var (
+		proxy *remoteCommandProxy
+		err   error
+	)
+	if wsstream.IsWebSocketRequest(req.httpRequest) {
+		proxy, err = createWebSocketStreams(req)
+	} else {
+		proxy, err = createSPDYStreams(req)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if proxy.resizeStream != nil {
+		proxy.resizeQueue = newTermQueue(req.context, req.onResize)
+		go proxy.resizeQueue.handleResizeEvents(proxy.resizeStream)
+	}
+	return proxy, nil
+}
+
+func createSPDYStreams(req remoteCommandRequest) (*remoteCommandProxy, error) {
 	protocol, err := httpstream.Handshake(req.httpRequest, req.httpResponseWriter, []string{StreamProtocolV4Name})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -156,11 +178,6 @@ func createRemoteCommandProxy(req remoteCommandRequest) (*remoteCommandProxy, er
 
 	proxy.conn = conn
 	proxy.tty = req.tty
-
-	if proxy.resizeStream != nil {
-		proxy.resizeQueue = newTermQueue(req.context, req.onResize)
-		go proxy.resizeQueue.handleResizeEvents(proxy.resizeStream)
-	}
 	return proxy, nil
 }
 
@@ -386,6 +403,16 @@ func v4WriteStatusFunc(stream io.Writer) func(status *apierrors.StatusError) err
 			return err
 		}
 		_, err = stream.Write(bs)
+		return err
+	}
+}
+
+func v1WriteStatusFunc(stream io.Writer) func(status *apierrors.StatusError) error {
+	return func(status *apierrors.StatusError) error {
+		if status.Status().Status == metav1.StatusSuccess {
+			return nil // send error messages
+		}
+		_, err := stream.Write([]byte(status.Error()))
 		return err
 	}
 }

@@ -20,18 +20,19 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // SSHServerHeartbeatConfig configures the HeartbeatV2 for an ssh server.
@@ -204,7 +205,7 @@ func (h *HeartbeatV2) run() {
 	h.announce = interval.New(interval.Config{
 		FirstDuration: utils.HalfJitter(h.announceInterval),
 		Duration:      h.announceInterval,
-		Jitter:        utils.NewSeventhJitter(),
+		Jitter:        retryutils.NewSeventhJitter(),
 	})
 	defer h.announce.Stop()
 
@@ -212,7 +213,7 @@ func (h *HeartbeatV2) run() {
 	h.poll = interval.New(interval.Config{
 		FirstDuration: utils.HalfJitter(h.pollInterval),
 		Duration:      h.pollInterval,
-		Jitter:        utils.NewSeventhJitter(),
+		Jitter:        retryutils.NewSeventhJitter(),
 	})
 	defer h.poll.Stop()
 

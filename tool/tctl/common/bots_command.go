@@ -27,6 +27,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -34,9 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 type BotsCommand struct {
@@ -166,9 +166,8 @@ certificates:
 
 > tbot start \
    --destination-dir=./tbot-user \
-   --token={{.token}} \{{range .ca_pins}}
-   --ca-pin={{.}} \{{end}}
-   --auth-server={{.auth_server}}{{if .join_method}} \
+   --token={{.token}} \
+   --auth-server={{.addr}}{{if .join_method}} \
    --join-method={{.join_method}}{{end}}
 
 Please note:
@@ -177,7 +176,7 @@ Please note:
   - /var/lib/teleport/bot must be accessible to the bot user, or --data-dir
     must point to another accessible directory to store internal bot data.
   - This invitation token will expire in {{.minutes}} minutes
-  - {{.auth_server}} must be reachable from the new node
+  - {{.addr}} must be reachable from the new node
 `))
 
 // AddBot adds a new certificate renewal bot to the cluster.
@@ -212,28 +211,16 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 		return nil
 	}
 
-	// Calculate the CA pins for this cluster. The CA pins are used by the
-	// client to verify the identity of the Auth Server.
-	localCAResponse, err := client.GetClusterCACert(ctx)
+	proxies, err := client.GetProxies()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
-	if err != nil {
-		return trace.Wrap(err)
+	if len(proxies) == 0 {
+		return trace.Errorf("This cluster does not have any proxy servers running.")
 	}
-
-	authServers, err := client.GetAuthServers()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(authServers) == 0 {
-		return trace.Errorf("This cluster does not have any auth servers running.")
-	}
-
-	addr := authServers[0].GetPublicAddr()
+	addr := proxies[0].GetPublicAddr()
 	if addr == "" {
-		addr = authServers[0].GetAddr()
+		addr = proxies[0].GetAddr()
 	}
 
 	joinMethod := response.JoinMethod
@@ -248,8 +235,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 	return startMessageTemplate.Execute(os.Stdout, map[string]interface{}{
 		"token":       response.TokenID,
 		"minutes":     int(time.Duration(response.TokenTTL).Minutes()),
-		"ca_pins":     caPins,
-		"auth_server": addr,
+		"addr":        addr,
 		"join_method": joinMethod,
 	})
 }

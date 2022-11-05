@@ -19,8 +19,14 @@ package scripts
 import (
 	_ "embed"
 	"net/http"
+	"strings"
 	"text/template"
 
+	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/httplib"
 )
 
@@ -41,7 +47,29 @@ exit 1
 
 // InstallNodeBashScript is the script that will run on user's machine
 // to install teleport and join a teleport cluster.
+//
 //go:embed node-join/install.sh
 var installNodeBashScript string
 
 var InstallNodeBashScript = template.Must(template.New("nodejoin").Parse(installNodeBashScript))
+
+// MarshalLabelsYAML returns a list of strings, each one containing a label key/value pair.
+// This is used to create yaml sections within the join scripts.
+func MarshalLabelsYAML(resourceMatcherLabels types.Labels) ([]string, error) {
+	if len(resourceMatcherLabels) == 0 {
+		return []string{"{}"}, nil
+	}
+
+	ret := []string{}
+
+	for labelName, labelValue := range resourceMatcherLabels {
+		bs, err := yaml.Marshal(map[string]utils.Strings{labelName: labelValue})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		ret = append(ret, strings.TrimSpace(string(bs)))
+	}
+
+	return ret, nil
+}

@@ -27,6 +27,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -42,11 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 )
 
 var ( // failedConnectingToNode counts failed attempts to connect to a node
@@ -91,10 +90,11 @@ type proxySubsys struct {
 // proxy subsystem
 //
 // proxy subsystem name can take the following forms:
-//  "proxy:host:22"          - standard SSH request to connect to  host:22 on the 1st cluster
-//  "proxy:@clustername"        - Teleport request to connect to an auth server for cluster with name 'clustername'
-//  "proxy:host:22@clustername" - Teleport request to connect to host:22 on cluster 'clustername'
-//  "proxy:host:22@namespace@clustername"
+//
+//	"proxy:host:22"          - standard SSH request to connect to  host:22 on the 1st cluster
+//	"proxy:@clustername"        - Teleport request to connect to an auth server for cluster with name 'clustername'
+//	"proxy:host:22@clustername" - Teleport request to connect to host:22 on cluster 'clustername'
+//	"proxy:host:22@namespace@clustername"
 func parseProxySubsysRequest(request string) (proxySubsysRequest, error) {
 	log.Debugf("parse_proxy_subsys(%q)", request)
 	var (

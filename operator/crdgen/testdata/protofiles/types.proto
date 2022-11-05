@@ -1144,7 +1144,6 @@ message U2F {
 
     // DeviceAttestationCAs contains the trusted attestation CAs for U2F
     // devices.
-    // DELETE IN 11.0, time to sunset U2F (codingllama).
     repeated string DeviceAttestationCAs = 3
         [ (gogoproto.jsontag) = "device_attestation_cas,omitempty" ];
 }

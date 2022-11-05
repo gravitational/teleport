@@ -41,9 +41,9 @@ package rdpclient
 //           *output streaming continues...*
 //
 //              *user input messages*
-//  InputMessage(MouseMove) ------> write_rdp_pointer
-//  InputMessage(MouseButton) ----> write_rdp_pointer
-//  InputMessage(KeyboardButton) -> write_rdp_keyboard
+//  ReadMessage(MouseMove) ------> write_rdp_pointer
+//  ReadMessage(MouseButton) ----> write_rdp_pointer
+//  ReadMessage(KeyboardButton) -> write_rdp_keyboard
 //            *user input continues...*
 //
 //        *connection closed (client or server side)*
@@ -75,10 +75,10 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 )
 
 func init() {
@@ -137,6 +137,10 @@ type Client struct {
 	wg        sync.WaitGroup
 	closeOnce sync.Once
 
+	// since most RDP bitmaps are full 64x64 pixel bitmaps,
+	// we reuse the same image to avoid allocating on each bitmap
+	img *image.RGBA
+
 	clientActivityMu sync.RWMutex
 	clientLastActive time.Time
 }
@@ -188,7 +192,7 @@ func (c *Client) Run(ctx context.Context) error {
 
 func (c *Client) readClientUsername() error {
 	for {
-		msg, err := c.cfg.Conn.InputMessage()
+		msg, err := c.cfg.Conn.ReadMessage()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -205,7 +209,7 @@ func (c *Client) readClientUsername() error {
 
 func (c *Client) readClientSize() error {
 	for {
-		msg, err := c.cfg.Conn.InputMessage()
+		msg, err := c.cfg.Conn.ReadMessage()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -290,7 +294,7 @@ func (c *Client) start() {
 		// Remember mouse coordinates to send them with all CGOPointer events.
 		var mouseX, mouseY uint32
 		for {
-			msg, err := c.cfg.Conn.InputMessage()
+			msg, err := c.cfg.Conn.ReadMessage()
 			if errors.Is(err, io.EOF) {
 				return
 			} else if err != nil {
@@ -317,6 +321,7 @@ func (c *Client) start() {
 						wheel:  C.PointerWheelNone,
 					},
 				); errCode != C.ErrCodeSuccess {
+					c.cfg.Log.Warningf("MouseMove: write_rdp_pointer @ (%v,%v): %v", m.X, m.Y, errCode)
 					return
 				}
 			case tdp.MouseButton:
@@ -342,6 +347,8 @@ func (c *Client) start() {
 						wheel:  C.PointerWheelNone,
 					},
 				); errCode != C.ErrCodeSuccess {
+					c.cfg.Log.Warningf("MouseButton: write_rdp_pointer @ (%v, %v) button=%v state=%v: %v",
+						mouseX, mouseY, button, m.State, errCode)
 					return
 				}
 			case tdp.MouseWheel:
@@ -370,6 +377,8 @@ func (c *Client) start() {
 						wheel_delta: C.int16_t(m.Delta),
 					},
 				); errCode != C.ErrCodeSuccess {
+					c.cfg.Log.Warningf("MouseWheel: write_rdp_pointer @ (%v, %v) wheel=%v delta=%v: %v",
+						mouseX, mouseY, wheel, m.Delta, errCode)
 					return
 				}
 			case tdp.KeyboardButton:
@@ -380,6 +389,8 @@ func (c *Client) start() {
 						down: m.State == tdp.ButtonPressed,
 					},
 				); errCode != C.ErrCodeSuccess {
+					c.cfg.Log.Warningf("KeyboardButton: write_rdp_keyboard code=%v state=%v: %v",
+						m.KeyCode, m.State, errCode)
 					return
 				}
 			case tdp.ClipboardData:
@@ -389,6 +400,7 @@ func (c *Client) start() {
 						(*C.uint8_t)(unsafe.Pointer(&m[0])),
 						C.uint32_t(len(m)),
 					); errCode != C.ErrCodeSuccess {
+						c.cfg.Log.Warningf("ClipboardData: update_clipboard (len=%v): %v", len(m), errCode)
 						return
 					}
 				} else {
@@ -402,7 +414,7 @@ func (c *Client) start() {
 						directory_id: C.uint32_t(m.DirectoryID),
 						name:         driveName,
 					}); errCode != C.ErrCodeSuccess {
-						c.cfg.Log.Errorf("Device announce failed: %v", errCode)
+						c.cfg.Log.Errorf("SharedDirectoryAnnounce: failed with %v", errCode)
 						return
 					}
 				}
@@ -417,6 +429,7 @@ func (c *Client) start() {
 							last_modified: C.uint64_t(m.Fso.LastModified),
 							size:          C.uint64_t(m.Fso.Size),
 							file_type:     m.Fso.FileType,
+							is_empty:      C.uint8_t(m.Fso.IsEmpty),
 							path:          path,
 						},
 					}); errCode != C.ErrCodeSuccess {
@@ -435,6 +448,7 @@ func (c *Client) start() {
 							last_modified: C.uint64_t(m.Fso.LastModified),
 							size:          C.uint64_t(m.Fso.Size),
 							file_type:     m.Fso.FileType,
+							is_empty:      C.uint8_t(m.Fso.IsEmpty),
 							path:          path,
 						},
 					}); errCode != C.ErrCodeSuccess {
@@ -464,6 +478,7 @@ func (c *Client) start() {
 							last_modified: C.uint64_t(fso.LastModified),
 							size:          C.uint64_t(fso.Size),
 							file_type:     fso.FileType,
+							is_empty:      C.uint8_t(fso.IsEmpty),
 							path:          path,
 						})
 					}
@@ -556,18 +571,34 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	// pixels (ARGB) and encoding them as big endian. The image.RGBA type uses
 	// a byte slice with 4-byte segments representing pixels (RGBA).
 	//
-	// Also, always force Alpha value to 100% (opaque). On some Windows
-	// versions it's sent as 0% after decompression for some reason.
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegdi/8ab64b94-59cb-43f4-97ca-79613838e0bd
+	//
 	for i := 0; i < len(data); i += 4 {
-		data[i], data[i+2], data[i+3] = data[i+2], data[i], 255
+		data[i], data[i+2] = data[i+2], data[i]
 	}
-	img := image.NewNRGBA(image.Rectangle{
+
+	rect := image.Rectangle{
 		Min: image.Pt(int(cb.dest_left), int(cb.dest_top)),
 		Max: image.Pt(int(cb.dest_right)+1, int(cb.dest_bottom)+1),
-	})
+	}
+
+	var img *image.RGBA
+	isFullBitmap := cb.dest_right-cb.dest_left == 63 &&
+		cb.dest_bottom-cb.dest_top == 63
+	if isFullBitmap {
+		if c.img == nil {
+			c.img = image.NewRGBA(rect)
+		} else {
+			c.img.Rect = rect
+		}
+		img = c.img
+	} else {
+		img = image.NewRGBA(rect)
+	}
+
 	copy(img.Pix, data)
 
-	if err := c.cfg.Conn.OutputMessage(tdp.NewPNG(img, c.cfg.Encoder)); err != nil {
+	if err := c.cfg.Conn.WriteMessage(tdp.NewPNG(img, c.cfg.Encoder)); err != nil {
 		c.cfg.Log.Errorf("failed to send PNG frame %v: %v", img.Rect, err)
 		return C.ErrCodeFailure
 	}
@@ -585,7 +616,7 @@ func handle_remote_copy(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) 
 func (c *Client) handleRemoteCopy(data []byte) C.CGOErrCode {
 	c.cfg.Log.Debugf("Received %d bytes of clipboard data from Windows desktop", len(data))
 
-	if err := c.cfg.Conn.OutputMessage(tdp.ClipboardData(data)); err != nil {
+	if err := c.cfg.Conn.WriteMessage(tdp.ClipboardData(data)); err != nil {
 		c.cfg.Log.Errorf("failed handling remote copy: %v", err)
 		return C.ErrCodeFailure
 	}
@@ -607,7 +638,7 @@ func (c *Client) sharedDirectoryAcknowledge(ack tdp.SharedDirectoryAcknowledge) 
 		return C.ErrCodeFailure
 	}
 
-	if err := c.cfg.Conn.OutputMessage(ack); err != nil {
+	if err := c.cfg.Conn.WriteMessage(ack); err != nil {
 		c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
 		return C.ErrCodeFailure
 	}
@@ -630,7 +661,7 @@ func (c *Client) sharedDirectoryInfoRequest(req tdp.SharedDirectoryInfoRequest) 
 		return C.ErrCodeFailure
 	}
 
-	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+	if err := c.cfg.Conn.WriteMessage(req); err != nil {
 		c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
 		return C.ErrCodeFailure
 	}
@@ -654,7 +685,7 @@ func (c *Client) sharedDirectoryCreateRequest(req tdp.SharedDirectoryCreateReque
 		return C.ErrCodeFailure
 	}
 
-	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+	if err := c.cfg.Conn.WriteMessage(req); err != nil {
 		c.cfg.Log.Errorf("failed to send SharedDirectoryCreateRequest: %v", err)
 		return C.ErrCodeFailure
 	}
@@ -677,7 +708,7 @@ func (c *Client) sharedDirectoryDeleteRequest(req tdp.SharedDirectoryDeleteReque
 		return C.ErrCodeFailure
 	}
 
-	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+	if err := c.cfg.Conn.WriteMessage(req); err != nil {
 		c.cfg.Log.Errorf("failed to send SharedDirectoryDeleteRequest: %v", err)
 		return C.ErrCodeFailure
 	}
@@ -700,7 +731,7 @@ func (c *Client) sharedDirectoryListRequest(req tdp.SharedDirectoryListRequest) 
 		return C.ErrCodeFailure
 	}
 
-	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+	if err := c.cfg.Conn.WriteMessage(req); err != nil {
 		c.cfg.Log.Errorf("failed to send SharedDirectoryListRequest: %v", err)
 		return C.ErrCodeFailure
 	}
@@ -725,7 +756,7 @@ func (c *Client) sharedDirectoryReadRequest(req tdp.SharedDirectoryReadRequest) 
 		return C.ErrCodeFailure
 	}
 
-	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+	if err := c.cfg.Conn.WriteMessage(req); err != nil {
 		c.cfg.Log.Errorf("failed to send SharedDirectoryReadRequest: %v", err)
 		return C.ErrCodeFailure
 	}
@@ -751,7 +782,7 @@ func (c *Client) sharedDirectoryWriteRequest(req tdp.SharedDirectoryWriteRequest
 		return C.ErrCodeFailure
 	}
 
-	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+	if err := c.cfg.Conn.WriteMessage(req); err != nil {
 		c.cfg.Log.Errorf("failed to send SharedDirectoryWriteRequest: %v", err)
 		return C.ErrCodeFailure
 	}
@@ -773,7 +804,7 @@ func (c *Client) sharedDirectoryMoveRequest(req tdp.SharedDirectoryMoveRequest) 
 		return C.ErrCodeFailure
 	}
 
-	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+	if err := c.cfg.Conn.WriteMessage(req); err != nil {
 		c.cfg.Log.Errorf("failed to send SharedDirectoryMoveRequest: %v", err)
 		return C.ErrCodeFailure
 	}

@@ -18,18 +18,18 @@ package types
 
 import (
 	"fmt"
-	"net"
 	"strings"
 	"text/template"
 	"time"
-
-	"github.com/gravitational/teleport/api/utils"
-	awsutils "github.com/gravitational/teleport/api/utils/aws"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/utils"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	azureutils "github.com/gravitational/teleport/api/utils/azure"
 )
 
 // Database represents a database proxied by a database server.
@@ -99,6 +99,8 @@ type Database interface {
 	SetManagedUsers(users []string)
 	// IsRDS returns true if this is an RDS/Aurora database.
 	IsRDS() bool
+	// IsRDSProxy returns true if this is an RDS Proxy database.
+	IsRDSProxy() bool
 	// IsRedshift returns true if this is a Redshift database.
 	IsRedshift() bool
 	// IsCloudSQL returns true if this is a Cloud SQL database.
@@ -346,6 +348,11 @@ func (d *DatabaseV3) IsRDS() bool {
 	return d.GetType() == DatabaseTypeRDS
 }
 
+// IsRDSProxy returns true if this is an AWS RDS Proxy database.
+func (d *DatabaseV3) IsRDSProxy() bool {
+	return d.GetType() == DatabaseTypeRDSProxy
+}
+
 // IsRedshift returns true if this is a Redshift database instance.
 func (d *DatabaseV3) IsRedshift() bool {
 	return d.GetType() == DatabaseTypeRedshift
@@ -371,9 +378,15 @@ func (d *DatabaseV3) IsMemoryDB() bool {
 	return d.GetType() == DatabaseTypeMemoryDB
 }
 
+// IsAWSKeyspaces returns true if this is an AWS hosted Cassandra database.
+func (d *DatabaseV3) IsAWSKeyspaces() bool {
+	return d.GetType() == DatabaseTypeAWSKeyspaces
+}
+
 // IsAWSHosted returns true if database is hosted by AWS.
 func (d *DatabaseV3) IsAWSHosted() bool {
-	return d.IsRDS() || d.IsRedshift() || d.IsElastiCache() || d.IsMemoryDB()
+	_, ok := d.getAWSType()
+	return ok
 }
 
 // IsCloudHosted returns true if database is hosted in the cloud (AWS, Azure or
@@ -382,20 +395,36 @@ func (d *DatabaseV3) IsCloudHosted() bool {
 	return d.IsAWSHosted() || d.IsCloudSQL() || d.IsAzure()
 }
 
+// getAWSType returns the database type.
+func (d *DatabaseV3) getAWSType() (string, bool) {
+	aws := d.GetAWS()
+	if aws.AccountID != "" && d.Spec.Protocol == DatabaseTypeCassandra {
+		return DatabaseTypeAWSKeyspaces, true
+	}
+	if aws.Redshift.ClusterID != "" {
+		return DatabaseTypeRedshift, true
+	}
+	if aws.ElastiCache.ReplicationGroupID != "" {
+		return DatabaseTypeElastiCache, true
+	}
+	if aws.MemoryDB.ClusterName != "" {
+		return DatabaseTypeMemoryDB, true
+	}
+	if aws.RDSProxy.Name != "" || aws.RDSProxy.CustomEndpointName != "" {
+		return DatabaseTypeRDSProxy, true
+	}
+	if aws.Region != "" || aws.RDS.InstanceID != "" || aws.RDS.ClusterID != "" {
+		return DatabaseTypeRDS, true
+	}
+	return "", false
+}
+
 // GetType returns the database type.
 func (d *DatabaseV3) GetType() string {
-	if d.GetAWS().Redshift.ClusterID != "" {
-		return DatabaseTypeRedshift
+	if awsType, ok := d.getAWSType(); ok {
+		return awsType
 	}
-	if d.GetAWS().ElastiCache.ReplicationGroupID != "" {
-		return DatabaseTypeElastiCache
-	}
-	if d.GetAWS().MemoryDB.ClusterName != "" {
-		return DatabaseTypeMemoryDB
-	}
-	if d.GetAWS().Region != "" || d.GetAWS().RDS.InstanceID != "" || d.GetAWS().RDS.ClusterID != "" {
-		return DatabaseTypeRDS
-	}
+
 	if d.GetGCP().ProjectID != "" {
 		return DatabaseTypeCloudSQL
 	}
@@ -453,24 +482,45 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("database %q protocol is empty", d.GetName())
 	}
 	if d.Spec.URI == "" {
-		return trace.BadParameter("database %q URI is empty", d.GetName())
+		switch {
+		case d.IsAWSKeyspaces() && d.GetAWS().Region != "":
+			// In case of AWS Hosted Cassandra allow to omit URI.
+			// The URL will be constructed from the database resource based on the region and account ID.
+			d.Spec.URI = awsutils.CassandraEndpointURLForRegion(d.Spec.AWS.Region)
+		default:
+			return trace.BadParameter("database %q URI is empty", d.GetName())
+		}
 	}
 	if d.Spec.MySQL.ServerVersion != "" && d.Spec.Protocol != "mysql" {
 		return trace.BadParameter("MySQL ServerVersion can be only set for MySQL database")
 	}
+
 	// In case of RDS, Aurora or Redshift, AWS information such as region or
 	// cluster ID can be extracted from the endpoint if not provided.
 	switch {
 	case awsutils.IsRDSEndpoint(d.Spec.URI):
-		instanceID, region, err := awsutils.ParseRDSEndpoint(d.Spec.URI)
+		details, err := awsutils.ParseRDSEndpoint(d.Spec.URI)
 		if err != nil {
-			return trace.Wrap(err)
+			logrus.WithError(err).Warnf("Failed to parse RDS endpoint %v.", d.Spec.URI)
+			break
 		}
 		if d.Spec.AWS.RDS.InstanceID == "" {
-			d.Spec.AWS.RDS.InstanceID = instanceID
+			d.Spec.AWS.RDS.InstanceID = details.InstanceID
+		}
+		if d.Spec.AWS.RDS.ClusterID == "" {
+			d.Spec.AWS.RDS.ClusterID = details.ClusterID
+		}
+		if d.Spec.AWS.RDSProxy.Name == "" {
+			d.Spec.AWS.RDSProxy.Name = details.ProxyName
+		}
+		if d.Spec.AWS.RDSProxy.CustomEndpointName == "" {
+			d.Spec.AWS.RDSProxy.CustomEndpointName = details.ProxyCustomEndpointName
 		}
 		if d.Spec.AWS.Region == "" {
-			d.Spec.AWS.Region = region
+			d.Spec.AWS.Region = details.Region
+		}
+		if details.ClusterCustomEndpointName != "" && d.Spec.AWS.RDS.ClusterID == "" {
+			return trace.BadParameter("missing RDS ClusterID for RDS Aurora custom endpoint %v", d.Spec.URI)
 		}
 	case awsutils.IsRedshiftEndpoint(d.Spec.URI):
 		clusterID, region, err := awsutils.ParseRedshiftEndpoint(d.Spec.URI)
@@ -511,39 +561,60 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 		d.Spec.AWS.MemoryDB.TLSEnabled = endpointInfo.TransitEncryptionEnabled
 		d.Spec.AWS.MemoryDB.EndpointType = endpointInfo.EndpointType
-	case strings.Contains(d.Spec.URI, AzureEndpointSuffix):
-		name, err := parseAzureEndpoint(d.Spec.URI)
+
+	case azureutils.IsDatabaseEndpoint(d.Spec.URI):
+		// For Azure MySQL and PostgresSQL.
+		name, err := azureutils.ParseDatabaseEndpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		if d.Spec.Azure.Name == "" {
 			d.Spec.Azure.Name = name
 		}
+	case strings.Contains(d.Spec.URI, awsutils.AWSEndpointSuffix) || strings.Contains(d.Spec.URI, awsutils.AWSCNEndpointSuffix):
+		if d.Spec.AWS.AccountID == "" {
+			return trace.BadParameter("database %q AWS account ID is empty", d.GetName())
+		}
+		if d.Spec.AWS.Region == "" {
+			region, err := awsutils.CassandraEndpointRegion(d.Spec.URI)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			d.Spec.AWS.Region = region
+		}
+	case azureutils.IsCacheForRedisEndpoint(d.Spec.URI):
+		// ResourceID is required for fetching Redis tokens.
+		if d.Spec.Azure.ResourceID == "" {
+			return trace.BadParameter("missing ResourceID for Azure Cache %v", d.Metadata.Name)
+		}
+
+		name, err := azureutils.ParseCacheForRedisEndpoint(d.Spec.URI)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if d.Spec.Azure.Name == "" {
+			d.Spec.Azure.Name = name
+		}
+	case azureutils.IsMSSQLServerEndpoint(d.Spec.URI):
+		if d.Spec.Azure.Name == "" {
+			name, err := azureutils.ParseMSSQLEndpoint(d.Spec.URI)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			d.Spec.Azure.Name = name
+		}
 	}
 	return nil
 }
 
-// parseAzureEndpoint extracts database server name from Azure endpoint.
-func parseAzureEndpoint(endpoint string) (name string, err error) {
-	host, _, err := net.SplitHostPort(endpoint)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	// Azure endpoint looks like this:
-	// name.mysql.database.azure.com
-	parts := strings.Split(host, ".")
-	if !strings.HasSuffix(host, AzureEndpointSuffix) || len(parts) != 5 {
-		return "", trace.BadParameter("failed to parse %v as Azure endpoint", endpoint)
-	}
-	return parts[0], nil
-}
-
 // GetIAMPolicy returns AWS IAM policy for this database.
 func (d *DatabaseV3) GetIAMPolicy() (string, error) {
-	if d.IsRDS() {
+	switch d.GetType() {
+	case DatabaseTypeRDS, DatabaseTypeRDSProxy:
 		policy, err := d.getRDSPolicy()
 		return policy, trace.Wrap(err)
-	} else if d.IsRedshift() {
+	case DatabaseTypeRedshift:
 		policy, err := d.getRedshiftPolicy()
 		return policy, trace.Wrap(err)
 	}
@@ -552,9 +623,10 @@ func (d *DatabaseV3) GetIAMPolicy() (string, error) {
 
 // GetIAMAction returns AWS IAM action needed to connect to the database.
 func (d *DatabaseV3) GetIAMAction() string {
-	if d.IsRDS() {
+	switch d.GetType() {
+	case DatabaseTypeRDS, DatabaseTypeRDSProxy:
 		return "rds-db:connect"
-	} else if d.IsRedshift() {
+	case DatabaseTypeRedshift:
 		return "redshift:GetClusterCredentials"
 	}
 	return ""
@@ -564,14 +636,15 @@ func (d *DatabaseV3) GetIAMAction() string {
 func (d *DatabaseV3) GetIAMResources() []string {
 	aws := d.GetAWS()
 	partition := awsutils.GetPartitionFromRegion(aws.Region)
-	if d.IsRDS() {
-		if aws.Region != "" && aws.AccountID != "" && aws.RDS.ResourceID != "" {
+	switch d.GetType() {
+	case DatabaseTypeRDS, DatabaseTypeRDSProxy:
+		if aws.Region != "" && aws.AccountID != "" && d.getRDSResourceID() != "" {
 			return []string{
 				fmt.Sprintf("arn:%v:rds-db:%v:%v:dbuser:%v/*",
-					partition, aws.Region, aws.AccountID, aws.RDS.ResourceID),
+					partition, aws.Region, aws.AccountID, d.getRDSResourceID()),
 			}
 		}
-	} else if d.IsRedshift() {
+	case DatabaseTypeRedshift:
 		if aws.Region != "" && aws.AccountID != "" && aws.Redshift.ClusterID != "" {
 			return []string{
 				fmt.Sprintf("arn:%v:redshift:%v:%v:dbuser:%v/*",
@@ -601,7 +674,7 @@ func (d *DatabaseV3) SetManagedUsers(users []string) {
 	d.Status.ManagedUsers = users
 }
 
-// getRDSPolicy returns IAM policy document for this RDS database.
+// getRDSPolicy returns IAM policy document for this RDS or RDS Proxy database.
 func (d *DatabaseV3) getRDSPolicy() (string, error) {
 	region := d.GetAWS().Region
 	if region == "" {
@@ -611,7 +684,7 @@ func (d *DatabaseV3) getRDSPolicy() (string, error) {
 	if accountID == "" {
 		accountID = "<account_id>"
 	}
-	resourceID := d.GetAWS().RDS.ResourceID
+	resourceID := d.getRDSResourceID()
 	if resourceID == "" {
 		resourceID = "<resource_id>"
 	}
@@ -627,6 +700,18 @@ func (d *DatabaseV3) getRDSPolicy() (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return sb.String(), nil
+}
+
+// getRDSResourceID returns the resource ID for RDS or RDS Proxy database.
+func (d *DatabaseV3) getRDSResourceID() string {
+	switch d.GetType() {
+	case DatabaseTypeRDS:
+		return d.GetAWS().RDS.ResourceID
+	case DatabaseTypeRDSProxy:
+		return d.GetAWS().RDSProxy.ResourceID
+	default:
+		return ""
+	}
 }
 
 // getRedshiftPolicy returns IAM policy document for this Redshift database.
@@ -662,6 +747,8 @@ const (
 	DatabaseTypeSelfHosted = "self-hosted"
 	// DatabaseTypeRDS is AWS-hosted RDS or Aurora database.
 	DatabaseTypeRDS = "rds"
+	// DatabaseTypeRDSProxy is an AWS-hosted RDS Proxy.
+	DatabaseTypeRDSProxy = "rdsproxy"
 	// DatabaseTypeRedshift is AWS Redshift database.
 	DatabaseTypeRedshift = "redshift"
 	// DatabaseTypeCloudSQL is GCP-hosted Cloud SQL database.
@@ -672,6 +759,10 @@ const (
 	DatabaseTypeElastiCache = "elasticache"
 	// DatabaseTypeMemoryDB is AWS-hosted MemoryDB database.
 	DatabaseTypeMemoryDB = "memorydb"
+	// DatabaseTypeAWSKeyspaces is AWS-hosted Keyspaces database (Cassandra).
+	DatabaseTypeAWSKeyspaces = "keyspace"
+	// DatabaseTypeCassandra is AWS-hosted Keyspace database.
+	DatabaseTypeCassandra = "cassandra"
 )
 
 // GetServerName returns the GCP database project and instance as "<project-id>:<instance-id>".
@@ -720,11 +811,6 @@ func (d Databases) Less(i, j int) bool { return d[i].GetName() < d[j].GetName() 
 
 // Swap swaps two databases.
 func (d Databases) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
-
-const (
-	// AzureEndpointSuffix is the Azure database endpoint suffix.
-	AzureEndpointSuffix = ".database.azure.com"
-)
 
 type arnTemplateInput struct {
 	Partition, Region, AccountID, ResourceID string

@@ -21,13 +21,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/jonboulle/clockwork"
-
-	"github.com/gravitational/trace"
 )
 
 // SessionTracker is a session tracker for a specific session. It tracks

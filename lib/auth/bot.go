@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -113,11 +112,6 @@ func createBotUser(
 
 // createBot creates a new certificate renewal bot from a bot request.
 func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
-	if !modules.GetModules().Features().MachineID {
-		return nil, trace.AccessDenied(
-			"this Teleport cluster is not licensed for Machine ID, please contact the cluster administrator")
-	}
-
 	if req.Name == "" {
 		return nil, trace.BadParameter("bot name must not be empty")
 	}
@@ -275,11 +269,19 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 				req.TokenID, provisionToken.GetBotName(), botName)
 		}
 		switch provisionToken.GetJoinMethod() {
-		case types.JoinMethodToken, types.JoinMethodIAM:
+		case types.JoinMethodToken,
+			types.JoinMethodIAM,
+			types.JoinMethodGitHub,
+			types.JoinMethodCircleCI:
 		default:
 			return nil, trace.BadParameter(
 				"token %q has join method %q which is not supported for bots. Supported join methods are %v",
-				req.TokenID, provisionToken.GetJoinMethod(), []types.JoinMethod{types.JoinMethodToken, types.JoinMethodIAM})
+				req.TokenID, provisionToken.GetJoinMethod(), []types.JoinMethod{
+					types.JoinMethodToken,
+					types.JoinMethodIAM,
+					types.JoinMethodGitHub,
+					types.JoinMethodCircleCI,
+				})
 		}
 		return provisionToken, nil
 	}
@@ -459,11 +461,6 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 // is allowed to issue the (possibly renewable) certificates.
 func (s *Server) generateInitialBotCerts(ctx context.Context, username string, pubKey []byte, expires time.Time, renewable bool) (*proto.Certs, error) {
 	var err error
-
-	if !modules.GetModules().Features().MachineID {
-		return nil, trace.AccessDenied(
-			"this Teleport cluster is not licensed for Machine ID, please contact the cluster administrator")
-	}
 
 	// Extract the user and role set for whom the certificate will be generated.
 	// This should be safe since this is typically done against a local user.

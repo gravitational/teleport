@@ -42,10 +42,10 @@ import (
 )
 
 // TestGenerateAndUpsertRecoveryCodes tests the following:
-//  - generation of recovery codes are of correct format
-//  - recovery codes are upserted
-//  - recovery codes can be verified and marked used
-//  - reusing a used or non-existing token returns error
+//   - generation of recovery codes are of correct format
+//   - recovery codes are upserted
+//   - recovery codes can be verified and marked used
+//   - reusing a used or non-existing token returns error
 func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)

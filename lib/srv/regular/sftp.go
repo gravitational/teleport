@@ -25,14 +25,14 @@ import (
 	"os/exec"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-
-	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 // number of goroutines that copy SFTP data from a SSH channel to
@@ -90,10 +90,14 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serverCtx.ExecRequest, err = srv.NewExecRequest(serverCtx, executable+" sftp")
+	execRequest, err := srv.NewExecRequest(serverCtx, executable+" sftp")
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if err := serverCtx.SetExecRequest(execRequest); err != nil {
+		return trace.Wrap(err)
+	}
+
 	s.sftpCmd, err = srv.ConfigureCommand(serverCtx, chReadPipeOut, chWritePipeIn, auditPipeIn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -107,7 +111,7 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 		return trace.Wrap(err)
 	}
 	// TODO: put in cgroup?
-	serverCtx.ExecRequest.Continue()
+	execRequest.Continue()
 
 	// Copy the SSH channel to and from the anonymous pipes
 	s.errCh = make(chan error, copyingGoroutines)

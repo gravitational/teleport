@@ -465,6 +465,7 @@
                 "replicaCount",
                 "requireAntiAffinity",
                 "certManager",
+                "minReadySeconds",
                 "podDisruptionBudget"
             ],
             "properties": {
@@ -514,6 +515,11 @@
                             "default": "cert-manager.io"
                         }
                     }
+                },
+                "minReadySeconds": {
+                    "$id": "#/properties/highAvailability/properties/minReadySeconds",
+                    "type": "integer",
+                    "default": 15
                 },
                 "podDisruptionBudget": {
                     "$id": "#/properties/highAvailability/properties/podDisruptionBudget",
@@ -676,6 +682,23 @@
                     "$id": "#/properties/service/spec",
                     "type": "object",
                     "default": {}
+                }
+            }
+        },
+        "serviceAccount": {
+            "$id": "#/properties/serviceAccount",
+            "type": "object",
+            "required": [],
+            "properties": {
+                "name": {
+                    "$id": "#properties/service/name",
+                    "type": "string",
+                    "default": ""
+                },
+                "create": {
+                    "$id": "#properties/service/create",
+                    "type": "boolean",
+                    "default": true 
                 }
             }
         },

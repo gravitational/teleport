@@ -21,7 +21,10 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"net"
 	"time"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -30,8 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/gravitational/trace"
 )
 
 // TestServerConfig combines parameters for a test Postgres/MySQL server.
@@ -40,8 +41,6 @@ type TestServerConfig struct {
 	AuthClient auth.ClientI
 	// Name is the server name for identification purposes.
 	Name string
-	// Address is an optional server listen address.
-	Address string
 	// AuthUser is used in tests simulating IAM token authentication.
 	AuthUser string
 	// AuthToken is used in tests simulating IAM token authentication.
@@ -57,6 +56,40 @@ type TestServerConfig struct {
 	// ClientAuth sets tls.ClientAuth in server's tls.Config. It can be used to force client
 	// certificate validation in tests.
 	ClientAuth tls.ClientAuthType
+
+	Listener net.Listener
+}
+
+func (cfg *TestServerConfig) CheckAndSetDefaults() error {
+	if cfg.Listener == nil {
+		listener, err := net.Listen("tcp", "localhost:0")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Listener = listener
+	}
+
+	return nil
+}
+
+func (cfg *TestServerConfig) CloseOnError(err *error) error {
+	if *err != nil {
+		return cfg.Close()
+	}
+	return nil
+}
+
+func (cfg *TestServerConfig) Close() error {
+	return cfg.Listener.Close()
+}
+
+func (cfg *TestServerConfig) Port() (string, error) {
+	_, port, err := net.SplitHostPort(cfg.Listener.Addr().String())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return port, nil
 }
 
 // MakeTestServerTLSConfig returns TLS config suitable for configuring test

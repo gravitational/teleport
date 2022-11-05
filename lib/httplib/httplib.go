@@ -19,6 +19,7 @@ limitations under the License.
 package httplib
 
 import (
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"mime"
@@ -28,15 +29,16 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // timeoutMessage is a generic "timeout" error message that is displayed as a more user-friendly alternative to
@@ -55,19 +57,13 @@ type ErrorWriter func(w http.ResponseWriter, err error)
 
 // MakeHandler returns a new httprouter.Handle func from a handler func
 func MakeHandler(fn HandlerFunc) httprouter.Handle {
-	return MakeTracingHandler(MakeHandlerWithErrorWriter(fn, trace.WriteError))
+	return MakeHandlerWithErrorWriter(fn, trace.WriteError)
 }
 
 // MakeTracingHandler returns a new httprouter.Handle func that wraps the provided handler func
 // with one that will add a tracing span for each request.
-func MakeTracingHandler(h httprouter.Handle) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		handler := otelhttp.NewHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			h(writer, request, p)
-		}), r.RequestURI)
-
-		handler.ServeHTTP(w, r)
-	}
+func MakeTracingHandler(h http.Handler, component string) http.Handler {
+	return otelhttp.NewHandler(h, component, otelhttp.WithSpanNameFormatter(tracing.HTTPHandlerFormatter))
 }
 
 // MakeHandlerWithErrorWriter returns a httprouter.Handle from the HandlerFunc,
@@ -154,10 +150,16 @@ func ReadJSON(r *http.Request, val interface{}) error {
 // based on HTTP response code and HTTP body contents
 func ConvertResponse(re *roundtrip.Response, err error) (*roundtrip.Response, error) {
 	if err != nil {
-		if uerr, ok := err.(*url.Error); ok && uerr != nil && uerr.Err != nil {
-			return nil, trace.ConnectionProblem(uerr.Err, uerr.Error())
+		var uErr *url.Error
+		if errors.As(err, &uErr) && uErr.Err != nil {
+			var hostnameErr x509.HostnameError
+			if errors.As(uErr.Err, &hostnameErr) {
+				return nil, trace.ConnectionProblem(uErr.Err, uErr.Error())
+			}
+			return nil, trace.ConnectionProblem(uErr.Err, "error parsing URL")
 		}
-		if nerr, ok := errors.Unwrap(err).(net.Error); ok && nerr.Timeout() {
+		var nErr net.Error
+		if errors.As(err, &nErr) && nErr.Timeout() {
 			// Using `ConnectionProblem` instead of `LimitExceeded` allows us to preserve the original error
 			// while adding a more user-friendly message.
 			return nil, trace.ConnectionProblem(err, timeoutMessage)

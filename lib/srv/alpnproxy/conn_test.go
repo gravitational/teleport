@@ -19,6 +19,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
+	"math"
 	"net"
 	"testing"
 	"time"
@@ -114,18 +116,36 @@ func TestPingConnection(t *testing.T) {
 		}
 	})
 
+	// Given a connection, read from it concurrently, asserting all content
+	// written is read.
+	//
+	// Messages can be out of order due to concurrent reads. Other tests must
+	// guarantee message ordering.
 	t.Run("ConcurrentReads", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
+		// Number of writes performed.
 		nWrites := 10
+		// Data that is going to be written/read on the connection.
 		dataWritten := []byte("message")
+		// Size of each read call.
+		readSize := 2
+		// Number of reads necessary to read the full message
+		readNum := int(math.Ceil(float64(len(dataWritten)) / float64(readSize)))
 
 		r, w := makePingConn(t)
 		defer r.Close()
-		defer w.Close()
+		defer w.Close() // This call may be a noop, but it's here just in case.
 
-		readChan := make(chan []byte)
+		// readResult struct is used to store the result of a read.
+		type readResult struct {
+			data []byte
+			err  error
+		}
+
+		// Channel is used to store the result of a read.
+		resChan := make(chan readResult)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
 		// Write routine
 		go func() {
@@ -140,35 +160,57 @@ func TestPingConnection(t *testing.T) {
 		// Read routines.
 		for i := 0; i < nWrites/2; i++ {
 			go func() {
-				buf := make([]byte, len(dataWritten)/2)
+				buf := make([]byte, readSize)
 				for {
 					n, err := r.Read(buf)
 					if err != nil {
-						return
+						switch err {
+						// Since we're partially reading the message, the last
+						// read will return an EOF. In this case, do nothing
+						// and send the remaining bytes.
+						case io.EOF:
+						// The connection will be closed only if the test is
+						// completed. The read result will be empty, so return
+						// the function to complete the goroutine.
+						case io.ErrClosedPipe:
+							return
+						// Any other error should fail the test and complete the
+						// goroutine.
+						default:
+							resChan <- readResult{err: err}
+							return
+						}
 					}
 
 					chanBytes := make([]byte, n)
 					copy(chanBytes, buf[:n])
-					readChan <- chanBytes
+					resChan <- readResult{data: chanBytes}
 				}
 			}()
 		}
 
-	readLoop:
+		var aggregator []byte
 		for i := 0; i < nWrites; i++ {
-			var aggregator []byte
-			for {
+			for j := 0; j < readNum; j++ {
 				select {
 				case <-ctx.Done():
-					require.Fail(t, "failed to read message, expected '%v' but received '%v'", dataWritten, aggregator)
-				case data := <-readChan:
-					aggregator = append(aggregator, data...)
-					if bytes.Equal(dataWritten, aggregator) {
-						continue readLoop
-					}
+					require.Fail(t, "Failed to read message (context timeout)")
+				case res := <-resChan:
+					require.NoError(t, res.err, "Failed to read message")
+					aggregator = append(aggregator, res.data...)
 				}
 			}
 		}
+
+		require.Len(t, aggregator, len(dataWritten)*nWrites, "Wrong messages written")
+
+		require.NoError(t, w.Close())
+
+		res := <-resChan
+		// If there's an error here, it means the error was not io.EOF or io.ErrPipeClosed, as those should have been discarded
+		// by the goroutine above. This likely means that the errors in PingConn were wrapped with trace.Wrap, which can break
+		// callers of net.Conn.
+		require.NoError(t, res.err, "there should be no error on close, check if the errors have been wrapped with trace.Wrap")
 	})
 
 	t.Run("ConcurrentWrites", func(t *testing.T) {

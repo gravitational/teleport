@@ -40,7 +40,10 @@ func NewClusterURI(profileName string) ResourceURI {
 	}
 }
 
-// ParseClusterURI parses a string and returns cluster URI
+// ParseClusterURI parses a string and returns a cluster URI.
+//
+// If given a resource URI, it'll return the URI of the cluster to which the resource belongs to.
+// If given a leaf cluster resource URI, it'll return the URI of the leaf cluster.
 func ParseClusterURI(path string) (ResourceURI, error) {
 	URI := New(path)
 	profileName := URI.GetProfileName()
@@ -122,6 +125,12 @@ func (r ResourceURI) AddGateway(id string) ResourceURI {
 // AppendApp appends app segment to the URI
 func (r ResourceURI) AppendApp(name string) ResourceURI {
 	r.path = fmt.Sprintf("%v/apps/%v", r.path, name)
+	return r
+}
+
+// AppendAccessRequest appends access request segment to the URI
+func (r ResourceURI) AppendAccessRequest(id string) ResourceURI {
+	r.path = fmt.Sprintf("%v/access_requests/%v", r.path, id)
 	return r
 }
 

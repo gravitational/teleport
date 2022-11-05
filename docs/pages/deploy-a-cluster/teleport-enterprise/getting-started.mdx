@@ -1,321 +1,390 @@
 ---
-title: Teleport Enterprise Quick Start
-description: How to set up and configure Teleport Enterprise for SSH
+title: Get Started with Teleport Enterprise
+description: Learn how to deploy your first Teleport Enterprise cluster.
 ---
 
 This guide shows you how to get up and running with Teleport Enterprise.
 
-There are three types of services Teleport can run:
+You will be deploying three Teleport services on a single host:
 
-- **Auth Service** stores user accounts and provides authentication and
-  authorization for every resource service and every user in a cluster.
-- **Proxy Service** routes client connection requests to the appropriate agent
-  and serves a Web UI that can also be used to access resources.
-- **Agents** provide access to resources including SSH servers, Kubernetes
-  clusters, web applications and databases.
+- The **Auth Service** stores user accounts and your cluster configuration. It
+  provides authentication and authorization for every Teleport service and every
+  user in your cluster.
 
-In this guide, we will highlight the Teleport SSH Service. The SSH Service is
-similar to the `sshd` daemon you may be familiar with. SSH Service instances are
-called **Teleport Nodes**. When a Teleport Node receives a connection request,
-the request is authenticated through the cluster's Auth Service.
+- The **Proxy Service** routes client connection requests to the appropriate
+  Teleport services and serves the Teleport Web UI, which you can use to access
+  resources or manage the cluster.
 
-The `teleport` daemon runs all three of these services by default.
+- The **SSH Service**  is an SSH server implementation that provides seamless
+  access to Linux hosts in your cluster. 
 
-This guide will run a Teleport cluster consisting of the Auth Service, Proxy
-Service, and SSH Service, and interact with the cluster using Teleport's
-client-side tools:
+  SSH Service instances are called **Teleport Nodes**. When a Teleport Node
+  receives a connection request, the request is authenticated through the
+  cluster's Auth Service.
+
+  Other Teleport services provide access to remote desktops, Kubernetes
+  clusters, applications, and databases.
+
+You will install the `teleport` binary, which runs runs all three of these
+services by default.
+
+You will also use the following client tools:
 
 | Tool | Description |
 | - | - |
-| tctl | Cluster administration tool used to invite Nodes to a cluster and manage user accounts. |
-| tsh | Allows users to authenticate and access resources via their local machine. `tsh`'s SSH functionality is similar in principle to OpenSSH's `ssh`. Users can log in to remote Nodes, list and search for Nodes in a cluster, securely upload/download files, etc. |
-| browser | You can use your web browser to log in to any Teleport Node by opening `https://<proxy-host>:3080`. |
+| `tctl` | Cluster administration tool used to perform tasks such as inviting Nodes to a cluster and managing user accounts. |
+| `tsh` | Allows users to authenticate and access resources via their local machine. |
+| Web UI | You can use the Teleport Web UI to access resources in your cluster by navigating to the public address of your Teleport Proxy Service in your browser. |
 
+(!docs/pages/includes//cloud/call-to-action.mdx!)
 
 ## Prerequisites
 
-You will need to have access to the [customer portal](https://dashboard.gravitational.com/web/login)
-to download the software. You will also need three computers: two servers and
-one client (probably a laptop) to complete this tutorial. Let's assume the servers have
-the following DNS names and IPs:
+- A Teleport Enterprise account. If you do not have one, use our [signup
+  form](https://goteleport.com/signup/enterprise/) to schedule a demo with the
+  Teleport Sales Team.
+- A Linux machine with only port `443` open to ingress traffic. You must be able
+  to install and run software on the machine. Either configure access to your
+  machine via SSH for the initial setup (and open an SSH port in addition port
+  `443`) or enter the commands in this guide into an Amazon EC2
+  [user data script](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html),
+  Google Compute Engine
+  [startup script](https://cloud.google.com/compute/docs/instances/startup-scripts),
+  or similar.
+- A two-factor authenticator app such as [Authy](https://authy.com/download/),
+  [Google Authenticator](https://www.google.com/landing/2step/), or [Microsoft
+  Authenticator](https://www.microsoft.com/en-us/account/authenticator).
+- `python3` installed on your Linux machine. We will use this to run a simple
+  HTTP file server, so you can use another HTTP server if you have one
+  installed.
 
-| Server Name | IP Address | Purpose |
-| - | - | - |
-| *"auth.example.com"* | 10.1.1.10 | This server will be used to run all three Teleport services: auth, proxy and ssh. |
-| *"node.example.com"* | 10.1.1.11 | This server will only run the SSH service. |
+You must also have one of the following:
+- A registered domain name.
+- An authoritative DNS nameserver managed by your organization, plus some means
+  of obtaining a TLS certificate and private key for your Teleport deployment.
+  If using this approach, ensure that your browser is configured to use your
+  organization's nameserver.
 
-This Quick Start Guide assumes that both servers are running a [systemd-based](https://www.freedesktop.org/wiki/Software/systemd/)
-Linux distribution such as Debian, Ubuntu or a RHEL derivative.  The *node.example.com* must be able to connect to the *auth.example.com* `3025` port and the *auth.example.com* must be able to connect to the 3022 port on *node.example.com*.
+## Step 1/5. Create DNS records
 
-## Optional: Quickstart using Docker
+Teleport uses TLS to provide secure access to its Proxy Service and Auth
+Service, and this requires a domain name that clients can use to verify
+Teleport's certificate.
 
-The instructions below describe how to install Teleport Enterprise directly onto your test system. You can also [run Teleport Enterprise using Docker](#run-teleport-enterprise-using-docker)
-if you don't want to install Teleport Enterprise binaries straight away.
+(!docs/pages/includes/dns.mdx!)
 
-## Installing
+## Step 2/5. Run a simple web service
 
-To start using Teleport Enterprise, you will need to Download the binaries and the license file from the [customer portal](https://dashboard.gravitational.com/web/login).
-After downloading the binary tarball, run:
+Create a directory on your Linux machine called `demo-app` and run the following
+command:
 
 ```code
-$ tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
-$ cd teleport-ent
+$ cat<<EOF>>demo-app/index.html
+<!DOCTYPE html>
+<html><head><title>Welcome!</title><head>
+<body>
+<h1>Welcome to your Teleport cluster!</h1>
+</body>
+</html>
+EOF
 ```
 
-- Copy `teleport` and `tctl` binaries to a bin directory (we suggest `/usr/local/bin`) on the auth server.
-- Copy `teleport` binary to a bin directory on the node server.
-- Copy `tsh` binary to a bin directory on the client computer.
+Run a simple HTTP service on port 9000 that returns your welcome page:
 
-### License File
+```code
+$ nohup python3 -m http.server 9000 --directory demo-app &
+```
 
-The Teleport license file contains a X.509 certificate and the corresponding
-private key in [PEM format](https://en.wikipedia.org/wiki/Privacy-enhanced_Electronic_Mail).
+Since port 9000 is not open on your Linux host, there is currently no way to
+access the web service from your local machine. We will configure Teleport to
+enable you to access the web service securely.
 
-Download the license file from the [customer portal](https://dashboard.gravitational.com/web/login)
-and save it as `/var/lib/teleport/license.pem` on the auth server.
+## Step 3/5. Set up Teleport
 
-### Systemd Unit File
+### Install the `teleport` binary
 
-Generate a systemd unit file for Teleport and save it in `/etc/systemd/system/teleport.service` on both servers.
+On the host where you will run your Teleport services, run the following
+commands to install the `teleport` binary:
+
+<Details title="Need FedRAMP/FIPs compliance?">
+
+For FedRAMP/FIPS-compliant installations of Teleport Enterprise, package URLs
+will be slightly different:
+
+```code
+$ curl https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-fips-bin.tar.gz.sha256
+# <checksum> <filename>
+$ curl -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-fips-bin.tar.gz
+$ shasum -a 256 teleport-ent-v(=teleport.version=)-linux-amd64-fips-bin.tar.gz
+# Verify that the checksums match
+$ tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-fips-bin.tar.gz
+$ cd teleport-ent
+$ sudo ./install
+```
+
+</Details>
+
+```code
+$ curl https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz.sha256
+# <checksum> <filename>
+$ curl -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
+$ shasum -a 256 teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
+# Verify that the checksums match
+$ tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
+$ cd teleport-ent
+$ sudo ./install
+```
+
+### Configure Teleport
+
+Generate a configuration file for Teleport using the `teleport configure` command.
+This command requires information about a TLS certificate and private key.
+
+If you are exposing your Teleport host to the internet, we recommend using Let's
+Encrypt to receive your key and certificate automatically. For private networks
+or custom deployments, use your own private key and certificate.
+
+(!docs/pages/includes/tls-certificate-setup.mdx!)
+
+Next, configure Teleport to provide secure access to your web service. Edit your
+Teleport configuration file (`/etc/teleport.yaml`) to include the following,
+replacing `teleport.example.com` with the domain name of your Teleport cluster.
+
+```yaml
+app_service:
+    enabled: yes
+    apps:
+    - name: "demo"
+      uri: "http://localhost:9000"
+      public_addr: "demo.teleport.example.com"
+```
+
+### Obtain your license file
+
+The `teleport` binary reads a local license file to authenticate your Teleport
+Enterprise account.
+
+To obtain your license file, visit the [Teleport customer
+dashboard](https://dashboard.gravitational.com/web/login) and log in. Click
+"DOWNLOAD LICENSE KEY". You will see your current Teleport Enterprise account
+permissions and the option to download your license file:
+
+![License File modal](../../../img/enterprise/license.png)
+
+Save your license file on the host where you will install Teleport at the path,
+`/var/lib/teleport/license.pem`.
+
+### Start Teleport 
+
+On the host where you are running Teleport, generate a systemd unit file for
+Teleport and save it in `/etc/systemd/system/teleport.service`:
 
 ```code
 $ sudo teleport install systemd -o /etc/systemd/system/teleport.service
 ```
 
-### Configuration File
-
-Save the following configuration file as `/etc/teleport.yaml` on the *auth.example.com*:
-
-```yaml
-teleport:
-  nodename: auth.example.com
-  auth_token: dogs-are-much-nicer-than-cats
-  auth_servers: [ "localhost:3025" ]
-
-proxy_service:
-  # enable the proxy service
-  enabled: true
-
-auth_service:
-  # enable the auth service:
-  enabled: true
-
-  tokens:
-  # this static token is used for other nodes to join this Teleport cluster
-  - proxy,node:dogs-are-much-nicer-than-cats
-  # this token is used to establish trust with other Teleport clusters
-  - trusted_cluster:trains-are-superior-to-cars
-
-  # by default, local authentication will be used with 2FA
-  authentication:
-      second_factor: otp
-
-  # SSH is also enabled on this node:
-ssh_service:
-  enabled: "yes"
-```
-
-## Start Teleport on *auth.example.com*
-
-Start the Teleport service and confirm the service has started. After it has started you can get the Certificate Authority (CA) pin that has been generated.
+Enable the Teleport service and start Teleport in the background:
 
 ```code
 $ sudo systemctl enable teleport
 $ sudo systemctl start teleport
-# confirm Teleport started
-$ sudo systemctl status teleport
-# after successful start retrieve the CA pin for using in the node
-$ sudo tctl status
-Cluster  teleport
-Version  (=version=)
-Host CA  never updated
-User CA  never updated
-Jwt CA   never updated
-CA pin   sha256:58b1c5cb8885d84ce08f3e3a47acb33d49841f12dd7648c0c1dd31bd501628
 ```
 
-Copy the CA pin from the output of `tctl status`. On `node.example.com` save the following configuration file as `/etc/teleport.yaml`
-and use the CA pin you copied as the value of `ca_pin`.
+Confirm that the `teleport` service has started: 
 
-```yaml
-teleport:
-  nodename: node.example.com
-  auth_token: dogs-are-much-nicer-than-cats
-  # you can also use auth server's IP, i.e. "10.1.1.10:3025"
-  auth_servers: [ "auth.example.com:3025" ]
-  # Set the ca_pin value so it can verify the Teleport server
-  ca_pin: sha256:58b1c5cb8885d84ce08f3e...
-
-  # enable ssh service and disable auth and proxy:
-ssh_service:
-  enabled: true
-auth_service:
-  enabled: false
-proxy_service:
-  enabled: false
 ```
-
-## Start Node service
-
-```code
-# run this on node server:
-$ sudo systemctl start teleport
-# Confirm node has started successfully and connected
 $ sudo systemctl status teleport
 ```
 
-## Teleport Status and Networking
+### Get information about your Teleport deployment
 
-You can review the logs of the Teleport service with `journalctl -fu teleport` and see its current status
-with `sudo systemctl status teleport`.
-
-You can use `netstat -lptne` to review the port that Teleport is
-listening on  on [TCP/IP ports](../../reference/networking.mdx#ports). On *auth.example.com*, it should
-look something like this:
+You can review the logs of the Teleport service with the following command:
 
 ```code
-$ auth.example.com ~: sudo netstat -lptne
-Active Internet connections (only servers)
-Proto Recv-Q Send-Q Local Address   State       User       PID/Program name
-tcp6       0      0 :::3024         LISTEN      0          337/teleport
-tcp6       0      0 :::3025         LISTEN      0          337/teleport
-tcp6       0      0 :::3080         LISTEN      0          337/teleport
-tcp6       0      0 :::3022         LISTEN      0          337/teleport
-tcp6       0      0 :::3023         LISTEN      0          337/teleport
+$ journalctl -fu teleport
 ```
-
-and *node.example.com* should look something like this:
+Run the following command to review the ports that Teleport is
+listening on:
 
 ```code
-$ node.example.com ~: sudo netstat -lptne
-Active Internet connections (only servers)
-Proto Recv-Q Send-Q Local Address   State       User       PID/Program name
-tcp6       0      0 :::3022         LISTEN      0          337/teleport
+$ sudo netstat -lptne
 ```
 
-See [troubleshooting](#troubleshooting) section at the bottom if something is not working.
+The output should look something like this:
 
-## Adding Users
+```code
+$ sudo netstat -lptne | grep teleport
+tcp6       0      0 :::443                  :::*                    LISTEN
+0          168760     29504/teleport    
+tcp6       0      0 :::3022                 :::*                    LISTEN
+0          167812     29504/teleport    
+tcp6       0      0 :::3025                 :::*                    LISTEN
+0          168741     29504/teleport
+```
 
-This portion of the Quick Start Guide should be performed on the auth server, i.e.
-on *auth.example.com*
+## Step 4/5. Add a local user
+
+### Create a user
 
 Every user in a Teleport cluster must be assigned at least one role. By default,
-Teleport comes with several pre-configured roles known as
-["presets"](../../access-controls/reference.mdx#preset-roles). You can see
-these roles by executing `sudo tctl get roles`.
+Teleport comes with several pre-configured roles known as **presets**:
 
-Pay attention to the *allow/logins* field in the role definition: by default, this
-role only allows SSH logins as `root@host`.
+|Role|Description|
+|---|---|
+|`access`| Can access resources in your infrastructure, such as Teleport Nodes, applications, and Kubernetes clusters|
+|`auditor`|Can view audit logs and session recordings.|
+|`editor`| Can modify cluster configuration.|
 
-```yaml
-kind: role
-metadata:
-  name: access
-spec:
-  allow:
-    logins:
-    - '{{internal.logins}}'
-    - root
-```
-
-You probably want to replace "root" with something else. Let's assume there will
-be a local UNIX account called "admin" on all hosts. In this case you can
-dump the role definition YAML into a file and update "allow/logins"
-to look like this:
-
-```yaml
-allow:
-   logins: [admin]
-```
-
-<Admonition
-  type="note"
-  title="Note"
->
-  See the [Kubernetes Guide](../../kubernetes-access/introduction.mdx) and [Application Guide](../../application-access/introduction.mdx) for enabling access to additional resources.
-</Admonition>
-
-Then send it back into Teleport:
+You can see the full configurations for these roles by executing the following
+command on the host running Teleport:
 
 ```code
-$ sudo tctl create -f role.yaml
+$ sudo tctl get roles
 ```
 
-Now, lets create a new Teleport user "joe" with "access" role:
+On the host where you are running Teleport, create a Teleport user called
+`myuser` with the `access` role and the `ubuntu` login. This user can log in to
+any host in your infrastructure as `ubuntu` (choose a login that matches a user
+account on your Linux host):
 
 ```code
-$ sudo tctl users add --roles=access --logins=joe,ubuntu,ec2-user joe
+$ sudo tctl users add --roles=access --logins=ubuntu myuser
 
 Signup token has been created and is valid for 1 hours. Share this URL with the user:
 https://auth.example.com:3080/web/newuser/22e3acb6a0c2cde22f13bdc879ff9d2a
 ```
 
-Share the generated sign-up URL with Joe and let him pick a password and configure
-the second factor authentication. We recommend [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator)
-which is available for both Android and iPhone.
+Navigate to the link displayed in your terminal, pick a password, and configure
+second factor authentication.
 
-## Assigning Roles
+### Log in as your new user
 
-To update user's roles, dump the user resource into a file:
+`tsh` is our client tool. It helps you log in to Teleport clusters and obtain
+short-lived credentials. It can also be used to list resources registered with
+Teleport, such as servers, applications, and Kubernetes clusters.
+
+Install `tsh` on your local machine:
+
+<Tabs>
+
+<TabItem label="macOS">
+
+Run the following commands to download and run the Teleport installer:
+
+  ```code
+  $ curl -O https://get.gravitational.com/teleport-ent-(=teleport.version=).pkg
+  # Installs on Macintosh HD
+  $ sudo installer -pkg teleport-ent-(=teleport.version=).pkg -target / 
+  # Password:
+  # installer: Package name is teleport-ent-(=teleport.version=)
+  # installer: Upgrading at base path /
+  # installer: The upgrade was successful.
+  $ which teleport
+  # /usr/local/bin/teleport
+  ```
+
+</TabItem>
+<TabItem label="Linux">
+
+Run the following commands to install Teleport binaries on your client system,
+including `tsh`:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+</TabItem>
+<TabItem label="Windows PowerShell">
+
+Most `tsh` features are supported for Windows 10 1607+. The `tsh ssh` command
+can be run under `cmd.exe`, PowerShell, and Windows Terminal.
+
+To install `tsh` on Windows, run the following commands in PowerShell:
+
+  ```code
+  # Get the expected checksum for the Windows tsh package
+  $ $Resp = Invoke-WebRequest https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip.sha256
+  # PowerShell will return the binary representation of the response content
+  # by default, so you need to convert it to a string
+  $ [System.Text.Encoding]::UTF8.getstring($Resp.Content)
+  # <checksum> <filename>
+  $ curl -O teleport-v(=teleport.version=)-windows-amd64-bin.zip https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip
+  $ certUtil -hashfile teleport-v(=teleport.version=)-windows-amd64-bin.zip SHA256
+  # SHA256 hash of teleport-v(=teleport.version=)-windows-amd64-bin.zip:
+  # <checksum>
+  # CertUtil: -hashfile command completed successfully.
+  ```
+
+  After you have verified that the checksums match, you can extract the archive.
+  The executable will be available at
+  `teleport-v(=teleport.version=)-windows-amd64-bin\teleport\tsh.exe`.
+
+  ```code
+  $ Expand-Archive teleport-v(=teleport.version=)-windows-amd64-bin.zip
+  $ cd teleport-v(=teleport.version=)-windows-amd64-bin\teleport
+  $ .\tsh.exe version
+  Teleport v(=teleport.version=) git:v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+  Make sure to move `tsh.exe` into your PATH.
+</TabItem>
+</Tabs>
+
+Use `tsh` to log in to your Teleport cluster as `myuser`, replacing
+`auth.example.com` with the domain name you configured earlier:
 
 ```code
-$ sudo tctl get users/joe > joe.yaml
+$ tsh --proxy=auth.example.com login --user=myuser
 ```
 
-Edit the YAML file and update the "roles" array.
-Then, re-insert it back:
+Note that you can omit the `--user` flag if the `$USER` environment variable
+is equal to your Teleport username.  
+
+If successful, the `tsh login` command will retrieve a user certificate for
+`myuser` and store it in the `~/.tsh/keys/<proxy>` directory.
+
+With a certificate in place, `myuser` can now interact with the Teleport cluster.
+
+## Step 5/5. Access resources
+
+You have now completed setting up Teleport and signed in to your cluster.  Now
+you can use Teleport to quickly access resources.
+
+### Visit your demo website
+
+Now that you have logged in to Teleport, you can see the demo website you
+started earlier. Visit `https://demo.teleport.example.com`, replacing
+`teleport.example.com` with the domain name of your Teleport cluster. You can
+only visit the website if you have authenticated with your cluster.
+
+You can use the Teleport Application Service to configure access to any web
+application in your private network, including HTTP management endpoints for
+popular infrastructure technologies.
+
+### SSH into your Node
+
+You also configured the Teleport SSH Service, meaning that you can easily access
+your Linux machine after logging in to Teleport.
+
+See the logins you can use to access a Node:
 
 ```code
-$ sudo tctl create -f joe.yaml
+$ tsh status
+> Profile URL:        https://teleport.example.com:443
+  Logged in as:       teleport-admin
+  Cluster:            teleport.example.com
+  Roles:              access, editor
+  Logins:             root, ubuntu, ec2-user
+  Kubernetes:         enabled
+  Valid until:        2022-04-26 04:55:59 -0400 EDT [valid for 11h38m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-## Logging In
-
-Joe now has a local account on a Teleport cluster. The local account is good for
-administrative purposes but regular users of Teleport Enterprise should be using
-a Single Sign-On (SSO) mechanism.
-
-But first, lets see how Joe can log into the Teleport cluster. He can do this
-on his client laptop:
+List all SSH servers connected to Teleport:
 
 ```code
-$ tsh --proxy=auth.example.com --insecure login --user=joe
-```
-
-Note that "--user=joe" part can be omitted if `$USER` environment variable is "joe".
-
-Notice that `tsh` client always needs `--proxy` flag because all client connections
-in Teleport always must to go through an SSH proxy, sometimes called an "SSH bastion".
-
-<Admonition
-  type="warning"
-  title="Warning"
->
-  For the purposes of this quickstart we are using the `--insecure` flag which allows
-  us to skip configuring the HTTPS/TLS certificate for Teleport proxy. Your browser will
-  throw a warning **Your connection is not private**. Click Advanced, and **Proceed to 0.0.0.0 (unsafe)**
-  to preview the Teleport UI.
-
-  Never use `--insecure` in production unless you terminate SSL at a load balancer. This will
-  apply to most cloud providers (AWS, GCP and Azure). You must configure a HTTP/TLS certificate for the Proxy.
-  This process has been made easier with Let's Encrypt. [We've instructions here](https://goteleport.com/blog/letsencrypt-teleport-ssh/).
-</Admonition>
-
-If successful, `tsh login` command will receive Joe's user certificate and will
-store it in `~/.tsh/keys/<proxy>` directory.
-
-With a certificate in place, Joe can now interact with the Teleport cluster:
-
-```code
-# See what hosts are available behind the proxy:
 $ tsh ls
-
-# SSH into any host behind the proxy (Unix user 'joe' should already exist on the node):
-$ tsh ssh joe@node.example.com
-
-# Log out (this will remove the user certificate from ~/.tsh)
-$ tsh logout
+Node Name        Address        Labels                                
+---------------- -------------- ------------------------------------- 
+mynode 127.0.0.1:3022 env=example,hostname=mynode
 ```
 
 <Details title="tsh not showing Nodes?" opened={false}>
@@ -324,127 +393,60 @@ $ tsh logout
 
 </Details>
 
-## Configuring SSO
-
-The local account is good for administrative purposes but regular users of
-Teleport Enterprise should be using a Single Sign-On (SSO) mechanism that use SAML or OIDC protocols.
-
-Take a look at the [Single Sign-on](../../access-controls/sso.mdx) chapter to learn the basics of
-integrating Teleport with SSO providers. We have the following detailed guides for
-configuring SSO providers:
-
-- [Okta](../../access-controls/sso/okta.mdx)
-- [Active Directory](../../access-controls/sso/adfs.mdx)
-- [One Login](../../access-controls/sso/one-login.mdx)
-- [GitHub](../../access-controls/sso/github-sso.mdx)
-
-Any SAML-compliant provider can be configured with Teleport by following the
-same steps.  There are Teleport Enterprise customers who are using Oracle IDM,
-SailPoint and others.
-
-## Run Teleport Enterprise using Docker
-
-We provide pre-built Docker images for every version of Teleport Enterprise. These images are hosted on Amazon ECR Public.
-
-- [All tags under `public.ecr.aws/gravitational/teleport-ent` are Teleport Enterprise images](https://gallery.ecr.aws/gravitational/teleport-ent)
-
-We currently only offer Docker images for `x86_64` architectures.
-
-<Admonition type="note">
-  You will need a recent version of [Docker](https://hub.docker.com/search?q=\&type=edition\&offering=community) installed to follow this section of the quick start guide.
-</Admonition>
-
-<Admonition type="warning">
-  This setup will not let you 'SSH into' the node that is running Teleport without additional configuration.
-</Admonition>
-
-### Pick your image
-
-(!docs/pages/includes/enterprise/docker-images.mdx!)
-
-### Quickstart using docker-compose
-
-<Admonition type="note">
-  You will need a recent version of [`docker-compose`](https://docs.docker.com/compose/install/) installed to follow this section of the quick start guide.
-</Admonition>
-
-The easiest way to start Teleport Enterprise quickly is to use `docker-compose` with our [`teleport-ent-quickstart.yml`](https://github.com/gravitational/teleport/blob/v(=teleport.version=)/docker/teleport-ent-quickstart.yml) file:
+SSH into your Node, replacing `mynode` with one of the Nodes listed by
+the `tsh ls` command and `ubuntu` with the login on your Linux host that you
+configured `myuser` to access:
 
 ```code
-# Download your license file from the Gravitational dashboard and put it in the correct directory.
-# The file needs to be named "license.pem".
-$ cp ~/downloads/license.pem .
-
-# Download the quickstart file from our GitHub repo
-$ curl -Lso teleport-ent-quickstart.yml https://raw.githubusercontent.com/gravitational/teleport/v(=teleport.version=)/docker/teleport-ent-quickstart.yml
-
-# start teleport quickstart using docker-compose
-$ docker-compose -f teleport-ent-quickstart.yml up
+$ tsh ssh ubuntu@mynode
 ```
 
-- The `docker-compose` quickstart will automatically create a config file for you at `./docker/teleport/config/teleport.yaml`
-- This config is mounted into the container under `/etc/teleport/teleport.yaml`
-- It will also start `teleport` using this config file, with Teleport's data directory set to `./docker/teleport/data` and mounted under `/var/lib/teleport`
-- It will mount your license file (named `license.pem`) from the current directory into the Docker container
-- By default, `docker-compose` will output Teleport's logs to the console for you to observe.
-  - If you would rather run the Teleport container in the background, use `docker-compose -f teleport-ent-quickstart.yml up -d`
-  - You can stop the Teleport container using `docker-compose -f teleport-ent-quickstart.yml down`
+## Next steps
 
-### Quickstart using docker run
+### Deploy on Kubernetes
 
-If you'd prefer to complete these steps manually, here's some sample `docker run` commands:
+This guide shows you how to install Teleport Enterprise on a virtual machine. If
+you are using a Kubernetes-based environment, see our [Getting Started
+Guide](../helm-deployments/kubernetes-cluster.mdx) for how to
+deploy Teleport on Kubernetes.
 
-```code
-# create local config and data directories for teleport, which will be mounted into the container
-$ mkdir -p ~/teleport/config ~/teleport/data
+### Configure RBAC
 
-# download your license file from the Gravitational dashboard and put it in the correct directory
-# the file needs to be named license.pem
-$ cp ~/downloads/license.pem ~/teleport/data/license.pem
+The preset `access` role we assigned to a user in this guide is probably too
+permissive for your environment. Read our guide to [configuring Teleport
+roles](../../access-controls/guides/role-templates.mdx) to set up more granular
+access controls.
 
-# generate a sample teleport config and write it to the local config directory
-# this container will write the config and immediately exit - this is expected
-$ docker run --hostname localhost --rm \
-  --entrypoint=/bin/sh \
-  -v ~/teleport/config:/etc/teleport \
-  (=teleport.latest_ent_docker_image=) -c "teleport configure > /etc/teleport/teleport.yaml"
+### Configure SSO
 
-# change the path to the license file in the sample config
-$ sed -i 's_/path/to/license-if-using-teleport-enterprise.pem_/var/lib/teleport/license.pem_g' ~/teleport/config/teleport.yaml
+In this guide, we created a **local user** stored on the Teleport Auth Service.
+For on and offboarding users at scale, you should use one of Teleport's Single
+Sign-On integrations.
 
-# start teleport with mounted license, config and data directories, plus all ports
-$ docker run --hostname localhost --name teleport \
-  -v ~/teleport/config:/etc/teleport \
-  -v ~/teleport/data:/var/lib/teleport \
-  -p 3023:3023 -p 3025:3025 -p 3080:3080 \
-  (=teleport.latest_ent_docker_image=)
-```
+Take a look at our [Single Sign-On](../../access-controls/sso.mdx) guide to
+learn the basics of integrating Teleport with SSO providers.
 
-### Creating a Teleport user when using Docker quickstart
+You can configure any SAML- or OIDC-compliant identity provider to enable SSO
+for Teleport. There are Teleport Enterprise customers who are using Oracle IDM,
+SailPoint, and others.
 
-To create a user inside your Teleport Enterprise container, use `docker exec`.
+### Configure Access Requests
 
-This example command will create a Teleport user called `testuser` which has the
-`access` role. Feel free to change these to suit your needs.
+With Teleport Access Requests you can provide your users limited access to
+resources by default. Your users can then access elevated privileges on a
+temporary basis, minimizing the risk that an attacker will compromise an admin
+account.
 
-```code
-$ docker exec teleport tctl users add --roles=access --logins=root,ec2-user,ubuntu testuser
-```
+[Read our guide](../../access-controls/access-requests.mdx) to setting up Access
+Requests.
 
-When you run this command, Teleport will output a URL which you must open to complete the user signup process:
-
-```txt
-User testuser has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h0m0s:
-https://localhost:3080/web/invite/4f2718a52ce107568b191f222ba069f7
-
-NOTE: Make sure localhost:3080 points at a Teleport proxy which users can access.
-```
-
-You can now [follow this guide from "Adding Users"](#adding-users) onwards to create your user and log into Teleport Enterprise.
+You can then take advantage of Teleport's [Access Request
+plugins](../../access-controls/access-request-plugins/index.mdx) so users can
+request and review Access Requests using your existing communication workflows.
 
 ## Troubleshooting
 
-If Teleport services do not start, take a look at the syslog:
+If Teleport services do not start, take a look at the `teleport` service's logs:
 
 ```code
 $ sudo journalctl -fu teleport
@@ -452,14 +454,15 @@ $ sudo journalctl -fu teleport
 
 Usually the error will be reported there. Common reasons for failure are:
 
-- Mismatched tokens, i.e. "auth_token" on the node does not match "tokens/node" value on the auth server.
-- Network issues: port `3025` is closed via iptables.
-- Network issues: ports `3025` or `3022` are occupied by another process.
-- Disk issues: Teleport fails to create `/var/lib/teleport` because the volume is read-only or not accessible.
+- Network issues: port `443` is closed via iptables or occupied by another
+  process.
+- Disk issues: Teleport fails to create `/var/lib/teleport` because the volume
+  is read-only or not accessible.
 
 ## Getting Help
 
-If something is not working, please reach out to us by creating a ticket in your [customer portal](https://dashboard.gravitational.com/web/login).
-Customers who have purchased the premium support package can also ping us through
-your Slack channel.
+If something is not working, please reach out to us by creating a ticket in your
+[customer portal](https://dashboard.gravitational.com/web/login).  Customers who
+have purchased the premium support package can also ping us through your Slack
+channel.
 

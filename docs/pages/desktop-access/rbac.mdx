@@ -3,8 +3,6 @@ title: Role-Based Access Control for Desktop Access
 description: Role-based access control (RBAC) for Teleport Desktop Access
 ---
 
-# Desktop Access Role-Based Access Control
-
 Teleport's RBAC allows administrators to set up granular access policies for
 Windows desktops connected to Teleport.
 
@@ -135,6 +133,28 @@ one role that explicitly disables clipboard sharing:
 
 ```yaml
 desktop_clipboard: false
+```
+
+## Directory Sharing
+
+A Teleport user can share a directory on their local workstation with a remote
+desktop using Directory Sharing.
+
+A Teleport role enables Directory Sharing by default. If one of a user's
+Teleport roles disables Directory Sharing, then Directory Sharing will be
+disabled for that user.
+
+To disable Directory Sharing for a Teleport user, define a role similar to the
+following in a file called `role.yaml`:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: "no-sharing"
+spec:
+  options:
+    desktop_directory_sharing: false
 ```
 
 ## Session Recording

@@ -22,12 +22,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 )
 
 // TestClientWithExpiredCredentialsAndDetailedErrorMessage creates and connects to the Auth service
@@ -51,7 +52,7 @@ func TestClientWithExpiredCredentialsAndDetailedErrorMessage(t *testing.T) {
 	rcConf.SSH.Enabled = true
 	rcConf.Version = "v2"
 
-	username := mustGetCurrentUser(t).Username
+	username := helpers.MustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
 
 	err := rc.CreateEx(t, nil, rcConf)
@@ -61,7 +62,7 @@ func TestClientWithExpiredCredentialsAndDetailedErrorMessage(t *testing.T) {
 	defer rc.StopAll()
 
 	// Create an expired identity file: ttl is 1 second in the past
-	identityFilePath := MustCreateUserIdentityFile(t, rc, username, -time.Second)
+	identityFilePath := helpers.MustCreateUserIdentityFile(t, rc, username, -time.Second)
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
 	defer cancelFunc()

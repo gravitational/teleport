@@ -49,8 +49,9 @@ $ sudo ./install
 Now, save the following configuration file as `/etc/teleport.yaml` on the auth server.
 
 ```yaml
+version: v3
 teleport:
-  auth_token: zw6C82kq7VEUSJeSDzuldWsxakql6jrTYmphxRQOlrATTGbLQoaIwEBo48o9
+  auth_token: xxxx-token-xxxx
   # Pre-defined tokens for adding new nodes to a cluster. Each token specifies
   # the role a new node will be allowed to assume. The more secure way to
   # add nodes is to use `ttl node add --ttl` command to generate auto-expiring
@@ -59,7 +60,7 @@ teleport:
   # We recommend to use tools like `pwgen` to generate sufficiently random
   # tokens of 32+ byte length.
   # you can also use auth server's IP, i.e. "10.1.1.10:3025"
-  auth_servers: [ "10.1.1.10:3025" ]
+  auth_server: 10.1.1.10:3025
 
 auth_service:
   # enable the auth service:
@@ -67,9 +68,9 @@ auth_service:
 
   tokens:
   # this static token is used for other nodes to join this Teleport cluster
-  - proxy,node:zw6C82kq7VEUSJeSDzuldWsxakql6jrTYmphxRQOlrATTGbLQoaIwEBo48o9
+  - proxy,node:xxxx-token-xxxx
   # this token is used to establish trust with other Teleport clusters
-  - trusted_cluster:TaZff3DLbpsMZmIMhvEr7kulOgegjg7yyQNTS0q6UFWfsJ9N6rxVBjg6t7nw
+  - trusted_cluster:xxxx-different-token-xxxx
 
   # To Support FIPS local_auth needs to be turned off and a SSO connector is
   # required to log into Teleport.
@@ -93,11 +94,16 @@ Save the following configuration file as `/etc/teleport.yaml` on the Node
 Service host:
 
 ```yaml
+version: v3
 teleport:
-  auth_token: zw6C82kq7VEUSJeSDzuldWsxakql6jrTYmphxRQOlrATTGbLQoaIwEBo48o9
-  auth_servers: [ "10.1.1.10:3025" ]
+  auth_token: xxxx-token-xxxx
 
-  # enable ssh service and disable auth and proxy:
+  # Specify either the proxy address
+  proxy_server: teleport.example.com:3080
+  # or the auth server address
+  auth_server: 10.1.1.10:3025
+
+# Enable ssh service and disable auth and proxy:
 ssh_service:
   enabled: true
 auth_service:
