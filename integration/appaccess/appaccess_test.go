@@ -557,6 +557,107 @@ func TestTCP(t *testing.T) {
 	}
 }
 
+// TestTCPLock tests locking TCP applications.
+func TestTCPLock(t *testing.T) {
+	pack := Setup(t)
+
+	msg := []byte(uuid.New().String())
+
+	// Start the proxy to the two way communication app.
+	address := pack.startLocalProxy(t, pack.rootTCPTwoWayPublicAddr, pack.rootAppClusterName)
+	conn, err := net.Dial("tcp", address)
+	require.NoError(t, err)
+
+	// Read, write, and read again to make sure its working as expected.
+	buf := make([]byte, 1024)
+	n, err := conn.Read(buf)
+	require.NoError(t, err, buf)
+
+	resp := strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
+
+	_, err = conn.Write(msg)
+	require.NoError(t, err)
+
+	n, err = conn.Read(buf)
+	require.NoError(t, err, buf)
+
+	resp = strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
+
+	// Lock the user and try to write
+	pack.LockUser(t)
+	require.Eventually(t, func() bool {
+		_, err := conn.Write(msg)
+		if err != nil {
+			return false
+		}
+
+		_, err = conn.Read(buf)
+		return err != nil
+	}, 5*time.Second, 100*time.Millisecond)
+	// Close and re-open the connection
+	require.NoError(t, conn.Close())
+
+	conn, err = net.Dial("tcp", address)
+	require.NoError(t, err)
+
+	// Try to read again, expect a failure.
+	_, err = conn.Read(buf)
+	require.Error(t, err, buf)
+}
+
+// TestTCPCertExpiration tests TCP application with certs expiring.
+func TestTCPCertExpiration(t *testing.T) {
+	pack := SetupWithOptions(t, AppTestOptions{
+		CertificateTTL: 5 * time.Second,
+	})
+
+	msg := []byte(uuid.New().String())
+
+	// Start the proxy to the two way communication app.
+	address := pack.startLocalProxy(t, pack.rootTCPTwoWayPublicAddr, pack.rootAppClusterName)
+	conn, err := net.Dial("tcp", address)
+	require.NoError(t, err)
+
+	// Read, write, and read again to make sure its working as expected.
+	buf := make([]byte, 1024)
+	n, err := conn.Read(buf)
+	require.NoError(t, err, buf)
+
+	resp := strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
+
+	_, err = conn.Write(msg)
+	require.NoError(t, err)
+
+	n, err = conn.Read(buf)
+	require.NoError(t, err, buf)
+
+	resp = strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
+
+	// Lock the user and try to write
+	require.Eventually(t, func() bool {
+		_, err := conn.Write(msg)
+		if err != nil {
+			return false
+		}
+
+		_, err = conn.Read(buf)
+		return err != nil
+	}, 5*time.Second, 100*time.Millisecond)
+	// Close and re-open the connection
+	require.NoError(t, conn.Close())
+
+	conn, err = net.Dial("tcp", address)
+	require.NoError(t, err)
+
+	// Try to read again, expect a failure.
+	_, err = conn.Read(buf)
+	require.Error(t, err, buf)
+}
+
 func testServersHA(p *Pack, t *testing.T) {
 	type packInfo struct {
 		clusterName    string
