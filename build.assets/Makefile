@@ -199,6 +199,21 @@ buildbox-arm: buildbox
 		--cache-from $(BUILDBOX_ARM) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
 
+
+#
+# Builds a Docker buildbox for ARMv7/ARM64 builds
+# ARM buildboxes use a regular Teleport buildbox as a base which already has a user
+# with the correct UID and GID created, so those arguments are not needed here.
+#
+.PHONY:buildbox-arm-centos7
+buildbox-arm-centos7: buildbox-centos7
+	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM_CENTOS7) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM_CENTOS7) || true; fi;
+	docker build \
+		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--cache-from $(BUILDBOX_CENTOS7) \
+		--cache-from $(BUILDBOX_ARM_CENTOS7) \
+		--tag $(BUILDBOX_ARM_CENTOS7) -f Dockerfile-arm-centos7 .
+
 #
 # Builds a Docker buildbox for ARMv7/ARM64 FIPS builds
 # ARM buildboxes use a regular Teleport buildbox as a base which already has a user
@@ -402,6 +417,15 @@ release-arm: buildbox-arm
 .PHONY: release-arm64
 release-arm64: buildbox-arm
 	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM)
+
+.PHONY: release-arm-centos7
+release-arm-centos7: buildbox-arm-centos7
+	$(MAKE) release ARCH=arm BUILDBOX_NAME=$(BUILDBOX_ARM_CENTOS7)
+
+.PHONY: release-arm64-centos7
+release-arm64-centos7: buildbox-arm-centos7
+	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM_CENTOS7)
+
 
 .PHONY: release-amd64-centos7
 release-amd64-centos7: buildbox-centos7

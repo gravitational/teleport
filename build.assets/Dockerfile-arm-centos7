@@ -1,0 +1,33 @@
+ARG BUILDBOX_VERSION
+
+FROM centos:7 AS gcc-arm32
+RUN curl -L "https://developer.arm.com/-/media/Files/downloads/gnu/11.2-2022.02/binrel/gcc-arm-11.2-2022.02-x86_64-arm-none-linux-gnueabihf.tar.xz" -o arm32-gcc.tar.xz && \
+    [ $(sha256sum arm32-gcc.tar.xz | cut -d ' ' -f 1) = "c254f7199261fe76c32ef42187502839bda7efad0a66646cf739d074eff45fad" ] && \
+    tar -C /opt -xf arm32-gcc.tar.xz && \
+    rm -f arm32-gcc.tar.xz
+
+FROM centos:7 AS gcc-aarch64
+RUN curl -L "https://developer.arm.com/-/media/Files/downloads/gnu/11.2-2022.02/binrel/gcc-arm-11.2-2022.02-x86_64-aarch64-none-linux-gnu.tar.xz" -o aarch64-gcc.tar.xz && \
+    [ $(sha256sum aarch64-gcc.tar.xz | cut -d ' ' -f 1) = "52dbac3eb71dbe0916f60a8c5ab9b7dc9b66b3ce513047baa09fae56234e53f3" ] && \
+    tar -C /opt -xf aarch64-gcc.tar.xz && \
+    rm -f aarch64-gcc.tar.xz
+
+FROM public.ecr.aws/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION
+USER root
+
+# Install the ARM and AARCH64 cross-compilers
+COPY --from=gcc-arm32 /opt/gcc-arm-11.2-2022.02-x86_64-arm-none-linux-gnueabihf /opt/arm-none-linux-gnueabihf
+COPY --from=gcc-aarch64 /opt/gcc-arm-11.2-2022.02-x86_64-aarch64-none-linux-gnu /opt/aarch64-none-linux-gnu
+
+# Copy the PAM headers into the cross-compiler include paths. We _could_ just add -I/usr/include to the 
+# CGO flags in the Makefile, but that would open up the possibility of the build accidentally grabbing 
+# amd64-specific headers by mistake. Much safer to keep the cross-compiled sources together.
+#
+# Also provide links to the crosscompilers so that the names used in the Teleport makefiles 
+# work as expected.
+RUN mkdir -p /opt/arm-none-linux-gnueabihf/arm-none-linux-gnueabihf/libc/usr/local/include && \
+    cp -r /usr/include/security /opt/arm-none-linux-gnueabihf/arm-none-linux-gnueabihf/libc/usr/local/include && \
+    ln -s /opt/arm-none-linux-gnueabihf/bin/arm-none-linux-gnueabihf-gcc /usr/bin/arm-linux-gnueabihf-gcc && \
+    mkdir -p /opt/aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc/usr/local/include && \
+    cp -r /usr/include/security /opt/aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc/usr/local/include && \
+    ln -s /opt/aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-gcc /usr/bin/aarch64-linux-gnu-gcc
