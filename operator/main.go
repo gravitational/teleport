@@ -161,7 +161,7 @@ func main() {
 			os.Exit(1)
 		}
 	} else {
-		setupLog.Info("Teleport license does not cover OIDC, TeleportOIDCConnector resources won't be reconciled")
+		setupLog.Info("OIDC connectors are only available in Teleport Enterprise edition. TeleportOIDCConnector resources won't be reconciled")
 	}
 
 	if features.SAML {
@@ -171,7 +171,7 @@ func main() {
 			os.Exit(1)
 		}
 	} else {
-		setupLog.Info("Teleport license does not cover SAML, TeleportSAMLConnector resources won't be reconciled")
+		setupLog.Info("SAML connectors are only available in Teleport Enterprise edition. TeleportSAMLConnector resources won't be reconciled")
 	}
 
 	//+kubebuilder:scaffold:builder

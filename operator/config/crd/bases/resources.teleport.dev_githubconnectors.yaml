@@ -47,42 +47,6 @@ spec:
               redirect_url:
                 description: RedirectURL is the authorization callback URL.
                 type: string
-              teams_to_logins:
-                description: 'TeamsToLogins maps Github team memberships onto allowed
-                  logins/roles.  DELETE IN 11.0.0 Deprecated: use GithubTeamsToRoles
-                  instead.'
-                items:
-                  properties:
-                    kubernetes_groups:
-                      description: KubeGroups is a list of allowed kubernetes groups
-                        for this org/team.
-                      items:
-                        type: string
-                      nullable: true
-                      type: array
-                    kubernetes_users:
-                      description: KubeUsers is a list of allowed kubernetes users
-                        to impersonate for this org/team.
-                      items:
-                        type: string
-                      nullable: true
-                      type: array
-                    logins:
-                      description: Logins is a list of allowed logins for this org/team.
-                      items:
-                        type: string
-                      nullable: true
-                      type: array
-                    organization:
-                      description: Organization is a Github organization a user belongs
-                        to.
-                      type: string
-                    team:
-                      description: Team is a team within the organization a user belongs
-                        to.
-                      type: string
-                  type: object
-                type: array
               teams_to_roles:
                 description: TeamsToRoles maps Github team memberships onto allowed
                   roles.
