@@ -12,6 +12,7 @@ jobs:
       image: public.ecr.aws/gravitational/teleport-buildbox:teleport11
       env:
         GOCACHE: /tmp/gocache
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
       volumes:
         - ${{ github.workspace }}:/workspace
       options: --cap-add=SYS_ADMIN --privileged
@@ -43,7 +44,7 @@ jobs:
         if: ${{ github.ref_name == 'master' }}
         run: |
           cd /workspace/.cloudbuild/scripts
-          go run ./cmd/integration-tests -target "$GITHUB_REF_NAME" -commit $GITHUB_SHA -force
+          go run ./cmd/integration-tests -target "$GITHUB_REF_NAME" -commit $GITHUB_SHA -bucket teleport-test-logs -a "test-logs/*.json" -build "$GITHUB_RUN_ID" -force
       - name: Run tests
         if: ${{ github.ref_name != 'master' }}
         run: |
