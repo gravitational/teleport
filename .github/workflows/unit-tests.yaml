@@ -12,25 +12,20 @@ jobs:
       image: public.ecr.aws/gravitational/teleport-buildbox:teleport11
       env:
         HELM_PLUGINS: /root/.local/share/helm/plugins # See Makefile:533, Dockerfile needs to be fixed
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
       volumes:
         - ${{ github.workspace }}:/workspace
       options: --cap-add=SYS_ADMIN --privileged
     steps:
       - name: Install git 1.18+
-        uses: ./.github/actions/update-git-ubuntu
-      # - name: Install git 1.18+
-      #   run: |
-      #     apt-get -y update
-      #     apt-get -y install software-properties-common 
-      #     add-apt-repository -y ppa:git-core/ppa
-      #     apt-get -y update
-      #     apt-get -y install git
-      - name: Mark workspace safe
+        run: |
+          apt-get -y update && apt-get -y install software-properties-common 
+          add-apt-repository -y ppa:git-core/ppa
+          apt-get -y update && apt-get -y install git
+      - name: Mark /workspace as git safe.directory
         run: |
           git config --global --add safe.directory /workspace
           git config --global --add safe.directory /workspace/webassets
-      - name: Checkout Teleport
-        uses: actions/checkout@v3
       - name: Go cache paths
         id: go-cache-paths
         run: |
