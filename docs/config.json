@@ -693,6 +693,20 @@
         {
           "title": "Access Controls",
           "slug": "/kubernetes-access/controls/"
+        },
+        {
+          "title": "Kubernetes Discovery (Preview)",
+          "slug": "/kubernetes-access/discovery/",
+          "entries": [
+            {
+              "title": "AWS",
+              "slug": "/kubernetes-access/discovery/aws/"
+            },
+            {
+              "title": "Azure",
+              "slug": "/kubernetes-access/discovery/azure/"
+            }
+          ]
         }
       ]
     },
