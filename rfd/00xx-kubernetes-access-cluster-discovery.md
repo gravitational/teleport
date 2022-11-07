@@ -1,6 +1,6 @@
 ---
 authors: Tiago Silva (tiago.silva@goteleport.com)
-state: implemented
+state: draft
 ---
 
 # RFD XX - Kubernetes Cluster Automatic discovery
@@ -22,7 +22,7 @@ Proposes the implementation of Kubernetes Auto-Discovery for EKS, GKE and AKS cl
 
 Currently, when an operator wants to configure a new Kubernetes cluster in Teleport, he can opt for these two methods:
 
-Helm chart: when using this method, he has to install`helm` binary, configure Teleport Helm repo, and check all the configurable values (high availability, roles, apps, storage...). After that, he must create a Teleport invitation token using `tctl` and finally install the Helm chart with the desired configuration.
+- Helm chart: when using this method, he has to install`helm` binary, configure Teleport Helm repo, and check all the configurable values (high availability, roles, apps, storage...). After that, he must create a Teleport invitation token using `tctl` and finally install the Helm chart with the desired configuration.
 
 - `Kubeconfig`: when using the `kubeconfig` procedure, he has to connect to the cluster - using his credentials - and generate a new service account for Teleport. Besides that, he must assign the required RBAC permissions into the SA and extract its token. With it, he must create a `kubeconfig` file with the cluster CA and API server. If Teleport Kubernetes Service serves more than one cluster, he has to merge multiple `kubeconfig` files into a single file. Finally, he must configure the `kubeconfig` location in Teleport config under `kubernetes_service.kubeconfig_file` and restart the service.
 
@@ -55,9 +55,7 @@ registry is the cluster's cloud name, however you can assign the tag
 `teleport.dev/kubernetes-name: custom_name` to your cluster to import it under a 
 custom name in the Teleport registry.
 
-In addition to detecting new Kubernetes clusters, the Discovery Service also removes 
-- from Teleport's registry - the Kubernetes clusters that have been deleted or whose tags 
-no longer match the filtering labels.
+In addition to detecting new Kubernetes clusters, the Discovery Service also removes - from Teleport's registry - the Kubernetes clusters that have been deleted or whose tags no longer match the filtering labels.
 
 
 ### Forwarding requests to the Kubernetes Cluster
@@ -87,7 +85,7 @@ The following subsections will describe the details required for implementing th
 
 The discovery agent can auto-discover EKS-managed clusters in the AWS account it has credentials for by matching their resource tags and regions. For now, the discovery of connected clusters is out of the scope of this RFD.
 
-Authentication on an EKS cluster happens using short-lived tokens associated with the IAM role that the Kubernetes Service is using. Conversely, authorization on EKS clusters occurs by matching the IAM role against a database of mappings between IAM roles/users and Kubernetes RBAC users/groups. The database is a Configmap - `configmap/aws-auth` in `kube-system` namespace - within the cluster. It means that before Teleport can access the cluster, its IAM role must be included in the Configmap. This situation limits the Teleport automatic Discovery because Teleport cannot configure the access it needs on its own and requires manual actions by a cluster administrator.
+Authentication on an EKS cluster happens using short-lived tokens associated with the IAM role that the Kubernetes Service is using. Authorization also occurs by matching the IAM role against a database of mappings between IAM roles/users and Kubernetes RBAC users/groups. The database is a Configmap - `configmap/aws-auth` in `kube-system` namespace - within the cluster. It means that before Teleport can access the cluster, its IAM role must be included in the Configmap. This situation limits the Teleport automatic Discovery because Teleport cannot configure the access it needs on its own and requires manual actions by the cluster administrator.
 
 By default, the cluster creator and every member that shares his IAM role or federated user have immediate access to the cluster as `system:masters`. This rule is enforced by [AWS IAM authenticator][awsiamauthenticator] and cannot be seen or edited by manipulating `configmap/aws-auth` since it is hidden.
 
@@ -139,7 +137,7 @@ discovery_service:
 
 ##### Kubernetes Service
 
-In the Kubernetes Service we have to configure the `resources` monitoring section with the cluster tags of the dynamic resources that this agent is able to forward requests for.
+In the Kubernetes Service, we have to configure the `resources` monitoring section with the cluster tags of the dynamic resources that this agent is able to forward requests for.
 
 ```yaml
 ## This section configures the Kubernetes Service
@@ -182,7 +180,7 @@ In situations where you do not want to run this CLI or you create new clusters, 
 
 In this section, we describe the manual process for granting to Kubernetes Service the necessary permissions when it runs with a different IAM role.
 
-First, you must create the `ClusterRole` resource defined in Appendix A using `kubectl`. In the second step, you must create the `ClusterRoleBinding` resource defined in Appendix B, which maps the cluster role into the `teleport` RBAC group. It is possible, although not recommended, to assign an existent group such as `system:masters` with Impersonation permissions instead of creating a new group.
+First, you must create the `ClusterRole` resource defined in Appendix A using `kubectl`. In the second step, you must create the `ClusterRoleBinding` resource defined in Appendix B, which maps the cluster role into the `teleport` Kubernetes RBAC group. It is possible, although not recommended, to assign an existent group such as `system:masters` with Impersonation permissions instead of creating a new group.
 
 At this point, the `teleport` group has the minimum permissions, and the only piece left is assigning it to the Teleport IAM role. The mapping between the IAM role and `teleport` is created by appending into the `configmap/aws-auth` - located at the `kube-system` namespace - the following content:
 
@@ -206,7 +204,6 @@ $  eksctl create iamidentitymapping --cluster  <clusterName> --region=<region> \
 
 The cluster is now ready to be discovered in the next iteration.
 
-
 ### Resource watcher
 
 AWS does not provide a method that returns the available EKS clusters and their details. Instead, Teleport will check for available EKS clusters by calling the [`eks:ListClusters`][listClusters] API at regular intervals. This endpoint returns the list of EKS cluster names that the IAM identity has access to but not their details. To extract the details such as name and tags, the Discovery Service will call [`eks:DescribeCluster`][descclusters] method for each cluster returned by the previous call. These calls will be made concurrently with a limit of 5 simultaneous calls to speed up the process.
@@ -221,7 +218,7 @@ Access to the EKS cluster is granted by sending a pre-signed token as an authori
 
 ```go
 request, _ := stsClient.GetCallerIdentityRequest(&sts.GetCallerIdentityInput{})
-request.HTTPRequest.Header.Add(`x-k8s-aws-id`, clusterID)
+request.HTTPRequest.Header.Add(`x-k8s-aws-id`, clusterName)
 presignedURLString, _ := request.Presign(requestPresignParam)
 
 token = "k8s-aws-v1."+ base64.RawURLEncoding.EncodeToString([]byte(presignedURLString))
@@ -239,7 +236,7 @@ By default, the cluster creator and every member that shares his IAM role or fed
 
 If Teleport discovery shares the same IAM role as the cluster's creator, it immediately has full access to the cluster and no further action is necessary. This creates a limitation because EKS clusters must be created by users with the same IAM role as Teleport otherwise if an EKS cluster is created by a different IAM role/federated user, Teleport does not have access to that cluster! For security purposes, it is not recommended running Teleport with the user's role.
 
-If the Teleport agent is running with a different IAM role, it is required that its IAM role is mapped into a Kubernetes RBAC group. This can be configured by appending an extra entry into `configmap/aws-auth`.
+If the Teleport agent is running with a different IAM role, it is required that its IAM role maps into a Kubernetes RBAC group. This can be configured by appending an extra entry into `configmap/aws-auth`.
 
 The `configmap` has the following format:
 
@@ -276,7 +273,7 @@ Where `teleport` RBAC group defines the minimum required permissions and can be 
 
 Without this entry in `configmap/aws-auth`, Teleport does not have access to the cluster. 
 
-Summarizing, it is impossible for Teleport to escalate its privileges and grant access to the cluster from a no-access situation. A manual action is required to link Teleport IAM role into Kubernetes RBAC principals otherwise Teleport cannot forward requests to the cluster.
+Summarizing, it is impossible for Teleport to escalate its privileges and grant access to the cluster from a no-access situation. It requires a manual action to link Teleport IAM role into Kubernetes RBAC principals otherwise Teleport cannot forward requests to the cluster.
 
 ### Limitations
 
@@ -304,7 +301,7 @@ When a cluster uses this mode, the access happens via Kubernetes local accounts.
 
 The returned credentials can be used to authenticate directly into the Kubernetes API and are shared across all users that have access to `ListCluster*Credentials` endpoints. Thus, the credentials returned are non-auditable.
 
-Teleport can automatically discover AKS clusters and forward requests into them without any modification of the target cluster.
+When a cluster uses this mode, Teleport can automatically discover and forward requests into it without any modification of the target cluster.
 
 - **Active Directory with Kubernetes RBAC**
 
@@ -344,7 +341,7 @@ An example of Azure RBAC policy that allows a user to get pods is the following:
 }
 ```
 
-Teleport can automatically discover AKS clusters and forward requests into them without any modification of the target cluster.
+When a cluster uses this mode, Teleport can automatically discover and forward requests into it without any modification of the target cluster.
 
 ### Permissions
 
@@ -790,7 +787,7 @@ The Azure RBAC representation of the minimum access level that agents require is
 }
 ```
 
-If the Azure RBAC grants the access required by the agents, the cluster is created and proxied by the Kubernetes agent. Otherwise, if the role is not correctly configured the discovery agent will return an error mentioning access is not correctly configured.
+If the Azure RBAC grants the access required by the agents, the cluster is created and proxied by the Kubernetes agent.
 
 #### Kubernetes Local Accounts
 
@@ -885,7 +882,7 @@ If the agent identity does not grant access to the `aks:RunCommand` API, it's no
 
 ### Limitations
 
-In cases where Active Directory or Azure RBAC options are disabled and the Teleport RBAC permissions (if AD is enabled) doesny exist, the agent uses insecure APIs to create access. It requires the usage of APIs that expose long-lived admin credentials or methods that allow runnin commands in the cluster as an administrator and where command scope limits do not exist. To extract the full potential of AKS auto-discovery, we recommend that AD and AZ RBAC are enabled. 
+In cases where Active Directory or Azure RBAC options are disabled and the Teleport RBAC permissions (if AD is enabled) does not exist, the agent uses insecure APIs to create access. It requires the usage of APIs that expose long-lived admin credentials or methods that allow running commands in the cluster as an administrator and where command scope limits do not exist. To extract the full potential of AKS auto-discovery, we recommend that AD and AZ RBAC are enabled. 
 
 To extract the full potential of AKS auto-discovery, we recommend that AD and AZ RBAC are enabled.
 
@@ -895,7 +892,7 @@ The following subsections will describe the details required for implementing GK
 
 The Discovery service can auto-discover GKE clusters in the GCP account it has credentials for by matching their resource tags. 
 
-Authentication on an GKE cluster happens using the same OAuth2 token used to access any other GCP service and authorization is associated with the roles attached to the GCP Service Account the Kubernetes Service is using to access the cluster. 
+Authentication on an GKE cluster happens using the same OAuth2 token used to access any other GCP service and authorization is associated with the roles attached to the GCP Service Account the Discovery and Kubernetes Services are using to access the cluster. 
 
 #### IAM Permissions 
 
@@ -982,7 +979,7 @@ This section defines the GKE token generation (authentication) and the authoriza
 
 #### Authentication
 
-Access to the GKE cluster is granted by sending a Google OAuth2 token as Authorization header. To generate this token, Teleport will delegate the token creation into [google/oauth2](https://pkg.go.dev/golang.org/x/oauth2/google) library. To generate a GCP Auth Token, Teleport must specify the  Kubernetes Engine scope - `https://www.googleapis.com/auth/cloud-platform` - when generating the new token.
+Access to the GKE cluster is granted by sending a Google OAuth2 token as Authorization header. To generate this token, Teleport will delegate the token creation into [google/oauth2](https://pkg.go.dev/golang.org/x/oauth2/google) library. To generate a GCP Auth Token, Teleport must specify the Kubernetes Engine scope - `https://www.googleapis.com/auth/cloud-platform`.
 
 The token's TTL is 1 hour and Teleport will revalidate it once it's near expiration.  
 
@@ -1007,13 +1004,13 @@ Although, `container.clusters.impersonate` is hidden from GCP permissions listin
 
 From a security perspective, the `eks:DescribeCluster` and `eks:ListClusters` methods do not give direct access to the cluster and only allow the callee to grab the endpoint and CA certificate.
 
-The credentials that grant access into the cluster are generated by [AWS IAM authenticator][awsiamauthenticator] and are short-lived - 15 minutes.
+The credentials that grant access into the cluster are pre-signed, independent for each cluster and are short-lived - 15 minutes.
 
 In order to Teleport to be able to connect to the cluster, its role must be present in `aws-auth` configmap with the desired group permissions. As described above, the permissions required for Teleport to operate in this mode do not give him the possibility to create or delete resources, that it can only happen via impersonation.
 
 ### Azure
 
-Access to AKS clusters is not immediately granted by [`Microsoft.ContainerService/managedClusters`][listclustersaks], and depending on the cluster version and integration type, access details are pulled from different sources.
+[`Microsoft.ContainerService/managedClusters`][listclustersaks] does not immediately grant access to AKS clusters, and depending on the cluster version and authentication and authorization mode, the access modes are different.
 
 If AD is enabled, the authentication details are short-lived and must be revalidated each time their TTL is about to expire. The call to [`AAD/Token`][aadtoken] returns the expiration time of the credentials. After their expiration time reaches, the token no longer grants access to the cluster. Each cluster has a different authentication token.
 
