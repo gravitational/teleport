@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -160,9 +161,7 @@ func TestTermManagerRead(t *testing.T) {
 	cases := []struct {
 		name          string
 		reader        func() io.Reader
-		dataAssertion require.ValueAssertionFunc
-		nAssertion    require.ValueAssertionFunc
-		errAssertion  require.ErrorAssertionFunc
+		readAssertion func(n int, err error, d []byte)
 	}{
 		{
 			name: "data flow on and data to read",
@@ -173,13 +172,11 @@ func TestTermManagerRead(t *testing.T) {
 
 				return m
 			},
-			dataAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
-				require.Equal(t, i, data, i2...)
+			readAssertion: func(n int, err error, d []byte) {
+				assert.NoError(t, err)
+				assert.Equal(t, n, len(data))
+				assert.Equal(t, data, d)
 			},
-			nAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
-				require.Equal(t, i, len(data), i2...)
-			},
-			errAssertion: require.NoError,
 		},
 		{
 			name: "data flow on and data to read but closed",
@@ -191,12 +188,10 @@ func TestTermManagerRead(t *testing.T) {
 
 				return m
 			},
-			dataAssertion: require.Empty,
-			nAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
-				require.Equal(t, i, 0, i2...)
-			},
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, io.EOF, i...)
+			readAssertion: func(n int, err error, d []byte) {
+				assert.ErrorIs(t, err, io.EOF)
+				assert.Zero(t, n)
+				assert.Empty(t, d)
 			},
 		},
 		{
@@ -234,10 +229,10 @@ func TestTermManagerRead(t *testing.T) {
 
 				return r
 			},
-			dataAssertion: require.Empty,
-			nAssertion:    require.Zero,
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, io.EOF, i...)
+			readAssertion: func(n int, err error, d []byte) {
+				assert.ErrorIs(t, err, io.EOF)
+				assert.Zero(t, n)
+				assert.Empty(t, d)
 			},
 		},
 		{
@@ -273,13 +268,11 @@ func TestTermManagerRead(t *testing.T) {
 
 				return r
 			},
-			dataAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
-				require.Equal(t, i, data, i2...)
+			readAssertion: func(n int, err error, d []byte) {
+				assert.NoError(t, err)
+				assert.Equal(t, n, len(data))
+				assert.Equal(t, data, d)
 			},
-			nAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
-				require.Equal(t, i, len(data), i2...)
-			},
-			errAssertion: require.NoError,
 		},
 		{
 			name: "data flow is on but waits for data to read",
@@ -322,13 +315,11 @@ func TestTermManagerRead(t *testing.T) {
 
 				return r
 			},
-			dataAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
-				require.Equal(t, i, data, i2...)
+			readAssertion: func(n int, err error, d []byte) {
+				assert.NoError(t, err)
+				assert.Equal(t, n, len(data))
+				assert.Equal(t, data, d)
 			},
-			nAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
-				require.Equal(t, i, len(data), i2...)
-			},
-			errAssertion: require.NoError,
 		},
 	}
 
@@ -337,9 +328,7 @@ func TestTermManagerRead(t *testing.T) {
 			r := tt.reader()
 			d := make([]byte, 100)
 			n, err := r.Read(d)
-			tt.errAssertion(t, err)
-			tt.nAssertion(t, n)
-			tt.dataAssertion(t, d[:n])
+			tt.readAssertion(n, err, d[:n])
 		})
 	}
 
