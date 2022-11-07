@@ -43,10 +43,10 @@ jobs:
       - name: Run tests (force)
         if: ${{ github.ref_name == 'master' }}
         run: |
-          cd /workspace/.cloudbuild/scripts
+          cd /workspace/.github/scripts
           go run ./cmd/integration-tests -target "$GITHUB_REF_NAME" -commit $GITHUB_SHA -bucket teleport-test-logs -a "test-logs/*.json" -build "$GITHUB_RUN_ID" -force
       - name: Run tests
         if: ${{ github.ref_name != 'master' }}
         run: |
-          cd /workspace/.cloudbuild/scripts
+          cd /workspace/.github/scripts
           go run ./cmd/integration-tests -target "$GITHUB_REF_NAME" -commit $GITHUB_SHA

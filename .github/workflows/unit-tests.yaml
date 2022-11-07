@@ -22,12 +22,15 @@ jobs:
           apt-get -y update && apt-get -y install software-properties-common 
           add-apt-repository -y ppa:git-core/ppa
           apt-get -y update && apt-get -y install git
-      - name: Mark /workspace as git safe.directory
-        run: |
-          git config --global --add safe.directory /workspace
-          git config --global --add safe.directory /workspace/webassets
+      # - name: Mark /workspace as git safe.directory
+      #   run: |
+      #     git config --global --add safe.directory /workspace
+      #     git config --global --add safe.directory /workspace/webassets
       - name: Checkout Teleport
         uses: actions/checkout@v3
+        with:
+          set-safe-directory: true
+          fetch-depth: 0
       - name: Fetch go cache paths
         id: go-cache-paths
         run: |
@@ -54,11 +57,11 @@ jobs:
       - name: Run tests (force)
         if: ${{ github.ref_name == 'master' }}
         run: |
-          cd /workspace/.cloudbuild/scripts
+          cd /workspace/.github/scripts
           go run ./cmd/unit-tests -target "$GITHUB_REF_NAME" -commit $GITHUB_SHA -bucket teleport-test-logs -a "test-logs/*.json" -build "$GITHUB_RUN_ID" -force
 
       - name: Run tests
         if: ${{ github.ref_name != 'master' }}
         run: |
-          cd /workspace/.cloudbuild/scripts
+          cd /workspace/.github/scripts
           go run ./cmd/unit-tests -target "$GITHUB_REF_NAME" -commit $GITHUB_SHA
