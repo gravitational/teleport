@@ -17,6 +17,7 @@ limitations under the License.
 package reversetunnel
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"sync"
@@ -220,22 +221,16 @@ func (c *remoteConn) sendDiscoveryRequest(req discoveryRequest) error {
 
 	// Marshal and send the request. If the connection failed, mark the
 	// connection as invalid so it will be removed later.
-	payload, err := marshalDiscoveryRequest(req)
+	payload, err := json.Marshal(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Log the discovery request being sent. Useful for debugging to know what
 	// proxies the tunnel server thinks exist.
-	names := make([]string, 0, len(req.Proxies))
-	for _, proxy := range req.Proxies {
-		names = append(names, proxy.GetName())
-	}
-	c.log.Debugf("Sending %v discovery request with proxies %q to %v.",
-		req.Type, names, c.sconn.RemoteAddr())
+	c.log.Debugf("Sending discovery request with proxies %q to %v.", req.ProxyNames(), c.sconn.RemoteAddr())
 
-	_, err = discoveryCh.SendRequest(chanDiscoveryReq, false, payload)
-	if err != nil {
+	if _, err := discoveryCh.SendRequest(chanDiscoveryReq, false, payload); err != nil {
 		c.markInvalid(err)
 		return trace.Wrap(err)
 	}
