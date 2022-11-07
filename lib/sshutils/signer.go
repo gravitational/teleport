@@ -18,6 +18,7 @@ package sshutils
 
 import (
 	"crypto"
+	"io"
 
 	"github.com/gravitational/teleport/api/utils/sshutils"
 
@@ -25,6 +26,20 @@ import (
 
 	"github.com/gravitational/trace"
 )
+
+// LegacySHA1Signer always forces use of SHA-1 for signing. It should be not
+// be used until necessary.
+type LegacySHA1Signer struct {
+	Signer ssh.AlgorithmSigner
+}
+
+func (s *LegacySHA1Signer) PublicKey() ssh.PublicKey {
+	return s.Signer.PublicKey()
+}
+
+func (s *LegacySHA1Signer) Sign(rand io.Reader, data []byte) (*ssh.Signature, error) {
+	return s.Signer.SignWithAlgorithm(rand, data, ssh.KeyAlgoRSA)
+}
 
 // NewSigner returns new ssh Signer from private key + certificate pair.  The
 // signer can be used to create "auth methods" i.e. login into Teleport SSH
