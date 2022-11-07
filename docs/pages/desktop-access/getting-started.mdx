@@ -14,7 +14,8 @@ Desktop Access and log into a Windows desktop from that domain.
 This guide requires you to have:
 
 - An Active Directory domain, configured for LDAPS (Teleport requires an
-  encrypted LDAP connection)
+  encrypted LDAP connection). Typically this means installing
+  [AD CS](https://learn.microsoft.com/en-us/windows-server/identity/ad-cs/)
 
 - Access to a Domain Controller
 
@@ -444,6 +445,9 @@ windows_desktop_service:
   enabled: yes
   listen_addr: "0.0.0.0:3028"
   ldap:
+    # Port must be included for the addr.
+    # LDAPS port is 636 by default,
+    # e.g. example.com:636
     addr: "$LDAP_SERVER_ADDRESS"
     domain: "$LDAP_DOMAIN_NAME"
     username: '$LDAP_USERNAME'
@@ -475,10 +479,13 @@ teleport:
 windows_desktop_service:
   enabled: yes
   ldap:
+    # Port must be included for the addr.
+    # LDAPS port is 636 by default,
+    # e.g. example.com:636
     addr: "$LDAP_SERVER_ADDRESS"
     domain: "$LDAP_DOMAIN_NAME"
     username: '$LDAP_USERNAME'
-    # This should be the path to the certificate exported in Step 4.
+    # This should be the path to the certificate exported in Step 5.
     der_ca_file: /path/to/cert
   discovery:
     base_dn: "*"
