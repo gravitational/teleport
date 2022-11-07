@@ -16,13 +16,16 @@ jobs:
         - ${{ github.workspace }}:/workspace
       options: --cap-add=SYS_ADMIN --privileged
     steps:
-      - name: Install git 1.18+
+      - using: actions/update-git-ubuntu
+      # - name: Install git 1.18+
+      #   run: |
+      #     apt-get -y update
+      #     apt-get -y install software-properties-common 
+      #     add-apt-repository -y ppa:git-core/ppa
+      #     apt-get -y update
+      #     apt-get -y install git
+      - name: Mark workspace safe
         run: |
-          apt-get -y update
-          apt-get -y install software-properties-common 
-          add-apt-repository -y ppa:git-core/ppa
-          apt-get -y update
-          apt-get -y install git
           git config --global --add safe.directory /workspace
           git config --global --add safe.directory /workspace/webassets
       - name: Checkout Teleport
@@ -32,8 +35,6 @@ jobs:
         run: |
           echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
           echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
-      - name: check path
-        run: echo "${{ steps.go-cache-paths.outputs.go-build }} ${{ steps.go-cache-paths.outputs.go-mod }}"
       - name: Go build cache
         uses: actions/cache@v3
         with:
