@@ -1,0 +1,81 @@
+name: OS compability test
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    name: make build/*
+    runs-on: ubuntu-latest
+    # timeout-minutes: 10 TODO: Uncomment on production runner
+    container: 
+      image: public.ecr.aws/gravitational/teleport-buildbox-centos7:teleport11
+      env:
+        GOCACHE: /tmp/gocache
+      volumes:
+        - ${{ github.workspace }}:/workspace      
+    steps:
+      - name: Install git 1.18+
+        run: |
+          yum -y remove git
+          yum -y install https://packages.endpointdev.com/rhel/7/os/x86_64/endpoint-repo.x86_64.rpm
+          yum -y install git
+          git config --global --add safe.directory /workspace
+          git config --global --add safe.directory /workspace/webassets
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+      - name: Go cache paths
+        id: go-cache-paths
+        run: |
+          echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+      - name: Go build cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          key: ${{ runner.os }}-go-build-compat-${{ hashFiles('/workspace/**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-build-compat-
+      - name: Go mod cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-go-mod-compat-${{ hashFiles('/workspace/**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-mod-compat-
+      - name: Rust cargo cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            /workspace/target
+          key: ${{ runner.os }}-cargo-compat-${{ hashFiles('/workspace/**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-compat-
+      - name: Run make
+        run: |
+          cd /workspace && make build/tctl build/tsh build/tbot build/teleport
+      - name: Upload binaries
+        uses: actions/upload-artifact@v3
+        with:
+          name: build
+          path: /workspace/build/
+
+  test-compat:
+    needs: build
+    name: test-compat
+    runs-on: ubuntu-latest
+    # timeout-minutes: 10 TODO: Uncomment on production runner
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Download binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: build
+          path: ${{ github.workspace }}/build
+      - name: chmod +x
+        run: chmod +x ${{ github.workspace }}/build/*
+      - name: Run compat matrix
+        run: |
+          cd ${{ github.workspace }} && ./build.assets/build-test-compat.sh

@@ -1,0 +1,85 @@
+name: Unit tests
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    # These permissions are required by Google Cloud auth step
+    permissions:
+      contents: read
+      id-token: write
+    # TODO: Uncomment on production runner
+    # timeout-minutes: 10
+    container: 
+      image: public.ecr.aws/gravitational/teleport-buildbox:teleport11
+      env:
+        HELM_PLUGINS: /root/.local/share/helm/plugins # See Makefile:533, Dockerfile needs to be fixed to work with GHA
+      volumes:
+        - ${{ github.workspace }}:/workspace
+      # This permissions are required to make mount debugfs work. This is safe enough when used with Github-hosted runners.
+      options: --cap-add=SYS_ADMIN --privileged
+    steps:
+      # actions/checkout@v3 requires git 2.18+ to be installed in the host system (buildbox image in our case). I guess,
+      # Dockerfile needs to be updated.
+      - name: Install git 2.18+
+        run: |
+          apt-get -y update && apt-get -y install software-properties-common 
+          add-apt-repository -y ppa:git-core/ppa
+          apt-get -y update && apt-get -y install git
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Full unshallowed copy is required to make changes detector work
+      # Please, check https://github.com/google-github-actions/auth setup instructions. Please note that service account
+      # is required and must have `storage.objects.create` permission. This step is required for artifacts 
+      # (build logs) uploader.
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v0
+        with:
+          workload_identity_provider: projects/671314886056/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: teleport-storage@just-terminus-366813.iam.gserviceaccount.com
+      # We need perform this manually. Build fails otherwise with "error obtaining VCS status: exit status 128".
+      - name: Mark /workspace as git safe.directory
+        run: |
+          git config --global --add safe.directory /workspace
+          git config --global --add safe.directory /workspace/webassets
+      - name: Fetch go cache paths
+        id: go-cache-paths
+        run: |
+          echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+      - name: Go build cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          key: ${{ runner.os }}-go-build-unit-${{ hashFiles('/workspace/**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-build-unit-
+      - name: Go mod cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-go-mod-unit-${{ hashFiles('/workspace/**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-mod-unit-
+      - name: Rust cargo cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            /workspace/target
+            /usr/local/cargo/registry
+            /usr/local/cargo/git
+          key: ${{ runner.os }}-cargo-unit-${{ hashFiles('/workspace/**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-unit-
+      - name: Run tests (force)
+        if: ${{ github.ref_name == 'master' }}
+        run: |
+          cd /workspace/.github/scripts
+          go run ./cmd/unit-tests -target "$GITHUB_REF_NAME" -commit $GITHUB_SHA -bucket teleport-test-logs -a "test-logs/*.json" -build "$GITHUB_RUN_ID" -force
+
+      - name: Run tests
+        if: ${{ github.ref_name != 'master' }}
+        run: |
+          cd /workspace/.github/scripts
+          go run ./cmd/unit-tests -target "$GITHUB_REF_NAME" -commit $GITHUB_SHA

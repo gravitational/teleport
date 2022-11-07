@@ -69,6 +69,7 @@ func innerMain() error {
 		}
 	}
 
+	args.skipUnshallow = true
 	if !args.skipUnshallow {
 		unshallowCtx, unshallowCancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer unshallowCancel()
@@ -103,10 +104,15 @@ func innerMain() error {
 	// From this point on, whatever happens we want to upload any artifacts
 	// produced by the build
 	defer func() {
+		log.Println("Uploading artifacts...")
+
 		prefix := fmt.Sprintf("%s/artifacts", args.buildID)
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		artifacts.FindAndUpload(timeoutCtx, args.bucket, prefix, args.artifactSearchPatterns)
+		err := artifacts.FindAndUpload(timeoutCtx, args.bucket, prefix, args.artifactSearchPatterns)
+		if err != nil {
+			log.Println("Can't upload build artifacts:", err)
+		}
 	}()
 
 	log.Printf("Running root-only integration tests...")

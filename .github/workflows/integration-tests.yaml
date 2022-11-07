@@ -1,0 +1,61 @@
+name: Integration tests
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    # timeout-minutes: 10 TODO: Uncomment on production runner
+    permissions:
+      contents: read
+      id-token: write
+    container: 
+      image: public.ecr.aws/gravitational/teleport-buildbox:teleport11
+      env:
+        GOCACHE: /tmp/gocache
+      volumes:
+        - ${{ github.workspace }}:/workspace
+      options: --cap-add=SYS_ADMIN --privileged
+    steps:
+      - name: Install git 1.18+
+        run: |
+          apt-get -y update && apt-get -y install software-properties-common 
+          add-apt-repository -y ppa:git-core/ppa
+          apt-get -y update && apt-get -y install git
+      - name: Mark /workspace as git safe.directory
+        run: |
+          git config --global --add safe.directory /workspace
+          git config --global --add safe.directory /workspace/webassets
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v0
+        with:
+          workload_identity_provider: projects/671314886056/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: teleport-storage@just-terminus-366813.iam.gserviceaccount.com
+      - name: Go build cache
+        uses: actions/cache@v3
+        with:
+          path: /tmp/gocache
+          key: ${{ runner.os }}-go-build-integration-${{ hashFiles('/workspace/**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-build-integration-
+      - name: Rust cargo cache
+        uses: actions/cache@v3
+        with:
+          path: /workspace/target
+          key: ${{ runner.os }}-cargo-integration-${{ hashFiles('/workspace/**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-integration-
+      - name: Run tests (force)
+        if: ${{ github.ref_name == 'master' }}
+        run: |
+          cd /workspace/.github/scripts
+          go run ./cmd/integration-tests -target "$GITHUB_REF_NAME" -commit $GITHUB_SHA -bucket teleport-test-logs -a "test-logs/*.json" -build "$GITHUB_RUN_ID" -force -skip-unshallow
+      - name: Run tests
+        if: ${{ github.ref_name != 'master' }}
+        run: |
+          cd /workspace/.github/scripts
+          go run ./cmd/integration-tests -target "$GITHUB_REF_NAME" -commit $GITHUB_SHA

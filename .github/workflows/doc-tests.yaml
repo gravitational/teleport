@@ -1,0 +1,18 @@
+name: yarn markdown-lint
+on:
+  push:
+  pull_request:
+
+jobs:
+  doc-tests:
+    name: yarn markdown-lint
+    runs-on: ubuntu-latest
+    container:
+      image: public.ecr.aws/gravitational/docs:latest
+      volumes:
+        - ${{ github.workspace }}:/src/content
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Run tests
+        run: cd /src/content && yarn markdown-lint
