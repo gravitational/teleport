@@ -652,24 +652,12 @@ func signersWithSHA1Fallback(signersCb func() ([]ssh.Signer, error)) func() ([]s
 
 		for _, signer := range signers {
 			if s, ok := signer.(ssh.AlgorithmSigner); ok {
-				combinedSigners = append(combinedSigners, &LegacySHA1Signer{signer: s})
+				combinedSigners = append(combinedSigners, &sshutils.LegacySHA1Signer{Signer: s})
 			}
 		}
 
 		return combinedSigners, nil
 	}
-}
-
-type LegacySHA1Signer struct {
-	signer ssh.AlgorithmSigner
-}
-
-func (s *LegacySHA1Signer) PublicKey() ssh.PublicKey {
-	return s.signer.PublicKey()
-}
-
-func (s *LegacySHA1Signer) Sign(rand io.Reader, data []byte) (*ssh.Signature, error) {
-	return s.signer.SignWithAlgorithm(rand, data, ssh.KeyAlgoRSA)
 }
 
 func (s *Server) handleConnection(ctx context.Context, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
