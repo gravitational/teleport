@@ -305,13 +305,8 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Jira Server",
-              "slug": "/access-controls/access-request-plugins/ssh-approval-jira-server/",
-              "forScopes": ["enterprise", "cloud"]
-            },
-            {
-              "title": "Jira Cloud",
-              "slug": "/access-controls/access-request-plugins/ssh-approval-jira-cloud/",
+              "title": "Jira",
+              "slug": "/access-controls/access-request-plugins/ssh-approval-jira/",
               "forScopes": ["enterprise", "cloud"]
             },
             {
@@ -1008,13 +1003,21 @@
               "title": "teleport-plugin-event-handler",
               "slug": "/reference/helm-reference/teleport-plugin-event-handler/"
             },
-	    {
-              "title": "teleport-plugin-mattermost",
-              "slug": "/reference/helm-reference/teleport-plugin-mattermost/"
-	    },
+            {
+              "title": "teleport-plugin-jira",
+              "slug": "/reference/helm-reference/teleport-plugin-jira/"
+            },
             {
               "title": "teleport-plugin-pagerduty",
               "slug": "/reference/helm-reference/teleport-plugin-pagerduty/"
+            },
+            {
+              "title": "teleport-plugin-mattermost",
+              "slug": "/reference/helm-reference/teleport-plugin-mattermost/"
+            },
+            {
+              "title": "teleport-plugin-slack",
+              "slug": "/reference/helm-reference/teleport-plugin-slack/"
             }
           ]
         }
@@ -1107,7 +1110,7 @@
       "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "10.3.2",
+      "version": "10.3.6",
       "major_version": "10",
       "sla": {
         "monthly_percentage": "99.5%",
@@ -1496,12 +1499,17 @@
     },
     {
       "source": "/enterprise/workflow/ssh-approval-jira-server/",
-      "destination": "/access-controls/access-request-plugins/ssh-approval-jira-server/",
+      "destination": "/access-controls/access-request-plugins/ssh-approval-jira/",
       "permanent": true
     },
     {
       "source": "/enterprise/workflow/ssh-approval-jira-cloud/",
-      "destination": "/access-controls/access-request-plugins/ssh-approval-jira-cloud/",
+      "destination": "/access-controls/access-request-plugins/ssh-approval-jira/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/workflow/ssh-approval-jira-cloud/",
+      "destination": "/access-controls/access-request-plugins/ssh-approval-jira/",
       "permanent": true
     },
     {
