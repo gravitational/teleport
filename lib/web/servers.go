@@ -97,7 +97,7 @@ func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	db, err := clt.GetDatabase(r.Context(), databaseName)
+	database, err := fetchDatabaseWithName(r.Context(), clt, r, databaseName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -122,7 +122,7 @@ func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p h
 		dbNames = []string{}
 	}
 
-	return ui.MakeDatabase(db, dbUsers, dbNames), nil
+	return ui.MakeDatabase(database, dbUsers, dbNames), nil
 }
 
 // clusterDesktopsGet returns a list of desktops in a form the UI can present.

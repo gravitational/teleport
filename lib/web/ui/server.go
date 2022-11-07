@@ -234,17 +234,6 @@ type Database struct {
 	DatabaseNames []string `json:"database_names,omitempty"`
 }
 
-// MakeDatabases creates database objects.
-func MakeDatabases(databases []types.Database) []Database {
-	uiServers := make([]Database, 0, len(databases))
-	for _, database := range databases {
-		db := MakeDatabase(database, nil /* database Users */, nil /* database Names */)
-		uiServers = append(uiServers, db)
-	}
-
-	return uiServers
-}
-
 // MakeDatabase creates database objects.
 func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 
@@ -268,6 +257,17 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 		DatabaseUsers: dbUsers,
 		DatabaseNames: dbNames,
 	}
+}
+
+// MakeDatabases creates database objects.
+func MakeDatabases(databases []types.Database) []Database {
+	uiServers := make([]Database, 0, len(databases))
+	for _, database := range databases {
+		db := MakeDatabase(database, nil /* database Users */, nil /* database Names */)
+		uiServers = append(uiServers, db)
+	}
+
+	return uiServers
 }
 
 // Desktop describes a desktop to pass to the ui.

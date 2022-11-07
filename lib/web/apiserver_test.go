@@ -2826,27 +2826,12 @@ func TestClusterDatabaseGet(t *testing.T) {
 
 	proxy := env.proxies[0]
 
-	// Register a database.
-	dbName := "existingdb"
-	db, err := types.NewDatabaseV3(types.Metadata{
-		Name: dbName,
-		Labels: map[string]string{
-			"env": "prod",
-		},
-	}, types.DatabaseSpecV3{
-		Protocol: "test-protocol",
-		URI:      "test-uri",
-	})
-	require.NoError(t, err)
-
 	dbNames := []string{"db1", "db2"}
 	dbUsers := []string{"user1", "user2"}
 
-	err = env.server.Auth().CreateDatabase(context.Background(), db)
-	require.NoError(t, err)
-
 	for _, tt := range []struct {
 		name            string
+		preRegisterDB   bool
 		databaseName    string
 		userRoles       func(*testing.T) []types.Role
 		expectedDBUsers []string
@@ -2854,20 +2839,23 @@ func TestClusterDatabaseGet(t *testing.T) {
 		requireError    require.ErrorAssertionFunc
 	}{
 		{
-			name:         "valid",
-			databaseName: dbName,
-			requireError: require.NoError,
+			name:          "valid",
+			preRegisterDB: true,
+			databaseName:  "valid",
+			requireError:  require.NoError,
 		},
 		{
-			name:         "notfound",
-			databaseName: "notfound",
+			name:          "notfound",
+			preRegisterDB: true,
+			databaseName:  "otherdb",
 			requireError: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsNotFound(err), "expected a not found error, got %v", err)
 			},
 		},
 		{
-			name:         "notauthorized",
-			databaseName: dbName,
+			name:          "notauthorized",
+			preRegisterDB: true,
+			databaseName:  "notauthorized",
 			userRoles: func(tt *testing.T) []types.Role {
 				role, err := types.NewRole(
 					"myrole",
@@ -2883,12 +2871,39 @@ func TestClusterDatabaseGet(t *testing.T) {
 				return []types.Role{role}
 			},
 			requireError: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(tt, trace.IsAccessDenied(err), "expected a access denied error, got %v", err)
+				require.True(tt, trace.IsNotFound(err), "expected a not found error, got %v", err)
 			},
 		},
 		{
-			name:         "authorizedDBNamesUsers",
-			databaseName: dbName,
+			name:          "nodb",
+			preRegisterDB: false,
+			databaseName:  "nodb",
+			userRoles: func(tt *testing.T) []types.Role {
+				roleWithDBName, err := types.NewRole(
+					"myroleWithDBName",
+					types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							DatabaseLabels: types.Labels{
+								"env": apiutils.Strings{"prod"},
+							},
+							DatabaseNames: dbNames,
+						},
+					},
+				)
+				require.NoError(tt, err)
+
+				return []types.Role{roleWithDBName}
+			},
+			expectedDBNames: dbNames,
+			expectedDBUsers: dbUsers,
+			requireError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(tt, trace.IsNotFound(err), "expected a not found error, got %v", err)
+			},
+		},
+		{
+			name:          "authorizedDBNamesUsers",
+			preRegisterDB: true,
+			databaseName:  "authorizedDBNamesUsers",
 			userRoles: func(tt *testing.T) []types.Role {
 				roleWithDBName, err := types.NewRole(
 					"myroleWithDBName",
@@ -2923,7 +2938,38 @@ func TestClusterDatabaseGet(t *testing.T) {
 			requireError:    require.NoError,
 		},
 	} {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create default pre-registerDB
+			if tt.preRegisterDB {
+				db, err := types.NewDatabaseV3(types.Metadata{
+					Name: tt.name,
+					Labels: map[string]string{
+						"env": "prod",
+					},
+				}, types.DatabaseSpecV3{
+					Protocol: "test-protocol",
+					URI:      "test-uri",
+				})
+				require.NoError(t, err)
+
+				dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+					Name: tt.name,
+				}, types.DatabaseServerSpecV3{
+					Hostname: tt.name,
+					Protocol: "test-protocol",
+					URI:      "test-uri",
+					HostID:   uuid.NewString(),
+					Database: db,
+				})
+				require.NoError(t, err)
+
+				_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
+				require.NoError(t, err)
+			}
+
 			var roles []types.Role
 			if tt.userRoles != nil {
 				roles = tt.userRoles(t)
