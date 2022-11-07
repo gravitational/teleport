@@ -19,6 +19,7 @@ package alpnproxy
 import (
 	"bytes"
 	"context"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -34,6 +35,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
@@ -244,6 +247,50 @@ func TestMiddleware(t *testing.T) {
 
 	// ensure that OnNewConnection middleware is called when a new connection is made to the proxy
 	m.waitForCounts(t, 1, 1)
+}
+
+type mockMiddlewareConnUnauth struct {
+}
+
+func (m *mockMiddlewareConnUnauth) OnNewConnection(_ context.Context, _ *LocalProxy, _ net.Conn) error {
+	return trace.AccessDenied("access denied.")
+}
+
+func (m *mockMiddlewareConnUnauth) OnStart(_ context.Context, _ *LocalProxy) error {
+	return nil
+}
+
+var _ LocalProxyMiddleware = (*mockMiddlewareConnUnauth)(nil)
+
+func TestLocalProxyClosesConnOnError(t *testing.T) {
+	m := &mockMiddlewareConnUnauth{}
+	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
+	lp, err := NewLocalProxy(LocalProxyConfig{
+		Listener:           mustCreateLocalListener(t),
+		RemoteProxyAddr:    hs.Listener.Addr().String(),
+		Protocols:          []common.Protocol{common.ProtocolHTTP},
+		ParentContext:      context.Background(),
+		InsecureSkipVerify: true,
+		Middleware:         m,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := lp.Close()
+		require.NoError(t, err)
+		hs.Close()
+	})
+	go func() {
+		require.NoError(t, lp.Start(context.Background()))
+	}()
+
+	conn, err := net.Dial("tcp", lp.GetAddr())
+	require.NoError(t, err)
+
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	buf := make([]byte, 512)
+	_, err = conn.Read(buf)
+	require.Error(t, err)
+	require.ErrorIs(t, err, io.EOF)
 }
 
 func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *LocalProxy {

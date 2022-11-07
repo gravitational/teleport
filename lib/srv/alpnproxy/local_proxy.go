@@ -149,7 +149,8 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 
 		if l.cfg.Middleware != nil {
 			if err := l.cfg.Middleware.OnNewConnection(ctx, l, conn); err != nil {
-				log.WithError(err).Errorf("Middleware failed to handle new connection.")
+				closeErr := conn.Close()
+				log.WithError(trace.NewAggregate(err, closeErr)).Errorf("Middleware failed to handle new connection.")
 				continue
 			}
 		}
