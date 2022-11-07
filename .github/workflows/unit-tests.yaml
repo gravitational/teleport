@@ -17,7 +17,7 @@ jobs:
       options: --cap-add=SYS_ADMIN --privileged
     steps:
       - name: Install git 1.18+
-        uses: .github/actions/update-git-ubuntu
+        uses: ./.github/actions/update-git-ubuntu
       # - name: Install git 1.18+
       #   run: |
       #     apt-get -y update
