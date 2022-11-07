@@ -1790,7 +1790,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	err = setPasswordlessAsConnectorNameIfInitialUserAndCloud()
 
 	if err != nil {
-		return nil, trace.WrapWithMessage(err, "Failed to set passwordless auth preference.")
+		h.log.WithError(err).Error("Failed to set passwordless as connector name.")
 	}
 
 	if err := SetSessionCookie(w, sess.GetUser(), sess.GetName()); err != nil {
