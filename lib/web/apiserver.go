@@ -1752,6 +1752,10 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	}
 
 	setPasswordlessAsConnectorNameIfInitialUserAndCloud := func() error {
+		if req.WebauthnCreationResponse == nil {
+			return nil
+		}
+
 		if !h.ClusterFeatures.GetCloud() {
 			return nil
 		}
