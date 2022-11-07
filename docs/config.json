@@ -647,6 +647,10 @@
             {
               "title": "EC2 Instance Discovery (Preview)",
               "slug": "/server-access/guides/ec2-discovery/"
+            },
+            {
+              "title": "Using Teleport with Ansible",
+              "slug": "/server-access/guides/ansible/"
             }
           ]
         }
