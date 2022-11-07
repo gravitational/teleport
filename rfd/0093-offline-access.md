@@ -56,22 +56,6 @@ the Auth server to perform the required MFA ceremony.
 There is a scenario in the future that would allow for such behavior to exist. Per 
 [RFD80](https://github.com/gravitational/teleport/blob/master/rfd/0080-hardware-key-support.md#per-session-mfa-configuration), setting `require_session_mfa` to `hardware_key_touch` does not require the Auth server for the MFA ceremony. Instead the PIV stored keys only require a PIV-touch to satisfy the per-session MFA requirement.
 
-#### Strict Recording mode
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: ssh-strict
-spec:
-  options:
-    record_session:
-      ssh: strict
-```
-
-Strict mode, which is only available when using `auth_service.session_recording: node`, will result in the session failing to launch if the node is unable to record the session.
-
-
 #### Moderated Sessions 
 
 Tracking participants for a moderated session requires persisting the `types.SessionTracker` resource in the backend so that the joining criteria may be evaluated when a user creates or joins a session. In the event that persisting the `types.SessionTracker` fails, the session must be aborted to prevent any unauthorized access. This is true for both proxy and node recording mode. 
@@ -199,7 +183,7 @@ session tracker resource.
 While this does allow access to the node, it will prevent the following:
 - the session from appearing in the active sessions list
 - the session will not be joinable by other users
-- the session recording will not be available
+- the session recording will not be available until the UploadCompleter processes it
 
 ### Connect
 
