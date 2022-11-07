@@ -36,8 +36,6 @@ import (
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/customflag"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
-	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/git"
-	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/secrets"
 )
 
 // debugFsPath is the path where debugfs should be mounted.
@@ -58,8 +56,6 @@ type commandlineArgs struct {
 	buildID                string
 	artifactSearchPatterns customflag.StringArray
 	bucket                 string
-	githubKeySrc           string
-	skipUnshallow          bool
 	force                  bool
 }
 
@@ -74,8 +70,6 @@ func parseCommandLine() (commandlineArgs, error) {
 	flag.StringVar(&args.buildID, "build", "", "The build ID")
 	flag.StringVar(&args.bucket, "bucket", "", "The artifact storage bucket.")
 	flag.Var(&args.artifactSearchPatterns, "a", "Path to artifacts. May be globbed, and have multiple entries.")
-	flag.StringVar(&args.githubKeySrc, "key-secret", "", "Location of github deploy token, as a Google Cloud Secret")
-	flag.BoolVar(&args.skipUnshallow, "skip-unshallow", false, "Skip unshallowing the repository.")
 	flag.BoolVar(&args.force, "force", false, "Run tests regardless of changes detected (ex: push to master)")
 
 	flag.Parse()
@@ -124,43 +118,23 @@ func run() error {
 		return trace.Wrap(err)
 	}
 
-	// If a github deploy key location was supplied...
-	var deployKey []byte
-	if args.githubKeySrc != "" {
-		// fetch the deployment key from the GCB secret manager
-		log.Infof("Fetching deploy key from %s", args.githubKeySrc)
-		deployKey, err = secrets.Fetch(context.Background(), args.githubKeySrc)
-		if err != nil {
-			return trace.Wrap(err, "failed fetching deploy key")
-		}
-	}
-
-	args.skipUnshallow = true
-	if !args.skipUnshallow {
-		unshallowCtx, unshallowCancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer unshallowCancel()
-		err = git.UnshallowRepository(unshallowCtx, args.workspace, deployKey)
-		if err != nil {
-			return trace.Wrap(err, "unshallow failed")
-		}
-	}
-
 	var ch changes.Changes
 
-	if args.force {
-		log.Println("Forcing test run")
-	} else {
-		log.Println("Analyzing code changes")
-		ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
-		if err != nil {
-			return trace.Wrap(err, "Failed analyzing code")
-		}
-		log.Printf("Detected changes: %+v", ch)
+	log.Println("Analyzing code changes")
+	ch, err = changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
+	if err != nil {
+		return trace.Wrap(err, "Failed analyzing code")
+	}
+	log.Printf("Detected changes: %+v", ch)
 
-		if !ch.HasCodeChanges() {
-			log.Println("No code changes detected. Skipping tests.")
-			return nil
-		}
+	if args.force {
+		log.Println("-force passed: forcing code changes")
+		ch = changes.ForcedCodeChanges()
+	}
+
+	if !ch.HasCodeChanges() {
+		log.Println("No code changes detected. Skipping tests.")
+		return nil
 	}
 
 	log.Printf("Starting etcd...")
@@ -179,7 +153,10 @@ func run() error {
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 
-		artifacts.FindAndUpload(timeoutCtx, args.bucket, prefix, args.artifactSearchPatterns)
+		err := artifacts.FindAndUpload(timeoutCtx, args.bucket, prefix, args.artifactSearchPatterns)
+		if err != nil {
+			log.Println("Failed to upload artifacts", err)
+		}
 	}()
 
 	log.Printf("Mounting debugfs")
@@ -188,7 +165,7 @@ func run() error {
 	}
 
 	log.Printf("Running unit tests...")
-	err = runUnitTests(args.workspace, ch, args.force)
+	err = runUnitTests(args.workspace, ch)
 	if err != nil {
 		return trace.Wrap(err, "unit tests failed")
 	}
@@ -198,7 +175,7 @@ func run() error {
 	return nil
 }
 
-func runUnitTests(workspace string, ch changes.Changes, force bool) error {
+func runUnitTests(workspace string, ch changes.Changes) error {
 	enableTests := []string{
 		"TELEPORT_ETCD_TEST=yes",
 		"TELEPORT_XAUTH_TEST=yes",
@@ -206,19 +183,19 @@ func runUnitTests(workspace string, ch changes.Changes, force bool) error {
 	}
 
 	var targets []string
-	if ch.Code || force {
+	if ch.Code {
 		targets = append(targets, "test-go", "test-sh", "test-api")
 	}
-	if ch.Helm || force {
+	if ch.Helm {
 		targets = append(targets, "test-helm")
 	}
-	if ch.CI || force {
+	if ch.CI {
 		targets = append(targets, "test-ci")
 	}
-	if ch.Rust || force {
+	if ch.Rust {
 		targets = append(targets, "test-rust")
 	}
-	if ch.Operator || force {
+	if ch.Operator {
 		targets = append(targets, "test-operator")
 	}
 

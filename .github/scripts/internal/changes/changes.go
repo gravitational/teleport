@@ -45,6 +45,11 @@ func (c Changes) HasCodeChanges() bool {
 	return c.Code || c.Helm || c.CI || c.Rust || c.Operator
 }
 
+// ForcedCodeChanges returns changes object which indicates changes regardless of their existence
+func ForcedCodeChanges() Changes {
+	return Changes{Code: true, Helm: true, CI: true, Rust: true, Operator: true}
+}
+
 // Analyze examines the workspace for specific changes using its git history,
 // and then collates and returns a report.
 func Analyze(workspaceDir string, targetBranch string, commitSHA string) (Changes, error) {
