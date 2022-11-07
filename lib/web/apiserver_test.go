@@ -345,8 +345,9 @@ func newWebSuite(t *testing.T) *WebSuite {
 	var sessionLingeringThreshold time.Duration
 	fs, err := NewDebugFileSystem("../../webassets/teleport")
 	require.NoError(t, err)
+
 	handler, err := NewHandler(Config{
-		ClusterFeatures:                 *modules.GetModules().Features().ToProto(),
+		ClusterFeatures:                 *modules.GetModules().Features().ToProto(), // SAFETY: this pointer not nil since ToProto() creates a struct
 		Proxy:                           revTunServer,
 		AuthServers:                     utils.FromAddr(s.server.TLS.Addr()),
 		DomainName:                      s.server.ClusterName(),
@@ -4006,7 +4007,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 
 		clt := s.client()
 
-		// create register chellange
+		// create register challenge
 		token, err := s.server.Auth().CreateResetPasswordToken(s.ctx, auth.CreateUserTokenRequest{
 			Name: initialUser.GetName(),
 		})
@@ -4054,7 +4055,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 		require.NoError(t, err)
 		require.Equal(t, re.Code(), http.StatusOK)
 
-		// check that auth preference was set to "passwordless"
+		// check if auth preference connectorName is set
 		authPreference, err := s.server.Auth().GetAuthPreference(s.ctx)
 		require.NoError(t, err)
 
