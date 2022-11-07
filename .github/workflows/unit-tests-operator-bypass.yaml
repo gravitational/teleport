@@ -1,0 +1,18 @@
+name: unit-tests-operator
+run-name: Unit tests (operator) - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  pull_request:
+    paths-ignore:
+      - /go.mod
+      - /go.sum
+      - operator/**
+      - api/types/**
+      - lib/tbot/**
+
+jobs:
+  test:
+    name: Unit tests (operator)
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'echo "No changes to verify"'

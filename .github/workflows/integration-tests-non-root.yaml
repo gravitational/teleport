@@ -1,0 +1,68 @@
+name: integration-tests-non-root
+run-name: Integration tests (non-root) - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+
+jobs:
+  test:
+    name: Integration tests (non-root)
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+      packages: read
+
+    container: 
+      image: public.ecr.aws/gravitational/teleport-buildbox:teleport12
+      env:
+        TELEPORT_ETCD_TEST: yes
+        TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
+      options: --cap-add=SYS_ADMIN --privileged
+
+    services:
+      etcd0:
+        image: ghcr.io/gzigzigzeo/teleport-ci-etcd:3.3.9
+        options: >-
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --add-host etcd0:127.0.0.1
+        ports:
+          - 2379:2379
+          - 2380:2380
+          - 3379:3379
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+
+      - name: Authenticate to Google Cloud
+        if: github.repository	== 'gravitational/teleport'
+        uses: ./.github/actions/auth-to-gcloud
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Chown
+        run: |
+          mkdir -p $(go env GOMODCACHE)
+          mkdir -p $(go env GOCACHE)
+          chown -Rf ci:ci ${GITHUB_WORKSPACE} $(go env GOMODCACHE) $(go env GOCACHE)
+        continue-on-error: true
+
+      - name: Run tests
+        timeout-minutes: 40
+        run: runuser -u ci -g ci make rdpclient integration
+
+      - name: Upload artifacts
+        if: always() && github.repository	== 'gravitational/teleport'
+        uses: ./.github/actions/upload-artifacts

@@ -1,0 +1,14 @@
+name: unit-tests-code
+run-name: Unit tests (code) - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  pull_request:
+    paths-ignore:
+      - '**.go'
+
+jobs:
+  test:
+    name: Unit tests (code)
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'echo "No changes to verify"'

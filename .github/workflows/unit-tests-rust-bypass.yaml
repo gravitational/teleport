@@ -1,0 +1,16 @@
+name: unit-tests-rust
+run-name: Unit tests (rust) - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  pull_request:
+    paths-ignore:
+      - '**.rs'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+
+jobs:
+  test:
+    name: Unit tests (rust)
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'echo "No changes to verify"'

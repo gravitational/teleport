@@ -1,0 +1,21 @@
+name: Authenticate to Google Gloud
+description: Authenticates to Google Cloud
+inputs:
+  workload_identity_provider:
+    description: Google Cloud identity provider
+    required: false
+    default: projects/671314886056/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+
+  service_account:
+    description: Google Cloud Storage service account name
+    required: false
+    default: teleport-storage@just-terminus-366813.iam.gserviceaccount.com
+
+runs:
+  using: "composite"
+  steps:
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v0
+      with:
+        workload_identity_provider: ${{ inputs.workload_identity_provider }}
+        service_account: ${{ inputs.service_account }}

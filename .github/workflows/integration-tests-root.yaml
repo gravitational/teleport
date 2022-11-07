@@ -1,0 +1,45 @@
+name: integration-tests-root
+run-name: Integration tests (root) - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+
+jobs:
+  test:
+    name: Integration tests (root)
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    container: 
+      image: public.ecr.aws/gravitational/teleport-buildbox:teleport12
+      options: --cap-add=SYS_ADMIN --privileged
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+
+      - name: Authenticate to Google Cloud
+        if: github.repository	== 'gravitational/teleport'
+        uses: ./.github/actions/auth-to-gcloud
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Run tests
+        timeout-minutes: 40
+        run: |
+          make rdpclient integration-root
+
+      - name: Upload artifacts
+        if: always() && github.repository	== 'gravitational/teleport'
+        uses: ./.github/actions/upload-artifacts
