@@ -23,13 +23,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/identityfile"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/utils"
-
+	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -39,13 +36,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
+	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/utils"
 	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
 	//+kubebuilder:scaffold:imports

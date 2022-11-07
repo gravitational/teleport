@@ -67,7 +67,9 @@ func TestCreateSAMLUser(t *testing.T) {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: authority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
 		},
 	}
 
@@ -193,7 +195,9 @@ func TestPingSAMLWorkaround(t *testing.T) {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: authority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
 		},
 	}
 
@@ -227,12 +231,18 @@ func TestPingSAMLWorkaround(t *testing.T) {
 		PrivateKey: fixtures.EncryptionKeyPEM,
 	}
 
+	// SAML connector validation requires the roles in mappings exist.
+	role, err := types.NewRole("admin", types.RoleSpecV5{})
+	require.NoError(t, err)
+	err = a.CreateRole(ctx, role)
+	require.NoError(t, err)
+
 	connector, err := types.NewSAMLConnector("ping", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "https://proxy.example.com:3080/v1/webapi/saml/acs",
 		Provider:                 "ping",
 		Display:                  "Ping",
 		AttributesToRoles: []types.AttributeMapping{
-			{Name: "groups", Value: "ping-admin", Roles: []string{"admin"}},
+			{Name: "groups", Value: "ping-admin", Roles: []string{role.GetName()}},
 		},
 		EntityDescriptor:  entityDescriptor,
 		SigningKeyPair:    signingKeypair,
@@ -285,7 +295,9 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: authority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
 		},
 	}
 
@@ -405,7 +417,9 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: authority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
 		},
 	}
 
@@ -482,6 +496,12 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	}, nil, 10*365*24*time.Hour)
 	require.NoError(t, err)
 
+	// SAML connector validation requires the roles in mappings exist.
+	connectorRole, err := types.NewRole("baz", types.RoleSpecV5{})
+	require.NoError(t, err)
+	err = a.CreateRole(ctx, connectorRole)
+	require.NoError(t, err)
+
 	conn, err := types.NewSAMLConnector("saml-test-conn", types.SAMLConnectorSpecV2{
 		Issuer:                   "test",
 		SSO:                      "test",
@@ -490,7 +510,7 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 		AttributesToRoles: []types.AttributeMapping{{
 			Name:  "foo",
 			Value: "bar",
-			Roles: []string{"baz"},
+			Roles: []string{connectorRole.GetName()},
 		}},
 		SigningKeyPair: &types.AsymmetricKeyPair{
 			PrivateKey: string(keyPEM),

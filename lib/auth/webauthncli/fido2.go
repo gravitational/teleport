@@ -31,13 +31,13 @@ import (
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/trace"
 	"github.com/keys-pub/go-libfido2"
+	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	log "github.com/sirupsen/logrus"
 )
 
 // User-friendly device filter errors.

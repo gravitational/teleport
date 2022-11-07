@@ -20,8 +20,9 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/defaults"
 )
 
 // NewNamespace returns new namespace

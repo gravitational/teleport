@@ -21,9 +21,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/lib/session"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/session"
 )
 
 // TestStreamerCompleteEmpty makes sure that streamer Complete function

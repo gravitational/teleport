@@ -610,9 +610,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.136"
+version = "0.2.137"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55edcf6c0bb319052dea84732cf99db461780fd5e8d3eb46ab6ff312ab31f197"
+checksum = "fc7fcc620a3bff7cdd7a365be3376c97191aeaccc2a603e600951e452615bf89"
 
 [[package]]
 name = "libm"
@@ -1030,7 +1030,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "rdp-rs",
- "rsa 0.7.0",
+ "rsa 0.7.1",
  "tempfile",
  "utf16string",
  "uuid",
@@ -1039,7 +1039,7 @@ dependencies = [
 [[package]]
 name = "rdp-rs"
 version = "0.1.0"
-source = "git+https://github.com/gravitational/rdp-rs?rev=e4bff82a94252050115d75c2f8b0ae84c5d73d62#e4bff82a94252050115d75c2f8b0ae84c5d73d62"
+source = "git+https://github.com/gravitational/rdp-rs?rev=e7c7f9843d626e343b4de7a419af5982a3a7bd4b#e7c7f9843d626e343b4de7a419af5982a3a7bd4b"
 dependencies = [
  "bufstream",
  "byteorder",
@@ -1153,9 +1153,9 @@ dependencies = [
 
 [[package]]
 name = "rsa"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96144aaefe4fa4c1846c404d1ccc3dc45c9b15c2e41591597294cb7ccc2dbfd7"
+checksum = "b0ecc3307be66bfb3574577895555bacfb9a37a8d5cd959444b72ff02495c618"
 dependencies = [
  "byteorder",
  "digest 0.10.5",

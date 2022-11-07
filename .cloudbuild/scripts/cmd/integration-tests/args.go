@@ -20,9 +20,10 @@ import (
 	"flag"
 	"path/filepath"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/artifacts"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/customflag"
-	"github.com/gravitational/trace"
 )
 
 type commandlineArgs struct {

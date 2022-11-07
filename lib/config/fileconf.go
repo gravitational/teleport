@@ -30,8 +30,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
+	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -49,10 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
 )
 
 // FileConfig structre represents the teleport configuration stored in a config file
@@ -220,12 +219,21 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		Method:    types.JoinMethod(joinMethod),
 	}
 
-	if flags.AuthServer != "" {
-		g.AuthServer = flags.AuthServer
-	}
-
-	if flags.ProxyAddress != "" {
-		g.ProxyServer = flags.ProxyAddress
+	if flags.Version == defaults.TeleportConfigVersionV3 {
+		if flags.AuthServer != "" && flags.ProxyAddress != "" {
+			return nil, trace.BadParameter("--proxy and --auth-server cannot both be set")
+		} else if flags.AuthServer != "" {
+			g.AuthServer = flags.AuthServer
+		} else if flags.ProxyAddress != "" {
+			g.ProxyServer = flags.ProxyAddress
+		}
+	} else {
+		if flags.AuthServer != "" {
+			g.AuthServers = []string{flags.AuthServer}
+		}
+		if flags.ProxyAddress != "" {
+			return nil, trace.BadParameter("--proxy cannot be used with configuration versions older than v3")
+		}
 	}
 
 	g.CAPin = strings.Split(flags.CAPin, ",")
@@ -1353,13 +1361,13 @@ type AWSSSM struct {
 	DocumentName string `yaml:"document_name,omitempty"`
 }
 
-// AzureMatcher matches Azure databases.
+// AzureMatcher matches Azure resources.
 type AzureMatcher struct {
 	// Subscriptions are Azure subscriptions to query for resources.
 	Subscriptions []string `yaml:"subscriptions,omitempty"`
 	// ResourceGroups are Azure resource groups to query for resources.
 	ResourceGroups []string `yaml:"resource_groups,omitempty"`
-	// Types are Azure types to match: "mysql", "postgres", "aks"
+	// Types are Azure types to match: "mysql", "postgres", "aks", "vm"
 	Types []string `yaml:"types,omitempty"`
 	// Regions are Azure locations to match for databases.
 	Regions []string `yaml:"regions,omitempty"`
