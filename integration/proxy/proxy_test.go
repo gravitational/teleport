@@ -1116,6 +1116,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	}
 	cfg.Listeners = helpers.SingleProxyPortSetupOn(rcAddr)(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
+	defer rc.StopAll()
 	log.Info("Teleport root cluster instance created")
 
 	username := helpers.MustGetCurrentUser(t).Username
@@ -1141,7 +1142,6 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	log.Info("Starting Root Cluster...")
 	err = rc.Start()
 	require.NoError(t, err)
-	defer rc.StopAll()
 
 	// Create and start http_proxy server.
 	log.Info("Creating HTTP Proxy server...")
