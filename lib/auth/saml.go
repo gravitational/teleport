@@ -435,7 +435,7 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string, 
 		event.Status.Success = false
 		event.Status.Error = trace.Unwrap(err).Error()
 		event.Status.UserMessage = err.Error()
-		if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
+		if err := a.emitter.EmitAuditEvent(ctx, event); err != nil {
 			log.WithError(err).Warn("Failed to emit SAML login failed event.")
 		}
 		return nil, trace.Wrap(err)
@@ -448,7 +448,7 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string, 
 		event.Code = events.UserSSOTestFlowLoginCode
 	}
 
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
+	if err := a.emitter.EmitAuditEvent(ctx, event); err != nil {
 		log.WithError(err).Warn("Failed to emit SAML login event.")
 	}
 
