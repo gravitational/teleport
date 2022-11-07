@@ -1,5 +1,17 @@
 # Changelog
 
+## 10.3.6
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with U2F devices validation. [#17877](https://github.com/gravitational/teleport/pull/17877)
+* Fixed issue with double question mark appended to application access requests. [#17957](https://github.com/gravitational/teleport/pull/17957)
+* Fixed issue with websocket requests sometimes failing in application access. [#18001](https://github.com/gravitational/teleport/pull/18001)
+* Increased default number of max open files in install scripts and configurations. [#17960](https://github.com/gravitational/teleport/pull/17960)
+* Added active session warning to desktop access. [#17936](https://github.com/gravitational/teleport/pull/17936)
+* Improved access denied user errors when connecting to the database. [#17854](https://github.com/gravitational/teleport/pull/17854)
+* Improved performance by reducing the number of roundtrips to the cluster by various clients. [#17802](https://github.com/gravitational/teleport/pull/17802), [#16434](https://github.com/gravitational/teleport/pull/16434)
+
 ## 10.3.5
 
 This release of Teleport contains several bug fixes.
@@ -1977,7 +1989,7 @@ Teleport's Web UI now exposes Teleport’s Audit log, letting auditors and admin
 Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](./docs/pages/access-controls/access-request-plugins/index.mdx). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
 
 *   [PagerDuty](./docs/pages/access-controls/access-request-plugins/ssh-approval-pagerduty.mdx)
-*   [Jira Server](./docs/pages/access-controls/access-request-plugins/ssh-approval-jira-server.mdx) and [Jira Cloud](./docs/pages/access-controls/access-request-plugins/ssh-approval-jira-cloud.mdx)
+*   [Jira](./docs/pages/access-controls/access-request-plugins/ssh-approval-jira.mdx) 
 *   [Slack](./docs/pages/access-controls/access-request-plugins/ssh-approval-slack.mdx)
 *   [Mattermost](./docs/pages/access-controls/access-request-plugins/ssh-approval-mattermost.mdx)
 
