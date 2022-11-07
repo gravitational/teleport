@@ -4,7 +4,7 @@ description: Detailed guides for configuring Kubernetes Auto-Discovery.
 layout: tocless-doc
 ---
 
-Kubernetes Auto-Discovery is a Teleport feature that allows Kubernetes clusters 
+Kubernetes Auto-Discovery allows Kubernetes clusters 
 hosted on cloud providers to be discovered and enrolled automatically. 
 
 While discovering a new Kubernetes cluster, Teleport does not install any component 
@@ -12,7 +12,7 @@ on the cluster. Instead, it requires direct access to the cluster's API and mini
 
 ## How Kubernetes Auto-Discovery works
 
-Kubernetes Auto-Discovery consists of two distinct steps:
+Kubernetes Auto-Discovery consists of two steps:
 
 ### Polling cloud APIs
 
@@ -59,7 +59,7 @@ discovery_service:
        # ec2 - discovers and registers AWS EC2 Machines
      - types: ["eks"]
        # AWS regions to search for resources from
-       regions: ["eu-central-1"]
+       regions: ["us-east-1", "us-west-1"]
        # AWS resource tags to match when registering resources
        # Optional section: Defaults to "*":"*"
        tags:
@@ -109,7 +109,6 @@ kubernetes_service:
 
 Both services — Discovery and Kubernetes — can be configured in the same 
 Teleport process or separate processes. 
-When they run separately, you need to take care of the permissions required for each service.
 
 ## Supported clouds
 

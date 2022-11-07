@@ -6,7 +6,7 @@ discovery_service:
        # eks - discovers and registers AWS EKS clusters
      - types: ["ec2"]
        # AWS regions to search for resources from
-       regions: ["eu-central-1"]
+       regions: ["us-east-1","us-west-1"]
        # AWS resource tags to match when registering resources
        # Optional section: Defaults to "*":"*"
        tags:
