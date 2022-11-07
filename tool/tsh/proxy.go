@@ -260,6 +260,7 @@ func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxy
 	// Otherwise, we need to upgrade the TCP connection to a TLS connection.
 	pool, err := tc.LocalAgent().ClientCertPool(sp.clusterName)
 	if err != nil {
+		tcpConn.Close()
 		return nil, trace.Wrap(err)
 	}
 
@@ -271,6 +272,7 @@ func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxy
 	}
 	tlsConn := tls.Client(tcpConn, tlsConfig)
 	if err := tlsConn.HandshakeContext(ctx); err != nil {
+		tlsConn.Close()
 		return nil, trace.Wrap(err)
 	}
 
