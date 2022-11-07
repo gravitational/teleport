@@ -31,7 +31,6 @@ jobs:
       - name: Checkout Teleport
         uses: actions/checkout@v3
         with:
-          set-safe-directory: true
           fetch-depth: 0
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v0
@@ -54,7 +53,7 @@ jobs:
         if: ${{ github.ref_name == 'master' }}
         run: |
           cd /workspace/.github/scripts
-          go run ./cmd/integration-tests -target "$GITHUB_REF_NAME" -commit $GITHUB_SHA -bucket teleport-test-logs -a ".cloudbuild/ci/*.yaml" -build "$GITHUB_RUN_ID" -force
+          go run ./cmd/integration-tests -target "$GITHUB_REF_NAME" -commit $GITHUB_SHA -bucket teleport-test-logs -a ".cloudbuild/ci/*.yaml" -build "$GITHUB_RUN_ID" -force -skip-unshallow
       - name: Run tests
         if: ${{ github.ref_name != 'master' }}
         run: |

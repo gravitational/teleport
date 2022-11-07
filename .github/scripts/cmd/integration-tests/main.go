@@ -58,16 +58,6 @@ func innerMain() error {
 		return trace.Wrap(err)
 	}
 
-	{
-		prefix := fmt.Sprintf("%s/artifacts", args.buildID)
-		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
-		err := artifacts.FindAndUpload(timeoutCtx, args.bucket, prefix, args.artifactSearchPatterns)
-		if err != nil {
-			log.Println("Can't upload build artifacts:", err)
-		}
-	}
-
 	// If a github deploy key location was supplied...
 	var deployKey []byte
 	if args.githubKeySrc != "" {
