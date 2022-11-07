@@ -21,16 +21,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
 
 // resourceCollector is a generic interface for maintaining an up-to-date view
@@ -391,10 +391,7 @@ func (p *proxyCollector) getResourcesAndUpdateCurrent(ctx context.Context) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(proxies) == 0 {
-		// At least one proxy ought to exist.
-		return trace.NotFound("empty proxy list")
-	}
+
 	newCurrent := make(map[string]types.Server, len(proxies))
 	for _, proxy := range proxies {
 		newCurrent[proxy.GetName()] = proxy

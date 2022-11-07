@@ -22,16 +22,15 @@ import (
 	"net"
 	"strconv"
 
+	mssql "github.com/denisenkom/go-mssqldb"
+	"github.com/denisenkom/go-mssqldb/msdsn"
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 	"github.com/gravitational/teleport/lib/utils"
-
-	mssql "github.com/denisenkom/go-mssqldb"
-	"github.com/denisenkom/go-mssqldb/msdsn"
-	"github.com/gravitational/trace"
 )
 
 // MakeTestClient returns SQL Server client used in tests.

@@ -21,9 +21,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 const defaultQueueSize = 64

@@ -17,11 +17,10 @@ limitations under the License.
 package web
 
 import (
-	"github.com/gravitational/teleport"
-
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
 )
 
 var log = newPackageLogger()

@@ -30,8 +30,10 @@ option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
 // TerminalService describes Teleterm service
 service TerminalService {
   // ListRootClusters lists root clusters
+  // Does not include detailed cluster information that would require a network request.
   rpc ListRootClusters(ListClustersRequest) returns (ListClustersResponse);
   // ListLeafClusters lists leaf clusters
+  // Does not include detailed cluster information that would require a network request.
   rpc ListLeafClusters(ListLeafClustersRequest) returns (ListClustersResponse);
   // GetAllDatabases lists all databases without pagination
   rpc GetAllDatabases(GetAllDatabasesRequest) returns (GetAllDatabasesResponse);
@@ -89,7 +91,8 @@ service TerminalService {
 
   // GetAuthSettings returns cluster auth settigns
   rpc GetAuthSettings(GetAuthSettingsRequest) returns (AuthSettings);
-  // GetCluster returns a cluster
+  // GetCluster returns cluster. Makes a network request and includes detailed
+  // information about enterprise features availabed on the connected auth server
   rpc GetCluster(GetClusterRequest) returns (Cluster);
   // Login logs in a user to a cluster
   rpc Login(LoginRequest) returns (EmptyResponse);

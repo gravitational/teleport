@@ -219,6 +219,11 @@
               "title": "Moderated Sessions",
               "slug": "/access-controls/guides/moderated-sessions/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Hardware Key Support (Preview)",
+              "slug": "/access-controls/guides/hardware-key-support/",
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
@@ -305,13 +310,8 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Jira Server",
-              "slug": "/access-controls/access-request-plugins/ssh-approval-jira-server/",
-              "forScopes": ["enterprise", "cloud"]
-            },
-            {
-              "title": "Jira Cloud",
-              "slug": "/access-controls/access-request-plugins/ssh-approval-jira-cloud/",
+              "title": "Jira",
+              "slug": "/access-controls/access-request-plugins/ssh-approval-jira/",
               "forScopes": ["enterprise", "cloud"]
             },
             {
@@ -751,8 +751,20 @@
               "slug": "/database-access/guides/azure-postgres-mysql/"
             },
             {
+              "title": "Azure Cache for Redis",
+              "slug": "/database-access/guides/azure-redis/"
+            },
+            {
+              "title": "Azure SQL Server (Preview)",
+              "slug": "/database-access/guides/azure-sql-server-ad/"
+            },
+            {
               "title": "MongoDB Atlas",
               "slug": "/database-access/guides/mongodb-atlas/"
+            },
+            {
+              "title": "Self-Hosted Elasticsearch",
+              "slug": "/database-access/guides/elastic/"
             },
             {
               "title": "Self-Hosted PostgreSQL",
@@ -919,10 +931,6 @@
             {
               "title": "Configuration",
               "slug": "/machine-id/reference/configuration/"
-            },
-            {
-              "title": "CLI",
-              "slug": "/machine-id/reference/cli/"
             }
           ]
         },
@@ -933,6 +941,10 @@
             {
               "title": "Ansible",
               "slug": "/machine-id/guides/ansible/"
+            },
+            {
+              "title": "GitHub Actions",
+              "slug": "/machine-id/guides/github-actions/"
             },
             {
               "title": "Jenkins",
@@ -949,6 +961,10 @@
             {
               "title": "Applications",
               "slug": "/machine-id/guides/applications/"
+            },
+            {
+              "title": "Host Certificates",
+              "slug": "/machine-id/guides/host-certificate/"
             }
           ]
         }
@@ -1154,7 +1170,7 @@
       "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "10.3.1",
+      "version": "10.3.6",
       "major_version": "10",
       "sla": {
         "monthly_percentage": "99.5%",
@@ -1538,12 +1554,17 @@
     },
     {
       "source": "/enterprise/workflow/ssh-approval-jira-server/",
-      "destination": "/access-controls/access-request-plugins/ssh-approval-jira-server/",
+      "destination": "/access-controls/access-request-plugins/ssh-approval-jira/",
       "permanent": true
     },
     {
       "source": "/enterprise/workflow/ssh-approval-jira-cloud/",
-      "destination": "/access-controls/access-request-plugins/ssh-approval-jira-cloud/",
+      "destination": "/access-controls/access-request-plugins/ssh-approval-jira/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/workflow/ssh-approval-jira-cloud/",
+      "destination": "/access-controls/access-request-plugins/ssh-approval-jira/",
       "permanent": true
     },
     {

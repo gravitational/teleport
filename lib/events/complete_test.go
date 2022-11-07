@@ -193,6 +193,10 @@ func (m *mockSessionTrackerService) GetActiveSessionTrackers(ctx context.Context
 	return trackers, nil
 }
 
+func (m *mockSessionTrackerService) GetActiveSessionTrackersWithFilter(ctx context.Context, filter *types.SessionTrackerFilter) ([]types.SessionTracker, error) {
+	return nil, trace.NotImplemented("GetActiveSessionTrackersWithFilter is not implemented")
+}
+
 func (m *mockSessionTrackerService) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
 	for _, tracker := range m.trackers {
 		// mock session tracker expiration

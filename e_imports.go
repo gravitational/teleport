@@ -22,6 +22,7 @@ package teleport
 // removed.
 import (
 	_ "github.com/go-piv/piv-go/piv"     // hold for e/
+	_ "github.com/gravitational/form"    // hold for e/
 	_ "github.com/gravitational/license" // hold for e/
 	_ "gopkg.in/check.v1"                // hold for e/
 )

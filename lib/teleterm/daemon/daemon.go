@@ -18,13 +18,13 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-
-	"github.com/gravitational/trace"
 )
 
 // New creates an instance of Daemon service
@@ -99,12 +99,31 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 	return nil
 }
 
-// ResolveCluster resolves a cluster by URI
+// ResolveCluster resolves a cluster by URI and returns
+// information stored in the profile along with a TeleportClient.
+// It will not include detailed information returned from the web/auth servers
 func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
 	cluster, err := s.cfg.Storage.GetByResourceURI(uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	return cluster, nil
+}
+
+// GetCluster returns cluster information
+func (s *Service) GetCluster(ctx context.Context, uri string) (*clusters.Cluster, error) {
+	cluster, err := s.ResolveCluster(uri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	features, err := cluster.GetClusterFeatures(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cluster.Features = features
 
 	return cluster, nil
 }
