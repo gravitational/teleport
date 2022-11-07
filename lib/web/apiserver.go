@@ -1751,48 +1751,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	setPasswordlessAsConnectorNameIfInitialUserAndCloud := func() error {
-		if req.WebauthnCreationResponse == nil {
-			return nil
-		}
-
-		if !h.ClusterFeatures.GetCloud() {
-			return nil
-		}
-
-		authPreference, err := ctx.clt.GetAuthPreference(r.Context())
-
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if authPreference.GetConnectorName() == constants.PasswordlessConnector {
-			return nil
-		}
-
-		users, err := h.cfg.ProxyClient.GetUsers(false)
-
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if len(users) != 1 {
-			return nil
-		}
-
-		authPreference.SetConnectorName(constants.PasswordlessConnector)
-
-		err = ctx.clt.SetAuthPreference(r.Context(), authPreference)
-
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
-	}
-
-	err = setPasswordlessAsConnectorNameIfInitialUserAndCloud()
-
+	err = h.trySettingConnectorNameToPasswordless(ctx, r, req)
 	if err != nil {
 		h.log.WithError(err).Error("Failed to set passwordless as connector name.")
 	}
@@ -1816,6 +1775,46 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 			Created: &res.GetRecovery().Created,
 		},
 	}, nil
+}
+
+func (h *Handler) trySettingConnectorNameToPasswordless(ctx *SessionContext, r *http.Request, req changeUserAuthenticationRequest) error {
+	if req.WebauthnCreationResponse == nil {
+		return nil
+	}
+
+	if !h.ClusterFeatures.GetCloud() {
+		return nil
+	}
+
+	authPreference, err := ctx.clt.GetAuthPreference(r.Context())
+
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if authPreference.GetConnectorName() == constants.PasswordlessConnector {
+		return nil
+	}
+
+	users, err := h.cfg.ProxyClient.GetUsers(false)
+
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(users) != 1 {
+		return nil
+	}
+
+	authPreference.SetConnectorName(constants.PasswordlessConnector)
+
+	err = ctx.clt.SetAuthPreference(r.Context(), authPreference)
+
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // createResetPasswordToken allows a UI user to reset a user's password.
