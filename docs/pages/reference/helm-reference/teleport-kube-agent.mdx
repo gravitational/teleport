@@ -14,14 +14,6 @@ This reference details available values for the `teleport-kube-agent` chart.
 
 (!docs/pages/includes/backup-warning.mdx!)
 
-Releases of this chart installed before version 12 are considered legacy
-releases, which launch the Teleport pod as a `Deployment`. In version 12 and
-above, the chart launches the Teleport pod as a `StatefulSet`. 
-
-To learn how how upgrading from a legacy release to version 12 will affect
-resources launched by this chart, see the [resource list](#kubernetes-resources)
-and the description of the [`storage.enabled`](#storageenabled) field below.
-
 ## What the chart deploys
 
 ### Teleport services
@@ -33,6 +25,24 @@ The `teleport-kube-agent` chart can run any or all of three Teleport services:
 | [`kubernetes_service`](../../kubernetes-access/guides.mdx) | `kube` | Uses Teleport to handle authentication with and proxy access to a Kubernetes cluster |
 | [`application_service`](../../application-access/guides.mdx) | `app` | Uses Teleport to handle authentication with and proxy access to web-based applications |
 | [`database_service`](../../database-access/guides.mdx) | `db` | Uses Teleport to handle authentication with and proxy access to databases |
+
+### Legacy releases
+
+Releases of this chart installed before version 11 are considered legacy
+releases, which launch the Teleport pod as a `Deployment` if no storage was
+configured. 
+
+In version 11 and above, the chart launches the Teleport pod as a `StatefulSet`
+even when the chart is configured not to use external storage, and the Teleport pod
+reads its state from a Kubernetes `Secret`. 
+
+While the Teleport pod does not require external storage, you can still use the
+[`storage.enabled`](#storageenabled) field to configure the way the Teleport pod
+reads data from a persistent volume.
+
+To learn how upgrading from a legacy release to version 11 will affect
+resources launched by this chart, see the [resource
+list](#kubernetes-resources).
 
 ### Kubernetes resources
 
@@ -47,12 +57,12 @@ The `teleport-kube-agent` chart deploys the following Kubernetes resources:
 |`ClusterRole`|`clusterRoleName`, if given, or the release name.|Allows impersonating users, groups, and service accounts, getting pods, and creating [`SelfSubjectAccessReview`s](https://www.pulumi.com/registry/packages/kubernetes/api-docs/authorization/v1/selfsubjectaccessreview/) so the Teleport pod can manage access to resources in its Kubernetes cluster.|Always.|
 |`ClusterRoleBinding`|`clusterRoleBindingName`, if provided, or the release name|Enables the Teleport pod to manage access to resources in the Kubernetes cluster.|Always.|
 |`RoleBinding`|`roleBindingName`, if given, or the release name|Enables the Teleport pod to manage access to resources in the Kubernetes cluster.|Always.|
-|`ServiceAccount`|`serviceAccountName`, if given, or the release name|Enables the Teleport pod to manage access to resources in the Kubernetes cluster.|`serviceAccount.create` is `true`|
+|`ServiceAccount`|`serviceAccount.name`, if given, or the release name|Enables the Teleport pod to manage access to resources in the Kubernetes cluster.|`serviceAccount.create` is `true`|
 |`PodDisruptionBudget`|The release name|Ensure high availability for the Teleport pod.|`highAvailability.podDisruptionBudget.enabled` is `true`.|
-|`ServiceAccount`|The release name, suffixed by `-hook`|Used to delete legacy `Deployment`s in order to deploy a `StatefulSet` instead.|If the `teleport-kube-agent` release contains a legacy `Deployment` resource.|
-|`Role`|The release name, suffixed by `-hook`|Used to delete legacy `Deployment`s in order to deploy a `StatefulSet` instead.|If the `teleport-kube-agent` release contains a legacy `Deployment` resource.|
-|`RoleBinding`|The release name, suffixed by `-hook`|Used to delete legacy `Deployment`s in order to deploy a `StatefulSet` instead.|If the `teleport-kube-agent` release contains a legacy `Deployment` resource.|
-|`Job`|The release name, suffixed by `-hook`|Used to delete legacy `Deployment`s in order to deploy a `StatefulSet` instead.|If the `teleport-kube-agent` release contains a legacy `Deployment` resource.|
+|`ServiceAccount`|The release name, suffixed by `-hook`|Used to delete legacy `Deployment`s in order to deploy a `StatefulSet` instead. Removed once the upgrade is complete. |If the `teleport-kube-agent` release contains a legacy `Deployment` resource.|
+|`Role`|The release name, suffixed by `-hook`|Used to delete legacy `Deployment`s in order to deploy a `StatefulSet` instead. Removed once the upgrade is complete. |If the `teleport-kube-agent` release contains a legacy `Deployment` resource.|
+|`RoleBinding`|The release name, suffixed by `-hook`|Used to delete legacy `Deployment`s in order to deploy a `StatefulSet` instead. Removed once the upgrade is complete. |If the `teleport-kube-agent` release contains a legacy `Deployment` resource.|
+|`Job`|The release name, suffixed by `-hook`|Used to delete legacy `Deployment`s in order to deploy a `StatefulSet` instead. Removed once the upgrade is complete. |If the `teleport-kube-agent` release contains a legacy `Deployment` resource.|
 |`ConfigMap`|The release name|Contains the configuration for the Teleport pod.|Always.|
 |`PodSecurityPolicy`|The release name|Enforces security requirements for pods deployed by `teleport-kube-agent`.|`podSecurityPolicy.enabled` is `true` and the Kubernetes cluster supports pod security policies.|
 |`Role`|The release name, suffixed by `-psp`|Enforces security requirements for pods deployed by `teleport-kube-agent`.|`podSecurityPolicy.enabled` is `true` and the Kubernetes cluster supports pod security policies.|
@@ -154,31 +164,8 @@ release.
 
 ## `serviceAccountName`
 
-| Type | Default value | Required? |
-| - | - | - |
-| `string` | "" | No |
-
-`serviceAccountName` provides a custom name for the `ServiceAccount` resource
-that the `teleport-kube-agent` chart creates for the Teleport pod. By default,
-the `ServiceAccount` has the name of the Helm release. 
-
-You should set this value if there is a `ServiceAccount` resource in the
-namespace of your `teleport-kube-agent` resources with the same name as your
-`teleport-kube-agent` release.
-
-<Tabs>
-  <TabItem label="values.yaml">
-  ```yaml
-  serviceAccountName: myserviceaccount
-  ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set serviceAccountName=myserviceaccount
-  ```
-
-  </TabItem>
-</Tabs>
+This field is deprecated and will be removed in a future version. Use
+`serviceAccount.name` instead.
 
 ## `authToken`
 
@@ -925,23 +912,37 @@ Enables the creation of a Kubernetes persistent volume to hold Teleport instance
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/storage/persistent-volumes/)
 
-#### Chart upgrades
+#### Chart upgrades for legacy releases
 
-If `storage.enabled` is `false` and you are upgrading a legacy
-`teleport-kube-agent` chart, the chart will launch a Teleport pod as a
-`Deployment` instead of a `StatefulSet`, disabling persistent storage for the
-Teleport pod. If `storage.enabled` is set to `true` during an upgrade, the chart
-will create a webhook that deletes any legacy `Deployment` and launches a
-`StatefulSet` instead.
+If you are upgrading a legacy `teleport-kube-agent` release (pre-v11), the way
+the `teleport-kube-agent` chart handles upgrades differs depending on the value
+of `storage.enabled`. Prior to v11, the chart ran the Teleport pod as a
+`Deployment` if `storage.enabled` was `false` and a `StatefulSet` if it was
+`true`. In v11 and after, the chart always runs the Teleport pod as a
+`StatefulSet`.
+
+During an upgrade, if `storage.enabled` is `false`, the chart installs a
+`StatefulSet` resource to run the Teleport pod alongside the existing
+`Deployment`. Once the `StatefulSet` joins the cluster and becomes healthy, the
+chart deletes the `Deployment` using a [Helm
+hook](https://helm.sh/docs/topics/charts_hooks/), and the upgrade finishes.
+
+If `storage.enabled` is `true`, then during the upgrade, the
+`teleport-kube-agent` chart will use the existing `StatefulSet` resource to run
+the Teleport pod. The chart will import the pod's identify from the previously
+configured external storage into a Kubernetes `Secret`. 
 
 #### New chart installations
 
 New installations of `teleport-kube-agent` always launch the Teleport pod as a
-`StatefulSet`, and `storage.enabled` configures persistent storage for the pod.
+`StatefulSet`, and the pod reads its state from a Kubernetes `Secret`. Setting
+`storage.enabled` to `true` is not required for the Teleport pod to maintain its
+state.
 
 If `storage.enabled` is `true`, the chart creates a volume mount for the
 Teleport pod that persists across the lifetimes of all Teleport pods deployed on
-a particular node. The Teleport pod uses this volume mount to manage its data.
+a particular node. The Teleport pod uses this volume mount to manage its data,
+which is useful for storing session recordings locally.
 
 You can configure this persistent storage using `storage.storageClassName` and
 `storage.requests`.
@@ -1284,7 +1285,13 @@ When off, the `serviceAccount.name` parameter should be set to the existing `Ser
 | - | - | - | - |
 | `string` | `""` | No | ✅ |
 
-`serviceAccount.name` can be optionally used to override the name of the Kubernetes `ServiceAccount` used by the `teleport-kube-agent` chart.
+`serviceAccount.name` provides a custom name for the `ServiceAccount` resource
+that the `teleport-kube-agent` chart creates for the Teleport pod. By default,
+the `ServiceAccount` has the name of the Helm release. 
+
+You should set this value if there is a `ServiceAccount` resource in the
+namespace of your `teleport-kube-agent` resources with the same name as your
+`teleport-kube-agent` release.
 
 <Tabs>
   <TabItem label="values.yaml">
