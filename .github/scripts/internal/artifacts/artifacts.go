@@ -18,6 +18,7 @@ package artifacts
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path"
@@ -92,6 +93,7 @@ func FindAndUpload(ctx context.Context, bucketName, objectPrefix string, artifac
 
 	client, err := storage.NewClient(ctx)
 	if err != nil {
+		fmt.Println(err)
 		return trace.Wrap(err)
 	}
 	defer client.Close()

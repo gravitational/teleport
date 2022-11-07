@@ -7,9 +7,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func UnshallowRepository(ctx context.Context, workspace string) error {
+func UnshallowRepository(ctx context.Context, workspace string, deployKey []byte) error {
 	log.Info("Configuring git")
-	gitCfg, err := Configure(ctx, workspace)
+	gitCfg, err := Configure(ctx, workspace, deployKey)
 	if err != nil {
 		return trace.Wrap(err, "failed configuring git")
 	}
