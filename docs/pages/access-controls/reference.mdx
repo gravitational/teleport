@@ -354,12 +354,12 @@ have a cluster using the legacy U2F support.
 
 Here is an explanation of the fields used in the `where` and `filter` conditions within this guide.
 
-| Field                      | Description                                         |
-|----------------------------|-----------------------------------------------------|
-| `user.roles`               | The list of roles assigned to a user              |
+| Field                      | Description                                       |
+| -------------------------- | ------------------------------------------------- |
+| `user.spec.roles`          | The list of roles assigned to a user              |
 | `session.participants`     | The list of participants from a session recording |
-| `ssh_session.participants` | The list of participants from an SSH session       |
-| `user.metadata.name`       | The user's name                                     |
+| `ssh_session.participants` | The list of participants from an SSH session      |
+| `user.metadata.name`       | The user's name                                   |
 
 Check out our [predicate language](../reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources)
 guide for a more in depth explanation of the language.
