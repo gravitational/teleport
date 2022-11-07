@@ -3,7 +3,13 @@ authors: Michael Wilson (mike@goteleport.com)
 state: draft
 ---
 
-# RFD 95 - Okta Integration
+# RFD 95 - Application Access Okta Integration
+
+### Required Approvers
+
+* Engineering @r0mant
+* Security @reed
+* Product: (@xinding33 || @klizhentas )
 
 ## What
 
@@ -25,6 +31,10 @@ Teleport will be useful.
 * After authenticating into Teleport and accessing the "Applications" item in the menu,
   a list of apps sourced from Okta will appear.
 * When users click on an Okta sourced app in the UI, the application will open in a separate tab.
+* These applications will *not* be behind Teleport's proxy, and will redirect to the proper Okta
+  sourced URL for the application. Users will be taken through Okta's authentication process for
+  this process. If users are already logged into Okta, this will be a transparent passthrough to
+  the application.
 * If users do not have access to an application, the link will be greyed out and an option will
   be available in the drop down menu to the right that allows users to request access to the
   application.
@@ -40,8 +50,6 @@ Teleport will be useful.
 * When a user requests access to an application or group, the existing approval workflow
   will be used to add this access to the user.
 * Changes will be reflected in the identity provider backend when this occurs.
-* Unlike the existing request mechanism, these changes will be long term and are not expected
-  to be later dropped.
 
 ### High level architecture
 
@@ -152,9 +160,8 @@ must be unique.
 
 ### User specific configuration for identity providers
 
-The user spec will be expanded with a new per identity provider configuration that
-administrators can take advantage of. The configs are expected to map to the unique `name`
-(not type) of each provider.
+Identity providers will utilize user traits if there is user specific information that is
+required by the identity provider.
 
 ```yaml
 kind: user
@@ -166,13 +173,8 @@ spec:
   traits:
     logins: ['admin']
     kubernetes_groups: ['edit']
-  provider_configs:
-    okta:prod:
-      okta-field1: value1
-    okta:dev:
-      okta-field1: value1
-    authentik:prod:
-      authentik-field1: value1
+    okta_user_id: ['name@mydomain.com']
+    authentik_user_id: ['name@mydomain.com']
 ```
 
 It is up to each identity provider to implement the parsing and interpretation of these configs.
@@ -397,9 +399,3 @@ Testing shows that, using Okta app links, Teleport successfully launches these a
 the applications redirect to their intended locations as opposed to staying behind the reverse
 proxy. Is this behavior okay, or should we work to ensure that application traffic is routed
 through the proxy?
-
-### Required Approvers
-
-* Engineering @r0mant
-* Security @reed
-* Product: (@xinding33 || @klizhentas )
