@@ -163,6 +163,9 @@ chartMode: standalone
 
 ######################################################################
 # Persistence settings (only used in "standalone" and "custom" modes)
+# NOTE: Changes in Kubernetes 1.23+ mean that persistent volumes will not automatically be provisioned in AWS EKS clusters
+# without additional configuration. See https://docs.aws.amazon.com/eks/latest/userguide/ebs-csi.html for more details.
+# This driver addon must be configured to use persistent volumes in EKS clusters after Kubernetes 1.23.
 ######################################################################
 persistence:
   # Enable persistence using a PersistentVolumeClaim
@@ -342,7 +345,7 @@ annotations:
 # Kubernetes service account to create/use.
 serviceAccount:
   # Specifies whether a ServiceAccount should be created
-  create: true 
+  create: true
   # The name of the ServiceAccount to use.
   # If not set and serviceAccount.create is true, the name is generated using the release name.
   # If create is false, the name will be used to reference an existing service account.

@@ -24,33 +24,36 @@ import (
 
 // Describes a registry and repo that images are to be published to.
 type ContainerRepo struct {
-	Name             string
-	IsProductionRepo bool
-	IsImmutable      bool
-	EnvironmentVars  map[string]value
-	RegistryDomain   string
-	RegistryOrg      string
-	LoginCommands    []string
-	TagBuilder       func(baseTag *ImageTag) *ImageTag // Postprocessor for tags that append CR-specific suffixes
+	Name            string                            // Human readable name for the repo. Does not need to match remote value.
+	IsImmutable     bool                              // True if the repo supports updating existing tags, false otherwise
+	EnvironmentVars map[string]value                  // Steps that use the described repo should include these env vars
+	RegistryDomain  string                            // The registry that hosts the container repo
+	RegistryOrg     string                            // The organization name (usually "gravitational") that the repo is listed under
+	SetupSteps      []step                            // Optional field that can be used to run setup code prior to first login
+	LoginCommands   []string                          // Commands to authenticate the docker daemon with the repo
+	TagBuilder      func(baseTag *ImageTag) *ImageTag // Postprocessor for tags that append CR-specific suffixes
 }
 
-func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string, isProduction, isImmutable, guaranteeUnique bool) *ContainerRepo {
-	nameSuffix := "staging"
+func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, roleSecret, domain, name string,
+	isPublic, isImmutable, guaranteeUnique bool) *ContainerRepo {
 	ecrRegion := StagingEcrRegion
 	loginSubcommand := "ecr"
-	if isProduction {
-		nameSuffix = "production"
+	if isPublic {
 		ecrRegion = PublicEcrRegion
 		loginSubcommand = "ecr-public"
 	}
+
+	repoName := fmt.Sprintf("ECR - %s", name)
+	profileName := fmt.Sprintf("ecr-%s", name)
 
 	registryOrg := ProductionRegistryOrg
 	if configureForPRTestingOnly {
 		accessKeyIDSecret = testingSecretPrefix + accessKeyIDSecret
 		secretAccessKeySecret = testingSecretPrefix + secretAccessKeySecret
+		roleSecret = testingSecretPrefix + roleSecret
 		registryOrg = testingECRRegistryOrg
 
-		if !isProduction {
+		if !isPublic {
 			domain = testingECRDomain
 			ecrRegion = testingECRRegion
 		}
@@ -66,20 +69,27 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string
 	}
 
 	return &ContainerRepo{
-		Name:             fmt.Sprintf("ECR - %s", nameSuffix),
-		IsProductionRepo: isProduction,
-		IsImmutable:      isImmutable,
+		Name:        repoName,
+		IsImmutable: isImmutable,
 		EnvironmentVars: map[string]value{
-			"AWS_ACCESS_KEY_ID": {
-				fromSecret: accessKeyIDSecret,
-			},
-			"AWS_SECRET_ACCESS_KEY": {
-				fromSecret: secretAccessKeySecret,
-			},
+			"AWS_PROFILE": {raw: profileName},
 		},
 		RegistryDomain: domain,
 		RegistryOrg:    registryOrg,
-		LoginCommands:  loginCommands,
+		SetupSteps: []step{
+			kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+				awsRoleSettings: awsRoleSettings{
+					awsAccessKeyID:     value{fromSecret: accessKeyIDSecret},
+					awsSecretAccessKey: value{fromSecret: secretAccessKeySecret},
+					role:               value{fromSecret: roleSecret},
+				},
+				configVolume: volumeRefAwsConfig,
+				profile:      profileName,
+				name:         fmt.Sprintf("Assume %s AWS Role", repoName),
+				append:       true,
+			}),
+		},
+		LoginCommands: loginCommands,
 		TagBuilder: func(tag *ImageTag) *ImageTag {
 			if guaranteeUnique {
 				tag.AppendString("$TIMESTAMP")
@@ -99,9 +109,8 @@ func NewQuayContainerRepo(dockerUsername, dockerPassword string) *ContainerRepo 
 	}
 
 	return &ContainerRepo{
-		Name:             "Quay",
-		IsProductionRepo: true,
-		IsImmutable:      false,
+		Name:        "Quay",
+		IsImmutable: false,
 		EnvironmentVars: map[string]value{
 			"QUAY_USERNAME": {
 				fromSecret: dockerUsername,
@@ -120,10 +129,9 @@ func NewQuayContainerRepo(dockerUsername, dockerPassword string) *ContainerRepo 
 
 func NewLocalContainerRepo() *ContainerRepo {
 	return &ContainerRepo{
-		Name:             "Local Registry",
-		IsProductionRepo: false,
-		IsImmutable:      false,
-		RegistryDomain:   LocalRegistrySocket,
+		Name:           "Local Registry",
+		IsImmutable:    false,
+		RegistryDomain: LocalRegistrySocket,
 	}
 }
 
@@ -132,14 +140,27 @@ func GetLocalContainerRepo() *ContainerRepo {
 }
 
 func GetStagingContainerRepo(uniqueStagingTag bool) *ContainerRepo {
-	return NewEcrContainerRepo("STAGING_TELEPORT_DRONE_USER_ECR_KEY", "STAGING_TELEPORT_DRONE_USER_ECR_SECRET", StagingRegistry, false, true, uniqueStagingTag)
+	return NewEcrContainerRepo("STAGING_TELEPORT_DRONE_USER_ECR_KEY", "STAGING_TELEPORT_DRONE_USER_ECR_SECRET",
+		"STAGING_TELEPORT_DRONE_ECR_AWS_ROLE", StagingRegistry, "staging", false, true, uniqueStagingTag)
 }
 
 func GetProductionContainerRepos() []*ContainerRepo {
 	return []*ContainerRepo{
 		NewQuayContainerRepo("PRODUCTION_QUAYIO_DOCKER_USERNAME", "PRODUCTION_QUAYIO_DOCKER_PASSWORD"),
-		NewEcrContainerRepo("PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY", "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET", ProductionRegistry, true, false, false),
+		NewEcrContainerRepo("PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY", "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET",
+			"PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE", ProductionRegistry, "production", true, false, false),
 	}
+}
+
+// This is a special case of "public.ecr.aws". This references a public ECR repo that may only ever be pulled from.
+// The purpose of this is to authenticate with public ECR prior to `docker buildx build` so that the build command
+// will pull from the repo as an authenticated user. Pulling as an authenticated user greatly increase the number
+// of layers that can be pulled per second, which fixes certain issues with running build commands in parallel.
+func GetPublicEcrPullRegistry() *ContainerRepo {
+	// Note: these credentials currently allow for push and pull. I'd recommend either a separate role or set of
+	// credentials for pull only access.
+	return NewEcrContainerRepo("PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY", "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET",
+		"PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE", ProductionRegistry, "authenticated-pull", true, false, false)
 }
 
 func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput, flags *TriggerFlags) []step {
@@ -225,7 +246,7 @@ func (cr *ContainerRepo) pullPushStep(image *Image, dependencySteps []string) (s
 	return step{
 		Name:        fmt.Sprintf("Pull %s and push it to %s", image.GetDisplayName(), localRepo.Name),
 		Image:       "docker",
-		Volumes:     dockerVolumeRefs(),
+		Volumes:     dockerVolumeRefs(volumeRefAwsConfig),
 		Environment: cr.EnvironmentVars,
 		Commands:    commands,
 		DependsOn:   dependencySteps,
@@ -274,7 +295,7 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, image
 	step := step{
 		Name:        fmt.Sprintf("Tag and push image %q to %s", buildStepDetails.BuiltImage.GetDisplayName(), cr.Name),
 		Image:       "docker",
-		Volumes:     dockerVolumeRefs(),
+		Volumes:     dockerVolumeRefs(volumeRefAwsConfig),
 		Environment: cr.EnvironmentVars,
 		Commands:    commands,
 		DependsOn:   dependencySteps,
@@ -302,7 +323,7 @@ func (cr *ContainerRepo) createAndPushManifestStep(manifestImage *Image, pushSte
 	return step{
 		Name:        fmt.Sprintf("Create manifest and push %q to %s", manifestImage.GetDisplayName(), cr.Name),
 		Image:       "docker",
-		Volumes:     dockerVolumeRefs(),
+		Volumes:     dockerVolumeRefs(volumeRefAwsConfig),
 		Environment: cr.EnvironmentVars,
 		Commands:    cr.buildCommandsWithLogin(commands),
 		DependsOn:   pushStepNames,

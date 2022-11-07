@@ -21,12 +21,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
-
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCLICommandUsesCLICommandProvider(t *testing.T) {

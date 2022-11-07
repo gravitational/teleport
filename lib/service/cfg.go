@@ -31,10 +31,21 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
+	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/http/httpguts"
+	"k8s.io/apimachinery/pkg/util/validation"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
@@ -55,16 +66,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
-	"go.opentelemetry.io/otel/attribute"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/net/http/httpguts"
-	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // Rate describes a rate ratio, i.e. the number of "events" that happen over
@@ -916,6 +917,11 @@ type DatabaseAD struct {
 	SPN string
 }
 
+// IsEmpty returns true if the database AD configuration is empty.
+func (d *DatabaseAD) IsEmpty() bool {
+	return d.KeytabFile == "" && d.Krb5File == "" && d.Domain == "" && d.SPN == ""
+}
+
 // DatabaseAzure contains Azure database configuration.
 type DatabaseAzure struct {
 	// ResourceID is the Azure fully qualified ID for the resource.
@@ -1010,8 +1016,13 @@ func (d *Database) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.Name)
 	}
 
-	// For SQL Server we only support Kerberos auth with Active Directory at the moment.
-	if d.Protocol == defaults.ProtocolSQLServer {
+	// We support Azure AD authentication and Kerberos auth with AD for SQL
+	// Server. The first method doesn't require additional configuration since
+	// it assumes the environment’s Azure credentials
+	// (https://learn.microsoft.com/en-us/azure/developer/go/azure-sdk-authentication).
+	// The second method requires additional information, validated by
+	// DatabaseAD.
+	if d.Protocol == defaults.ProtocolSQLServer && (d.AD.Domain != "" || !strings.Contains(d.URI, azureutils.MSSQLEndpointSuffix)) {
 		if err := d.AD.CheckAndSetDefaults(d.Name); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1312,7 +1323,7 @@ type DiscoveryConfig struct {
 	Enabled bool
 	// AWSMatchers are used to match EC2 instances for auto enrollment.
 	AWSMatchers []services.AWSMatcher
-	// AzureMatchers are used to match resources for auto discovery.
+	// AzureMatchers are used to match resources for auto enrollment.
 	AzureMatchers []services.AzureMatcher
 }
 

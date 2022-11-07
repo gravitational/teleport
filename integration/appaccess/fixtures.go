@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -33,8 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/stretchr/testify/require"
 )
 
 type AppTestOptions struct {
@@ -42,6 +41,7 @@ type AppTestOptions struct {
 	ExtraLeafApps        []service.App
 	RootClusterListeners helpers.InstanceListenerSetupFunc
 	LeafClusterListeners helpers.InstanceListenerSetupFunc
+	CertificateTTL       time.Duration
 
 	RootConfig func(config *service.Config)
 	LeafConfig func(config *service.Config)
@@ -80,6 +80,10 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 		rootTCPAppName:    "tcp-01",
 		rootTCPPublicAddr: "tcp-01.example.com",
 		rootTCPMessage:    uuid.New().String(),
+
+		rootTCPTwoWayAppName:    "tcp-twoway",
+		rootTCPTwoWayPublicAddr: "tcp-twoway.example.com",
+		rootTCPTwoWayMessage:    uuid.New().String(),
 
 		leafAppName:        "app-02",
 		leafAppPublicAddr:  "app-02.example.com",
@@ -147,6 +151,20 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	// Plain TCP application in root cluster (tcp://).
 	rootTCPServer := newTCPServer(t, func(c net.Conn) {
 		c.Write([]byte(p.rootTCPMessage))
+		c.Close()
+	})
+	t.Cleanup(func() { rootTCPServer.Close() })
+	// TCP application that reads after every write in the root cluster (tcp://).
+	rootTCPTwoWayServer := newTCPServer(t, func(c net.Conn) {
+		buf := make([]byte, 64)
+		for {
+			if _, err := c.Write([]byte(p.rootTCPTwoWayMessage)); err != nil {
+				break
+			}
+			if _, err := c.Read(buf); err != nil {
+				break
+			}
+		}
 		c.Close()
 	})
 	t.Cleanup(func() { rootTCPServer.Close() })
@@ -223,6 +241,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	p.rootWSAppURI = rootWSServer.URL
 	p.rootWSSAppURI = rootWSSServer.URL
 	p.rootTCPAppURI = fmt.Sprintf("tcp://%v", rootTCPServer.Addr().String())
+	p.rootTCPTwoWayAppURI = fmt.Sprintf("tcp://%v", rootTCPTwoWayServer.Addr().String())
 	p.leafAppURI = leafServer.URL
 	p.leafWSAppURI = leafWSServer.URL
 	p.leafWSSAppURI = leafWSSServer.URL
@@ -270,6 +289,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.Preference.SetSecondFactor("off")
+	rcConf.Auth.Preference.SetDisconnectExpiredCert(true)
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebService = false
 	rcConf.Proxy.DisableWebInterface = true
@@ -286,6 +306,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	lcConf.DataDir = t.TempDir()
 	lcConf.Auth.Enabled = true
 	lcConf.Auth.Preference.SetSecondFactor("off")
+	lcConf.Auth.Preference.SetDisconnectExpiredCert(true)
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebService = false
 	lcConf.Proxy.DisableWebInterface = true
@@ -317,7 +338,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	p.leafAppServers = p.startLeafAppServers(t, leafAppServersCount, opts.ExtraLeafApps)
 
 	// Create user for tests.
-	p.initUser(t, opts)
+	p.initUser(t)
 
 	// Create Web UI session.
 	p.initWebSession(t)
@@ -326,7 +347,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	p.initCertPool(t)
 
 	// Initialize Teleport client with the user's credentials.
-	p.initTeleportClient(t)
+	p.initTeleportClient(t, opts)
 
 	return p
 }

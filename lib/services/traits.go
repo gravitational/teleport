@@ -19,13 +19,13 @@ package services
 import (
 	"fmt"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
-
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // TraitsToRoles maps the supplied traits to a list of teleport role names.

@@ -145,3 +145,17 @@ func (client *InstanceMetadataClient) GetRegion(ctx context.Context) (string, er
 	}
 	return getRegionOutput.Region, nil
 }
+
+// GetID gets the EC2 instance's ID.
+func (client *InstanceMetadataClient) GetID(ctx context.Context) (string, error) {
+	id, err := client.getMetadata(ctx, "instance-id")
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if !ec2ResourceIDRE.MatchString(id) {
+		return "", trace.NotFound("instance-id not available")
+	}
+
+	return id, nil
+}

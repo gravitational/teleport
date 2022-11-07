@@ -45,3 +45,11 @@ func FuzzNormalizeLocation(f *testing.F) {
 		})
 	})
 }
+
+func FuzzParseMSSQLEndpoint(f *testing.F) {
+	f.Fuzz(func(t *testing.T, endpoint string) {
+		require.NotPanics(t, func() {
+			ParseMSSQLEndpoint(endpoint)
+		})
+	})
+}
