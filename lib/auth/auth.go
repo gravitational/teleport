@@ -251,7 +251,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		closeCtx:        closeCtx,
 		emitter:         cfg.Emitter,
 		streamer:        cfg.Streamer,
-		unstable:        local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
+		Unstable:        local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
 		Services:        services,
 		Cache:           services,
 		keyStore:        keyStore,
@@ -416,9 +416,9 @@ type Server struct {
 	// ServerID is the server ID of this auth server.
 	ServerID string
 
-	// unstable implements unstable backend methods not suitable
+	// Unstable implements Unstable backend methods not suitable
 	// for inclusion in Services.
-	unstable local.UnstableService
+	Unstable local.UnstableService
 
 	// Services encapsulate services - provisioner, trust, etc. used by the auth
 	// server in a separate structure. Reads through Services hit the backend.
@@ -2500,11 +2500,11 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 // instances to prove that they hold a given system role.
 // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
 func (a *Server) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
-	return trace.Wrap(a.unstable.AssertSystemRole(ctx, req))
+	return trace.Wrap(a.Unstable.AssertSystemRole(ctx, req))
 }
 
 func (a *Server) UnstableGetSystemRoleAssertions(ctx context.Context, serverID string, assertionID string) (proto.UnstableSystemRoleAssertionSet, error) {
-	set, err := a.unstable.GetSystemRoleAssertions(ctx, serverID, assertionID)
+	set, err := a.Unstable.GetSystemRoleAssertions(ctx, serverID, assertionID)
 	return set, trace.Wrap(err)
 }
 
