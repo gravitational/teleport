@@ -22,15 +22,15 @@ jobs:
           apt-get -y update && apt-get -y install software-properties-common 
           add-apt-repository -y ppa:git-core/ppa
           apt-get -y update && apt-get -y install git
-      # - name: Mark /workspace as git safe.directory
-      #   run: |
-      #     git config --global --add safe.directory /workspace
-      #     git config --global --add safe.directory /workspace/webassets
       - name: Checkout Teleport
         uses: actions/checkout@v3
         with:
-          set-safe-directory: true
           fetch-depth: 0
+        # error obtaining VCS status: exit status 128 Use -buildvcs=false to disable VCS stamping.
+      - name: Mark /workspace as git safe.directory
+        run: |
+          git config --global --add safe.directory /workspace
+          git config --global --add safe.directory /workspace/webassets
       - name: Fetch go cache paths
         id: go-cache-paths
         run: |
