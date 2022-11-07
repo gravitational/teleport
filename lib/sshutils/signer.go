@@ -29,6 +29,8 @@ import (
 
 // LegacySHA1Signer always forces use of SHA-1 for signing. It should be not
 // be used until necessary.
+// This struct should not implement SignWithAlgorithm() method
+// from ssh.AlgorithmSigner interface. This would break the SHA-1 signing.
 type LegacySHA1Signer struct {
 	Signer ssh.AlgorithmSigner
 }
@@ -37,6 +39,7 @@ func (s *LegacySHA1Signer) PublicKey() ssh.PublicKey {
 	return s.Signer.PublicKey()
 }
 
+// Sign forces the SHA-1 signature.
 func (s *LegacySHA1Signer) Sign(rand io.Reader, data []byte) (*ssh.Signature, error) {
 	return s.Signer.SignWithAlgorithm(rand, data, ssh.KeyAlgoRSA)
 }
