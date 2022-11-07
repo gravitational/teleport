@@ -87,13 +87,14 @@ func ValidatePatterns(workspace string, patterns []string) ([]string, error) {
 func FindAndUpload(ctx context.Context, bucketName, objectPrefix string, artifactPatterns []string) error {
 	artifacts := find(artifactPatterns)
 
+	fmt.Println("Artifacts", artifacts)
+
 	if len(artifacts) == 0 {
 		return nil
 	}
 
 	client, err := storage.NewClient(ctx)
 	if err != nil {
-		fmt.Println(err)
 		return trace.Wrap(err)
 	}
 	defer client.Close()

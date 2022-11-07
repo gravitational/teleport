@@ -7,20 +7,24 @@ jobs:
   build:
     name: Unit tests
     runs-on: ubuntu-latest
-    # Required by google cloud auth
+    # These permissions are required by Google Cloud auth step
     permissions:
       contents: read
       id-token: write
-    # timeout-minutes: 10 TODO: Uncomment on production runner
+    # TODO: Uncomment on production runner
+    # timeout-minutes: 10
     container: 
       image: public.ecr.aws/gravitational/teleport-buildbox:teleport11
       env:
-        HELM_PLUGINS: /root/.local/share/helm/plugins # See Makefile:533, Dockerfile needs to be fixed
+        HELM_PLUGINS: /root/.local/share/helm/plugins # See Makefile:533, Dockerfile needs to be fixed to work with GHA
       volumes:
         - ${{ github.workspace }}:/workspace
+      # This permissions are required to make mount debugfs work. This is safe enough when used with Github-hosted runners.
       options: --cap-add=SYS_ADMIN --privileged
     steps:
-      - name: Install git 1.18+
+      # actions/checkout@v3 requires git 2.18+ to be installed in the host system (buildbox image in our case). I guess,
+      # Dockerfile needs to be updated.
+      - name: Install git 2.18+
         run: |
           apt-get -y update && apt-get -y install software-properties-common 
           add-apt-repository -y ppa:git-core/ppa
@@ -28,12 +32,16 @@ jobs:
       - name: Checkout Teleport
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Full unshallowed copy is required to make changes detector work
+      # Please, check https://github.com/google-github-actions/auth setup instructions. Please note that service account
+      # is required and must have `storage.objects.create` permission. This step is required for artifacts 
+      # (build logs) uploader.
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v0
         with:
           workload_identity_provider: projects/671314886056/locations/global/workloadIdentityPools/github-pool/providers/github-provider
           service_account: teleport-storage@just-terminus-366813.iam.gserviceaccount.com
+      # We need perform this manually. Build fails otherwise with "error obtaining VCS status: exit status 128".
       - name: Mark /workspace as git safe.directory
         run: |
           git config --global --add safe.directory /workspace
