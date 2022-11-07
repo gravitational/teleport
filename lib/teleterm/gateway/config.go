@@ -39,7 +39,7 @@ type Config struct {
 	// TargetUser is the target user name
 	TargetUser string
 	// TargetSubresourceName points at a subresource of the remote resource, for example a database
-	// name on a database server.
+	// name on a database server. It is used only for generating the CLI command.
 	TargetSubresourceName string
 
 	// Port is the gateway port

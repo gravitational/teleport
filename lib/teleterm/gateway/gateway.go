@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -145,10 +146,16 @@ func (g *Gateway) Serve() error {
 }
 
 func (g *Gateway) URI() uri.ResourceURI {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
 	return g.cfg.URI
 }
 
 func (g *Gateway) SetURI(newURI uri.ResourceURI) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
 	g.cfg.URI = newURI
 }
 
@@ -169,10 +176,16 @@ func (g *Gateway) TargetUser() string {
 }
 
 func (g *Gateway) TargetSubresourceName() string {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
 	return g.cfg.TargetSubresourceName
 }
 
 func (g *Gateway) SetTargetSubresourceName(value string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
 	g.cfg.TargetSubresourceName = value
 }
 
@@ -207,14 +220,32 @@ func (g *Gateway) CLICommand() (string, error) {
 	return cliCommand, nil
 }
 
+// ReloadCert loads the key pair from cfg.CertPath & cfg.KeyPath and updates the cert of the running
+// local proxy. This is typically done after the cert is reissued and saved to disk.
+//
+// In the future, we're probably going to make this method accept the cert as an arg rather than
+// reading from disk.
+func (g *Gateway) ReloadCert() error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.cfg.Log.Debug("Reloading cert")
+
+	tlsCert, err := keys.LoadX509KeyPair(g.cfg.CertPath, g.cfg.KeyPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	g.localProxy.SetCerts([]tls.Certificate{tlsCert})
+
+	return nil
+}
+
 // Gateway describes local proxy that creates a gateway to the remote Teleport resource.
-//
-// Gateway is not safe for concurrent use in itself. However, all access to gateways is gated by
-// daemon.Service which obtains a lock for any operation pertaining to gateways.
-//
-// In the future if Gateway becomes more complex it might be worthwhile to add an RWMutex to it.
 type Gateway struct {
-	cfg        *Config
+	cfg *Config
+	// mu guards calls to localProxy.SetCerts and cfg fields mutated by Gateway setters.
+	mu         sync.RWMutex
 	localProxy *alpn.LocalProxy
 	// closeContext and closeCancel are used to signal to any waiting goroutines
 	// that the local proxy is now closed and to release any resources.
