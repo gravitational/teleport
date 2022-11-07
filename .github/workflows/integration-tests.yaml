@@ -8,6 +8,9 @@ jobs:
     name: Integration tests
     runs-on: ubuntu-latest
     # timeout-minutes: 10 TODO: Uncomment on production runner
+    permissions:
+      contents: read
+      id-token: write
     container: 
       image: public.ecr.aws/gravitational/teleport-buildbox:teleport11
       env:
