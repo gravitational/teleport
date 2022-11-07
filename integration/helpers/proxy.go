@@ -121,7 +121,9 @@ func (p *ProxyAuthorizer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// we detect if someone is waiting for a new request to come in.
 	select {
 	case waiter := <-p.waitersC:
-		defer func() { p.notifyWaiter(waiter, err) }()
+		defer func() {
+			waiter <- err
+		}()
 	default:
 	}
 	defer func() {
@@ -169,14 +171,6 @@ func (p *ProxyAuthorizer) WaitForRequest(timeout time.Duration) error {
 		return trace.BadParameter("timed out waiting for proxy authorizer request error")
 	case err := <-errC:
 		return err
-	}
-}
-
-func (p *ProxyAuthorizer) notifyWaiter(waiter chan error, err error) {
-	// notify waiter, but don't block if they left already.
-	select {
-	case waiter <- err:
-	default:
 	}
 }
 
