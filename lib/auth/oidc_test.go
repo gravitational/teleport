@@ -302,7 +302,7 @@ func TestSSODiagnostic(t *testing.T) {
 				Req: OIDCAuthRequestFromProto(request),
 			}, resp)
 
-			diagCtx := ssoDiagContext{}
+			diagCtx := SSODiagContext{}
 
 			resp, err = s.a.validateOIDCAuthCallback(ctx, &diagCtx, values)
 			require.NoError(t, err)
@@ -351,7 +351,7 @@ func TestSSODiagnostic(t *testing.T) {
 					ID:        "00001234abcd",
 					Name:      "",
 					Email:     "superuser@example.com",
-					ExpiresAt: diagCtx.info.OIDCIdentity.ExpiresAt,
+					ExpiresAt: diagCtx.Info.OIDCIdentity.ExpiresAt,
 				},
 				OIDCTraitsFromClaims: map[string][]string{
 					"email":  {"superuser@example.com"},
@@ -365,7 +365,7 @@ func TestSSODiagnostic(t *testing.T) {
 						Roles: []string{"access"},
 					},
 				},
-			}, diagCtx.info)
+			}, diagCtx.Info)
 		})
 	}
 }
@@ -795,7 +795,7 @@ func TestUsernameClaim(t *testing.T) {
 	s := setUpSuite(t)
 	idp := newFakeIDP(t, false)
 
-	diagCtx := ssoDiagContext{}
+	diagCtx := SSODiagContext{}
 
 	// Create role that will be mapped to the user.
 	role, err := types.NewRole("access", types.RoleSpecV5{

@@ -561,14 +561,14 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	require.NotNil(t, response)
 
 	// check internal method, validate diagnostic outputs.
-	diagCtx := a.newSSODiagContext(types.KindSAML)
+	diagCtx := NewSSODiagContext(types.KindSAML, a)
 	auth, err := a.validateSAMLResponse(context.Background(), diagCtx, base64.StdEncoding.EncodeToString([]byte(respOkta)), "")
 	require.NoError(t, err)
 
 	// ensure diag info got stored and is identical.
 	infoFromBackend, err := a.GetSSODiagnosticInfo(context.Background(), types.KindSAML, auth.Req.ID)
 	require.NoError(t, err)
-	require.Equal(t, &diagCtx.info, infoFromBackend)
+	require.Equal(t, &diagCtx.Info, infoFromBackend)
 
 	// verify values
 	require.Equal(t, "ops@gravitational.io", auth.Username)
@@ -580,8 +580,8 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	authnInstant := time.Date(2022, 4, 25, 8, 3, 11, 779000000, time.UTC)
 
 	// ignore, this is boring and very complex.
-	require.NotNil(t, diagCtx.info.SAMLAssertionInfo.Assertions)
-	diagCtx.info.SAMLAssertionInfo.Assertions = nil
+	require.NotNil(t, diagCtx.Info.SAMLAssertionInfo.Assertions)
+	diagCtx.Info.SAMLAssertionInfo.Assertions = nil
 
 	require.Equal(t, types.SSODiagnosticInfo{
 		TestFlow: true,
@@ -661,7 +661,7 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 				Roles: []string{"access"},
 			},
 		},
-	}, diagCtx.info)
+	}, diagCtx.Info)
 
 	// make sure no users have been created.
 	users, err := a.GetUsers(false)

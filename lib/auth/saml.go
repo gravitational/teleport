@@ -197,7 +197,7 @@ func (a *Server) getSAMLProvider(conn types.SAMLConnector) (*saml2.SAMLServicePr
 	return serviceProvider, nil
 }
 
-func (a *Server) calculateSAMLUser(diagCtx *ssoDiagContext, connector types.SAMLConnector, assertionInfo saml2.AssertionInfo, request *types.SAMLAuthRequest) (*createUserParams, error) {
+func (a *Server) calculateSAMLUser(diagCtx *SSODiagContext, connector types.SAMLConnector, assertionInfo saml2.AssertionInfo, request *types.SAMLAuthRequest) (*createUserParams, error) {
 	p := createUserParams{
 		connectorName: connector.GetName(),
 		username:      assertionInfo.NameID,
@@ -205,21 +205,21 @@ func (a *Server) calculateSAMLUser(diagCtx *ssoDiagContext, connector types.SAML
 
 	p.traits = services.SAMLAssertionsToTraits(assertionInfo)
 
-	diagCtx.info.SAMLTraitsFromAssertions = p.traits
-	diagCtx.info.SAMLConnectorTraitMapping = connector.GetTraitMappings()
+	diagCtx.Info.SAMLTraitsFromAssertions = p.traits
+	diagCtx.Info.SAMLConnectorTraitMapping = connector.GetTraitMappings()
 
 	var warnings []string
 	warnings, p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
 	if len(p.roles) == 0 {
 		if len(warnings) != 0 {
 			log.WithField("connector", connector).Warnf("No roles mapped from claims. Warnings: %q", warnings)
-			diagCtx.info.SAMLAttributesToRolesWarnings = &types.SSOWarnings{
+			diagCtx.Info.SAMLAttributesToRolesWarnings = &types.SSOWarnings{
 				Message:  "No roles mapped for the user",
 				Warnings: warnings,
 			}
 		} else {
 			log.WithField("connector", connector).Warnf("No roles mapped from claims.")
-			diagCtx.info.SAMLAttributesToRolesWarnings = &types.SSOWarnings{
+			diagCtx.Info.SAMLAttributesToRolesWarnings = &types.SSOWarnings{
 				Message: "No roles mapped for the user. The mappings may contain typos.",
 			}
 		}
@@ -409,14 +409,14 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string, 
 		Method: events.LoginMethodSAML,
 	}
 
-	diagCtx := a.newSSODiagContext(types.KindSAML)
+	diagCtx := NewSSODiagContext(types.KindSAML, a)
 
 	auth, err := a.validateSAMLResponse(ctx, diagCtx, samlResponse, connectorID)
-	diagCtx.info.Error = trace.UserMessage(err)
+	diagCtx.Info.Error = trace.UserMessage(err)
 
-	diagCtx.writeToBackend(ctx)
+	diagCtx.WriteToBackend(ctx)
 
-	attributeStatements := diagCtx.info.SAMLAttributeStatements
+	attributeStatements := diagCtx.Info.SAMLAttributeStatements
 	if attributeStatements != nil {
 		attributes, err := apievents.EncodeMapStrings(attributeStatements)
 		if err != nil {
@@ -429,7 +429,7 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string, 
 
 	if err != nil {
 		event.Code = events.UserSSOLoginFailureCode
-		if diagCtx.info.TestFlow {
+		if diagCtx.Info.TestFlow {
 			event.Code = events.UserSSOTestFlowLoginFailureCode
 		}
 		event.Status.Success = false
@@ -444,7 +444,7 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string, 
 	event.Status.Success = true
 	event.User = auth.Username
 	event.Code = events.UserSSOLoginCode
-	if diagCtx.info.TestFlow {
+	if diagCtx.Info.TestFlow {
 		event.Code = events.UserSSOTestFlowLoginCode
 	}
 
@@ -469,7 +469,7 @@ func (a *Server) checkIDPInitiatedSAML(ctx context.Context, connector types.SAML
 	return trace.Wrap(err)
 }
 
-func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagContext, samlResponse string, connectorID string) (*SAMLAuthResponse, error) {
+func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *SSODiagContext, samlResponse string, connectorID string) (*SAMLAuthResponse, error) {
 	idpInitiated := false
 	var connector types.SAMLConnector
 	var provider *saml2.SAMLServiceProvider
@@ -489,13 +489,13 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 	case err != nil:
 		return nil, trace.Wrap(err)
 	default:
-		diagCtx.requestID = requestID
+		diagCtx.RequestID = requestID
 		request, err = a.Identity.GetSAMLAuthRequest(ctx, requestID)
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to get SAML Auth Request")
 		}
 
-		diagCtx.info.TestFlow = request.SSOTestFlow
+		diagCtx.Info.TestFlow = request.SSOTestFlow
 		connector, provider, err = a.getSAMLConnectorAndProvider(ctx, *request)
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to get SAML connector and provider")
@@ -508,7 +508,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 	}
 
 	if assertionInfo != nil {
-		diagCtx.info.SAMLAssertionInfo = (*types.AssertionInfo)(assertionInfo)
+		diagCtx.Info.SAMLAssertionInfo = (*types.AssertionInfo)(assertionInfo)
 	}
 
 	if idpInitiated {
@@ -543,8 +543,8 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 		attributeStatements[key] = vals
 	}
 
-	diagCtx.info.SAMLAttributeStatements = attributeStatements
-	diagCtx.info.SAMLAttributesToRoles = connector.GetAttributesToRoles()
+	diagCtx.Info.SAMLAttributeStatements = attributeStatements
+	diagCtx.Info.SAMLAttributesToRoles = connector.GetAttributesToRoles()
 
 	if len(connector.GetAttributesToRoles()) == 0 {
 		return nil, trace.BadParameter("no attributes to roles mapping, check connector documentation").AddUserMessage("Attributes-to-roles mapping is empty, SSO user will never have any roles.")
@@ -559,7 +559,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
 	}
 
-	diagCtx.info.CreateUserParams = &types.CreateUserParams{
+	diagCtx.Info.CreateUserParams = &types.CreateUserParams{
 		ConnectorName: params.connectorName,
 		Username:      params.username,
 		KubeGroups:    params.kubeGroups,
@@ -593,7 +593,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 
 	// In test flow skip signing and creating web sessions.
 	if request != nil && request.SSOTestFlow {
-		diagCtx.info.Success = true
+		diagCtx.Info.Success = true
 		return auth, nil
 	}
 
@@ -638,6 +638,6 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 		auth.HostSigners = append(auth.HostSigners, authority)
 	}
 
-	diagCtx.info.Success = true
+	diagCtx.Info.Success = true
 	return auth, nil
 }

@@ -291,16 +291,16 @@ func GithubAuthRequestFromProto(req *types.GithubAuthRequest) GithubAuthRequest 
 }
 
 type githubManager interface {
-	validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error)
-	newSSODiagContext(authKind string) *ssoDiagContext
+	validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error)
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
 func (a *Server) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
-	return validateGithubAuthCallbackHelper(ctx, a, q, a.emitter)
+	diagCtx := NewSSODiagContext(types.KindGithub, a)
+	return validateGithubAuthCallbackHelper(ctx, a, diagCtx, q, a.emitter)
 }
 
-func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q url.Values, emitter apievents.Emitter) (*GithubAuthResponse, error) {
+func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diagCtx *SSODiagContext, q url.Values, emitter apievents.Emitter) (*GithubAuthResponse, error) {
 	event := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
@@ -308,14 +308,12 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q ur
 		Method: events.LoginMethodGithub,
 	}
 
-	diagCtx := m.newSSODiagContext(types.KindGithub)
-
 	auth, err := m.validateGithubAuthCallback(ctx, diagCtx, q)
-	diagCtx.info.Error = trace.UserMessage(err)
+	diagCtx.Info.Error = trace.UserMessage(err)
 
-	diagCtx.writeToBackend(ctx)
+	diagCtx.WriteToBackend(ctx)
 
-	claims := diagCtx.info.GithubClaims
+	claims := diagCtx.Info.GithubClaims
 	if claims != nil {
 		attributes, err := apievents.EncodeMapStrings(claims.OrganizationToTeams)
 		if err != nil {
@@ -328,7 +326,7 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q ur
 
 	if err != nil {
 		event.Code = events.UserSSOLoginFailureCode
-		if diagCtx.info.TestFlow {
+		if diagCtx.Info.TestFlow {
 			event.Code = events.UserSSOTestFlowLoginFailureCode
 		}
 		event.Status.Success = false
@@ -341,7 +339,7 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q ur
 		return nil, trace.Wrap(err)
 	}
 	event.Code = events.UserSSOLoginCode
-	if diagCtx.info.TestFlow {
+	if diagCtx.Info.TestFlow {
 		event.Code = events.UserSSOTestFlowLoginCode
 	}
 	event.Status.Success = true
@@ -431,17 +429,17 @@ func (a *Server) getGithubOAuth2Client(connector types.GithubConnector) (*oauth2
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
-func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error) {
+func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
 	logger := log.WithFields(logrus.Fields{trace.Component: "github"})
 
 	if errParam := q.Get("error"); errParam != "" {
 		// try to find request so the error gets logged against it.
 		state := q.Get("state")
 		if state != "" {
-			diagCtx.requestID = state
+			diagCtx.RequestID = state
 			req, err := a.Services.GetGithubAuthRequest(ctx, state)
 			if err == nil {
-				diagCtx.info.TestFlow = req.SSOTestFlow
+				diagCtx.Info.TestFlow = req.SSOTestFlow
 			}
 		}
 
@@ -461,20 +459,20 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest,
 			"missing state query param", q).AddUserMessage("Invalid parameters received from Github.")
 	}
-	diagCtx.requestID = stateToken
+	diagCtx.RequestID = stateToken
 
 	req, err := a.Services.GetGithubAuthRequest(ctx, stateToken)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to get OIDC Auth Request.")
 	}
-	diagCtx.info.TestFlow = req.SSOTestFlow
+	diagCtx.Info.TestFlow = req.SSOTestFlow
 
 	connector, client, err := a.getGithubConnectorAndClient(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to get Github connector and client.")
 	}
-	diagCtx.info.GithubTeamsToLogins = connector.GetTeamsToLogins()
-	diagCtx.info.GithubTeamsToRoles = connector.GetTeamsToRoles()
+	diagCtx.Info.GithubTeamsToLogins = connector.GetTeamsToLogins()
+	diagCtx.Info.GithubTeamsToRoles = connector.GetTeamsToRoles()
 	logger.Debugf("Connector %q teams to logins: %v, roles: %v", connector.GetName(), connector.GetTeamsToLogins(), connector.GetTeamsToRoles())
 
 	// exchange the authorization code received by the callback for an access token
@@ -483,7 +481,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 		return nil, trace.Wrap(err, "Requesting Github OAuth2 token failed.")
 	}
 
-	diagCtx.info.GithubTokenInfo = &types.GithubTokenInfo{
+	diagCtx.Info.GithubTokenInfo = &types.GithubTokenInfo{
 		TokenType: token.TokenType,
 		Expires:   int64(token.Expires),
 		Scope:     token.Scope,
@@ -524,7 +522,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to query Github API for user claims.")
 	}
-	diagCtx.info.GithubClaims = claims
+	diagCtx.Info.GithubClaims = claims
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
@@ -533,7 +531,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
 	}
 
-	diagCtx.info.CreateUserParams = &types.CreateUserParams{
+	diagCtx.Info.CreateUserParams = &types.CreateUserParams{
 		ConnectorName: params.connectorName,
 		Username:      params.username,
 		KubeGroups:    params.kubeGroups,
@@ -560,7 +558,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 
 	// In test flow skip signing and creating web sessions.
 	if req.SSOTestFlow {
-		diagCtx.info.Success = true
+		diagCtx.Info.Success = true
 		return &auth, nil
 	}
 

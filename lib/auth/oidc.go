@@ -317,14 +317,14 @@ func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 		Method: events.LoginMethodOIDC,
 	}
 
-	diagCtx := a.newSSODiagContext(types.KindOIDC)
+	diagCtx := NewSSODiagContext(types.KindOIDC, a)
 
 	auth, err := a.validateOIDCAuthCallback(ctx, diagCtx, q)
-	diagCtx.info.Error = trace.UserMessage(err)
+	diagCtx.Info.Error = trace.UserMessage(err)
 
-	diagCtx.writeToBackend(ctx)
+	diagCtx.WriteToBackend(ctx)
 
-	claims := diagCtx.info.OIDCClaims
+	claims := diagCtx.Info.OIDCClaims
 	if claims != nil {
 		attributes, err := apievents.EncodeMap(claims)
 		if err != nil {
@@ -337,7 +337,7 @@ func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 
 	if err != nil {
 		event.Code = events.UserSSOLoginFailureCode
-		if diagCtx.info.TestFlow {
+		if diagCtx.Info.TestFlow {
 			event.Code = events.UserSSOTestFlowLoginFailureCode
 		}
 		event.Status.Success = false
@@ -352,7 +352,7 @@ func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 	}
 
 	event.Code = events.UserSSOLoginCode
-	if diagCtx.info.TestFlow {
+	if diagCtx.Info.TestFlow {
 		event.Code = events.UserSSOTestFlowLoginCode
 	}
 	event.User = auth.Username
@@ -398,15 +398,15 @@ func checkEmailVerifiedClaim(claims jose.Claims) error {
 	return nil
 }
 
-func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*OIDCAuthResponse, error) {
+func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*OIDCAuthResponse, error) {
 	if errParam := q.Get("error"); errParam != "" {
 		// try to find request so the error gets logged against it.
 		state := q.Get("state")
 		if state != "" {
-			diagCtx.requestID = state
+			diagCtx.RequestID = state
 			req, err := a.GetOIDCAuthRequest(ctx, state)
 			if err == nil {
-				diagCtx.info.TestFlow = req.SSOTestFlow
+				diagCtx.Info.TestFlow = req.SSOTestFlow
 			}
 		}
 
@@ -426,13 +426,13 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 		return nil, trace.OAuth2(
 			oauth2.ErrorInvalidRequest, "missing state query param", q).AddUserMessage("Invalid parameters received from OIDC provider.")
 	}
-	diagCtx.requestID = stateToken
+	diagCtx.RequestID = stateToken
 
 	req, err := a.GetOIDCAuthRequest(ctx, stateToken)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to get OIDC Auth Request.")
 	}
-	diagCtx.info.TestFlow = req.SSOTestFlow
+	diagCtx.Info.TestFlow = req.SSOTestFlow
 
 	// ensure prompt removal of OIDC client in test flows. does nothing in regular flows.
 	ctxC, cancel := context.WithCancel(ctx)
@@ -453,7 +453,7 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 
 		return nil, trace.Wrap(err, "Failed to extract OIDC claims. This may indicate need to set 'provider' flag in connector definition. See: https://goteleport.com/docs/enterprise/sso/#provider-specific-workarounds")
 	}
-	diagCtx.info.OIDCClaims = types.OIDCClaims(claims)
+	diagCtx.Info.OIDCClaims = types.OIDCClaims(claims)
 
 	log.Debugf("OIDC claims: %v.", claims)
 	if !connector.GetAllowUnverifiedEmail() {
@@ -477,7 +477,7 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 		return nil, trace.OAuth2(
 			oauth2.ErrorUnsupportedResponseType, "unable to convert claims to identity", q)
 	}
-	diagCtx.info.OIDCIdentity = &types.OIDCIdentity{
+	diagCtx.Info.OIDCIdentity = &types.OIDCIdentity{
 		ID:        ident.ID,
 		Name:      ident.Name,
 		Email:     ident.Email,
@@ -490,7 +490,7 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 			AddUserMessage("Claims-to-roles mapping is empty, SSO user will never have any roles.")
 	}
 	log.Debugf("Applying %v OIDC claims to roles mappings.", len(connector.GetClaimsToRoles()))
-	diagCtx.info.OIDCClaimsToRoles = connector.GetClaimsToRoles()
+	diagCtx.Info.OIDCClaimsToRoles = connector.GetClaimsToRoles()
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
@@ -499,7 +499,7 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
 	}
 
-	diagCtx.info.CreateUserParams = &types.CreateUserParams{
+	diagCtx.Info.CreateUserParams = &types.CreateUserParams{
 		ConnectorName: params.connectorName,
 		Username:      params.username,
 		KubeGroups:    params.kubeGroups,
@@ -526,7 +526,7 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 
 	// In test flow skip signing and creating web sessions.
 	if req.SSOTestFlow {
-		diagCtx.info.Success = true
+		diagCtx.Info.Success = true
 		return auth, nil
 	}
 
@@ -627,7 +627,7 @@ func OIDCAuthRequestFromProto(req *types.OIDCAuthRequest) OIDCAuthRequest {
 	}
 }
 
-func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *types.OIDCAuthRequest) (*createUserParams, error) {
+func (a *Server) calculateOIDCUser(diagCtx *SSODiagContext, connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *types.OIDCAuthRequest) (*createUserParams, error) {
 	var err error
 
 	username, err := usernameFromClaims(connector, claims, ident)
@@ -642,21 +642,21 @@ func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDC
 
 	p.traits = services.OIDCClaimsToTraits(claims)
 
-	diagCtx.info.OIDCTraitsFromClaims = p.traits
-	diagCtx.info.OIDCConnectorTraitMapping = connector.GetTraitMappings()
+	diagCtx.Info.OIDCTraitsFromClaims = p.traits
+	diagCtx.Info.OIDCConnectorTraitMapping = connector.GetTraitMappings()
 
 	var warnings []string
 	warnings, p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
 	if len(p.roles) == 0 {
 		if len(warnings) != 0 {
 			log.WithField("connector", connector).Warnf("No roles mapped from claims. Warnings: %q", warnings)
-			diagCtx.info.OIDCClaimsToRolesWarnings = &types.SSOWarnings{
+			diagCtx.Info.OIDCClaimsToRolesWarnings = &types.SSOWarnings{
 				Message:  "No roles mapped for the user",
 				Warnings: warnings,
 			}
 		} else {
 			log.WithField("connector", connector).Warnf("No roles mapped from claims.")
-			diagCtx.info.OIDCClaimsToRolesWarnings = &types.SSOWarnings{
+			diagCtx.Info.OIDCClaimsToRolesWarnings = &types.SSOWarnings{
 				Message: "No roles mapped for the user. The mappings may contain typos.",
 			}
 		}
