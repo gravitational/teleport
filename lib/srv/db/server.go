@@ -939,7 +939,7 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 		Kind:         string(types.DatabaseSessionKind),
 		State:        types.SessionState_SessionStateRunning,
 		Hostname:     sessionCtx.HostID,
-		DatabaseName: sessionCtx.DatabaseName,
+		DatabaseName: sessionCtx.Database.GetName(),
 		ClusterName:  sessionCtx.ClusterName,
 		Login:        sessionCtx.Identity.GetUserMetadata().Login,
 		Participants: []types.Participant{{
