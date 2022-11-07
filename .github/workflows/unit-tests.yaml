@@ -32,6 +32,8 @@ jobs:
         run: |
           echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
           echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+      - name: check path
+        run: echo "${{ steps.go-cache-paths.outputs.go-build }} ${{ steps.go-cache-paths.outputs.go-mod }}"
       - name: Go build cache
         uses: actions/cache@v3
         with:
