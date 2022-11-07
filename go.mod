@@ -371,6 +371,7 @@ replace (
 	github.com/pkg/sftp => github.com/gravitational/sftp v1.13.6-0.20220927202521-0e74d42f8055
 	github.com/sirupsen/logrus => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.2.1
+	golang.org/x/crypto => github.com/gravitational/crypto v0.0.0-20221107171517-01cc65dce5a8
 )
 
 // Exclude etcd/v3 from the modules graph.
