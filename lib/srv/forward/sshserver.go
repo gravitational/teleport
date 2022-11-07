@@ -642,6 +642,9 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*trac
 
 }
 
+// signersWithSHA1Fallback returns the signers provided by signersCb and appends
+// the same signers with forced SHA-1 signature to the end. This behavior is
+// required as older OpenSSH version <= 7.6 don't support SHA-2 signed certificates.
 func signersWithSHA1Fallback(signersCb func() ([]ssh.Signer, error)) func() ([]ssh.Signer, error) {
 	return func() ([]ssh.Signer, error) {
 		signers, err := signersCb()
@@ -649,10 +652,14 @@ func signersWithSHA1Fallback(signersCb func() ([]ssh.Signer, error)) func() ([]s
 			return nil, trace.Wrap(err)
 		}
 		combinedSigners := make([]ssh.Signer, len(signers), 2*len(signers))
+		// Copy the original signers. All of them should be using SHA2-512 for signing.
+		// Order is important here as we want SHA2-signers to be used first.
 		copy(combinedSigners[:], signers)
 
 		for _, signer := range signers {
-			if s, ok := signer.(ssh.AlgorithmSigner); ok {
+			if s, ok := signer.(ssh.AlgorithmSigner); ok && s.PublicKey().Type() == ssh.CertAlgoRSAv01 {
+				// If certificate signer supports Sign(rand io.Reader, data []byte) method,
+				// add SHA-1 signer.
 				combinedSigners = append(combinedSigners, &sshutils.LegacySHA1Signer{Signer: s})
 			}
 		}
