@@ -747,9 +747,7 @@ func (l *AuditLog) getSessionChunk(namespace string, sid session.ID, offsetBytes
 // (oldest first).
 //
 // Can be filtered by 'after' (cursor value to return events newer than)
-//
-// This function is usually used in conjunction with GetSessionReader to
-// replay recorded session streams.
+
 func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]EventFields, error) {
 	l.log.WithFields(log.Fields{"sid": string(sid), "afterN": afterN, "printEvents": includePrintEvents}).Debugf("GetSessionEvents.")
 	if namespace == "" {

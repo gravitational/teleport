@@ -12,34 +12,46 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package databases
+package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	"github.com/aws/aws-sdk-go/service/ssm"
+	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/configurators"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
 	// DefaultPolicyName default policy name.
 	DefaultPolicyName = "DatabaseAccess"
-	// defaultPolicyDescription description used on the policy created.
-	defaultPolicyDescription = "Used by Teleport database agents for discovering AWS-hosted databases."
+	// databasePolicyDescription description used on the policy created.
+	databasePolicyDescription = "Used by Teleport database agents for discovering AWS-hosted databases."
+	// discoveryServicePolicyDescription description used on the policy created.
+	discoveryServicePolicyDescription = "Used by Teleport the discovery service to discover AWS-hosted services."
 	// boundarySuffix boundary policies will have this suffix.
 	boundarySuffix = "Boundary"
 	// policyTeleportTagKey key of the tag added to the policies created.
@@ -100,6 +112,12 @@ var (
 		"kms:GenerateDataKey",
 		"kms:Decrypt",
 	}
+	// ec2Actions is a list of actions used for EC2 auto-discovery
+	ec2Actions = []string{
+		"ec2:DescribeInstances",
+		"ssm:GetCommandInvocation",
+		"ssm:SendCommand",
+	}
 	// boundaryRDSConnectActions additional actions added to the policy boundary
 	// when policy has RDS auto-discovery.
 	boundaryRDSConnectActions = []string{"rds-db:connect"}
@@ -111,21 +129,23 @@ var (
 // awsConfigurator defines the AWS database configurator.
 type awsConfigurator struct {
 	// config AWS configurator list of configs.
-	config AWSConfiguratorConfig
+	config ConfiguratorConfig
 	// actions list of the configurator actions, those are populated on the
 	// `build` function.
-	actions []ConfiguratorAction
+	actions []configurators.ConfiguratorAction
 }
 
-type AWSConfiguratorConfig struct {
+type ConfiguratorConfig struct {
 	// Flags user-provided flags to configure/execute the configurator.
-	Flags BootstrapFlags
+	Flags configurators.BootstrapFlags
 	// FileConfig Teleport database agent config.
 	FileConfig *config.FileConfig
 	// AWSSession current AWS session.
 	AWSSession *awssession.Session
 	// AWSSTSClient AWS STS client.
 	AWSSTSClient stsiface.STSAPI
+	// AWSSSMClient AWS SSM Client
+	AWSSSMClient ssmiface.SSMAPI
 	// Policies instance of the `Policies` that the actions use.
 	Policies awslib.Policies
 	// Identity is the current AWS credentials chain identity.
@@ -133,7 +153,7 @@ type AWSConfiguratorConfig struct {
 }
 
 // CheckAndSetDefaults checks and set configuration default values.
-func (c *AWSConfiguratorConfig) CheckAndSetDefaults() error {
+func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 	if c.FileConfig == nil {
 		return trace.BadParameter("config file is required")
 	}
@@ -164,6 +184,9 @@ func (c *AWSConfiguratorConfig) CheckAndSetDefaults() error {
 				return trace.Wrap(err)
 			}
 		}
+		if c.AWSSSMClient == nil {
+			c.AWSSSMClient = ssm.New(c.AWSSession)
+		}
 
 		if c.Policies == nil {
 			c.Policies = awslib.NewPolicies(c.Identity.GetPartition(), c.Identity.GetAccountID(), iam.New(c.AWSSession))
@@ -175,7 +198,7 @@ func (c *AWSConfiguratorConfig) CheckAndSetDefaults() error {
 
 // NewAWSConfigurator creates an instance of awsConfigurator and builds its
 // actions.
-func NewAWSConfigurator(config AWSConfiguratorConfig) (Configurator, error) {
+func NewAWSConfigurator(config ConfiguratorConfig) (configurators.Configurator, error) {
 	err := config.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -200,7 +223,7 @@ func (a *awsConfigurator) Name() string {
 }
 
 // Actions list of configurator actions.
-func (a *awsConfigurator) Actions() []ConfiguratorAction {
+func (a *awsConfigurator) Actions() []configurators.ConfiguratorAction {
 	return a.actions
 }
 
@@ -228,7 +251,7 @@ func (a *awsPolicyCreator) Details() string {
 }
 
 // Execute upserts the policy and store its ARN in the action context.
-func (a *awsPolicyCreator) Execute(ctx context.Context, actionCtx *ConfiguratorActionContext) error {
+func (a *awsPolicyCreator) Execute(ctx context.Context, actionCtx *configurators.ConfiguratorActionContext) error {
 	if a.policies == nil {
 		return trace.BadParameter("policy helper not initialized")
 	}
@@ -268,7 +291,7 @@ func (a *awsPoliciesAttacher) Details() string {
 
 // Execute retrieves policy and policy boundary ARNs from
 // `ConfiguratorActionContext` and attach them to the `target`.
-func (a *awsPoliciesAttacher) Execute(ctx context.Context, actionCtx *ConfiguratorActionContext) error {
+func (a *awsPoliciesAttacher) Execute(ctx context.Context, actionCtx *configurators.ConfiguratorActionContext) error {
 	if a.policies == nil {
 		return trace.BadParameter("policy helper not initialized")
 	}
@@ -294,8 +317,72 @@ func (a *awsPoliciesAttacher) Execute(ctx context.Context, actionCtx *Configurat
 	return nil
 }
 
+func buildDiscoveryActions(config ConfiguratorConfig, target awslib.Identity) ([]configurators.ConfiguratorAction, error) {
+	actions, err := buildCommonActions(config, target)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ssmDocumentCreators, err := buildSSMDocuments(config.AWSSSMClient, config.Flags, config.FileConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	actions = append(actions, ssmDocumentCreators...)
+	return actions, nil
+}
+
+func buildCommonActions(config ConfiguratorConfig, target awslib.Identity) ([]configurators.ConfiguratorAction, error) {
+	// Generate policies.
+	policy, err := buildPolicyDocument(config.Flags, config.FileConfig, target)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	policyBoundary, err := buildPolicyBoundaryDocument(config.Flags, config.FileConfig, target)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If the policy has no statements means that the agent doesn't require
+	// any IAM permission. In this case, return without errors and with empty
+	// actions.
+	if len(policy.Document.Statements) == 0 {
+		return []configurators.ConfiguratorAction{}, nil
+	}
+
+	formattedPolicy, err := policy.Document.Marshal()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var actions []configurators.ConfiguratorAction
+
+	// Create IAM Policy.
+	actions = append(actions, &awsPolicyCreator{
+		policies:        config.Policies,
+		policy:          policy,
+		formattedPolicy: formattedPolicy,
+	})
+
+	formattedPolicyBoundary, err := policyBoundary.Document.Marshal()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Create IAM Policy boundary.
+	actions = append(actions, &awsPolicyCreator{
+		policies:        config.Policies,
+		policy:          policyBoundary,
+		formattedPolicy: formattedPolicyBoundary,
+		isBoundary:      true,
+	})
+
+	// Attach both policies to the target.
+	actions = append(actions, &awsPoliciesAttacher{policies: config.Policies, target: target})
+	return actions, nil
+}
+
 // buildActions generates the policy documents and configurator actions.
-func buildActions(config AWSConfiguratorConfig) ([]ConfiguratorAction, error) {
+func buildActions(config ConfiguratorConfig) ([]configurators.ConfiguratorAction, error) {
 	// Identity is going to be empty (`nil`) when running the command on
 	// `Manual` mode, place a wildcard to keep the generated policies valid.
 	accountID := "*"
@@ -311,56 +398,15 @@ func buildActions(config AWSConfiguratorConfig) ([]ConfiguratorAction, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Generate policies.
-	policy, err := buildPolicyDocument(config.Flags, config.FileConfig, target)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if config.Flags.DiscoveryService {
+		return buildDiscoveryActions(config, target)
 	}
-
-	policyBoundary, err := buildPolicyBoundaryDocument(config.Flags, config.FileConfig, target)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	formattedPolicy, err := policy.Document.Marshal()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	formattedPolicyBoundary, err := policyBoundary.Document.Marshal()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// If the policy has no statements means that the agent doesn't require
-	// any IAM permission. In this case, return without errors and with empty
-	// actions.
-	if len(policy.Document.Statements) == 0 {
-		return []ConfiguratorAction{}, nil
-	}
-
-	return []ConfiguratorAction{
-		// Create IAM Policy.
-		&awsPolicyCreator{
-			policies:        config.Policies,
-			policy:          policy,
-			formattedPolicy: formattedPolicy,
-		},
-		// Create IAM Policy boundary.
-		&awsPolicyCreator{
-			policies:        config.Policies,
-			policy:          policyBoundary,
-			formattedPolicy: formattedPolicyBoundary,
-			isBoundary:      true,
-		},
-		// Attach both policies to the target.
-		&awsPoliciesAttacher{policies: config.Policies, target: target},
-	}, nil
+	return buildCommonActions(config, target)
 }
 
 // policiesTarget defines which target and its type the policies will be
 // attached to.
-func policiesTarget(flags BootstrapFlags, accountID string, partitionID string, identity awslib.Identity) (awslib.Identity, error) {
+func policiesTarget(flags configurators.BootstrapFlags, accountID string, partitionID string, identity awslib.Identity) (awslib.Identity, error) {
 	if flags.AttachToUser != "" {
 		userArn := flags.AttachToUser
 		if !arn.IsARN(flags.AttachToUser) {
@@ -387,8 +433,22 @@ func policiesTarget(flags BootstrapFlags, accountID string, partitionID string, 
 }
 
 // buildPolicyBoundaryDocument builds the policy document.
-func buildPolicyDocument(flags BootstrapFlags, fileConfig *config.FileConfig, target awslib.Identity) (*awslib.Policy, error) {
+func buildPolicyDocument(flags configurators.BootstrapFlags, fileConfig *config.FileConfig, target awslib.Identity) (*awslib.Policy, error) {
 	var statements []*awslib.Statement
+	if flags.DiscoveryService {
+		if isEC2AutoDiscoveryEnabled(flags, fileConfig) {
+			statements = append(statements, buildEC2AutoDiscoveryStatements()...)
+		}
+		document := awslib.NewPolicyDocument()
+		document.Statements = statements
+		return awslib.NewPolicy(
+			flags.PolicyName,
+			discoveryServicePolicyDescription,
+			defaultPolicyTags,
+			document,
+		), nil
+	}
+
 	rdsDatabases := hasRDSDatabases(flags, fileConfig)
 	rdsProxyDatabases := hasRDSProxyDatabases(flags, fileConfig)
 	redshiftDatabases := hasRedshiftDatabases(flags, fileConfig)
@@ -435,15 +495,62 @@ func buildPolicyDocument(flags BootstrapFlags, fileConfig *config.FileConfig, ta
 	document.Statements = statements
 	return awslib.NewPolicy(
 		flags.PolicyName,
-		defaultPolicyDescription,
+		databasePolicyDescription,
 		defaultPolicyTags,
 		document,
 	), nil
 }
 
+func getProxyAddrFromFileConfig(fc *config.FileConfig) (string, error) {
+	addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, defaults.HTTPListenPort)
+	if err != nil {
+		return "", err
+	}
+	if len(addrs) == 0 {
+		return fmt.Sprintf("https://<proxy address>:%d", defaults.HTTPListenPort), nil
+	}
+	addr := addrs[0]
+
+	return fmt.Sprintf("https://%s", addr.String()), nil
+}
+
+func buildSSMDocuments(ssm ssmiface.SSMAPI, flags configurators.BootstrapFlags, fileConfig *config.FileConfig) ([]configurators.ConfiguratorAction, error) {
+	var creators []configurators.ConfiguratorAction
+	proxyAddr, err := getProxyAddrFromFileConfig(fileConfig)
+	if err != nil {
+		return nil, err
+	}
+	for _, matcher := range fileConfig.Discovery.AWSMatchers {
+		if !apiutils.SliceContainsStr(matcher.Types, constants.AWSServiceTypeEC2) {
+			continue
+		}
+		ssmCreator := awsSSMDocumentCreator{
+			ssm:      ssm,
+			Name:     matcher.SSM.DocumentName,
+			Contents: EC2DiscoverySSMDocument(proxyAddr),
+		}
+		creators = append(creators, &ssmCreator)
+	}
+	return creators, nil
+}
+
 // buildPolicyBoundaryDocument builds the policy boundary document.
-func buildPolicyBoundaryDocument(flags BootstrapFlags, fileConfig *config.FileConfig, target awslib.Identity) (*awslib.Policy, error) {
+func buildPolicyBoundaryDocument(flags configurators.BootstrapFlags, fileConfig *config.FileConfig, target awslib.Identity) (*awslib.Policy, error) {
 	var statements []*awslib.Statement
+
+	if isEC2AutoDiscoveryEnabled(flags, fileConfig) {
+
+		statements = append(statements, buildEC2AutoDiscoveryBoundaryStatements()...)
+
+		document := awslib.NewPolicyDocument()
+		document.Statements = statements
+		return awslib.NewPolicy(
+			fmt.Sprintf("%s%s", flags.PolicyName, boundarySuffix),
+			databasePolicyDescription,
+			defaultPolicyTags,
+			document,
+		), nil
+	}
 	rdsDatabases := hasRDSDatabases(flags, fileConfig)
 	rdsProxyDatabases := hasRDSProxyDatabases(flags, fileConfig)
 	redshiftDatabases := hasRedshiftDatabases(flags, fileConfig)
@@ -490,71 +597,79 @@ func buildPolicyBoundaryDocument(flags BootstrapFlags, fileConfig *config.FileCo
 	document.Statements = statements
 	return awslib.NewPolicy(
 		fmt.Sprintf("%s%s", flags.PolicyName, boundarySuffix),
-		defaultPolicyDescription,
+		databasePolicyDescription,
 		defaultPolicyTags,
 		document,
 	), nil
 }
 
+func isEC2AutoDiscoveryEnabled(flags configurators.BootstrapFlags, fileConfig *config.FileConfig) bool {
+	if flags.ForceEC2Permissions {
+		return true
+	}
+	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherEC2, fileConfig.Discovery.AWSMatchers)
+}
+
 // hasRDSDatabases checks if the agent needs permission for
 // RDS/Aurora databases.
-func hasRDSDatabases(flags BootstrapFlags, fileConfig *config.FileConfig) bool {
+func hasRDSDatabases(flags configurators.BootstrapFlags, fileConfig *config.FileConfig) bool {
 	if flags.ForceRDSPermissions {
 		return true
 	}
-
-	return isAutoDiscoveryEnabledForMatcher(fileConfig, services.AWSMatcherRDS) ||
+	// isRDSAutoDiscoveryEnabled checks if the agent needs permission for
+	// RDS/Aurora auto-discovery.
+	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherRDS, fileConfig.Databases.AWSMatchers) ||
 		findEndpointIs(fileConfig, isRDSEndpoint)
 }
 
 // hasRDSProxyDatabases checks if the agent needs permission for
 // RDS Proxy databases.
-func hasRDSProxyDatabases(flags BootstrapFlags, fileConfig *config.FileConfig) bool {
+func hasRDSProxyDatabases(flags configurators.BootstrapFlags, fileConfig *config.FileConfig) bool {
 	if flags.ForceRDSProxyPermissions {
 		return true
 	}
 
-	return isAutoDiscoveryEnabledForMatcher(fileConfig, services.AWSMatcherRDSProxy) ||
+	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherRDSProxy, fileConfig.Databases.AWSMatchers) ||
 		findEndpointIs(fileConfig, isRDSProxyEndpoint)
 }
 
 // hasRedshiftDatabases checks if the agent needs permission for
 // Redshift databases.
-func hasRedshiftDatabases(flags BootstrapFlags, fileConfig *config.FileConfig) bool {
+func hasRedshiftDatabases(flags configurators.BootstrapFlags, fileConfig *config.FileConfig) bool {
 	if flags.ForceRedshiftPermissions {
 		return true
 	}
 
-	return isAutoDiscoveryEnabledForMatcher(fileConfig, services.AWSMatcherRedshift) ||
+	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherRedshift, fileConfig.Databases.AWSMatchers) ||
 		findEndpointIs(fileConfig, awsutils.IsRedshiftEndpoint)
 }
 
 // hasElastiCacheDatabases checks if the agent needs permission for
 // ElastiCache databases.
-func hasElastiCacheDatabases(flags BootstrapFlags, fileConfig *config.FileConfig) bool {
+func hasElastiCacheDatabases(flags configurators.BootstrapFlags, fileConfig *config.FileConfig) bool {
 	if flags.ForceElastiCachePermissions {
 		return true
 	}
 
-	return isAutoDiscoveryEnabledForMatcher(fileConfig, services.AWSMatcherElastiCache) ||
+	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherElastiCache, fileConfig.Databases.AWSMatchers) ||
 		findEndpointIs(fileConfig, awsutils.IsElastiCacheEndpoint)
 }
 
 // hasMemoryDBDatabases checks if the agent needs permission for
 // ElastiCache databases.
-func hasMemoryDBDatabases(flags BootstrapFlags, fileConfig *config.FileConfig) bool {
+func hasMemoryDBDatabases(flags configurators.BootstrapFlags, fileConfig *config.FileConfig) bool {
 	if flags.ForceMemoryDBPermissions {
 		return true
 	}
 
-	return isAutoDiscoveryEnabledForMatcher(fileConfig, services.AWSMatcherMemoryDB) ||
+	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherMemoryDB, fileConfig.Databases.AWSMatchers) ||
 		findEndpointIs(fileConfig, awsutils.IsMemoryDBEndpoint)
 }
 
 // isAutoDiscoveryEnabledForMatcher returns true if provided AWS matcher type
 // is found.
-func isAutoDiscoveryEnabledForMatcher(fileConfig *config.FileConfig, matcherType string) bool {
-	for _, matcher := range fileConfig.Databases.AWSMatchers {
+func isAutoDiscoveryEnabledForMatcher(matcherType string, matchers []config.AWSMatcher) bool {
+	for _, matcher := range matchers {
 		for _, databaseType := range matcher.Types {
 			if databaseType == matcherType {
 				return true
@@ -613,7 +728,23 @@ func buildIAMEditStatements(target awslib.Identity) ([]*awslib.Statement, error)
 	return []*awslib.Statement{statement}, nil
 }
 
-// buildRDSStatements returns IAM statements necessary for
+// buildEC2AutoDiscoveryStatements returns IAM statements necessary for
+// EC2 instance auto-discovery.
+func buildEC2AutoDiscoveryStatements() []*awslib.Statement {
+	return []*awslib.Statement{
+		{
+			Effect:    awslib.EffectAllow,
+			Actions:   ec2Actions,
+			Resources: []string{"*"},
+		},
+	}
+}
+
+func buildEC2AutoDiscoveryBoundaryStatements() []*awslib.Statement {
+	return buildEC2AutoDiscoveryStatements()
+}
+
+// buildRDSAutoDiscoveryStatements returns IAM statements necessary for
 // RDS/Aurora databases auto-discovery.
 func buildRDSStatements() []*awslib.Statement {
 	return []*awslib.Statement{
@@ -789,4 +920,41 @@ func buildARN(target awslib.Identity, service, resource string) string {
 		Resource:  resource,
 	}
 	return arn.String()
+}
+
+type awsSSMDocumentCreator struct {
+	Contents string
+	ssm      ssmiface.SSMAPI
+	Name     string
+}
+
+// Description returns what the action will perform.
+func (a *awsSSMDocumentCreator) Description() string {
+	return fmt.Sprintf("Create SSM Document %q", a.Name)
+}
+
+// Details returns the policy document that will be created.
+func (a *awsSSMDocumentCreator) Details() string {
+	return a.Contents
+}
+
+// Execute upserts the policy and store its ARN in the action context.
+func (a *awsSSMDocumentCreator) Execute(ctx context.Context, actionCtx *configurators.ConfiguratorActionContext) error {
+	_, err := a.ssm.CreateDocumentWithContext(ctx, &ssm.CreateDocumentInput{
+		Content:        aws.String(a.Contents),
+		Name:           aws.String(a.Name),
+		DocumentType:   aws.String(ssm.DocumentTypeCommand),
+		DocumentFormat: aws.String("YAML"),
+	})
+
+	if err != nil {
+		var aErr awserr.Error
+		if errors.As(err, &aErr) && aErr.Code() == ssm.ErrCodeDocumentAlreadyExists {
+			fmt.Printf("⚠️ Warning: SSM document %s already exists. Not overwriting.\n", a.Name)
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	return nil
 }

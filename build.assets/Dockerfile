@@ -119,7 +119,6 @@ RUN apt-get update -y --fix-missing && \
         python3-setuptools \
         python3-wheel \
         pkg-config \
-        shellcheck \
         softhsm2 \
         sudo \
         tree \
@@ -167,6 +166,9 @@ RUN go install github.com/google/addlicense@v1.0.0
 # Install golangci-lint.
 RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
 
+# Install GCI
+RUN go install github.com/daixiang0/gci@v0.8.2
+
 # Install helm.
 RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
      cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
@@ -181,6 +183,13 @@ RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
 RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
      cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
      rm -r bats-core-1.2.1)
+
+# Install shellcheck.
+RUN scversion='v0.8.0' && \
+    curl -sSL "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.x86_64.tar.xz" | \
+        tar -xJv && \
+    cp "shellcheck-$scversion/shellcheck" /usr/local/bin/ && \
+    shellcheck --version
 
 # Install protobuf and grpc build tools.
 ARG PROTOC_VER

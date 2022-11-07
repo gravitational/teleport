@@ -28,13 +28,15 @@ import (
 
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 type mockClients struct {
 	cloud.Clients
 
-	ec2Client *mockEC2Client
+	ec2Client   *mockEC2Client
+	azureClient azure.VirtualMachinesClient
 }
 
 func (c *mockClients) GetAWSEC2Client(region string) (ec2iface.EC2API, error) {
@@ -158,7 +160,7 @@ func TestEC2Watcher(t *testing.T) {
 		}},
 	}
 	clients.ec2Client.output = &output
-	watcher, err := NewCloudWatcher(ctx, matchers, &clients)
+	watcher, err := NewEC2Watcher(ctx, matchers, &clients)
 	require.NoError(t, err)
 
 	go watcher.Run()
@@ -168,11 +170,11 @@ func TestEC2Watcher(t *testing.T) {
 		Region:     "us-west-2",
 		Instances:  []*ec2.Instance{&present},
 		Parameters: map[string]string{"token": "", "scriptName": ""},
-	}, result)
+	}, *result.EC2Instances)
 	result = <-watcher.InstancesC
 	require.Equal(t, EC2Instances{
 		Region:     "us-west-2",
 		Instances:  []*ec2.Instance{&presentOther},
 		Parameters: map[string]string{"token": "", "scriptName": ""},
-	}, result)
+	}, *result.EC2Instances)
 }
