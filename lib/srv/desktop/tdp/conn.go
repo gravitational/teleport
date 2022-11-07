@@ -108,7 +108,7 @@ func (c *Conn) WriteMessage(m Message) error {
 
 // SendError is a convenience function for sending an error message.
 func (c *Conn) SendError(message string, fatal bool) error {
-	return c.WriteMessage(Error{Message: message, Fatal: fatal})
+	return c.WriteMessage(Error2{Message: message, Fatal: fatal})
 }
 
 // LocalAddr returns local address

@@ -104,7 +104,7 @@ func (h *Handler) createDesktopConnection(
 
 	sendFatalTDPError := func(ws *websocket.Conn, err error) error {
 		orig := err
-		msg := tdp.Error{Message: fmt.Sprintf("Cannot connect to desktop: %s", err.Error()), Fatal: true}
+		msg := tdp.Error2{Message: fmt.Sprintf("Cannot connect to desktop: %s", err.Error()), Fatal: true}
 		b, err := msg.Encode()
 		if err != nil {
 			return trace.Wrap(err)
@@ -334,7 +334,7 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 	}
 
 	sendTDPError := func(ws *websocket.Conn, err error, fatal bool) error {
-		msg := tdp.Error{Message: err.Error(), Fatal: fatal}
+		msg := tdp.Error2{Message: err.Error(), Fatal: fatal}
 		b, err := msg.Encode()
 		if err != nil {
 			return trace.Wrap(err)

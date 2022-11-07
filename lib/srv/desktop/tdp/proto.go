@@ -72,6 +72,7 @@ const (
 	TypeSharedDirectoryListRequest    = MessageType(25)
 	TypeSharedDirectoryListResponse   = MessageType(26)
 	TypePNG2Frame                     = MessageType(27)
+	TypeError2                        = MessageType(28)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -143,6 +144,8 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodeClipboardData(in, maxClipboardDataLength)
 	case TypeError:
 		return decodeError(in)
+	case TypeError2:
+		return decodeError2(in)
 	case TypeMFA:
 		return DecodeMFA(in)
 	case TypeSharedDirectoryAnnounce:
@@ -447,6 +450,10 @@ func decodeClientUsername(in io.Reader) (ClientUsername, error) {
 
 type Error struct {
 	Message string
+}
+
+type Error2 struct {
+	Message string
 	Fatal   bool
 }
 
@@ -460,6 +467,23 @@ func (m Error) Encode() ([]byte, error) {
 	if err := encodeString(buf, m.Message); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return buf.Bytes(), nil
+}
+
+func decodeError(in io.Reader) (Error, error) {
+	message, err := decodeString(in, tdpMaxErrorMessageLength)
+	if err != nil {
+		return Error{}, trace.Wrap(err)
+	}
+	return Error{Message: message}, nil
+}
+
+func (m Error2) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeError2))
+	if err := encodeString(buf, m.Message); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	var fatal byte
 	if m.Fatal {
 		fatal = 1
@@ -470,14 +494,14 @@ func (m Error) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeError(in byteReader) (Error, error) {
+func decodeError2(in byteReader) (Error2, error) {
 	message, err := decodeString(in, tdpMaxErrorMessageLength)
 	if err != nil {
-		return Error{}, trace.Wrap(err)
+		return Error2{}, trace.Wrap(err)
 	}
 	fatalByte, err := in.ReadByte()
 	if err != nil {
-		return Error{}, trace.Wrap(err)
+		return Error2{}, trace.Wrap(err)
 	}
 	var fatal bool
 	if fatalByte == 0 {
@@ -485,7 +509,7 @@ func decodeError(in byteReader) (Error, error) {
 	} else {
 		fatal = true
 	}
-	return Error{Message: message, Fatal: fatal}, nil
+	return Error2{Message: message, Fatal: fatal}, nil
 }
 
 // MouseWheelAxis identifies a scroll axis on the mouse wheel.
