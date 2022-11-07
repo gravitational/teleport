@@ -563,6 +563,13 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 
 	t.Run("root role with idle timeout", func(t *testing.T) {
 		setRoleIdleTimeout(t, rootAuthServer, rootRole, idleTimeout)
+		require.Eventually(t, func() bool {
+			role, err := rootAuthServer.GetRole(context.Background(), rootRole.GetName())
+			require.NoError(t, err)
+			return time.Duration(role.GetOptions().ClientIdleTimeout) == idleTimeout
+
+		}, time.Second, time.Millisecond*100, "role idle timeout propagation filed")
+
 		client := mkMySQLLeafDBClient(t)
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
@@ -578,6 +585,13 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 
 	t.Run("leaf role with idle timeout", func(t *testing.T) {
 		setRoleIdleTimeout(t, leafAuthServer, leafRole, idleTimeout)
+		require.Eventually(t, func() bool {
+			role, err := leafAuthServer.GetRole(context.Background(), leafRole.GetName())
+			require.NoError(t, err)
+			return time.Duration(role.GetOptions().ClientIdleTimeout) == idleTimeout
+
+		}, time.Second, time.Millisecond*100, "role idle timeout propagation filed")
+
 		client := mkMySQLLeafDBClient(t)
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
