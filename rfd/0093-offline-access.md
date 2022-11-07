@@ -147,10 +147,13 @@ sequenceDiagram
 
 However, the decision if the connection should be established is ultimately made by the node, not the Auth server. The node
 performs an RBAC check on all inbound connections to determine if among other things per-session MFA is required and the MFA ceremony was 
-performed. Thus, `tsh` should **always** attempt to connect to a node even if the `proto.AuthService/IsMFARequired` RPC fails. In the worst
-case this makes `tsh ssh` for per-session MFA enabled connections take longer to fail. But that cost comes at the ability to allow all
-users that will never have to perform per-session MFA to be able to connect to nodes without needing the Auth server if they already 
-have certificates.
+performed. Thus, `tsh` should **always** attempt to connect to a node first, and only try `proto.AuthService/IsMFARequired` if the
+node response with a `trace.AccessDenied` error. If per session MFA is required, then `tsh` should perform the MFA ceremony and
+attempt to connect to the node again, otherwise the original `trace.AccessDenied` error should be returned as the user doesn't
+have access to the node due to their role. In the happy path, this reduces latency to connect to nodes and increase the
+availability of the node by removing the Auth server from the connection path. When per session MFA is required this increases
+latency by a connection attempt to the Node.
+
 
 Successful connection attempt when Auth isn't available and per-session MFA is **not** required
 ```mermaid
@@ -159,8 +162,6 @@ sequenceDiagram
     participant Auth
     participant Node
 
-    tsh->>+Auth: IsMFARequired
-    Auth-->>-tsh: Error
     tsh->>+Node: Connect
     Node-->>+tsh: Success
 ```
@@ -172,20 +173,20 @@ sequenceDiagram
     participant Auth
     participant Node
 
+    tsh->>+Node: Connect
+    Node-->>+tsh: Access Denied    
     tsh->>+Auth: IsMFARequired
     Auth-->>-tsh: Error
-    tsh->>+Node: Connect
-    Node-->>+tsh: Access Denied
 ```
 
 
 Alternative approaches:
 
-1) Attempt to connect to the node first, and if it fails with a `trace.AccessDenied` error then try `proto.AuthService/IsMFARequired` and then perform the MFA ceremony and connect to the node again
-    - Results in reduced latency for the happy path which doesn't require per-session MFA by removing the call to `proto.AuthService/IsMFARequired` entirely. However, `proto.AuthService/IsMFARequired` is still required   if the user doesn't have access to the node at all or per-session MFA is required.
-    - Results in increased latency when per-session MFA is required since that flow now requires establishing the connection to the target node twice.
+1) First try `proto.AuthService/IsMFARequired` and always try to connect to the Node regardless of error determining if per session MFA is required
+    - Results in increased latency for the happy path which doesn't require per-session MFA by requiring the call to `proto.AuthService/IsMFARequired`. However, `proto.AuthService/IsMFARequired` is still required if the user doesn't have access to the node at all or per-session MFA is required.
+    - Results in decreased latency when per-session MFA is required since that flow now requires establishing the connection to the target node once.
 2) Perform `proto.AuthService/IsMFARequired` and connecting to the node in parallel and act accordingly
-    - Ultimately leads to roughly the same outcome as Option 1. The connection to the node almost always takes longer than the connection to auth. By performing them in parallel you really only get gains in the happy path.
+    - Ultimately leads to roughly the same outcome as the recommended option. The connection to the node almost always takes longer than the connection to auth. By performing them in parallel you really only get gains in the happy path.
 
 ###### Session Trackers
 A new session tracker is created for every session. In the event that persisting the session tracker fails the 
