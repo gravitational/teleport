@@ -1,9 +1,9 @@
 ---
 title: Teleport EKS Auto-Discovery (Preview)
-description: Auto-Discovery of EKS clusters in AWS cloud.
+description: How to configure auto-discovery of AWS EKS clusters in Teleport.
 ---
 
-Similarly to [AKS Auto-Discovery](./azure.mdx), EKS Auto-Discovery can automatically 
+EKS Auto-Discovery can automatically 
 discover any EKS cluster and enroll it in Teleport if its tags match the 
 configured labels. 
 
@@ -35,6 +35,14 @@ without first having access to the cluster.
 If Teleport is not running with the same IAM identity that creates all clusters, 
 please ensure you configure the required permissions as described in Step 2. 
 
+<Admonition type="note">
+
+The AWS EKS team is working on a feature request to introduce an external API to manage access to the cluster without manually editing the Configmap ([aws/containers-roadmap#185](https://github.com/aws/containers-roadmap/issues/185)). 
+
+Hopefully, once the feature is available, Teleport can leverage it to configure its access to the cluster.
+
+</Admonition>
+
 ## Step 1/3. Set up AWS IAM credentials
 
 For Teleport to discover EKS clusters, the instance
@@ -59,14 +67,13 @@ describe EKS clusters:
 
 ## Step 2/3. Configure EKS cluster authorization
 
-
 When the Kubernetes Service uses an IAM role that is different from the one that 
 creates the clusters, you need to edit the `aws-auth` `Configmap` and append the 
 mapping between the Teleport IAM role and the RBAC permissions on each of the 
 discovered clusters. 
 
 For simplicity, it is possible to map the Teleport IAM role onto an existing 
-Kubernetes RBAC group such as `system:masters`, but Teleport recommends setting 
+Kubernetes RBAC group such as `system:masters`, but it is recommended setting 
 up a separate Kubernetes RBAC group with the minimum required permissions.
 
 <Tabs>
@@ -145,11 +152,21 @@ data:
       username: teleport
 ```
 
+At this point, the Teleport IAM role already has the minimum permissions 
+to forward requests to the cluster. 
+
+<Notice type="tip">
+If you provision your EKS clusters using tools such as `terraform`, `eksctl` or 
+`Cloudformation`, you can use them to automatically configure the `aws-auth` `Configmap` 
+and create the `ClusterRole` and `ClusterRoleBinding` resources during cluster provisioning.
+  </Notice>
+
   </TabItem>
   <TabItem label="system:masters permissions" >
     <Notice type="warning">
 Granting the `system:masters` group to the IAM role associated with the Teleport 
-service means granting administrator-level permissions on the Kubernetes cluster.  **Do not use this method in production.**
+service means granting administrator-level permissions on the Kubernetes cluster. 
+To follow least privilege principle we do not recommend using this method in production.
   </Notice>
 
 To associate the Teleport IAM role with the `system:masters` RBAC group, 
@@ -170,16 +187,16 @@ data:
 Please replace `{teleport_aws_iam_role}` with the appropriate IAM role that 
 Teleport Kubernetes Service is using.
 
-  </TabItem>
-</Tabs>
-
 At this point, the Teleport IAM role already has the minimum permissions 
 to forward requests to the cluster. 
+
+  </TabItem>
+</Tabs>
 
 
 ## Step 3/3. Configure Teleport to discover EKS clusters
 
-Teleport EKS Auto-Discovery requires a valid auth token for the Discovery and 
+Teleport EKS Auto-Discovery requires a valid Teleport auth token for the Discovery and 
 Kubernetes services to join the cluster. Generate one by running the following 
 command against your Teleport Auth Service and save it in `/tmp/token` on the 
 machine that will run Kubernetes Auto-Discovery:
@@ -213,7 +230,7 @@ discovery_service:
   enabled: "yes"
   aws:
    - types: ["eks"]
-     regions: ["eu-central-1"]
+     regions: ["*"]
      tags:
        "env": "prod" # Match EKS cluster tags where tag:env=prod
 kubernetes_service:
