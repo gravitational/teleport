@@ -232,7 +232,7 @@ spec:
       - name: Auditor oversight
         # Specifies an RBAC predicate that is used to define
         # which users count against the required user count of the policy.
-        filter: 'contains(user.roles, "auditor")'
+        filter: 'contains(user.spec.roles, "auditor")'
         # The different session kinds this policy applies to.
         kinds: ['k8s', 'ssh']
         # A list of session participant modes that a participant must have
