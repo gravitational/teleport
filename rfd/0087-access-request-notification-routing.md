@@ -219,11 +219,11 @@ When resource labels will be available, users will be able to match access reque
 the resource labels. The main challenge will be to find a way to express what the users wants in a usable way.
 A list of each resource ID and their labels is not usable as-is, the list will need to be flattened in some way to
 represent the access-requests labels. Two approaches are available:
-- returning the union of all labels: This appraoch allows users to request several non-related resources and have the\
+- returning the union of all labels: This approach allows users to request several non-related resources and have the
   access-request still reach all relevant teams. However this will cause a risk of privilege escalation through
   automatic approval, like the Pagerduty plugin. If this approach is chosen, we should ensure no automatic approval
   can happen on such requests.
-- returning the intersection of all labels: This approach is the sanest from a securoty point of view but can degrade
+- returning the intersection of all labels: This approach is the sanest from a security point of view but can degrade
   the user experience as any resource with no label will cause the access request to have no match.
 
 To solve this issue, mixed approaches can be used, like exposing both label union and intersection to the users.
