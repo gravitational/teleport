@@ -347,7 +347,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 	require.NoError(t, err)
 
 	handler, err := NewHandler(Config{
-		ClusterFeatures:                 *modules.GetModules().Features().ToProto(), // SAFETY: this pointer not nil since ToProto() creates a struct
+		ClusterFeatures:                 *modules.GetModules().Features().ToProto(), // safe to dereference because ToProto creates a struct and return a pointer to it
 		Proxy:                           revTunServer,
 		AuthServers:                     utils.FromAddr(s.server.TLS.Addr()),
 		DomainName:                      s.server.ClusterName(),
