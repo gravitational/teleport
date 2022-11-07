@@ -4006,7 +4006,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 
 		clt := s.client()
 
-		// create register challange
+		// create register chellange
 		token, err := s.server.Auth().CreateResetPasswordToken(s.ctx, auth.CreateUserTokenRequest{
 			Name: initialUser.GetName(),
 		})
