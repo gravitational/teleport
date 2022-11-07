@@ -330,6 +330,8 @@ type authContext struct {
 	// disconnectExpiredCert if set, controls the time when the connection
 	// should be disconnected because the client cert expires
 	disconnectExpiredCert time.Time
+	// certExpires is the client certificate expiration timestamp.
+	certExpires time.Time
 	// sessionTTL specifies the duration of the user's session
 	sessionTTL time.Duration
 }
@@ -341,7 +343,7 @@ func (c authContext) String() string {
 func (c *authContext) key() string {
 	// it is important that the context key contains user, kubernetes groups and certificate expiry,
 	// so that new logins with different parameters will not reuse this context
-	return fmt.Sprintf("%v:%v:%v:%v:%v:%v", c.teleportCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.kubeCluster, c.disconnectExpiredCert.UTC().Unix())
+	return fmt.Sprintf("%v:%v:%v:%v:%v:%v", c.teleportCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.kubeCluster, c.certExpires.Unix())
 }
 
 func (c *authContext) eventClusterMeta() apievents.KubernetesClusterMetadata {
@@ -635,6 +637,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		kubeUsers:         utils.StringsSet(kubeUsers),
 		recordingConfig:   recordingConfig,
 		kubeCluster:       kubeCluster,
+		certExpires:       certExpires,
 		teleportCluster: teleportClusterClient{
 			name:           teleportClusterName,
 			remoteAddr:     utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
@@ -661,7 +664,8 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 func (f *Forwarder) getKubeGroupsAndUsers(
 	roles services.AccessChecker,
 	kubeClusterName string,
-	sessionTTL time.Duration) (groups, users []string, err error) {
+	sessionTTL time.Duration,
+) (groups, users []string, err error) {
 	kubeServices, err := f.cfg.CachingAuthClient.GetKubeServices(f.ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1073,7 +1077,6 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, sessionEndEvent); err != nil {
 			f.log.WithError(err).Warn("Failed to emit session end event.")
 		}
-
 	}()
 
 	executor, err := f.getExecutor(*ctx, sess, req)
