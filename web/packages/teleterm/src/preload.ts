@@ -3,7 +3,7 @@ import { ChannelCredentials } from '@grpc/grpc-js';
 
 import createTshClient from 'teleterm/services/tshd/createClient';
 import createMainProcessClient from 'teleterm/mainProcess/mainProcessClient';
-import createLoggerService from 'teleterm/services/logger';
+import { createFileLoggerService } from 'teleterm/services/logger';
 import Logger from 'teleterm/logger';
 import { createPtyService } from 'teleterm/services/pty/ptyService';
 import {
@@ -18,7 +18,7 @@ import { ElectronGlobals, RuntimeSettings } from 'teleterm/types';
 
 const mainProcessClient = createMainProcessClient();
 const runtimeSettings = mainProcessClient.getRuntimeSettings();
-const loggerService = createLoggerService({
+const loggerService = createFileLoggerService({
   dev: runtimeSettings.dev,
   dir: runtimeSettings.userDataDir,
   name: 'renderer',

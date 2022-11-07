@@ -7,7 +7,7 @@ import { app, globalShortcut, shell } from 'electron';
 import MainProcess from 'teleterm/mainProcess';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
 import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandler';
-import createLoggerService from 'teleterm/services/logger';
+import { LoggerColor, createFileLoggerService } from 'teleterm/services/logger';
 import Logger from 'teleterm/logger';
 import * as types from 'teleterm/types';
 import { ConfigServiceImpl } from 'teleterm/services/config';
@@ -145,10 +145,11 @@ function initializeApp(): void {
 }
 
 function initMainLogger(settings: types.RuntimeSettings) {
-  const service = createLoggerService({
+  const service = createFileLoggerService({
     dev: settings.dev,
     dir: settings.userDataDir,
     name: 'main',
+    loggerNameColor: LoggerColor.Magenta,
   });
 
   Logger.init(service);
