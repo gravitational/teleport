@@ -157,7 +157,7 @@ func (p *ProxyAuthorizer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (p *ProxyAuthorizer) WaitForRequest(timeout time.Duration) error {
 	timeoutC := time.After(timeout)
 
-	errC := make(chan error)
+	errC := make(chan error, 1)
 	// wait for a new request to come in.
 	select {
 	case <-timeoutC:
