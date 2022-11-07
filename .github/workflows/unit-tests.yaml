@@ -53,7 +53,8 @@ jobs:
         if: ${{ github.ref_name == 'master' }}
         run: |
           cd /workspace/.cloudbuild/scripts
-          go run ./cmd/unit-tests -target "$GITHUB_REF_NAME" -commit $GITHUB_SHA -force
+          go run ./cmd/unit-tests -target "$GITHUB_REF_NAME" -commit $GITHUB_SHA -bucket -a "test-logs/*.json" -build "$GITHUB_RUN_ID" test-logs -force          
+
       - name: Run tests
         if: ${{ github.ref_name != 'master' }}
         run: |

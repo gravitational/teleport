@@ -18,11 +18,11 @@ jobs:
     steps:
       - name: Install git 1.18+
         run: |
-          apt-get -y update
-          apt-get -y install software-properties-common 
+          apt-get -y update && apt-get -y install software-properties-common 
           add-apt-repository -y ppa:git-core/ppa
-          apt-get -y update
-          apt-get -y install git
+          apt-get -y update && apt-get -y install git
+      - name: Mark /workspace as git safe.directory
+        run: |
           git config --global --add safe.directory /workspace
           git config --global --add safe.directory /workspace/webassets
       - name: Checkout Teleport
