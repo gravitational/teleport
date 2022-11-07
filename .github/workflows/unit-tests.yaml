@@ -16,7 +16,7 @@ jobs:
         - ${{ github.workspace }}:/workspace
       options: --cap-add=SYS_ADMIN --privileged
     steps:
-      - uses: actions/update-git-ubuntu
+      - uses: ./.github/actions/update-git-ubuntu
       # - name: Install git 1.18+
       #   run: |
       #     apt-get -y update
