@@ -23,7 +23,7 @@ over which medium.
 - Current Pagerduty request routing applies the same rule to all requests from the same role, regardless of the
   requested role. All access requests don't have the same severity, users wanting to route access requests differently
   have to create multiple roles. Depending on the company size and structure cardinality can become a problem.
-  See https://github.com/gravitational/teleport-plugins/issues/597 ; and
+  See https://github.com/gravitational/teleport-plugins/issues/597;
 - Access request routing map baked in the plugin deployment:
   - Will become huge for big orgs.
   - Requires redeploying each time a change is done.
@@ -41,7 +41,7 @@ In Teleport terms:
 
 - the role `developer` can request roles `dev-rw`, `prod-ro` and `prod-rw`;
 - the role `lead-developer` can approve requests;
-- only `prod-rw` access requests should trigger a PagerDuty incident; and
+- only `prod-rw` access requests should trigger a PagerDuty incident;
 - `dev-rw` and `prod-ro` access requests should trigger a MsTeams message.
 
 ### Terminology
@@ -52,7 +52,7 @@ Definitions:
   By default each plugin are listening for their own name (`slack` for the slack plugin,
   `msteams` for the Microsoft Teams one, ...). But the plugin name can be configurable
   in the plugin configuration. This allows support for multiple instances of the same
-  plugin (e.g. many orgs have multiple slack workspaces, they can run 1 plugin per workspace); and
+  plugin (e.g. many orgs have multiple slack workspaces, they can run 1 plugin per workspace);
 - `recipients` is a list of strings describing the access request recipients.
   Different kinds of recipients are supported depending on the plugin (user
   name, channel name, service name, user id, channel id, URL, ...).
@@ -107,7 +107,7 @@ spec:
 From the plugin point of view, the recipients are additive:
 - they can come from the `role_to_recipient` map in the plugin configuration;
 - they can come from the `targets` on the access-request;
-- they can come from the requests additional recipients; and
+- they can come from the requests additional recipients;
 - they can come from annotations (backward compatibility for pagerduty plugin).
 
 ### Performance
@@ -210,13 +210,58 @@ pinged on Slack).
 While this approach should work with both role access request and resource access request, using it with
 resource access request can cause some friction for admin writing the rules:
 
-Only resource IDs are available through access requests: writing a rule to filter based on requested resources
-requires knowing resources IDs. Rules with lists of IDs can be hard to read. For resource access requests routing,
-admins are likely to want to route the requests based on resources labels/tags.
+At the time of writing this proposal, only resource IDs are available through access requests: writing a rule to filter
+based on requested resources requires knowing resources IDs. Rules with lists of IDs can be hard to read. For resource
+access requests routing, admins are likely to want to route the requests based on resources labels/tags.
+Roles are also available, but the requested role does not necessarily follow the principle of the least privilege.
 
-A workaround would be to resolve the resources (either before evaluating the rule or through a new predicate function).
+When resource labels will be available, users will be able to match access requests routing rules against
+the resource labels. The main challenge will be to find a way to express what the users wants in a usable way.
+A list of each resource ID and their labels is not usable as-is, the list will need to be flattened in some way to
+represent the access-requests labels. Two approaches are available:
+- returning the union of all labels: This appraoch allows users to request several non-related resources and have the\
+  access-request still reach all relevant teams. However this will cause a risk of privilege escalation through
+  automatic approval, like the Pagerduty plugin. If this approach is chosen, we should ensure no automatic approval
+  can happen on such requests.
+- returning the intersection of all labels: This approach is the sanest from a securoty point of view but can degrade
+  the user experience as any resource with no label will cause the access request to have no match.
 
-This is currently out of the scope of this RFD and could be implemented if the feature gets user traction.
+To solve this issue, mixed approaches can be used, like exposing both label union and intersection to the users.
+For example, two resources with the following labels:
+```yaml
+resourceID1:
+    label1: "value1"
+    label2: "value2"
+resourceID2:
+    label3: "value3"
+    label2: "value4"
+    label1: "value1"
+```
+would produce the following `access_request`:
+```yaml
+spec:
+    labelsIntersection:
+        label1: "value1"
+    labelsUnion:
+        label1: ["value1"]
+        label2: ["value2", "value4"]
+        label3: ["value3"]
+```
+
+A user would then be able to route its access requests using the following rule:
+
+```yaml
+spec:
+  targets:
+  # page over teams as soon as one of the resource has label2=value2.
+  - condition: 'resource.spec.labelsUnion.label2.contains("value2")'
+    recipients: ["Teleport Alice"]
+    plugin: "msteams"
+  # page over pagerduty only if all resources have label1=value1
+  - condition: equals(resource.spec.labelsIntersection.label1 , "value1")
+    recipients: ["Teleport Alice"]
+    plugin: "pagerduty"
+```
 
 #### Pagerduty example scenario
 
@@ -289,7 +334,7 @@ This change must be backward compatible:
 - each plugin should have a default name and listen to it by default in the `targets`, this name should be the same used to store plugin data;
 - admins can configure the plugin name through its configuration, names should always be prefixed by the plugin type (e.g. `slack-teamA`,
   `msteams-teamB`) to limit conflicts between two plugins with the same names;
-- in INFO mode, each plugin should log if it is ignoring a target (because plugin name does not match for example) to ease troubleshooting; and
+- in INFO mode, each plugin should log if it is ignoring a target (because plugin name does not match for example) to ease troubleshooting;
 - each plugin should log its name on startup.
 
 ### Predicate Helper Methods
