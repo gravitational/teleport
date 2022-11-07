@@ -76,8 +76,11 @@ func TestCreateSAMLUser(t *testing.T) {
 	a, err := NewServer(authConfig)
 	require.NoError(t, err)
 
+	sas, ok := a.samlAuthService.(*SAMLAuthService)
+	require.True(t, ok, "Server.samlAuthServer is not type *samlAuthServer")
+
 	// Dry-run creation of SAML user.
-	user, err := a.createSAMLUser(&CreateUserParams{
+	user, err := sas.createSAMLUser(&CreateUserParams{
 		ConnectorName: "samlService",
 		Username:      "foo@example.com",
 		Roles:         []string{"admin"},
@@ -91,7 +94,7 @@ func TestCreateSAMLUser(t *testing.T) {
 	require.Error(t, err)
 
 	// Create SAML user with 1 minute expiry.
-	_, err = a.createSAMLUser(&CreateUserParams{
+	_, err = sas.createSAMLUser(&CreateUserParams{
 		ConnectorName: "samlService",
 		Username:      "foo@example.com",
 		Roles:         []string{"admin"},
@@ -304,6 +307,9 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 	a, err := NewServer(authConfig)
 	require.NoError(t, err)
 
+	sas, ok := a.samlAuthService.(*SAMLAuthService)
+	require.True(t, ok, "Server.samlAuthServer is not type *samlAuthServer")
+
 	_, err = CreateRole(ctx, a, "baz", types.RoleSpecV5{})
 	require.NoError(t, err)
 
@@ -352,7 +358,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 		},
 	}
 
-	connector, provider, err := a.getSAMLConnectorAndProvider(context.Background(), request)
+	connector, provider, err := sas.getSAMLConnectorAndProvider(context.Background(), request)
 	require.NoError(t, err)
 	require.NotNil(t, connector)
 	require.NotNil(t, provider)
@@ -387,7 +393,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 		SSOTestFlow: false,
 	}
 
-	connector, provider, err = a.getSAMLConnectorAndProvider(context.Background(), request2)
+	connector, provider, err = sas.getSAMLConnectorAndProvider(context.Background(), request2)
 	require.NoError(t, err)
 	require.NotNil(t, connector)
 	require.NotNil(t, provider)
@@ -423,10 +429,11 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 		},
 	}
 
-	a, err := NewServer(authConfig)
+	a, err := NewServer(authConfig, WithClock(clock))
 	require.NoError(t, err)
 
-	a.SetClock(clock)
+	sas, ok := a.samlAuthService.(*SAMLAuthService)
+	require.True(t, ok, "Server.samlAuthServer is not type *samlAuthServer")
 
 	// empty response gives error.
 	response, err := a.ValidateSAMLResponse(context.Background(), "", "")
@@ -556,13 +563,13 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	require.NoError(t, err)
 
 	// check ValidateSAMLResponse
-	response, err = a.ValidateSAMLResponse(context.Background(), base64.StdEncoding.EncodeToString([]byte(respOkta)), "")
+	response, err = sas.ValidateSAMLResponse(context.Background(), base64.StdEncoding.EncodeToString([]byte(respOkta)), "")
 	require.NoError(t, err)
 	require.NotNil(t, response)
 
 	// check internal method, validate diagnostic outputs.
 	diagCtx := NewSSODiagContext(types.KindSAML, a)
-	auth, err := a.validateSAMLResponse(context.Background(), diagCtx, base64.StdEncoding.EncodeToString([]byte(respOkta)), "")
+	auth, err := sas.validateSAMLResponse(context.Background(), diagCtx, base64.StdEncoding.EncodeToString([]byte(respOkta)), "")
 	require.NoError(t, err)
 
 	// ensure diag info got stored and is identical.

@@ -89,10 +89,13 @@ func newTestPack(
 	if err != nil {
 		return p, trace.Wrap(err)
 	}
+
+	p.mockEmitter = &eventstest.MockEmitter{}
 	authConfig := &InitConfig{
 		Backend:                p.bk,
 		ClusterName:            p.clusterName,
 		Authority:              testauthority.New(),
+		Emitter:                p.mockEmitter,
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
 			Software: keystore.SoftwareConfig{
@@ -166,8 +169,6 @@ func newTestPack(
 		return p, trace.Wrap(err)
 	}
 
-	p.mockEmitter = &eventstest.MockEmitter{}
-	p.a.emitter = p.mockEmitter
 	return p, nil
 }
 

@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/beevik/etree"
 	"github.com/google/go-cmp/cmp"
@@ -39,21 +40,115 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// SAMLService are the methods that the auth server delegates to a plugin for
+// implementing the SAML connector. The Identity service contains a few more
+// methods for getting connectors and requests from the backend, but there is
+// no specific logic related to SAML in those methods.
+type SAMLService interface {
+	// UpsertSAMLConnector updates or creates SAML connector
+	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error
+	// DeleteSAMLConnector deletes SAML connector by ID
+	DeleteSAMLConnector(ctx context.Context, connectorID string) error
+	// CreateSAMLAuthRequest creates SAML AuthnRequest
+	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
+	// ValidateSAMLResponse validates SAML auth response
+	ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error)
+}
+
+// UpsertSAMLConnector delegates the method call to the samlAuthService if present,
+// or returns a NotImplemented error if not present.
+func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
+	if a.samlAuthService == nil {
+		return trace.NotImplemented("SAML is only available in enterprise subscriptions")
+	}
+
+	return trace.Wrap(a.samlAuthService.UpsertSAMLConnector(ctx, connector))
+}
+
+// DeleteSAMLConnector delegates the method call to the samlAuthService if present,
+// or returns a NotImplemented error if not present.
+func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorID string) error {
+	if a.samlAuthService == nil {
+		return trace.NotImplemented("SAML is only available in enterprise subscriptions")
+	}
+
+	return trace.Wrap(a.samlAuthService.DeleteSAMLConnector(ctx, connectorID))
+}
+
+// CreateSAMLAuthRequest delegates the method call to the samlAuthService if present,
+// or returns a NotImplemented error if not present.
+func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
+	if a.samlAuthService == nil {
+		return nil, trace.NotImplemented("SAML is only available in enterprise subscriptions")
+	}
+
+	rq, err := a.samlAuthService.CreateSAMLAuthRequest(ctx, req)
+	return rq, trace.Wrap(err)
+}
+
+// ValidateSAMLResponse delegates the method call to the samlAuthService if present,
+// or returns a NotImplemented error if not present.
+func (a *Server) ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error) {
+	if a.samlAuthService == nil {
+		return nil, trace.NotImplemented("SAML is only available in enterprise subscriptions")
+	}
+
+	resp, err := a.samlAuthService.ValidateSAMLResponse(ctx, re, connectorID)
+	return resp, trace.Wrap(err)
+}
+
+// SAMLAuthService implements the logic of the SAML connector, allowing SSO
+// logins using the SAML protocol.
+//
+// SAMLAuthService implements the SAMLService interface.
+type SAMLAuthService struct {
+	auth                   *Server
+	emitter                apievents.Emitter
+	assertionReplayService *local.AssertionReplayService
+	samlProviders          map[string]*samlProvider
+	lock                   sync.Mutex
+}
+
+type SAMLAuthServiceConfig struct {
+	Auth                   *Server
+	Emitter                apievents.Emitter
+	AssertionReplayService *local.AssertionReplayService
+}
+
+// NewSAMLAuthService returns a SAMLAuthService configured to use the
+// services given in the config.
+func NewSAMLAuthService(cfg *SAMLAuthServiceConfig) *SAMLAuthService {
+	return &SAMLAuthService{
+		auth:                   cfg.Auth,
+		emitter:                cfg.Emitter,
+		assertionReplayService: cfg.AssertionReplayService,
+
+		samlProviders: make(map[string]*samlProvider),
+	}
+}
+
+// samlProvider is internal structure that stores SAML client and its config
+type samlProvider struct {
+	provider  *saml2.SAMLServiceProvider
+	connector types.SAMLConnector
+}
 
 // ErrSAMLNoRoles results from not mapping any roles from SAML claims.
 var ErrSAMLNoRoles = trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
 
 // UpsertSAMLConnector creates or updates a SAML connector.
-func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
-	if err := services.ValidateSAMLConnector(connector, a); err != nil {
+func (sas *SAMLAuthService) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
+	if err := services.ValidateSAMLConnector(connector, sas.auth); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.Services.UpsertSAMLConnector(ctx, connector); err != nil {
+	if err := sas.auth.Services.UpsertSAMLConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorCreate{
+	if err := sas.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorCreate{
 		Metadata: apievents.Metadata{
 			Type: events.SAMLConnectorCreatedEvent,
 			Code: events.SAMLConnectorCreatedCode,
@@ -70,11 +165,11 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 }
 
 // DeleteSAMLConnector deletes a SAML connector by name.
-func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorName string) error {
-	if err := a.Services.DeleteSAMLConnector(ctx, connectorName); err != nil {
+func (sas *SAMLAuthService) DeleteSAMLConnector(ctx context.Context, connectorName string) error {
+	if err := sas.auth.Services.DeleteSAMLConnector(ctx, connectorName); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorDelete{
+	if err := sas.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorDelete{
 		Metadata: apievents.Metadata{
 			Type: events.SAMLConnectorDeletedEvent,
 			Code: events.SAMLConnectorDeletedCode,
@@ -90,8 +185,8 @@ func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorName string) 
 	return nil
 }
 
-func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
-	connector, provider, err := a.getSAMLConnectorAndProvider(ctx, req)
+func (sas *SAMLAuthService) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
+	connector, provider, err := sas.getSAMLConnectorAndProvider(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -123,19 +218,19 @@ func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRe
 		return nil, trace.Wrap(err)
 	}
 
-	err = a.Services.CreateSAMLAuthRequest(ctx, req, defaults.SAMLAuthRequestTTL)
+	err = sas.auth.Services.CreateSAMLAuthRequest(ctx, req, defaults.SAMLAuthRequestTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &req, nil
 }
 
-func (a *Server) getSAMLConnectorAndProviderByID(ctx context.Context, connectorID string) (types.SAMLConnector, *saml2.SAMLServiceProvider, error) {
-	connector, err := a.Identity.GetSAMLConnector(ctx, connectorID, true)
+func (sas *SAMLAuthService) getSAMLConnectorAndProviderByID(ctx context.Context, connectorID string) (types.SAMLConnector, *saml2.SAMLServiceProvider, error) {
+	connector, err := sas.auth.Identity.GetSAMLConnector(ctx, connectorID, true)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	provider, err := a.getSAMLProvider(connector)
+	provider, err := sas.getSAMLProvider(connector)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -143,7 +238,7 @@ func (a *Server) getSAMLConnectorAndProviderByID(ctx context.Context, connectorI
 	return connector, provider, nil
 }
 
-func (a *Server) getSAMLConnectorAndProvider(ctx context.Context, req types.SAMLAuthRequest) (types.SAMLConnector, *saml2.SAMLServiceProvider, error) {
+func (sas *SAMLAuthService) getSAMLConnectorAndProvider(ctx context.Context, req types.SAMLAuthRequest) (types.SAMLConnector, *saml2.SAMLServiceProvider, error) {
 	if req.SSOTestFlow {
 		if req.ConnectorSpec == nil {
 			return nil, nil, trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
@@ -160,13 +255,13 @@ func (a *Server) getSAMLConnectorAndProvider(ctx context.Context, req types.SAML
 		}
 
 		// validate, set defaults for connector
-		err = services.ValidateSAMLConnector(connector, a)
+		err = services.ValidateSAMLConnector(connector, sas.auth)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		// we don't want to cache the provider. construct it directly instead of using a.getSAMLProvider()
-		provider, err := services.GetSAMLServiceProvider(connector, a.clock)
+		// we don't want to cache the provider. construct it directly instead of using sas.getSAMLProvider()
+		provider, err := services.GetSAMLServiceProvider(connector, sas.auth.GetClock())
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -175,30 +270,30 @@ func (a *Server) getSAMLConnectorAndProvider(ctx context.Context, req types.SAML
 	}
 
 	// regular execution flow
-	return a.getSAMLConnectorAndProviderByID(ctx, req.ConnectorID)
+	return sas.getSAMLConnectorAndProviderByID(ctx, req.ConnectorID)
 }
 
-func (a *Server) getSAMLProvider(conn types.SAMLConnector) (*saml2.SAMLServiceProvider, error) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
+func (sas *SAMLAuthService) getSAMLProvider(conn types.SAMLConnector) (*saml2.SAMLServiceProvider, error) {
+	sas.lock.Lock()
+	defer sas.lock.Unlock()
 
-	providerPack, ok := a.samlProviders[conn.GetName()]
+	providerPack, ok := sas.samlProviders[conn.GetName()]
 	if ok && cmp.Equal(providerPack.connector, conn) {
 		return providerPack.provider, nil
 	}
-	delete(a.samlProviders, conn.GetName())
+	delete(sas.samlProviders, conn.GetName())
 
-	serviceProvider, err := services.GetSAMLServiceProvider(conn, a.clock)
+	serviceProvider, err := services.GetSAMLServiceProvider(conn, sas.auth.GetClock())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	a.samlProviders[conn.GetName()] = &samlProvider{connector: conn, provider: serviceProvider}
+	sas.samlProviders[conn.GetName()] = &samlProvider{connector: conn, provider: serviceProvider}
 
 	return serviceProvider, nil
 }
 
-func (a *Server) calculateSAMLUser(diagCtx *SSODiagContext, connector types.SAMLConnector, assertionInfo saml2.AssertionInfo, request *types.SAMLAuthRequest) (*CreateUserParams, error) {
+func (sas *SAMLAuthService) calculateSAMLUser(diagCtx *SSODiagContext, connector types.SAMLConnector, assertionInfo saml2.AssertionInfo, request *types.SAMLAuthRequest) (*CreateUserParams, error) {
 	p := CreateUserParams{
 		ConnectorName: connector.GetName(),
 		Username:      assertionInfo.NameID,
@@ -228,7 +323,7 @@ func (a *Server) calculateSAMLUser(diagCtx *SSODiagContext, connector types.SAML
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
-	roles, err := services.FetchRoles(p.Roles, a, p.Traits)
+	roles, err := services.FetchRoles(p.Roles, sas.auth, p.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -243,8 +338,8 @@ func (a *Server) calculateSAMLUser(diagCtx *SSODiagContext, connector types.SAML
 	return &p, nil
 }
 
-func (a *Server) createSAMLUser(p *CreateUserParams, dryRun bool) (types.User, error) {
-	expires := a.GetClock().Now().UTC().Add(p.SessionTTL)
+func (sas *SAMLAuthService) createSAMLUser(p *CreateUserParams, dryRun bool) (types.User, error) {
+	expires := sas.auth.GetClock().Now().UTC().Add(p.SessionTTL)
 
 	log.Debugf("Generating dynamic SAML identity %v/%v with roles: %v. Dry run: %v.", p.ConnectorName, p.Username, p.Roles, dryRun)
 
@@ -269,7 +364,7 @@ func (a *Server) createSAMLUser(p *CreateUserParams, dryRun bool) (types.User, e
 				User: types.UserRef{
 					Name: teleport.UserSystem,
 				},
-				Time: a.clock.Now().UTC(),
+				Time: sas.auth.GetClock().Now().UTC(),
 				Connector: &types.ConnectorRef{
 					Type:     constants.SAML,
 					ID:       p.ConnectorName,
@@ -284,7 +379,7 @@ func (a *Server) createSAMLUser(p *CreateUserParams, dryRun bool) (types.User, e
 	}
 
 	// Get the user to check if it already exists or not.
-	existingUser, err := a.Services.GetUser(p.Username, false)
+	existingUser, err := sas.auth.Services.GetUser(p.Username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -304,11 +399,11 @@ func (a *Server) createSAMLUser(p *CreateUserParams, dryRun bool) (types.User, e
 		log.Debugf("Overwriting existing user %q created with %v connector %v.",
 			existingUser.GetName(), connectorRef.Type, connectorRef.ID)
 
-		if err := a.UpdateUser(ctx, user); err != nil {
+		if err := sas.auth.UpdateUser(ctx, user); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		if err := a.CreateUser(ctx, user); err != nil {
+		if err := sas.auth.CreateUser(ctx, user); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -429,7 +524,7 @@ func SAMLAuthRequestFromProto(req *types.SAMLAuthRequest) SAMLAuthRequest {
 }
 
 // ValidateSAMLResponse consumes attribute statements from SAML identity provider
-func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string, connectorID string) (*SAMLAuthResponse, error) {
+func (sas *SAMLAuthService) ValidateSAMLResponse(ctx context.Context, samlResponse string, connectorID string) (*SAMLAuthResponse, error) {
 	event := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
@@ -437,9 +532,9 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string, 
 		Method: events.LoginMethodSAML,
 	}
 
-	diagCtx := NewSSODiagContext(types.KindSAML, a)
+	diagCtx := NewSSODiagContext(types.KindSAML, sas.auth)
 
-	auth, err := a.validateSAMLResponse(ctx, diagCtx, samlResponse, connectorID)
+	auth, err := sas.validateSAMLResponse(ctx, diagCtx, samlResponse, connectorID)
 	diagCtx.Info.Error = trace.UserMessage(err)
 
 	diagCtx.WriteToBackend(ctx)
@@ -463,7 +558,7 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string, 
 		event.Status.Success = false
 		event.Status.Error = trace.Unwrap(err).Error()
 		event.Status.UserMessage = err.Error()
-		if err := a.emitter.EmitAuditEvent(ctx, event); err != nil {
+		if err := sas.emitter.EmitAuditEvent(ctx, event); err != nil {
 			log.WithError(err).Warn("Failed to emit SAML login failed event.")
 		}
 		return nil, trace.Wrap(err)
@@ -476,14 +571,14 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string, 
 		event.Code = events.UserSSOTestFlowLoginCode
 	}
 
-	if err := a.emitter.EmitAuditEvent(ctx, event); err != nil {
+	if err := sas.emitter.EmitAuditEvent(ctx, event); err != nil {
 		log.WithError(err).Warn("Failed to emit SAML login event.")
 	}
 
 	return auth, nil
 }
 
-func (a *Server) checkIDPInitiatedSAML(ctx context.Context, connector types.SAMLConnector, assertion *saml2.AssertionInfo) error {
+func (sas *SAMLAuthService) checkIDPInitiatedSAML(ctx context.Context, connector types.SAMLConnector, assertion *saml2.AssertionInfo) error {
 	if !connector.GetAllowIDPInitiated() {
 		return trace.AccessDenied("IdP initiated SAML is not allowed by the connector configuration")
 	}
@@ -493,11 +588,11 @@ func (a *Server) checkIDPInitiatedSAML(ctx context.Context, connector types.SAML
 		return nil
 	}
 
-	err := a.Unstable.RecognizeSSOAssertion(ctx, connector.GetName(), assertion.SessionIndex, assertion.NameID, *assertion.SessionNotOnOrAfter)
+	err := sas.assertionReplayService.RecognizeSSOAssertion(ctx, connector.GetName(), assertion.SessionIndex, assertion.NameID, *assertion.SessionNotOnOrAfter)
 	return trace.Wrap(err)
 }
 
-func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *SSODiagContext, samlResponse string, connectorID string) (*SAMLAuthResponse, error) {
+func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *SSODiagContext, samlResponse string, connectorID string) (*SAMLAuthResponse, error) {
 	idpInitiated := false
 	var connector types.SAMLConnector
 	var provider *saml2.SAMLServiceProvider
@@ -510,7 +605,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *SSODiagConte
 		}
 
 		idpInitiated = true
-		connector, provider, err = a.getSAMLConnectorAndProviderByID(ctx, connectorID)
+		connector, provider, err = sas.getSAMLConnectorAndProviderByID(ctx, connectorID)
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to get SAML connector and provider")
 		}
@@ -518,13 +613,13 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *SSODiagConte
 		return nil, trace.Wrap(err)
 	default:
 		diagCtx.RequestID = requestID
-		request, err = a.Identity.GetSAMLAuthRequest(ctx, requestID)
+		request, err = sas.auth.Identity.GetSAMLAuthRequest(ctx, requestID)
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to get SAML Auth Request")
 		}
 
 		diagCtx.Info.TestFlow = request.SSOTestFlow
-		connector, provider, err = a.getSAMLConnectorAndProvider(ctx, *request)
+		connector, provider, err = sas.getSAMLConnectorAndProvider(ctx, *request)
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to get SAML connector and provider")
 		}
@@ -540,7 +635,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *SSODiagConte
 	}
 
 	if idpInitiated {
-		if err := a.checkIDPInitiatedSAML(ctx, connector, assertionInfo); err != nil {
+		if err := sas.checkIDPInitiatedSAML(ctx, connector, assertionInfo); err != nil {
 			if trace.IsAccessDenied(err) {
 				log.Warnf("Failed to process IdP-initiated login request. IdP-initiated login is disabled for this connector: %v.", err)
 			}
@@ -582,7 +677,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *SSODiagConte
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
-	params, err := a.calculateSAMLUser(diagCtx, connector, *assertionInfo, request)
+	params, err := sas.calculateSAMLUser(diagCtx, connector, *assertionInfo, request)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
 	}
@@ -597,7 +692,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *SSODiagConte
 		SessionTTL:    types.Duration(params.SessionTTL),
 	}
 
-	user, err := a.createSAMLUser(params, request != nil && request.SSOTestFlow)
+	user, err := sas.createSAMLUser(params, request != nil && request.SSOTestFlow)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to create user from provided parameters.")
 	}
@@ -627,12 +722,12 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *SSODiagConte
 
 	// If the request is coming from a browser, create a web session.
 	if request == nil || request.CreateWebSession {
-		session, err := a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
+		session, err := sas.auth.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
 			User:       user.GetName(),
 			Roles:      user.GetRoles(),
 			Traits:     user.GetTraits(),
 			SessionTTL: params.SessionTTL,
-			LoginTime:  a.clock.Now().UTC(),
+			LoginTime:  sas.auth.GetClock().Now().UTC(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create web session.")
@@ -643,12 +738,12 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *SSODiagConte
 
 	// If a public key was provided, sign it and return a certificate.
 	if request != nil && len(request.PublicKey) != 0 {
-		sshCert, tlsCert, err := a.CreateSessionCert(user, params.SessionTTL, request.PublicKey, request.Compatibility, request.RouteToCluster,
+		sshCert, tlsCert, err := sas.auth.CreateSessionCert(user, params.SessionTTL, request.PublicKey, request.Compatibility, request.RouteToCluster,
 			request.KubernetesCluster, keys.AttestationStatementFromProto(request.AttestationStatement))
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")
 		}
-		clusterName, err := a.GetClusterName()
+		clusterName, err := sas.auth.GetClusterName()
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to obtain cluster name.")
 		}
@@ -656,7 +751,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *SSODiagConte
 		auth.TLSCert = tlsCert
 
 		// Return the host CA for this cluster only.
-		authority, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		authority, err := sas.auth.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: clusterName.GetClusterName(),
 		}, false)

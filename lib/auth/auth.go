@@ -48,7 +48,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	saml2 "github.com/russellhaering/gosaml2"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
@@ -245,7 +244,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		AuthServiceName: cfg.AuthServiceName,
 		ServerID:        cfg.HostUUID,
 		oidcClients:     make(map[string]*oidcClient),
-		samlProviders:   make(map[string]*samlProvider),
 		githubClients:   make(map[string]*githubClient),
 		cancelFunc:      cancelFunc,
 		closeCtx:        closeCtx,
@@ -291,6 +289,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			)
 		}
 	}
+	// Plug in SAML auth service
+	sas := NewSAMLAuthService(&SAMLAuthServiceConfig{
+		Auth:                   &as,
+		Emitter:                as.emitter,
+		AssertionReplayService: as.Unstable.AssertionReplayService,
+	})
+	as.RegisterSAMLService(sas)
 
 	return &as, nil
 }
@@ -398,13 +403,14 @@ type Server struct {
 	lock sync.RWMutex
 	// oidcClients is a map from authID & proxyAddr -> oidcClient
 	oidcClients   map[string]*oidcClient
-	samlProviders map[string]*samlProvider
 	githubClients map[string]*githubClient
 	clock         clockwork.Clock
 	bk            backend.Backend
 
 	closeCtx   context.Context
 	cancelFunc context.CancelFunc
+
+	samlAuthService SAMLService
 
 	sshca.Authority
 
@@ -481,6 +487,13 @@ type Server struct {
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
+}
+
+// RegisterSAMLService registers ss as the SAMLService that provides the SAML
+// connector implementation. If a SAMLService has already been registered, this
+// will override the previous registration.
+func (a *Server) RegisterSAMLService(ss SAMLService) {
+	a.samlAuthService = ss
 }
 
 func (a *Server) CloseContext() context.Context {
@@ -3990,12 +4003,6 @@ type oidcClient struct {
 	syncCancel context.CancelFunc
 	// firstSync will be closed once the first provider sync succeeds
 	firstSync chan struct{}
-}
-
-// samlProvider is internal structure that stores SAML client and its config
-type samlProvider struct {
-	provider  *saml2.SAMLServiceProvider
-	connector types.SAMLConnector
 }
 
 // githubClient is internal structure that stores Github OAuth 2client and its config
