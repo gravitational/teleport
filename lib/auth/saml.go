@@ -599,7 +599,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *SSODiagConte
 
 	// If the request is coming from a browser, create a web session.
 	if request == nil || request.CreateWebSession {
-		session, err := a.createWebSession(ctx, types.NewWebSessionRequest{
+		session, err := a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
 			User:       user.GetName(),
 			Roles:      user.GetRoles(),
 			Traits:     user.GetTraits(),
@@ -615,7 +615,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *SSODiagConte
 
 	// If a public key was provided, sign it and return a certificate.
 	if request != nil && len(request.PublicKey) != 0 {
-		sshCert, tlsCert, err := a.createSessionCert(user, params.sessionTTL, request.PublicKey, request.Compatibility, request.RouteToCluster,
+		sshCert, tlsCert, err := a.CreateSessionCert(user, params.sessionTTL, request.PublicKey, request.Compatibility, request.RouteToCluster,
 			request.KubernetesCluster, keys.AttestationStatementFromProto(request.AttestationStatement))
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")
