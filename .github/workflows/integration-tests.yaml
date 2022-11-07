@@ -36,8 +36,8 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v0
         with:
-          workload_identity_provider: 'projects/671314886056/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
-          service_account: 'github-service-account@just-terminus-366813.iam.gserviceaccount.com'
+          workload_identity_provider: projects/671314886056/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: teleport-storage@just-terminus-366813.iam.gserviceaccount.com
       - name: Go build cache
         uses: actions/cache@v3
         with:
