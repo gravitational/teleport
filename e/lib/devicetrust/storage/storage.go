@@ -312,7 +312,11 @@ func (s *S) GetDevicesByAssetTag(ctx context.Context, assetTag string) ([]*devic
 //
 // The requested pageSize is not guaranteed, as the server may change it at its
 // discretion.
-func (s *S) ListDevices(ctx context.Context, pageSize int, pageToken string) (devices []*devicepb.Device, nextPageToken string, err error) {
+func (s *S) ListDevices(ctx context.Context, pageSize int, pageToken string, view devicepb.DeviceView) (devices []*devicepb.Device, nextPageToken string, err error) {
+	if view == devicepb.DeviceView_DEVICE_VIEW_UNSPECIFIED {
+		return nil, "", trace.BadParameter("view required")
+	}
+
 	startKey := deviceKeyStart()
 	endKey := backend.RangeEnd(startKey)
 
@@ -343,7 +347,6 @@ func (s *S) ListDevices(ctx context.Context, pageSize int, pageToken string) (de
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-
 	for _, item := range res.Items {
 		// The devices collection could shift between calls, so don't assume
 		// anything about the position of lastID.
@@ -356,7 +359,7 @@ func (s *S) ListDevices(ctx context.Context, pageSize int, pageToken string) (de
 		if err := json.Unmarshal(item.Value, stored); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
-		devices = append(devices, storedToDevice(deviceID, stored))
+		devices = append(devices, storedToDeviceView(deviceID, stored, view))
 	}
 
 	// There can only be a next page if we got as many devices as we requested.
@@ -497,7 +500,22 @@ func deviceIDFromKey(key []byte) string {
 	return string(key[idx+1:])
 }
 
-func storedToDevice(deviceID string, sd *storedDevice) *devicepb.Device {
+func storedToDeviceView(deviceID string, sd *storedDevice, view devicepb.DeviceView) *devicepb.Device {
+	// If "list" provide only basic device information.
+	// Suitable for viewing multiple devices at once, as in "tctl devices ls".
+	if view == devicepb.DeviceView_DEVICE_VIEW_LIST {
+		return &devicepb.Device{
+			ApiVersion:   currentAPIVersion,
+			Id:           deviceID,
+			OsType:       devicepb.OSType(sd.OSType),
+			AssetTag:     sd.AssetTag,
+			CreateTime:   timestamppb.New(sd.CreateTime),
+			UpdateTime:   timestamppb.New(sd.UpdateTime),
+			EnrollStatus: devicepb.DeviceEnrollStatus(sd.EnrollStatus),
+		}
+	}
+
+	// Full device information.
 	var cred *devicepb.DeviceCredential
 	if c := sd.Credential; c != nil {
 		cred = &devicepb.DeviceCredential{
@@ -515,6 +533,10 @@ func storedToDevice(deviceID string, sd *storedDevice) *devicepb.Device {
 		EnrollStatus: devicepb.DeviceEnrollStatus(sd.EnrollStatus),
 		Credential:   cred,
 	}
+}
+
+func storedToDevice(deviceID string, sd *storedDevice) *devicepb.Device {
+	return storedToDeviceView(deviceID, sd, devicepb.DeviceView_DEVICE_VIEW_RESOURCE)
 }
 
 // deviceKeyChild creates a key under "devices/id/<ID>/".

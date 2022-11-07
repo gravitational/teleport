@@ -368,7 +368,7 @@ func TestService_ListDevices(t *testing.T) {
 	})
 
 	// Add a few devices to test with.
-	var allDevices []*devicepb.Device
+	var fullDevs []*devicepb.Device
 	for _, assetTag := range []string{"llama", "alpaca", "camel"} {
 		dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
 			Device: &devicepb.Device{
@@ -379,7 +379,21 @@ func TestService_ListDevices(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateDevice failed: %v", err)
 		}
-		allDevices = append(allDevices, dev)
+		fullDevs = append(fullDevs, dev)
+	}
+
+	// Transform "fullDevs" into its "list" view equivalent.
+	listDevs := make([]*devicepb.Device, len(fullDevs))
+	for i, dev := range fullDevs {
+		listDevs[i] = &devicepb.Device{
+			ApiVersion:   dev.ApiVersion,
+			Id:           dev.Id,
+			OsType:       dev.OsType,
+			AssetTag:     dev.AssetTag,
+			CreateTime:   dev.CreateTime,
+			UpdateTime:   dev.UpdateTime,
+			EnrollStatus: dev.EnrollStatus,
+		}
 	}
 
 	tests := []struct {
@@ -388,9 +402,23 @@ func TestService_ListDevices(t *testing.T) {
 		wantDevices []*devicepb.Device
 	}{
 		{
-			name:        "ok",
-			initialReq:  &devicepb.ListDevicesRequest{}, // default parameters
-			wantDevices: allDevices,
+			name:        "default view",
+			initialReq:  &devicepb.ListDevicesRequest{},
+			wantDevices: listDevs,
+		},
+		{
+			name: "list view",
+			initialReq: &devicepb.ListDevicesRequest{
+				View: devicepb.DeviceView_DEVICE_VIEW_LIST,
+			},
+			wantDevices: listDevs,
+		},
+		{
+			name: "resource view",
+			initialReq: &devicepb.ListDevicesRequest{
+				View: devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
+			},
+			wantDevices: fullDevs,
 		},
 	}
 	for _, test := range tests {

@@ -191,8 +191,13 @@ func (s *Service) ListDevices(ctx context.Context, req *devicepb.ListDevicesRequ
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(codingllama): Implement list views correctly.
-	devs, nextPageToken, err := s.storage.ListDevices(ctx, int(req.PageSize), req.PageToken)
+	// Default to "list" view if not specified.
+	view := req.View
+	if view == devicepb.DeviceView_DEVICE_VIEW_UNSPECIFIED {
+		view = devicepb.DeviceView_DEVICE_VIEW_LIST
+	}
+
+	devs, nextPageToken, err := s.storage.ListDevices(ctx, int(req.PageSize), req.PageToken, view)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

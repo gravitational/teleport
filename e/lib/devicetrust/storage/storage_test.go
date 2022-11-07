@@ -283,7 +283,7 @@ func TestS_DeleteDevice(t *testing.T) {
 
 	// Unrelated devices should still exist.
 	t.Run("unrelated", func(t *testing.T) {
-		got, _, err := s.ListDevices(ctx, 3 /* pageSize */, "" /* pageToken */)
+		got, _, err := s.ListDevices(ctx, 3 /* pageSize */, "" /* pageToken */, devicepb.DeviceView_DEVICE_VIEW_RESOURCE)
 		if err != nil {
 			t.Fatalf("ListDevices failed: %v", err)
 		}
@@ -374,7 +374,7 @@ func TestS_ListDevices(t *testing.T) {
 	const defaultPageToken = ""
 
 	t.Run("empty", func(t *testing.T) {
-		devs, nextPageToken, err := s.ListDevices(ctx, defaultPageSize, defaultPageToken)
+		devs, nextPageToken, err := s.ListDevices(ctx, defaultPageSize, defaultPageToken, devicepb.DeviceView_DEVICE_VIEW_LIST)
 		if err != nil {
 			t.Fatalf("ListDevices failed: %v", err)
 		}
@@ -387,7 +387,7 @@ func TestS_ListDevices(t *testing.T) {
 	})
 
 	// Add a few devices to query.
-	var allDevs []*devicepb.Device
+	var fullDevs []*devicepb.Device
 	for _, assetTag := range []string{"llama", "alpaca", "camel", "horse", "duck"} {
 		dev, err := s.CreateDevice(ctx, &devicepb.Device{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
@@ -396,45 +396,85 @@ func TestS_ListDevices(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateDevice(%q) failed: %v", assetTag, err)
 		}
-		allDevs = append(allDevs, dev)
+		fullDevs = append(fullDevs, dev)
 	}
+
+	// Transform "fullDevs" into its "list" view equivalent.
+	listDevs := make([]*devicepb.Device, len(fullDevs))
+	for i, dev := range fullDevs {
+		listDevs[i] = &devicepb.Device{
+			ApiVersion:   dev.ApiVersion,
+			Id:           dev.Id,
+			OsType:       dev.OsType,
+			AssetTag:     dev.AssetTag,
+			CreateTime:   dev.CreateTime,
+			UpdateTime:   dev.UpdateTime,
+			EnrollStatus: dev.EnrollStatus,
+		}
+	}
+
+	// TODO(codingllama): Test listing in resource view with a full-data device,
+	//  once we have one. (Ie, credential data, collected data, etc.)
 
 	tests := []struct {
 		name             string
 		pageSize         int
+		view             devicepb.DeviceView
+		wantDevices      []*devicepb.Device
 		wantTrimmedPages bool
 	}{
 		{
-			name: "default page size",
+			name:        "default page size",
+			view:        devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
+			wantDevices: fullDevs,
 		},
 		{
-			name:     "page size 1",
-			pageSize: 1,
+			name:        "page size 1",
+			pageSize:    1,
+			view:        devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
+			wantDevices: fullDevs,
 		},
 		{
-			name:     "page size odd",
-			pageSize: 2,
+			name:        "page size odd",
+			pageSize:    2,
+			view:        devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
+			wantDevices: fullDevs,
 		},
 		{
-			name:     "page size even",
-			pageSize: 3,
+			name:        "page size even",
+			pageSize:    3,
+			view:        devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
+			wantDevices: fullDevs,
 		},
 		{
-			name:     "empty last page",
-			pageSize: len(allDevs),
+			name:        "empty last page",
+			pageSize:    len(fullDevs),
+			view:        devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
+			wantDevices: fullDevs,
 		},
 		{
-			name:     "all results in first page",
-			pageSize: len(allDevs) + 1,
+			name:        "all results in first page",
+			pageSize:    len(fullDevs) + 1,
+			view:        devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
+			wantDevices: fullDevs,
 		},
 		{
 			name:             "large page sizes get trimmed",
 			pageSize:         100_000,
+			view:             devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
+			wantDevices:      fullDevs,
 			wantTrimmedPages: true,
 		},
 		{
-			name:     "negative page size ignored",
-			pageSize: -1,
+			name:        "negative page size ignored",
+			pageSize:    -1,
+			view:        devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
+			wantDevices: fullDevs,
+		},
+		{
+			name:        "list view",
+			view:        devicepb.DeviceView_DEVICE_VIEW_LIST,
+			wantDevices: listDevs,
 		},
 	}
 	for _, test := range tests {
@@ -444,7 +484,7 @@ func TestS_ListDevices(t *testing.T) {
 			var pageToken string
 			var got []*devicepb.Device
 			for {
-				devs, nextPageToken, err := s.ListDevices(ctx, test.pageSize, pageToken)
+				devs, nextPageToken, err := s.ListDevices(ctx, test.pageSize, pageToken, test.view)
 				if err != nil {
 					t.Fatalf("ListDevices failed: %v", err)
 				}
@@ -459,7 +499,7 @@ func TestS_ListDevices(t *testing.T) {
 				pageToken = nextPageToken
 			}
 
-			want := allDevs
+			want := test.wantDevices
 			sort.Slice(got, func(i, j int) bool { return got[i].Id < got[j].Id })
 			sort.Slice(want, func(i, j int) bool { return want[i].Id < want[j].Id })
 
@@ -477,8 +517,32 @@ func TestS_ListDevices_errors(t *testing.T) {
 	s := env.S
 	ctx := context.Background()
 
-	if _, _, err := s.ListDevices(ctx, 0 /* pageSize */, "badpagetoken" /* pageToken */); !trace.IsBadParameter(err) {
-		t.Errorf("ListDevices returned an unexpected error: %v", err)
+	tests := []struct {
+		name      string
+		pageToken string
+		view      devicepb.DeviceView
+		wantErr   string
+	}{
+		{
+			name:      "pageToken invalid",
+			pageToken: "abadpagetoken",
+			view:      devicepb.DeviceView_DEVICE_VIEW_LIST,
+			wantErr:   "page token",
+		},
+		{
+			name:    "view invalid",
+			view:    devicepb.DeviceView_DEVICE_VIEW_UNSPECIFIED,
+			wantErr: "view required",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, _, err := s.ListDevices(ctx, 0 /* pageSize */, test.pageToken, test.view)
+			if !trace.IsBadParameter(err) {
+				t.Fatalf("ListDevices returned an unexpected error: %v", err)
+			}
+			assert.ErrorContains(t, err, test.wantErr, "ListDevices error mismatch")
+		})
 	}
 }
 
