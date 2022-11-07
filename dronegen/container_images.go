@@ -34,7 +34,7 @@ func buildContainerImagePipelines() []pipeline {
 	}
 
 	if configureForPRTestingOnly {
-		triggers = append(triggers, NewTestTrigger(prBranch, branchMajorVersion))
+		// triggers = append(triggers, NewTestTrigger(prBranch, branchMajorVersion))
 	}
 
 	pipelines := make([]pipeline, 0, len(triggers))

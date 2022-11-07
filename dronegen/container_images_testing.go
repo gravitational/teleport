@@ -70,16 +70,16 @@ const (
 	StagingEcrRegion      string = "us-west-2"
 )
 
-func NewTestTrigger(triggerBranch, testMajorVersion string) *TriggerInfo {
-	// baseTrigger := NewTagTrigger(testMajorVersion)
-	// baseTrigger := NewPromoteTrigger(testMajorVersion)
-	baseTrigger := NewCronTrigger([]string{testMajorVersion})
-	baseTrigger.Name = "Test trigger on push"
-	baseTrigger.Trigger = trigger{
-		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
-		Event:  triggerRef{Include: []string{"push"}},
-		Branch: triggerRef{Include: []string{triggerBranch}},
-	}
+// func NewTestTrigger(triggerBranch, testMajorVersion string) *TriggerInfo {
+// 	// baseTrigger := NewTagTrigger(testMajorVersion)
+// 	// baseTrigger := NewPromoteTrigger(testMajorVersion)
+// 	// baseTrigger := NewCronTrigger([]string{testMajorVersion})
+// 	baseTrigger.Name = "Test trigger on push"
+// 	baseTrigger.Trigger = trigger{
+// 		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
+// 		Event:  triggerRef{Include: []string{"push"}},
+// 		Branch: triggerRef{Include: []string{triggerBranch}},
+// 	}
 
-	return baseTrigger
-}
+// 	return baseTrigger
+// }
