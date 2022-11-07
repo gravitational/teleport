@@ -135,6 +135,7 @@ func run() error {
 		}
 	}
 
+	args.skipUnshallow = true
 	if !args.skipUnshallow {
 		unshallowCtx, unshallowCancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer unshallowCancel()
