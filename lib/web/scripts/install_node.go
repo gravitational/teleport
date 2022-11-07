@@ -19,6 +19,7 @@ package scripts
 import (
 	_ "embed"
 	"net/http"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -62,7 +63,16 @@ func MarshalLabelsYAML(resourceMatcherLabels types.Labels) ([]string, error) {
 
 	ret := []string{}
 
-	for labelName, labelValue := range resourceMatcherLabels {
+	// Consistently iterate over fields
+	labelKeys := make([]string, 0, len(resourceMatcherLabels))
+	for k := range resourceMatcherLabels {
+		labelKeys = append(labelKeys, k)
+	}
+
+	sort.Strings(labelKeys)
+
+	for _, labelName := range labelKeys {
+		labelValue := resourceMatcherLabels[labelName]
 		bs, err := yaml.Marshal(map[string]utils.Strings{labelName: labelValue})
 		if err != nil {
 			return nil, trace.Wrap(err)
