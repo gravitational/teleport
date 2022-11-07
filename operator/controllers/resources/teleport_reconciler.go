@@ -18,6 +18,7 @@ package resources
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/gravitational/trace"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -40,7 +41,6 @@ type TeleportKubernetesResource[T types.Resource] interface {
 type TeleportResourceReconciler[T types.ResourceWithOrigin, K TeleportKubernetesResource[T]] struct {
 	ResourceBaseReconciler
 	resourceClient TeleportResourceClient[T]
-	kubeResource   K
 }
 
 // TeleportResourceClient is a CRUD client for a specific Teleport resource.
@@ -56,13 +56,11 @@ type TeleportResourceClient[T types.Resource] interface {
 // NewTeleportResourceReconciler instanciates a TeleportResourceReconciler from a TeleportResourceClient.
 func NewTeleportResourceReconciler[T types.ResourceWithOrigin, K TeleportKubernetesResource[T]](
 	client kclient.Client,
-	resourceClient TeleportResourceClient[T],
-	kubeResource K) *TeleportResourceReconciler[T, K] {
+	resourceClient TeleportResourceClient[T]) *TeleportResourceReconciler[T, K] {
 
 	reconciler := &TeleportResourceReconciler[T, K]{
 		ResourceBaseReconciler: ResourceBaseReconciler{Client: client},
 		resourceClient:         resourceClient,
-		kubeResource:           kubeResource,
 	}
 	reconciler.ResourceBaseReconciler.UpsertExternal = reconciler.Upsert
 	reconciler.ResourceBaseReconciler.DeleteExternal = reconciler.Delete
@@ -122,10 +120,39 @@ func (r TeleportResourceReconciler[T, K]) Delete(ctx context.Context, obj kclien
 
 // Reconcile allows the TeleportResourceReconciler to implement the reconcile.Reconciler interface
 func (r TeleportResourceReconciler[T, K]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	return r.Do(ctx, req, r.kubeResource)
+	kubeResource, err := newKubeResource[T, K]()
+	if err != nil {
+		return ctrl.Result{}, trace.Wrap(err)
+	}
+	return r.Do(ctx, req, kubeResource)
 }
 
 // SetupWithManager have a controllerruntime.Manager run the TeleportResourceReconciler
 func (r TeleportResourceReconciler[T, K]) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).For(r.kubeResource).Complete(r)
+	kubeResource, err := newKubeResource[T, K]()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return ctrl.NewControllerManagedBy(mgr).For(kubeResource).Complete(r)
+}
+
+// newKubeResource creates a new TeleportKubernetesResource
+// the function only supports structs or pointer to struct implementations of the TeleportKubernetesResource interface
+func newKubeResource[T types.ResourceWithOrigin, K TeleportKubernetesResource[T]]() (K, error) {
+	// We create a new instance of K.
+	var resource K
+	// We take the type of K
+	interfaceType := reflect.TypeOf(resource)
+	// If K is not a pointer we don't need to do anything
+	// If K is a pointer, new(K) is only initializing a nil pointer, we need to manually initialize its destination
+	if interfaceType.Kind() == reflect.Ptr {
+		if interfaceType.Elem().Kind() != reflect.Struct {
+			return resource, trace.BadParameter("newKubeResource only supports structs or single pointer interface implementations")
+		}
+		// We create a new Value of the type pointed by K. reflect.New returns a pointer to this value
+		initializedResource := reflect.New(interfaceType.Elem())
+		// We cast back to K
+		resource = initializedResource.Interface().(K)
+	}
+	return resource, nil
 }

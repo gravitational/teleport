@@ -27,61 +27,61 @@ import (
 	"github.com/gravitational/teleport/operator/sidecar"
 )
 
-// GithubConnectorClient implements TeleportResourceClient and offers CRUD methods needed to reconcile github_connectors
-type GithubConnectorClient struct {
+// githubConnectorClient implements TeleportResourceClient and offers CRUD methods needed to reconcile github_connectors
+type githubConnectorClient struct {
 	TeleportClientAccessor sidecar.ClientAccessor
 }
 
 // Get the Teleport github_connector of a given name
-func (r GithubConnectorClient) Get(ctx context.Context, name string) (types.GithubConnector, error) {
+func (r githubConnectorClient) Get(ctx context.Context, name string) (types.GithubConnector, error) {
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return teleportClient.GetGithubConnector(ctx, name, false /* with secrets*/)
+	github, err := teleportClient.GetGithubConnector(ctx, name, false /* with secrets*/)
+	return github, trace.Wrap(err)
 }
 
 // Create a Teleport github_connector
-func (r GithubConnectorClient) Create(ctx context.Context, github types.GithubConnector) error {
+func (r githubConnectorClient) Create(ctx context.Context, github types.GithubConnector) error {
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return teleportClient.UpsertGithubConnector(ctx, github)
+	return trace.Wrap(teleportClient.UpsertGithubConnector(ctx, github))
 }
 
 // Update a Teleport github_connector
-func (r GithubConnectorClient) Update(ctx context.Context, github types.GithubConnector) error {
+func (r githubConnectorClient) Update(ctx context.Context, github types.GithubConnector) error {
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return teleportClient.UpsertGithubConnector(ctx, github)
+	return trace.Wrap(teleportClient.UpsertGithubConnector(ctx, github))
 }
 
 // Delete a Teleport github_connector
-func (r GithubConnectorClient) Delete(ctx context.Context, name string) error {
+func (r githubConnectorClient) Delete(ctx context.Context, name string) error {
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return teleportClient.DeleteGithubConnector(ctx, name)
+	return trace.Wrap(teleportClient.DeleteGithubConnector(ctx, name))
 }
 
 // NewGithubConnectorReconciler instantiates a new Kubernetes controller reconciling github_connector resources
 func NewGithubConnectorReconciler(client kclient.Client, accessor sidecar.ClientAccessor) *TeleportResourceReconciler[types.GithubConnector, *resourcesv3.TeleportGithubConnector] {
-	githubClient := &GithubConnectorClient{
+	githubClient := &githubConnectorClient{
 		TeleportClientAccessor: accessor,
 	}
 
 	resourceReconciler := NewTeleportResourceReconciler[types.GithubConnector, *resourcesv3.TeleportGithubConnector](
 		client,
 		githubClient,
-		&resourcesv3.TeleportGithubConnector{},
 	)
 
 	return resourceReconciler
