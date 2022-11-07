@@ -1164,7 +1164,6 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	nodeCfg := makeNodeConfig("node1", rcProxyAddr)
 	nodeCfg.Log = log
 
-	require.Zero(t, ph.Count())
 	timeout := time.Second * 60
 	startErrC := make(chan error)
 	// start the node but don't block waiting for it while it attempts to connect to the auth server.
