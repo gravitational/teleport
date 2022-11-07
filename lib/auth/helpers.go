@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -287,10 +288,22 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	authPreference, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+	authPreferenceSpec := types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOff,
-	})
+	}
+
+	if modules.GetModules().Features().Cloud {
+		authPreferenceSpec = types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOn,
+			Webauthn: &types.Webauthn{
+				RPID: "127.0.0.1",
+			},
+		}
+	}
+
+	authPreference, err := types.NewAuthPreferenceFromConfigFile(authPreferenceSpec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
