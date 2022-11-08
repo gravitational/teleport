@@ -23,6 +23,7 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"context"
+	"crypto"
 	"crypto/tls"
 	"encoding/base32"
 	"encoding/base64"
@@ -64,6 +65,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -1686,6 +1688,58 @@ func TestPlayback(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 }
 
+type httpErrorMessage struct {
+	Message string `json:"message"`
+}
+
+type httpErrorResponse struct {
+	Error httpErrorMessage `json:"error"`
+}
+
+func TestLogin_PrivateKeyEnabledError(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		MockAttestHardwareKey: func(_ context.Context, _ interface{}, policy keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
+			return "", keys.NewPrivateKeyPolicyError(policy)
+		},
+	})
+	s := newWebSuite(t)
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:           constants.Local,
+		SecondFactor:   constants.SecondFactorOff,
+		RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+	})
+	require.NoError(t, err)
+	err = s.server.Auth().SetAuthPreference(s.ctx, ap)
+	require.NoError(t, err)
+
+	// create user
+	s.createUser(t, "user1", "root", "password", "")
+
+	loginReq, err := json.Marshal(CreateSessionReq{
+		User: "user1",
+		Pass: "password",
+	})
+	require.NoError(t, err)
+
+	clt := s.client()
+	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(loginReq))
+	require.NoError(t, err)
+	ua := "test-ua"
+	req.Header.Set("User-Agent", ua)
+	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
+	addCSRFCookieToReq(req, csrfToken)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(csrf.HeaderName, csrfToken)
+
+	re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
+		return clt.Client.HTTPClient().Do(req)
+	})
+	require.NoError(t, err)
+	var resErr httpErrorResponse
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resErr))
+	require.Contains(t, resErr.Error.Message, keys.PrivateKeyPolicyHardwareKeyTouch)
+}
+
 func TestLogin(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
@@ -2126,7 +2180,7 @@ func TestSearchClusterEvents(t *testing.T) {
 				require.Equal(t, tc.Result[i].GetID(), resultEvent.GetID())
 			}
 
-			// Session prints do not have ID's, only sessionStart and sessionEnd.
+			// Session prints do not have IDs, only sessionStart and sessionEnd.
 			// When retrieving events for sessionStart and sessionEnd, sessionStart is returned first.
 			if tc.TestStartKey {
 				require.Equal(t, tc.StartKeyValue, result.StartKey)
@@ -2960,6 +3014,7 @@ func TestGetWebConfig(t *testing.T) {
 			AuthType:           constants.Local,
 			PreferredLocalMFA:  constants.SecondFactorWebauthn,
 			LocalConnectorName: constants.PasswordlessConnector,
+			PrivateKeyPolicy:   keys.PrivateKeyPolicyNone,
 		},
 		CanJoinSessions:  true,
 		ProxyClusterName: env.server.ClusterName(),
@@ -3708,6 +3763,7 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Nil(t, re.Recovery)
+	require.False(t, re.PrivateKeyPolicyEnabled)
 
 	// Create a user that is valid for recovery.
 	teleUser, err = types.NewUser("valid-username@example.com")
@@ -3738,6 +3794,82 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, re.Recovery.Codes, 3)
 	require.NotEmpty(t, re.Recovery.Created)
+	require.False(t, re.PrivateKeyPolicyEnabled)
+}
+
+// TestChangeUserAuthentication_WithPrivacyPolicyEnabledError tests
+// that when there is a privacy policy enabled error, we still get
+// a non error response with recovery codes and a privacy policy
+// flag set to true.
+func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
+	env := newWebPack(t, 1)
+	ctx := context.Background()
+
+	// Enable second factor required by cloud and a privacy policy.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:           constants.Local,
+		SecondFactor:   constants.SecondFactorOTP,
+		RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Enable cloud feature.
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+		MockAttestHardwareKey: func(_ context.Context, _ interface{}, policy keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
+			return "", keys.NewPrivateKeyPolicyError(policy)
+		},
+	})
+
+	// Create a user that is valid for recovery.
+	teleUser, err := types.NewUser("valid-username@example.com")
+	require.NoError(t, err)
+	require.NoError(t, env.server.Auth().CreateUser(ctx, teleUser))
+
+	// Create a reset password token and secrets.
+	resetToken, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+		Name: "valid-username@example.com",
+	})
+	require.NoError(t, err)
+	res, err := env.server.Auth().CreateRegisterChallenge(ctx, &authproto.CreateRegisterChallengeRequest{
+		TokenID:    resetToken.GetName(),
+		DeviceType: authproto.DeviceType_DEVICE_TYPE_TOTP,
+	})
+	require.NoError(t, err)
+	totpCode, err := totp.GenerateCode(res.GetTOTP().GetSecret(), env.clock.Now())
+	require.NoError(t, err)
+
+	// Craft http request data.
+	clt := env.proxies[0].newClient(t)
+	req := changeUserAuthenticationRequest{
+		SecondFactorToken: totpCode,
+		Password:          []byte("abc123"),
+		TokenID:           resetToken.GetName(),
+	}
+	httpReqData, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	// CSRF protected endpoint.
+	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
+	httpReq, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(httpReqData))
+	require.NoError(t, err)
+	addCSRFCookieToReq(httpReq, csrfToken)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set(csrf.HeaderName, csrfToken)
+	httpRes, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
+		return clt.HTTPClient().Do(httpReq)
+	}))
+	require.NoError(t, err)
+
+	var apiRes ui.ChangedUserAuthn
+	require.NoError(t, json.Unmarshal(httpRes.Bytes(), &apiRes))
+	require.Len(t, apiRes.Recovery.Codes, 3)
+	require.NotEmpty(t, apiRes.Recovery.Created)
+	require.True(t, apiRes.PrivateKeyPolicyEnabled)
 }
 
 func TestParseSSORequestParams(t *testing.T) {
