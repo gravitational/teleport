@@ -40,9 +40,8 @@ const (
 	// to allow in a single sharedDirectoryAuditCacheEntry.
 	//
 	// It's not a precise value, just one that should give us
-	// substantial wiggle room under normal operating conditions,
-	// but will thwart a hostile client attempting a memory DOS attack.
-	// https://github.com/gravitational/teleport/pull/17410#discussion_r997691681
+	// prevent the cache from growing too large due to a
+	// misbehaving client.
 	entryMaxItems = 2000
 )
 
