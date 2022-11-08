@@ -678,6 +678,15 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 	}
 }
 
+// fillEntry is a helper function that fills an entry's readRequestCache up with entryMaxItems.
+func fillEntry(entry *sharedDirectoryAuditCacheEntry, did directoryID) {
+	for i := 0; i < entryMaxItems; i++ {
+		entry.readRequestCache[completionID(i)] = readRequestInfo{
+			directoryID: directoryID(did),
+		}
+	}
+}
+
 // TestDesktopSharedDirectoryStartEventAuditCacheMax tests that a
 // failed DesktopSharedDirectoryStart is emitted and the tdpConn is
 // closed when we receive a SharedDirectoryAnnounce whose corresponding
@@ -697,7 +706,7 @@ func TestDesktopSharedDirectoryStartEventAuditCacheMax(t *testing.T) {
 
 	// Set the audit cache entry to the maximum allowable size
 	entry := newSharedDirectoryAuditCacheEntry()
-	entry.totalItems = entryMaxItems
+	fillEntry(entry, directoryID(did))
 	s.auditCache.m[sessionID(sid)] = entry
 
 	// Send a SharedDirectoryAnnounce
@@ -781,7 +790,7 @@ func TestDesktopSharedDirectoryReadEventAuditCacheMax(t *testing.T) {
 	// Set the audit cache entry to the maximum allowable size
 	entry, ok := s.auditCache.m[sessionID(sid)]
 	require.True(t, ok)
-	entry.totalItems = entryMaxItems
+	fillEntry(entry, directoryID(did))
 
 	// SharedDirectoryReadRequest should cause a failed audit event.
 	req := tdp.SharedDirectoryReadRequest{
@@ -872,7 +881,7 @@ func TestDesktopSharedDirectoryWriteEventAuditCacheMax(t *testing.T) {
 	// Set the audit cache entry to the maximum allowable size
 	entry, ok := s.auditCache.m[sessionID(sid)]
 	require.True(t, ok)
-	entry.totalItems = entryMaxItems
+	fillEntry(entry, directoryID(did))
 
 	// SharedDirectoryWriteRequest should cause a failed audit event.
 	req := tdp.SharedDirectoryWriteRequest{

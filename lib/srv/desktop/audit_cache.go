@@ -49,10 +49,6 @@ type sharedDirectoryAuditCacheEntry struct {
 	nameCache         map[directoryID]directoryName
 	readRequestCache  map[completionID]readRequestInfo
 	writeRequestCache map[completionID]writeRequestInfo
-	// totalItems tracks the total number of items held in
-	// the entry between the nameCache, readRequestCache, and
-	// writeRequestCache.
-	totalItems uint32
 }
 
 func newSharedDirectoryAuditCacheEntry() *sharedDirectoryAuditCacheEntry {
@@ -60,8 +56,12 @@ func newSharedDirectoryAuditCacheEntry() *sharedDirectoryAuditCacheEntry {
 		nameCache:         make(map[directoryID]directoryName),
 		readRequestCache:  make(map[completionID]readRequestInfo),
 		writeRequestCache: make(map[completionID]writeRequestInfo),
-		totalItems:        0,
 	}
+}
+
+// totalItems returns the total numbewr of items held in the entry.
+func (e *sharedDirectoryAuditCacheEntry) totalItems() int {
+	return len(e.nameCache) + len(e.readRequestCache) + len(e.writeRequestCache)
 }
 
 // sharedDirectoryAuditCache is a data structure for caching information
@@ -105,12 +105,11 @@ func (c *sharedDirectoryAuditCache) SetName(sid sessionID, did directoryID, name
 	defer c.Unlock()
 
 	entry := c.getInitialized(sid)
-	if entry.totalItems >= entryMaxItems {
+	if entry.totalItems() >= entryMaxItems {
 		return trace.LimitExceeded("audit cache for sessionID(%v) exceeded maximum size", sid)
 	}
 
 	entry.nameCache[did] = name
-	entry.totalItems++
 
 	return nil
 }
@@ -122,12 +121,11 @@ func (c *sharedDirectoryAuditCache) SetReadRequestInfo(sid sessionID, cid comple
 	defer c.Unlock()
 
 	entry := c.getInitialized(sid)
-	if entry.totalItems >= entryMaxItems {
+	if entry.totalItems() >= entryMaxItems {
 		return trace.LimitExceeded("audit cache for sessionID(%v) exceeded maximum size", sid)
 	}
 
 	entry.readRequestCache[cid] = info
-	entry.totalItems++
 
 	return nil
 }
@@ -139,12 +137,11 @@ func (c *sharedDirectoryAuditCache) SetWriteRequestInfo(sid sessionID, cid compl
 	defer c.Unlock()
 
 	entry := c.getInitialized(sid)
-	if entry.totalItems >= entryMaxItems {
+	if entry.totalItems() >= entryMaxItems {
 		return trace.LimitExceeded("audit cache for sessionID(%v) exceeded maximum size", sid)
 	}
 
 	entry.writeRequestCache[cid] = info
-	entry.totalItems++
 
 	return nil
 }
@@ -176,7 +173,6 @@ func (c *sharedDirectoryAuditCache) TakeReadRequestInfo(sid sessionID, cid compl
 	info, ok = entry.readRequestCache[cid]
 	if ok {
 		delete(entry.readRequestCache, cid)
-		entry.totalItems--
 	}
 	return
 }
@@ -195,7 +191,6 @@ func (c *sharedDirectoryAuditCache) TakeWriteRequestInfo(sid sessionID, cid comp
 	info, ok = entry.writeRequestCache[cid]
 	if ok {
 		delete(entry.writeRequestCache, cid)
-		entry.totalItems--
 	}
 	return
 }
