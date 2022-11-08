@@ -663,16 +663,24 @@ trigger:
     include:
     - master
     - branch/*
+    - tcsc/branch/v11/*
 workspace:
   path: C:/Drone/Workspace/push-build-native-windows-amd64
 platform:
   os: windows
   arch: amd64
+node:
+  teleport: 11
 clone:
   disable: true
 concurrency:
   limit: 1
 steps:
+- name: Platform debug
+  commands:
+   - Get-Content -Path "C:\Drone\drone-runner-exec\config" | Select-String "DRONE_RUNNER_LABELS"
+   - Get-ChildItem -Path "C:\Program Files"
+   - Get-ChildItem -Path "C:\Program Files (x86)"
 - name: Check out Teleport
   commands:
   - $ErrorActionPreference = 'Stop'
@@ -8727,6 +8735,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: d0e98f5907a1a92305ba8b153c06302a08320859cfabd783095fe795ce7577c0
+hmac: 3dadb155f3d783c215f5eaf7c2e1dc4653fbe42604dd215e953011f7e5436d29
 
 ...
