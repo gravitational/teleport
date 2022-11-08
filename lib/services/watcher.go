@@ -391,10 +391,7 @@ func (p *proxyCollector) getResourcesAndUpdateCurrent(ctx context.Context) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(proxies) == 0 {
-		// At least one proxy ought to exist.
-		return trace.NotFound("empty proxy list")
-	}
+
 	newCurrent := make(map[string]types.Server, len(proxies))
 	for _, proxy := range proxies {
 		newCurrent[proxy.GetName()] = proxy

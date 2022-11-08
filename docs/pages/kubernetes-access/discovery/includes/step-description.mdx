@@ -1,0 +1,15 @@
+The discovery process requires two separate Teleport components. The first, the Discovery Service, is 
+responsible for watching the cloud provider and checking if there are any 
+new clusters or if there have been any modifications to previously discovered clusters. 
+The second, the Kubernetes Service, monitors the clusters created by the Discovery Service and 
+is responsible for authenticating and forwarding requests into them.
+
+<Notice type="tip">
+
+This guide presents the Discovery and Kubernetes services running in 
+the same process, however both can run independently and on different machines.
+Running the processes independently is beneficial if access 
+to different clusters requires Kubernetes Service to be on the same network as 
+the cluster.
+
+</Notice>
