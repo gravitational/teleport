@@ -21,6 +21,7 @@ RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -y --no-install-recommends apt-utils ca-certificates curl && \
     apt-get install -q -y --no-install-recommends \
+        cmake \
         clang-10 \
         clang-format-10 \
         gcc \
@@ -30,8 +31,10 @@ RUN apt-get update -y --fix-missing && \
         libelf-dev \
         libpam-dev \
         libsqlite3-0 \
+        libunwind-dev \
         llvm-10 \
         locales \
+        ninja-build \
         make \
         net-tools \
         openssh-client \
@@ -77,6 +80,48 @@ RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
 RUN make -C /opt/pam_teleport install
+
+# Install Rust
+ARG RUST_VERSION
+ENV RUSTUP_HOME=/usr/local/rustup \
+     CARGO_HOME=/usr/local/cargo \
+     PATH=/usr/local/cargo/bin:$PATH \
+     RUST_VERSION=$RUST_VERSION
+
+RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
+    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+
+# Install Rust using the ci user, as that is the user that
+# will run builds using the Rust toolchains we install here.
+# Cross-compilation targets are only installed on amd64, as
+# this image doesn't contain gcc-multilib.
+USER ci
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+    rustup --version && \
+    cargo --version && \
+    rustc --version && \
+    rustup component add rustfmt clippy && \
+    if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu; fi
+
+ARG LLVM_VERSION=7.0.1
+RUN mkdir -p /opt && cd /opt && curl -L https://releases.llvm.org/7.0.1/clang+llvm-$LLVM_VERSION-x86_64-linux-gnu-ubuntu-18.04.tar.xz | tar xJ 
+ENV PATH="$PATH:/opt/clang+llvm-$LLVM_VERSION-x86_64-linux-gnu-ubuntu-18.04/bin"
+
+# Build FIPS certified BoringSSL library
+# https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/3678
+ARG BORINGSSL_VERSION=ae223d6138807a13006342edfeef32e813246b39
+RUN mkdir -p /opt && cd /opt && \
+    git clone https://github.com/google/boringssl.git && \
+    cd boringssl && \
+    git checkout $BORINGSSL_VERSION && \
+    mkdir build && \
+    cd build && \
+    cmake -DCMAKE_C_COMPILER=clang -DFIPS=1 -DCMAKE_BUILD_TYPE=Release -GNinja .. && \
+    ninja
+
+# https://github.com/cloudflare/boring#support-for-pre-built-binaries
+ENV BORING_BSSL_PATH=/opt/boringssl
+
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380
