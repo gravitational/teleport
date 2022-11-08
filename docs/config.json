@@ -739,6 +739,10 @@
               "slug": "/database-access/guides/dynamodb/"
             },
             {
+              "title": "AWS Keyspaces (Apache Cassandra)",
+              "slug": "/database-access/guides/aws-cassandra-keyspaces/"
+            },
+            {
               "title": "GCP Cloud SQL PostgreSQL",
               "slug": "/database-access/guides/postgres-cloudsql/"
             },
@@ -797,6 +801,10 @@
             {
               "title": "Snowflake (Preview)",
               "slug": "/database-access/guides/snowflake/"
+            },
+            {
+              "title": "Self-Hosted Cassandra & ScyllaDB",
+              "slug": "/database-access/guides/cassandra-self-hosted/"
             },
             {
               "title": "Dynamic Registration",
@@ -961,6 +969,10 @@
             {
               "title": "Applications",
               "slug": "/machine-id/guides/applications/"
+            },
+            {
+              "title": "Host Certificates",
+              "slug": "/machine-id/guides/host-certificate/"
             }
           ]
         }
