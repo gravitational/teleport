@@ -47,6 +47,13 @@ type connKey struct {
 
 // remoteConn holds a connection to a remote host, either node or proxy.
 type remoteConn struct {
+	// lastHeartbeat is the last time a heartbeat was received.
+	// intentionally placed first to ensure 64-bit alignment
+	lastHeartbeat int64
+
+	// sessions counts the number of active sessions being serviced by this connection
+	sessions int64
+
 	*connConfig
 	mu  sync.Mutex
 	log *logrus.Entry
@@ -70,9 +77,6 @@ type remoteConn struct {
 
 	// clock is used to control time in tests.
 	clock clockwork.Clock
-
-	// lastHeartbeat is the last time a heartbeat was received.
-	lastHeartbeat int64
 }
 
 // connConfig is the configuration for the remoteConn.
@@ -124,19 +128,21 @@ func (c *remoteConn) Close() error {
 		return nil
 	}
 
+	var errs []error
 	// Close the discovery channel.
 	if c.discoveryCh != nil {
-		c.discoveryCh.Close()
+		errs = append(errs, c.discoveryCh.Close())
 		c.discoveryCh = nil
 	}
 
 	// Close the SSH connection which will close the underlying net.Conn as well.
 	err := c.sconn.Close()
 	if err != nil {
-		return trace.Wrap(err)
+		errs = append(errs, err)
 	}
 
-	return nil
+	return trace.NewAggregate(errs...)
+
 }
 
 // OpenChannel will open a SSH channel to the remote side.
@@ -154,13 +160,33 @@ func (c *remoteConn) ChannelConn(channel ssh.Channel) net.Conn {
 	return sshutils.NewChConn(c.sconn, channel)
 }
 
+func (c *remoteConn) incrementActiveSessions() {
+	atomic.AddInt64(&c.sessions, 1)
+}
+
+func (c *remoteConn) decrementActiveSessions() {
+	atomic.AddInt64(&c.sessions, -1)
+}
+
+func (c *remoteConn) activeSessions() int64 {
+	return atomic.LoadInt64(&c.sessions)
+}
+
 func (c *remoteConn) markInvalid(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.lastError = err
 	atomic.StoreInt32(&c.invalid, 1)
-	c.log.Debugf("Disconnecting connection to %v %v: %v.", c.clusterName, c.conn.RemoteAddr(), err)
+	c.log.Warnf("Unhealthy connection to %v %v: %v.", c.clusterName, c.conn.RemoteAddr(), err)
+}
+
+func (c *remoteConn) markValid() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.lastError = nil
+	atomic.StoreInt32(&c.invalid, 0)
 }
 
 func (c *remoteConn) isInvalid() bool {
@@ -169,6 +195,15 @@ func (c *remoteConn) isInvalid() bool {
 
 func (c *remoteConn) setLastHeartbeat(tm time.Time) {
 	atomic.StoreInt64(&c.lastHeartbeat, tm.UnixNano())
+}
+
+func (c *remoteConn) getLastHeartbeat() time.Time {
+	hb := atomic.LoadInt64(&c.lastHeartbeat)
+	if hb == 0 {
+		return time.Time{}
+	}
+
+	return time.Unix(0, hb)
 }
 
 // isReady returns true when connection is ready to be tried,
