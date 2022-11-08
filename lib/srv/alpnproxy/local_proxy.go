@@ -251,7 +251,7 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 
 func (l *LocalProxy) GetCerts() []tls.Certificate {
 	l.certsMu.RLock()
-	defer l.certsMu.Unlock()
+	defer l.certsMu.RUnlock()
 	return l.cfg.Certs
 }
 
