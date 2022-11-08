@@ -1044,6 +1044,10 @@ type AppsConfig struct {
 
 	// ResourceMatchers match cluster database resources.
 	ResourceMatchers []services.ResourceMatcher
+
+	// MonitorCloseChannel will be signaled when a monitor closes a connection.
+	// Used only for testing. Optional.
+	MonitorCloseChannel chan struct{}
 }
 
 // App is the specific application that will be proxied by the application
