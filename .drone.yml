@@ -670,7 +670,7 @@ platform:
   os: windows
   arch: amd64
 node:
-  teleport: 11
+  teleport: 10
 clone:
   disable: true
 concurrency:
@@ -8735,6 +8735,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 3dadb155f3d783c215f5eaf7c2e1dc4653fbe42604dd215e953011f7e5436d29
+hmac: 84a6d07c26e7374628fcf97f1fb1b2f0887681642326f189ce766786d6afbdcf
 
 ...
