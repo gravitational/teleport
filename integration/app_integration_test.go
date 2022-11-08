@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
+	"github.com/jonboulle/clockwork"
 )
 
 // TestAppAccessForward tests that requests get forwarded to the target application
@@ -157,7 +158,13 @@ func TestAppAccessWebsockets(t *testing.T) {
 
 // TestWSSLock tests locks with WSS connections.
 func TestWSSLock(t *testing.T) {
-	pack := setup(t)
+	clock := clockwork.NewFakeClockAt(time.Now())
+	mCloseChannel := make(chan struct{})
+
+	pack := setupWithOptions(t, appTestOptions{
+		clock:               clock,
+		monitorCloseChannel: mCloseChannel,
+	})
 
 	msg := []byte(uuid.New().String())
 
@@ -199,15 +206,19 @@ func TestWSSLock(t *testing.T) {
 
 	// Lock the user and try to write
 	pack.lockUser(t)
-	require.Eventually(t, func() bool {
-		_, err := stream.Write(msg)
-		if err != nil {
-			return true
-		}
+	clock.Advance(10 * time.Second)
 
-		_, err = stream.Read(buf)
-		return err != nil
-	}, 5*time.Second, 100*time.Millisecond)
+	// Wait for the channel closure signal
+	select {
+	case <-mCloseChannel:
+	case <-time.After(time.Second * 10):
+		require.Fail(t, "timeout waiting for monitor channel signal")
+	}
+	_, err = stream.Write(msg)
+	require.NoError(t, err)
+
+	_, err = stream.Read(buf)
+	require.Error(t, err)
 	// Close and re-open the connection. We don't care about the error message here.
 	_ = conn.Close()
 
@@ -225,8 +236,12 @@ func TestWSSLock(t *testing.T) {
 
 // TestWSSCertExpiration tests WSS application with certs expiring.
 func TestWSSCertExpiration(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Now())
+	mCloseChannel := make(chan struct{})
+
 	pack := setupWithOptions(t, appTestOptions{
-		certificateTTL: 5 * time.Second,
+		clock:               clock,
+		monitorCloseChannel: mCloseChannel,
 	})
 
 	msg := []byte(uuid.New().String())
@@ -267,16 +282,21 @@ func TestWSSCertExpiration(t *testing.T) {
 	resp = strings.TrimSpace(string(buf[:n]))
 	require.Equal(t, pack.rootWSSTwoWayMessage, resp)
 
-	// Let the certificate expire
-	require.Eventually(t, func() bool {
-		_, err := stream.Write(msg)
-		if err != nil {
-			return true
-		}
+	// Let the cert expire. We'll choose 24 hours to make sure we go above
+	// any cert durations that could be chosen here.
+	clock.Advance(24 * time.Hour)
 
-		_, err = stream.Read(buf)
-		return err != nil
-	}, 10*time.Second, 100*time.Millisecond)
+	// Wait for the channel closure signal
+	select {
+	case <-mCloseChannel:
+	case <-time.After(time.Second * 10):
+		require.Fail(t, "timeout waiting for monitor channel signal")
+	}
+	_, err = stream.Write(msg)
+	require.NoError(t, err)
+
+	_, err = stream.Read(buf)
+	require.Error(t, err)
 	// Close and re-open the connection. We don't care about the error message here.
 	_ = conn.Close()
 
@@ -813,7 +833,7 @@ func TestAppServersHA(t *testing.T) {
 				}
 			},
 			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
-				return pack.startRootAppServers(t, count, []service.App{})
+				return pack.startRootAppServers(t, count, appTestOptions{})
 			},
 			waitForTunnelConn: func(t *testing.T, pack *pack, count int) {
 				waitForActiveTunnelConnections(t, pack.rootCluster.Tunnel, pack.rootCluster.Secrets.SiteName, count)
@@ -829,7 +849,7 @@ func TestAppServersHA(t *testing.T) {
 				}
 			},
 			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
-				return pack.startLeafAppServers(t, count, []service.App{})
+				return pack.startLeafAppServers(t, count, appTestOptions{})
 			},
 			waitForTunnelConn: func(t *testing.T, pack *pack, count int) {
 				waitForActiveTunnelConnections(t, pack.leafCluster.Tunnel, pack.leafCluster.Secrets.SiteName, count)
@@ -1054,9 +1074,10 @@ type appTestOptions struct {
 	userTraits          map[string][]string
 	rootClusterPorts    *InstancePorts
 	leafClusterPorts    *InstancePorts
-	certificateTTL      time.Duration
 	rootAppServersCount int
 	leafAppServersCount int
+	clock               clockwork.FakeClock
+	monitorCloseChannel chan struct{}
 
 	rootConfig          func(config *service.Config)
 	leafConfig          func(config *service.Config)
@@ -1233,6 +1254,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 
 	// Create a new Teleport instance with passed in configuration.
 	p.rootCluster = NewInstance(InstanceConfig{
+		Clock:       opts.clock,
 		ClusterName: "example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
@@ -1244,6 +1266,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 
 	// Create a new Teleport instance with passed in configuration.
 	p.leafCluster = NewInstance(InstanceConfig{
+		Clock:       opts.clock,
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
@@ -1268,6 +1291,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	if opts.rootConfig != nil {
 		opts.rootConfig(rcConf)
 	}
+	rcConf.Clock = opts.clock
 
 	lcConf := service.MakeDefaultConfig()
 	lcConf.Console = nil
@@ -1284,6 +1308,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	if opts.rootConfig != nil {
 		opts.rootConfig(lcConf)
 	}
+	lcConf.Clock = opts.clock
 
 	err = p.leafCluster.CreateEx(t, p.rootCluster.Secrets.AsSlice(), lcConf)
 	require.NoError(t, err)
@@ -1302,14 +1327,14 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	if opts.rootAppServersCount > 0 {
 		rootAppServersCount = opts.rootAppServersCount
 	}
-	p.rootAppServers = p.startRootAppServers(t, rootAppServersCount, opts.extraRootApps)
+	p.rootAppServers = p.startRootAppServers(t, rootAppServersCount, opts)
 
 	// At least one leafAppServer should start during the setup
 	leafAppServersCount := 1
 	if opts.leafAppServersCount > 0 {
 		leafAppServersCount = opts.leafAppServersCount
 	}
-	p.leafAppServers = p.startLeafAppServers(t, leafAppServersCount, opts.extraLeafApps)
+	p.leafAppServers = p.startLeafAppServers(t, leafAppServersCount, opts)
 
 	// Create user for tests.
 	p.initUser(t, opts)
@@ -1341,11 +1366,6 @@ func (p *pack) initUser(t *testing.T, opts appTestOptions) {
 		role.SetLogins(types.Allow, []string{p.username})
 	}
 
-	if opts.certificateTTL > 0 {
-		roleOptions := role.GetOptions()
-		roleOptions.MaxSessionTTL = types.NewDuration(opts.certificateTTL)
-		role.SetOptions(roleOptions)
-	}
 	err = p.rootCluster.Process.GetAuthServer().UpsertRole(context.Background(), role)
 	require.NoError(t, err)
 
@@ -1719,13 +1739,14 @@ func (p *pack) waitForLogout(appCookie string) (int, error) {
 	}
 }
 
-func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.App) []*service.TeleportProcess {
+func (p *pack) startRootAppServers(t *testing.T, count int, opts appTestOptions) []*service.TeleportProcess {
 	log := utils.NewLoggerForTests()
 
 	configs := make([]*service.Config, count)
 
 	for i := 0; i < count; i++ {
 		raConf := service.MakeDefaultConfig()
+		raConf.Clock = opts.clock
 		raConf.Console = nil
 		raConf.Log = log
 		raConf.DataDir = t.TempDir()
@@ -1740,6 +1761,7 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 		raConf.Proxy.Enabled = false
 		raConf.SSH.Enabled = false
 		raConf.Apps.Enabled = true
+		raConf.Apps.MonitorCloseChannel = opts.monitorCloseChannel
 		raConf.Apps.Apps = append([]service.App{
 			{
 				Name:       p.rootAppName,
@@ -1776,7 +1798,7 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 				URI:        p.flushAppURI,
 				PublicAddr: p.flushAppPublicAddr,
 			},
-		}, extraApps...)
+		}, opts.extraRootApps...)
 
 		configs[i] = raConf
 	}
@@ -1802,12 +1824,13 @@ func waitForAppServer(t *testing.T, tunnel reversetunnel.Server, name string, ho
 	waitForAppRegInRemoteSiteCache(t, tunnel, name, apps, hostUUID)
 }
 
-func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.App) []*service.TeleportProcess {
+func (p *pack) startLeafAppServers(t *testing.T, count int, opts appTestOptions) []*service.TeleportProcess {
 	log := utils.NewLoggerForTests()
 	configs := make([]*service.Config, count)
 
 	for i := 0; i < count; i++ {
 		laConf := service.MakeDefaultConfig()
+		laConf.Clock = opts.clock
 		laConf.Console = nil
 		laConf.Log = log
 		laConf.DataDir = t.TempDir()
@@ -1822,6 +1845,7 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 		laConf.Proxy.Enabled = false
 		laConf.SSH.Enabled = false
 		laConf.Apps.Enabled = true
+		laConf.Apps.MonitorCloseChannel = opts.monitorCloseChannel
 		laConf.Apps.Apps = append([]service.App{
 			{
 				Name:       p.leafAppName,
@@ -1838,7 +1862,7 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 				URI:        p.leafWSSAppURI,
 				PublicAddr: p.leafWSSPublicAddr,
 			},
-		}, extraApps...)
+		}, opts.extraLeafApps...)
 
 		configs[i] = laConf
 	}
