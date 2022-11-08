@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -38,27 +39,33 @@ const (
 )
 
 // createServerCredentials creates mTLS credentials for a gRPC server. The client cert file is read
-// only on an incoming connection, not upfront. Otherwise we'd need to wait for the client cert file
-// to exist before booting up the server.
+// only on an incoming connection, not upfront. The way Connect startup is set up guarantees that by
+// the time the client reaches out to us, its public key is saved to the file under clientCertPath.
 func createServerCredentials(serverKeyPair tls.Certificate, clientCertPath string) (grpc.ServerOption, error) {
 	config := &tls.Config{
-		GetConfigForClient: func(_ *tls.ClientHelloInfo) (*tls.Config, error) {
-			clientCert, err := os.ReadFile(clientCertPath)
-			if err != nil {
-				return nil, trace.Wrap(err, "failed to read the client cert file")
-			}
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		Certificates: []tls.Certificate{serverKeyPair},
+	}
 
-			certPool := x509.NewCertPool()
-			if !certPool.AppendCertsFromPEM(clientCert) {
-				return nil, trace.BadParameter("failed to add the client cert to the pool")
-			}
+	config.GetConfigForClient = func(_ *tls.ClientHelloInfo) (*tls.Config, error) {
+		clientCert, err := os.ReadFile(clientCertPath)
+		if err != nil {
+			log.WithError(err).Error("Failed to read the client cert file")
+			// Fall back to the default config.
+			return nil, nil
+		}
 
-			return &tls.Config{
-				ClientAuth:   tls.RequireAndVerifyClientCert,
-				Certificates: []tls.Certificate{serverKeyPair},
-				ClientCAs:    certPool,
-			}, nil
-		},
+		certPool := x509.NewCertPool()
+		if !certPool.AppendCertsFromPEM(clientCert) {
+			log.Error("Failed to add the client cert to the pool")
+			// Fall back to the default config.
+			return nil, nil
+		}
+
+		configClone := config.Clone()
+		configClone.ClientCAs = certPool
+
+		return configClone, nil
 	}
 
 	return grpc.Creds(credentials.NewTLS(config)), nil
