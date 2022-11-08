@@ -911,7 +911,7 @@ docker:
 # Dockerized build: useful for making Linux binaries on macOS
 .PHONY:docker-binaries
 docker-binaries: clean
-	make -C build.assets build-binaries
+	make -C build.assets build-binaries PIV=$(PIV)
 
 # Interactively enters a Docker container (which you can build and run Teleport inside of)
 .PHONY:enter
@@ -1028,7 +1028,7 @@ image: clean docker-binaries build-archive oss-deb
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
 	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE):$(VERSION)-$(ARCH) --target teleport \
 		--build-arg DEB_PATH="./teleport_$(VERSION)_$(ARCH).deb"
-	if [ -f e/Makefile ]; then $(MAKE) -C e image; fi
+	if [ -f e/Makefile ]; then $(MAKE) -C e image PIV=$(PIV); fi
 
 .PHONY: print-version
 print-version:

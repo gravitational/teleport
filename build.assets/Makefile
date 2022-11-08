@@ -87,33 +87,33 @@ export
 # Build 'teleport' release inside a docker container
 #
 .PHONY:build
-build: buildbox
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
-		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' release
+build: buildbox-centos7
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
+		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) release
 
 #
 # Build 'teleport' release inside a docker container
 #
 .PHONY:build-binaries
-build-binaries: buildbox
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
-		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' full
+build-binaries: buildbox-centos7
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
+		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) full
 
 #
 # Build 'teleport' Enterprise release inside a docker container
 #
 .PHONY:build-enterprise-binaries
-build-enterprise-binaries: buildbox
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
-		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) clean full
+build-enterprise-binaries: buildbox-centos7
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
+		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) PIV=$(PIV) clean full
 
 #
 # Build 'teleport' FIPS release inside a docker container
 # This builds Enterprise binaries only.
 #
 .PHONY:build-binaries-fips
-build-binaries-fips: buildbox-fips
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_FIPS) \
+build-binaries-fips: buildbox-centos7-fips
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
 		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) FIPS=yes clean full
 
 #
