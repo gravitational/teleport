@@ -95,7 +95,7 @@ func TestNewWithLocalPortStartsListenerOnNewPortIfPortIsFree(t *testing.T) {
 	tcpPortAllocator := gatewaytest.MockTCPPortAllocator{}
 	oldGateway := createAndServeGateway(t, &tcpPortAllocator)
 
-	newGateway, err := NewWithLocalPort(*oldGateway, "12345")
+	newGateway, err := NewWithLocalPort(oldGateway, "12345")
 	require.NoError(t, err)
 	require.Equal(t, "12345", newGateway.LocalPort())
 	require.Equal(t, oldGateway.URI(), newGateway.URI())
@@ -113,7 +113,7 @@ func TestNewWithLocalPortReturnsErrorIfNewPortIsOccupied(t *testing.T) {
 	tcpPortAllocator := gatewaytest.MockTCPPortAllocator{PortsInUse: []string{"12345"}}
 	gateway := createAndServeGateway(t, &tcpPortAllocator)
 
-	_, err := NewWithLocalPort(*gateway, "12345")
+	_, err := NewWithLocalPort(gateway, "12345")
 	require.ErrorContains(t, err, "address already in use")
 }
 
@@ -123,7 +123,7 @@ func TestNewWithLocalPortReturnsErrorIfNewPortEqualsOldPort(t *testing.T) {
 	port := gateway.LocalPort()
 	expectedErrMessage := fmt.Sprintf("port is already set to %s", port)
 
-	_, err := NewWithLocalPort(*gateway, port)
+	_, err := NewWithLocalPort(gateway, port)
 	require.True(t, trace.IsBadParameter(err), "Expected err to be a BadParameter error")
 	require.ErrorContains(t, err, expectedErrMessage)
 }

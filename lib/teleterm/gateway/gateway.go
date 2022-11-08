@@ -108,7 +108,7 @@ func New(cfg Config) (*Gateway, error) {
 
 // NewWithLocalPort initializes a copy of an existing gateway which has all config fields identical
 // to the existing gateway with the exception of the local port.
-func NewWithLocalPort(gateway Gateway, port string) (*Gateway, error) {
+func NewWithLocalPort(gateway *Gateway, port string) (*Gateway, error) {
 	if port == gateway.LocalPort() {
 		return nil, trace.BadParameter("port is already set to %s", port)
 	}
