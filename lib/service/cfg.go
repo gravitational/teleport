@@ -159,7 +159,7 @@ type Config struct {
 	Trust services.Trust
 
 	// Presence service is a discovery and hearbeat tracker
-	Presence services.Presence
+	Presence services.PresenceInternal
 
 	// Events is events service
 	Events types.Events

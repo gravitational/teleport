@@ -22,6 +22,7 @@ import (
 	"reflect"
 	"unicode"
 
+	"github.com/gravitational/teleport/api/utils/iter"
 	"github.com/gravitational/trace"
 	jsoniter "github.com/json-iterator/go"
 
@@ -79,6 +80,16 @@ var SafeConfig = jsoniter.Config{
 	SortMapKeys:                   true,
 }.Froze()
 
+// SafeConfigWithIndent is equivalent to SafeConfig except with indentation
+// enabled.
+var SafeConfigWithIndent = jsoniter.Config{
+	IndentionStep:                 2,
+	EscapeHTML:                    false,
+	MarshalFloatWith6Digits:       true, // will lose precision
+	ObjectFieldMustBeSimpleString: true, // do not unescape object field
+	SortMapKeys:                   true,
+}.Froze()
+
 // FastMarshal uses the json-iterator library for fast JSON marshaling.
 // Note, this function unmarshals floats with 6 digits precision.
 func FastMarshal(v interface{}) ([]byte, error) {
@@ -99,6 +110,29 @@ func FastMarshalIndent(v interface{}, prefix, indent string) ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// StremJSONArrayFromIter streams the contents of an iterator as a json array
+// with indentation (used to stream to CLI).
+func StreamJSONArrayFromIter[T any](items iter.Iter[T], out io.Writer, indent bool) error {
+	cfg := SafeConfig
+	if indent {
+		cfg = SafeConfigWithIndent
+	}
+	stream := jsoniter.NewStream(cfg, out, 512)
+	stream.WriteArrayStart()
+	var prev bool
+	for items.Next() {
+		if prev {
+			// if a previous item was written to the array, we need to
+			// write a comma first.
+			stream.WriteMore()
+		}
+		stream.WriteVal(items.Item())
+		prev = true
+	}
+	stream.WriteArrayEnd()
+	return trace.NewAggregate(items.Done(), stream.Flush())
 }
 
 const yamlDocDelimiter = "---"

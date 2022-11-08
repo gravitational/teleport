@@ -19,12 +19,17 @@ package common
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
+	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -38,7 +43,12 @@ type InventoryCommand struct {
 
 	getConnected bool
 
+	format string
+
+	controlLog bool
+
 	inventoryStatus *kingpin.CmdClause
+	inventoryList   *kingpin.CmdClause
 	inventoryPing   *kingpin.CmdClause
 }
 
@@ -50,8 +60,12 @@ func (c *InventoryCommand) Initialize(app *kingpin.Application, config *service.
 	c.inventoryStatus = inventory.Command("status", "Show inventory status summary")
 	c.inventoryStatus.Flag("connected", "Show locally connected instances summary").BoolVar(&c.getConnected)
 
+	c.inventoryList = inventory.Command("list", "List teleport instance inventory").Alias("ls")
+	c.inventoryList.Flag("format", "Output format, 'text' or 'json'").Default(teleport.Text).StringVar(&c.format)
+
 	c.inventoryPing = inventory.Command("ping", "Ping locally connected instance")
 	c.inventoryPing.Arg("server-id", "ID of target server").Required().StringVar(&c.serverID)
+	c.inventoryPing.Flag("control-log", "Use control log for ping").BoolVar(&c.controlLog)
 }
 
 // TryRun takes the CLI command as an argument (like "inventory status") and executes it.
@@ -59,6 +73,8 @@ func (c *InventoryCommand) TryRun(ctx context.Context, cmd string, client auth.C
 	switch cmd {
 	case c.inventoryStatus.FullCommand():
 		err = c.Status(ctx, client)
+	case c.inventoryList.FullCommand():
+		err = c.List(ctx, client)
 	case c.inventoryPing.FullCommand():
 		err = c.Ping(ctx, client)
 	default:
@@ -96,9 +112,46 @@ func (c *InventoryCommand) Status(ctx context.Context, client auth.ClientI) erro
 	return nil
 }
 
+func (c *InventoryCommand) List(ctx context.Context, client auth.ClientI) error {
+
+	instanceIter := client.GetInstances(ctx, types.InstanceFilter{})
+
+	switch c.format {
+
+	case teleport.Text:
+		table := asciitable.MakeTable([]string{"ServerID", "Hostname", "Services", "Version", "Status"})
+		now := time.Now()
+		for instanceIter.Next() {
+			instance := instanceIter.Item()
+			services := make([]string, 0, len(instance.GetServices()))
+			for _, s := range instance.GetServices() {
+				services = append(services, string(s))
+			}
+			status := fmt.Sprintf("%s ago", now.Sub(instance.GetLastSeen()).Round(time.Second))
+			table.AddRow([]string{instance.GetName(), instance.GetHostname(), strings.Join(services, ","), instance.GetTeleportVersion(), status})
+		}
+
+		if err := instanceIter.Done(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		fmt.Println(table.AsBuffer().String())
+		return nil
+	case teleport.JSON:
+		if err := utils.StreamJSONArrayFromIter(instanceIter, os.Stdout, true); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintf(os.Stdout, "\n")
+		return nil
+	default:
+		return trace.BadParameter("unknown format %q, must be one of [%q, %q]", c.format, teleport.Text, teleport.JSON)
+	}
+}
+
 func (c *InventoryCommand) Ping(ctx context.Context, client auth.ClientI) error {
 	rsp, err := client.PingInventory(ctx, proto.InventoryPingRequest{
-		ServerID: c.serverID,
+		ServerID:   c.serverID,
+		ControlLog: c.controlLog,
 	})
 	if err != nil {
 		return trace.Wrap(err)

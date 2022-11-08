@@ -21,11 +21,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/iter"
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
@@ -103,6 +105,25 @@ func IterateRange(ctx context.Context, bk Backend, startKey []byte, endKey []byt
 		}
 		startKey = nextKey(rslt.Items[limit-1].Key)
 	}
+}
+
+// IteratorOnRange constructs an iterator for the given key range.
+func IteratorOnRange(ctx context.Context, bk Backend, startKey, endKey []byte, pageSize int) iter.Iter[Item] {
+	return iter.PageFn[Item](func() ([]Item, error) {
+		if startKey == nil {
+			return nil, io.EOF
+		}
+		rslt, err := bk.GetRange(ctx, startKey, endKey, pageSize)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if len(rslt.Items) < pageSize {
+			startKey = nil
+		} else {
+			startKey = nextKey(rslt.Items[pageSize-1].Key)
+		}
+		return rslt.Items, nil
+	})
 }
 
 // Batch implements some batch methods

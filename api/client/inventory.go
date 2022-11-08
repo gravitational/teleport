@@ -22,6 +22,8 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/iter"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 )
@@ -218,6 +220,29 @@ func (c *Client) PingInventory(ctx context.Context, req proto.InventoryPingReque
 	}
 
 	return *rsp, nil
+}
+
+func (c *Client) GetInstances(ctx context.Context, filter types.InstanceFilter) iter.Iter[types.Instance] {
+	// set up cancelable context so that Iter.Done can close the stream if the caller
+	// halts iteration early.
+	ctx, cancel := context.WithCancel(ctx)
+
+	stream, err := c.grpc.GetInstances(ctx, &filter, c.callOpts...)
+	if err != nil {
+		cancel()
+		return iter.Fail[types.Instance](trail.FromGRPC(err))
+	}
+	return iter.IterFn[types.Instance](func() (types.Instance, error) {
+		instance, err := stream.Recv()
+		if err != nil {
+			if trace.IsEOF(err) {
+				// io.EOF signals that iterator has completed successfully
+				return nil, io.EOF
+			}
+			return nil, trail.FromGRPC(err)
+		}
+		return instance, nil
+	}, cancel)
 }
 
 func newDownstreamInventoryControlStream(stream proto.AuthService_InventoryControlStreamClient, cancel context.CancelFunc) DownstreamInventoryControlStream {

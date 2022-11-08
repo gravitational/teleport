@@ -1972,6 +1972,12 @@ message UpstreamInventoryHello {
   // active.
   repeated string Services = 3 [(gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"];
 
+  // Hostname is the hostname associated with the instance. This value is not required or guaranteed
+  // to be unique and its validity is not enforceable (i.e. join tokens do not constrian what an
+  // instance can claim its hostname to be). This value exists only to assist users in correlating
+  // instance resources with hosts.
+  string Hostname = 4;
+
 // TODO(fspmarshall): look into what other info can safely be stated here once, instead of
 // being repeatedly announced (e.g. addrs, static labels, etc). may be able to achieve a
 // non-trivial reduction in network usage by doing this.
@@ -2011,7 +2017,13 @@ message InventoryStatusSummary {
 // InventoryPingRequest is used to request that the specified server be sent an inventory ping
 // if it has a control stream registered.
 message InventoryPingRequest {
+  // ServerID is the ID of the instance to ping.
   string ServerID = 1;
+
+  // ControlLog forces the ping to use the standard "commit then act" model of control log synchronization
+  // for the ping. This significantly increases the amount of time it takes for the ping request to
+  // complete, but is useful for testing/debugging control log issues.
+  bool ControlLog = 2;
 }
 
 // InventoryPingResponse returns the result of an inventory ping initiated via an
@@ -2057,6 +2069,9 @@ service AuthService {
 
   // PingInventory attempts to trigger a downstream inventory ping (used in testing/debug).
   rpc PingInventory(InventoryPingRequest) returns (InventoryPingResponse);
+
+  // GetInstances streams all instances matching the specified filter.
+  rpc GetInstances(types.InstanceFilter) returns (stream types.InstanceV1);
 
   // GetClusterAlerts loads cluster-level alert messages.
   rpc GetClusterAlerts(types.GetClusterAlertsRequest) returns (GetClusterAlertsResponse);

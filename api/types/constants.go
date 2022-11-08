@@ -273,6 +273,9 @@ const (
 	// KindClusterAlert is a resource that conveys a cluster-level alert message.
 	KindClusterAlert = "cluster_alert"
 
+	// KindInstance represents a teleport instance independent of any specific service.
+	KindInstance = "instance"
+
 	// V5 is the fifth version of resources.
 	V5 = "v5"
 
