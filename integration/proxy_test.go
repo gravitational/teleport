@@ -1048,7 +1048,6 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 
 	err = rc.Start()
 	require.NoError(t, err)
-	defer rc.StopAll()
 
 	// Create and start http_proxy server.
 	ph := &helpers.ProxyHandler{}
@@ -1066,17 +1065,24 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	t.Setenv("http_proxy", helpers.MakeProxyAddr(user, pass, proxyURL.Host))
 
 	rcProxyAddr := net.JoinHostPort(rcAddr, rc.GetPortWeb())
-	require.Zero(t, ph.Count())
-	_, err = rc.StartNode(makeNodeConfig("node1", rcProxyAddr))
-	require.Error(t, err)
+	nodeCfg := makeNodeConfig("node1", rcProxyAddr)
+	nodeCfg.Log = log
 
 	timeout := time.Second * 60
+	startErrC := make(chan error)
+	// start the node but don't block waiting for it while it attempts to connect to the auth server.
+	go func() {
+		_, err := rc.StartNode(nodeCfg)
+		startErrC <- err
+	}()
 	require.ErrorIs(t, authorizer.WaitForRequest(timeout), trace.AccessDenied("bad credentials"))
 	require.Zero(t, ph.Count())
 
+	// set the auth credentials to match our environment
 	authorizer.SetCredentials(user, pass)
-	require.NoError(t, authorizer.WaitForRequest(timeout))
-	require.Greater(t, ph.Count(), 0)
+
 	// with env set correctly and authorized, the node should register.
+	require.NoError(t, <-startErrC)
 	require.NoError(t, waitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 1))
+	require.Greater(t, ph.Count(), 0)
 }
