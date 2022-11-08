@@ -734,7 +734,7 @@ func TestDesktopSharedDirectoryStartEventAuditCacheMax(t *testing.T) {
 		Status: events.Status{
 			Success:     false,
 			Error:       fmt.Sprintf("audit cache for sessionID(%v) exceeded maximum size", sid),
-			UserMessage: "Teleport failed the request and terminated the directory sharing session as a security precaution",
+			UserMessage: "Teleport failed the request and terminated the session as a security precaution",
 		},
 		DesktopAddr:   desktopAddr,
 		DirectoryName: testDirName,
@@ -822,7 +822,7 @@ func TestDesktopSharedDirectoryReadEventAuditCacheMax(t *testing.T) {
 		Status: events.Status{
 			Success:     false,
 			Error:       fmt.Sprintf("audit cache for sessionID(%v) exceeded maximum size", sid),
-			UserMessage: "Teleport failed the request and terminated the directory sharing session as a security precaution",
+			UserMessage: "Teleport failed the request and terminated the session as a security precaution",
 		},
 		DesktopAddr:   desktopAddr,
 		DirectoryName: testDirName,
@@ -913,7 +913,7 @@ func TestDesktopSharedDirectoryWriteEventAuditCacheMax(t *testing.T) {
 		Status: events.Status{
 			Success:     false,
 			Error:       fmt.Sprintf("audit cache for sessionID(%v) exceeded maximum size", sid),
-			UserMessage: "Teleport failed the request and terminated the directory sharing session as a security precaution",
+			UserMessage: "Teleport failed the request and terminated the session as a security precaution",
 		},
 		DesktopAddr:   desktopAddr,
 		DirectoryName: testDirName,

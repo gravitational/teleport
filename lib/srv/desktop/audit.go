@@ -188,7 +188,7 @@ func (s *WindowsService) onSharedDirectoryAnnounce(
 			Status: events.Status{
 				Success:     false,
 				Error:       errMsg,
-				UserMessage: "Teleport failed the request and terminated the directory sharing session as a security precaution",
+				UserMessage: "Teleport failed the request and terminated the session as a security precaution",
 			},
 			DesktopAddr:   desktopAddr,
 			DirectoryName: m.Name,
@@ -300,7 +300,7 @@ func (s *WindowsService) onSharedDirectoryReadRequest(
 			Status: events.Status{
 				Success:     false,
 				Error:       errMsg,
-				UserMessage: "Teleport failed the request and terminated the directory sharing session as a security precaution",
+				UserMessage: "Teleport failed the request and terminated the session as a security precaution",
 			},
 			DesktopAddr:   desktopAddr,
 			DirectoryName: string(name),
@@ -434,7 +434,7 @@ func (s *WindowsService) onSharedDirectoryWriteRequest(
 			Status: events.Status{
 				Success:     false,
 				Error:       errMsg,
-				UserMessage: "Teleport failed the request and terminated the directory sharing session as a security precaution",
+				UserMessage: "Teleport failed the request and terminated the session as a security precaution",
 			},
 			DesktopAddr:   desktopAddr,
 			DirectoryName: string(name),
