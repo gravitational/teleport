@@ -81,7 +81,7 @@ func New(cfg Config) (*Gateway, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	localProxy, err := alpn.NewLocalProxy(alpn.LocalProxyConfig{
+	localProxyConfig := alpn.LocalProxyConfig{
 		InsecureSkipVerify: cfg.Insecure,
 		RemoteProxyAddr:    cfg.WebProxyAddr,
 		Protocols:          []alpncommon.Protocol{protocol},
@@ -89,7 +89,17 @@ func New(cfg Config) (*Gateway, error) {
 		ParentContext:      closeContext,
 		SNI:                address.Host(),
 		Certs:              []tls.Certificate{tlsCert},
-	})
+	}
+
+	localProxyMiddleware := &localProxyMiddleware{
+		log: cfg.Log,
+	}
+
+	if cfg.OnExpiredCert != nil {
+		localProxyConfig.Middleware = localProxyMiddleware
+	}
+
+	localProxy, err := alpn.NewLocalProxy(localProxyConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -101,6 +111,13 @@ func New(cfg Config) (*Gateway, error) {
 		closeContext: closeContext,
 		closeCancel:  closeCancel,
 		localProxy:   localProxy,
+	}
+
+	if cfg.OnExpiredCert != nil {
+		localProxyMiddleware.onExpiredCert = func(ctx context.Context) error {
+			err := cfg.OnExpiredCert(ctx, gateway)
+			return trace.Wrap(err)
+		}
 	}
 
 	ok = true

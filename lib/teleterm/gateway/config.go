@@ -17,10 +17,12 @@ limitations under the License.
 package gateway
 
 import (
+	"context"
 	"runtime"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -63,7 +65,16 @@ type Config struct {
 	// TCPPortAllocator creates listeners on the given ports. This interface lets us avoid occupying
 	// hardcoded ports in tests.
 	TCPPortAllocator TCPPortAllocator
+	// Clock is used by LocalProxyMiddleware to check cert expiration.
+	Clock clockwork.Clock
+	// OnExpiredCert is called when a new downstream connection is accepted by the
+	// gateway but cannot be proxied because the cert used by the gateway has expired.
+	//
+	// Handling of the connection is blocked until OnExpiredCert returns.
+	OnExpiredCert OnExpiredCertFunc
 }
+
+type OnExpiredCertFunc func(context.Context, *Gateway) error
 
 // CheckAndSetDefaults checks and sets the defaults
 func (c *Config) CheckAndSetDefaults() error {
@@ -103,6 +114,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.TCPPortAllocator == nil {
 		c.TCPPortAllocator = NetTCPPortAllocator{}
+	}
+
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
 	}
 
 	return nil

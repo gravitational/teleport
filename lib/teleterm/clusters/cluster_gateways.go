@@ -37,6 +37,7 @@ type CreateGatewayParams struct {
 	LocalPort          string
 	CLICommandProvider gateway.CLICommandProvider
 	TCPPortAllocator   gateway.TCPPortAllocator
+	OnExpiredCert      gateway.OnExpiredCertFunc
 }
 
 // CreateGateway creates a gateway
@@ -70,6 +71,8 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		Log:                   c.Log,
 		CLICommandProvider:    params.CLICommandProvider,
 		TCPPortAllocator:      params.TCPPortAllocator,
+		OnExpiredCert:         params.OnExpiredCert,
+		Clock:                 c.clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
