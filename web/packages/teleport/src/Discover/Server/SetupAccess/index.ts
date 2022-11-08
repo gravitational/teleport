@@ -14,5 +14,5 @@
  * limitations under the License.
  */
 
-import LoginTrait from './LoginTrait';
+import LoginTrait from './SetupAccess';
 export { LoginTrait };

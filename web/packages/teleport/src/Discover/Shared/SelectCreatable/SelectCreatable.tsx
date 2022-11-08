@@ -61,12 +61,14 @@ export type SelectCreatableProps = {
   onChange(value, action): void;
   onInputChange?(i: string): void;
   onKeyDown?(e: React.KeyboardEvent): void;
+  autoFocus?: boolean;
 };
 
 export const SelectCreatable = ({
   isMulti = true,
   isClearable = true,
   isDisabled = false,
+  autoFocus = false,
   ...rest
 }: SelectCreatableProps) => (
   <ReactSelectCreatable
@@ -79,6 +81,7 @@ export const SelectCreatable = ({
     isMulti={isMulti}
     isClearable={isClearable}
     isDisabled={isDisabled}
+    autoFocus={autoFocus}
   />
 );
 

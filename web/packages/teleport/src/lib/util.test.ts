@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { generateTshLoginCommand } from './util';
+import { generateTshLoginCommand, arrayStrDiff } from './util';
 
 let windowSpy;
 
@@ -60,4 +60,11 @@ test('no port and access request id', () => {
       clusterId: 'cluster-1234',
     })
   ).toBe('tsh login --proxy=my-cluster:443 cluster-1234');
+});
+
+test('arrayStrDiff returns the correct diff', () => {
+  const arrayA = ['a', 'b', 'c', 'd', 'e'];
+  const arrayB = ['b', 'e', 'f', 'g'];
+
+  expect(arrayStrDiff(arrayA, arrayB)).toStrictEqual(['a', 'c', 'd']);
 });

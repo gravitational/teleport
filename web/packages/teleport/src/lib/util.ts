@@ -69,3 +69,9 @@ export function generateTshLoginCommand({
 
   return `tsh login --proxy=${host} ${authSpec}${clusterId}${requestId}`;
 }
+
+// arrayStrDiff returns an array of strings that
+// belong in stringsA but not in stringsB.
+export function arrayStrDiff(stringsA: string[], stringsB: string[]) {
+  return stringsA.filter(l => !stringsB.includes(l));
+}

@@ -34,6 +34,8 @@ test('correct formatting of database fetch response', async () => {
         description: 'PostgreSQL 11.6: AWS Aurora',
         type: 'RDS PostgreSQL',
         protocol: 'postgres',
+        names: [],
+        users: [],
         labels: [
           { name: 'cluster', value: 'root' },
           { name: 'env', value: 'aws' },
