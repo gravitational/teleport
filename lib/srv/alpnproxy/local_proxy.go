@@ -41,7 +41,7 @@ type LocalProxy struct {
 	cfg     LocalProxyConfig
 	context context.Context
 	cancel  context.CancelFunc
-	certsMu sync.Mutex
+	certsMu sync.RWMutex
 }
 
 // LocalProxyConfig is configuration for LocalProxy.
