@@ -79,7 +79,8 @@ type LocalProxyConfig struct {
 // LocalProxyMiddleware provides callback functions for LocalProxy.
 type LocalProxyMiddleware interface {
 	// OnNewConnection is a callback triggered when a new downstream connection is
-	// accepted by the local proxy.
+	// accepted by the local proxy. If an error is returned, the connection will be closed
+	// by the local proxy.
 	OnNewConnection(ctx context.Context, lp *LocalProxy, conn net.Conn) error
 	// OnStart is a callback triggered when the local proxy starts.
 	OnStart(ctx context.Context, lp *LocalProxy) error
