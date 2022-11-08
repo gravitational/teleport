@@ -981,6 +981,8 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.Proxy.ACME = *acme
 
+	cfg.Proxy.CloudDashboardMode = fc.Proxy.CloudDashboard
+
 	return nil
 }
 

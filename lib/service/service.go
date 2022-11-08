@@ -3496,6 +3496,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			PublicProxyAddr:  process.proxyPublicAddr().Addr,
 			ALPNHandler:      alpnHandlerForWeb.HandleConnection,
 			ProxyKubeAddr:    proxyKubeAddr,
+			Dashboard:        cfg.Proxy.CloudDashboardMode,
 		}
 		webHandler, err = web.NewHandler(webConfig)
 		if err != nil {

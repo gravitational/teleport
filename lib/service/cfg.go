@@ -498,6 +498,9 @@ type ProxyConfig struct {
 
 	// DisableALPNSNIListener allows turning off the ALPN Proxy listener. Used in tests.
 	DisableALPNSNIListener bool
+
+	// CloudDashboardMode run the web UI in a special mode to serve as user dashboard
+	CloudDashboardMode bool
 }
 
 // ACME configures ACME automatic certificate renewal

@@ -206,6 +206,9 @@ type Config struct {
 	// ALPNHandler is the ALPN connection handler for handling upgraded ALPN
 	// connection through a HTTP upgrade call.
 	ALPNHandler ConnectionHandler
+
+	// Dashboard sets whether the dashboard mode is available
+	Dashboard bool
 }
 
 type APIHandler struct {
@@ -1140,6 +1143,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		CanJoinSessions:     canJoinSessions,
 		IsCloud:             h.ClusterFeatures.GetCloud(),
 		TunnelPublicAddress: tunnelPublicAddr,
+		IsDashboard:         h.cfg.Dashboard,
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
