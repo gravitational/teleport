@@ -70,7 +70,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 				EnabledFlag:   "true",
 				ListenAddress: localListenerAddr(),
 			},
-			ClusterName: "root",
+			ClusterName: "localhost",
 		},
 	}
 
