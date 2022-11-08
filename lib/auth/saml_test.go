@@ -77,11 +77,11 @@ func TestCreateSAMLUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Dry-run creation of SAML user.
-	user, err := a.createSAMLUser(&createUserParams{
-		connectorName: "samlService",
-		username:      "foo@example.com",
-		roles:         []string{"admin"},
-		sessionTTL:    1 * time.Minute,
+	user, err := a.createSAMLUser(&CreateUserParams{
+		ConnectorName: "samlService",
+		Username:      "foo@example.com",
+		Roles:         []string{"admin"},
+		SessionTTL:    1 * time.Minute,
 	}, true)
 	require.NoError(t, err)
 	require.Equal(t, "foo@example.com", user.GetName())
@@ -91,11 +91,11 @@ func TestCreateSAMLUser(t *testing.T) {
 	require.Error(t, err)
 
 	// Create SAML user with 1 minute expiry.
-	_, err = a.createSAMLUser(&createUserParams{
-		connectorName: "samlService",
-		username:      "foo@example.com",
-		roles:         []string{"admin"},
-		sessionTTL:    1 * time.Minute,
+	_, err = a.createSAMLUser(&CreateUserParams{
+		ConnectorName: "samlService",
+		Username:      "foo@example.com",
+		Roles:         []string{"admin"},
+		SessionTTL:    1 * time.Minute,
 	}, false)
 	require.NoError(t, err)
 

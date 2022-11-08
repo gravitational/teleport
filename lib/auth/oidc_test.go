@@ -112,11 +112,11 @@ func TestCreateOIDCUser(t *testing.T) {
 	s := setUpSuite(t)
 
 	// Dry-run creation of OIDC user.
-	user, err := s.a.createOIDCUser(&createUserParams{
-		connectorName: "oidcService",
-		username:      "foo@example.com",
-		roles:         []string{"admin"},
-		sessionTTL:    1 * time.Minute,
+	user, err := s.a.createOIDCUser(&CreateUserParams{
+		ConnectorName: "oidcService",
+		Username:      "foo@example.com",
+		Roles:         []string{"admin"},
+		SessionTTL:    1 * time.Minute,
 	}, true)
 	require.NoError(t, err)
 	require.Equal(t, "foo@example.com", user.GetName())
@@ -126,11 +126,11 @@ func TestCreateOIDCUser(t *testing.T) {
 	require.Error(t, err)
 
 	// Create OIDC user with 1 minute expiry.
-	_, err = s.a.createOIDCUser(&createUserParams{
-		connectorName: "oidcService",
-		username:      "foo@example.com",
-		roles:         []string{"admin"},
-		sessionTTL:    1 * time.Minute,
+	_, err = s.a.createOIDCUser(&CreateUserParams{
+		ConnectorName: "oidcService",
+		Username:      "foo@example.com",
+		Roles:         []string{"admin"},
+		SessionTTL:    1 * time.Minute,
 	}, false)
 	require.NoError(t, err)
 
@@ -885,7 +885,7 @@ func TestUsernameClaim(t *testing.T) {
 				require.ErrorContains(t, err, tc.expectedError)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, tc.expectedUsername, createUserParams.username)
+				require.Equal(t, tc.expectedUsername, createUserParams.Username)
 			}
 		})
 	}

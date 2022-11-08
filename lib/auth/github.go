@@ -532,13 +532,13 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	}
 
 	diagCtx.Info.CreateUserParams = &types.CreateUserParams{
-		ConnectorName: params.connectorName,
-		Username:      params.username,
-		KubeGroups:    params.kubeGroups,
-		KubeUsers:     params.kubeUsers,
-		Roles:         params.roles,
-		Traits:        params.traits,
-		SessionTTL:    types.Duration(params.sessionTTL),
+		ConnectorName: params.ConnectorName,
+		Username:      params.Username,
+		KubeGroups:    params.KubeGroups,
+		KubeUsers:     params.KubeUsers,
+		Roles:         params.Roles,
+		Traits:        params.Traits,
+		SessionTTL:    types.Duration(params.SessionTTL),
 	}
 
 	user, err := a.createGithubUser(ctx, params, req.SSOTestFlow)
@@ -550,8 +550,8 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	auth := GithubAuthResponse{
 		Req: GithubAuthRequestFromProto(req),
 		Identity: types.ExternalIdentity{
-			ConnectorID: params.connectorName,
-			Username:    params.username,
+			ConnectorID: params.ConnectorName,
+			Username:    params.Username,
 		},
 		Username: user.GetName(),
 	}
@@ -568,7 +568,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 			User:       user.GetName(),
 			Roles:      user.GetRoles(),
 			Traits:     user.GetTraits(),
-			SessionTTL: params.sessionTTL,
+			SessionTTL: params.SessionTTL,
 			LoginTime:  a.clock.Now().UTC(),
 		})
 		if err != nil {
@@ -580,7 +580,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 
 	// If a public key was provided, sign it and return a certificate.
 	if len(req.PublicKey) != 0 {
-		sshCert, tlsCert, err := a.CreateSessionCert(user, params.sessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster,
+		sshCert, tlsCert, err := a.CreateSessionCert(user, params.SessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster,
 			req.KubernetesCluster, keys.AttestationStatementFromProto(req.AttestationStatement))
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")
@@ -608,89 +608,89 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	return &auth, nil
 }
 
-// createUserParams is a set of parameters used to create a user for an
+// CreateUserParams is a set of parameters used to create a user for an
 // external identity provider.
-type createUserParams struct {
-	// connectorName is the name of the connector for the identity provider.
-	connectorName string
+type CreateUserParams struct {
+	// ConnectorName is the name of the connector for the identity provider.
+	ConnectorName string
 
-	// username is the Teleport user name .
-	username string
+	// Username is the Teleport user name .
+	Username string
 
-	// kubeGroups is the list of Kubernetes groups this user belongs to.
-	kubeGroups []string
+	// KubeGroups is the list of Kubernetes groups this user belongs to.
+	KubeGroups []string
 
-	// kubeUsers is the list of Kubernetes users this user belongs to.
-	kubeUsers []string
+	// KubeUsers is the list of Kubernetes users this user belongs to.
+	KubeUsers []string
 
-	// roles is the list of roles this user is assigned to.
-	roles []string
+	// Roles is the list of Roles this user is assigned to.
+	Roles []string
 
-	// traits is the list of traits for this user.
-	traits map[string][]string
+	// Traits is the list of Traits for this user.
+	Traits map[string][]string
 
-	// sessionTTL is how long this session will last.
-	sessionTTL time.Duration
+	// SessionTTL is how long this session will last.
+	SessionTTL time.Duration
 }
 
-func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *types.GithubClaims, request *types.GithubAuthRequest) (*createUserParams, error) {
-	p := createUserParams{
-		connectorName: connector.GetName(),
-		username:      claims.Username,
+func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *types.GithubClaims, request *types.GithubAuthRequest) (*CreateUserParams, error) {
+	p := CreateUserParams{
+		ConnectorName: connector.GetName(),
+		Username:      claims.Username,
 	}
 
 	// Calculate logins, kubegroups, roles, and traits.
-	p.roles, p.kubeGroups, p.kubeUsers = connector.MapClaims(*claims)
-	if len(p.roles) == 0 {
+	p.Roles, p.KubeGroups, p.KubeUsers = connector.MapClaims(*claims)
+	if len(p.Roles) == 0 {
 		return nil, trace.Wrap(ErrGithubNoTeams)
 	}
-	p.traits = map[string][]string{
-		constants.TraitLogins:     {p.username},
-		constants.TraitKubeGroups: p.kubeGroups,
-		constants.TraitKubeUsers:  p.kubeUsers,
+	p.Traits = map[string][]string{
+		constants.TraitLogins:     {p.Username},
+		constants.TraitKubeGroups: p.KubeGroups,
+		constants.TraitKubeUsers:  p.KubeUsers,
 		teleport.TraitTeams:       claims.Teams,
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
-	roles, err := services.FetchRoles(p.roles, a, p.traits)
+	roles, err := services.FetchRoles(p.Roles, a, p.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	roleTTL := roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
-	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
+	p.SessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
 
 	return &p, nil
 }
 
-func (a *Server) createGithubUser(ctx context.Context, p *createUserParams, dryRun bool) (types.User, error) {
+func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryRun bool) (types.User, error) {
 	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
 		"Generating dynamic GitHub identity %v/%v with roles: %v. Dry run: %v.",
-		p.connectorName, p.username, p.roles, dryRun)
+		p.ConnectorName, p.Username, p.Roles, dryRun)
 
-	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
+	expires := a.GetClock().Now().UTC().Add(p.SessionTTL)
 
 	user := &types.UserV2{
 		Kind:    types.KindUser,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      p.username,
+			Name:      p.Username,
 			Namespace: apidefaults.Namespace,
 			Expires:   &expires,
 		},
 		Spec: types.UserSpecV2{
-			Roles:  p.roles,
-			Traits: p.traits,
+			Roles:  p.Roles,
+			Traits: p.Traits,
 			GithubIdentities: []types.ExternalIdentity{{
-				ConnectorID: p.connectorName,
-				Username:    p.username,
+				ConnectorID: p.ConnectorName,
+				Username:    p.Username,
 			}},
 			CreatedBy: types.CreatedBy{
 				User: types.UserRef{Name: teleport.UserSystem},
 				Time: a.GetClock().Now().UTC(),
 				Connector: &types.ConnectorRef{
 					Type:     constants.Github,
-					ID:       p.connectorName,
-					Identity: p.username,
+					ID:       p.ConnectorName,
+					Identity: p.Username,
 				},
 			},
 		},
@@ -700,7 +700,7 @@ func (a *Server) createGithubUser(ctx context.Context, p *createUserParams, dryR
 		return user, nil
 	}
 
-	existingUser, err := a.Services.GetUser(p.username, false)
+	existingUser, err := a.Services.GetUser(p.Username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
