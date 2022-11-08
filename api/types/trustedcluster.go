@@ -249,10 +249,7 @@ func (c *TrustedClusterV2) CanChangeStateTo(t TrustedCluster) error {
 	if !slices.Equal(c.GetRoles(), t.GetRoles()) {
 		return immutableFieldErr("roles")
 	}
-	roleMapUpdated := false
-	if !cmp.Equal(c.GetRoleMap(), t.GetRoleMap()) {
-		roleMapUpdated = true
-	}
+	roleMapUpdated := !cmp.Equal(c.GetRoleMap(), t.GetRoleMap())
 
 	if c.GetEnabled() == t.GetEnabled() && !roleMapUpdated {
 		if t.GetEnabled() {
