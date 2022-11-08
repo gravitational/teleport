@@ -35,7 +35,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
