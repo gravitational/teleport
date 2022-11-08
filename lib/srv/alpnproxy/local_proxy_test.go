@@ -278,7 +278,7 @@ func TestLocalProxyClosesConnOnError(t *testing.T) {
 		hs.Close()
 	})
 	go func() {
-		require.NoError(t, lp.Start(context.Background()))
+		assert.NoError(t, lp.Start(context.Background()))
 	}()
 
 	conn, err := net.Dial("tcp", lp.GetAddr())
