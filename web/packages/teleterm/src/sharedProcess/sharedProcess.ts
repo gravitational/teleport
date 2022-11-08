@@ -1,6 +1,7 @@
 import { Server, ServerCredentials } from '@grpc/grpc-js';
 
-import createLoggerService from 'teleterm/services/logger';
+import { createStdoutLoggerService } from 'teleterm/services/logger';
+
 import {
   createInsecureServerCredentials,
   createServerCredentials,
@@ -16,7 +17,7 @@ import { PtyHostService } from './api/protogen/ptyHostService_grpc_pb';
 import { createPtyHostService } from './ptyHost/ptyHostService';
 
 const runtimeSettings = getRuntimeSettings();
-initializeLogger(runtimeSettings);
+initializeLogger();
 initializeServer(runtimeSettings);
 
 function getRuntimeSettings(): RuntimeSettings {
@@ -34,12 +35,8 @@ function getRuntimeSettings(): RuntimeSettings {
   return runtimeSettings;
 }
 
-function initializeLogger(runtimeSettings: RuntimeSettings): void {
-  const loggerService = createLoggerService({
-    dev: runtimeSettings.dev,
-    dir: runtimeSettings.userDataDir,
-    name: 'shared',
-  });
+function initializeLogger(): void {
+  const loggerService = createStdoutLoggerService();
 
   Logger.init(loggerService);
   const logger = new Logger();
