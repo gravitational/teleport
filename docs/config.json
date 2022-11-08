@@ -305,13 +305,8 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Jira Server",
-              "slug": "/access-controls/access-request-plugins/ssh-approval-jira-server/",
-              "forScopes": ["enterprise", "cloud"]
-            },
-            {
-              "title": "Jira Cloud",
-              "slug": "/access-controls/access-request-plugins/ssh-approval-jira-cloud/",
+              "title": "Jira",
+              "slug": "/access-controls/access-request-plugins/ssh-approval-jira/",
               "forScopes": ["enterprise", "cloud"]
             },
             {
@@ -906,6 +901,10 @@
             {
               "title": "Applications",
               "slug": "/machine-id/guides/applications/"
+            },
+            {
+              "title": "Host Certificates",
+              "slug": "/machine-id/guides/host-certificate/"
             }
           ]
         }
@@ -1146,14 +1145,14 @@
     },
     "teleport": {
       "major_version": "10",
-      "version": "10.3.2",
+      "version": "10.3.6",
       "golang": "1.18",
       "plugin": {
-        "version": "10.3.2"
+        "version": "10.3.6"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport:10.3.2",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent:10.3.2"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport:10.3.6",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent:10.3.6"
     }
   },
   "redirects": [
@@ -1504,12 +1503,17 @@
     },
     {
       "source": "/enterprise/workflow/ssh-approval-jira-server/",
-      "destination": "/access-controls/access-request-plugins/ssh-approval-jira-server/",
+      "destination": "/access-controls/access-request-plugins/ssh-approval-jira/",
       "permanent": true
     },
     {
       "source": "/enterprise/workflow/ssh-approval-jira-cloud/",
-      "destination": "/access-controls/access-request-plugins/ssh-approval-jira-cloud/",
+      "destination": "/access-controls/access-request-plugins/ssh-approval-jira/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/workflow/ssh-approval-jira-cloud/",
+      "destination": "/access-controls/access-request-plugins/ssh-approval-jira/",
       "permanent": true
     },
     {
