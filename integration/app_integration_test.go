@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -216,58 +217,12 @@ func (p *pack) appAccessTCP(t *testing.T) {
 }
 
 func TestTCPLock(t *testing.T) {
-	pack := setup(t)
+	clock := clockwork.NewFakeClockAt(time.Now())
+	mCloseChannel := make(chan struct{})
 
-	msg := []byte(uuid.New().String())
-
-	// Start the proxy to the two way communication app.
-	address := pack.startLocalProxy(t, pack.rootTCPTwoWayPublicAddr, pack.rootAppClusterName)
-	conn, err := net.Dial("tcp", address)
-	require.NoError(t, err)
-
-	// Read, write, and read again to make sure its working as expected.
-	buf := make([]byte, 1024)
-	n, err := conn.Read(buf)
-	require.NoError(t, err, buf)
-
-	resp := strings.TrimSpace(string(buf[:n]))
-	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
-
-	_, err = conn.Write(msg)
-	require.NoError(t, err)
-
-	n, err = conn.Read(buf)
-	require.NoError(t, err, buf)
-
-	resp = strings.TrimSpace(string(buf[:n]))
-	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
-
-	// Lock the user and try to write
-	pack.lockUser(t)
-	require.Eventually(t, func() bool {
-		_, err := conn.Write(msg)
-		if err != nil {
-			return false
-		}
-
-		_, err = conn.Read(buf)
-		return err != nil
-	}, 5*time.Second, 100*time.Millisecond)
-	// Close and re-open the connection
-	require.NoError(t, conn.Close())
-
-	conn, err = net.Dial("tcp", address)
-	require.NoError(t, err)
-
-	// Try to read again, expect a failure.
-	_, err = conn.Read(buf)
-	require.Error(t, err, buf)
-}
-
-// TestTCPCertExpiration tests TCP application with certs expiring.
-func TestTCPCertExpiration(t *testing.T) {
 	pack := setupWithOptions(t, appTestOptions{
-		certificateTTL: 5 * time.Second,
+		clock:               clock,
+		monitorCloseChannel: mCloseChannel,
 	})
 
 	msg := []byte(uuid.New().String())
@@ -295,15 +250,80 @@ func TestTCPCertExpiration(t *testing.T) {
 	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
 
 	// Lock the user and try to write
-	require.Eventually(t, func() bool {
-		_, err := conn.Write(msg)
-		if err != nil {
-			return false
-		}
+	pack.lockUser(t)
+	clock.Advance(10 * time.Second)
 
-		_, err = conn.Read(buf)
-		return err != nil
-	}, 10*time.Second, 100*time.Millisecond)
+	// Wait for the channel closure signal
+	select {
+	case <-mCloseChannel:
+	case <-time.After(time.Second * 10):
+		require.Fail(t, "timeout waiting for monitor channel signal")
+	}
+	_, err = conn.Write(msg)
+	require.NoError(t, err)
+
+	_, err = conn.Read(buf)
+	require.Error(t, err)
+	// Close and re-open the connection
+	require.NoError(t, conn.Close())
+
+	conn, err = net.Dial("tcp", address)
+	require.NoError(t, err)
+
+	// Try to read again, expect a failure.
+	_, err = conn.Read(buf)
+	require.Error(t, err, buf)
+}
+
+// TestTCPCertExpiration tests TCP application with certs expiring.
+func TestTCPCertExpiration(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Now())
+	mCloseChannel := make(chan struct{})
+
+	pack := setupWithOptions(t, appTestOptions{
+		clock:               clock,
+		monitorCloseChannel: mCloseChannel,
+	})
+
+	msg := []byte(uuid.New().String())
+
+	// Start the proxy to the two way communication app.
+	address := pack.startLocalProxy(t, pack.rootTCPTwoWayPublicAddr, pack.rootAppClusterName)
+	conn, err := net.Dial("tcp", address)
+	require.NoError(t, err)
+
+	// Read, write, and read again to make sure its working as expected.
+	buf := make([]byte, 1024)
+	n, err := conn.Read(buf)
+	require.NoError(t, err, buf)
+
+	resp := strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
+
+	_, err = conn.Write(msg)
+	require.NoError(t, err)
+
+	n, err = conn.Read(buf)
+	require.NoError(t, err, buf)
+
+	resp = strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
+
+	// Let the cert expire. We'll choose 24 hours to make sure we go above
+	// any cert durations that could be chosen here.
+	clock.Advance(24 * time.Hour)
+
+	// Wait for the channel closure signal
+	select {
+	case <-mCloseChannel:
+	case <-time.After(time.Second * 10):
+		require.Fail(t, "timeout waiting for monitor channel signal")
+	}
+	_, err = conn.Write(msg)
+	require.NoError(t, err)
+
+	_, err = conn.Read(buf)
+	require.Error(t, err)
 	// Close and re-open the connection
 	require.NoError(t, conn.Close())
 
@@ -686,7 +706,7 @@ func (p *pack) appServersHA(t *testing.T) {
 				}
 			},
 			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
-				return pack.startRootAppServers(t, count, []service.App{})
+				return pack.startRootAppServers(t, count, appTestOptions{})
 			},
 			waitForTunnelConn: func(t *testing.T, pack *pack, count int) {
 				waitForActiveTunnelConnections(t, pack.rootCluster.Tunnel, pack.rootCluster.Secrets.SiteName, count)
@@ -702,7 +722,7 @@ func (p *pack) appServersHA(t *testing.T) {
 				}
 			},
 			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
-				return pack.startLeafAppServers(t, count, []service.App{})
+				return pack.startLeafAppServers(t, count, appTestOptions{})
 			},
 			waitForTunnelConn: func(t *testing.T, pack *pack, count int) {
 				waitForActiveTunnelConnections(t, pack.leafCluster.Tunnel, pack.leafCluster.Secrets.SiteName, count)
@@ -925,11 +945,12 @@ type pack struct {
 }
 
 type appTestOptions struct {
-	extraRootApps    []service.App
-	extraLeafApps    []service.App
-	rootClusterPorts *InstancePorts
-	leafClusterPorts *InstancePorts
-	certificateTTL   time.Duration
+	extraRootApps       []service.App
+	extraLeafApps       []service.App
+	rootClusterPorts    *InstancePorts
+	leafClusterPorts    *InstancePorts
+	clock               clockwork.FakeClock
+	monitorCloseChannel chan struct{}
 
 	rootConfig func(config *service.Config)
 	leafConfig func(config *service.Config)
@@ -1168,6 +1189,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 
 	// Create a new Teleport instance with passed in configuration.
 	p.rootCluster = NewInstance(InstanceConfig{
+		Clock:       opts.clock,
 		ClusterName: "example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
@@ -1179,6 +1201,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 
 	// Create a new Teleport instance with passed in configuration.
 	p.leafCluster = NewInstance(InstanceConfig{
+		Clock:       opts.clock,
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
@@ -1204,6 +1227,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	if opts.rootConfig != nil {
 		opts.rootConfig(rcConf)
 	}
+	rcConf.Clock = opts.clock
 
 	lcConf := service.MakeDefaultConfig()
 	lcConf.Console = nil
@@ -1221,6 +1245,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	if opts.rootConfig != nil {
 		opts.rootConfig(lcConf)
 	}
+	lcConf.Clock = opts.clock
 
 	err = p.leafCluster.CreateEx(t, p.rootCluster.Secrets.AsSlice(), lcConf)
 	require.NoError(t, err)
@@ -1236,11 +1261,11 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 
 	// At least one rootAppServer should start during the setup
 	rootAppServersCount := 1
-	p.rootAppServers = p.startRootAppServers(t, rootAppServersCount, opts.extraRootApps)
+	p.rootAppServers = p.startRootAppServers(t, rootAppServersCount, opts)
 
 	// At least one leafAppServer should start during the setup
 	leafAppServersCount := 1
-	p.leafAppServers = p.startLeafAppServers(t, leafAppServersCount, opts.extraLeafApps)
+	p.leafAppServers = p.startLeafAppServers(t, leafAppServersCount, opts)
 
 	// Create user for tests.
 	p.initUser(t)
@@ -1339,9 +1364,8 @@ func (p *pack) initWebSession(t *testing.T) {
 // credentials.
 func (p *pack) initTeleportClient(t *testing.T, opts appTestOptions) {
 	creds, err := GenerateUserCreds(UserCredsRequest{
-		Process:        p.rootCluster.Process,
-		Username:       p.user.GetName(),
-		CertificateTTL: opts.certificateTTL,
+		Process:  p.rootCluster.Process,
+		Username: p.user.GetName(),
 	})
 	require.NoError(t, err)
 
@@ -1664,13 +1688,14 @@ func (p *pack) waitForLogout(appCookie string) (int, error) {
 	}
 }
 
-func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.App) []*service.TeleportProcess {
+func (p *pack) startRootAppServers(t *testing.T, count int, opts appTestOptions) []*service.TeleportProcess {
 	log := utils.NewLoggerForTests()
 
 	configs := make([]*service.Config, count)
 
 	for i := 0; i < count; i++ {
 		raConf := service.MakeDefaultConfig()
+		raConf.Clock = opts.clock
 		raConf.Console = nil
 		raConf.Log = log
 		raConf.DataDir = t.TempDir()
@@ -1686,6 +1711,7 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 		raConf.SSH.Enabled = false
 		raConf.Apps.Enabled = true
 		raConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+		raConf.Apps.MonitorCloseChannel = opts.monitorCloseChannel
 		raConf.Apps.Apps = append([]service.App{
 			{
 				Name:       p.rootAppName,
@@ -1789,7 +1815,7 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 					},
 				},
 			},
-		}, extraApps...)
+		}, opts.extraRootApps...)
 
 		configs[i] = raConf
 	}
@@ -1815,12 +1841,13 @@ func waitForAppServer(t *testing.T, tunnel reversetunnel.Server, name string, ho
 	waitForAppRegInRemoteSiteCache(t, tunnel, name, apps, hostUUID)
 }
 
-func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.App) []*service.TeleportProcess {
+func (p *pack) startLeafAppServers(t *testing.T, count int, opts appTestOptions) []*service.TeleportProcess {
 	log := utils.NewLoggerForTests()
 	configs := make([]*service.Config, count)
 
 	for i := 0; i < count; i++ {
 		laConf := service.MakeDefaultConfig()
+		laConf.Clock = opts.clock
 		laConf.Console = nil
 		laConf.Log = log
 		laConf.DataDir = t.TempDir()
@@ -1836,6 +1863,7 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 		laConf.SSH.Enabled = false
 		laConf.Apps.Enabled = true
 		laConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+		laConf.Apps.MonitorCloseChannel = opts.monitorCloseChannel
 		laConf.Apps.Apps = append([]service.App{
 			{
 				Name:       p.leafAppName,
@@ -1915,7 +1943,7 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 					},
 				},
 			},
-		}, extraApps...)
+		}, opts.extraLeafApps...)
 
 		configs[i] = laConf
 	}

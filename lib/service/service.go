@@ -4472,6 +4472,7 @@ func (process *TeleportProcess) initApps() {
 		proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
 		appServer, err := app.New(process.ExitContext(), &app.Config{
+			Clock:                process.Config.Clock,
 			DataDir:              process.Config.DataDir,
 			AuthClient:           conn.Client,
 			AccessPoint:          accessPoint,
@@ -4488,6 +4489,7 @@ func (process *TeleportProcess) initApps() {
 			ConnectedProxyGetter: proxyGetter,
 			LockWatcher:          lockWatcher,
 			Emitter:              asyncEmitter,
+			MonitorCloseChannel:  process.Config.Apps.MonitorCloseChannel,
 		})
 		if err != nil {
 			return trace.Wrap(err)
