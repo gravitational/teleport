@@ -102,11 +102,11 @@ type updateDatabaseRequest struct {
 
 func (r *updateDatabaseRequest) checkAndSetDefaults() error {
 	if r.CACert == "" {
-		return trace.BadParameter("missing ca_cert field")
+		return trace.BadParameter("missing CA certificate data")
 	}
 
 	if _, err := tlsutils.ParseCertificatePEM([]byte(r.CACert)); err != nil {
-		return trace.BadParameter("invalid x509 PEM certificate in ca_cert")
+		return trace.BadParameter("could not parse provided CA as X.509 PEM certificate")
 	}
 
 	return nil

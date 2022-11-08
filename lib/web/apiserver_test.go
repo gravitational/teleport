@@ -5052,7 +5052,7 @@ func TestUpdateDatabase(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "missing ca_cert field")
+				require.ErrorContains(t, err, "missing CA certificate data")
 			},
 		},
 		{
@@ -5062,7 +5062,7 @@ func TestUpdateDatabase(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "invalid x509 PEM certificate in ca_cert")
+				require.ErrorContains(t, err, "could not parse provided CA as X.509 PEM certificate")
 			},
 		},
 	} {
