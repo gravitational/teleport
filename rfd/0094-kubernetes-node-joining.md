@@ -117,7 +117,7 @@ This approach brings the following challenges:
   the other with the proxy role)
 - teleport does not support joining from certs (unless we manually build a
   valid state)
-- tBot has to dynamically discover how many pods want certs and which certs
+- `tbot` has to dynamically discover how many pods want certs and which certs
   they need (we don't have a streaming destination API yet)
 - pods should have a way to access their specific state:
     - we can't mount a different secret in each pod
@@ -126,10 +126,10 @@ This approach brings the following challenges:
       generalized with other workloads like access plugin because this requires
       being able to read all certs from the namespace)
     - pods can request a cert to tBot over HTTP
-- tBot has to validate the identity of the pod requesting the certificate
-- tBot has to join the cluster initially, which is almost the same problem that
+- `tbot` has to validate the identity of the pod requesting the certificate
+- `tbot` has to join the cluster initially, which is almost the same problem that
   we're trying to address (almost because we have less constraints due to
-  autoscaling). The easiest approach would be to bundle tBot with auth nodes and
+  autoscaling). The easiest approach would be to bundle `tbot` with auth nodes and
   use the local admin socket to bootstrap it, like what we're doing with the
   operator
 
@@ -175,7 +175,7 @@ The third approach adds new components in the critical path and new complex
 failure modes.
 
 The first approach seems the more robust, leverages previous work with
-joinTokens and provides very solid security guarantees for Kubernetes 1.20+.
+ProvisionTokens and provides very solid security guarantees for Kubernetes 1.20+.
 MachineID would also benefit from it as `tBot` would be easily deployed in a
 Kubernetes cluster hosting a Teleport cluster. 
 
@@ -307,7 +307,7 @@ other Teleport nodes would also benefit from this additional join method.
 
 Deploying nodes in the same Kubernetes cluster will become easier. This can be
 used to join all kinds of Teleport service (kubernetes, app, db, windows
-desktop, discovery), but also to join `tBot` and offer an easier MachineID
+desktop, discovery), but also to join `tbot` and offer an easier Machine ID
 integration in Kubernetes. This would pave the way for a better experience for
 users hosting access plugins next to the Teleport control plane.
 
