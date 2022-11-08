@@ -71,6 +71,8 @@ var (
 	)
 )
 
+var errCannotStartUnattendedSession = trace.AccessDenied("lacking privileges to start unattended session")
+
 func init() {
 	prometheus.MustRegister(serverTX)
 	prometheus.MustRegister(serverRX)
@@ -598,6 +600,29 @@ func (c *ServerContext) getSession() *session {
 	return c.session
 }
 
+// CheckSFTPAllowed returns an error if remote file operations via SCP
+// or SFTP are not allowed because the user is not allowed to start
+// unattended sessions.
+func (c *ServerContext) CheckSFTPAllowed() error {
+	// ensure moderated session policies allow starting an unattended session
+	var policySets []*types.SessionTrackerPolicySet
+	for _, role := range c.Identity.RoleSet {
+		policySet := role.GetSessionPolicySet()
+		policySets = append(policySets, &policySet)
+	}
+
+	checker := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind)
+	canStart, _, err := checker.FulfilledFor(nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !canStart {
+		return errCannotStartUnattendedSession
+	}
+
+	return nil
+}
+
 // OpenXServerListener opens a new XServer unix listener.
 func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, displayOffset, maxDisplays int) error {
 	l, display, err := x11.OpenNewXServerListener(displayOffset, maxDisplays, x11Req.ScreenNumber)
@@ -858,7 +883,7 @@ func (c *ServerContext) SendSubsystemResult(r SubsystemResult) {
 // available proxy. if public_address is not set, fall back to the hostname
 // of the first proxy we get back.
 func (c *ServerContext) ProxyPublicAddress() string {
-	//TODO(tross): Get the proxy address somehow - types.KindProxy is not replicated to Nodes
+	// TODO(tross): Get the proxy address somehow - types.KindProxy is not replicated to Nodes
 	return "<proxyhost>:3080"
 }
 
