@@ -1323,7 +1323,7 @@ type DiscoveryConfig struct {
 	Enabled bool
 	// AWSMatchers are used to match EC2 instances for auto enrollment.
 	AWSMatchers []services.AWSMatcher
-	// AzureMatchers are used to match resources for auto discovery.
+	// AzureMatchers are used to match resources for auto enrollment.
 	AzureMatchers []services.AzureMatcher
 }
 

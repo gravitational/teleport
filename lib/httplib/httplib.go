@@ -19,6 +19,7 @@ limitations under the License.
 package httplib
 
 import (
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"mime"
@@ -149,10 +150,16 @@ func ReadJSON(r *http.Request, val interface{}) error {
 // based on HTTP response code and HTTP body contents
 func ConvertResponse(re *roundtrip.Response, err error) (*roundtrip.Response, error) {
 	if err != nil {
-		if uerr, ok := err.(*url.Error); ok && uerr != nil && uerr.Err != nil {
-			return nil, trace.ConnectionProblem(uerr.Err, uerr.Error())
+		var uErr *url.Error
+		if errors.As(err, &uErr) && uErr.Err != nil {
+			var hostnameErr x509.HostnameError
+			if errors.As(uErr.Err, &hostnameErr) {
+				return nil, trace.ConnectionProblem(uErr.Err, uErr.Error())
+			}
+			return nil, trace.ConnectionProblem(uErr.Err, "error parsing URL")
 		}
-		if nerr, ok := errors.Unwrap(err).(net.Error); ok && nerr.Timeout() {
+		var nErr net.Error
+		if errors.As(err, &nErr) && nErr.Timeout() {
 			// Using `ConnectionProblem` instead of `LimitExceeded` allows us to preserve the original error
 			// while adding a more user-friendly message.
 			return nil, trace.ConnectionProblem(err, timeoutMessage)

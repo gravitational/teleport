@@ -49,11 +49,11 @@ type DeviceTrustServiceClient interface {
 	GetDevice(ctx context.Context, in *GetDeviceRequest, opts ...grpc.CallOption) (*Device, error)
 	// ListDevices lists all registered devices.
 	ListDevices(ctx context.Context, in *ListDevicesRequest, opts ...grpc.CallOption) (*ListDevicesResponse, error)
-	// BulkCreateDevice is a bulk variant of CreateDevice.
+	// BulkCreateDevices is a bulk variant of CreateDevice.
 	//
 	// Unlike CreateDevice, it does not support creation of enrollment tokens, as
 	// it is meant for bulk inventory registration.
-	BulkCreateDevice(ctx context.Context, in *BulkCreateDeviceRequest, opts ...grpc.CallOption) (*BulkCreateDeviceResponse, error)
+	BulkCreateDevices(ctx context.Context, in *BulkCreateDevicesRequest, opts ...grpc.CallOption) (*BulkCreateDevicesResponse, error)
 	// CreateDeviceEnrollToken creates a DeviceEnrollToken for a Device.
 	// An enrollment token is required for the enrollment ceremony. See
 	// EnrollDevice.
@@ -130,9 +130,9 @@ func (c *deviceTrustServiceClient) ListDevices(ctx context.Context, in *ListDevi
 	return out, nil
 }
 
-func (c *deviceTrustServiceClient) BulkCreateDevice(ctx context.Context, in *BulkCreateDeviceRequest, opts ...grpc.CallOption) (*BulkCreateDeviceResponse, error) {
-	out := new(BulkCreateDeviceResponse)
-	err := c.cc.Invoke(ctx, "/teleport.devicetrust.v1.DeviceTrustService/BulkCreateDevice", in, out, opts...)
+func (c *deviceTrustServiceClient) BulkCreateDevices(ctx context.Context, in *BulkCreateDevicesRequest, opts ...grpc.CallOption) (*BulkCreateDevicesResponse, error) {
+	out := new(BulkCreateDevicesResponse)
+	err := c.cc.Invoke(ctx, "/teleport.devicetrust.v1.DeviceTrustService/BulkCreateDevices", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -240,11 +240,11 @@ type DeviceTrustServiceServer interface {
 	GetDevice(context.Context, *GetDeviceRequest) (*Device, error)
 	// ListDevices lists all registered devices.
 	ListDevices(context.Context, *ListDevicesRequest) (*ListDevicesResponse, error)
-	// BulkCreateDevice is a bulk variant of CreateDevice.
+	// BulkCreateDevices is a bulk variant of CreateDevice.
 	//
 	// Unlike CreateDevice, it does not support creation of enrollment tokens, as
 	// it is meant for bulk inventory registration.
-	BulkCreateDevice(context.Context, *BulkCreateDeviceRequest) (*BulkCreateDeviceResponse, error)
+	BulkCreateDevices(context.Context, *BulkCreateDevicesRequest) (*BulkCreateDevicesResponse, error)
 	// CreateDeviceEnrollToken creates a DeviceEnrollToken for a Device.
 	// An enrollment token is required for the enrollment ceremony. See
 	// EnrollDevice.
@@ -288,8 +288,8 @@ func (UnimplementedDeviceTrustServiceServer) GetDevice(context.Context, *GetDevi
 func (UnimplementedDeviceTrustServiceServer) ListDevices(context.Context, *ListDevicesRequest) (*ListDevicesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDevices not implemented")
 }
-func (UnimplementedDeviceTrustServiceServer) BulkCreateDevice(context.Context, *BulkCreateDeviceRequest) (*BulkCreateDeviceResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method BulkCreateDevice not implemented")
+func (UnimplementedDeviceTrustServiceServer) BulkCreateDevices(context.Context, *BulkCreateDevicesRequest) (*BulkCreateDevicesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BulkCreateDevices not implemented")
 }
 func (UnimplementedDeviceTrustServiceServer) CreateDeviceEnrollToken(context.Context, *CreateDeviceEnrollTokenRequest) (*DeviceEnrollToken, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateDeviceEnrollToken not implemented")
@@ -403,20 +403,20 @@ func _DeviceTrustService_ListDevices_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DeviceTrustService_BulkCreateDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BulkCreateDeviceRequest)
+func _DeviceTrustService_BulkCreateDevices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BulkCreateDevicesRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DeviceTrustServiceServer).BulkCreateDevice(ctx, in)
+		return srv.(DeviceTrustServiceServer).BulkCreateDevices(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.devicetrust.v1.DeviceTrustService/BulkCreateDevice",
+		FullMethod: "/teleport.devicetrust.v1.DeviceTrustService/BulkCreateDevices",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DeviceTrustServiceServer).BulkCreateDevice(ctx, req.(*BulkCreateDeviceRequest))
+		return srv.(DeviceTrustServiceServer).BulkCreateDevices(ctx, req.(*BulkCreateDevicesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -519,8 +519,8 @@ var DeviceTrustService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _DeviceTrustService_ListDevices_Handler,
 		},
 		{
-			MethodName: "BulkCreateDevice",
-			Handler:    _DeviceTrustService_BulkCreateDevice_Handler,
+			MethodName: "BulkCreateDevices",
+			Handler:    _DeviceTrustService_BulkCreateDevices_Handler,
 		},
 		{
 			MethodName: "CreateDeviceEnrollToken",

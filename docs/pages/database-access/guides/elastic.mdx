@@ -13,7 +13,7 @@ description: How to configure Teleport Database Access with Elasticsearch.
   Database access for Elasticsearch is available starting from Teleport `10.3`.
 </Details>
 
-This guide will help you to configure secured access to an Elasticsearch database using Teleport Dabatase Access.
+This guide will help you to configure secured access to an Elasticsearch database using Teleport Database Access.
 
 ## Prerequisites
 
@@ -208,7 +208,7 @@ For example, if your Elasticsearch server is accessible at `elastic.example.com`
 run:
 
 ```code
-$ tctl auth sign --format=elastic --host=elastic.example.com --out=elastic --ttl=2160h
+$ tctl auth sign --format=elasticsearch --host=elastic.example.com --out=elastic --ttl=2160h
 Database credentials have been written to elastic.key, elastic.crt, elastic.cas.
 ```
 

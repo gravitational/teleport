@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base32"
@@ -77,6 +78,8 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -1407,46 +1410,81 @@ func TestWebAgentForward(t *testing.T) {
 func TestActiveSessions(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	sid := session.NewID()
 	pack := s.authPack(t, "foo")
 
-	ws, err := s.makeTerminal(t, pack, withSessionID(sid))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, ws.Close()) })
+	start := time.Now()
+	kinds := []types.SessionKind{
+		types.SSHSessionKind,
+		types.KubernetesSessionKind,
+		types.WindowsDesktopSessionKind,
+		types.DatabaseSessionKind,
+		types.AppSessionKind,
+	}
+	ids := make(map[string]struct{})
 
-	termHandler := newTerminalHandler()
-	stream := termHandler.asTerminalStream(ws)
-
-	// To make sure we have a session.
-	_, err = io.WriteString(stream, "echo vinsong\r\n")
-	require.NoError(t, err)
-
-	// Make sure server has replied.
-	err = waitForOutput(stream, "vinsong")
-	require.NoError(t, err)
-
-	var sessResp *siteSessionsGetResponse
-	require.Eventually(t, func() bool {
-		// Get site nodes and make sure the node has our active party.
-		re, err := pack.clt.Get(s.ctx, pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"), url.Values{})
+	for _, kind := range kinds {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID:    string(session.NewID()),
+			ClusterName:  s.server.ClusterName(),
+			Kind:         string(kind),
+			State:        types.SessionState_SessionStateRunning,
+			Created:      start,
+			Expires:      start.Add(1 * time.Hour),
+			Hostname:     s.node.GetInfo().GetHostname(),
+			DesktopName:  s.node.GetInfo().GetHostname(),
+			AppName:      s.node.GetInfo().GetHostname(),
+			DatabaseName: s.node.GetInfo().GetHostname(),
+			Address:      s.srvID,
+			Login:        pack.login,
+			Participants: []types.Participant{
+				{ID: "id", User: "user-1", LastActive: start},
+			},
+		})
 		require.NoError(t, err)
-		require.NoError(t, json.Unmarshal(re.Bytes(), &sessResp))
-		return len(sessResp.Sessions) == 1
-	}, time.Second*5, 250*time.Millisecond)
+		ids[tracker.GetSessionID()] = struct{}{}
 
-	sess := sessResp.Sessions[0]
-	require.Equal(t, sid, sess.ID)
-	require.Equal(t, s.node.GetNamespace(), sess.Namespace)
-	require.NotNil(t, sess.Parties)
-	require.Greater(t, sess.TerminalParams.H, 0)
-	require.Greater(t, sess.TerminalParams.W, 0)
-	require.Equal(t, pack.login, sess.Login)
-	require.False(t, sess.Created.IsZero())
-	require.False(t, sess.LastActive.IsZero())
-	require.Equal(t, s.srvID, sess.ServerID)
-	require.Equal(t, s.node.GetInfo().GetHostname(), sess.ServerHostname)
-	require.Equal(t, s.srvID, sess.ServerAddr)
-	require.Equal(t, s.server.ClusterName(), sess.ClusterName)
+		_, err = s.server.Auth().CreateSessionTracker(context.Background(), tracker)
+		require.NoError(t, err)
+	}
+
+	// create an inactive session, which should not show up
+	inactive, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID:    string(session.NewID()),
+		ClusterName:  s.server.ClusterName(),
+		Kind:         string(types.SSHSessionKind),
+		State:        types.SessionState_SessionStateTerminated,
+		Created:      time.Now(),
+		Expires:      time.Now().Add(1 * time.Hour),
+		Hostname:     s.node.GetInfo().GetHostname(),
+		Address:      s.srvID,
+		Login:        pack.login,
+		Participants: nil,
+	})
+	require.NoError(t, err)
+	_, err = s.server.Auth().CreateSessionTracker(context.Background(), inactive)
+	require.NoError(t, err)
+
+	re, err := pack.clt.Get(s.ctx, pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"), url.Values{})
+	require.NoError(t, err)
+
+	var sessResp siteSessionsGetResponse
+	require.NoError(t, json.Unmarshal(re.Bytes(), &sessResp))
+	require.Len(t, sessResp.Sessions, len(kinds))
+
+	for _, session := range sessResp.Sessions {
+		require.Contains(t, ids, string(session.ID))
+		require.Equal(t, s.node.GetNamespace(), session.Namespace)
+		require.NotNil(t, session.Parties)
+		require.Greater(t, session.TerminalParams.H, 0)
+		require.Greater(t, session.TerminalParams.W, 0)
+		require.Equal(t, pack.login, session.Login)
+		require.False(t, session.Created.IsZero())
+		require.False(t, session.LastActive.IsZero())
+		require.Equal(t, s.srvID, session.ServerID)
+		require.Equal(t, s.node.GetInfo().GetHostname(), session.ServerHostname)
+		require.Equal(t, s.srvID, session.ServerAddr)
+		require.Equal(t, s.server.ClusterName(), session.ClusterName)
+	}
 }
 
 func TestCloseConnectionsOnLogout(t *testing.T) {
@@ -1546,6 +1584,58 @@ func TestPlayback(t *testing.T) {
 	ws, err := s.makeTerminal(t, pack, withSessionID(sid))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
+}
+
+type httpErrorMessage struct {
+	Message string `json:"message"`
+}
+
+type httpErrorResponse struct {
+	Error httpErrorMessage `json:"error"`
+}
+
+func TestLogin_PrivateKeyEnabledError(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		MockAttestHardwareKey: func(_ context.Context, _ interface{}, policy keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
+			return "", keys.NewPrivateKeyPolicyError(policy)
+		},
+	})
+	s := newWebSuite(t)
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:           constants.Local,
+		SecondFactor:   constants.SecondFactorOff,
+		RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+	})
+	require.NoError(t, err)
+	err = s.server.Auth().SetAuthPreference(s.ctx, ap)
+	require.NoError(t, err)
+
+	// create user
+	s.createUser(t, "user1", "root", "password", "")
+
+	loginReq, err := json.Marshal(CreateSessionReq{
+		User: "user1",
+		Pass: "password",
+	})
+	require.NoError(t, err)
+
+	clt := s.client()
+	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(loginReq))
+	require.NoError(t, err)
+	ua := "test-ua"
+	req.Header.Set("User-Agent", ua)
+	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
+	addCSRFCookieToReq(req, csrfToken)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(csrf.HeaderName, csrfToken)
+
+	re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
+		return clt.Client.HTTPClient().Do(req)
+	})
+	require.NoError(t, err)
+	var resErr httpErrorResponse
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resErr))
+	require.Contains(t, resErr.Error.Message, keys.PrivateKeyPolicyHardwareKeyTouch)
 }
 
 func TestLogin(t *testing.T) {
@@ -2037,11 +2127,12 @@ func TestTokenGeneration(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "token")
 
 	tt := []struct {
-		name       string
-		roles      types.SystemRoles
-		shouldErr  bool
-		joinMethod types.JoinMethod
-		allow      []*types.TokenRule
+		name                        string
+		roles                       types.SystemRoles
+		shouldErr                   bool
+		joinMethod                  types.JoinMethod
+		suggestedAgentMatcherLabels types.Labels
+		allow                       []*types.TokenRule
 	}{
 		{
 			name:      "single node role",
@@ -2081,6 +2172,14 @@ func TestTokenGeneration(t *testing.T) {
 			allow:      []*types.TokenRule{{AWSAccount: "1234"}},
 			shouldErr:  false,
 		},
+		{
+			name:  "adds the agent match labels",
+			roles: types.SystemRoles{types.RoleDatabase},
+			suggestedAgentMatcherLabels: types.Labels{
+				"*": apiutils.Strings{"*"},
+			},
+			shouldErr: false,
+		},
 	}
 
 	for _, tc := range tt {
@@ -2088,9 +2187,10 @@ func TestTokenGeneration(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			re, err := pack.clt.PostJSON(context.Background(), endpoint, types.ProvisionTokenSpecV2{
-				Roles:      tc.roles,
-				JoinMethod: tc.joinMethod,
-				Allow:      tc.allow,
+				Roles:                       tc.roles,
+				JoinMethod:                  tc.joinMethod,
+				Allow:                       tc.allow,
+				SuggestedAgentMatcherLabels: tc.suggestedAgentMatcherLabels,
 			})
 
 			if tc.shouldErr {
@@ -2125,8 +2225,73 @@ func TestTokenGeneration(t *testing.T) {
 			}
 			// if no joinMethod is provided, expect token method
 			require.Equal(t, expectedJoinMethod, generatedToken.GetJoinMethod())
+
+			require.Equal(t, tc.suggestedAgentMatcherLabels, generatedToken.GetSuggestedAgentMatcherLabels())
 		})
 	}
+}
+
+func TestInstallDatabaseScriptGeneration(t *testing.T) {
+	const username = "test-user@example.com"
+
+	// Users should be able to create Tokens even if they can't update them
+	roleTokenCRD, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindToken,
+					[]string{types.VerbCreate, types.VerbRead}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, username, []types.Role{roleTokenCRD})
+
+	// Create a new token with the desired SuggestedAgentMatcherLabels
+	endpointGenerateToken := pack.clt.Endpoint("webapi", "token")
+	re, err := pack.clt.PostJSON(
+		context.Background(),
+		endpointGenerateToken,
+		types.ProvisionTokenSpecV2{
+			Roles: types.SystemRoles{types.RoleDatabase},
+			SuggestedAgentMatcherLabels: types.Labels{
+				"stage": apiutils.Strings{"prod"},
+			},
+		})
+	require.NoError(t, err)
+
+	var responseToken nodeJoinToken
+	require.NoError(t, json.Unmarshal(re.Bytes(), &responseToken))
+
+	// Generating the script with the token should return the SuggestedAgentMatcherLabels provided in the first request
+	endpointInstallDatabase := pack.clt.Endpoint("scripts", responseToken.ID, "install-database.sh")
+
+	t.Log(responseToken, endpointInstallDatabase)
+	req, err := http.NewRequest(http.MethodGet, endpointInstallDatabase, nil)
+	require.NoError(t, err)
+
+	anonHTTPClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+
+	resp, err := anonHTTPClient.Do(req)
+	require.NoError(t, err)
+
+	scriptBytes, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	require.NoError(t, resp.Body.Close())
+
+	script := string(scriptBytes)
+
+	// It contains the agenbtMatchLabels
+	require.Contains(t, script, "stage: prod")
 }
 
 func TestSignMTLS(t *testing.T) {
@@ -2942,6 +3107,7 @@ func TestGetWebConfig(t *testing.T) {
 			AuthType:           constants.Local,
 			PreferredLocalMFA:  constants.SecondFactorWebauthn,
 			LocalConnectorName: constants.PasswordlessConnector,
+			PrivateKeyPolicy:   keys.PrivateKeyPolicyNone,
 		},
 		CanJoinSessions:  true,
 		ProxyClusterName: env.server.ClusterName(),
@@ -3690,6 +3856,7 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Nil(t, re.Recovery)
+	require.False(t, re.PrivateKeyPolicyEnabled)
 
 	// Create a user that is valid for recovery.
 	teleUser, err = types.NewUser("valid-username@example.com")
@@ -3720,6 +3887,82 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, re.Recovery.Codes, 3)
 	require.NotEmpty(t, re.Recovery.Created)
+	require.False(t, re.PrivateKeyPolicyEnabled)
+}
+
+// TestChangeUserAuthentication_WithPrivacyPolicyEnabledError tests
+// that when there is a privacy policy enabled error, we still get
+// a non error response with recovery codes and a privacy policy
+// flag set to true.
+func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
+	env := newWebPack(t, 1)
+	ctx := context.Background()
+
+	// Enable second factor required by cloud and a privacy policy.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:           constants.Local,
+		SecondFactor:   constants.SecondFactorOTP,
+		RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Enable cloud feature.
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+		MockAttestHardwareKey: func(_ context.Context, _ interface{}, policy keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
+			return "", keys.NewPrivateKeyPolicyError(policy)
+		},
+	})
+
+	// Create a user that is valid for recovery.
+	teleUser, err := types.NewUser("valid-username@example.com")
+	require.NoError(t, err)
+	require.NoError(t, env.server.Auth().CreateUser(ctx, teleUser))
+
+	// Create a reset password token and secrets.
+	resetToken, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+		Name: "valid-username@example.com",
+	})
+	require.NoError(t, err)
+	res, err := env.server.Auth().CreateRegisterChallenge(ctx, &authproto.CreateRegisterChallengeRequest{
+		TokenID:    resetToken.GetName(),
+		DeviceType: authproto.DeviceType_DEVICE_TYPE_TOTP,
+	})
+	require.NoError(t, err)
+	totpCode, err := totp.GenerateCode(res.GetTOTP().GetSecret(), env.clock.Now())
+	require.NoError(t, err)
+
+	// Craft http request data.
+	clt := env.proxies[0].newClient(t)
+	req := changeUserAuthenticationRequest{
+		SecondFactorToken: totpCode,
+		Password:          []byte("abc123"),
+		TokenID:           resetToken.GetName(),
+	}
+	httpReqData, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	// CSRF protected endpoint.
+	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
+	httpReq, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(httpReqData))
+	require.NoError(t, err)
+	addCSRFCookieToReq(httpReq, csrfToken)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set(csrf.HeaderName, csrfToken)
+	httpRes, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
+		return clt.HTTPClient().Do(httpReq)
+	}))
+	require.NoError(t, err)
+
+	var apiRes ui.ChangedUserAuthn
+	require.NoError(t, json.Unmarshal(httpRes.Bytes(), &apiRes))
+	require.Len(t, apiRes.Recovery.Codes, 3)
+	require.NotEmpty(t, apiRes.Recovery.Created)
+	require.True(t, apiRes.PrivateKeyPolicyEnabled)
 }
 
 func TestParseSSORequestParams(t *testing.T) {
@@ -5146,7 +5389,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		client,
 		t.TempDir(),
 		"",
-		utils.NetAddr{},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "proxy-1.example.com:443"},
 		client,
 		regular.SetUUID(proxyID),
 		regular.SetProxyMode("", revTunServer, client),

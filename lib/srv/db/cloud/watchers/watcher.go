@@ -168,6 +168,7 @@ func makeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (res
 	type makeFetcherFunc func(cloud.Clients, string, types.Labels) (Fetcher, error)
 	makeFetcherFuncs := map[string][]makeFetcherFunc{
 		services.AWSMatcherRDS:         {makeRDSInstanceFetcher, makeRDSAuroraFetcher},
+		services.AWSMatcherRDSProxy:    {makeRDSProxyFetcher},
 		services.AWSMatcherRedshift:    {makeRedshiftFetcher},
 		services.AWSMatcherElastiCache: {makeElastiCacheFetcher},
 		services.AWSMatcherMemoryDB:    {makeMemoryDBFetcher},
@@ -264,6 +265,20 @@ func makeRDSAuroraFetcher(clients cloud.Clients, region string, tags types.Label
 		return nil, trace.Wrap(err)
 	}
 	return fetcher, nil
+}
+
+// makeRDSProxyFetcher returns RDS proxy fetcher for the provided region and tags.
+func makeRDSProxyFetcher(clients cloud.Clients, region string, tags types.Labels) (Fetcher, error) {
+	rds, err := clients.GetAWSRDSClient(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newRDSDBProxyFetcher(rdsFetcherConfig{
+		Region: region,
+		Labels: tags,
+		RDS:    rds,
+	})
 }
 
 // makeRedshiftFetcher returns Redshift fetcher for the provided region and tags.

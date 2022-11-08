@@ -389,6 +389,11 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "memorydb,omitempty"
   ];
+  // RDSProxy contains AWS Proxy specific metadata.
+  RDSProxy RDSProxy = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "rdsproxy,omitempty"
+  ];
 }
 
 // SecretStore contains secret store configurations.
@@ -415,6 +420,16 @@ message RDS {
   string ResourceID = 3 [(gogoproto.jsontag) = "resource_id,omitempty"];
   // IAMAuth indicates whether database IAM authentication is enabled.
   bool IAMAuth = 4 [(gogoproto.jsontag) = "iam_auth"];
+}
+
+// RDSProxy contains AWS RDS Proxy specific database metadata.
+message RDSProxy {
+  // Name is the identifier of an RDS Proxy.
+  string Name = 1 [(gogoproto.jsontag) = "name,omitempty"];
+  // CustomEndpointName is the identifier of an RDS Proxy custom endpoint.
+  string CustomEndpointName = 2 [(gogoproto.jsontag) = "custom_endpoint_name,omitempty"];
+  // ResourceID is the RDS instance resource identifier (prx-xxx).
+  string ResourceID = 3 [(gogoproto.jsontag) = "resource_id,omitempty"];
 }
 
 // ElastiCache contains AWS ElastiCache Redis specific metadata.
@@ -966,7 +981,8 @@ message ProvisionTokenSpecV2 {
   // BotName is the name of the bot this token grants access to, if any
   string BotName = 5 [(gogoproto.jsontag) = "bot_name,omitempty"];
   // SuggestedLabels is a set of labels that resources should set when using this token to enroll
-  // themselves in the cluster
+  // themselves in the cluster.
+  // Currently, only node-join scripts create a configuration according to the suggestion.
   wrappers.LabelValues SuggestedLabels = 6 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "suggested_labels,omitempty",
@@ -974,6 +990,17 @@ message ProvisionTokenSpecV2 {
   ];
   // GitHub allows the configuration of options specific to the "github" join method.
   ProvisionTokenSpecV2GitHub GitHub = 7 [(gogoproto.jsontag) = "github,omitempty"];
+  // CircleCI allows the configuration of options specific to the "circleci" join method.
+  ProvisionTokenSpecV2CircleCI CircleCI = 8 [(gogoproto.jsontag) = "circleci,omitempty"];
+  // SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources.
+  // When an agent uses this token, the agent should monitor resources that match those labels.
+  // For databases, this means adding the labels to `db_service.resources.labels`.
+  // Currently, only node-join scripts create a configuration according to the suggestion.
+  wrappers.LabelValues SuggestedAgentMatcherLabels = 9 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "suggested_agent_matcher_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
 
 message ProvisionTokenSpecV2GitHub {
@@ -1005,6 +1032,17 @@ message ProvisionTokenSpecV2GitHub {
   // Allow is a list of TokenRules, nodes using this token must match one
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+}
+
+message ProvisionTokenSpecV2CircleCI {
+  message Rule {
+    string ProjectID = 1 [(gogoproto.jsontag) = "project_id,omitempty"];
+    string ContextID = 2 [(gogoproto.jsontag) = "context_id,omitempty"];
+  }
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  string OrganizationID = 2 [(gogoproto.jsontag) = "organization_id,omitempty"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.

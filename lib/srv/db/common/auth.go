@@ -506,10 +506,18 @@ func (a *dbAuth) appendClientCert(ctx context.Context, sessionCtx *Session, tlsC
 // setupTLSConfigRootCAs initializes the root CA cert pool for the provided
 // tlsConfig based on session context.
 func setupTLSConfigRootCAs(tlsConfig *tls.Config, sessionCtx *Session) error {
-	// Start with an empty pool.
-	tlsConfig.RootCAs = x509.NewCertPool()
+	// Start with an empty pool or a system cert pool.
+	if shouldUseSystemCertPool(sessionCtx) {
+		systemCertPool, err := x509.SystemCertPool()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		tlsConfig.RootCAs = systemCertPool
+	} else {
+		tlsConfig.RootCAs = x509.NewCertPool()
+	}
 
-	// If CA is provided by the database object, always use it.
+	// If CAs are provided by the database object, add them to the pool.
 	if len(sessionCtx.Database.GetCA()) != 0 {
 		if !tlsConfig.RootCAs.AppendCertsFromPEM([]byte(sessionCtx.Database.GetCA())) {
 			return trace.BadParameter("invalid server CA certificate")
@@ -517,17 +525,7 @@ func setupTLSConfigRootCAs(tlsConfig *tls.Config, sessionCtx *Session) error {
 		return nil
 	}
 
-	// Overwrite with the system cert pool, if required.
-	if shouldUseSystemCertPool(sessionCtx) {
-		systemCertPool, err := x509.SystemCertPool()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		tlsConfig.RootCAs = systemCertPool
-		return nil
-	}
-
-	// Use the empty pool. Client cert will be added later.
+	// Done. Client cert may also be added later for non-cloud databases.
 	return nil
 }
 
@@ -535,8 +533,21 @@ func setupTLSConfigRootCAs(tlsConfig *tls.Config, sessionCtx *Session) error {
 // certificates signed by publicly trusted CAs so a system cert pool can be
 // used.
 func shouldUseSystemCertPool(sessionCtx *Session) bool {
-	// Azure Cache for Redis certificates are signed by DigiCert Global Root G2.
-	return sessionCtx.Database.IsAzure() && sessionCtx.Database.GetProtocol() == defaults.ProtocolRedis
+	switch sessionCtx.Database.GetType() {
+	// Azure databases either use Baltimore Root CA or DigiCert Global Root G2.
+	//
+	// https://docs.microsoft.com/en-us/azure/postgresql/concepts-ssl-connection-security
+	// https://docs.microsoft.com/en-us/azure/mysql/howto-configure-ssl
+	case types.DatabaseTypeAzure:
+		return true
+
+	case types.DatabaseTypeRDSProxy:
+		// AWS RDS Proxy uses Amazon Root CAs.
+		//
+		// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.howitworks.html#rds-proxy-security.tls
+		return true
+	}
+	return false
 }
 
 // setupTLSConfigServerName initializes the server name for the provided
