@@ -165,7 +165,7 @@ func (s *WindowsService) onSharedDirectoryAnnounce(
 
 		// Close the connection as a security precaution.
 		if err := tdpConn.Close(); err != nil {
-			s.cfg.Log.Errorf("error when terminating sessionID(%v) for audit cache maximum size violation: %v", sid, err)
+			s.cfg.Log.WithError(err).Errorf("error when terminating sessionID(%v) for audit cache maximum size violation", sid)
 		}
 
 		event := &events.DesktopSharedDirectoryStart{
@@ -271,7 +271,7 @@ func (s *WindowsService) onSharedDirectoryReadRequest(
 
 		// Close the connection as a security precaution.
 		if err := tdpConn.Close(); err != nil {
-			s.cfg.Log.Errorf("error when terminating sessionID(%v) for audit cache maximum size violation: %v", sid, err)
+			s.cfg.Log.WithError(err).Errorf("error when terminating sessionID(%v) for audit cache maximum size violation", sid)
 		}
 
 		name, ok := s.auditCache.GetName(sessionID(sid), did)
@@ -405,7 +405,7 @@ func (s *WindowsService) onSharedDirectoryWriteRequest(
 
 		// Close the connection as a security precaution.
 		if err := tdpConn.Close(); err != nil {
-			s.cfg.Log.Errorf("error when terminating sessionID(%v) for audit cache maximum size violation: %v", sid, err)
+			s.cfg.Log.WithError(err).Errorf("error when terminating sessionID(%v) for audit cache maximum size violation", sid)
 		}
 
 		name, ok := s.auditCache.GetName(sessionID(sid), did)
