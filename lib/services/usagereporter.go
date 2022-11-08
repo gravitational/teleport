@@ -18,7 +18,9 @@ package services
 
 import (
 	prehogv1 "github.com/gravitational/prehog/gen/proto/prehog/v1alpha"
+	usageevents "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // UsageAnonymizable is an event that can be anonymized.
@@ -36,23 +38,37 @@ type UsageReporter interface {
 
 type UsageUserLogin prehogv1.UserLoginEvent
 
-func (l *UsageUserLogin) Anonymize(a utils.Anonymizer) {
-	l.UserName = a.Anonymize([]byte(l.UserName))
+func (u *UsageUserLogin) Anonymize(a utils.Anonymizer) {
+	u.UserName = a.Anonymize([]byte(u.UserName))
 
 	// TODO: anonymizer connector type?
 }
 
 type UsageSSOCreate prehogv1.SSOCreateEvent
 
-func (c *UsageSSOCreate) Anonymize(a utils.Anonymizer) {
+func (u *UsageSSOCreate) Anonymize(a utils.Anonymizer) {
 	// TODO: anonymize connector type?
 }
 
-// type UsageSessionStart api.SessionCreateRequest
 type UsageSessionStart prehogv1.SessionStartEvent
 
-func (c *UsageSessionStart) Anonymize(a utils.Anonymizer) {
-	c.UserName = a.Anonymize([]byte(c.UserName))
+func (u *UsageSessionStart) Anonymize(a utils.Anonymizer) {
+	u.UserName = a.Anonymize([]byte(u.UserName))
 
 	// TODO: anonymize session type?
+}
+
+type UsageUpgradeBannerClickEvent prehogv1.UpgradeBannerClickEvent
+
+func (u *UsageUpgradeBannerClickEvent) Anonymize(a utils.Anonymizer) {
+	// Event is empty, nothing to do.
+}
+
+func ConvertUsageEvent(event *usageevents.UsageEventOneOf) (UsageAnonymizable, error) {
+	switch event.GetEvent().(type) {
+	case *usageevents.UsageEventOneOf_UpgradeBannerClick:
+		return &UsageUpgradeBannerClickEvent{}, nil
+	default:
+		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
+	}
 }

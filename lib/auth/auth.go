@@ -3400,6 +3400,20 @@ func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error
 	return nil
 }
 
+// SubmitUsageEvent submits an external usage event.
+func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
+	event, err := services.ConvertUsageEvent(req.GetEvent())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.SubmitAnonymizedUsageEvents(event); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 	pref, err := a.GetAuthPreference(ctx)
 	if err != nil {

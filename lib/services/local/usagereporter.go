@@ -244,6 +244,14 @@ func (r *UsageReporter) convertEvent(event services.UsageAnonymizable) (*prehoga
 				SessionStart: (*prehogapi.SessionStartEvent)(e),
 			},
 		}, nil
+	case *services.UsageUpgradeBannerClickEvent:
+		return &prehogapi.SubmitEventRequest{
+			ClusterName: clusterName,
+			Timestamp:   time,
+			Event: &prehogapi.SubmitEventRequest_UpgradeBannerClick{
+				UpgradeBannerClick: (*prehogapi.UpgradeBannerClickEvent)(e),
+			},
+		}, nil
 	default:
 		return nil, trace.BadParameter("unexpected event usage type %T", event)
 	}
