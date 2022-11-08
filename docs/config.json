@@ -901,6 +901,10 @@
             {
               "title": "Applications",
               "slug": "/machine-id/guides/applications/"
+            },
+            {
+              "title": "Host Certificates",
+              "slug": "/machine-id/guides/host-certificate/"
             }
           ]
         }
