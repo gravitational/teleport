@@ -123,6 +123,31 @@ $ tsh scp somefile.ext xeon.tp.alexf.xyz:
 somefile.ext   7% |███████                | (25/342 MB, 2.9 MB/s) [9s:1m48s]
 ```
 
+## Kubernetes Access
+
+To see the Kubernetes clusters that you can access via Teleport, run the
+following command:
+
+```code
+$ tsh kube ls
+ Kube Cluster Name Labels                      Selected
+ ----------------- --------------------------- --------
+ mycluster         env=dev
+```
+
+To log in to the cluster, run the following command, changing `mycluster` to the
+name of a Kubernetes cluster as it was listed in `tsh kube ls`:
+
+```code
+$ tsh kube login mycluster
+Logged into kubernetes cluster "mycluster". Try 'kubectl version' to test the
+connection.
+```
+
+When you log in to your Teleport cluster via `tsh kube login`, `tsh` updates
+your kubeconfig to point to your chosen Kubernetes cluster. You can then run
+`kubectl` commands against your cluster.
+
 ## Database Access
 
 <Tabs>
