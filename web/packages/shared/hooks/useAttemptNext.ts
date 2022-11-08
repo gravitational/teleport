@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { useCallback } from 'react';
 
 import Logger from 'shared/libs/logger';
 const logger = Logger.create('shared/hooks/useAttempt');
@@ -31,7 +31,7 @@ export default function useAttemptNext(status = '' as Attempt['status']) {
     setAttempt({ status: 'failed', statusText: err.message });
   }
 
-  function run(fn: Callback) {
+  const run = useCallback((fn: Callback) => {
     try {
       setAttempt({ status: 'processing' });
       return fn()
@@ -47,7 +47,7 @@ export default function useAttemptNext(status = '' as Attempt['status']) {
       handleError(err);
       return Promise.resolve(false);
     }
-  }
+  }, []);
 
   return { attempt, setAttempt, run, handleError };
 }

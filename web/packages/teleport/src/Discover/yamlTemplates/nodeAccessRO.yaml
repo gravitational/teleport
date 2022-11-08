@@ -1,7 +1,7 @@
 kind: role
 spec:
   allow:
-    # Define OS users.
+    # List of allowed SSH logins
     logins:
     - osUser1
     - osUser2

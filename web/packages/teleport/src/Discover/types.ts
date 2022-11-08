@@ -28,9 +28,7 @@ export type AgentStepProps = {
   nextStep?: State['nextStep'];
   // prevStep decrements the `currentStep` to go to the prev step.
   prevStep?: State['prevStep'];
-  selectedResource?: State['selectedResource'];
   selectedResourceKind?: ResourceKind;
-  onSelectResource?: State['onSelectResource'];
 };
 
 export type AgentStepComponent = (props: AgentStepProps) => JSX.Element;

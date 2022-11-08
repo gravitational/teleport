@@ -1,16 +1,14 @@
 kind: role
 spec:
   allow:
-    kubernetes_groups:
-    # Only required to show Kubernetes groups added by the user.
-    - '{{internal.kubernetes_groups}}'
     # Define Kubernetes groups for this role.
+    kubernetes_groups:
+    - '{{internal.kubernetes_groups}}'
     - kubeGroup1
     - kubeGroup2
-    kubernetes_users:
-    # Only required to show Kubernetes users added by the user.
-    - '{{internal.kubernetes_users}}'
     # Define Kubernetes users for this role.
+    kubernetes_users:
+    - '{{internal.kubernetes_users}}'
     - kubeUser1
     - kubeUser2
     rules:

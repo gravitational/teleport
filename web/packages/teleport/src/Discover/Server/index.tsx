@@ -20,7 +20,7 @@ import { Server } from 'design/Icon';
 
 import { Resource } from 'teleport/Discover/flow';
 import { DownloadScript } from 'teleport/Discover/Server/DownloadScript';
-import { LoginTrait } from 'teleport/Discover/Server/LoginTrait';
+import { LoginTrait } from 'teleport/Discover/Server/SetupAccess';
 import { TestConnection } from 'teleport/Discover/Server/TestConnection';
 import { ResourceKind, Finished } from 'teleport/Discover/Shared';
 

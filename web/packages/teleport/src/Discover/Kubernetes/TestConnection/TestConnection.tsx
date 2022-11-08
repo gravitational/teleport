@@ -26,16 +26,15 @@ import { Option } from 'shared/components/Select';
 
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import useTeleport from 'teleport/useTeleport';
+import { YamlReader } from 'teleport/Discover/Shared/SetupAccess/AccessInfo';
 
 import {
   ActionButtons,
   TextIcon,
   HeaderSubtitle,
   Mark,
-  ReadOnlyYamlEditor,
   HeaderWithBackBtn,
 } from '../../Shared';
-import { ruleConnectionDiagnostic } from '../../templates';
 
 import { useTestConnection, State } from './useTestConnection';
 
@@ -212,9 +211,7 @@ export function TestConnection({
                     Please ask your Teleport administrator to update your role
                     and add the <Mark>connection_diagnostic</Mark> rule:
                   </Text>
-                  <Flex minHeight="190px" mt={3}>
-                    <ReadOnlyYamlEditor content={ruleConnectionDiagnostic} />
-                  </Flex>
+                  <YamlReader traitKind="ConnDiag" />
                 </Box>
               )}
             </Flex>
