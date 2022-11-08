@@ -71,6 +71,18 @@ func TestSliceOrString(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, SliceOrString{"e1", "e2"}, slice)
 		})
+
+		t.Run("error int", func(t *testing.T) {
+			var slice SliceOrString
+			err := json.Unmarshal([]byte(`5`), &slice)
+			require.Error(t, err)
+		})
+
+		t.Run("error invalid json", func(t *testing.T) {
+			var slice SliceOrString
+			err := json.Unmarshal([]byte(`"e1,`), &slice)
+			require.Error(t, err)
+		})
 	})
 }
 
