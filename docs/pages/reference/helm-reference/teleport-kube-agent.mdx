@@ -240,10 +240,7 @@ You can specify multiple apps by adding additional list elements.
       purpose: ci
   ```
 
-  <Admonition type="note" title="YAML formatting">
-    YAML is very sensitive to correct spacing. When specifying lists in a `values.yaml` file, you might like
-    to [use a linter](https://codebeautify.org/yaml-validator) to validate your YAML list and ensure that it is correctly formatted.
-  </Admonition>
+  (!docs/pages/includes/yaml-lint-note.mdx!)
   </TabItem>
   <TabItem label="--set">
   ```code
@@ -306,8 +303,8 @@ You can specify multiple selectors by including additional list elements.
 
 ## `awsDatabases`
 
-<Admonition type="tip" title="Database auto-discovery">
-  This section configures database auto-discovery, which is only currently supported on AWS. You can configure databases for other platforms using the [`databases`](#databases) section below this.
+<Admonition type="tip" title="AWS database auto-discovery">
+  This section configures AWS database auto-discovery. You can configure databases for other platforms using the [`azureDatabases`](#azuredatabases) or [`databases`](#databases) sections.
 </Admonition>
 
 <Admonition type="note" title="IAM roles">
@@ -324,7 +321,7 @@ You can specify multiple selectors by including additional list elements.
 
 | Type | Default value | Required? |
 | - | - | - |
-| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`, `dbResources` is required. |
+| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`, `azureDatabases`,<br/> `databaseResources` is required. |
 
 `awsDatabases` is a YAML list object detailing the filters for the AWS databases that should be discovered and proxied by Teleport Database access.
 
@@ -337,6 +334,7 @@ You can specify multiple database filters by adding additional list elements.
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
+  roles: db
   awsDatabases:
     - types: ["rds"]
       regions: ["us-east-1", "us-west-2"]
@@ -350,31 +348,100 @@ You can specify multiple database filters by adding additional list elements.
       regions: ["eu-west-1"]
       tags:
         "*": "*"
+  annotations:
+    serviceAccount:
+      eks.amazonaws.com/role-arn: arn:aws:iam::1234567890:role/my-rds-autodiscovery-role
   ```
 
-  <Admonition type="note" title="YAML formatting">
-    YAML is very sensitive to correct spacing. When specifying lists in a `values.yaml` file, you might like
-    to [use a linter](https://codebeautify.org/yaml-validator) to validate your YAML list and ensure that it is correctly formatted.
-  </Admonition>
+  (!docs/pages/includes/yaml-lint-note.mdx!)
   </TabItem>
-  <TabItem label="--set">
+</Tabs>
+
+## `azureDatabases`
+
+<Admonition type="tip" title="Azure database auto-discovery">
+  This section configures Azure database auto-discovery. You can configure databases for other platforms using the [`awsDatabases`](#awsdatabases) or [`databases`](#databases) sections.
+</Admonition>
+
+<Admonition type="note" title="Azure IAM">
+  For Azure database auto-discovery to work, your Database Service pods will need to have appropriate IAM permissions as per the [database documentation](../../database-access/guides/azure-postgres-mysql.mdx#step-35-configure-iam-permissions-for-teleport).
+
+  After configuring a service principal with appropriate IAM permissions, you must pass credentials to the pods.
+  The easiest way is to use an Azure client secret.
+
+  First, create in the chart installation namespace a Kubernetes `Secret` containing the azure client secret:
   ```code
-  --set "awsDatabases[0].types[0]=rds" \
-  --set "awsDatabases[0].regions[0]=us-east-1" \
-  --set "awsDatabases[0].regions[1]=us-west-2" \
-  --set "awsDatabases[0].tags[0].environment=production" \
-  --set "awsDatabases[1].types[0]=rds" \
-  --set "awsDatabases[1].regions[0]=us-east-1" \
-  --set "awsDatabases[1].tags[0].environment=dev" \
-  --set "awsDatabases[2].types[0]=rds" \
-  --set "awsDatabases[2].regions[0]=eu-west-1" \
-  --set "awsDatabases[2].tags[0].*=*"
+  $ kubectl create secret generic teleport-azure-client-secret --from-literal=client_secret=<your-azure-client-secret>
+  secret/teleport-azure-client-secret created
   ```
 
-  <Admonition type="note">
-    Note that when using `--set` syntax, YAML list elements must be indexed starting at `0`.
-  </Admonition>
+  Then, use the [`extraEnv`](#extraenv) value to set the pods environment variables:
 
+  ```yaml
+  extraEnv:
+  - name: AZURE_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+      name: teleport-azure-client-secret
+      key: client_secret
+      optional: false
+  - name: AZURE_TENANT_ID
+    value: "11111111-2222-3333-4444-555555555555"
+  - name: AZURE_CLIENT_ID
+    value: "11111111-2222-3333-4444-555555555555"
+  ```
+</Admonition>
+
+| Type | Default value | Required? |
+| - | - | - |
+| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`,<br/> `azureDatabases`, `databaseResources` is required. |
+
+`azureDatabases` is a YAML list object detailing the filters for the Azure databases that should be discovered and proxied by Teleport Database access.
+
+You can specify multiple database filters by adding additional list elements.
+
+Required fields for each filter:
+- `types` is a list containing the types of Azure databases that should be discovered.
+- `tags` can be used to set Azure resource tags that must be matched for databases to be discovered.
+
+Optional fields for each filter:
+- `regions` is a list of Azure regions which should be scanned for databases.
+- `subscriptions` can be used to discover databases within matching Azure subscriptions.
+- `resource_groups` can be used to discover databases within matching Azure resource groups.
+
+The default for each of these optional settings is `*`, which will auto-discover in all
+subscriptions, regions, or resource groups accessible by the Teleport service
+principal in Azure.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  roles: db
+  azureDatabases:
+  - types: ["mysql", "postgres"]
+    tags:
+      "*": "*"
+  - types: ["mysql"]
+    tags:
+      "env": ["dev", "staging"]
+      "origin": "alice"
+    regions: ["eastus", "centralus"]
+    subscriptions: ["subID1", "subID2"]
+    resource_groups: ["group1", "group2"]
+  extraEnv:
+  - name: AZURE_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+      name: teleport-azure-client-secret
+      key: client_secret
+      optional: false
+  - name: AZURE_TENANT_ID
+    value: "11111111-2222-3333-4444-555555555555"
+  - name: AZURE_CLIENT_ID
+    value: "11111111-2222-3333-4444-555555555555"
+  ```
+
+  (!docs/pages/includes/yaml-lint-note.mdx!)
   </TabItem>
 </Tabs>
 
@@ -382,7 +449,7 @@ You can specify multiple database filters by adding additional list elements.
 
 | Type | Default value | Required? |
 | - | - | - |
-| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`, `dbResources` is required. |
+| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`,<br/> `azureDatabases`, `databaseResources` is required. |
 
 `databases` is a YAML list object detailing the databases that should be proxied by Teleport Database access.
 
@@ -408,10 +475,7 @@ You can specify multiple databases by adding additional list elements.
       env: staging
   ```
 
-  <Admonition type="note" title="YAML formatting">
-    YAML is very sensitive to correct spacing. When specifying lists in a `values.yaml` file, you might like
-    to [use a linter](https://codebeautify.org/yaml-validator) to validate your YAML list and ensure that it is correctly formatted.
-  </Admonition>
+  (!docs/pages/includes/yaml-lint-note.mdx!)
   </TabItem>
   <TabItem label="--set">
   ```code
@@ -466,20 +530,20 @@ You can specify multiple databases by adding additional list elements.
   ```
 </Admonition>
 
-## `dbResources`
+## `databaseResources`
 
 | Type | Default value | Required? |
 | - | - | - |
-| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`, `dbResources` is required. |
+| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`,<br/> `azureDatabases`, `databaseResources` is required. |
 
-`dbResources` is a YAML list object detailing the resource selectors of the databases that should be proxied by Teleport Database Access.
+`databaseResources` is a YAML list object detailing the resource selectors of the databases that should be proxied by Teleport Database Access.
 
 You can specify multiple selectors by adding elements to the list.
 
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  dbResources:
+  databaseResources:
   - labels:
       "env": "prod"
       "engine": "postgres"
@@ -492,10 +556,10 @@ You can specify multiple selectors by adding elements to the list.
   <TabItem label="--set">
   ```code
   $
-  --set "dbResources[0].labels.env=prod" \
-  --set "dbResources[0].labels.engine=postgres" \
-  --set "dbResources[1].labels.env=test" \
-  --set "dbResources[0].labels.engine=mysql"
+  --set "databaseResources[0].labels.env=prod" \
+  --set "databaseResources[0].labels.engine=postgres" \
+  --set "databaseResources[1].labels.env=test" \
+  --set "databaseResources[0].labels.engine=mysql"
   ```
 
   <Admonition type="note">
@@ -506,7 +570,7 @@ You can specify multiple selectors by adding elements to the list.
 </Tabs>
 
 <Admonition type="tip" title="Example">
-  Once `dbResources` is set, you can dynamically register database with `tsh` by following [this guide](../../database-access/guides/dynamic-registration.mdx).
+  Once `databaseResources` is set, you can dynamically register database with `tsh` by following [this guide](../../database-access/guides/dynamic-registration.mdx).
 </Admonition>
 
 ## `teleportVersionOverride`

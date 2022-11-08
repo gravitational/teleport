@@ -30,6 +30,9 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/oxy/forward"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -37,8 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/web/app"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 // TestAppAccess runs the full application access integration test suite.
@@ -554,6 +555,107 @@ func TestTCP(t *testing.T) {
 			require.Equal(t, test.outMessage, resp)
 		})
 	}
+}
+
+// TestTCPLock tests locking TCP applications.
+func TestTCPLock(t *testing.T) {
+	pack := Setup(t)
+
+	msg := []byte(uuid.New().String())
+
+	// Start the proxy to the two way communication app.
+	address := pack.startLocalProxy(t, pack.rootTCPTwoWayPublicAddr, pack.rootAppClusterName)
+	conn, err := net.Dial("tcp", address)
+	require.NoError(t, err)
+
+	// Read, write, and read again to make sure its working as expected.
+	buf := make([]byte, 1024)
+	n, err := conn.Read(buf)
+	require.NoError(t, err, buf)
+
+	resp := strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
+
+	_, err = conn.Write(msg)
+	require.NoError(t, err)
+
+	n, err = conn.Read(buf)
+	require.NoError(t, err, buf)
+
+	resp = strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
+
+	// Lock the user and try to write
+	pack.LockUser(t)
+	require.Eventually(t, func() bool {
+		_, err := conn.Write(msg)
+		if err != nil {
+			return false
+		}
+
+		_, err = conn.Read(buf)
+		return err != nil
+	}, 5*time.Second, 100*time.Millisecond)
+	// Close and re-open the connection
+	require.NoError(t, conn.Close())
+
+	conn, err = net.Dial("tcp", address)
+	require.NoError(t, err)
+
+	// Try to read again, expect a failure.
+	_, err = conn.Read(buf)
+	require.Error(t, err, buf)
+}
+
+// TestTCPCertExpiration tests TCP application with certs expiring.
+func TestTCPCertExpiration(t *testing.T) {
+	pack := SetupWithOptions(t, AppTestOptions{
+		CertificateTTL: 5 * time.Second,
+	})
+
+	msg := []byte(uuid.New().String())
+
+	// Start the proxy to the two way communication app.
+	address := pack.startLocalProxy(t, pack.rootTCPTwoWayPublicAddr, pack.rootAppClusterName)
+	conn, err := net.Dial("tcp", address)
+	require.NoError(t, err)
+
+	// Read, write, and read again to make sure its working as expected.
+	buf := make([]byte, 1024)
+	n, err := conn.Read(buf)
+	require.NoError(t, err, buf)
+
+	resp := strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
+
+	_, err = conn.Write(msg)
+	require.NoError(t, err)
+
+	n, err = conn.Read(buf)
+	require.NoError(t, err, buf)
+
+	resp = strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
+
+	// Lock the user and try to write
+	require.Eventually(t, func() bool {
+		_, err := conn.Write(msg)
+		if err != nil {
+			return false
+		}
+
+		_, err = conn.Read(buf)
+		return err != nil
+	}, 5*time.Second, 100*time.Millisecond)
+	// Close and re-open the connection
+	require.NoError(t, conn.Close())
+
+	conn, err = net.Dial("tcp", address)
+	require.NoError(t, err)
+
+	// Try to read again, expect a failure.
+	_, err = conn.Read(buf)
+	require.Error(t, err, buf)
 }
 
 func testServersHA(p *Pack, t *testing.T) {

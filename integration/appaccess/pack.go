@@ -92,6 +92,11 @@ type Pack struct {
 	rootTCPMessage    string
 	rootTCPAppURI     string
 
+	rootTCPTwoWayAppName    string
+	rootTCPTwoWayPublicAddr string
+	rootTCPTwoWayMessage    string
+	rootTCPTwoWayAppURI     string
+
 	jwtAppName        string
 	jwtAppPublicAddr  string
 	jwtAppClusterName string
@@ -156,7 +161,7 @@ func (p *Pack) LeafAppPublicAddr() string {
 }
 
 // initUser will create a user within the root cluster.
-func (p *Pack) initUser(t *testing.T, opts AppTestOptions) {
+func (p *Pack) initUser(t *testing.T) {
 	p.username = uuid.New().String()
 	p.password = uuid.New().String()
 
@@ -235,10 +240,11 @@ func (p *Pack) initWebSession(t *testing.T) {
 
 // initTeleportClient initializes a Teleport client with this pack's user
 // credentials.
-func (p *Pack) initTeleportClient(t *testing.T) {
+func (p *Pack) initTeleportClient(t *testing.T, opts AppTestOptions) {
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
-		Process:  p.rootCluster.Process,
-		Username: p.user.GetName(),
+		Process:        p.rootCluster.Process,
+		Username:       p.user.GetName(),
+		CertificateTTL: opts.CertificateTTL,
 	})
 	require.NoError(t, err)
 
@@ -274,6 +280,21 @@ func (p *Pack) CreateAppSession(t *testing.T, publicAddr, clusterName string) st
 	require.NoError(t, err)
 
 	return casResp.CookieValue
+}
+
+// LockUser will lock the configured user for this pack.
+func (p *Pack) LockUser(t *testing.T) {
+	err := p.rootCluster.Process.GetAuthServer().UpsertLock(context.Background(), &types.LockV2{
+		Spec: types.LockSpecV2{
+			Target: types.LockTarget{
+				User: p.username,
+			},
+		},
+		Metadata: types.Metadata{
+			Name: "test-lock",
+		},
+	})
+	require.NoError(t, err)
 }
 
 // makeWebapiRequest makes a request to the root cluster Web API.
@@ -586,6 +607,11 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 				Name:       p.rootTCPAppName,
 				URI:        p.rootTCPAppURI,
 				PublicAddr: p.rootTCPPublicAddr,
+			},
+			{
+				Name:       p.rootTCPTwoWayAppName,
+				URI:        p.rootTCPTwoWayAppURI,
+				PublicAddr: p.rootTCPTwoWayPublicAddr,
 			},
 			{
 				Name:       p.jwtAppName,

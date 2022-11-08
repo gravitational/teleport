@@ -35,6 +35,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/oxy/ratelimit"
+	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+	lemma_secret "github.com/mailgun/lemma/secret"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/mod/semver"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -44,6 +54,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -63,17 +74,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
-
-	"github.com/gravitational/oxy/ratelimit"
-	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
-	lemma_secret "github.com/mailgun/lemma/secret"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/mod/semver"
 )
 
 const (
@@ -540,6 +540,9 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	// Sign required files to set up mTLS using the db format.
 	h.POST("/webapi/sites/:site/sign/db", h.WithProvisionTokenAuth(h.signDatabaseCertificate))
 
+	// Returns the CA Certs
+	h.GET("/webapi/sites/:site/auth/export", h.authExportPublic)
+
 	// token generation
 	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
 
@@ -549,27 +552,19 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	// join scripts
 	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(h.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(h.getAppJoinScriptHandle))
+	h.GET("/scripts/:token/install-database.sh", httplib.MakeHandler(h.getDatabaseJoinScriptHandle))
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
 	h.GET("/webapi/sites/:site/resources/check", h.WithClusterAuth(h.checkAccessToRegisteredResource))
 
 	// Database access handlers.
 	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.clusterDatabasesGet))
+	h.POST("/webapi/sites/:site/databases", h.WithClusterAuth(h.handleDatabaseCreate))
+	h.PUT("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.handleDatabaseUpdate))
 	h.GET("/webapi/sites/:site/databases/:database/iam/policy", h.WithClusterAuth(h.handleDatabaseGetIAMPolicy))
 
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
-
-	// OIDC related callback handlers
-	h.GET("/webapi/oidc/login/web", h.WithRedirect(h.oidcLoginWeb))
-	h.GET("/webapi/oidc/callback", h.WithMetaRedirect(h.oidcCallback))
-	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(h.oidcLoginConsole))
-
-	// SAML 2.0 handlers
-	h.POST("/webapi/saml/acs", h.WithMetaRedirect(h.samlACS))
-	h.POST("/webapi/saml/acs/:connector", h.WithMetaRedirect(h.samlACS))
-	h.GET("/webapi/saml/sso", h.WithMetaRedirect(h.samlSSO))
-	h.POST("/webapi/saml/login/console", httplib.MakeHandler(h.samlSSOConsole))
 
 	// Github connector handlers
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
@@ -623,6 +618,7 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.GET("/webapi/sites/:site/desktops/:desktopName/connect", h.WithClusterAuth(h.desktopConnectHandle))
 	// GET /webapi/sites/:site/desktopplayback/:sid?access_token=<bearer_token>
 	h.GET("/webapi/sites/:site/desktopplayback/:sid", h.WithClusterAuth(h.desktopPlaybackHandle))
+	h.GET("/webapi/sites/:site/desktops/:desktopName/active", h.WithClusterAuth(h.desktopIsActive))
 
 	// GET a Connection Diagnostics by its name
 	h.GET("/webapi/sites/:site/diagnostics/connections/:connectionid", h.WithClusterAuth(h.getConnectionDiagnostic))
@@ -1116,6 +1112,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			AuthType:           authType,
 			PreferredLocalMFA:  cap.GetPreferredLocalMFA(),
 			LocalConnectorName: localConnectorName,
+			PrivateKeyPolicy:   cap.GetPrivateKeyPolicy(),
 		}
 	}
 
@@ -1206,32 +1203,6 @@ func (h *Handler) motd(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	}
 
 	return webclient.MotD{Text: authPrefs.GetMessageOfTheDay()}, nil
-}
-
-func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) string {
-	logger := h.log.WithField("auth", "oidc")
-	logger.Debug("Web login start.")
-
-	req, err := ParseSSORequestParams(r)
-	if err != nil {
-		logger.WithError(err).Error("Failed to extract SSO parameters from request.")
-		return client.LoginFailedRedirectURL
-	}
-
-	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
-		CSRFToken:         req.CSRFToken,
-		ConnectorID:       req.ConnectorID,
-		CreateWebSession:  true,
-		ClientRedirectURL: req.ClientRedirectURL,
-		CheckUser:         true,
-		ProxyAddress:      r.Host,
-	})
-	if err != nil {
-		logger.WithError(err).Error("Error creating auth request.")
-		return client.LoginFailedRedirectURL
-	}
-
-	return response.RedirectURL
 }
 
 func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) string {
@@ -1354,112 +1325,6 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		TLSCert:           response.TLSCert,
 		HostSigners:       response.HostSigners,
 		FIPS:              h.cfg.FIPS,
-	})
-	if err != nil {
-		logger.WithError(err).Error("Error constructing ssh response")
-		return client.LoginFailedRedirectURL
-	}
-
-	return redirectURL.String()
-}
-
-func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	logger := h.log.WithField("auth", "oidc")
-	logger.Debug("Console login start.")
-
-	req := new(client.SSOLoginConsoleReq)
-	if err := httplib.ReadJSON(r, req); err != nil {
-		logger.WithError(err).Error("Error reading json.")
-		return nil, trace.AccessDenied(SSOLoginFailureMessage)
-	}
-
-	if err := req.CheckAndSetDefaults(); err != nil {
-		logger.WithError(err).Error("Missing request parameters.")
-		return nil, trace.AccessDenied(SSOLoginFailureMessage)
-	}
-
-	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
-		ConnectorID:          req.ConnectorID,
-		ClientRedirectURL:    req.RedirectURL,
-		PublicKey:            req.PublicKey,
-		CertTTL:              req.CertTTL,
-		CheckUser:            true,
-		Compatibility:        req.Compatibility,
-		RouteToCluster:       req.RouteToCluster,
-		KubernetesCluster:    req.KubernetesCluster,
-		ProxyAddress:         r.Host,
-		AttestationStatement: req.AttestationStatement.ToProto(),
-	})
-	if err != nil {
-		logger.WithError(err).Error("Failed to create OIDC auth request.")
-		return nil, trace.AccessDenied(SSOLoginFailureMessage)
-	}
-
-	return &client.SSOLoginConsoleResponse{
-		RedirectURL: response.RedirectURL,
-	}, nil
-}
-
-func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) string {
-	logger := h.log.WithField("auth", "oidc")
-	logger.Debug("Callback start.")
-
-	response, err := h.cfg.ProxyClient.ValidateOIDCAuthCallback(r.Context(), r.URL.Query())
-	if err != nil {
-		logger.WithError(err).Error("Error while processing callback.")
-
-		// try to find the auth request, which bears the original client redirect URL.
-		// if found, use it to terminate the flow.
-		//
-		// this improves the UX by terminating the failed SSO flow immediately, rather than hoping for a timeout.
-		if requestID := r.URL.Query().Get("state"); requestID != "" {
-			if request, errGet := h.cfg.ProxyClient.GetOIDCAuthRequest(r.Context(), requestID); errGet == nil && !request.CreateWebSession {
-				if redURL, errEnc := RedirectURLWithError(request.ClientRedirectURL, err); errEnc == nil {
-					return redURL.String()
-				}
-			}
-		}
-
-		if errors.Is(err, auth.ErrOIDCNoRoles) {
-			return client.LoginFailedUnauthorizedRedirectURL
-		}
-
-		return client.LoginFailedBadCallbackRedirectURL
-	}
-
-	// if we created web session, set session cookie and redirect to original url
-	if response.Req.CreateWebSession {
-		logger.Info("Redirecting to web browser.")
-
-		res := &SSOCallbackResponse{
-			CSRFToken:         response.Req.CSRFToken,
-			Username:          response.Username,
-			SessionName:       response.Session.GetName(),
-			ClientRedirectURL: response.Req.ClientRedirectURL,
-		}
-
-		if err := SSOSetWebSessionAndRedirectURL(w, r, res, true); err != nil {
-			logger.WithError(err).Error("Error setting web session.")
-			return client.LoginFailedRedirectURL
-		}
-
-		return res.ClientRedirectURL
-	}
-
-	logger.Info("Callback redirecting to console login.")
-	if len(response.Req.PublicKey) == 0 {
-		logger.Error("Not a web or console login request.")
-		return client.LoginFailedRedirectURL
-	}
-
-	redirectURL, err := ConstructSSHResponse(AuthParams{
-		ClientRedirectURL: response.Req.ClientRedirectURL,
-		Username:          response.Username,
-		Identity:          response.Identity,
-		Session:           response.Session,
-		Cert:              response.Cert,
-		TLSCert:           response.TLSCert,
-		HostSigners:       response.HostSigners,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error constructing ssh response")
@@ -1711,6 +1576,12 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 	if err != nil {
 		h.log.WithError(err).Warnf("Access attempt denied for user %q.", req.User)
+		// Since checking for private key policy meant that they passed authn,
+		// return policy error as is to help direct user.
+		if keys.IsPrivateKeyPolicyError(err) {
+			return nil, trace.Wrap(err)
+		}
+		// Obscure all other errors.
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
@@ -1862,6 +1733,21 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
+	if res.PrivateKeyPolicyEnabled {
+		if res.GetRecovery() == nil {
+			return &ui.ChangedUserAuthn{
+				PrivateKeyPolicyEnabled: res.PrivateKeyPolicyEnabled,
+			}, nil
+		}
+		return &ui.ChangedUserAuthn{
+			Recovery: ui.RecoveryCodes{
+				Codes:   res.GetRecovery().GetCodes(),
+				Created: &res.GetRecovery().Created,
+			},
+			PrivateKeyPolicyEnabled: res.PrivateKeyPolicyEnabled,
+		}, nil
+	}
+
 	sess := res.WebSession
 	ctx, err := h.auth.newSessionContext(r.Context(), sess.GetUser(), sess.GetName())
 	if err != nil {
@@ -1878,12 +1764,14 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	}
 
 	if res.GetRecovery() == nil {
-		return &ui.RecoveryCodes{}, nil
+		return &ui.ChangedUserAuthn{}, nil
 	}
 
-	return &ui.RecoveryCodes{
-		Codes:   res.Recovery.Codes,
-		Created: &res.Recovery.Created,
+	return &ui.ChangedUserAuthn{
+		Recovery: ui.RecoveryCodes{
+			Codes:   res.GetRecovery().GetCodes(),
+			Created: &res.GetRecovery().Created,
+		},
 	}, nil
 }
 
@@ -2037,6 +1925,12 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	clientMeta := clientMetaFromReq(r)
 	session, err := h.auth.AuthenticateWebUser(r.Context(), req, clientMeta)
 	if err != nil {
+		// Since checking for private key policy meant that they passed authn,
+		// return policy error as is to help direct user.
+		if keys.IsPrivateKeyPolicyError(err) {
+			return nil, trace.Wrap(err)
+		}
+		// Obscure all other errors.
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
@@ -2095,15 +1989,13 @@ type getSiteNamespacesResponse struct {
 	Namespaces []types.Namespace `json:"namespaces"`
 }
 
-/*
-	getSiteNamespaces returns a list of namespaces for a given site
-
-GET /v1/webapi/sites/:site/namespaces
-
-Successful response:
-
-{"namespaces": [{..namespace resource...}]}
-*/
+// getSiteNamespaces returns a list of namespaces for a given site
+//
+// GET /v1/webapi/sites/:site/namespaces
+//
+// Successful response:
+//
+// {"namespaces": [{..namespace resource...}]}
 func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := site.GetClient()
 	if err != nil {
@@ -2275,6 +2167,7 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 			return nil, trace.Wrap(err)
 		}
 
+		req.Session.Kind = types.SSHSessionKind
 		req.Session.ServerHostname = hostname
 	}
 
@@ -2321,6 +2214,9 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 		ServerAddr:            tracker.GetAddress(),
 		ClusterName:           clusterName,
 		KubernetesClusterName: tracker.GetKubeCluster(),
+		DesktopName:           tracker.GetDesktopName(),
+		AppName:               tracker.GetAppName(),
+		DatabaseName:          tracker.GetDatabaseName(),
 	}
 }
 
@@ -2345,9 +2241,7 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 
 	sessions := make([]session.Session, 0, len(trackers))
 	for _, tracker := range trackers {
-		// Only return ssh and k8s session type.
-		isSSHOrK8s := tracker.GetSessionKind() == types.SSHSessionKind || tracker.GetSessionKind() == types.KubernetesSessionKind
-		if isSSHOrK8s && tracker.GetState() != types.SessionState_SessionStateTerminated {
+		if tracker.GetState() != types.SessionState_SessionStateTerminated {
 			sessions = append(sessions, trackerToLegacySession(tracker, p.ByName("site")))
 		}
 	}
@@ -3268,4 +3162,28 @@ func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 	response.ClientRedirectURL = parsedURL.RequestURI()
 
 	return nil
+}
+
+// authExportPublic returns the CA Certs that can be used to set up a chain of trust which includes the current Teleport Cluster
+//
+// GET /webapi/sites/:site/auth/export?type=<auth type>
+func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	authorities, err := client.ExportAuthorities(
+		r.Context(),
+		h.GetProxyClient(),
+		client.ExportAuthoritiesRequest{
+			AuthType: r.URL.Query().Get("type"),
+		},
+	)
+	if err != nil {
+		h.log.WithError(err).Debug("Failed to generate CA Certs.")
+		http.Error(w, err.Error(), trace.ErrorToCode(err))
+		return
+	}
+
+	reader := strings.NewReader(authorities)
+
+	// ServeContent sets the correct headers: Content-Type, Content-Length and Accept-Ranges.
+	// It also handles the Range negotiation
+	http.ServeContent(w, r, "authorized_hosts.txt", time.Now(), reader)
 }

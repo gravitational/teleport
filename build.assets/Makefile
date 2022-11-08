@@ -261,6 +261,13 @@ grpc-teleterm: buildbox-teleterm
 		$(DOCKERFLAGS) -e CLANG_FORMAT=/usr/bin/clang-format-10 -t $(BUILDBOX_TELETERM) \
 		make -C /go/src/github.com/gravitational/teleport grpc-teleterm/host
 
+# fix-imports runs GCI to sort and re-order Go imports in a deterministic way.
+.PHONY: fix-imports
+fix-imports: buildbox
+	docker run \
+		$(DOCKERFLAGS) -t $(BUILDBOX) \
+		make -C /go/src/github.com/gravitational/teleport fix-imports/host
+
 #
 # Removes the docker image
 #
@@ -380,7 +387,7 @@ enter/teleterm: buildbox-teleterm
 .PHONY:release
 release: buildbox
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NAME) \
-		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) LIBPCSCLITE=$(LIBPCSCLITE) REPRODUCIBLE=yes
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
 
 # These are aliases used to make build commands uniform.
 .PHONY: release-amd64
@@ -405,7 +412,7 @@ release-arm64: buildbox-arm
 
 .PHONY: release-amd64-centos7
 release-amd64-centos7: buildbox-centos7
-	$(MAKE) release-centos7 ARCH=amd64 FIDO2=yes LIBPCSCLITE=yes
+	$(MAKE) release-centos7 ARCH=amd64 FIDO2=yes PIV=yes
 
 .PHONY: release-amd64-centos7-fips
 release-amd64-centos7-fips: buildbox-centos7-fips
@@ -428,7 +435,7 @@ release-fips: buildbox-fips
 .PHONY:release-centos7
 release-centos7: buildbox-centos7
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
-		/usr/bin/scl enable devtoolset-11 'make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) LIBPCSCLITE=$(LIBPCSCLITE) REPRODUCIBLE=no'
+		/usr/bin/scl enable devtoolset-11 'make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no'
 
 #
 # Create a Teleport FIPS package for CentOS 7 using the build container.
@@ -445,7 +452,7 @@ release-centos7-fips:
 .PHONY:release-windows
 release-windows: buildbox
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX) \
-		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=windows RUNTIME=$(GOLANG_VERSION) REPRODUCIBLE=yes
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=windows RUNTIME=$(GOLANG_VERSION) REPRODUCIBLE=yes PIV=yes
 
 #
 # Create an unsigned Windows Teleport package using the build container.
@@ -453,7 +460,7 @@ release-windows: buildbox
 .PHONY:release-windows-unsigned
 release-windows-unsigned: buildbox
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX) \
-		/usr/bin/make release-windows-unsigned -e ADDFLAGS="$(ADDFLAGS)" OS=windows RUNTIME=$(GOLANG_VERSION) REPRODUCIBLE=yes
+		/usr/bin/make release-windows-unsigned -e ADDFLAGS="$(ADDFLAGS)" OS=windows RUNTIME=$(GOLANG_VERSION) REPRODUCIBLE=yes PIV=yes
 
 #
 # Run docs tester to detect problems.

@@ -59,6 +59,8 @@ type Database interface {
 	SetURI(string)
 	// GetCA returns the database CA certificate.
 	GetCA() string
+	// SetCA sets the database CA certificate in the Spec.TLS field.
+	SetCA(string)
 	// GetTLS returns the database TLS configuration.
 	GetTLS() DatabaseTLS
 	// SetStatusCA sets the database CA certificate in the status field.
@@ -92,6 +94,8 @@ type Database interface {
 	SetManagedUsers(users []string)
 	// IsRDS returns true if this is an RDS/Aurora database.
 	IsRDS() bool
+	// IsRDSProxy returns true if this is an RDS Proxy database.
+	IsRDSProxy() bool
 	// IsRedshift returns true if this is a Redshift database.
 	IsRedshift() bool
 	// IsCloudSQL returns true if this is a Cloud SQL database.
@@ -258,6 +262,11 @@ func (d *DatabaseV3) GetCA() string {
 	return d.Status.CACert
 }
 
+// SetCA sets the database CA certificate in the Spec.TLS.CACert field.
+func (d *DatabaseV3) SetCA(caCert string) {
+	d.Spec.TLS.CACert = caCert
+}
+
 // GetTLS returns Database TLS configuration.
 func (d *DatabaseV3) GetTLS() DatabaseTLS {
 	return d.Spec.TLS
@@ -339,6 +348,11 @@ func (d *DatabaseV3) IsRDS() bool {
 	return d.GetType() == DatabaseTypeRDS
 }
 
+// IsRDSProxy returns true if this is an AWS RDS Proxy database.
+func (d *DatabaseV3) IsRDSProxy() bool {
+	return d.GetType() == DatabaseTypeRDSProxy
+}
+
 // IsRedshift returns true if this is a Redshift database instance.
 func (d *DatabaseV3) IsRedshift() bool {
 	return d.GetType() == DatabaseTypeRedshift
@@ -371,7 +385,8 @@ func (d *DatabaseV3) IsAWSKeyspaces() bool {
 
 // IsAWSHosted returns true if database is hosted by AWS.
 func (d *DatabaseV3) IsAWSHosted() bool {
-	return d.IsRDS() || d.IsRedshift() || d.IsElastiCache() || d.IsMemoryDB() || d.IsAWSKeyspaces()
+	_, ok := d.getAWSType()
+	return ok
 }
 
 // IsCloudHosted returns true if database is hosted in the cloud (AWS, Azure or
@@ -380,23 +395,36 @@ func (d *DatabaseV3) IsCloudHosted() bool {
 	return d.IsAWSHosted() || d.IsCloudSQL() || d.IsAzure()
 }
 
+// getAWSType returns the database type.
+func (d *DatabaseV3) getAWSType() (string, bool) {
+	aws := d.GetAWS()
+	if aws.AccountID != "" && d.Spec.Protocol == DatabaseTypeCassandra {
+		return DatabaseTypeAWSKeyspaces, true
+	}
+	if aws.Redshift.ClusterID != "" {
+		return DatabaseTypeRedshift, true
+	}
+	if aws.ElastiCache.ReplicationGroupID != "" {
+		return DatabaseTypeElastiCache, true
+	}
+	if aws.MemoryDB.ClusterName != "" {
+		return DatabaseTypeMemoryDB, true
+	}
+	if aws.RDSProxy.Name != "" || aws.RDSProxy.CustomEndpointName != "" {
+		return DatabaseTypeRDSProxy, true
+	}
+	if aws.Region != "" || aws.RDS.InstanceID != "" || aws.RDS.ClusterID != "" {
+		return DatabaseTypeRDS, true
+	}
+	return "", false
+}
+
 // GetType returns the database type.
 func (d *DatabaseV3) GetType() string {
-	if d.GetAWS().AccountID != "" && d.Spec.Protocol == DatabaseTypeCassandra {
-		return DatabaseTypeAWSKeyspaces
+	if awsType, ok := d.getAWSType(); ok {
+		return awsType
 	}
-	if d.GetAWS().Redshift.ClusterID != "" {
-		return DatabaseTypeRedshift
-	}
-	if d.GetAWS().ElastiCache.ReplicationGroupID != "" {
-		return DatabaseTypeElastiCache
-	}
-	if d.GetAWS().MemoryDB.ClusterName != "" {
-		return DatabaseTypeMemoryDB
-	}
-	if d.GetAWS().Region != "" || d.GetAWS().RDS.InstanceID != "" || d.GetAWS().RDS.ClusterID != "" {
-		return DatabaseTypeRDS
-	}
+
 	if d.GetGCP().ProjectID != "" {
 		return DatabaseTypeCloudSQL
 	}
@@ -471,15 +499,28 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	// cluster ID can be extracted from the endpoint if not provided.
 	switch {
 	case awsutils.IsRDSEndpoint(d.Spec.URI):
-		instanceID, region, err := awsutils.ParseRDSEndpoint(d.Spec.URI)
+		details, err := awsutils.ParseRDSEndpoint(d.Spec.URI)
 		if err != nil {
-			return trace.Wrap(err)
+			logrus.WithError(err).Warnf("Failed to parse RDS endpoint %v.", d.Spec.URI)
+			break
 		}
 		if d.Spec.AWS.RDS.InstanceID == "" {
-			d.Spec.AWS.RDS.InstanceID = instanceID
+			d.Spec.AWS.RDS.InstanceID = details.InstanceID
+		}
+		if d.Spec.AWS.RDS.ClusterID == "" {
+			d.Spec.AWS.RDS.ClusterID = details.ClusterID
+		}
+		if d.Spec.AWS.RDSProxy.Name == "" {
+			d.Spec.AWS.RDSProxy.Name = details.ProxyName
+		}
+		if d.Spec.AWS.RDSProxy.CustomEndpointName == "" {
+			d.Spec.AWS.RDSProxy.CustomEndpointName = details.ProxyCustomEndpointName
 		}
 		if d.Spec.AWS.Region == "" {
-			d.Spec.AWS.Region = region
+			d.Spec.AWS.Region = details.Region
+		}
+		if details.ClusterCustomEndpointName != "" && d.Spec.AWS.RDS.ClusterID == "" {
+			return trace.BadParameter("missing RDS ClusterID for RDS Aurora custom endpoint %v", d.Spec.URI)
 		}
 	case awsutils.IsRedshiftEndpoint(d.Spec.URI):
 		clusterID, region, err := awsutils.ParseRedshiftEndpoint(d.Spec.URI)
@@ -555,6 +596,14 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.Azure.Name == "" {
 			d.Spec.Azure.Name = name
 		}
+	case azureutils.IsMSSQLServerEndpoint(d.Spec.URI):
+		if d.Spec.Azure.Name == "" {
+			name, err := azureutils.ParseMSSQLEndpoint(d.Spec.URI)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			d.Spec.Azure.Name = name
+		}
 	}
 	return nil
 }
@@ -579,6 +628,8 @@ const (
 	DatabaseTypeSelfHosted = "self-hosted"
 	// DatabaseTypeRDS is AWS-hosted RDS or Aurora database.
 	DatabaseTypeRDS = "rds"
+	// DatabaseTypeRDSProxy is an AWS-hosted RDS Proxy.
+	DatabaseTypeRDSProxy = "rdsproxy"
 	// DatabaseTypeRedshift is AWS Redshift database.
 	DatabaseTypeRedshift = "redshift"
 	// DatabaseTypeCloudSQL is GCP-hosted Cloud SQL database.

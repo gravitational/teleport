@@ -30,7 +30,7 @@ import (
 // database.
 func GetAWSPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholders, error) {
 	switch db.GetType() {
-	case types.DatabaseTypeRDS:
+	case types.DatabaseTypeRDS, types.DatabaseTypeRDSProxy:
 		return getRDSPolicyDocument(db)
 	case types.DatabaseTypeRedshift:
 		return getRedshiftPolicyDocument(db)
@@ -58,7 +58,7 @@ func getRDSPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholde
 	partition := awsutils.GetPartitionFromRegion(aws.Region)
 	region := aws.Region
 	accountID := aws.AccountID
-	resourceID := aws.RDS.ResourceID
+	resourceID := getRDSResourceID(db)
 
 	placeholders := Placeholders(nil).
 		setPlaceholderIfEmpty(&region, "{region}").
@@ -74,6 +74,18 @@ func getRDSPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholde
 		},
 	})
 	return policyDoc, placeholders, nil
+}
+
+// getRDSResourceID returns the resource ID for RDS or RDS Proxy database.
+func getRDSResourceID(db types.Database) string {
+	switch db.GetType() {
+	case types.DatabaseTypeRDS:
+		return db.GetAWS().RDS.ResourceID
+	case types.DatabaseTypeRDSProxy:
+		return db.GetAWS().RDSProxy.ResourceID
+	default:
+		return ""
+	}
 }
 
 func getRedshiftPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholders, error) {

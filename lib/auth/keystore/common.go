@@ -19,16 +19,17 @@ package keystore
 import (
 	"crypto/x509/pkix"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 func newSSHKeyPair(keyStore KeyStore) (*types.SSHKeyPair, error) {
-	sshKey, cryptoSigner, err := keyStore.GenerateRSA()
+	sshKey, cryptoSigner, err := keyStore.generateRSA()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -45,7 +46,7 @@ func newSSHKeyPair(keyStore KeyStore) (*types.SSHKeyPair, error) {
 }
 
 func newTLSKeyPair(keyStore KeyStore, clusterName string) (*types.TLSKeyPair, error) {
-	tlsKey, signer, err := keyStore.GenerateRSA()
+	tlsKey, signer, err := keyStore.generateRSA()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -66,7 +67,7 @@ func newTLSKeyPair(keyStore KeyStore, clusterName string) (*types.TLSKeyPair, er
 }
 
 func newJWTKeyPair(keyStore KeyStore) (*types.JWTKeyPair, error) {
-	jwtKey, signer, err := keyStore.GenerateRSA()
+	jwtKey, signer, err := keyStore.generateRSA()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

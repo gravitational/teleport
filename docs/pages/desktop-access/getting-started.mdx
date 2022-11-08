@@ -14,7 +14,8 @@ Desktop Access and log into a Windows desktop from that domain.
 This guide requires you to have:
 
 - An Active Directory domain, configured for LDAPS (Teleport requires an
-  encrypted LDAP connection)
+  encrypted LDAP connection). Typically this means installing
+  [AD CS](https://learn.microsoft.com/en-us/windows-server/identity/ad-cs/)
 
 - Access to a Domain Controller
 
@@ -476,6 +477,9 @@ teleport:
 windows_desktop_service:
   enabled: yes
   ldap:
+    # Port must be included for the addr.
+    # LDAPS port is 636 by default,
+    # e.g. example.com:636
     addr: "$LDAP_SERVER_ADDRESS"
     domain: "$LDAP_DOMAIN_NAME"
     username: '$LDAP_USERNAME'
@@ -513,10 +517,13 @@ teleport:
 windows_desktop_service:
   enabled: yes
   ldap:
+    # Port must be included for the addr.
+    # LDAPS port is 636 by default,
+    # e.g. example.com:636
     addr: "$LDAP_SERVER_ADDRESS"
     domain: "$LDAP_DOMAIN_NAME"
     username: '$LDAP_USERNAME'
-    # This should be the path to the certificate exported in Step 4.
+    # This should be the path to the certificate exported in Step 5.
     der_ca_file: /path/to/cert
   discovery:
     base_dn: "*"
@@ -554,12 +561,14 @@ spec:
   allow:
     windows_desktop_labels:
       "*": "*"
-    windows_desktop_logins: ["Administrator"]
+    windows_desktop_logins: ["jsmith"]
 ```
 
 <Admonition type="warning" title="RBAC Configuration">
 Ensure that each Teleport user is only assigned Windows logins that they should
 be allowed to access.
+
+Usernames shared between domain and local users will create login conflicts.
 </Admonition>
 
 See the [RBAC page](./rbac.mdx) for more information about setting up

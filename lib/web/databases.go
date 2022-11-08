@@ -27,10 +27,131 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
+	"github.com/gravitational/teleport/lib/web/ui"
 )
+
+// createDatabaseRequest contains the necessary basic information to create a database.
+// Database here is the database resource, containing information to a real database (protocol, uri)
+type createDatabaseRequest struct {
+	Name     string     `json:"name,omitempty"`
+	Labels   []ui.Label `json:"labels,omitempty"`
+	Protocol string     `json:"protocol,omitempty"`
+	URI      string     `json:"uri,omitempty"`
+}
+
+func (r *createDatabaseRequest) checkAndSetDefaults() error {
+	if r.Name == "" {
+		return trace.BadParameter("missing database name")
+	}
+
+	if r.Protocol == "" {
+		return trace.BadParameter("missing protocol")
+	}
+
+	if r.URI == "" {
+		return trace.BadParameter("missing uri")
+	}
+
+	return nil
+}
+
+// handleDatabaseCreate creates a database's metadata.
+func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	var req *createDatabaseRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := req.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	labels := make(map[string]string)
+	for _, label := range req.Labels {
+		labels[label.Name] = label.Value
+	}
+
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name:   req.Name,
+			Labels: labels,
+		},
+		types.DatabaseSpecV3{
+			Protocol: req.Protocol,
+			URI:      req.URI,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := clt.CreateDatabase(r.Context(), database); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeDatabase(database), nil
+}
+
+// updateDatabaseRequest contains some updatable fields of a database resource.
+type updateDatabaseRequest struct {
+	CACert string `json:"ca_cert,omitempty"`
+}
+
+func (r *updateDatabaseRequest) checkAndSetDefaults() error {
+	if r.CACert == "" {
+		return trace.BadParameter("missing CA certificate data")
+	}
+
+	if _, err := tlsutils.ParseCertificatePEM([]byte(r.CACert)); err != nil {
+		return trace.BadParameter("could not parse provided CA as X.509 PEM certificate")
+	}
+
+	return nil
+}
+
+// handleDatabaseUpdate updates the database
+func (h *Handler) handleDatabaseUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	databaseName := p.ByName("database")
+	if databaseName == "" {
+		return nil, trace.BadParameter("a database name is required")
+	}
+
+	var req *updateDatabaseRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := req.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	database, err := clt.GetDatabase(r.Context(), databaseName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	database.SetCA(req.CACert)
+
+	if err := clt.UpdateDatabase(r.Context(), database); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeDatabase(database), nil
+}
 
 // databaseIAMPolicyResponse is the response type for handleDatabaseGetIAMPolicy.
 type databaseIAMPolicyResponse struct {

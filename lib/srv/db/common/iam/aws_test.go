@@ -48,6 +48,20 @@ func TestGetAWSPolicyDocument(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	rdsProxy, err := types.NewDatabaseV3(types.Metadata{
+		Name: "aws-rds-proxy",
+	}, types.DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "my-proxy.proxy-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+		AWS: types.AWS{
+			AccountID: "12345",
+			RDSProxy: types.RDSProxy{
+				ResourceID: "qwerty",
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	elasticache, err := types.NewDatabaseV3(types.Metadata{
 		Name: "aws-elasticache",
 	}, types.DatabaseSpecV3{
@@ -89,6 +103,19 @@ func TestGetAWSPolicyDocument(t *testing.T) {
             "Effect": "Allow",
             "Action": "rds-db:connect",
             "Resource": "arn:aws:rds-db:us-east-1:12345:dbuser:abcdef/*"
+        }
+    ]
+}`,
+		},
+		{
+			inputDatabase: rdsProxy,
+			expectPolicyDocument: `{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "rds-db:connect",
+            "Resource": "arn:aws:rds-db:us-west-1:12345:dbuser:qwerty/*"
         }
     ]
 }`,
