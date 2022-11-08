@@ -38,14 +38,6 @@ section:
 - [Square Icon](../../../img/sso/onelogin/teleport.png)
 - [Rectangular Icon](../../../img/sso/onelogin/teleportlogo@2x.png)
 
-<Admonition
-  type="tip"
-  title="Important"
->
-  Make sure to pick `SAML Test Connector (SP)` and not `SAML Test Connector (IdP)`,
-  because teleport only supports `SP` - service provider initiated SAML flows.
-</Admonition>
-
 Set `Audience`, `Recipient` and `ACS (Consumer) URL Validator` to the same value:
 
 `https://teleport.example.com:3080/v1/webapi/saml/acs` where `teleport.example.com` is the
@@ -143,15 +135,6 @@ automatically in a browser).
 >
   Teleport can use multiple SAML connectors. In this case a connector name
   can be passed via `tsh login --auth=connector_name`
-</Admonition>
-
-<Admonition
-  type="note"
-  title="IMPORTANT"
->
-  Teleport only supports sending party initiated flows for SAML 2.0. This
-  means you can not initiate login from your identity provider, you have to
-  initiate login from either the Teleport Web UI or CLI.
 </Admonition>
 
 ![Teleport](../../../img/sso/onelogin/onelogin-saml-8.png)

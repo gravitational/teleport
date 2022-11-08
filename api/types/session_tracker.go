@@ -78,7 +78,7 @@ type SessionTracker interface {
 	// GetAddress returns the address of the session target.
 	GetAddress() string
 
-	// GetClusterName returns the name of the cluster.
+	// GetClusterName returns the name of the Teleport cluster.
 	GetClusterName() string
 
 	// GetLogin returns the target machine username used for this session.
@@ -99,6 +99,15 @@ type SessionTracker interface {
 	// GetKubeCluster returns the name of the kubernetes cluster the session is running in.
 	GetKubeCluster() string
 
+	// GetDesktopName returns the name of the Windows desktop the session is running in.
+	GetDesktopName() string
+
+	// GetAppName returns the name of the app being accessed.
+	GetAppName() string
+
+	// GetDatabaseName returns the name of the database being accessed.
+	GetDatabaseName() string
+
 	// GetHostUser fetches the user marked as the "host" of the session.
 	// Things like RBAC policies are determined from this user.
 	GetHostUser() string
@@ -109,9 +118,6 @@ type SessionTracker interface {
 
 	// GetLastActive returns the time at which the session was last active (i.e used by any participant).
 	GetLastActive() time.Time
-
-	// GetDesktopName returns the name of the Windows desktop the session is for.
-	GetDesktopName() string
 }
 
 func NewSessionTracker(spec SessionTrackerSpecV1) (SessionTracker, error) {
@@ -316,6 +322,27 @@ func (s *SessionTrackerV1) GetKubeCluster() string {
 	return s.Spec.KubernetesCluster
 }
 
+// GetDesktopName returns the name of the Windows desktop the session is running in.
+//
+// This is only valid for Windows desktop sessions.
+func (s *SessionTrackerV1) GetDesktopName() string {
+	return s.Spec.DesktopName
+}
+
+// GetAppName returns the name of the app being accessed in the session.
+//
+// This is only valid for app sessions.
+func (s *SessionTrackerV1) GetAppName() string {
+	return s.Spec.AppName
+}
+
+// GetDatabaseName returns the name of the database being accessed in the session.
+//
+// This is only valid for database sessions.
+func (s *SessionTrackerV1) GetDatabaseName() string {
+	return s.Spec.DatabaseName
+}
+
 // GetHostUser fetches the user marked as the "host" of the session.
 // Things like RBAC policies are determined from this user.
 func (s *SessionTrackerV1) GetHostUser() string {
@@ -351,11 +378,6 @@ func (s *SessionTrackerV1) GetLastActive() time.Time {
 	}
 
 	return last
-}
-
-// GetDesktopName returns the name of the Windows desktop the session is for.
-func (s *SessionTrackerV1) GetDesktopName() string {
-	return s.Spec.DesktopName
 }
 
 // Match checks if a given session tracker matches this filter.
