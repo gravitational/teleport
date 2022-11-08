@@ -22,6 +22,9 @@ export class MockMainProcessClient implements MainProcessClient {
       sharedProcess: {
         requestedNetworkAddress: '',
       },
+      tshdEvents: {
+        requestedNetworkAddress: '',
+      },
     };
   }
 
