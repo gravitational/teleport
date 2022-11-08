@@ -7608,7 +7608,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images_release_version.go:42
+# Generated at dronegen/container_images_release_version.go:44
 ################################################
 
 kind: pipeline
@@ -8528,7 +8528,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images_release_version.go:42
+# Generated at dronegen/container_images_release_version.go:44
 ################################################
 
 kind: pipeline
@@ -9687,7 +9687,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images_release_version.go:42
+# Generated at dronegen/container_images_release_version.go:44
 ################################################
 
 kind: pipeline
@@ -11722,7 +11722,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images_release_version.go:42
+# Generated at dronegen/container_images_release_version.go:44
 ################################################
 
 kind: pipeline
@@ -13757,7 +13757,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images_release_version.go:42
+# Generated at dronegen/container_images_release_version.go:44
 ################################################
 
 kind: pipeline
@@ -15787,6 +15787,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 6c62b848e62763dce2aa8cca1662d3ab497df729b54a86a1acba81864d7b16d2
+hmac: e13519662b9da315770f1d37d0049a8994b222cf2b0990ed70889fe1da92e878
 
 ...

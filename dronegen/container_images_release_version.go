@@ -19,6 +19,8 @@ import (
 	"path"
 	"strconv"
 	"strings"
+
+	"golang.org/x/mod/semver"
 )
 
 const (
@@ -121,6 +123,11 @@ func (rv *ReleaseVersion) buildSteps(parentSetupStepNames []string, flags *Trigg
 	setupStepNames := append(parentSetupStepNames, getStepNames(setupSteps)...)
 
 	for _, product := range rv.getProducts(clonedRepoPath) {
+		if semver.Compare(rv.MajorVersion, product.MinimumSupportedMajorVersion) < 0 {
+			// If the release version doesn't support the product
+			continue
+		}
+
 		steps = append(steps, product.buildSteps(rv, setupStepNames, flags)...)
 	}
 
