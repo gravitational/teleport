@@ -48,7 +48,7 @@ type connKey struct {
 type remoteConn struct {
 	// lastHeartbeat is the last time a heartbeat was received.
 	// intentionally placed first to ensure 64-bit alignment
-	lastHeartbeat int64
+	lastHeartbeat atomic.Int64
 
 	*connConfig
 	mu  sync.Mutex
@@ -62,17 +62,20 @@ type remoteConn struct {
 
 	// invalid indicates the connection is invalid and connections can no longer
 	// be made on it.
-	invalid int32
+	invalid atomic.Bool
 
 	// lastError is the last error that occurred before this connection became
 	// invalid.
 	lastError error
 
 	// Used to make sure calling Close on the connection multiple times is safe.
-	closed int32
+	closed atomic.Bool
 
 	// clock is used to control time in tests.
 	clock clockwork.Clock
+
+	// sessions counts the number of active sessions being serviced by this connection
+	sessions atomic.Int64
 }
 
 // connConfig is the configuration for the remoteConn.
@@ -120,23 +123,24 @@ func (c *remoteConn) String() string {
 
 func (c *remoteConn) Close() error {
 	// If the connection has already been closed, return right away.
-	if !atomic.CompareAndSwapInt32(&c.closed, 0, 1) {
+	if c.closed.Swap(true) {
 		return nil
 	}
 
+	var errs []error
 	// Close the discovery channel.
 	if c.discoveryCh != nil {
-		c.discoveryCh.Close()
+		errs = append(errs, c.discoveryCh.Close())
 		c.discoveryCh = nil
 	}
 
 	// Close the SSH connection which will close the underlying net.Conn as well.
 	err := c.sconn.Close()
 	if err != nil {
-		return trace.Wrap(err)
+		errs = append(errs, err)
 	}
 
-	return nil
+	return trace.NewAggregate(errs...)
 
 }
 
@@ -155,27 +159,56 @@ func (c *remoteConn) ChannelConn(channel ssh.Channel) net.Conn {
 	return sshutils.NewChConn(c.sconn, channel)
 }
 
+func (c *remoteConn) incrementActiveSessions() {
+	c.sessions.Add(1)
+}
+
+func (c *remoteConn) decrementActiveSessions() {
+	c.sessions.Add(-1)
+}
+
+func (c *remoteConn) activeSessions() int64 {
+	return c.sessions.Load()
+}
+
 func (c *remoteConn) markInvalid(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.lastError = err
-	atomic.StoreInt32(&c.invalid, 1)
-	c.log.Debugf("Disconnecting connection to %v %v: %v.", c.clusterName, c.conn.RemoteAddr(), err)
+	c.invalid.Store(true)
+	c.log.Warnf("Unhealthy connection to %v %v: %v.", c.clusterName, c.conn.RemoteAddr(), err)
+}
+
+func (c *remoteConn) markValid() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.lastError = nil
+	c.invalid.Store(false)
 }
 
 func (c *remoteConn) isInvalid() bool {
-	return atomic.LoadInt32(&c.invalid) == 1
+	return c.invalid.Load()
 }
 
 func (c *remoteConn) setLastHeartbeat(tm time.Time) {
-	atomic.StoreInt64(&c.lastHeartbeat, tm.UnixNano())
+	c.lastHeartbeat.Store(tm.UnixNano())
+}
+
+func (c *remoteConn) getLastHeartbeat() time.Time {
+	hb := c.lastHeartbeat.Load()
+	if hb == 0 {
+		return time.Time{}
+	}
+
+	return time.Unix(0, hb)
 }
 
 // isReady returns true when connection is ready to be tried,
 // it returns true when connection has received the first heartbeat
 func (c *remoteConn) isReady() bool {
-	return atomic.LoadInt64(&c.lastHeartbeat) != 0
+	return c.lastHeartbeat.Load() != 0
 }
 
 func (c *remoteConn) openDiscoveryChannel() (ssh.Channel, error) {
