@@ -23,7 +23,7 @@ import { Resource } from 'teleport/Discover/flow';
 
 import { KubeWrapper } from './KubeWrapper';
 import { DownloadScript } from './DownloadScript';
-import { LoginTrait } from './LoginTrait';
+import { SetupAccess } from './SetupAccess';
 import { TestConnection } from './TestConnection';
 
 export const KubernetesResource: Resource = {
@@ -46,7 +46,7 @@ export const KubernetesResource: Resource = {
     },
     {
       title: 'Set Up Access',
-      component: LoginTrait,
+      component: SetupAccess,
     },
     {
       title: 'Test Connection',

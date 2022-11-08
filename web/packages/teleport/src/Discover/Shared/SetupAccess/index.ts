@@ -14,23 +14,8 @@
  * limitations under the License.
  */
 
-import React from 'react';
+export { AccessInfo } from './AccessInfo';
+export { SetupAccessWrapper } from './SetupAccessWrapper';
+export { useUserTraits, initSelectedOptionsHelper } from './useUserTraits';
 
-import { ResourceKind } from 'teleport/Discover/Shared';
-
-import { Finished } from './Finished';
-
-import type { AgentStepProps } from '../../types';
-
-export default {
-  title: 'Teleport/Discover/Finished',
-};
-
-export const Loaded = () => <Finished {...props} />;
-
-const props: AgentStepProps = {
-  agentMeta: { resourceName: 'some-resource-name' } as any,
-  updateAgentMeta: () => null,
-  nextStep: () => null,
-  selectedResourceKind: ResourceKind.Server,
-};
+export type { State } from './useUserTraits';

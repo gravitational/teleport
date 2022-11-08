@@ -18,65 +18,73 @@ import React from 'react';
 import { Flex, Text } from 'design';
 import TextEditor from 'shared/components/TextEditor';
 
-import { kubeAccessRW, kubeAccessRO } from '../templates';
+import {
+  kubeAccessRW,
+  kubeAccessRO,
+  nodeAccessRO,
+  nodeAccessRW,
+  connDiagRW,
+  dbAccessRO,
+  dbAccessRW,
+} from '../../yamlTemplates';
 
-export function AccessInfo({ accessKind, resourceName, traitDesc }: Props) {
+export function AccessInfo({ accessKind, traitKind, traitDesc }: Props) {
   switch (accessKind) {
     case 'ssoUserAndNoTraits':
       return (
         <>
           <Info>
-            You don’t have any {resourceName} {traitDesc} defined.
+            You don’t have any {traitKind} {traitDesc} defined.
             <br />
             Please ask your Teleport administrator to update your role and add
-            the required {resourceName} {traitDesc}.
+            the required {traitKind} {traitDesc}.
           </Info>
-          <YamlReader resource={resourceName} userAccessReadOnly={true} />
+          <YamlReader traitKind={traitKind} userAccessReadOnly={true} />
         </>
       );
     case 'noAccessAndNoTraits':
       return (
         <>
           <Info>
-            You don’t have {resourceName} access.
+            You don’t have {traitKind} access.
             <br />
             Please ask your Teleport administrator to update your role:
           </Info>
-          <YamlReader resource={resourceName} />
+          <YamlReader traitKind={traitKind} />
         </>
       );
     case 'noAccessButHasTraits':
       return (
         <>
           <Info>
-            You don't have permission to add new {resourceName} {traitDesc}.
+            You don't have permission to add new {traitKind} {traitDesc}.
             <br />
-            If you don't see the {resourceName} {traitDesc} that you require,
+            If you don't see the {traitKind} {traitDesc} that you require,
             please ask your Teleport administrator to update your role:
           </Info>
-          <YamlReader resource={resourceName} />
+          <YamlReader traitKind={traitKind} />
         </>
       );
     case 'ssoUserButHasTraits':
       return (
         <>
           <Info>
-            SSO users are not able to add new {resourceName} {traitDesc}.
+            SSO users are not able to add new {traitKind} {traitDesc}.
             <br />
-            If you don't see the {resourceName} {traitDesc} that you require,
+            If you don't see the {traitKind} {traitDesc} that you require,
             please ask your Teleport administrator to update your role:
           </Info>
-          <YamlReader resource={resourceName} userAccessReadOnly={true} />
+          <YamlReader traitKind={traitKind} userAccessReadOnly={true} />
         </>
       );
   }
 }
 
-function YamlReader({
-  resource,
+export function YamlReader({
+  traitKind: resource,
   userAccessReadOnly,
 }: {
-  resource: ResourceName;
+  traitKind: TraitKind;
   userAccessReadOnly?: boolean;
 }) {
   switch (resource) {
@@ -91,6 +99,38 @@ function YamlReader({
       return (
         <Flex minHeight="370px" mt={3}>
           <ReadOnlyYamlEditor content={kubeAccessRW} />
+        </Flex>
+      );
+    case 'OS':
+      if (userAccessReadOnly) {
+        return (
+          <Flex minHeight="150px" mt={3}>
+            <ReadOnlyYamlEditor content={nodeAccessRO} />
+          </Flex>
+        );
+      }
+      return (
+        <Flex minHeight="245px" mt={3}>
+          <ReadOnlyYamlEditor content={nodeAccessRW} />
+        </Flex>
+      );
+    case 'Database':
+      if (userAccessReadOnly) {
+        return (
+          <Flex minHeight="210px" mt={3}>
+            <ReadOnlyYamlEditor content={dbAccessRO} />
+          </Flex>
+        );
+      }
+      return (
+        <Flex minHeight="340px" mt={3}>
+          <ReadOnlyYamlEditor content={dbAccessRW} />
+        </Flex>
+      );
+    case 'ConnDiag':
+      return (
+        <Flex minHeight="190px" mt={3}>
+          <ReadOnlyYamlEditor content={connDiagRW} />
         </Flex>
       );
   }
@@ -112,10 +152,10 @@ type AccessKind =
   | 'ssoUserAndNoTraits'
   | 'ssoUserButHasTraits';
 
-type ResourceName = 'Kubernetes';
+export type TraitKind = 'Kubernetes' | 'OS' | 'ConnDiag' | 'Database';
 
 type Props = {
   accessKind: AccessKind;
-  resourceName: ResourceName;
+  traitKind: TraitKind;
   traitDesc: string;
 };

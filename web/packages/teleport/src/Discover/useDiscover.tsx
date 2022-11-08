@@ -29,6 +29,7 @@ import { resources } from './resources';
 
 import type { Node } from 'teleport/services/nodes';
 import type { Kube } from 'teleport/services/kube';
+import type { Database } from 'teleport/services/databases';
 
 export function getKindFromString(value: string) {
   switch (value) {
@@ -101,12 +102,16 @@ export function useDiscover(config: UseMainConfig) {
     prevStep,
     onSelectResource,
     selectedResource,
+    selectedResourceKind,
     updateAgentMeta,
     views,
   };
 }
 
 type BaseMeta = {
+  // resourceName is the resource name which for each resource
+  // can be determined from a different field. Atm only resource
+  // `node` is the only outlier.
   resourceName: string;
 };
 
@@ -116,19 +121,18 @@ export type NodeMeta = BaseMeta & {
   node: Node;
 };
 
-// AppMeta describes the fields that may be provided or required by user
-// when connecting a app.
-type AppMeta = BaseMeta & {
-  name: string;
-  publicAddr: string;
+// DbMeta describes the fields for a db resource
+// that needs to be preserved throughout the flow.
+export type DbMeta = BaseMeta & {
+  db: Database;
 };
 
-// KubeMeta describes the fields that may be provided or required by user
-// when connecting a app.
+// KubeMeta describes the fields for a kube resource
+// that needs to be preserved throughout the flow.
 export type KubeMeta = BaseMeta & {
   kube: Kube;
 };
 
-export type AgentMeta = AppMeta | NodeMeta | KubeMeta;
+export type AgentMeta = DbMeta | NodeMeta | KubeMeta;
 
 export type State = ReturnType<typeof useDiscover>;

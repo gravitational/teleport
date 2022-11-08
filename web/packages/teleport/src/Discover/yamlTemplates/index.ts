@@ -14,5 +14,20 @@
  * limitations under the License.
  */
 
-import LoginTrait from './LoginTrait';
-export { LoginTrait };
+import nodeAccessRO from './nodeAccessRO.yaml?raw';
+import nodeAccessRW from './nodeAccessRW.yaml?raw';
+import connDiagRW from './connDiagRW.yaml?raw';
+import kubeAccessRW from './kubeAccessRW.yaml?raw';
+import kubeAccessRO from './kubeAccessRO.yaml?raw';
+import dbAccessRW from './dbAccessRW.yaml?raw';
+import dbAccessRO from './dbAccessRO.yaml?raw';
+
+export {
+  nodeAccessRO,
+  nodeAccessRW,
+  connDiagRW,
+  kubeAccessRW,
+  kubeAccessRO,
+  dbAccessRO,
+  dbAccessRW,
+};

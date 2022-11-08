@@ -67,3 +67,22 @@ export const userContext = makeUserContext({
     proxyVersion: '4.4.0-dev',
   },
 });
+
+export const baseContext = {
+  authType: 'local',
+  userName: 'llama',
+  accessCapabilities: {
+    suggestedReviewers: ['george_washington@gmail.com', 'alpha'],
+    requestableRoles: ['dev-a', 'dev-b', 'dev-c', 'dev-d'],
+  },
+  userAcl: fullAcl,
+  cluster: {
+    name: 'aws',
+    lastConnected: '2020-09-26T17:30:23.512876876Z',
+    status: 'online',
+    nodeCount: 1,
+    publicURL: 'localhost',
+    authVersion: '4.4.0-dev',
+    proxyVersion: '4.4.0-dev',
+  },
+};
