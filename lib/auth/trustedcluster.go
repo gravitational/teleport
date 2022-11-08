@@ -45,15 +45,14 @@ import (
 
 // UpsertTrustedCluster creates or toggles a Trusted Cluster relationship.
 func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
-	var exists bool
-
 	// It is recommended to omit trusted cluster name because the trusted cluster name
 	// is updated to the roots cluster name during the handshake with the root cluster.
 	var existingCluster types.TrustedCluster
 	if trustedCluster.GetName() != "" {
 		var err error
-		if existingCluster, err = a.GetTrustedCluster(ctx, trustedCluster.GetName()); err == nil {
-			exists = true
+		existingCluster, err = a.GetTrustedCluster(ctx, trustedCluster.GetName())
+		if err != nil && !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -61,7 +60,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 
 	// If the trusted cluster already exists in the backend, make sure it's a
 	// valid state change client is trying to make.
-	if exists {
+	if existingCluster != nil {
 		if err := existingCluster.CanChangeStateTo(trustedCluster); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -70,17 +69,26 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 	logger := log.WithField("trusted_cluster", trustedCluster.GetName())
 
 	// change state
+	if err := a.checkLocalRoles(ctx, trustedCluster.GetRoleMap()); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	if exists && !cmp.Equal(existingCluster.GetRoleMap(), trustedCluster.GetRoleMap()) {
+	// change state
+	if existingCluster != nil && !cmp.Equal(existingCluster.GetRoleMap(), trustedCluster.GetRoleMap()) {
+		if err := a.updateUserCARoleMap(ctx, existingCluster, trustedCluster); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	switch {
+	case existingCluster != nil && enable == true:
+		if existingCluster.GetEnabled() {
+			break
+		}
+		log.Debugf("Enabling existing Trusted Cluster relationship.")
+
 		if err := a.checkLocalRoles(ctx, trustedCluster.GetRoleMap()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		a.updateUserCARoleMap(ctx, existingCluster, trustedCluster)
-	}
-	switch {
-	case exists == true && enable == true && existingCluster.GetEnabled() != trustedCluster.GetEnabled():
-		log.Debugf("Enabling existing Trusted Cluster relationship.")
-
 		if err := a.activateCertAuthority(trustedCluster); err != nil {
 			if trace.IsNotFound(err) {
 				return nil, trace.BadParameter("enable only supported for Trusted Clusters created with Teleport 2.3 and above")
@@ -91,9 +99,15 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		if err := a.createReverseTunnel(trustedCluster); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case exists == true && enable == false && existingCluster.GetEnabled() != trustedCluster.GetEnabled():
+	case existingCluster != nil && enable == false:
+		if !existingCluster.GetEnabled() {
+			break
+		}
 		log.Debugf("Disabling existing Trusted Cluster relationship.")
 
+		if err := a.checkLocalRoles(ctx, trustedCluster.GetRoleMap()); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		if err := a.deactivateCertAuthority(trustedCluster); err != nil {
 			if trace.IsNotFound(err) {
 				return nil, trace.BadParameter("enable only supported for Trusted Clusters created with Teleport 2.3 and above")
@@ -104,7 +118,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		if err := a.DeleteReverseTunnel(trustedCluster.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case exists == false && enable == true:
+	case existingCluster == nil && enable == true:
 		logger.Info("Creating enabled Trusted Cluster relationship.")
 
 		remoteCAs, err := a.establishTrust(ctx, trustedCluster)
@@ -124,7 +138,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 			return nil, trace.Wrap(err)
 		}
 
-	case exists == false && enable == false:
+	case existingCluster == nil && enable == false:
 		logger.Info("Creating disabled Trusted Cluster relationship.")
 
 		remoteCAs, err := a.establishTrust(ctx, trustedCluster)
@@ -330,11 +344,25 @@ func (a *Server) updateUserCARoleMap(ctx context.Context, existingCluster, trust
 		DomainName: existingCluster.GetName(),
 	}, false)
 	if err != nil {
-		return trace.Wrap(err)
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		// CA may be deactivated.
+		if err := a.activateCertAuthority(trustedCluster); err != nil {
+			return trace.Wrap(err)
+		}
+		certAuthority, err = a.GetCertAuthority(ctx, types.CertAuthID{
+			Type:       types.UserCA,
+			DomainName: existingCluster.GetName(),
+		}, false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := a.deactivateCertAuthority(trustedCluster); err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	if certAuthority.GetType() == types.UserCA {
-		certAuthority.SetRoleMap(trustedCluster.GetRoleMap())
-	}
+	certAuthority.SetRoleMap(trustedCluster.GetRoleMap())
 	if err := a.UpsertCertAuthority(certAuthority); err != nil {
 		return trace.Wrap(err)
 	}
