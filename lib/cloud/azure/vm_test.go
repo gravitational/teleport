@@ -111,3 +111,49 @@ func TestGetVirtualMachine(t *testing.T) {
 		})
 	}
 }
+
+func TestListVirtualMachines(t *testing.T) {
+	t.Parallel()
+	mockAPI := &ARMComputeMock{
+		VirtualMachines: map[string][]*armcompute.VirtualMachine{
+			"rg1": {
+				{ID: to.Ptr("vm1")},
+				{ID: to.Ptr("vm2")},
+			},
+			"rg2": {
+				{ID: to.Ptr("vm3")},
+				{ID: to.Ptr("vm4")},
+			},
+		},
+	}
+	tests := []struct {
+		name          string
+		resourceGroup string
+		wantIDs       []string
+	}{
+		{
+			name:          "existing resource group",
+			resourceGroup: "rg1",
+			wantIDs:       []string{"vm1", "vm2"},
+		},
+		{
+			name:          "nonexistant resource group",
+			resourceGroup: "rgfake",
+			wantIDs:       []string{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := NewVirtualMachinesClientByAPI(mockAPI)
+
+			vms, err := client.ListVirtualMachines(context.Background(), tc.resourceGroup)
+			require.NoError(t, err)
+			var vmIDs []string
+			for _, vm := range vms {
+				vmIDs = append(vmIDs, *vm.ID)
+			}
+			require.ElementsMatch(t, tc.wantIDs, vmIDs)
+		})
+	}
+}

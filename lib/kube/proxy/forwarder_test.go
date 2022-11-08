@@ -677,6 +677,22 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 			},
 			errAssertion: require.Error,
 		},
+		{
+			desc:       "empty impersonated user header ignored",
+			kubeUsers:  []string{"kube-user-a"},
+			kubeGroups: []string{"kube-group-a", "kube-group-b"},
+			inHeaders: http.Header{
+				"Host":                 []string{"example.com"},
+				ImpersonateUserHeader:  []string{""},
+				ImpersonateGroupHeader: []string{"kube-group-b"},
+			},
+			wantHeaders: http.Header{
+				"Host":                 []string{"example.com"},
+				ImpersonateUserHeader:  []string{"kube-user-a"},
+				ImpersonateGroupHeader: []string{"kube-group-b"},
+			},
+			errAssertion: require.NoError,
+		},
 	}
 	for _, tt := range tests {
 		t.Log(tt.desc)
