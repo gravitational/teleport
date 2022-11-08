@@ -215,15 +215,22 @@ This message contains a mouse wheel update. Sent from client to server.
 
 This message indicates an error has occurred.
 
-#### 28 - error 2
+#### 28 - notification
 
 ```
-| message type (28) | message_length uint32 | message []byte | fatal bool
+| message type (28) | message_length uint32 | message []byte | severity byte
 ```
 
-This message indicates an error has occurred.
+This message sends a notification message with a severity level.
 
-Type `bool` is defined in [0067](https://github.com/gravitational/teleport/blob/master/rfd/0067-desktop-access-file-system-sharing.md)
+`severity` defines the severity of the `message`:
+- `0` is for an error
+- `1` is for a warning
+
+An error (`0`) means that some fatal problem was encountered and the TDP connection is ending imminently.
+A notification with `severity == 0` should be preferred to the `error` message above.
+
+A warning (`1`) means some non-fatal problem was encountered but the TDP connection can still continue.
 
 #### 10 - MFA
 

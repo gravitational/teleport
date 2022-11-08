@@ -631,7 +631,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 
 	// Inline function to enforce that we are centralizing TDP Error sending in this function.
 	sendTDPError := func(message string) {
-		if err := tdpConn.SendError(message, true); err != nil {
+		if err := tdpConn.SendNotification(message, tdp.SeverityError); err != nil {
 			log.Errorf("Failed to send TDP error message %v", err)
 		}
 	}
@@ -844,7 +844,7 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 	id *tlsca.Identity, sessionID, desktopAddr string) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
-		case byte(tdp.TypePNG2Frame), byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeError2):
+		case byte(tdp.TypePNG2Frame), byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeNotification):
 			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,
@@ -1220,7 +1220,7 @@ type monitorErrorSender struct {
 }
 
 func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
-	if err := m.tdpConn.SendError(s, true); err != nil {
+	if err := m.tdpConn.SendNotification(s, tdp.SeverityError); err != nil {
 		errMsg := fmt.Sprintf("Failed to send TDP error message %v: %v", s, err)
 		m.log.Error(errMsg)
 		return 0, trace.Errorf(errMsg)

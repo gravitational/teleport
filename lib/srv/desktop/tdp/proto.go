@@ -72,7 +72,7 @@ const (
 	TypeSharedDirectoryListRequest    = MessageType(25)
 	TypeSharedDirectoryListResponse   = MessageType(26)
 	TypePNG2Frame                     = MessageType(27)
-	TypeError2                        = MessageType(28)
+	TypeNotification                  = MessageType(28)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -144,8 +144,8 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodeClipboardData(in, maxClipboardDataLength)
 	case TypeError:
 		return decodeError(in)
-	case TypeError2:
-		return decodeError2(in)
+	case TypeNotification:
+		return decodeNotification(in)
 	case TypeMFA:
 		return DecodeMFA(in)
 	case TypeSharedDirectoryAnnounce:
@@ -452,9 +452,16 @@ type Error struct {
 	Message string
 }
 
-type Error2 struct {
-	Message string
-	Fatal   bool
+type Severity byte
+
+const (
+	SeverityError   Severity = 0
+	SeverityWarning Severity = 1
+)
+
+type Notification struct {
+	Message  string
+	Severity Severity
 }
 
 // tdpMaxErrorMessageLength is somewhat arbitrary, as it is only sent *to*
@@ -478,38 +485,26 @@ func decodeError(in io.Reader) (Error, error) {
 	return Error{Message: message}, nil
 }
 
-func (m Error2) Encode() ([]byte, error) {
+func (m Notification) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(TypeError2))
+	buf.WriteByte(byte(TypeNotification))
 	if err := encodeString(buf, m.Message); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var fatal byte
-	if m.Fatal {
-		fatal = 1
-	} else {
-		fatal = 0
-	}
-	buf.WriteByte(fatal)
+	buf.WriteByte(byte(m.Severity))
 	return buf.Bytes(), nil
 }
 
-func decodeError2(in byteReader) (Error2, error) {
+func decodeNotification(in byteReader) (Notification, error) {
 	message, err := decodeString(in, tdpMaxErrorMessageLength)
 	if err != nil {
-		return Error2{}, trace.Wrap(err)
+		return Notification{}, trace.Wrap(err)
 	}
-	fatalByte, err := in.ReadByte()
+	severity, err := in.ReadByte()
 	if err != nil {
-		return Error2{}, trace.Wrap(err)
+		return Notification{}, trace.Wrap(err)
 	}
-	var fatal bool
-	if fatalByte == 0 {
-		fatal = false
-	} else {
-		fatal = true
-	}
-	return Error2{Message: message, Fatal: fatal}, nil
+	return Notification{Message: message, Severity: Severity(severity)}, nil
 }
 
 // MouseWheelAxis identifies a scroll axis on the mouse wheel.

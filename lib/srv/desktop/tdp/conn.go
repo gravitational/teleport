@@ -106,9 +106,9 @@ func (c *Conn) WriteMessage(m Message) error {
 	return trace.Wrap(err)
 }
 
-// SendError is a convenience function for sending an error message.
-func (c *Conn) SendError(message string, fatal bool) error {
-	return c.WriteMessage(Error2{Message: message, Fatal: fatal})
+// SendError is a convenience function for sending a Notification message.
+func (c *Conn) SendNotification(message string, severity Severity) error {
+	return c.WriteMessage(Notification{Message: message, Severity: severity})
 }
 
 // LocalAddr returns local address
