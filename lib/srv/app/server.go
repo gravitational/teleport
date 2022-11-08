@@ -119,6 +119,10 @@ type Config struct {
 
 	// Emitter is an event emitter.
 	Emitter events.Emitter
+
+	// MonitorCloseChannel will be signaled when the monitor closes a connection.
+	// Used only for testing. Optional.
+	MonitorCloseChannel chan struct{}
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
@@ -724,6 +728,7 @@ func (s *Server) monitorConn(ctx context.Context, tc *srv.TrackingReadConn, auth
 		TeleportUser:          identity.Username,
 		Emitter:               s.c.Emitter,
 		Entry:                 s.log,
+		MonitorCloseChannel:   s.c.MonitorCloseChannel,
 	})
 	if err != nil {
 		return trace.Wrap(err)
