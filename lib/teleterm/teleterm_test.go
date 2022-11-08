@@ -145,7 +145,7 @@ func blockUntilServerAcceptsConnections(t *testing.T, addr utils.NetAddr, certsD
 	case "unix":
 		conn = dialUnix(t, addr)
 	case "tcp":
-		conn = dialTcp(t, addr, certsDir, createClientTLSConfigFunc)
+		conn = dialTCP(t, addr, certsDir, createClientTLSConfigFunc)
 	default:
 		t.Fatalf("Unknown addr network %v", addr.AddrNetwork)
 	}
@@ -181,7 +181,7 @@ func dialUnix(t *testing.T, addr utils.NetAddr) net.Conn {
 	return conn
 }
 
-func dialTcp(t *testing.T, addr utils.NetAddr, certsDir string, createClientTLSConfigFunc createClientTLSConfigFunc) net.Conn {
+func dialTCP(t *testing.T, addr utils.NetAddr, certsDir string, createClientTLSConfigFunc createClientTLSConfigFunc) net.Conn {
 	dialer := tls.Dialer{
 		Config: createClientTLSConfigFunc(t, certsDir),
 	}
