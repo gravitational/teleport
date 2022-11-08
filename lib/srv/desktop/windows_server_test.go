@@ -407,12 +407,10 @@ func TestAuditCacheLifecycle(t *testing.T) {
 	require.Equal(t, 3, entry.totalItems())
 
 	// Check that the readRequestCache was properly filled out.
-	_, ok = entry.readRequestCache[completionID(cid)]
-	require.True(t, ok)
+	require.Contains(t, entry.readRequestCache, completionID(cid))
 
 	// Check that the writeRequestCache was properly filled out.
-	_, ok = entry.writeRequestCache[completionID(cid)]
-	require.True(t, ok)
+	require.Contains(t, entry.writeRequestCache, completionID(cid))
 
 	// SharedDirectoryReadResponse should cause the entry in the readRequestCache to be cleaned up.
 	readRes := tdp.SharedDirectoryReadResponse{
@@ -434,12 +432,10 @@ func TestAuditCacheLifecycle(t *testing.T) {
 	require.Equal(t, 1, entry.totalItems())
 
 	// Check that the readRequestCache was properly cleaned up.
-	_, ok = entry.readRequestCache[completionID(cid)]
-	require.False(t, ok)
+	require.NotContains(t, entry.readRequestCache, completionID(cid))
 
 	// Check that the writeRequestCache was properly cleaned up.
-	_, ok = entry.writeRequestCache[completionID(cid)]
-	require.False(t, ok)
+	require.NotContains(t, entry.writeRequestCache, completionID(cid))
 
 	// Simulate a session end event, which should clean up the cache for sessionID(sid) entirely.
 	s.onSessionEnd(
@@ -454,12 +450,11 @@ func TestAuditCacheLifecycle(t *testing.T) {
 	)
 
 	// Confirm that the audit cache at sessionID(sid) was cleaned up.
-	_, ok = s.auditCache.m[sessionID(sid)]
-	require.False(t, ok)
 	_, ok = s.auditCache.GetName(sessionID(sid), directoryID(did))
 	require.False(t, ok)
 	_, ok = s.auditCache.TakeReadRequestInfo(sessionID(sid), completionID(cid))
 	require.False(t, ok)
 	_, ok = s.auditCache.TakeWriteRequestInfo(sessionID(sid), completionID(cid))
 	require.False(t, ok)
+	require.NotContains(t, s.auditCache.m, sessionID(sid))
 }
