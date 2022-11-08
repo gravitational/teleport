@@ -1000,11 +1000,20 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	kube := newKubeCommand(app)
 	// MFA subcommands.
 	mfa := newMFACommand(app)
+	// FIDO2, TouchID and WebAuthnWin commands.
+	f2 := newFIDO2Command(app)
 
 	config := app.Command("config", "Print OpenSSH configuration details.")
 
-	// FIDO2, TouchID and WebAuthnWin commands.
-	f2 := newFIDO2Command(app)
+	puttyConfig := app.Command("puttyconfig", "Add PuTTY saved session configuration for specified hostname to Windows registry")
+	puttyConfig.Arg("[user@]host", "Remote hostname and optional login to use").Required().StringVar(&cf.UserHost)
+	puttyConfig.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
+	// only expose `tsh config putty` subcommand on windows
+	if runtime.GOOS != constants.WindowsOS {
+		puttyConfig.Hidden()
+	}
+
+	// touchid subcommands.
 	tid := newTouchIDCommand(app)
 	webauthnwin := newWebauthnwinCommand(app)
 
@@ -1324,6 +1333,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onRequestDrop(&cf)
 	case config.FullCommand():
 		err = onConfig(&cf)
+	case puttyConfig.FullCommand():
+		err = onPuttyConfig(&cf)
 	case aws.FullCommand():
 		err = onAWS(&cf)
 	case azure.FullCommand():
