@@ -598,7 +598,7 @@ func TestTCPLock(t *testing.T) {
 	// Wait for the channel closure signal
 	select {
 	case <-mCloseChannel:
-	case <-time.After(time.Second * 5):
+	case <-time.After(time.Second * 10):
 		require.Fail(t, "timeout waiting for monitor channel signal")
 	}
 	_, err = conn.Write(msg)
@@ -657,7 +657,7 @@ func TestTCPCertExpiration(t *testing.T) {
 	// Wait for the channel closure signal
 	select {
 	case <-mCloseChannel:
-	case <-time.After(time.Second * 5):
+	case <-time.After(time.Second * 10):
 		require.Fail(t, "timeout waiting for monitor channel signal")
 	}
 	_, err = conn.Write(msg)
