@@ -561,7 +561,7 @@ const (
 	DesktopClipboardSendEvent = "desktop.clipboard.send"
 	// DesktopSharedDirectoryStartEvent is emitted when when Teleport
 	// successfully begins sharing a new directory to a remote desktop.
-	DesktopSharedDirectoryStartEvent = "desktop.directory.start"
+	DesktopSharedDirectoryStartEvent = "desktop.directory.share"
 	// DesktopSharedDirectoryReadEvent is emitted when data is read from a shared directory.
 	DesktopSharedDirectoryReadEvent = "desktop.directory.read"
 	// DesktopSharedDirectoryWriteEvent is emitted when data is written to a shared directory.

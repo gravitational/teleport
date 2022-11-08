@@ -609,7 +609,7 @@ just have been a user creating a brand new file within the shared directory and 
 we will instead simply log all events that indicate security-relevant information, which is to say events indicating a data transfer between the local and remote machines,
 which is to say `Shared Directory Read` ("desktop.directory.read") and `Shared Directory Write` ("desktop.directory.write") events.
 
-`Shared Directory Announce/Acknowledge` ("desktop.directory.start") is also included in the audit event log to make the sequence of events more easily comprehensible.
+`Shared Directory Announce/Acknowledge` ("desktop.directory.share") is also included in the audit event log to make the sequence of events more easily comprehensible.
 
 **TDP Shared Directory Messages Logged**
 
@@ -730,7 +730,7 @@ message DesktopSharedDirectoryWrite {
 
 |             | `Shared Directory Announce/Acknowledge` | `Shared Directory ReadRequest/ReadResponse` | `Shared Directory WriteRequest/WriteResponse` |
 | ----------- | --------------------------------------- | ------------------------------------------- | --------------------------------------------- |
-| **Name**    | `"desktop.directory.start"`             | `"desktop.directory.read"`                  | `"desktop.directory.write"`                   |
+| **Name**    | `"desktop.directory.share"`             | `"desktop.directory.read"`                  | `"desktop.directory.write"`                   |
 | **Success** | `"TDP04I"`                              | `"TDP05I"`                                  | `"TDP06I"`                                    |
 | **Failure** | `"TDP04W"`                              | `"TDP05W"`                                  | `"TDP06W"`                                    |
 
