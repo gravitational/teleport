@@ -514,12 +514,12 @@
             "required": [],
             "properties": {
                 "name": {
-                    "$id": "#properties/service/name",
+                    "$id": "#properties/serviceAccount/name",
                     "type": "string",
                     "default": ""
                 },
                 "create": {
-                    "$id": "#properties/service/create",
+                    "$id": "#properties/serviceAccount/create",
                     "type": "boolean",
                     "default": true
                 }
@@ -531,7 +531,7 @@
             "required": [],
             "properties": {
                 "create": {
-                    "$id": "#properties/service/create",
+                    "$id": "#properties/rbac/create",
                     "type": "boolean",
                     "default": true
                 }

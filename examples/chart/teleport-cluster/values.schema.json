@@ -708,7 +708,7 @@
             "required": [],
             "properties": {
                 "create": {
-                    "$id": "#properties/service/create",
+                    "$id": "#properties/rbac/create",
                     "type": "boolean",
                     "default": true
                 }
