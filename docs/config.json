@@ -693,6 +693,20 @@
         {
           "title": "Access Controls",
           "slug": "/kubernetes-access/controls/"
+        },
+        {
+          "title": "Kubernetes Discovery (Preview)",
+          "slug": "/kubernetes-access/discovery/",
+          "entries": [
+            {
+              "title": "AWS",
+              "slug": "/kubernetes-access/discovery/aws/"
+            },
+            {
+              "title": "Azure",
+              "slug": "/kubernetes-access/discovery/azure/"
+            }
+          ]
         }
       ]
     },
@@ -727,6 +741,10 @@
             {
               "title": "AWS DynamoDB",
               "slug": "/database-access/guides/dynamodb/"
+            },
+            {
+              "title": "AWS Keyspaces (Apache Cassandra)",
+              "slug": "/database-access/guides/aws-cassandra-keyspaces/"
             },
             {
               "title": "GCP Cloud SQL PostgreSQL",
@@ -787,6 +805,10 @@
             {
               "title": "Snowflake (Preview)",
               "slug": "/database-access/guides/snowflake/"
+            },
+            {
+              "title": "Self-Hosted Cassandra & ScyllaDB",
+              "slug": "/database-access/guides/cassandra-self-hosted/"
             },
             {
               "title": "Dynamic Registration",
