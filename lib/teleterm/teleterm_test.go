@@ -30,6 +30,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const (
+	// timeout used for most operations in tests.
+	timeout = 5 * time.Second
+)
+
 type createClientTLSConfigFunc func(t *testing.T, certsDir string) *tls.Config
 type connReadExpectationFunc func(t *testing.T, connReadErr error)
 
@@ -123,7 +128,7 @@ func TestStart(t *testing.T) {
 				// Verify that the server accepts connections on the advertised address.
 				blockUntilServerAcceptsConnections(t, addr, certsDir,
 					test.createClientTLSConfigFunc, test.connReadExpectationFunc)
-			case <-time.After(time.Second):
+			case <-time.After(timeout):
 				t.Fatal("listeningC didn't advertise the address within the timeout")
 			}
 
@@ -152,7 +157,7 @@ func blockUntilServerAcceptsConnections(t *testing.T, addr utils.NetAddr, certsD
 
 	t.Cleanup(func() { conn.Close() })
 
-	err := conn.SetReadDeadline(time.Now().Add(time.Second))
+	err := conn.SetReadDeadline(time.Now().Add(timeout))
 	require.NoError(t, err)
 
 	out := make([]byte, 1024)
@@ -176,7 +181,7 @@ func dialUnix(t *testing.T, addr utils.NetAddr) net.Conn {
 		return true
 	}, time.Millisecond*500, time.Millisecond*50)
 
-	conn, err := net.DialTimeout("unix", sockPath, time.Second)
+	conn, err := net.DialTimeout("unix", sockPath, timeout)
 	require.NoError(t, err)
 	return conn
 }
@@ -186,7 +191,7 @@ func dialTCP(t *testing.T, addr utils.NetAddr, certsDir string, createClientTLSC
 		Config: createClientTLSConfigFunc(t, certsDir),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	t.Cleanup(func() { cancel() })
 
 	conn, err := dialer.DialContext(ctx, addr.AddrNetwork, addr.Addr)
