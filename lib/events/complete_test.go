@@ -244,6 +244,10 @@ func (m *mockSessionTrackerService) GetActiveSessionTrackers(ctx context.Context
 	return trackers, nil
 }
 
+func (m *mockSessionTrackerService) GetActiveSessionTrackersWithFilter(ctx context.Context, filter *types.SessionTrackerFilter) ([]types.SessionTracker, error) {
+	return nil, trace.NotImplemented("GetActiveSessionTrackersWithFilter is not implemented")
+}
+
 func (m *mockSessionTrackerService) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
 	for _, tracker := range m.trackers {
 		// mock session tracker expiration
@@ -273,6 +277,10 @@ func (m *mockSessionTrackerService) UpdatePresence(ctx context.Context, sessionI
 type mockSessionTrackerServiceAccessDenied struct{}
 
 func (m *mockSessionTrackerServiceAccessDenied) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
+	return nil, trace.AccessDenied("access denied")
+}
+
+func (m *mockSessionTrackerServiceAccessDenied) GetActiveSessionTrackersWithFilter(ctx context.Context, filter *types.SessionTrackerFilter) ([]types.SessionTracker, error) {
 	return nil, trace.AccessDenied("access denied")
 }
 
