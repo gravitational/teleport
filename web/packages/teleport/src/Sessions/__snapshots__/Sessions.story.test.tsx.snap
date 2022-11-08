@@ -349,12 +349,12 @@ exports[`loaded 1`] = `
           </strong>
            - 
           <strong>
-            2
+            5
           </strong>
            of
            
           <strong>
-            2
+            5
           </strong>
         </div>
       </div>
@@ -496,6 +496,81 @@ exports[`loaded 1`] = `
             Join
           </a>
         </td>
+      </tr>
+      <tr>
+        <td>
+          <span
+            class="c12 c17 icon icon-desktop c12 c17"
+            color="light"
+            font-size="3"
+          />
+        </td>
+        <td>
+          desktop-2
+        </td>
+        <td>
+          acacfbb4-3885-4d08-a466-de832a73ffac
+        </td>
+        <td>
+          lisa2
+        </td>
+        <td>
+          5 seconds
+        </td>
+        <td
+          align="right"
+          height="26px"
+        />
+      </tr>
+      <tr>
+        <td>
+          <span
+            class="c12 c17 icon icon-database c12 c17"
+            color="light"
+            font-size="3"
+          />
+        </td>
+        <td>
+          databse-32
+        </td>
+        <td>
+          2314fbb4-3885-4d08-a466-de832a731222
+        </td>
+        <td>
+          lisa2
+        </td>
+        <td>
+          3 minutes
+        </td>
+        <td
+          align="right"
+          height="26px"
+        />
+      </tr>
+      <tr>
+        <td>
+          <span
+            class="c12 c17 icon icon-new-tab c12 c17"
+            color="light"
+            font-size="3"
+          />
+        </td>
+        <td>
+          grafana
+        </td>
+        <td>
+          cafefbb4-3885-4d08-a466-de832a7313131
+        </td>
+        <td>
+          lisa2
+        </td>
+        <td>
+          13 minutes
+        </td>
+        <td
+          align="right"
+          height="26px"
+        />
       </tr>
     </tbody>
   </table>
