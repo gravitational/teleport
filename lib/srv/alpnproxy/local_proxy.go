@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"sync"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
@@ -40,6 +41,7 @@ type LocalProxy struct {
 	cfg     LocalProxyConfig
 	context context.Context
 	cancel  context.CancelFunc
+	certsMu sync.Mutex
 }
 
 // LocalProxyConfig is configuration for LocalProxy.
@@ -248,9 +250,13 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 }
 
 func (l *LocalProxy) GetCerts() []tls.Certificate {
+	l.certsMu.Lock()
+	defer l.certsMu.Unlock()
 	return l.cfg.Certs
 }
 
 func (l *LocalProxy) SetCerts(certs []tls.Certificate) {
+	l.certsMu.Lock()
+	defer l.certsMu.Unlock()
 	l.cfg.Certs = certs
 }
