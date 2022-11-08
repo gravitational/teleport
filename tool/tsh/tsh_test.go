@@ -1155,7 +1155,6 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			tt.stdoutAssertion(t, stdout.String())
 			require.Equal(t, tt.deviceSignCount, int(device.Counter()), "device sign count mismatch")
 		})
-
 	}
 }
 
@@ -1870,7 +1869,51 @@ func TestKubeConfigUpdate(t *testing.T) {
 				TeleportClusterName: "a.example.com",
 				Exec: &kubeconfig.ExecValues{
 					TshBinaryPath: "/bin/tsh",
-					KubeClusters:  []string{"dev", "prod"},
+					KubeClusters:  []string{"dev"},
+					SelectCluster: "dev",
+					Env:           make(map[string]string),
+				},
+			},
+		},
+		{
+			desc: "selected cluster with impersonation and namespace",
+			cf: &CLIConf{
+				executablePath:    "/bin/tsh",
+				KubernetesCluster: "dev",
+				kubeNamespace:     "namespace1",
+				kubernetesImpersonationConfig: impersonationConfig{
+					kubernetesUser:   "user1",
+					kubernetesGroups: []string{"group1", "group2"},
+				},
+			},
+			kubeStatus: &kubernetesStatus{
+				clusterAddr:         "https://a.example.com:3026",
+				teleportClusterName: "a.example.com",
+				kubeClusters: []types.KubeCluster{
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name: "dev",
+						},
+					},
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name: "prod",
+						},
+					},
+				},
+				credentials: creds,
+			},
+			errorAssertion: require.NoError,
+			expectedValues: &kubeconfig.Values{
+				Credentials:         creds,
+				ClusterAddr:         "https://a.example.com:3026",
+				TeleportClusterName: "a.example.com",
+				Impersonate:         "user1",
+				ImpersonateGroups:   []string{"group1", "group2"},
+				Namespace:           "namespace1",
+				Exec: &kubeconfig.ExecValues{
+					TshBinaryPath: "/bin/tsh",
+					KubeClusters:  []string{"dev"},
 					SelectCluster: "dev",
 					Env:           make(map[string]string),
 				},
@@ -1936,7 +1979,7 @@ func TestKubeConfigUpdate(t *testing.T) {
 				credentials: creds,
 			},
 			errorAssertion: func(t require.TestingT, err error, _ ...interface{}) {
-				require.True(t, trace.IsBadParameter(err))
+				require.True(t, trace.IsNotFound(err))
 			},
 			expectedValues: nil,
 		},
@@ -2643,7 +2686,8 @@ func TestSerializeDatabases(t *testing.T) {
         },
         "elasticache": {},
         "secret_store": {},
-        "memorydb": {}
+        "memorydb": {},
+        "rdsproxy": {}
       },
       "mysql": {},
       "gcp": {},
@@ -2668,7 +2712,8 @@ func TestSerializeDatabases(t *testing.T) {
         },
         "elasticache": {},
         "secret_store": {},
-        "memorydb": {}
+        "memorydb": {},
+        "rdsproxy": {}
       },
       "azure": {
 	    "redis": {}

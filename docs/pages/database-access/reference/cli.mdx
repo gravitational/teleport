@@ -107,6 +107,11 @@ $ teleport db configure create \
 | `--redshift-discovery` | List of AWS regions in which the Database Service will discover Redshift instances. |
 | `--elasticache-discovery` | List of AWS regions in which the Database Service will discover ElastiCache Redis clusters. |
 | `--memorydb-discovery` | List of AWS regions in which the Database Service will discover MemoryDB clusters. |
+| `--azure-mysql-discovery` | List of Azure regions in which the agent will discover MySQL servers. |
+| `--azure-postgres-discovery` | List of Azure regions in which the agent will discover Postgres servers. |
+| `--azure-redis-discovery` | List of Azure regions in which the agent will discover Azure Cache For Redis servers. |
+| `--azure-subscription` | List of Azure subscription IDs for Azure discoveries. Default is "*". |
+| `--azure-resource-group` | List of Azure resource groups for Azure discoveries. Default is "*". |
 | `--ca-pin` | CA pin to validate the Auth Service (can be repeated for multiple pins). |
 | `--name` | Name of the proxied database. |
 | `--protocol` | Proxied database protocol. Supported are: `[postgres mysql mongodb cockroachdb redis sqlserver snowflake]`. |
