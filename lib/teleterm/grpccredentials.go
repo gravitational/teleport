@@ -74,6 +74,15 @@ func createServerCredentials(serverKeyPair tls.Certificate, clientCertPath strin
 // createClientCredentials creates mTLS credentials for a gRPC client. The server cert file is read
 // upfront as there is no way to lazily add RootCAs to a tls.Config.
 func createClientCredentials(clientKeyPair tls.Certificate, serverCertPath string) (grpc.DialOption, error) {
+	config, err := createClientTLSConfig(clientKeyPair, serverCertPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return grpc.WithTransportCredentials(credentials.NewTLS(config)), nil
+}
+
+func createClientTLSConfig(clientKeyPair tls.Certificate, serverCertPath string) (*tls.Config, error) {
 	serverCert, err := os.ReadFile(serverCertPath)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to read the server cert file")
@@ -84,12 +93,10 @@ func createClientCredentials(clientKeyPair tls.Certificate, serverCertPath strin
 		return nil, trace.BadParameter("failed to add server cert to pool")
 	}
 
-	config := &tls.Config{
+	return &tls.Config{
 		Certificates: []tls.Certificate{clientKeyPair},
 		RootCAs:      certPool,
-	}
-
-	return grpc.WithTransportCredentials(credentials.NewTLS(config)), nil
+	}, nil
 }
 
 func generateAndSaveCert(targetPath string) (tls.Certificate, error) {
