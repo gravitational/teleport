@@ -262,7 +262,6 @@ func (m *mockMiddlewareConnUnauth) OnStart(_ context.Context, _ *LocalProxy) err
 var _ LocalProxyMiddleware = (*mockMiddlewareConnUnauth)(nil)
 
 func TestLocalProxyClosesConnOnError(t *testing.T) {
-	m := &mockMiddlewareConnUnauth{}
 	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
 	lp, err := NewLocalProxy(LocalProxyConfig{
 		Listener:           mustCreateLocalListener(t),
@@ -270,7 +269,7 @@ func TestLocalProxyClosesConnOnError(t *testing.T) {
 		Protocols:          []common.Protocol{common.ProtocolHTTP},
 		ParentContext:      context.Background(),
 		InsecureSkipVerify: true,
-		Middleware:         m,
+		Middleware:         &mockMiddlewareConnUnauth{},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
