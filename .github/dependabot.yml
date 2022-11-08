@@ -5,6 +5,9 @@ updates:
     schedule:
       interval: weekly
     ignore:
+      # Deprecated APIs, requires manual changes.
+      # TODO(xacrimon): Update Firestore and solve deprecations.
+      - dependency-name: cloud.google.com/go/firestore
       # Breaks backwards compatibility
       - dependency-name: github.com/gravitational/ttlmap
       # Must be kept in-sync with libbpf

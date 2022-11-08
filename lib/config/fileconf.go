@@ -1361,13 +1361,13 @@ type AWSSSM struct {
 	DocumentName string `yaml:"document_name,omitempty"`
 }
 
-// AzureMatcher matches Azure databases.
+// AzureMatcher matches Azure resources.
 type AzureMatcher struct {
 	// Subscriptions are Azure subscriptions to query for resources.
 	Subscriptions []string `yaml:"subscriptions,omitempty"`
 	// ResourceGroups are Azure resource groups to query for resources.
 	ResourceGroups []string `yaml:"resource_groups,omitempty"`
-	// Types are Azure types to match: "mysql", "postgres", "aks"
+	// Types are Azure types to match: "mysql", "postgres", "aks", "vm"
 	Types []string `yaml:"types,omitempty"`
 	// Regions are Azure locations to match for databases.
 	Regions []string `yaml:"regions,omitempty"`

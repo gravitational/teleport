@@ -60,6 +60,8 @@ type Database interface {
 	SetURI(string)
 	// GetCA returns the database CA certificate.
 	GetCA() string
+	// SetCA sets the database CA certificate in the Spec.TLS field.
+	SetCA(string)
 	// GetTLS returns the database TLS configuration.
 	GetTLS() DatabaseTLS
 	// SetStatusCA sets the database CA certificate in the status field.
@@ -265,6 +267,11 @@ func (d *DatabaseV3) GetCA() string {
 		return d.Spec.CACert
 	}
 	return d.Status.CACert
+}
+
+// SetCA sets the database CA certificate in the Spec.TLS.CACert field.
+func (d *DatabaseV3) SetCA(caCert string) {
+	d.Spec.TLS.CACert = caCert
 }
 
 // GetTLS returns Database TLS configuration.

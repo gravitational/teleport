@@ -296,6 +296,9 @@ func NewServer(cfg Config) (Server, error) {
 		},
 		ProxiesC:    make(chan []types.Server, 10),
 		ProxyGetter: cfg.LocalAccessPoint,
+		ProxyDiffer: func(_, _ types.Server) bool {
+			return true // we always want to store the most recently heartbeated proxy
+		},
 	})
 	if err != nil {
 		cancel()

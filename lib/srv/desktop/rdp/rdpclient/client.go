@@ -75,10 +75,10 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 )
 
 func init() {
