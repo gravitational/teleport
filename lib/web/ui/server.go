@@ -230,35 +230,33 @@ type Database struct {
 	Labels []Label `json:"labels"`
 }
 
+// MakeDatabase creates a database object.
+func MakeDatabase(database types.Database) Database {
+	uiLabels := []Label{}
+
+	for name, value := range database.GetAllLabels() {
+		uiLabels = append(uiLabels, Label{
+			Name:  name,
+			Value: value,
+		})
+	}
+
+	sort.Sort(sortedLabels(uiLabels))
+
+	return Database{
+		Name:     database.GetName(),
+		Desc:     database.GetDescription(),
+		Protocol: database.GetProtocol(),
+		Type:     database.GetType(),
+		Labels:   uiLabels,
+	}
+}
+
 // MakeDatabases creates database objects.
 func MakeDatabases(clusterName string, databases []types.Database) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
-		uiLabels := []Label{}
-
-		for name, value := range database.GetStaticLabels() {
-			uiLabels = append(uiLabels, Label{
-				Name:  name,
-				Value: value,
-			})
-		}
-
-		for name, cmd := range database.GetDynamicLabels() {
-			uiLabels = append(uiLabels, Label{
-				Name:  name,
-				Value: cmd.GetResult(),
-			})
-		}
-
-		sort.Sort(sortedLabels(uiLabels))
-
-		uiServers = append(uiServers, Database{
-			Name:     database.GetName(),
-			Desc:     database.GetDescription(),
-			Protocol: database.GetProtocol(),
-			Type:     database.GetType(),
-			Labels:   uiLabels,
-		})
+		uiServers = append(uiServers, MakeDatabase(database))
 	}
 
 	return uiServers

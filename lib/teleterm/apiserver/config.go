@@ -17,6 +17,7 @@ package apiserver
 import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 )
@@ -28,9 +29,8 @@ type Config struct {
 	// Daemon is the terminal daemon service
 	Daemon *daemon.Service
 	// Log is a component logger
-	Log logrus.FieldLogger
-	// Directory containing certs used to create secure gRPC connection with daemon service
-	CertsDir string
+	Log             logrus.FieldLogger
+	TshdServerCreds grpc.ServerOption
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -45,6 +45,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.Daemon == nil {
 		return trace.BadParameter("missing daemon service")
+	}
+
+	if c.TshdServerCreds == nil {
+		return trace.BadParameter("missing TshdServerCreds")
 	}
 
 	if c.Log == nil {

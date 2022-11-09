@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package apiserver
+package teleterm
 
 import (
 	"crypto/tls"
@@ -62,6 +62,27 @@ func createServerCredentials(serverKeyPair tls.Certificate, clientCertPath strin
 	}
 
 	return grpc.Creds(credentials.NewTLS(config)), nil
+}
+
+// createClientCredentials creates mTLS credentials for a gRPC client. The server cert file is read
+// upfront as there is no way to lazily add RootCAs to a tls.Config.
+func createClientCredentials(clientKeyPair tls.Certificate, serverCertPath string) (grpc.DialOption, error) {
+	serverCert, err := os.ReadFile(serverCertPath)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to read the server cert file")
+	}
+
+	certPool := x509.NewCertPool()
+	if !certPool.AppendCertsFromPEM(serverCert) {
+		return nil, trace.BadParameter("failed to add server cert to pool")
+	}
+
+	config := &tls.Config{
+		Certificates: []tls.Certificate{clientKeyPair},
+		RootCAs:      certPool,
+	}
+
+	return grpc.WithTransportCredentials(credentials.NewTLS(config)), nil
 }
 
 func generateAndSaveCert(targetPath string) (tls.Certificate, error) {
