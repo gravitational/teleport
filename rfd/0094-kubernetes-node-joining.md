@@ -31,8 +31,9 @@ User Motivation:
 - As new Teleport adopter, I want to deploy a working, secure and highly
   available Teleport cluster on Kubernetes, with a single Helm command and as
   few values as possible so that I can start using Teleport as fast as possible.
-- As a Teleport power user, I want to easily join my custom sets of Teleport
-  nodes on Kubernetes so that I have less join automation to build and maintain.
+- As a Teleport power user, I want to easily join my other co-hosted Teleport
+  services (app, db, discovery, windows, Machine ID, ...) on Kubernetes so that
+  I have less join automation to build and maintain.
 
 ## Details
 
@@ -265,15 +266,72 @@ Supporting this token kind does not require changes to the
 the `IDToken` field and the Teleport token name should be passed in the `Token`
 field. The join logic would be similar to what is done with GitHub joining.
 
-The token spec could be extended in a second phase to support trusting other
-Kubernetes apiservers than the one where the auth is running. This would imply
-adding at least the following fields fields to the token:
+Teleport should validate on token creation if it can access the `TokenReview`
+API by reviewing its own Kubernetes token. This will allow to fail fast on
+broken or not supported setups.
 
-- Kubernetes cluster CA cert
-- Kubernetes Client certificate
-- Kubernetes Client key
-- Kubernetes user
-- Kubernetes server
+#### Supporting external cluster joining
+
+The token spec could be extended in a second phase to support trusting other
+Kubernetes apiservers than the one where the auth is running. This will imply
+adding fields to the ProvisionToken to specify how Teleport should authenticate
+to Kubernetes. As a large portion of clusters are hosted by cloud providers,
+we will likely need to support the biggest cloud authentication methods.
+
+The token would look like this:
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: proxy-token
+  expires: "3000-01-01T00:00:00Z"
+spec:
+  roles: ["Proxy"]
+  k8s:
+    allow:
+      - service_account: "my-namespace:my-service-account"
+    # empty authType defaults to "inCluster" for compatibility
+    authType: "inCluster|kubeconfig|gcp|aws|azure|rancher|..."
+    kubeconfig:
+      certificate-authority-data: base64
+      server: http://1.2.3.4
+      # either set token or user && client-*
+      token: my-secret-token
+      user: client-sa-name
+      client-certificate-data: base64
+      client-key-data: base64
+    gcp:
+      # optional SA account key/name
+      # if they are empty, teleport should try to use ambient credentials (see google.DefaultTokenSource)
+      service-account-key: base64
+      service-account-name: "foo@sa-project.iam.gserviceaccount.com"
+      # mandatory fields to identify the cluster
+      project: cluster-project
+      location: us-east1
+      cluster-name: my-cluster
+    aws:
+      # optional SA account id/secret
+      # if they are empty, Teleport should try to use ambient credentials
+      key-id: ASDFGHJK
+      key-secret: QWERTYUIOP
+      # mandatory
+      region: us-east-1
+      account-id: 1234567890
+      cluster-name: my-cluster
+    azure:
+    # [...]
+    rancher:
+    # [...]
+```
+
+For cloud providers like GCP or AWS, users will have to make sure the cloud
+service-account is mapped to a Kubernetes group bound to a ClusterRole
+allowing to use the `TokenReview` API.
+
+As this setup can be complex, Teleport should validate on token creation
+it has access to the `TokenReview` API. It can do so by reviewing its
+own Kubernetes token.
 
 #### Security considerations
 
