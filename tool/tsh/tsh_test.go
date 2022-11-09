@@ -775,7 +775,7 @@ type accessApprover interface {
 
 // approveAllAccessRequests starts a loop which watches for pending AccessRequests
 // and automatically approves them.
-func approveAllAccessRequests(ctx context.Context, approver accessApprover) (err error) {
+func approveAllAccessRequests(ctx context.Context, approver accessApprover) error {
 	watcher, err := approver.NewWatcher(ctx, types.Watch{
 		Name:  types.KindAccessRequest,
 		Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}},
