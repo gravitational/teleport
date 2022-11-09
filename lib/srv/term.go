@@ -169,12 +169,6 @@ func (t *terminal) AddParty(delta int) {
 
 // Run will run the terminal.
 func (t *terminal) Run(_ context.Context) error {
-	defer func() {
-		if err := t.closeTTY(); err != nil {
-			t.log.Warnf("Failed to close TTY: %v", err)
-		}
-	}()
-
 	var err error
 	// Create the command that will actually execute.
 	t.cmd, err = ConfigureCommand(t.ctx)
@@ -228,7 +222,9 @@ func (t *terminal) Wait() (*ExecResult, error) {
 // Continue will resume execution of the process after it completes its
 // pre-processing routine (placed in a cgroup).
 func (t *terminal) Continue() {
-	t.ctx.contw.Close()
+	if err := t.ctx.contw.Close(); err != nil {
+		t.log.Warnf("failed to close server context")
+	}
 }
 
 // Kill will force kill the terminal.
@@ -273,11 +269,14 @@ func (t *terminal) Close() error {
 }
 
 func (t *terminal) closeTTY() error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.log.Debugf("Closing TTY")
 	defer t.log.Debugf("Closed TTY")
 
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	if t.tty == nil {
+		t.log.Debugf("TTY already closed")
 		return nil
 	}
 
@@ -292,12 +291,17 @@ func (t *terminal) closeTTY() error {
 }
 
 func (t *terminal) closePTY() {
+	defer t.log.Debugf("Closed PTY")
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	defer t.log.Debugf("Closed PTY")
 
 	// wait until all copying is over (all participants have left)
 	t.wg.Wait()
+
+	if t.pty == nil {
+		return
+	}
 
 	if err := t.pty.Close(); err != nil {
 		t.log.Warnf("Failed to close PTY: %v", err)
@@ -567,6 +571,7 @@ func (t *remoteTerminal) PID() int {
 }
 
 func (t *remoteTerminal) Close() error {
+	t.wg.Wait()
 	// this closes the underlying stdin,stdout,stderr which is what ptyBuffer is
 	// hooked to directly
 	err := t.session.Close()
