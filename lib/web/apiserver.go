@@ -1812,11 +1812,7 @@ func (h *Handler) trySettingConnectorNameToPasswordless(ctx context.Context, ses
 	authPreference.SetConnectorName(constants.PasswordlessConnector)
 
 	err = sessCtx.clt.SetAuthPreference(ctx, authPreference)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return trace.Wrap(err)
 }
 
 // createResetPasswordToken allows a UI user to reset a user's password.
