@@ -90,6 +90,10 @@ type Modules interface {
 	BuildType() string
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
 	AttestHardwareKey(context.Context, interface{}, keys.PrivateKeyPolicy, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (keys.PrivateKeyPolicy, error)
+	// CloudTrial indicates whether this is a cloud trial instance
+	CloudTrial() bool
+	// SetCloudTrial sets cloud trial instance
+	SetCloudTrial(t bool)
 }
 
 const (
@@ -172,6 +176,16 @@ func (p *defaultModules) IsBoringBinary() bool {
 func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
 	// Default modules do not support attesting hardware keys.
 	return keys.PrivateKeyPolicyNone, nil
+}
+
+// CloudTrial indicates whether this is a cloud trial instance
+func (p *defaultModules) CloudTrial() bool {
+	return false
+}
+
+// SetCloudTrial sets cloud trial instance
+func (p *defaultModules) SetCloudTrial(bool) {
+	// OSS Teleport is never a cloud trial.
 }
 
 var (

@@ -628,6 +628,9 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 
 	// Connection upgrades.
 	h.GET("/webapi/connectionupgrade", httplib.MakeHandler(h.connectionUpgrade))
+
+	// Capture/create user events.
+	h.POST("/webapi/capture", h.WithAuth(h.createUserEventHandle))
 }
 
 // GetProxyClient returns authenticated auth server client
