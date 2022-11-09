@@ -415,6 +415,9 @@ func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *Loc
 }
 
 func requireExpiredCertErr(t require.TestingT, err error, _ ...interface{}) {
+	if h, ok := t.(*testing.T); ok {
+		h.Helper()
+	}
 	require.Error(t, err)
 	var certErr x509.CertificateInvalidError
 	require.ErrorAs(t, err, &certErr)
@@ -422,11 +425,17 @@ func requireExpiredCertErr(t require.TestingT, err error, _ ...interface{}) {
 }
 
 func requireCertSubjectUserErr(t require.TestingT, err error, _ ...interface{}) {
+	if h, ok := t.(*testing.T); ok {
+		h.Helper()
+	}
 	require.Error(t, err)
 	require.ErrorContains(t, err, "certificate subject is for user")
 }
 
 func requireCertSubjectDatabaseErr(t require.TestingT, err error, _ ...interface{}) {
+	if h, ok := t.(*testing.T); ok {
+		h.Helper()
+	}
 	require.Error(t, err)
 	require.ErrorContains(t, err, "certificate subject is for database name")
 }
