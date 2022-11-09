@@ -192,7 +192,7 @@ if ($host.name -match 'ISE')
 
 Write-Output $OUTPUT
 
-# cleanup files that were created duing execution of this script
+# cleanup files that were created during execution of this script
 Remove-Item teleport.pem -Recurse
 Remove-Item windows.der -Recurse
 Remove-Item windows.pem -Recurse
