@@ -128,6 +128,36 @@ export WEBPACK_HTTPS_KEY=/Users/you/go/src/github.com/gravitational/webapps/cert
 The `certs/` directory in this repo is ignored by git, so you can place your certificate/keys
 in there without having to worry that they'll end up in a commit.
 
+#### Making application access work locally
+
+For application access to work, you should have it set so you're running Webpack on the same machine
+as Teleport. This is so you can access both Webpack and Teleport via the same domain.
+
+Imagine you're using the domain `go.teleport` instead of `localhost`.
+
+You should setup `/etc/hosts.yml` like so:
+
+```
+0.0.0.0 go.teleport
+0.0.0.0 dumper.go.teleport
+```
+
+Then, run Webpack with the environment variable `WEBPACK_PROXY_APP_ACCESS` set to `true`. This will
+check the incoming `Host` header and compare it against the hostname of the given target flag.
+
+```
+WEBPACK_PROXY_APP_ACCESS=true yarn start-teleport --target=https://go.teleport:3080/web
+```
+
+Going to `go.teleport`, Webpack will compare the `Host` header (`go.teleport`) and the hostname of the target (also
+`go.teleport`). It will therefore only proxy API requests through to Teleport, and serve the Webpack content for all
+other requests.
+
+Going to `dumper.go.teleport`, comparing the `Host` header (`dumper.go.teleport`) and the hostname of the target
+(`go.teleport`). It will proxy every request for this host through to Teleport, making application access work properly.
+
+Note: this only works for local Teleport instances, and won't work for Cloud.
+
 ### Unit-Tests
 
 We use [jest](https://jestjs.io/) as our testing framework.

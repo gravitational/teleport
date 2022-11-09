@@ -79,6 +79,10 @@ function getWebpackDevServerConfig() {
             return true;
           }
 
+          if (!process.env.WEBPACK_PROXY_APP_ACCESS) {
+            return false;
+          }
+
           // Proxy requests to any hostname that does not match the proxy hostname
           // This is to make application access work:
           // - When proxying to https://go.teleport, we want to serve Webpack for
