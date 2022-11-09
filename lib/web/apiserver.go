@@ -1796,7 +1796,7 @@ func (h *Handler) trySettingConnectorNameToPasswordless(ctx context.Context, ses
 		return nil
 	}
 
-	if authPreference.GetConnectorName() == constants.PasswordlessConnector {
+	if connector := authPreference.GetConnectorName(); connector != "" && connector != constants.LocalConnector {
 		return nil
 	}
 
