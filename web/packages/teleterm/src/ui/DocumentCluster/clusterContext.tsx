@@ -78,11 +78,8 @@ class ClusterContext extends Store<State> {
 
   sync = async () => {
     try {
-      await retryWithRelogin(
-        this.appCtx,
-        this.documentUri,
-        this.clusterUri,
-        () => this.appCtx.clustersService.syncCluster(this.clusterUri)
+      await retryWithRelogin(this.appCtx, this.clusterUri, () =>
+        this.appCtx.clustersService.syncCluster(this.clusterUri)
       );
     } catch (e) {
       this.appCtx.notificationsService.notifyError({

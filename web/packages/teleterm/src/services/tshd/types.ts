@@ -191,7 +191,7 @@ export type ReviewAccessRequestParams = {
 };
 
 export type CreateAccessRequestParams = {
-  clusterUri: string;
+  rootClusterUri: string;
   reason: string;
   roles: string[];
   suggestedReviewers: string[];

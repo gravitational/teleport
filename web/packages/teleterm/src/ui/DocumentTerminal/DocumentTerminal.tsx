@@ -43,9 +43,7 @@ export function DocumentTerminal(props: Props & { visible: boolean }) {
   const { visible, doc } = props;
   const state = useDocTerminal(doc);
   const ptyProcess = state.data?.ptyProcess;
-  const { upload, download } = useTshFileTransferHandlers({
-    originatingDocumentUri: doc.uri,
-  });
+  const { upload, download } = useTshFileTransferHandlers();
 
   return (
     <Document

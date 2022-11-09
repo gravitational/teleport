@@ -395,17 +395,17 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     }
   }
 
-  async getRequestableRoles(clusterUri: string) {
-    const cluster = this.state.clusters.get(clusterUri);
+  async getRequestableRoles(rootClusterUri: string) {
+    const cluster = this.state.clusters.get(rootClusterUri);
     if (!cluster.connected) {
       return;
     }
 
-    return this.client.getRequestableRoles(clusterUri);
+    return this.client.getRequestableRoles(rootClusterUri);
   }
 
-  getAssumedRequests(clusterUri: string) {
-    const cluster = this.state.clusters.get(clusterUri);
+  getAssumedRequests(rootClusterUri: string) {
+    const cluster = this.state.clusters.get(rootClusterUri);
     if (!cluster?.connected) {
       return {};
     }
@@ -413,59 +413,63 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     return cluster.loggedInUser?.assumedRequests || {};
   }
 
-  async getAccessRequests(clusterUri: string) {
-    const cluster = this.state.clusters.get(clusterUri);
-    if (!cluster.connected) {
-      return;
-    }
-
-    return this.client.getAccessRequests(clusterUri);
+  getAssumedRequest(rootClusterUri: string, requestId: string) {
+    return this.getAssumedRequests(rootClusterUri)[requestId];
   }
 
-  async deleteAccessRequest(clusterUri: string, requestId: string) {
-    const cluster = this.state.clusters.get(clusterUri);
+  async getAccessRequests(rootClusterUri: string) {
+    const cluster = this.state.clusters.get(rootClusterUri);
     if (!cluster.connected) {
       return;
     }
-    return this.client.deleteAccessRequest(clusterUri, requestId);
+
+    return this.client.getAccessRequests(rootClusterUri);
+  }
+
+  async deleteAccessRequest(rootClusterUri: string, requestId: string) {
+    const cluster = this.state.clusters.get(rootClusterUri);
+    if (!cluster.connected) {
+      return;
+    }
+    return this.client.deleteAccessRequest(rootClusterUri, requestId);
   }
 
   async assumeRole(
-    clusterUri: string,
+    rootClusterUri: string,
     requestIds: string[],
     dropIds: string[]
   ) {
-    const cluster = this.state.clusters.get(clusterUri);
+    const cluster = this.state.clusters.get(rootClusterUri);
     if (!cluster.connected) {
       return;
     }
-    await this.client.assumeRole(clusterUri, requestIds, dropIds);
-    return this.syncCluster(clusterUri);
+    await this.client.assumeRole(rootClusterUri, requestIds, dropIds);
+    return this.syncCluster(rootClusterUri);
   }
 
-  async getAccessRequest(clusterUri: string, requestId: string) {
-    const cluster = this.state.clusters.get(clusterUri);
+  async getAccessRequest(rootClusterUri: string, requestId: string) {
+    const cluster = this.state.clusters.get(rootClusterUri);
     if (!cluster.connected) {
       return;
     }
 
-    return this.client.getAccessRequest(clusterUri, requestId);
+    return this.client.getAccessRequest(rootClusterUri, requestId);
   }
 
   async reviewAccessRequest(
-    clusterUri: string,
+    rootClusterUri: string,
     params: ReviewAccessRequestParams
   ) {
-    const cluster = this.state.clusters.get(clusterUri);
+    const cluster = this.state.clusters.get(rootClusterUri);
     if (!cluster.connected) {
       return;
     }
 
-    return this.client.reviewAccessRequest(clusterUri, params);
+    return this.client.reviewAccessRequest(rootClusterUri, params);
   }
 
   async createAccessRequest(params: CreateAccessRequestParams) {
-    const cluster = this.state.clusters.get(params.clusterUri);
+    const cluster = this.state.clusters.get(params.rootClusterUri);
     if (!cluster.connected) {
       return;
     }

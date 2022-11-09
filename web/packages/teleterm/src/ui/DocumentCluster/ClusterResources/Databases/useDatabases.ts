@@ -24,7 +24,6 @@ export function useDatabases() {
   const clusterContext = useClusterContext();
   const dbs = clusterContext.getDbs();
   const syncStatus = clusterContext.getSyncStatus().dbs;
-  const documentUri = clusterContext.documentUri;
 
   function connect(dbUri: string, dbUser: string): void {
     const db = appContext.clustersService.findDb(dbUri);
@@ -69,7 +68,6 @@ export function useDatabases() {
     connect,
     dbs,
     syncStatus,
-    documentUri,
   };
 }
 
