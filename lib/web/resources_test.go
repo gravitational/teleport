@@ -435,47 +435,37 @@ func TestListResources(t *testing.T) {
 	}
 }
 
+// TestListResourcesPing tests for supported and unsupported server versions
+// returned by ping. Unsupported versions should return an error.
 func TestListResourcesPing(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	m.mockListResources = func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-		return nil, trace.NotImplemented("not implemented")
+		return &types.ListResourcesResponse{}, nil
 	}
 
-	// Test v8 ping.
-	mockPingCalled := 0
+	// Test supported version ping.
 	m.mockPing = func(ctx context.Context) (proto.PingResponse, error) {
-		mockPingCalled += 1
-		return proto.PingResponse{ServerVersion: "8.3.1"}, nil
+		return proto.PingResponse{ServerVersion: "9.1.0"}, nil
 	}
 	mockHTTPReq, err := http.NewRequest("", "", nil)
 	require.NoError(t, err)
 	_, err = listResources(m, mockHTTPReq, types.KindNode)
-	require.True(t, trace.IsNotImplemented(err))
-	require.Equal(t, 1, mockPingCalled)
+	require.NoError(t, err)
 
-	// Test v9.0 ping.
-	mockPingCalled = 0
+	// Test unsupported v8 ping.
 	m.mockPing = func(ctx context.Context) (proto.PingResponse, error) {
-		mockPingCalled += 1
+		return proto.PingResponse{ServerVersion: "8.3.1"}, nil
+	}
+	_, err = listResources(m, mockHTTPReq, types.KindNode)
+	require.True(t, trace.IsNotImplemented(err))
+
+	// Test unsupported v9.0 ping.
+	m.mockPing = func(ctx context.Context) (proto.PingResponse, error) {
 		return proto.PingResponse{ServerVersion: "9.0.1"}, nil
 	}
 	_, err = listResources(m, mockHTTPReq, types.KindNode)
 	require.True(t, trace.IsNotImplemented(err))
-	require.Equal(t, 1, mockPingCalled)
-
-	// Test v9.1 ping.
-	mockPingCalled = 0
-	m.mockPing = func(ctx context.Context) (proto.PingResponse, error) {
-		mockPingCalled += 1
-		return proto.PingResponse{ServerVersion: "9.1.4"}, nil
-	}
-	m.mockListResources = func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-		return nil, nil
-	}
-	_, err = listResources(m, mockHTTPReq, types.KindNode)
-	require.NoError(t, err)
-	require.Equal(t, 1, mockPingCalled)
 }
 
 func TestHandleClusterNodesGetFallback(t *testing.T) {
