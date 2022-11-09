@@ -561,10 +561,8 @@ func decodeClipboardData(in io.Reader, maxLen uint32) (ClipboardData, error) {
 	if length > maxLen {
 		// If clipboard data exceeds maxLen,
 		// discard the rest of the message
-		if _, err := io.CopyN(io.Discard, in, int64(length)); err != nil {
-			return nil, err
-		}
-		return nil, trace.BadParameter(clipDataMaxLenErr)
+		io.CopyN(io.Discard, in, int64(length))
+		return nil, trace.LimitExceeded(clipDataMaxLenErr)
 	}
 
 	b := make([]byte, int(length))

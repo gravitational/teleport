@@ -337,10 +337,8 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 	}
 
 	sendTDPNotification := func(ws *websocket.Conn, err error, fatal bool) error {
-		var severity tdp.Severity
-		if fatal {
-			severity = tdp.SeverityError
-		} else {
+		severity := tdp.SeverityError
+		if !fatal {
 			severity = tdp.SeverityWarning
 		}
 		msg := tdp.Notification{Message: err.Error(), Severity: severity}
@@ -371,15 +369,15 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 			if utils.IsOKNetworkError(err) {
 				errs <- nil
 				return
-			} else if tdp.IsNonFatalErr(err) {
-				err = sendTDPNotification(ws, err, false)
-				if err == nil {
+			} else if err != nil {
+				isFatal := !tdp.IsNonFatalErr(err)
+				sendErr := sendTDPNotification(ws, err, isFatal)
+
+				if !isFatal && sendErr == nil {
 					continue
 				}
-				errs <- err
-				return
-			} else if err != nil {
-				if sendErr := sendTDPNotification(ws, err, true); sendErr != nil {
+
+				if sendErr != nil {
 					err = sendErr
 				}
 				errs <- err

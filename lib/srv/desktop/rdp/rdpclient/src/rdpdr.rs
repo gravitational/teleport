@@ -21,7 +21,7 @@ use self::scard::IoctlCode;
 use crate::errors::{
     invalid_data_error, not_implemented_error, rejected_by_server_error, try_error,
 };
-use crate::{util, Encode, Messages, MAX_RDP_MESSAGE_SIZE};
+use crate::{util, Encode, Messages, MAX_ALLOWED_VCHAN_MSG_SIZE};
 use crate::{vchan, Message};
 use crate::{
     FileSystemObject, FileType, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
@@ -110,7 +110,7 @@ impl Client {
             debug!("creating rdpdr client with directory sharing disabled")
         }
         Client {
-            vchan: vchan::Client::new(MAX_RDP_MESSAGE_SIZE),
+            vchan: vchan::Client::new(MAX_ALLOWED_VCHAN_MSG_SIZE),
             scard: scard::Client::new(cfg.cert_der, cfg.key_der, cfg.pin),
 
             allow_directory_sharing: cfg.allow_directory_sharing,

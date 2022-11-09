@@ -185,7 +185,7 @@ When this message is sent from client to server, it's a "paste" action.
 #### 7 - client username
 
 ```
-| message type (7) | username_length uint32 | username []byte
+| message type (7) | username_length uint32 | username []byte |
 ```
 
 This is the first message of the protocol and contains the username to login as
@@ -218,10 +218,12 @@ This message indicates an error has occurred.
 #### 28 - notification
 
 ```
-| message type (28) | message_length uint32 | message []byte | severity byte
+| message type (28) | message_length uint32 | message []byte | severity byte |
 ```
 
-This message sends a notification message with a severity level.
+This message sends a notification message with a severity level. Sent from server to client.
+
+`message_length` denotes the length of the `message` byte array. It doesn't include the `severity` byte.
 
 `severity` defines the severity of the `message`:
 - `0` is for an error
@@ -235,7 +237,7 @@ A warning (`1`) means some non-fatal problem was encountered but the TDP connect
 #### 10 - MFA
 
 ```
-| message type (10) | mfa_type byte | length uint32 | JSON []byte
+| message type (10) | mfa_type byte | length uint32 | JSON []byte |
 ```
 
 This message is used to send the MFA challenge to the user when per-session MFA

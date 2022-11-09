@@ -26,24 +26,22 @@ use std::io::{Cursor, Read};
 /// (or a single chunk) over a virtual channel.
 /// See https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/343e4888-4c48-4054-b0e3-4e0762d1993c
 /// for more information about chunks.
-///
-/// To prevent memory DoS attacks that could take down the entire system running the Windows Desktop Service,
-/// Client drops all RDP messages > capacity.
 pub struct Client {
     // capacity is effectively the maximum size of an RDP
     // message we will receive from the RDP server, minus any
     // ChannelPDUHeaders.
     capacity: usize,
     data: Vec<u8>,
-    drop_this_message: bool,
+    drop_current_message: bool,
 }
 
 impl Client {
+    /// Client will drop all messages with length greater than the specified capacity.
     pub fn new(capacity: usize) -> Self {
         Self {
             capacity,
             data: Vec::new(),
-            drop_this_message: false,
+            drop_current_message: false,
         }
     }
 
@@ -70,20 +68,19 @@ impl Client {
         if this_chunk_size + cumulative_message_size <= self.capacity {
             raw_payload.read_to_end(&mut self.data)?;
         } else {
-            self.drop_this_message = true;
+            self.drop_current_message = true;
         }
 
         if channel_pdu_header
             .flags
             .contains(ChannelPDUFlags::CHANNEL_FLAG_LAST)
         {
-            if !self.drop_this_message {
+            if !self.drop_current_message {
                 return Ok(Some(Cursor::new(self.data.split_off(0))));
-            } else {
-                warn!("RDP client received a message that exceeded the maximum allowed message size ({:?} bytes), message was dropped", self.capacity);
-                self.drop_this_message = false; // reset for the next message
-                self.data.clear(); // clear the pending data
             }
+            warn!("RDP client received a message that exceeded the maximum allowed message size ({:?} bytes), message was dropped", self.capacity);
+            self.drop_current_message = false; // reset for the next message
+            self.data.clear(); // clear the pending data
         }
 
         Ok(None)
@@ -221,7 +218,7 @@ mod tests {
 
         let res = c.read(first_message).unwrap();
         assert_eq!(res, None); // wasn't last message
-        assert!(!c.drop_this_message); // we haven't gone over capacity yet
+        assert!(!c.drop_current_message); // we haven't gone over capacity yet
         assert_eq!(c.data, vec![1, 2, 3]);
 
         // Create a second message that will overflow the capacity
@@ -236,7 +233,7 @@ mod tests {
 
         let res = c.read(second_message).unwrap();
         assert_eq!(res, None); // wasn't last message
-        assert!(c.drop_this_message); // we're now over capacity
+        assert!(c.drop_current_message); // we're now over capacity
         assert_eq!(c.data, vec![1, 2, 3]); // make sure we didn't add anything over capacity
 
         // Create a would-be third and final message
@@ -251,7 +248,7 @@ mod tests {
         let res = c.read(third_message).unwrap();
 
         assert_eq!(res, None); // was the last message, but it was dropped
-        assert!(!c.drop_this_message); // the drop_this_message flag was reset
+        assert!(!c.drop_current_message); // the drop_this_message flag was reset
         assert_eq!(c.data, vec![]); // make sure the internal data cache was reset
 
         // Confirm that the Client still functions as expected for <= capacity messages
@@ -266,7 +263,7 @@ mod tests {
         let res = c.read(good_message).unwrap();
 
         assert_eq!(res, Option::Some(Cursor::new(vec![10, 11, 12]))); // we got the payload
-        assert!(!c.drop_this_message); // the drop_this_message flag was never set
+        assert!(!c.drop_current_message); // the drop_this_message flag was never set
         assert_eq!(c.data, vec![]); // the internal data cache was reset
     }
 }
