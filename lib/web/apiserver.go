@@ -1788,7 +1788,7 @@ func (h *Handler) trySettingConnectorNameToPasswordless(ctx *SessionContext, r *
 
 	authPreference, err := ctx.clt.GetAuthPreference(r.Context())
 	if err != nil {
-		return trace.Wrap(err)
+		return nil
 	}
 
 	if authPreference.GetConnectorName() == constants.PasswordlessConnector {
