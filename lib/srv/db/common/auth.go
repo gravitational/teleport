@@ -25,6 +25,7 @@ import (
 	"io"
 	"time"
 
+	gcpcredentialspb "cloud.google.com/go/iam/credentials/apiv1/credentialspb"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/aws/aws-sdk-go/aws"
@@ -34,7 +35,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
-	gcpcredentialspb "google.golang.org/genproto/googleapis/iam/credentials/v1"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	libazure "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
+	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -162,7 +163,7 @@ func (a *dbAuth) GetRDSAuthToken(sessionCtx *Session) (string, error) {
 		sessionCtx.DatabaseUser,
 		awsSession.Config.Credentials)
 	if err != nil {
-		policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
+		policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocument(sessionCtx.Database)
 		if getPolicyErr != nil {
 			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
 		}
@@ -199,7 +200,7 @@ func (a *dbAuth) GetRedshiftAuthToken(sessionCtx *Session) (string, string, erro
 		DbGroups: []*string{},
 	})
 	if err != nil {
-		policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
+		policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocument(sessionCtx.Database)
 		if getPolicyErr != nil {
 			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
 		}
