@@ -610,6 +610,10 @@
               "slug": "/server-access/guides/host-user-creation/"
             },
             {
+              "title": "Linux Auditing System",
+              "slug": "/server-access/guides/auditd/"
+            },
+            {
               "title": "EC2 Instance Discovery (Preview)",
               "slug": "/server-access/guides/ec2-discovery/"
             }
