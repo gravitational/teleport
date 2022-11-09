@@ -1787,7 +1787,6 @@ func (h *Handler) trySettingConnectorNameToPasswordless(ctx *SessionContext, r *
 	}
 
 	authPreference, err := ctx.clt.GetAuthPreference(r.Context())
-
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1797,7 +1796,6 @@ func (h *Handler) trySettingConnectorNameToPasswordless(ctx *SessionContext, r *
 	}
 
 	users, err := h.cfg.ProxyClient.GetUsers(false)
-
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1809,7 +1807,6 @@ func (h *Handler) trySettingConnectorNameToPasswordless(ctx *SessionContext, r *
 	authPreference.SetConnectorName(constants.PasswordlessConnector)
 
 	err = ctx.clt.SetAuthPreference(r.Context(), authPreference)
-
 	if err != nil {
 		return trace.Wrap(err)
 	}
