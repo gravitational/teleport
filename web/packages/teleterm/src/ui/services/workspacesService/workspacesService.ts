@@ -155,6 +155,13 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     return documentService && documentService.isActive(documentUri);
   }
 
+  doesResourceBelongToActiveWorkspace(resourceUri: string): boolean {
+    return (
+      this.state.rootClusterUri &&
+      routing.belongsToProfile(this.state.rootClusterUri, resourceUri)
+    );
+  }
+
   useState() {
     return useStore(this);
   }

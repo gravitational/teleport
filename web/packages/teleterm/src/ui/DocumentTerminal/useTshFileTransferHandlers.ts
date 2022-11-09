@@ -9,9 +9,7 @@ import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { IAppContext } from 'teleterm/ui/types';
 
-export function useTshFileTransferHandlers(options: {
-  originatingDocumentUri: string;
-}) {
+export function useTshFileTransferHandlers() {
   const appContext = useAppContext();
 
   return {
@@ -21,7 +19,6 @@ export function useTshFileTransferHandlers(options: {
     ): FileTransferListeners {
       return transferFile(
         appContext,
-        options.originatingDocumentUri,
         file,
         abortController,
         FileTransferDirection.FILE_TRANSFER_DIRECTION_UPLOAD
@@ -33,7 +30,6 @@ export function useTshFileTransferHandlers(options: {
     ): FileTransferListeners {
       return transferFile(
         appContext,
-        options.originatingDocumentUri,
         file,
         abortController,
         FileTransferDirection.FILE_TRANSFER_DIRECTION_DOWNLOAD
@@ -44,7 +40,6 @@ export function useTshFileTransferHandlers(options: {
 
 function transferFile(
   appContext: IAppContext,
-  originatingDocumentUri: string,
   file: FileTransferRequestObject,
   abortController: AbortController,
   direction: FileTransferDirection
@@ -76,12 +71,7 @@ function transferFile(
       });
     });
 
-  retryWithRelogin(
-    appContext,
-    originatingDocumentUri,
-    file.serverUri,
-    getFileTransferActionAsPromise
-  )
+  retryWithRelogin(appContext, file.serverUri, getFileTransferActionAsPromise)
     .then(eventsEmitter.emitComplete)
     .catch(eventsEmitter.emitError);
 

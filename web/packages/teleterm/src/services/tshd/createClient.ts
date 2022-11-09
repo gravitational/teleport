@@ -254,7 +254,7 @@ export default function createClient(
 
     async createAccessRequest(params: types.CreateAccessRequestParams) {
       const req = new api.CreateAccessRequestRequest()
-        .setRootClusterUri(params.clusterUri)
+        .setRootClusterUri(params.rootClusterUri)
         .setSuggestedReviewersList(params.suggestedReviewers)
         .setRolesList(params.roles)
         .setResourceIdsList(

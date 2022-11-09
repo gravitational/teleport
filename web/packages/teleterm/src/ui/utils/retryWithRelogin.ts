@@ -9,8 +9,9 @@ const logger = new Logger('retryWithRelogin');
  * error can be resolved by the user logging in, according to metadata returned from the tshd
  * client.
  *
- * If that's the case, it checks if the user is still looking at the relevant UI and if so, it shows
- * a login modal. After the user successfully logs in, it calls `actionToRetry` again.
+ * If that's the case, it checks if the user is still looking at the relevant UI (the `isUiActive`
+ * argument) and if so, it shows a login modal. After the user successfully logs in, it calls
+ * `actionToRetry` again.
  *
  * Each place using `retryWithRelogin` must be able to show the error to the user in case the
  * relogin attempt fails. Each place should also offer the user a way to manually retry the action
@@ -21,11 +22,10 @@ const logger = new Logger('retryWithRelogin');
  * place that has access to the tshd client.
  *
  * @param resourceUri - The URI used to extract the root cluster URI. That's how we determine the
- * cluster the login modal should use.
+ * cluster the login modal should use and whether the workspace of that resource is still active.
  */
 export async function retryWithRelogin<T>(
   appContext: AppContext,
-  originatingDocumentUri: string,
   resourceUri: string,
   actionToRetry: () => Promise<T>
 ): Promise<T> {
@@ -47,16 +47,14 @@ export async function retryWithRelogin<T>(
     }
   }
 
-  const isDocumentStillActive = appContext.workspacesService.isDocumentActive(
-    originatingDocumentUri
-  );
+  const { workspacesService } = appContext;
 
-  if (!isDocumentStillActive) {
-    // The error is retryable, but the user is no longer looking at the relevant UI, for example
-    // they switched to a different document or a different workspace completely.
+  if (!workspacesService.doesResourceBelongToActiveWorkspace(resourceUri)) {
+    // The error is retryable, but by the time the request has finished, the user has switched to
+    // another workspace so they're no longer looking at the relevant UI.
     //
     // Since it might take a few seconds before the execution gets to this point, the user might no
-    // longer remember what their intent was, thus showing them a login modal can be disorienting.
+    // longer remember what their intent was, thus showing them a login modal could be disorienting.
     //
     // In that situation, let's just not attempt to relogin and instead let's surface the original
     // error.

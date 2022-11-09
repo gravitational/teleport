@@ -59,7 +59,6 @@ function DatabaseList(props: State) {
             altKey: 'connect-btn',
             render: db => (
               <ConnectButton
-                documentUri={props.documentUri}
                 dbUri={db.uri}
                 protocol={db.protocol as GatewayProtocol}
                 onConnect={dbUser => props.connect(db.uri, dbUser)}
@@ -75,12 +74,10 @@ function DatabaseList(props: State) {
 }
 
 function ConnectButton({
-  documentUri,
   dbUri,
   protocol,
   onConnect,
 }: {
-  documentUri: string;
   dbUri: string;
   protocol: GatewayProtocol;
   onConnect: (dbUser: string) => void;
@@ -93,7 +90,7 @@ function ConnectButton({
         <MenuLogin
           {...getMenuLoginOptions(protocol)}
           width="195px"
-          getLoginItems={() => getDatabaseUsers(appContext, documentUri, dbUri)}
+          getLoginItems={() => getDatabaseUsers(appContext, dbUri)}
           onSelect={(_, user) => {
             onConnect(user);
           }}
@@ -127,13 +124,9 @@ function getMenuLoginOptions(
   };
 }
 
-async function getDatabaseUsers(
-  appContext: IAppContext,
-  documentUri: string,
-  dbUri: string
-) {
+async function getDatabaseUsers(appContext: IAppContext, dbUri: string) {
   try {
-    const dbUsers = await retryWithRelogin(appContext, documentUri, dbUri, () =>
+    const dbUsers = await retryWithRelogin(appContext, dbUri, () =>
       appContext.clustersService.getDbUsers(dbUri)
     );
     return dbUsers.map(user => ({ login: user, url: '' }));
