@@ -2524,6 +2524,45 @@ func TestClusterKubesGet(t *testing.T) {
 	}, resp.Items[0])
 }
 
+func TestClusterDesktopsGet(t *testing.T) {
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
+
+	type testResponse struct {
+		Items      []ui.Desktop `json:"items"`
+		TotalCount int          `json:"totalCount"`
+	}
+
+	resource, err := types.NewWindowsDesktopV3("desktop1", map[string]string{"test-field": "test-value"}, types.WindowsDesktopSpecV3{
+		Addr:   "addr:3389", // test stripping off rdp port
+		HostID: "host",
+	})
+	require.NoError(t, err)
+
+	// Register a windows desktop
+	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), resource)
+	require.NoError(t, err)
+
+	// Make the call.
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "desktops")
+	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	// Test correct response.
+	resp := testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 1)
+	require.Equal(t, 1, resp.TotalCount)
+	require.EqualValues(t, ui.Desktop{
+		OS:     constants.WindowsOS,
+		Name:   "desktop1",
+		Addr:   "addr",
+		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
+	}, resp.Items[0])
+}
+
 func TestClusterAppsGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
