@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package reversetunnel
 
 import (
@@ -27,16 +28,16 @@ import (
 type dialType string
 
 const (
-	// direct is a direct dialed connection.
-	direct dialType = "direct"
-	// peer is a connection established through a peer proxy.
-	peer dialType = "peer"
-	// tunnel is a connection established over a local reverse tunnel initiated
+	// dialType_direct is a direct dialed connection.
+	dialType_direct dialType = "direct"
+	// dialType_peer is a connection established through a peer proxy.
+	dialType_peer dialType = "peer"
+	// dialType_tunnel is a connection established over a local reverse tunnel initiated
 	// by a client.
-	tunnel dialType = "tunnel"
-	// peerTunnel is a connection established over a local reverse tunnel
+	dialType_tunnel dialType = "tunnel"
+	// dialType_peerTunnel is a connection established over a local reverse tunnel
 	// initiated by a peer proxy.
-	peerTunnel dialType = "peer-tunnel"
+	dialType_peerTunnel dialType = "peer-tunnel"
 )
 
 // metricConn reports metrics for reversetunnel connections.
