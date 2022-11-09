@@ -98,7 +98,10 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Log = logrus.NewEntry(logrus.StandardLogger())
 	}
 
-	c.Log = c.Log.WithField("resource", c.TargetURI).WithField("gateway", c.URI.String())
+	c.Log = c.Log.WithFields(logrus.Fields{
+		"resource": c.TargetURI,
+		"gateway":  c.URI.String(),
+	})
 
 	if c.TargetName == "" {
 		return trace.BadParameter("missing target name")
