@@ -813,7 +813,7 @@ kind: pipeline
 type: kubernetes
 name: clean-up-previous-build
 environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.75
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.76-beta.1
 trigger:
   event:
     include:
@@ -1097,8 +1097,8 @@ steps:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - $OutputsDir = "$Workspace/outputs"
-  - $relcliUrl = 'https://cdn.teleport.dev/relcli-v1.1.75-windows.exe'
-  - $relcliSha256 = '664a48f349791b51c3fb5610ff282b050d5c3d74523730bb229256d2cc9ea0d7'
+  - $relcliUrl = 'https://cdn.teleport.dev/relcli-v1.1.76-beta.1-windows.exe'
+  - $relcliSha256 = '7cf8ef6919f1945fa9484ee74e9e0862488a85c51b238b402ec6b73bcaaa9f76'
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Get-Relcli -Url $relcliUrl -Sha256 $relcliSha256 -Workspace $Workspace
   - Register-Artifacts -Workspace $Workspace -Outputs $OutputsDir
@@ -7819,7 +7819,7 @@ kind: pipeline
 type: kubernetes
 name: publish-rlz
 environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.75
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.76-beta.1
 trigger:
   event:
     include:
@@ -18193,6 +18193,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: c805c4e2e9fe7b827500f7e149e85921c9ede5798d41b60019c032142cf74f18
+hmac: 7a4782d1c84f943280182a8bba0a4066c3fe8507ce86ed75985cc86b2f052d92
 
 ...
