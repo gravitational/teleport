@@ -1751,7 +1751,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	err = h.trySettingConnectorNameToPasswordless(ctx, r, req)
+	err = h.trySettingConnectorNameToPasswordless(r.Context(), ctx, req)
 	if err != nil {
 		h.log.WithError(err).Error("Failed to set passwordless as connector name.")
 	}
@@ -1777,7 +1777,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	}, nil
 }
 
-func (h *Handler) trySettingConnectorNameToPasswordless(ctx *SessionContext, r *http.Request, req changeUserAuthenticationRequest) error {
+func (h *Handler) trySettingConnectorNameToPasswordless(ctx context.Context, sessCtx *SessionContext, req changeUserAuthenticationRequest) error {
 	if req.WebauthnCreationResponse == nil {
 		return nil
 	}
@@ -1786,7 +1786,7 @@ func (h *Handler) trySettingConnectorNameToPasswordless(ctx *SessionContext, r *
 		return nil
 	}
 
-	authPreference, err := ctx.clt.GetAuthPreference(r.Context())
+	authPreference, err := sessCtx.clt.GetAuthPreference(ctx)
 	if err != nil {
 		return nil
 	}
@@ -1806,7 +1806,7 @@ func (h *Handler) trySettingConnectorNameToPasswordless(ctx *SessionContext, r *
 
 	authPreference.SetConnectorName(constants.PasswordlessConnector)
 
-	err = ctx.clt.SetAuthPreference(r.Context(), authPreference)
+	err = sessCtx.clt.SetAuthPreference(ctx, authPreference)
 	if err != nil {
 		return trace.Wrap(err)
 	}
