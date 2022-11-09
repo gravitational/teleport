@@ -76,6 +76,8 @@ type LocalProxyConfig struct {
 	ALPNConnUpgradeRequired bool
 	// Middleware provides callback functions to the local proxy.
 	Middleware LocalProxyMiddleware
+	// Clock is used to override time in tests.
+	Clock clockwork.Clock
 }
 
 // LocalProxyMiddleware provides callback functions for LocalProxy.
@@ -97,6 +99,9 @@ func (cfg *LocalProxyConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.ParentContext == nil {
 		return trace.BadParameter("missing parent context")
+	}
+	if cfg.Clock == nil {
+		cfg.Clock = clockwork.NewRealClock()
 	}
 	return nil
 }
@@ -183,7 +188,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 			NextProtos:         l.cfg.GetProtocols(),
 			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
 			ServerName:         l.cfg.SNI,
-			Certificates:       l.GetCerts(),
+			Certificates:       l.getCerts(),
 			RootCAs:            l.cfg.RootCAs,
 		},
 	})
@@ -218,7 +223,7 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 			NextProtos:         l.cfg.GetProtocols(),
 			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
 			ServerName:         l.cfg.SNI,
-			Certificates:       l.GetCerts(),
+			Certificates:       l.getCerts(),
 		},
 	}
 	proxy := &httputil.ReverseProxy{
@@ -249,12 +254,49 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 	return nil
 }
 
-func (l *LocalProxy) GetCerts() []tls.Certificate {
+// getCerts returns the local proxy's configured TLS certificates.
+// For thread-safety, it is important that the returned slice and its contents are not be mutated by callers,
+// therefore this method is not exported.
+func (l *LocalProxy) getCerts() []tls.Certificate {
 	l.certsMu.RLock()
 	defer l.certsMu.RUnlock()
 	return l.cfg.Certs
 }
 
+// CheckDBCerts checks the proxy certificates for expiration and that the cert subject matches a database route.
+func (l *LocalProxy) CheckDBCerts(dbRoute tlsca.RouteToDatabase) error {
+	l.certsMu.RLock()
+	defer l.certsMu.RUnlock()
+	if len(l.cfg.Certs) == 0 {
+		return trace.NotFound("local proxy has no TLS certificates configured")
+	}
+	cert, err := utils.TLSCertToX509(l.cfg.Certs[0])
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Check for cert expiration.
+	if err := utils.VerifyCertificateExpiry(cert, l.cfg.Clock); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Check the subject matches.
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if dbRoute.Username != "" && dbRoute.Username != identity.RouteToDatabase.Username {
+		return trace.Errorf("certificate subject is for user %s, but need %s",
+			identity.RouteToDatabase.Username, dbRoute.Username)
+	}
+	if dbRoute.Database != "" && dbRoute.Database != identity.RouteToDatabase.Database {
+		return trace.Errorf("certificate subject is for database name %s, but need %s",
+			identity.RouteToDatabase.Database, dbRoute.Database)
+	}
+	return nil
+}
+
+// SetCerts sets the local proxy's configured TLS certificates.
 func (l *LocalProxy) SetCerts(certs []tls.Certificate) {
 	l.certsMu.Lock()
 	defer l.certsMu.Unlock()
