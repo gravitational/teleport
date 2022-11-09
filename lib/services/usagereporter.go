@@ -26,7 +26,7 @@ import (
 // UsageAnonymizable is an event that can be anonymized.
 type UsageAnonymizable interface {
 	// Anonymize uses the given anonymizer to anonymize all fields in place.
-	Anonymize(utils.Anonymizer)
+	Anonymize(utils.Anonymizer) UsageAnonymizable
 }
 
 // UsageReporter is a service that accepts Teleport usage events.
@@ -36,38 +36,63 @@ type UsageReporter interface {
 	SubmitAnonymizedUsageEvents(event ...UsageAnonymizable) error
 }
 
+// UsageUserLogin is an event emitted when a user logs into Teleport,
+// potentially via SSO.
 type UsageUserLogin prehogv1.UserLoginEvent
 
-func (u *UsageUserLogin) Anonymize(a utils.Anonymizer) {
-	u.UserName = a.Anonymize([]byte(u.UserName))
-
-	// TODO: anonymizer connector type?
+func (u *UsageUserLogin) Anonymize(a utils.Anonymizer) UsageAnonymizable {
+	return &UsageUserLogin{
+		UserName:      a.Anonymize([]byte(u.UserName)),
+		ConnectorType: u.ConnectorType, // TODO: anonymizer connector type?
+	}
 }
 
+// UsageSSOCreate is emitted when an SSO connector has been created.
 type UsageSSOCreate prehogv1.SSOCreateEvent
 
-func (u *UsageSSOCreate) Anonymize(a utils.Anonymizer) {
-	// TODO: anonymize connector type?
+func (u *UsageSSOCreate) Anonymize(a utils.Anonymizer) UsageAnonymizable {
+	return &UsageSSOCreate{
+		ConnectorType: u.ConnectorType, // TODO: anonymize connector type?
+	}
 }
 
+// UsageSessionStart is an event emitted when some Teleport session has started
+// (ssh, etc).
 type UsageSessionStart prehogv1.SessionStartEvent
 
-func (u *UsageSessionStart) Anonymize(a utils.Anonymizer) {
-	u.UserName = a.Anonymize([]byte(u.UserName))
-
-	// TODO: anonymize session type?
+func (u *UsageSessionStart) Anonymize(a utils.Anonymizer) UsageAnonymizable {
+	return &UsageSessionStart{
+		UserName:    a.Anonymize([]byte(u.UserName)),
+		SessionType: u.SessionType, // TODO: anonymize session type?
+		Interactive: u.Interactive,
+	}
 }
 
-type UsageUpgradeBannerClickEvent prehogv1.UpgradeBannerClickEvent
+// UsageUpgradeBannerClick is a usage event emitted when a UI upgrade banner has
+// been clicked.
+type UsageUpgradeBannerClick prehogv1.UpgradeBannerClickEvent
 
-func (u *UsageUpgradeBannerClickEvent) Anonymize(a utils.Anonymizer) {
-	// Event is empty, nothing to do.
+func (u *UsageUpgradeBannerClick) Anonymize(a utils.Anonymizer) UsageAnonymizable {
+	return &UsageUpgradeBannerClick{}
 }
 
+// UsageResourceCreate is an event emitted when various resource types have been
+// created.
+type UsageResourceCreate prehogv1.ResourceCreateEvent
+
+func (u *UsageResourceCreate) Anonymize(a utils.Anonymizer) UsageAnonymizable {
+	return &UsageResourceCreate{
+		ResourceType: u.ResourceType, // TODO: anonymize this?
+	}
+}
+
+// ConvertUsageEvent converts a usage event from an API object into an
+// anonymizable event. All events that can be submitted externally via the Auth
+// API need to be defined here.
 func ConvertUsageEvent(event *usageevents.UsageEventOneOf) (UsageAnonymizable, error) {
 	switch event.GetEvent().(type) {
 	case *usageevents.UsageEventOneOf_UpgradeBannerClick:
-		return &UsageUpgradeBannerClickEvent{}, nil
+		return &UsageUpgradeBannerClick{}, nil
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
 	}

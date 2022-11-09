@@ -166,6 +166,7 @@ func (r *UsageReporter) enqueueBatch() {
 	}
 }
 
+// Run begins processing incoming usage events. It should be run in a goroutine.
 func (r *UsageReporter) Run() {
 	r.Warnf("Started usage reporter")
 
@@ -211,10 +212,11 @@ func (r *UsageReporter) Run() {
 // convertEvent anonymizes an event and converts a UsageAnonymizable into a
 // SubmitEventRequest.
 func (r *UsageReporter) convertEvent(event services.UsageAnonymizable) (*prehogapi.SubmitEventRequest, error) {
-	event.Anonymize(r.anonymizer)
+	// Anonymize the event and replace the old value.
+	event = event.Anonymize(r.anonymizer)
 
 	time := timestamppb.New(r.clock.Now())
-	clusterName := r.anonymizer.Anonymize([]byte(r.clusterName.GetClusterName())) // TODO: Verify this.
+	clusterName := r.anonymizer.Anonymize([]byte(r.clusterName.GetClusterName()))
 
 	// "Event" can't be named because protoc doesn't export the interface, so
 	// instead we have a giant, fallible switch statement for something the
@@ -244,7 +246,7 @@ func (r *UsageReporter) convertEvent(event services.UsageAnonymizable) (*prehoga
 				SessionStart: (*prehogapi.SessionStartEvent)(e),
 			},
 		}, nil
-	case *services.UsageUpgradeBannerClickEvent:
+	case *services.UsageUpgradeBannerClick:
 		return &prehogapi.SubmitEventRequest{
 			ClusterName: clusterName,
 			Timestamp:   time,
@@ -321,12 +323,13 @@ func NewPrehogSubmitter(ctx context.Context) usageSubmitFunc {
 	}
 }
 
+// NewUsageReporter creates a new usage reporter. `Run()` must be executed to
+// process incoming events.
 func NewUsageReporter(ctx context.Context, clusterName types.ClusterName) (*UsageReporter, error) {
 	l := log.WithFields(log.Fields{
 		trace.Component: teleport.Component(teleport.ComponentUsageReporting),
 	})
 
-	// TODO: verify clusterName and clusterID. Do we send name or ID?
 	anonymizer, err := utils.NewHMACAnonymizer(clusterName.GetClusterID())
 	if err != nil {
 		return nil, trace.Wrap(err)

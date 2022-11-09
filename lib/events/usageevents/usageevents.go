@@ -43,47 +43,52 @@ type UsageLogger struct {
 
 // report submits a usage event, but silently ignores events if no reporter is
 // configured.
-func (u *UsageLogger) report(event services.UsageAnonymizable) {
+func (u *UsageLogger) report(event services.UsageAnonymizable) error {
 	if u.reporter == nil {
-		return
+		return nil
 	}
 
-	u.reporter.SubmitAnonymizedUsageEvents(event)
+	return trace.Wrap(u.reporter.SubmitAnonymizedUsageEvents(event))
 }
 
-func (u *UsageLogger) filterAuditEvent(ctx context.Context, event apievents.AuditEvent) {
+func (u *UsageLogger) filterAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	switch e := event.(type) {
 	case *apievents.UserLogin:
 		// Only count successful logins.
 		if !e.Success {
-			return
+			return nil
 		}
 
 		// Note: we can have different behavior based on event code (local vs
 		// SSO) if desired, but we currently only care about connector type /
 		// method
-		u.report(&services.UsageUserLogin{
+		return trace.Wrap(u.report(&services.UsageUserLogin{
 			UserName:      e.User,
 			ConnectorType: e.Method,
-		})
+		}))
 	case *apievents.SessionStart:
 		// Note: session.start is only SSH.
-		u.report(&services.UsageSessionStart{
+		return trace.Wrap(u.report(&services.UsageSessionStart{
 			UserName:    e.User,
 			SessionType: string(types.SSHSessionKind),
 			Interactive: true, // TODO: we don't know this in SessionStart
-		})
+		}))
 	}
+
+	return nil
 }
 
 func (u *UsageLogger) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	u.filterAuditEvent(ctx, event)
+	if err := u.filterAuditEvent(ctx, event); err != nil {
+		// We don't ever want this to fail or bubble up errors, so the best we
+		// can do is complain to the logs.
+		u.Warnf("Failed to filter audit event: %+v", err)
+	}
 
 	if u.inner != nil {
 		return u.inner.EmitAuditEvent(ctx, event)
 	}
 
-	// Note: we'll consider this implemented.
 	return nil
 }
 
