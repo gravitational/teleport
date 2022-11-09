@@ -1132,6 +1132,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = false
 	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	rcConf.Log = log
 
 	log.Infof("Root cluster config: %#v", rcConf)
 
@@ -1163,7 +1164,9 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 
 	rcProxyAddr := net.JoinHostPort(rcAddr, helpers.PortStr(t, rc.Web))
 	require.Zero(t, ph.Count())
-	_, err = rc.StartNode(makeNodeConfig("node1", rcProxyAddr))
+	nodeCfg := makeNodeConfig("node1", rcProxyAddr)
+	nodeCfg.Log = log
+	_, err = rc.StartNode(nodeCfg)
 	require.Error(t, err)
 
 	timeout := time.Second * 60
