@@ -298,3 +298,18 @@ A number of new audit events will be created as part of this effort:
   mismapped to an Okta user, it will be possible for that user to request access on behalf of
   that user. Administrators should take care with their Okta identity mappings, or even better,
   ensure that Teleport logins map directly to Okta users.
+
+### Implementation plan
+
+#### Okta service configuration
+
+Implement the ability to configure the Okta service. Doing this first will make subsequent
+testing and verification easier as we'll be able to pass in API URLs and API tokens.
+Part of this will include implementing any stubs needed for the Okta service itself.
+
+#### Okta service API communication
+
+The Okta service will be able to communicate with Okta and retrieve lists of
+applications and groups without doing anything with them yet.
+
+####
