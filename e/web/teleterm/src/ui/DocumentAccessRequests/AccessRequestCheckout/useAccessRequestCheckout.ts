@@ -92,16 +92,15 @@ export default function useAccessRequestCheckout() {
 
   function createRequest(reason: string, suggestedReviewers: string[]) {
     const data = getPendingAccessRequestsPerResource();
-    const activeDoc = docService.getActive();
     const req = {
-      clusterUri: rootClusterUri,
+      rootClusterUri,
       reason,
       suggestedReviewers,
       resourceIds: data.filter(d => d.kind !== 'role'),
       roles: data.filter(d => d.kind === 'role').map(d => d.name),
     };
     runCreateRequest(() =>
-      retryWithRelogin(ctx, activeDoc?.uri, clusterUri, () =>
+      retryWithRelogin(ctx, clusterUri, () =>
         ctx.clustersService.createAccessRequest(req).then(() => {
           setRequestedCount(data.length);
           reset();

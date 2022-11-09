@@ -17,9 +17,6 @@ import { useInterval } from 'shared/hooks';
 export function useAssumedRolesBar(assumedRequest: AssumedRequest) {
   const ctx = useAppContext();
   const rootClusterUri = ctx.workspacesService?.getRootClusterUri();
-  const activeDocUri = ctx.workspacesService
-    ?.getActiveWorkspaceDocumentService()
-    ?.getActive()?.uri;
 
   const [duration, setDuration] = useState<Duration>(() =>
     getDurationFromNow({
@@ -31,11 +28,7 @@ export function useAssumedRolesBar(assumedRequest: AssumedRequest) {
   );
 
   const [dropRequestAttempt, dropRequest] = useAsync(() => {
-    // because our bar is outside the `DocumentsRenderer` there
-    // is a chance that no document will exist at all. in this case,
-    // we let retryWithLogin go down the path as if the originating doc
-    // is not active anymore.
-    return retryWithRelogin(ctx, activeDocUri, rootClusterUri, () =>
+    return retryWithRelogin(ctx, rootClusterUri, () =>
       // only passing the 'unassumed' role id as the backend will
       // persist any other access requests currently available that
       // are not present in the dropIds array

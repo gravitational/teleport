@@ -46,6 +46,9 @@ export default function useNewRequest() {
 
   const [toResource, setToResource] = useState<string | null>(null);
 
+  const retry = <T>(action: () => Promise<T>) =>
+    retryWithRelogin(ctx, clusterUri, action);
+
   function makeAgent(source) {
     switch (selectedResource) {
       case 'node':
@@ -74,17 +77,11 @@ export default function useNewRequest() {
   function getFetchCallback(params: ServerSideParams) {
     switch (selectedResource) {
       case 'node':
-        return retryWithRelogin(ctx, '', clusterUri, () =>
-          ctx.clustersService.client.getServers(params)
-        );
+        return retry(() => ctx.clustersService.client.getServers(params));
       case 'db':
-        return retryWithRelogin(ctx, '', clusterUri, () =>
-          ctx.clustersService.client.getDatabases(params)
-        );
+        return retry(() => ctx.clustersService.client.getDatabases(params));
       case 'kube_cluster':
-        return retryWithRelogin(ctx, '', clusterUri, () =>
-          ctx.clustersService.fetchKubes(params)
-        );
+        return retry(() => ctx.clustersService.fetchKubes(params));
       default: {
         throw new Error(`Fetch not implemented for: ${selectedResource}`);
       }
@@ -98,7 +95,7 @@ export default function useNewRequest() {
       // on the loggedInUser object
       if (selectedResource === 'role') {
         setFetchStatus('loading');
-        const data = await retryWithRelogin(ctx, '', clusterUri, () =>
+        const data = await retry(() =>
           ctx.clustersService.getRequestableRoles(clusterUri)
         );
         setRequestableRoles(data);

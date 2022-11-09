@@ -59,7 +59,7 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
 
   const getRequests = async () => {
     try {
-      const response = await retryWithRelogin(ctx, doc.uri, clusterUri, () =>
+      const response = await retryWithRelogin(ctx, clusterUri, () =>
         ctx.clustersService.getAccessRequests(rootClusterUri)
       );
       setAttempt({ status: 'success' });
@@ -76,7 +76,7 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
 
   async function assumeRole(request: AccessRequest) {
     runAssumeRole(() =>
-      retryWithRelogin(ctx, doc.uri, clusterUri, () =>
+      retryWithRelogin(ctx, clusterUri, () =>
         // pass the requestId to the requestIds array on its own, and nothing into the dropids array
         // since we are only 'assuming' one requestId at a time
         ctx.clustersService.assumeRole(rootClusterUri, [request.id], [])

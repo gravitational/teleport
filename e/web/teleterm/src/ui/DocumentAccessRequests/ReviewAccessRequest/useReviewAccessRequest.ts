@@ -16,13 +16,7 @@ export default function useReviewAccessRequest({ requestId, goBack }: Props) {
   const ctx = useAppContext();
   ctx.clustersService.useState();
 
-  const {
-    localClusterUri: clusterUri,
-    rootClusterUri,
-    documentsService,
-  } = useWorkspaceContext();
-  const activeDoc = documentsService?.getActive();
-
+  const { localClusterUri: clusterUri, rootClusterUri } = useWorkspaceContext();
   const identity = useIdentity();
   const [request, setRequest] = useState<AccessRequest>(null);
   const { attempt, run: runGetRequest } = useAttempt('processing');
@@ -34,9 +28,12 @@ export default function useReviewAccessRequest({ requestId, goBack }: Props) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const assumed = ctx.clustersService.getAssumedRequests(rootClusterUri);
 
+  const retry = <T>(action: () => Promise<T>) =>
+    retryWithRelogin(ctx, clusterUri, action);
+
   useEffect(() => {
     runGetRequest(() =>
-      retryWithRelogin(ctx, activeDoc.uri, clusterUri, () =>
+      retry(() =>
         ctx.clustersService
           .getAccessRequest(rootClusterUri, requestId)
           .then(r => {
@@ -74,7 +71,7 @@ export default function useReviewAccessRequest({ requestId, goBack }: Props) {
       id: request.id,
     };
     runSubmitReview(() =>
-      retryWithRelogin(ctx, activeDoc.uri, clusterUri, () =>
+      retry(() =>
         ctx.clustersService.reviewAccessRequest(rootClusterUri, req).then(r => {
           const req = makeUiAccessRequest(r);
           setRequest(req);
@@ -85,7 +82,7 @@ export default function useReviewAccessRequest({ requestId, goBack }: Props) {
 
   async function deleteRequest(requestId: string) {
     runDeleteRequest(() =>
-      retryWithRelogin(ctx, activeDoc.uri, clusterUri, () =>
+      retry(() =>
         ctx.clustersService.deleteAccessRequest(rootClusterUri, requestId)
       )
     );
@@ -97,7 +94,7 @@ export default function useReviewAccessRequest({ requestId, goBack }: Props) {
 
   async function assumeRole() {
     runAssumeRole(() =>
-      retryWithRelogin(ctx, activeDoc.uri, clusterUri, () =>
+      retry(() =>
         // pass the requestId to the requestIds array on its own, and nothing into the dropids array
         // since we are only 'assuming' one requestId at a time
         ctx.clustersService.assumeRole(rootClusterUri, [requestId], [])
