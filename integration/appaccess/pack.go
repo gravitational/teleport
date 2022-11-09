@@ -567,13 +567,14 @@ func (p *Pack) waitForLogout(appCookie string) (int, error) {
 	}
 }
 
-func (p *Pack) startRootAppServers(t *testing.T, count int, extraApps []service.App) []*service.TeleportProcess {
+func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions) []*service.TeleportProcess {
 	log := utils.NewLoggerForTests()
 
 	configs := make([]*service.Config, count)
 
 	for i := 0; i < count; i++ {
 		raConf := service.MakeDefaultConfig()
+		raConf.Clock = opts.Clock
 		raConf.Console = nil
 		raConf.Log = log
 		raConf.DataDir = t.TempDir()
@@ -587,6 +588,7 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 		raConf.SSH.Enabled = false
 		raConf.Apps.Enabled = true
 		raConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+		raConf.Apps.MonitorCloseChannel = opts.MonitorCloseChannel
 		raConf.Apps.Apps = append([]service.App{
 			{
 				Name:       p.rootAppName,
@@ -698,7 +700,7 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 					},
 				},
 			},
-		}, extraApps...)
+		}, opts.ExtraRootApps...)
 
 		configs[i] = raConf
 	}
@@ -724,12 +726,13 @@ func waitForAppServer(t *testing.T, tunnel reversetunnel.Server, name string, ho
 	waitForAppRegInRemoteSiteCache(t, tunnel, name, apps, hostUUID)
 }
 
-func (p *Pack) startLeafAppServers(t *testing.T, count int, extraApps []service.App) []*service.TeleportProcess {
+func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions) []*service.TeleportProcess {
 	log := utils.NewLoggerForTests()
 	configs := make([]*service.Config, count)
 
 	for i := 0; i < count; i++ {
 		laConf := service.MakeDefaultConfig()
+		laConf.Clock = opts.Clock
 		laConf.Console = nil
 		laConf.Log = log
 		laConf.DataDir = t.TempDir()
@@ -743,6 +746,7 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 		laConf.SSH.Enabled = false
 		laConf.Apps.Enabled = true
 		laConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+		laConf.Apps.MonitorCloseChannel = opts.MonitorCloseChannel
 		laConf.Apps.Apps = append([]service.App{
 			{
 				Name:       p.leafAppName,
@@ -830,7 +834,7 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 					},
 				},
 			},
-		}, extraApps...)
+		}, opts.ExtraLeafApps...)
 
 		configs[i] = laConf
 	}
