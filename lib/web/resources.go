@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -293,6 +294,19 @@ func ExtractResourceAndValidate(yaml string) (*services.UnknownResource, error) 
 
 // listResources gets a list of resources depending on the type of resource.
 func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string) (*types.ListResourcesResponse, error) {
+	// ListResources for 'pagination' feature was available starting from v8
+	// for DatabaseServers and AppServers, but it wasn't until v9.1 when
+	// 'filtering' feature became available. Also in v8/v9.0, the web UI did not
+	// use this new api, so we will treat v8/v9.0 as not implemented to avoid
+	// false positives (really only applies to DatabaseServers and AppServers).
+	pingRes, err := clt.Ping(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if strings.HasPrefix(pingRes.GetServerVersion(), "9.0") || strings.HasPrefix(pingRes.GetServerVersion(), "8") {
+		return nil, trace.NotImplemented("resource type %s does not support pagination", resourceKind)
+	}
+
 	values := r.URL.Query()
 
 	limit, err := queryLimit(values, "limit", defaults.MaxIterationLimit)
@@ -329,14 +343,189 @@ func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string)
 	return clt.ListResources(r.Context(), req)
 }
 
+func handleClusterNodesGet(clt resourcesAPIGetter, r *http.Request, clusterName string, userRoles services.RoleSet) (*listResourcesGetResponse, error) {
+	resp, err := listResources(clt, r, types.KindNode)
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			nodes, err := clt.GetNodes(r.Context(), apidefaults.Namespace)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return &listResourcesGetResponse{
+				Items: ui.MakeServers(clusterName, nodes, userRoles),
+			}, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resp.Resources).AsServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &listResourcesGetResponse{
+		Items:      ui.MakeServers(clusterName, servers, userRoles),
+		StartKey:   &resp.NextKey,
+		TotalCount: &resp.TotalCount,
+	}, nil
+}
+
+func handleClusterDatabasesGet(clt resourcesAPIGetter, r *http.Request, clusterName string) (*listResourcesGetResponse, error) {
+	resp, err := listResources(clt, r, types.KindDatabaseServer)
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			dbServers, err := clt.GetDatabaseServers(r.Context(), apidefaults.Namespace)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			var databases []types.Database
+			for _, server := range dbServers {
+				databases = append(databases, server.GetDatabase())
+			}
+
+			return &listResourcesGetResponse{
+				Items: ui.MakeDatabases(clusterName, types.DeduplicateDatabases(databases)),
+			}, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resp.Resources).AsDatabaseServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Make a list of all proxied databases.
+	var databases []types.Database
+	for _, server := range servers {
+		databases = append(databases, server.GetDatabase())
+	}
+
+	return &listResourcesGetResponse{
+		Items:      ui.MakeDatabases(clusterName, databases),
+		StartKey:   &resp.NextKey,
+		TotalCount: &resp.TotalCount,
+	}, nil
+}
+
+func handleClusterAppsGet(clt resourcesAPIGetter, r *http.Request, cfg ui.MakeAppsConfig) (*listResourcesGetResponse, error) {
+	// Check app config is not empty
+	if cfg.Identity == nil || cfg.LocalClusterName == "" || cfg.LocalProxyDNSName == "" || cfg.AppClusterName == "" {
+		return nil, trace.BadParameter("missing MakeAppsConfig required fields")
+	}
+
+	resp, err := listResources(clt, r, types.KindAppServer)
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			appServers, err := clt.GetApplicationServers(r.Context(), apidefaults.Namespace)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			var apps types.Apps
+			for _, server := range appServers {
+				apps = append(apps, server.GetApp())
+			}
+
+			cfg.Apps = types.DeduplicateApps(apps)
+
+			return &listResourcesGetResponse{
+				Items: ui.MakeApps(cfg),
+			}, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	appServers, err := types.ResourcesWithLabels(resp.Resources).AsAppServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var apps types.Apps
+	for _, server := range appServers {
+		apps = append(apps, server.GetApp())
+	}
+
+	cfg.Apps = apps
+
+	return &listResourcesGetResponse{
+		Items:      ui.MakeApps(cfg),
+		StartKey:   &resp.NextKey,
+		TotalCount: &resp.TotalCount,
+	}, nil
+}
+
+func handleClusterDesktopsGet(clt resourcesAPIGetter, r *http.Request) (*listResourcesGetResponse, error) {
+	resp, err := listResources(clt, r, types.KindWindowsDesktop)
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			windowsDesktops, err := clt.GetWindowsDesktops(r.Context(), types.WindowsDesktopFilter{})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			windowsDesktops = types.DeduplicateDesktops(windowsDesktops)
+
+			return &listResourcesGetResponse{
+				Items: ui.MakeDesktops(windowsDesktops),
+			}, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	windowsDesktops, err := types.ResourcesWithLabels(resp.Resources).AsWindowsDesktops()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &listResourcesGetResponse{
+		Items:      ui.MakeDesktops(windowsDesktops),
+		StartKey:   &resp.NextKey,
+		TotalCount: &resp.TotalCount,
+	}, nil
+}
+
+func handleClusterKubesGet(clt resourcesAPIGetter, r *http.Request) (*listResourcesGetResponse, error) {
+	resp, err := listResources(clt, r, types.KindKubernetesCluster)
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			kubeServices, err := clt.GetKubeServices(r.Context())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return &listResourcesGetResponse{
+				Items: ui.MakeLegacyKubeClusters(kubeServices),
+			}, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	clusters, err := types.ResourcesWithLabels(resp.Resources).AsKubeClusters()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &listResourcesGetResponse{
+		Items:      ui.MakeKubeClusters(clusters),
+		StartKey:   &resp.NextKey,
+		TotalCount: &resp.TotalCount,
+	}, nil
+}
+
 type listResourcesGetResponse struct {
 	// Items is a list of resources retrieved.
 	Items interface{} `json:"items"`
 	// StartKey is the position to resume search events.
-	StartKey string `json:"startKey"`
+	// Pointer to use the vallue "nil" to determine
+	// if pagination is supported in the web UI.
+	StartKey *string `json:"startKey"`
 	// TotalCount is the total count of resources available
 	// after filter.
-	TotalCount int `json:"totalCount"`
+	// Pointer to use the vallue "nil" to determine
+	// if pagination is supported in the web UI.
+	TotalCount *int `json:"totalCount"`
 }
 
 type resourcesAPIGetter interface {
@@ -364,4 +553,11 @@ type resourcesAPIGetter interface {
 	DeleteTrustedCluster(ctx context.Context, name string) error
 	// ListResoures returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+
+	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
+	GetDatabaseServers(context.Context, string, ...services.MarshalOption) ([]types.DatabaseServer, error)
+	GetWindowsDesktops(context.Context, types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
+	GetKubeServices(context.Context) ([]types.Server, error)
+	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+	Ping(ctx context.Context) (proto.PingResponse, error)
 }

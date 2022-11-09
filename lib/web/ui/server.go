@@ -152,6 +152,46 @@ func MakeKubeClusters(clusters []types.KubeCluster) []KubeCluster {
 	return uiKubeClusters
 }
 
+func MakeLegacyKubeClusters(servers []types.Server) []KubeCluster {
+	kubeClusters := map[string]*types.KubernetesCluster{}
+
+	// Get unique kube clusters
+	for _, server := range servers {
+		// Process each kube cluster.
+		for _, cluster := range server.GetKubernetesClusters() {
+			kubeClusters[cluster.Name] = cluster
+		}
+	}
+
+	uiKubeClusters := make([]KubeCluster, 0, len(kubeClusters))
+	for _, cluster := range kubeClusters {
+		uiLabels := []Label{}
+
+		for name, value := range cluster.StaticLabels {
+			uiLabels = append(uiLabels, Label{
+				Name:  name,
+				Value: value,
+			})
+		}
+
+		for name, cmd := range cluster.DynamicLabels {
+			uiLabels = append(uiLabels, Label{
+				Name:  name,
+				Value: cmd.GetResult(),
+			})
+		}
+
+		sort.Sort(sortedLabels(uiLabels))
+
+		uiKubeClusters = append(uiKubeClusters, KubeCluster{
+			Name:   cluster.Name,
+			Labels: uiLabels,
+		})
+	}
+
+	return uiKubeClusters
+}
+
 // Database describes a database server.
 type Database struct {
 	// Name is the name of the database.
