@@ -321,6 +321,14 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		close:       close,
 	}
 
+	s.ca = windows.NewCertificateStoreClient(windows.CertificateStoreConfig{
+		AccessPoint: s.cfg.AccessPoint,
+		LDAPConfig:  s.cfg.LDAPConfig,
+		Log:         s.cfg.Log,
+		ClusterName: s.clusterName,
+		LC:          s.lc,
+	})
+
 	// initialize LDAP - if this fails it will automatically schedule a retry.
 	// we don't want to return an error in this case, because failure to start
 	// the service brings down the entire Teleport process
@@ -363,14 +371,6 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	} else {
 		s.cfg.Log.Infoln("desktop discovery via LDAP is disabled, set 'base_dn' to enable")
 	}
-
-	s.ca = windows.NewCertificateStoreClient(windows.CertificateStoreConfig{
-		AccessPoint: s.cfg.AccessPoint,
-		LDAPConfig:  s.cfg.LDAPConfig,
-		Log:         s.cfg.Log,
-		ClusterName: s.clusterName,
-		LC:          s.lc,
-	})
 
 	ok = true
 	return s, nil
