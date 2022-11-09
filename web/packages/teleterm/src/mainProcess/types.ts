@@ -22,6 +22,9 @@ export type RuntimeSettings = {
   sharedProcess: {
     requestedNetworkAddress: string;
   };
+  tshdEvents: {
+    requestedNetworkAddress: string;
+  };
 };
 
 export type MainProcessClient = {
@@ -43,6 +46,10 @@ export type MainProcessClient = {
 export type ChildProcessAddresses = {
   tsh: string;
   shared: string;
+};
+
+export type GrpcServerAddresses = ChildProcessAddresses & {
+  tshdEvents: string;
 };
 
 export type Platform = NodeJS.Platform;

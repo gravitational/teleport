@@ -639,6 +639,21 @@ export default function createClient(
 
       return createFileTransferStream(tshd.transferFile(req), abortSignal);
     },
+
+    updateTshdEventsServerAddress(address: string) {
+      const req = new api.UpdateTshdEventsServerAddressRequest().setAddress(
+        address
+      );
+      return new Promise<void>((resolve, reject) => {
+        tshd.updateTshdEventsServerAddress(req, err => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
+    },
   };
   return client;
 }

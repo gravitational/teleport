@@ -6,7 +6,7 @@ import { app } from 'electron';
 
 import Logger from 'teleterm/logger';
 
-import { ChildProcessAddresses, RuntimeSettings } from './types';
+import { GrpcServerAddresses, RuntimeSettings } from './types';
 
 const { argv, env } = process;
 
@@ -29,8 +29,11 @@ const isInsecure = dev || argv.includes('--insecure');
 
 function getRuntimeSettings(): RuntimeSettings {
   const userDataDir = app.getPath('userData');
-  const { tsh: tshAddress, shared: sharedAddress } =
-    requestChildProcessesAddresses();
+  const {
+    tsh: tshAddress,
+    shared: sharedAddress,
+    tshdEvents: tshdEventsAddress,
+  } = requestGrpcServerAddresses();
   const { binDir, tshBinPath } = getBinaryPaths();
 
   const tshd = {
@@ -50,6 +53,9 @@ function getRuntimeSettings(): RuntimeSettings {
   const sharedProcess = {
     requestedNetworkAddress: sharedAddress,
   };
+  const tshdEvents = {
+    requestedNetworkAddress: tshdEventsAddress,
+  };
 
   if (isInsecure) {
     tshd.flags.unshift('--debug');
@@ -60,6 +66,7 @@ function getRuntimeSettings(): RuntimeSettings {
     dev,
     tshd,
     sharedProcess,
+    tshdEvents,
     userDataDir,
     binDir,
     certsDir: getCertsDir(),
@@ -169,12 +176,16 @@ function getDefaultShell(): string {
   }
 }
 
-function requestChildProcessesAddresses(): ChildProcessAddresses {
+/**
+ * Describes what addresses the gRPC servers should attempt to obtain on app startup.
+ */
+function requestGrpcServerAddresses(): GrpcServerAddresses {
   switch (process.platform) {
     case 'win32': {
       return {
         tsh: 'tcp://localhost:0',
         shared: 'tcp://localhost:0',
+        tshdEvents: 'tcp://localhost:0',
       };
     }
     case 'linux':
@@ -182,6 +193,7 @@ function requestChildProcessesAddresses(): ChildProcessAddresses {
       return {
         tsh: getUnixSocketNetworkAddress('tsh.socket'),
         shared: getUnixSocketNetworkAddress('shared.socket'),
+        tshdEvents: getUnixSocketNetworkAddress('tshd_events.socket'),
       };
   }
 }
