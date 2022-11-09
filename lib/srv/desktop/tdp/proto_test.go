@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -211,4 +212,10 @@ func TestIsNonFatalErr(t *testing.T) {
 	_, err = decodeClipboardData(byteReader, 1)
 	require.NotNil(t, err)
 	require.True(t, IsNonFatalErr(err))
+
+	// Test that nil returns false
+	require.False(t, IsNonFatalErr(nil))
+
+	// Test that any other error returns false
+	require.False(t, IsNonFatalErr(errors.New("some other error")))
 }
