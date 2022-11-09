@@ -32,7 +32,7 @@ type githubConnectorClient struct {
 	TeleportClientAccessor sidecar.ClientAccessor
 }
 
-// Get the Teleport github_connector of a given name
+// Get gets the Teleport github_connector of a given name
 func (r githubConnectorClient) Get(ctx context.Context, name string) (types.GithubConnector, error) {
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
@@ -43,7 +43,7 @@ func (r githubConnectorClient) Get(ctx context.Context, name string) (types.Gith
 	return github, trace.Wrap(err)
 }
 
-// Create a Teleport github_connector
+// Create creates a Teleport github_connector
 func (r githubConnectorClient) Create(ctx context.Context, github types.GithubConnector) error {
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
@@ -53,7 +53,7 @@ func (r githubConnectorClient) Create(ctx context.Context, github types.GithubCo
 	return trace.Wrap(teleportClient.UpsertGithubConnector(ctx, github))
 }
 
-// Update a Teleport github_connector
+// Update updates a Teleport github_connector
 func (r githubConnectorClient) Update(ctx context.Context, github types.GithubConnector) error {
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
@@ -63,7 +63,7 @@ func (r githubConnectorClient) Update(ctx context.Context, github types.GithubCo
 	return trace.Wrap(teleportClient.UpsertGithubConnector(ctx, github))
 }
 
-// Delete a Teleport github_connector
+// Delete deletes a Teleport github_connector
 func (r githubConnectorClient) Delete(ctx context.Context, name string) error {
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {

@@ -32,7 +32,7 @@ type samlConnectorClient struct {
 	TeleportClientAccessor sidecar.ClientAccessor
 }
 
-// Get the Teleport saml_connector of a given name
+// Get gets the Teleport saml_connector of a given name
 func (r samlConnectorClient) Get(ctx context.Context, name string) (types.SAMLConnector, error) {
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
@@ -43,7 +43,7 @@ func (r samlConnectorClient) Get(ctx context.Context, name string) (types.SAMLCo
 	return saml, trace.Wrap(err)
 }
 
-// Create a Teleport saml_connector
+// Create creates a Teleport saml_connector
 func (r samlConnectorClient) Create(ctx context.Context, saml types.SAMLConnector) error {
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
@@ -53,7 +53,7 @@ func (r samlConnectorClient) Create(ctx context.Context, saml types.SAMLConnecto
 	return trace.Wrap(teleportClient.UpsertSAMLConnector(ctx, saml))
 }
 
-// Update a Teleport saml_connector
+// Update updates a Teleport saml_connector
 func (r samlConnectorClient) Update(ctx context.Context, saml types.SAMLConnector) error {
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
@@ -63,7 +63,7 @@ func (r samlConnectorClient) Update(ctx context.Context, saml types.SAMLConnecto
 	return trace.Wrap(teleportClient.UpsertSAMLConnector(ctx, saml))
 }
 
-// Delete a Teleport saml_connector
+// Delete deletes a Teleport saml_connector
 func (r samlConnectorClient) Delete(ctx context.Context, name string) error {
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {

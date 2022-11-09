@@ -120,25 +120,19 @@ func (r TeleportResourceReconciler[T, K]) Delete(ctx context.Context, obj kclien
 
 // Reconcile allows the TeleportResourceReconciler to implement the reconcile.Reconciler interface
 func (r TeleportResourceReconciler[T, K]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	kubeResource, err := newKubeResource[T, K]()
-	if err != nil {
-		return ctrl.Result{}, trace.Wrap(err)
-	}
+	kubeResource := newKubeResource[T, K]()
 	return r.Do(ctx, req, kubeResource)
 }
 
 // SetupWithManager have a controllerruntime.Manager run the TeleportResourceReconciler
 func (r TeleportResourceReconciler[T, K]) SetupWithManager(mgr ctrl.Manager) error {
-	kubeResource, err := newKubeResource[T, K]()
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	kubeResource := newKubeResource[T, K]()
 	return ctrl.NewControllerManagedBy(mgr).For(kubeResource).Complete(r)
 }
 
 // newKubeResource creates a new TeleportKubernetesResource
-// the function only supports structs or pointer to struct implementations of the TeleportKubernetesResource interface
-func newKubeResource[T types.ResourceWithOrigin, K TeleportKubernetesResource[T]]() (K, error) {
+// the function supports structs or pointer to struct implementations of the TeleportKubernetesResource interface
+func newKubeResource[T types.ResourceWithOrigin, K TeleportKubernetesResource[T]]() K {
 	// We create a new instance of K.
 	var resource K
 	// We take the type of K
@@ -146,13 +140,10 @@ func newKubeResource[T types.ResourceWithOrigin, K TeleportKubernetesResource[T]
 	// If K is not a pointer we don't need to do anything
 	// If K is a pointer, new(K) is only initializing a nil pointer, we need to manually initialize its destination
 	if interfaceType.Kind() == reflect.Ptr {
-		if interfaceType.Elem().Kind() != reflect.Struct {
-			return resource, trace.BadParameter("newKubeResource only supports structs or single pointer interface implementations")
-		}
 		// We create a new Value of the type pointed by K. reflect.New returns a pointer to this value
 		initializedResource := reflect.New(interfaceType.Elem())
 		// We cast back to K
 		resource = initializedResource.Interface().(K)
 	}
-	return resource, nil
+	return resource
 }

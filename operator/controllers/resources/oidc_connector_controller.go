@@ -32,7 +32,7 @@ type oidcConnectorClient struct {
 	TeleportClientAccessor sidecar.ClientAccessor
 }
 
-// Get the Teleport oidc_connector of a given name
+// Get gets the Teleport oidc_connector of a given name
 func (r oidcConnectorClient) Get(ctx context.Context, name string) (types.OIDCConnector, error) {
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
@@ -43,7 +43,7 @@ func (r oidcConnectorClient) Get(ctx context.Context, name string) (types.OIDCCo
 	return oidc, trace.Wrap(err)
 }
 
-// Create a Teleport oidc_connector
+// Create creates a Teleport oidc_connector
 func (r oidcConnectorClient) Create(ctx context.Context, oidc types.OIDCConnector) error {
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
@@ -53,7 +53,7 @@ func (r oidcConnectorClient) Create(ctx context.Context, oidc types.OIDCConnecto
 	return trace.Wrap(teleportClient.UpsertOIDCConnector(ctx, oidc))
 }
 
-// Update a Teleport oidc_connector
+// Update updates a Teleport oidc_connector
 func (r oidcConnectorClient) Update(ctx context.Context, oidc types.OIDCConnector) error {
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
@@ -63,7 +63,7 @@ func (r oidcConnectorClient) Update(ctx context.Context, oidc types.OIDCConnecto
 	return trace.Wrap(teleportClient.UpsertOIDCConnector(ctx, oidc))
 }
 
-// Delete a Teleport oidc_connector
+// Delete deletes a Teleport oidc_connector
 func (r oidcConnectorClient) Delete(ctx context.Context, name string) error {
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {

@@ -23,6 +23,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -187,4 +189,43 @@ func testResourceUpdate[T types.ResourceWithOrigin, K TeleportKubernetesResource
 		}
 		return equal
 	})
+}
+
+type FakeResourceWithOrigin types.GithubConnector
+
+type FakeKubernetesResource struct {
+	client.Object
+}
+
+func (r FakeKubernetesResource) ToTeleport() FakeResourceWithOrigin {
+	return nil
+}
+
+func (r FakeKubernetesResource) StatusConditions() *[]v1.Condition {
+	return nil
+}
+
+type FakeKubernetesResourcePtrReceiver struct {
+	client.Object
+}
+
+func (r *FakeKubernetesResourcePtrReceiver) ToTeleport() FakeResourceWithOrigin {
+	return nil
+}
+
+func (r *FakeKubernetesResourcePtrReceiver) StatusConditions() *[]v1.Condition {
+	return nil
+}
+
+func TestNewKubeResource(t *testing.T) {
+	// Test with a value receiver
+	resource := newKubeResource[FakeResourceWithOrigin, FakeKubernetesResource]()
+	require.IsTypef(t, FakeKubernetesResource{}, resource, "Should be of type FakeKubernetesResource")
+	require.NotNil(t, resource)
+
+	// Test with a pointer receiver
+	resourcePtr := newKubeResource[FakeResourceWithOrigin, *FakeKubernetesResourcePtrReceiver]()
+	require.IsTypef(t, &FakeKubernetesResourcePtrReceiver{}, resourcePtr, "Should be a pointer on FakeKubernetesResourcePtrReceiver")
+	require.NotNil(t, resourcePtr)
+	require.NotNil(t, *resourcePtr)
 }
