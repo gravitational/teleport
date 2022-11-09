@@ -78,6 +78,8 @@ type LocalProxyConfig struct {
 	Middleware LocalProxyMiddleware
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
+	// Log is the Logger.
+	Log logrus.FieldLogger
 }
 
 // LocalProxyMiddleware provides callback functions for LocalProxy.
@@ -102,6 +104,9 @@ func (cfg *LocalProxyConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
+	}
+	if cfg.Log == nil {
+		cfg.Log = logrus.WithField(trace.Component, "localproxy")
 	}
 	return nil
 }
@@ -150,13 +155,13 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 			if utils.IsOKNetworkError(err) {
 				return nil
 			}
-			log.WithError(err).Errorf("Failed to accept client connection.")
+			l.cfg.Log.WithError(err).Error("Failed to accept client connection.")
 			return trace.Wrap(err)
 		}
 
 		if l.cfg.Middleware != nil {
 			if err := l.cfg.Middleware.OnNewConnection(ctx, l, conn); err != nil {
-				log.WithError(err).Errorf("Middleware failed to handle new connection.")
+				l.cfg.Log.WithError(err).Error("Middleware failed to handle new connection.")
 				continue
 			}
 		}
@@ -166,7 +171,7 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 				if utils.IsOKNetworkError(err) {
 					return
 				}
-				log.WithError(err).Errorf("Failed to handle connection.")
+				l.cfg.Log.WithError(err).Error("Failed to handle connection.")
 			}
 		}()
 	}
@@ -199,7 +204,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 
 	var upstreamConn net.Conn = tlsConn
 	if common.IsPingProtocol(common.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
-		log.Debug("Using ping connection")
+		l.cfg.Log.Debug("Using ping connection")
 		upstreamConn = NewPingConn(tlsConn)
 	}
 
@@ -235,7 +240,7 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 	}
 	err := http.Serve(l.cfg.Listener, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		if err := aws.VerifyAWSSignature(req, l.cfg.AWSCredentials); err != nil {
-			log.WithError(err).Errorf("AWS signature verification failed.")
+			l.cfg.Log.WithError(err).Error("AWS signature verification failed.")
 			rw.WriteHeader(http.StatusForbidden)
 			return
 		}
@@ -265,6 +270,7 @@ func (l *LocalProxy) getCerts() []tls.Certificate {
 
 // CheckDBCerts checks the proxy certificates for expiration and that the cert subject matches a database route.
 func (l *LocalProxy) CheckDBCerts(dbRoute tlsca.RouteToDatabase) error {
+	l.cfg.Log.Debug("checking local proxy database certs")
 	l.certsMu.RLock()
 	defer l.certsMu.RUnlock()
 	if len(l.cfg.Certs) == 0 {
