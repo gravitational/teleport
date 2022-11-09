@@ -243,9 +243,6 @@ func (g *Gateway) CLICommand() (string, error) {
 // In the future, we're probably going to make this method accept the cert as an arg rather than
 // reading from disk.
 func (g *Gateway) ReloadCert() error {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
 	g.cfg.Log.Debug("Reloading cert")
 
 	tlsCert, err := keys.LoadX509KeyPair(g.cfg.CertPath, g.cfg.KeyPath)
@@ -261,7 +258,7 @@ func (g *Gateway) ReloadCert() error {
 // Gateway describes local proxy that creates a gateway to the remote Teleport resource.
 type Gateway struct {
 	cfg *Config
-	// mu guards calls to localProxy.SetCerts and cfg fields mutated by Gateway setters.
+	// mu guards cfg fields mutated by Gateway setters.
 	mu         sync.RWMutex
 	localProxy *alpn.LocalProxy
 	// closeContext and closeCancel are used to signal to any waiting goroutines
