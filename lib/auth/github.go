@@ -903,10 +903,10 @@ func (c *githubAPIClient) get(url string) ([]byte, string, error) {
 }
 
 const (
-	// GithubAuthPath is the Github authorization endpoint
+	// GithubAuthPath is the GitHub authorization endpoint
 	GithubAuthPath = "login/oauth/authorize"
 
-	// GithubTokenPath is the Github token exchange endpoint
+	// GithubTokenPath is the GitHub token exchange endpoint
 	GithubTokenPath = "login/oauth/access_token"
 
 	// MaxPages is the maximum number of pagination links that will be followed.
