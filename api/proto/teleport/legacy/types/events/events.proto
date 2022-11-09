@@ -2995,9 +2995,7 @@ message SessionUpload {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-
-  // ID is a unique event identifier
-  string UID = 4 [(gogoproto.jsontag) = "uid,omitempty"];
+  reserved 4;
 
   // URL is where the url the session event data upload is at
   string SessionURL = 5 [(gogoproto.jsontag) = "url"];
