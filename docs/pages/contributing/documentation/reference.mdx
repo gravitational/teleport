@@ -158,10 +158,11 @@ spaces. Values must be enclosed in double quotes. Parameter names and values
 must be separated by a `=` character, and the `=` character must not be
 surrounded by spaces. 
 
-If a partial defines parameters but a page does not define them when including
-the partial, the docs engine will leave the corresponding `{{ }}` expressions
-untouched. The exception to this is when the partial defines default parameter
-values, as described in the next section.
+If a partial defines parameters but a page does not assign them when including
+the partial, the docs engine will render the literal `{{ }}` expressions for
+those paramters within the content of the included partial. The exception to
+this is when the partial defines default parameter values, as described in the
+next section.
 
 ### Default parameter values
 
@@ -181,6 +182,9 @@ with the following expression:
 
 ```markdown
 {{ action="write docs pages more easily." }}
+This is an example of a partial.
+
+A partial makes it possible to {{ action }}.
 ```
 
 If a page includes the partial with this expression...
