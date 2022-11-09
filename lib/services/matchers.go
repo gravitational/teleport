@@ -17,6 +17,8 @@ limitations under the License.
 package services
 
 import (
+	"strings"
+
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
@@ -111,8 +113,16 @@ type ResourceSeenKey struct{ name, addr string }
 // it filters out the non-matched clusters on the kube service and the kube service
 // is modified in place with only the matched clusters. Deduplication for resource `KubeService`
 // is not provided but is provided for kind `KubernetesCluster`.
-func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter, seenMap map[ResourceSeenKey]struct{}) (bool, error) {
+func MatchResourceByFilters(
+	resource types.ResourceWithLabels,
+	filter MatchResourceFilter,
+	seenMap map[ResourceSeenKey]struct{},
+) (bool, error) {
 	var specResource types.ResourceWithLabels
+
+	if hasTeleportInternalLabel(resource) {
+		return false, nil
+	}
 
 	// We assume when filtering for services like KubeService, AppServer, and DatabaseServer
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
@@ -124,7 +134,10 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 
 	case types.KindKubeService, types.KindKubeServer:
 		if seenMap != nil {
-			return false, trace.BadParameter("checking for duplicate matches for resource kind %q is not supported", filter.ResourceKind)
+			return false, trace.BadParameter(
+				"checking for duplicate matches for resource kind %q is not supported",
+				filter.ResourceKind,
+			)
 		}
 		return matchAndFilterKubeClusters(resource, filter)
 
@@ -173,6 +186,21 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	}
 
 	return match, nil
+}
+
+func hasTeleportInternalLabel(resource types.ResourceWithLabels) bool {
+	if resource == nil {
+		return false
+	}
+
+	labels := resource.GetAllLabels()
+	for name := range labels {
+		if strings.Contains(name, "teleport.internal") {
+			return true
+		}
+	}
+
+	return false
 }
 
 func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter) (bool, error) {
@@ -225,7 +253,6 @@ func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchR
 	default:
 		return false, trace.BadParameter("unexpected kube server of type %T", resource)
 	}
-
 }
 
 // matchAndFilterKubeClustersLegacy is used by matchAndFilterKubeClusters to filter kube clusters that are stil living in old kube services

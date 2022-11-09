@@ -359,6 +359,130 @@ func TestMatchAndFilterKubeClusters(t *testing.T) {
 	}
 }
 
+// TestMatchResourceOmitInternalLabel tests if resources with labels starting with teleport.internal are filtered out
+func TestMatchResourceOmitInternalLabel(t *testing.T) {
+	t.Parallel()
+
+	testcases := []struct {
+		name            string
+		shouldMatch     bool
+		shouldHaveError bool
+		resource        func() types.ResourceWithLabels
+		filters         MatchResourceFilter
+	}{
+		{
+			name:        "a server resource without internal label",
+			shouldMatch: true,
+			filters:     MatchResourceFilter{ResourceKind: types.KindNode},
+			resource: func() types.ResourceWithLabels {
+				server, err := types.NewServerWithLabels("foo", types.KindNode, types.ServerSpecV2{}, map[string]string{
+					"some-label": "some value",
+				})
+				require.NoError(t, err)
+
+				return server
+			},
+		},
+		{
+			name:        "a server resource with internal label",
+			shouldMatch: false,
+			filters:     MatchResourceFilter{ResourceKind: types.KindNode},
+			resource: func() types.ResourceWithLabels {
+				server, err := types.NewServerWithLabels("foo", types.KindNode, types.ServerSpecV2{}, map[string]string{
+					"teleport.internal": "test",
+				})
+				require.NoError(t, err)
+
+				return server
+			},
+		},
+		{
+			name:        "a server resource with label starting with teleport.internal",
+			shouldMatch: false,
+			filters:     MatchResourceFilter{ResourceKind: types.KindNode},
+			resource: func() types.ResourceWithLabels {
+				server, err := types.NewServerWithLabels("foo", types.KindNode, types.ServerSpecV2{}, map[string]string{
+					"teleport.internal/alina": "test",
+				})
+				require.NoError(t, err)
+
+				return server
+			},
+		},
+		{
+			name:     "unsupported resource kind",
+			resource: func() types.ResourceWithLabels { return nil },
+			filters: MatchResourceFilter{
+				ResourceKind: "unsupported",
+			},
+			shouldMatch:     false,
+			shouldHaveError: true,
+		},
+		{
+			name:        "teleport internal app server",
+			shouldMatch: false,
+			resource: func() types.ResourceWithLabels {
+				appServer, err := types.NewAppServerV3(types.Metadata{
+					Name: "_",
+					Labels: map[string]string{
+						"teleport.internal/app": "test",
+					},
+				}, types.AppServerSpecV3{
+					HostID: "_",
+					App: &types.AppV3{
+						Metadata: types.Metadata{Name: "foo"},
+						Spec:     types.AppSpecV3{URI: "_"},
+					},
+				})
+				require.NoError(t, err)
+				return appServer
+			},
+			filters: MatchResourceFilter{
+				ResourceKind: types.KindAppServer,
+			},
+		},
+		{
+			name:        "app server",
+			shouldMatch: true,
+			resource: func() types.ResourceWithLabels {
+				appServer, err := types.NewAppServerV3(types.Metadata{
+					Name: "_",
+					Labels: map[string]string{
+						"teleport.app": "test",
+					},
+				}, types.AppServerSpecV3{
+					HostID: "_",
+					App: &types.AppV3{
+						Metadata: types.Metadata{Name: "foo"},
+						Spec:     types.AppSpecV3{URI: "_"},
+					},
+				})
+				require.NoError(t, err)
+				return appServer
+			},
+			filters: MatchResourceFilter{
+				ResourceKind: types.KindAppServer,
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			resource := tc.resource()
+			match, err := MatchResourceByFilters(resource, tc.filters, nil)
+
+			require.Equal(t, match, tc.shouldMatch)
+
+			if !tc.shouldHaveError {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 // TestMatchResourceByFilters tests supported resource kinds and
 // if a resource has contained resources, those contained resources
 // are filtered instead.
