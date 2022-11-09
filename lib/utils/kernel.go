@@ -54,7 +54,7 @@ func KernelVersion() (*semver.Version, error) {
 // a kernel version - this strips off any additional digits or additional
 // information appended to the kernel version e.g:
 // 5.15.68.1-microsoft-standard-WSL2 => 5.15.68
-var kernelVersionRegex = regexp.MustCompile(`\d+\.\d+\.\d+`)
+var kernelVersionRegex = regexp.MustCompile(`^\d+\.\d+\.\d+`)
 
 // kernelVersion reads in the kernel version from the reader and returns
 // a *semver.Version.
