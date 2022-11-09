@@ -4094,7 +4094,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 		authPreference, err := s.server.Auth().GetAuthPreference(s.ctx)
 		require.NoError(t, err)
 
-		require.Equal(t, authPreference.GetConnectorName(), tc.resultConnectorName)
+		require.Equal(t, authPreference.GetConnectorName(), tc.resultConnectorName, "Found unexpected auth connector name")
 	}
 }
 
