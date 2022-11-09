@@ -200,7 +200,7 @@ func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Requ
 			Type: "aws",
 			AWS: &databaseIAMPolicyAWS{
 				PolicyDocument: string(policyJSON),
-				Placeholders:   []string(placeholders),
+				Placeholders:   placeholders,
 			},
 		}, nil
 
@@ -212,7 +212,7 @@ func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Requ
 // fetchDatabaseWithName fetch a database with provided database name.
 func fetchDatabaseWithName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) (types.Database, error) {
 	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
-		Limit:               defaults.IterationLimit,
+		Limit:               defaults.MaxIterationLimit,
 		ResourceType:        types.KindDatabaseServer,
 		PredicateExpression: fmt.Sprintf(`name == "%s"`, databaseName),
 		UseSearchAsRoles:    r.URL.Query().Get("searchAsRoles") == "yes",
