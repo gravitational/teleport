@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
+	resourcesv3 "github.com/gravitational/teleport/operator/apis/resources/v3"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
 	resourcescontrollers "github.com/gravitational/teleport/operator/controllers/resources"
 	"github.com/gravitational/teleport/operator/sidecar"
@@ -53,6 +54,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(resourcesv5.AddToScheme(scheme))
+	utilruntime.Must(resourcesv3.AddToScheme(scheme))
 	utilruntime.Must(resourcesv2.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 
