@@ -651,7 +651,7 @@ steps:
 
 kind: pipeline
 type: exec
-name: push-build-native-windows-amd64
+name: push-build-native-windows-teleport10-amd64
 trigger:
   event:
     include:
@@ -8737,6 +8737,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 1375de9a184255ff9f3b57ab431e9c4d3fa7ea18f6268546b61f62a5dfeefe6f
+hmac: b7ff97dfe6be915626217658d4aa5cb49a56ee2ecf2e051dacf04abc50a303fe
 
 ...
