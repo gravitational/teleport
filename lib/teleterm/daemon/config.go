@@ -21,6 +21,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
+	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 )
@@ -30,9 +31,10 @@ type Config struct {
 	// Storage is a storage service that reads/writes to tsh profiles
 	Storage *clusters.Storage
 	// Log is a component logger
-	Log              *logrus.Entry
-	GatewayCreator   GatewayCreator
-	TCPPortAllocator gateway.TCPPortAllocator
+	Log                *logrus.Entry
+	GatewayCreator     GatewayCreator
+	TCPPortAllocator   gateway.TCPPortAllocator
+	CLICommandProvider gateway.CLICommandProvider
 	// CreateTshdEventsClientCredsFunc lazily creates creds for the tshd events server ran by the
 	// Electron app. This is to ensure that the server public key is written to the disk under the
 	// expected location by the time we get around to creating the client.
@@ -53,6 +55,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.TCPPortAllocator == nil {
 		c.TCPPortAllocator = gateway.NetTCPPortAllocator{}
+	}
+
+	if c.CLICommandProvider == nil {
+		c.CLICommandProvider = clusters.NewDbcmdCLICommandProvider(c.Storage, dbcmd.SystemExecer{})
 	}
 
 	if c.Log == nil {

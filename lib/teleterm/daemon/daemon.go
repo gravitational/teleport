@@ -22,7 +22,6 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
@@ -166,13 +165,12 @@ type GatewayCreator interface {
 
 // createGateway assumes that mu is already held by a public method.
 func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
-	cliCommandProvider := clusters.NewDbcmdCLICommandProvider(s.cfg.Storage, dbcmd.SystemExecer{})
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
 		TargetURI:             params.TargetURI,
 		TargetUser:            params.TargetUser,
 		TargetSubresourceName: params.TargetSubresourceName,
 		LocalPort:             params.LocalPort,
-		CLICommandProvider:    cliCommandProvider,
+		CLICommandProvider:    s.cfg.CLICommandProvider,
 		TCPPortAllocator:      s.cfg.TCPPortAllocator,
 	}
 
