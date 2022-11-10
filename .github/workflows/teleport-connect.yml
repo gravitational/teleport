@@ -29,13 +29,14 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version: 1.19.3
-        run: go version >> $GITHUB_OUTPUT
 
       - name: Install Node
         uses: actions/setup-node@v3
         with:
           node-version: 16.13.2
-        run:
+
+      -name: Configure Node
+        run: |
           npm config set msvs_version 2022
           corepack enable yarn
 
