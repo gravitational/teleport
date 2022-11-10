@@ -545,6 +545,7 @@ func (s *WindowsService) scheduleNextLDAPCertRenewalLocked(after time.Duration) 
 
 func (s *WindowsService) startServiceHeartbeat() error {
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
+		Clock:           s.cfg.Clock,
 		Context:         s.closeCtx,
 		Component:       teleport.ComponentWindowsDesktop,
 		Mode:            srv.HeartbeatModeWindowsDesktopService,
@@ -577,6 +578,7 @@ func (s *WindowsService) startServiceHeartbeat() error {
 func (s *WindowsService) startStaticHostHeartbeats() error {
 	for _, host := range s.cfg.Heartbeat.StaticHosts {
 		heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
+			Clock:           s.cfg.Clock,
 			Context:         s.closeCtx,
 			Component:       teleport.ComponentWindowsDesktop,
 			Mode:            srv.HeartbeatModeWindowsDesktop,

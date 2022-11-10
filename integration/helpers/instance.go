@@ -252,7 +252,7 @@ type TeleInstance struct {
 
 // InstanceConfig is an instance configuration
 type InstanceConfig struct {
-	// Clock is an optional clock to use
+	// Clock is a mock-able clock.
 	Clock clockwork.Clock
 	// ClusterName is a cluster name of the instance
 	ClusterName string

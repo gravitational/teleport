@@ -45,10 +45,13 @@ type JoinServiceGRPCServer struct {
 }
 
 // NewJoinServiceGRPCServer returns a new JoinServiceGRPCServer.
-func NewJoinServiceGRPCServer(joinServiceClient joinServiceClient) *JoinServiceGRPCServer {
+func NewJoinServiceGRPCServer(joinServiceClient joinServiceClient, clock clockwork.Clock) *JoinServiceGRPCServer {
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
 	return &JoinServiceGRPCServer{
 		joinServiceClient: joinServiceClient,
-		clock:             clockwork.NewRealClock(),
+		clock:             clock,
 	}
 }
 

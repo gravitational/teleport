@@ -125,7 +125,7 @@ func (l *TLSListener) Serve() error {
 		select {
 		case <-l.context.Done():
 			return trace.Wrap(net.ErrClosed, "listener is closed")
-		case <-time.After(5 * time.Second):
+		case <-l.cfg.Clock.After(5 * time.Second):
 		}
 	}
 }
@@ -149,8 +149,8 @@ func (l *TLSListener) detectAndForward(conn *tls.Conn) {
 
 	// Log warning if TLS handshake takes more than one second to help debug
 	// latency issues.
-	if elapsed := time.Since(start); elapsed > 1*time.Second {
-		l.log.Warnf("Slow TLS handshake from %v, took %v.", conn.RemoteAddr(), time.Since(start))
+	if elapsed := l.cfg.Clock.Since(start); elapsed > 1*time.Second {
+		l.log.Warnf("Slow TLS handshake from %v, took %v.", conn.RemoteAddr(), l.cfg.Clock.Since(start))
 	}
 
 	err = conn.SetReadDeadline(time.Time{})

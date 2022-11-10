@@ -108,7 +108,7 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 
 	// Create a new session cache, this holds sessions that can be used to
 	// forward requests.
-	h.cache, err = newSessionCache(ctx, h.log)
+	h.cache, err = newSessionCache(ctx, h.c.Clock, h.log)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

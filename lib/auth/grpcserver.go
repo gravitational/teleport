@@ -4378,7 +4378,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	joinServiceServer := joinserver.NewJoinServiceGRPCServer(serverWithNopRole)
+	joinServiceServer := joinserver.NewJoinServiceGRPCServer(serverWithNopRole, cfg.Clock)
 	proto.RegisterJoinServiceServer(server, joinServiceServer)
 
 	return authServer, nil

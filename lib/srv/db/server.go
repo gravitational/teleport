@@ -510,6 +510,7 @@ func (s *Server) getProxiedDatabases() (databases types.Databases) {
 // startHeartbeat starts the registration heartbeat to the auth server.
 func (s *Server) startHeartbeat(ctx context.Context, database types.Database) error {
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
+		Clock:           s.cfg.Clock,
 		Context:         s.closeContext,
 		Component:       teleport.ComponentDatabase,
 		Mode:            srv.HeartbeatModeDB,

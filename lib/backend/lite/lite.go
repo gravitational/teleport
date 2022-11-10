@@ -232,6 +232,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	db.SetMaxOpenConns(1)
 	buf := backend.NewCircularBuffer(
 		backend.BufferCapacity(cfg.BufferSize),
+		backend.BufferClock(cfg.Clock),
 	)
 	closeCtx, cancel := context.WithCancel(ctx)
 	l := &Backend{

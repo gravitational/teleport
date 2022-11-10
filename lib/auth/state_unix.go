@@ -23,6 +23,7 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/kubernetes"
@@ -30,12 +31,13 @@ import (
 )
 
 // NewProcessStorage returns a new instance of the process storage.
-func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error) {
+func NewProcessStorage(ctx context.Context, clock clockwork.Clock, path string) (*ProcessStorage, error) {
 	if path == "" {
 		return nil, trace.BadParameter("missing parameter path")
 	}
 
 	litebk, err := lite.NewWithConfig(ctx, lite.Config{
+		Clock:     clock,
 		Path:      path,
 		EventsOff: true,
 		Sync:      lite.SyncFull,

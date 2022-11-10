@@ -329,12 +329,22 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	err = p.rootCluster.CreateEx(t, p.leafCluster.Secrets.AsSlice(), rcConf)
 	require.NoError(t, err)
 
+	// Tick the fake clock to make sure setup triggers as expected.
+	defer helpers.TickFakeClock(opts.Clock)()
+
 	err = p.leafCluster.Start()
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, p.leafCluster.StopAll()) })
 	err = p.rootCluster.Start()
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, p.rootCluster.StopAll()) })
+
+	// If the clock is set, advance it by 10 seconds here to ensure that the various services
+	// heartbeat properly. This is necessary for the leaf cluster to properly establish a tunnel to
+	// the root cluster.
+	if opts.Clock != nil {
+		opts.Clock.Advance(10 * time.Second)
+	}
 
 	// At least one rootAppServer should start during the setup
 	rootAppServersCount := 1

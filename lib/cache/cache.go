@@ -780,7 +780,7 @@ func (c *Cache) Start() error {
 	case <-c.ctx.Done():
 		c.Close()
 		return trace.Wrap(c.ctx.Err(), "context closed during cache init")
-	case <-time.After(c.Config.CacheInitTimeout):
+	case <-c.Clock.After(c.Config.CacheInitTimeout):
 		c.Warningf("Cache init is taking too long, will continue in background.")
 	}
 	return nil
