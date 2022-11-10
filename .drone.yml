@@ -54,6 +54,7 @@ trigger:
     include:
     - master
     - branch/*
+    - tcsc/branch/v11/*
 workspace:
   path: /go
 clone:
