@@ -834,27 +834,55 @@ func TestClusterNodesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
+
+	// Get the node already added by `newWebPack`
+	servers, err := env.server.Auth().GetNodes(context.Background(), apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, servers, 1)
+	server1 := servers[0]
+
+	// Add another node.
+	server2, err := types.NewServerWithLabels("server2", types.KindNode, types.ServerSpecV2{}, map[string]string{"test-field": "test-value"})
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertNode(context.Background(), server2)
+	require.NoError(t, err)
+
+	// Get nodes from endpoint.
 	clusterName := env.server.ClusterName()
-
 	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "nodes")
-
-	// Get nodes.
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
-	nodes := clusterNodesGetResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes))
-	require.Len(t, nodes.Items, 1)
-	require.Equal(t, 1, nodes.TotalCount)
+	// Test response.
+	res := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Len(t, res.Items, 2)
+	require.Equal(t, 2, res.TotalCount)
+	require.ElementsMatch(t, res.Items, []ui.Server{
+		{
+			ClusterName: clusterName,
+			Name:        server1.GetName(),
+			Hostname:    server1.GetHostname(),
+			Tunnel:      server1.GetUseTunnel(),
+			Addr:        server1.GetAddr(),
+			Labels:      []ui.Label{},
+			SSHLogins:   []string{"user"},
+		},
+		{ClusterName: clusterName,
+			Name:      "server2",
+			Labels:    []ui.Label{{Name: "test-field", Value: "test-value"}},
+			Tunnel:    false,
+			SSHLogins: []string{"user"}},
+	})
 
 	// Get nodes using shortcut.
 	re, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), url.Values{})
 	require.NoError(t, err)
 
-	nodes2 := clusterNodesGetResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes2))
-	require.Len(t, nodes.Items, 1)
-	require.Equal(t, nodes, nodes2)
+	res2 := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res2))
+	require.Len(t, res.Items, 2)
+	require.Equal(t, res, res2)
 }
 
 func TestSiteNodeConnectInvalidSessionID(t *testing.T) {
@@ -2438,7 +2466,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 0)
 
-	// Register a database.
+	// Register databases.
 	db, err := types.NewDatabaseServerV3(types.Metadata{
 		Name:   "test-db-name",
 		Labels: map[string]string{"test-field": "test-value"},
@@ -2450,8 +2478,17 @@ func TestClusterDatabasesGet(t *testing.T) {
 		HostID:      "test-hostID",
 	})
 	require.NoError(t, err)
+	db2, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "db2",
+	}, types.DatabaseServerSpecV3{
+		Hostname: "test-hostname",
+		HostID:   "test-hostID",
+	})
+	require.NoError(t, err)
 
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db2)
 	require.NoError(t, err)
 
 	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
@@ -2459,15 +2496,19 @@ func TestClusterDatabasesGet(t *testing.T) {
 
 	resp = testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 1)
-	require.Equal(t, 1, resp.TotalCount)
-	require.EqualValues(t, ui.Database{
+	require.Len(t, resp.Items, 2)
+	require.Equal(t, 2, resp.TotalCount)
+	require.ElementsMatch(t, resp.Items, []ui.Database{{
 		Name:     "test-db-name",
 		Desc:     "test-description",
 		Protocol: "test-protocol",
 		Type:     types.DatabaseTypeSelfHosted,
 		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
-	}, resp.Items[0])
+	}, {
+		Name:   "db2",
+		Type:   types.DatabaseTypeSelfHosted,
+		Labels: []ui.Label{},
+	}})
 }
 
 func TestClusterKubesGet(t *testing.T) {
@@ -2490,7 +2531,7 @@ func TestClusterKubesGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 0)
 
-	// Register a kube service.
+	// Register kube services.
 	_, err = env.server.Auth().UpsertKubeServiceV2(context.Background(), &types.ServerV2{
 		Metadata: types.Metadata{Name: "test-kube"},
 		Kind:     types.KindKubeService,
@@ -2510,18 +2551,37 @@ func TestClusterKubesGet(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertKubeServiceV2(context.Background(), &types.ServerV2{
+		Metadata: types.Metadata{Name: "test-kube2"},
+		Kind:     types.KindKubeService,
+		Version:  types.V2,
+		Spec: types.ServerSpecV2{
+			KubernetesClusters: []*types.KubernetesCluster{
+				{
+					Name: "test-kube-name", // test dedupping
+				},
+				{
+					Name: "test-kube-name2",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
 
 	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
 	resp = testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 1)
-	require.Equal(t, 1, resp.TotalCount)
-	require.EqualValues(t, ui.KubeCluster{
+	require.Len(t, resp.Items, 2)
+	require.Equal(t, 2, resp.TotalCount)
+	require.ElementsMatch(t, resp.Items, []ui.KubeCluster{{
 		Name:   "test-kube-name",
 		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
-	}, resp.Items[0])
+	}, {
+		Name:   "test-kube-name2",
+		Labels: []ui.Label{},
+	}})
 }
 
 func TestClusterDesktopsGet(t *testing.T) {
@@ -2606,8 +2666,18 @@ func TestClusterAppsGet(t *testing.T) {
 		},
 	}
 
-	// Register a app service.
-	_, err := env.server.Auth().UpsertApplicationServer(context.Background(), resource)
+	resource2, err := types.NewAppServerV3(types.Metadata{Name: "server2"}, types.AppServerSpecV3{
+		HostID: "hostid",
+		App: &types.AppV3{
+			Metadata: types.Metadata{Name: "app2"},
+			Spec:     types.AppSpecV3{URI: "uri", PublicAddr: "publicaddrs"},
+		}})
+	require.NoError(t, err)
+
+	// Register apps.
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource2)
 	require.NoError(t, err)
 
 	// Make the call.
@@ -2618,9 +2688,9 @@ func TestClusterAppsGet(t *testing.T) {
 	// Test correct response.
 	resp := testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 1)
-	require.Equal(t, 1, resp.TotalCount)
-	require.EqualValues(t, ui.App{
+	require.Len(t, resp.Items, 2)
+	require.Equal(t, 2, resp.TotalCount)
+	require.ElementsMatch(t, resp.Items, []ui.App{{
 		Name:        resource.Spec.App.GetName(),
 		Description: resource.Spec.App.GetDescription(),
 		URI:         resource.Spec.App.GetURI(),
@@ -2629,7 +2699,16 @@ func TestClusterAppsGet(t *testing.T) {
 		FQDN:        resource.Spec.App.GetPublicAddr(),
 		ClusterID:   env.server.ClusterName(),
 		AWSConsole:  true,
-	}, resp.Items[0])
+	}, {
+		Name:       "app2",
+		URI:        "uri",
+		Labels:     []ui.Label{},
+		ClusterID:  env.server.ClusterName(),
+		FQDN:       "publicaddrs",
+		PublicAddr: "publicaddrs",
+		AWSConsole: false,
+	}})
+
 }
 
 // TestApplicationAccessDisabled makes sure application access can be disabled

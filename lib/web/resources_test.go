@@ -435,9 +435,9 @@ func TestListResources(t *testing.T) {
 	}
 }
 
-// TestListResourcesPing tests for supported and unsupported server versions
+// TestAttemptListResources tests for supported and unsupported server versions
 // returned by ping. Unsupported versions should return an error.
-func TestListResourcesPing(t *testing.T) {
+func TestAttemptListResources(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	m.mockListResources = func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
@@ -450,22 +450,22 @@ func TestListResourcesPing(t *testing.T) {
 	}
 	mockHTTPReq, err := http.NewRequest("", "", nil)
 	require.NoError(t, err)
-	_, err = listResources(m, mockHTTPReq, types.KindNode)
+	_, err = attemptListResources(m, mockHTTPReq, types.KindNode)
 	require.NoError(t, err)
 
 	// Test unsupported v8 ping.
 	m.mockPing = func(ctx context.Context) (proto.PingResponse, error) {
 		return proto.PingResponse{ServerVersion: "8.3.1"}, nil
 	}
-	_, err = listResources(m, mockHTTPReq, types.KindNode)
-	require.True(t, trace.IsNotImplemented(err))
+	_, err = attemptListResources(m, mockHTTPReq, types.KindNode)
+	require.True(t, trace.IsNotImplemented(err), "attemptListResources returned an unexpected error: %v (want not implemented)", err)
 
 	// Test unsupported v9.0 ping.
 	m.mockPing = func(ctx context.Context) (proto.PingResponse, error) {
 		return proto.PingResponse{ServerVersion: "9.0.1"}, nil
 	}
-	_, err = listResources(m, mockHTTPReq, types.KindNode)
-	require.True(t, trace.IsNotImplemented(err))
+	_, err = attemptListResources(m, mockHTTPReq, types.KindNode)
+	require.True(t, trace.IsNotImplemented(err), "attemptListResources returned an unexpected error: %v (want not implemented)", err)
 }
 
 func TestHandleClusterNodesGetFallback(t *testing.T) {

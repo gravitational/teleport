@@ -294,8 +294,9 @@ func ExtractResourceAndValidate(yaml string) (*services.UnknownResource, error) 
 	return &unknownRes, nil
 }
 
-// listResources gets a list of resources depending on the type of resource.
-func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string) (*types.ListResourcesResponse, error) {
+// attemptListResources first checks that the auth server supports
+// pagination and filtering before attempting to call the new ListResources api.
+func attemptListResources(clt resourcesAPIGetter, r *http.Request, resourceKind string) (*types.ListResourcesResponse, error) {
 	// ListResources for 'pagination' feature was available starting from v8
 	// for DatabaseServers and AppServers, but it wasn't until v9.1 when
 	// 'filtering' feature became available. Also in v8/v9.0, the web UI did not
@@ -307,11 +308,22 @@ func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string)
 	}
 
 	currVersion := fmt.Sprintf("v%s", pingRes.GetServerVersion())
-	filteringSupportedVersion := "v9.1.0"
-	if semver.Compare(currVersion, filteringSupportedVersion) == -1 {
+	filterSuppotedVersion := "v9.1.0"
+	// If currVersion < filterSuppotedVersion
+	if semver.Compare(currVersion, filterSuppotedVersion) == -1 {
 		return nil, trace.NotImplemented("resource type %s does not support pagination", resourceKind)
 	}
 
+	res, err := listResources(clt, r, resourceKind)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res, nil
+}
+
+// listResources gets a list of resources depending on the type of resource.
+func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string) (*types.ListResourcesResponse, error) {
 	values := r.URL.Query()
 
 	limit, err := queryLimit(values, "limit", defaults.MaxIterationLimit)
@@ -349,7 +361,7 @@ func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string)
 }
 
 func handleClusterNodesGet(clt resourcesAPIGetter, r *http.Request, clusterName string, userRoles services.RoleSet) (*listResourcesGetResponse, error) {
-	resp, err := listResources(clt, r, types.KindNode)
+	resp, err := attemptListResources(clt, r, types.KindNode)
 	if err == nil {
 		servers, err := types.ResourcesWithLabels(resp.Resources).AsServers()
 		if err != nil {
@@ -363,21 +375,23 @@ func handleClusterNodesGet(clt resourcesAPIGetter, r *http.Request, clusterName 
 		}, nil
 	}
 
-	if trace.IsNotImplemented(err) {
-		nodes, err := clt.GetNodes(r.Context(), apidefaults.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &listResourcesGetResponse{
-			Items: ui.MakeServers(clusterName, nodes, userRoles),
-		}, nil
+	if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
 	}
-	return nil, trace.Wrap(err)
+
+	// Fallback support.
+	nodes, err := clt.GetNodes(r.Context(), apidefaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &listResourcesGetResponse{
+		Items: ui.MakeServers(clusterName, nodes, userRoles),
+	}, nil
 }
 
 func handleClusterDatabasesGet(clt resourcesAPIGetter, r *http.Request, clusterName string) (*listResourcesGetResponse, error) {
-	resp, err := listResources(clt, r, types.KindDatabaseServer)
+	resp, err := attemptListResources(clt, r, types.KindDatabaseServer)
 	if err == nil {
 		servers, err := types.ResourcesWithLabels(resp.Resources).AsDatabaseServers()
 		if err != nil {
@@ -397,22 +411,24 @@ func handleClusterDatabasesGet(clt resourcesAPIGetter, r *http.Request, clusterN
 		}, nil
 	}
 
-	if trace.IsNotImplemented(err) {
-		dbServers, err := clt.GetDatabaseServers(r.Context(), apidefaults.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		var databases []types.Database
-		for _, server := range dbServers {
-			databases = append(databases, server.GetDatabase())
-		}
-
-		return &listResourcesGetResponse{
-			Items: ui.MakeDatabases(clusterName, types.DeduplicateDatabases(databases)),
-		}, nil
+	if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
 	}
-	return nil, trace.Wrap(err)
+
+	// Fallback support.
+	dbServers, err := clt.GetDatabaseServers(r.Context(), apidefaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var databases []types.Database
+	for _, server := range dbServers {
+		databases = append(databases, server.GetDatabase())
+	}
+
+	return &listResourcesGetResponse{
+		Items: ui.MakeDatabases(clusterName, types.DeduplicateDatabases(databases)),
+	}, nil
 }
 
 func handleClusterAppsGet(clt resourcesAPIGetter, r *http.Request, cfg ui.MakeAppsConfig) (*listResourcesGetResponse, error) {
@@ -421,7 +437,7 @@ func handleClusterAppsGet(clt resourcesAPIGetter, r *http.Request, cfg ui.MakeAp
 		return nil, trace.BadParameter("missing MakeAppsConfig required fields")
 	}
 
-	resp, err := listResources(clt, r, types.KindAppServer)
+	resp, err := attemptListResources(clt, r, types.KindAppServer)
 	if err == nil {
 		appServers, err := types.ResourcesWithLabels(resp.Resources).AsAppServers()
 		if err != nil {
@@ -442,28 +458,30 @@ func handleClusterAppsGet(clt resourcesAPIGetter, r *http.Request, cfg ui.MakeAp
 		}, nil
 	}
 
-	if trace.IsNotImplemented(err) {
-		appServers, err := clt.GetApplicationServers(r.Context(), apidefaults.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		var apps types.Apps
-		for _, server := range appServers {
-			apps = append(apps, server.GetApp())
-		}
-
-		cfg.Apps = types.DeduplicateApps(apps)
-
-		return &listResourcesGetResponse{
-			Items: ui.MakeApps(cfg),
-		}, nil
+	if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
 	}
-	return nil, trace.Wrap(err)
+
+	// Fallback support.
+	appServers, err := clt.GetApplicationServers(r.Context(), apidefaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var apps types.Apps
+	for _, server := range appServers {
+		apps = append(apps, server.GetApp())
+	}
+
+	cfg.Apps = types.DeduplicateApps(apps)
+
+	return &listResourcesGetResponse{
+		Items: ui.MakeApps(cfg),
+	}, nil
 }
 
 func handleClusterDesktopsGet(clt resourcesAPIGetter, r *http.Request) (*listResourcesGetResponse, error) {
-	resp, err := listResources(clt, r, types.KindWindowsDesktop)
+	resp, err := attemptListResources(clt, r, types.KindWindowsDesktop)
 	if err == nil {
 		windowsDesktops, err := types.ResourcesWithLabels(resp.Resources).AsWindowsDesktops()
 		if err != nil {
@@ -477,22 +495,24 @@ func handleClusterDesktopsGet(clt resourcesAPIGetter, r *http.Request) (*listRes
 		}, nil
 	}
 
-	if trace.IsNotImplemented(err) {
-		windowsDesktops, err := clt.GetWindowsDesktops(r.Context(), types.WindowsDesktopFilter{})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		windowsDesktops = types.DeduplicateDesktops(windowsDesktops)
-
-		return &listResourcesGetResponse{
-			Items: ui.MakeDesktops(windowsDesktops),
-		}, nil
+	if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
 	}
-	return nil, trace.Wrap(err)
+
+	// Fallback support.
+	windowsDesktops, err := clt.GetWindowsDesktops(r.Context(), types.WindowsDesktopFilter{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	windowsDesktops = types.DeduplicateDesktops(windowsDesktops)
+
+	return &listResourcesGetResponse{
+		Items: ui.MakeDesktops(windowsDesktops),
+	}, nil
 }
 
 func handleClusterKubesGet(clt resourcesAPIGetter, r *http.Request) (*listResourcesGetResponse, error) {
-	resp, err := listResources(clt, r, types.KindKubernetesCluster)
+	resp, err := attemptListResources(clt, r, types.KindKubernetesCluster)
 	if err == nil {
 		clusters, err := types.ResourcesWithLabels(resp.Resources).AsKubeClusters()
 		if err != nil {
@@ -506,17 +526,19 @@ func handleClusterKubesGet(clt resourcesAPIGetter, r *http.Request) (*listResour
 		}, nil
 	}
 
-	if trace.IsNotImplemented(err) {
-		kubeServices, err := clt.GetKubeServices(r.Context())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &listResourcesGetResponse{
-			Items: ui.MakeLegacyKubeClusters(kubeServices),
-		}, nil
+	if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
 	}
-	return nil, trace.Wrap(err)
+
+	// Fallback support.
+	kubeServices, err := clt.GetKubeServices(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &listResourcesGetResponse{
+		Items: ui.MakeLegacyKubeClusters(kubeServices),
+	}, nil
 }
 
 type listResourcesGetResponse struct {
