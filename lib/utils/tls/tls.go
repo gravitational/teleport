@@ -31,7 +31,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // macMaxTLSCertValidityPeriod is the maximum validity period
@@ -40,9 +39,18 @@ import (
 // verifier and not in Go.
 const macMaxTLSCertValidityPeriod = 825 * 24 * time.Hour
 
+// TLSCredentials keeps the typical 3 components of a proper HTTPS configuration
+type TLSCredentials struct {
+	// PublicKey in PEM format
+	PublicKey []byte
+	// PrivateKey in PEM format
+	PrivateKey []byte
+	Cert       []byte
+}
+
 // GenerateSelfSignedCert generates a self-signed certificate that
 // is valid for given domain names and ips, returns PEM-encoded bytes with key and cert
-func GenerateSelfSignedCert(hostNames []string) (*utils.TLSCredentials, error) {
+func GenerateSelfSignedCert(hostNames []string) (*TLSCredentials, error) {
 	priv, err := native.GenerateRSAPrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -90,7 +98,7 @@ func GenerateSelfSignedCert(hostNames []string) (*utils.TLSCredentials, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &utils.TLSCredentials{
+	return &TLSCredentials{
 		PublicKey:  pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY", Bytes: publicKeyBytes}),
 		PrivateKey: pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)}),
 		Cert:       pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes}),

@@ -66,15 +66,6 @@ func CreateTLSConfiguration(certFile, keyFile string, cipherSuites []uint16) (*t
 	return config, nil
 }
 
-// TLSCredentials keeps the typical 3 components of a proper HTTPS configuration
-type TLSCredentials struct {
-	// PublicKey in PEM format
-	PublicKey []byte
-	// PrivateKey in PEM format
-	PrivateKey []byte
-	Cert       []byte
-}
-
 // CipherSuiteMapping transforms Teleport formatted cipher suites strings
 // into uint16 IDs.
 func CipherSuiteMapping(cipherSuites []string) ([]uint16, error) {
