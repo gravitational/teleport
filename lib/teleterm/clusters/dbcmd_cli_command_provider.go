@@ -28,15 +28,15 @@ import (
 // DbcmdCLICommandProvider provides CLI commands for database gateways. It needs Storage to read
 // fresh profile state from the disk.
 type DbcmdCLICommandProvider struct {
-	storage StorageByResourceURI
+	storage ClusterGetter
 	execer  dbcmd.Execer
 }
 
-type StorageByResourceURI interface {
+type ClusterGetter interface {
 	GetByResourceURI(string) (*Cluster, error)
 }
 
-func NewDbcmdCLICommandProvider(storage StorageByResourceURI, execer dbcmd.Execer) DbcmdCLICommandProvider {
+func NewDbcmdCLICommandProvider(storage ClusterGetter, execer dbcmd.Execer) DbcmdCLICommandProvider {
 	return DbcmdCLICommandProvider{
 		storage: storage,
 		execer:  execer,
