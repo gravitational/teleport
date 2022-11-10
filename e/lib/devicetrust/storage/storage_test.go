@@ -228,13 +228,8 @@ func TestS_CreateDevice_reusedAssetTags(t *testing.T) {
 		t.Fatalf("GetDevicesByAssetTag failed: %v", err)
 	}
 
-	// want matches the elements in got. Both slices are sorted as the order
-	// doesn't matter / isn't guaranteed.
 	want := []*devicepb.Device{devMac, devLinux, devWin}
-	sort.Slice(got, func(i, j int) bool { return got[i].Id < got[j].Id })
-	sort.Slice(want, func(i, j int) bool { return want[i].Id < want[j].Id })
-
-	if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+	if diff := diffDevices(want, got); diff != "" {
 		t.Errorf("GetDevicesByAssetTag: mismatch (-want +got):\n%s", diff)
 	}
 }
@@ -443,12 +438,79 @@ func TestS_DeleteDevice(t *testing.T) {
 		}
 
 		want := []*devicepb.Device{d2, d3}
-		sort.Slice(got, func(i, j int) bool { return got[i].Id < got[j].Id })
-		sort.Slice(want, func(i, j int) bool { return want[i].Id < want[j].Id })
-		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+		if diff := diffDevices(want, got); diff != "" {
 			t.Errorf("ListDevices mismatch (-want +got)\n%s", diff)
 		}
 	})
+}
+
+// TestS_DeleteDevice_assetTagMappings verifies that device deletion doesn't
+// have undesired side-effects in devices with similar asset tags.
+func TestS_DeleteDevice_assetTagMappings(t *testing.T) {
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+
+	llamaMac := &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama",
+	}
+	llamaLinux := &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_LINUX,
+		AssetTag: "llama",
+	}
+	llamaWin := &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+		AssetTag: "llama",
+	}
+	unrelatedDev := &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "unrelated",
+	}
+	for _, dev := range []**devicepb.Device{
+		&llamaMac,
+		&llamaLinux,
+		&llamaWin,
+		&unrelatedDev,
+	} {
+		created, err := s.CreateDevice(ctx, *dev)
+		if err != nil {
+			t.Fatalf("CreateDevice failed: %v", err)
+		}
+		*dev = created
+	}
+
+	// Delete device.
+	if err := s.DeleteDevice(ctx, llamaMac.Id); err != nil {
+		t.Fatalf("DeleteDevice failed: %v", err)
+	}
+
+	// Sanity check: device is not in storage anymore.
+	if _, err := s.GetDeviceByID(ctx, llamaMac.Id); !trace.IsNotFound(err) {
+		t.Fatalf("GetDeviceByID returned an unexpected error: %v (want not found)", err)
+	}
+
+	// Verify asset tag read.
+	gotTagDevs, err := s.GetDevicesByAssetTag(ctx, llamaMac.AssetTag)
+	if err != nil {
+		t.Fatalf("GetDevicesByAssetTag failed: %v", err)
+	}
+	want := []*devicepb.Device{llamaLinux, llamaWin}
+	if diff := diffDevices(want, gotTagDevs); diff != "" {
+		t.Errorf("GetDevicesByAssetTag mismatch (-want +got):\n%s", diff)
+	}
+
+	// Sanity check: unrelated devices are OK.
+	gotAllDevs, _, err := s.ListDevices(ctx, 100 /* pageSize */, "" /* pageToken */, devicepb.DeviceView_DEVICE_VIEW_RESOURCE)
+	if err != nil {
+		t.Fatalf("ListDevices failed: %v", err)
+	}
+	want = []*devicepb.Device{llamaLinux, llamaWin, unrelatedDev}
+	if diff := diffDevices(want, gotAllDevs); diff != "" {
+		t.Errorf("ListDevices mismatch (-want +got):\n%s", diff)
+	}
 }
 
 func TestS_GetDeviceByID_errors(t *testing.T) {
@@ -654,10 +716,7 @@ func TestS_ListDevices(t *testing.T) {
 			}
 
 			want := test.wantDevices
-			sort.Slice(got, func(i, j int) bool { return got[i].Id < got[j].Id })
-			sort.Slice(want, func(i, j int) bool { return want[i].Id < want[j].Id })
-
-			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			if diff := diffDevices(want, got); diff != "" {
 				t.Errorf("ListDevices mismatch (-want +got)\n%s", diff)
 			}
 		})
@@ -877,6 +936,13 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 			}
 		})
 	}
+}
+
+// diffDevices diffs two slices of devices, sorting both by ID first.
+func diffDevices(want, got []*devicepb.Device) string {
+	sort.Slice(want, func(i, j int) bool { return want[i].Id < want[j].Id })
+	sort.Slice(got, func(i, j int) bool { return got[i].Id < got[j].Id })
+	return cmp.Diff(want, got, protocmp.Transform())
 }
 
 // storageEnv groups the necessary components to test storage.

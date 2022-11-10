@@ -297,10 +297,82 @@ func (s *S) DeleteDevice(ctx context.Context, deviceID string) error {
 		return trace.BadParameter("device ID required")
 	}
 
-	// TODO(codingllama): Remove asset tag mapping as well.
+	// Read the device first, we need the asset tag for the cleanup below.
+	dev, err := s.GetDeviceByID(ctx, deviceID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	err := s.backend().Delete(ctx, deviceKey(deviceID))
-	return trace.Wrap(err)
+	// Delete the device.
+	// If this succeeds the invocation is considered a success: the device key is
+	// the source of truth for a device existing, the system can handle "hanging"
+	// asset tags.
+	if err := s.backend().Delete(ctx, deviceKey(deviceID)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.removeFromAssetTagIndex(ctx, deviceID, dev.AssetTag); err != nil {
+		s.logger.
+			WithError(err).
+			WithFields(log.Fields{
+				"DeviceID": deviceID,
+				"AssetTag": dev.AssetTag,
+			}).
+			Warn("Failed to remove asset tag mapping for device")
+		// err swallowed on purpose.
+	}
+
+	return nil
+}
+
+func (s *S) removeFromAssetTagIndex(ctx context.Context, deviceID, assetTag string) error {
+	item, err := s.backend().Get(ctx, devicesByAssetTagKey(assetTag))
+	if err != nil {
+		return trace.Wrap(err, "reading asset tag mapping")
+	}
+
+	refs := &devicesRef{}
+	if err := json.Unmarshal(item.Value, refs); err != nil {
+		return trace.Wrap(err, "unmarshal asset tag mapping")
+	}
+
+	// Is the device within the references?
+	// It should be, but let's go light in the assumptions.
+	found := false
+	devs := refs.Devices
+	for i := 0; i < len(devs); i++ {
+		if devs[i].DeviceID != deviceID {
+			continue
+		}
+
+		// Swap with last and cut from slice.
+		last := len(devs) - 1
+		devs[i], devs[last] = devs[last], nil
+		devs = devs[:last]
+		i--
+
+		// Do not break here in case the device appears multiple times.
+		// It shouldn't happen, but no harm in checking.
+		found = true
+	}
+	if !found {
+		return nil
+	}
+	refs.Devices = devs
+
+	val, err := json.Marshal(refs)
+	if err != nil {
+		return trace.Wrap(err, "marshal asset tag mapping")
+	}
+
+	if _, err := s.backend().CompareAndSwap(ctx, *item, backend.Item{
+		Key:   item.Key,
+		Value: val,
+	}); err != nil {
+		return trace.Wrap(err, "writing asset tag mapping")
+	}
+
+	return nil
 }
 
 // GetDeviceByID reads a device by ID.
@@ -380,7 +452,11 @@ func (s *S) GetDevicesByAssetTag(ctx context.Context, assetTag string) ([]*devic
 	close(devicesC) // Safe, all goroutines returned by this point.
 	res := make([]*devicepb.Device, 0, len(refs.Devices))
 	for dev := range devicesC {
-		res = append(res, dev)
+		// A hanging asset tag mapping could lead to a nil from device coming from
+		// the channel.
+		if dev != nil {
+			res = append(res, dev)
+		}
 	}
 
 	return res, nil
