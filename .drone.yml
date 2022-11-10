@@ -474,6 +474,7 @@ trigger:
     include:
     - master
     - branch/*
+    - tcsc/branch/v11/*
 workspace:
   path: /tmp/push-build-darwin-amd64
 platform:
