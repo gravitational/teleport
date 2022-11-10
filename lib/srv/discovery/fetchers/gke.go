@@ -34,7 +34,7 @@ type GKEFetcherConfig struct {
 	Client gcp.GKEClient
 	// ProjectID is the projectID the cluster should belong to.
 	ProjectID string
-	// Location is the region where the clusters should be located.
+	// Location is the GCP's location where the clusters should be located.
 	// Wildcard "*" is supported.
 	Location string
 	// FilterLabels are the filter criteria.
