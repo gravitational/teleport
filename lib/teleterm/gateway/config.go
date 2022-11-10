@@ -74,6 +74,10 @@ type Config struct {
 	OnExpiredCert OnExpiredCertFunc
 }
 
+// OnExpiredCertFunc is the type of a function that is called when a new downstream connection is
+// accepted by the gateway but cannot be proxied because the cert used by the gateway has expired.
+//
+// Handling of the connection is blocked until the function returns.
 type OnExpiredCertFunc func(context.Context, *Gateway) error
 
 // CheckAndSetDefaults checks and sets the defaults
