@@ -1,0 +1,29 @@
+name: Build Teleport Connect
+on: 
+  push:
+    branches:
+      - tcsc/windows-gha-skunkworks
+
+defaults:
+  run:
+    working-directory: /workspace
+
+jobs:
+  build:
+    name: Build Teleport Connect
+    runs_on: windows-2022
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+        with:
+          path: teleport
+          fetch-depth: 0
+
+      - name: Checkout Submodules
+        uses: actions/checkout@v3
+        with:
+          repository: https://github.com/gravitational/webapps.git
+          path: webapps
+
+      - name: Install Go
+        run: choco install golang --version 1.19.2
