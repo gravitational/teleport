@@ -119,7 +119,7 @@ Besides the mentioned calls, Kubernetes Service also calls `sts:GetCallerIdentit
 
 #### Configuration
 
-The snippets bellow configure the Discovery Service to watch EKS resources with `tag:env=prod` in the `us-west-1` region and configures the Kubernetes Service to watch dynamic `kube_cluster` resources that include the label `env=prod`.
+The snippets below configure the Discovery Service to watch EKS resources with `tag:env=prod` in the `us-west-1` region and configures the Kubernetes Service to watch dynamic `kube_cluster` resources that include the label `env=prod`.
 
 ##### Discovery Service
 
@@ -438,7 +438,7 @@ The optional permissions can be included to allow Teleport to automatically conf
 
 #### Configuration
 
-The snippets bellow configure the Discovery Service to watch AKS resources with `tag:env=prod` on `eastus` and `centralus` regions and configures Kubernetes Service to watch Teleport `kube_cluster` resources that include the label `env=prod`.
+The snippets below configure the Discovery Service to watch AKS resources with `tag:env=prod` on `eastus` and `centralus` regions and configures Kubernetes Service to watch Teleport `kube_cluster` resources that include the label `env=prod`.
 
 ##### Discovery Service
 
@@ -497,10 +497,10 @@ The available flags are:
 - `--confirm`: Do not prompt user and auto-confirm all actions.
 - `--attach-to-role`: Role name to attach policy to. Mutually exclusive with --attach-to-user. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.
 - `--attach-to-user`: User id to attach policy to. Mutually exclusive with --attach-to-role. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.
-- `--authorization-modes`: Authorization modes configures the clusters authorization options. Valid options: `azure-rbac`, `local-acounts` and `azure-ad-accounts`. 
-- `--aks-local-accounts`: Defines if the cluster has local accounts. It is just valid when `--authorization-modes` includes `azure-ad-accounts`.
 
-You can configure multiple authorization modes, and the final result will merge the permissions required.
+The Teleport CLI will describe the clusters available in the AKS to extract their authorization modes and guide the user based on these values.
+
+In the following subsections, we will present the process for each mode. However, the CLI will support clusters with different modes. The final guide will merge the permissions required to operate correctly.
 
 ##### Active Directory and Azure RBAC enabled
 
@@ -510,8 +510,7 @@ If any cluster has AD integration and Azure RBAC enabled, the CLI guide will be 
 $ teleport discovery bootstrap \
     -c teleport.yaml \ 
     --manual \
-    --attach-to-user {identityID} \
-    --authorization-modes azure-rbac
+    --attach-to-user {identityID} 
 
 1. Create Azure Policy "AKS Teleport Discovery":
 {
@@ -557,8 +556,7 @@ If any cluster runs with Local Accounts, the guide will be the following:
 $ teleport discovery bootstrap \
     -c teleport.yaml \ 
     --manual \
-    --attach-to-user {identityID} \
-    --authorization-modes local-accounts
+    --attach-to-user {identityID} 
 
 1. Create Azure Policy "AKS Teleport Discovery":
 {
@@ -593,7 +591,7 @@ At this point, Teleport identity can list and access the user credentials endpoi
 ##### Active Directory with Kubernetes RBAC
 
 If any cluster has AD with Kubernetes RBAC mode, the user experience depends on whether it's possible to allow Teleport to access  `aks:ListClusterAdminCredentials` or `aks:RunCommand` APIs.
-If the answer is no, then the setup must follow the manual guide bellow.
+If the answer is no, then the setup must follow the manual guide below.
 
 ##### Automatic cluster Authorization 
 
@@ -612,9 +610,7 @@ The following command must be executed to configure the Teleport permissions.
 $ teleport discovery bootstrap \
     -c teleport.yaml \ 
     --manual \
-    --attach-to-user {identityID} \
-    --authorization-modes azure-ad-accounts \
-    --aks-local-accounts
+    --attach-to-user {identityID} 
 
 1. Create Azure Policy "AKS Teleport Discovery":
 {
@@ -655,8 +651,7 @@ create `ClusterRole` and `ClusterRoleBinding` resources.
 $ teleport discovery bootstrap \
     -c teleport.yaml \ 
     --manual \
-    --attach-to-user {identityID} \
-    --authorization-modes azure-ad-accounts 
+    --attach-to-user {identityID} 
 
 1. Create Azure Policy "AKS Teleport Discovery":
 {
@@ -921,7 +916,7 @@ Given a role with the above permissions, Teleport can access any cluster without
 
 #### Configuration
 
-The snippets bellow configure the Discovery Service to watch GKE resources with `tag:env=prod` on any location that belong to project `p1` or `p2`. It also configures Kubernetes Service to watch Teleport `kube_cluster` resources that include the label `env=prod`.
+The snippets below configure the Discovery Service to watch GKE resources with `tag:env=prod` on any location that belong to project `p1` or `p2`. It also configures Kubernetes Service to watch Teleport `kube_cluster` resources that include the label `env=prod`.
 
 ##### Discovery Service
 
