@@ -333,6 +333,62 @@ definition using the following command:
 $ printf "    %s" $(cat kubeconfig | base64) >> kube_cluster.yaml
 ```
 
+<Details title="Add labels to your kube_cluster">
+
+You can add labels to the `kube_cluster` resource, allowing you to manage access
+to specific clusters from your Teleport roles or Kubernetes Service instances.
+
+Labels can either be static or dynamic. Static labels are key/value pairs. This
+example defines the `env=prod` and `team=dev` labels:
+
+```yaml
+kind: kube_cluster
+version: v3
+metadata:
+  name: mycluster
+  labels:
+    env: prod
+    team: dev
+spec:
+  kubeconfig: KUBECONFIG
+```
+
+You can also add dynamic labels, which define shell commands that a Kubernetes
+Service instance will execute in order to generate labels. To do so, edit the
+`spec.dynamic_labels` field of a `kube_cluster` resource. 
+
+This example runs the `python3 get_region.py` command to fetch the region in
+which the Kubernetes Service is deployed and assign the result to the `region`
+key:
+
+```yaml
+kind: kube_cluster
+version: v3
+metadata:
+  name: mycluster
+spec:
+  kubeconfig: KUBECONFIG
+  dynamic_labels:
+    region:
+      period: "24h"
+      command: ["python3", "get_region.py"]
+```
+
+When defining a dynamic label, the key within the `spec.dynamic_labels` field
+behaves the same as keys within the `metadata.labels` field, indicating the key
+of the label. 
+
+The Kubernetes Service obtains a value for that key by running the
+command given in `command` every `period`. `command` is an array of strings,
+where the first element indicates the command to execute and each subsequent
+element indicates an argument. 
+
+`period` is a Go duration string, which includes a number and a unit of time.
+Supported units are `ns`, `us` (or `µs`), `ms`, `s`, `m`, and `h`. The example
+above configures the Kubernetes Service to run the command every day.
+
+</Details>
+
 To create the `kube_cluster` resource, run the following command:
 
 ```code
