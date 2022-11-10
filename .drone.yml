@@ -674,10 +674,10 @@ workspace:
 platform:
   os: windows
   arch: amd64
+node:
+  buildbox_version: teleport10
 clone:
   disable: true
-concurrency:
-  limit: 1
 steps:
 - name: Check out Teleport
   commands:
@@ -927,6 +927,8 @@ workspace:
 platform:
   os: windows
   arch: amd64
+node:
+  buildbox_version: teleport10
 clone:
   disable: true
 depends_on:
@@ -1088,7 +1090,6 @@ steps:
     RELEASES_KEY:
       from_secret: RELEASES_KEY
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
-  failure: ignore
 - name: Clean up workspace (post)
   commands:
   - $ErrorActionPreference = 'Continue'
@@ -1360,11 +1361,10 @@ steps:
     environment:
       OS: linux
       ARCH: amd64
-    settings:
-      username:
+      QUAY_USERNAME:
         from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
-      password:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      QUAY_PASSWORD:
+        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD=
     volumes:
       - name: dockersock
         path: /var/run
@@ -1378,7 +1378,7 @@ steps:
       - git fetch origin
       - git checkout -qf ${DRONE_COMMIT_SHA}
       # Build and push Teleport lab image
-      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
+      - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" quay.io
       - docker build --build-arg TELEPORT_TAG=$TELEPORT_TAG -t $TELEPORT_LAB_IMAGE_NAME /go/src/github.com/gravitational/teleport/docker/sshd
       - docker push $TELEPORT_LAB_IMAGE_NAME
 
@@ -18171,6 +18171,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 1053c2fbcc5c199fff371b70398cdd5e840f8a535ab0db21bdf22d31a6bf2c26
+hmac: 22c993fc232b4167ab3e2745d3f3fbdcc5104f25b4893760155b5811742d766e
 
 ...

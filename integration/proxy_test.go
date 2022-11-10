@@ -282,7 +282,7 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 }
 
 // TestAlpnSniProxyKube tests Kubernetes access with custom Kube API mock where traffic is forwarded via
-//SNI ALPN proxy service to Kubernetes service based on TLS SNI value.
+// SNI ALPN proxy service to Kubernetes service based on TLS SNI value.
 func TestALPNSNIProxyKube(t *testing.T) {
 	const (
 		localK8SNI = "kube.teleport.cluster.local"
@@ -1016,10 +1016,11 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
+	log := utils.NewLoggerForTests()
+
 	rcAddr, err := getLocalIP()
 	require.NoError(t, err)
 
-	log := utils.NewLoggerForTests()
 	rc := NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
@@ -1042,6 +1043,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = false
 	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	rcConf.Log = log
 
 	err = rc.CreateEx(t, nil, rcConf)
 	require.NoError(t, err)

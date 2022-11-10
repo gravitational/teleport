@@ -29,8 +29,11 @@ const (
 func newWindowsPipeline(name string) pipeline {
 	p := newExecPipeline(name)
 	p.Workspace.Path = path.Join("C:/Drone/Workspace", name)
-	p.Concurrency.Limit = 1
 	p.Platform = platform{OS: "windows", Arch: "amd64"}
+	p.Node = map[string]value{
+		"buildbox_version": buildboxVersion,
+	}
+
 	return p
 }
 
@@ -39,7 +42,7 @@ func windowsTagPipeline() pipeline {
 
 	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Trigger = triggerTag
-
+	p.Concurrency.Limit = 1
 	p.Steps = []step{
 		cloneWindowsRepositoriesStep(p.Workspace.Path),
 		updateWindowsSubreposStep(p.Workspace.Path),
@@ -265,7 +268,6 @@ func windowsRegisterArtifactsStep(workspace string) step {
 			`Get-Relcli -Url $relcliUrl -Sha256 $relcliSha256 -Workspace $Workspace`,
 			`Register-Artifacts -Workspace $Workspace -Outputs $OutputsDir`,
 		},
-		Failure: "ignore",
 	}
 }
 
