@@ -3381,7 +3381,7 @@ func waitForNodeCount(ctx context.Context, t *TeleInstance, clusterName string, 
 		if len(nodes) == count {
 			return nil
 		}
-		return trace.BadParameter("did not find %v nodes", count)
+		return trace.BadParameter("found %v nodes, but wanted to find %v nodes", len(nodes), count)
 	})
 	if err != nil {
 		return trace.Wrap(err)
