@@ -4080,7 +4080,6 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 		require.NoError(t, err)
 		addCSRFCookieToReq(req, csrfToken)
 		req.Header.Set(csrf.HeaderName, csrfToken)
-		req.Header.Set("User-Agent", "test-ua")
 		req.Header.Set("Content-Type", "application/json")
 
 		re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
