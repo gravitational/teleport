@@ -33,6 +33,7 @@ func newWindowsPipeline(name string) pipeline {
 	p.Workspace.Path = path.Join("C:/Drone/Workspace", name)
 	p.Concurrency.Limit = 1
 	p.Platform = platform{OS: "windows", Arch: "amd64"}
+	p.Labels = map[string]
 	return p
 }
 
@@ -104,7 +105,6 @@ func windowsPushPipeline() pipeline {
 		Branch: triggerRef{Include: []string{"master", "branch/*"}},
 		Repo:   triggerRef{Include: []string{"gravitational/*"}},
 	}
-
 	p.Steps = []step{
 		cloneWindowsRepositoriesStep(p.Workspace.Path),
 		updateWindowsSubreposStep(p.Workspace.Path),

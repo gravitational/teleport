@@ -670,7 +670,7 @@ platform:
   os: windows
   arch: amd64
 node:
-  teleport: 10
+  buildbox_version: teleport10
 clone:
   disable: true
 concurrency:
@@ -679,8 +679,8 @@ steps:
 - name: Platform debug
   commands:
    - Get-Content -Path "C:\Drone\drone-runner-exec\config" | Select-String "DRONE_RUNNER_LABELS"
-   - Get-ChildItem -Path "C:\Program Files"
-   - Get-ChildItem -Path "C:\Program Files (x86)"
+   - Get-ChildItem -Path "C:/Program Files"
+   - Get-ChildItem -Path 'C:/Program Files (x86)'
 - name: Check out Teleport
   commands:
   - $ErrorActionPreference = 'Stop'
@@ -8735,6 +8735,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 84a6d07c26e7374628fcf97f1fb1b2f0887681642326f189ce766786d6afbdcf
+hmac: 8edcc20f73c63faf39e78c77a4453db97fa2d6b0ee62c6a851ff994922bde689
 
 ...

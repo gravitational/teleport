@@ -79,7 +79,6 @@ var (
 )
 
 var buildboxVersion value
-
 var goRuntime value
 
 func init() {
