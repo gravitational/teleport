@@ -4066,7 +4066,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 		ccr, err := device.SignCredentialCreation("https://"+RPID, cc)
 		require.NoError(t, err)
 
-		// send signing response to server
+		// send sign-in response to server
 		body, err := json.Marshal(changeUserAuthenticationRequest{
 			WebauthnCreationResponse: ccr,
 			TokenID:                  token.GetName(),
