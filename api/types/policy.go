@@ -19,6 +19,7 @@ package types
 import (
 	"time"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/trace"
 )
 
@@ -30,6 +31,19 @@ type Policy interface {
 	GetAllow() map[string]string
 	// GetDeny returns a list of deny expressions grouped by scope.
 	GetDeny() map[string]string
+}
+
+// NewPolicy creates a new policy from a specification.
+func NewPolicy(name string, spec AccessPolicySpecV1) *AccessPolicyV1 {
+	return &AccessPolicyV1{
+		Kind:    KindAccessPolicy,
+		Version: V1,
+		Metadata: Metadata{
+			Name:      name,
+			Namespace: defaults.Namespace,
+		},
+		Spec: spec,
+	}
 }
 
 // GetVersion returns resource version
