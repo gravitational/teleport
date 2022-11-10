@@ -3999,7 +3999,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 	}, {
 		name:                 "first cloud sign-in does not change custom connector",
 		cloud:                true,
-		numberOfUsers:        2,
+		numberOfUsers:        1,
 		authPreferenceType:   constants.OIDC,
 		initialConnectorName: "custom",
 		resultConnectorName:  "custom",
