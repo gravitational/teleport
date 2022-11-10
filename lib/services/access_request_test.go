@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/google/go-cmp/cmp"
@@ -220,6 +221,10 @@ func TestReviewThresholds(t *testing.T) {
 				Roles: []string{"dictator"},
 				Where: `contains(request.system_annotations["mechanisms"],"coup") || contains(request.system_annotations["mechanism"],"treachery")`,
 			},
+		},
+		// never is the role that will never be requested
+		"never": {
+			// ...
 		},
 	}
 
@@ -532,14 +537,16 @@ func TestReviewThresholds(t *testing.T) {
 
 		clock := clockwork.NewFakeClock()
 		now := clock.Now().UTC()
-		identityExpires := now.Add(8 * time.Hour)
+		identity := tlsca.Identity{
+			Expires: now.Add(8 * time.Hour),
+		}
 
 		// perform request validation (necessary in order to initialize internal
 		// request variables like annotations and thresholds).
 		validator, err := NewRequestValidator(context.Background(), g, tt.requestor, ExpandVars(true))
 		require.NoError(t, err, "scenario=%q", tt.desc)
 
-		require.NoError(t, validator.Validate(context.Background(), clock, req, identityExpires), "scenario=%q", tt.desc)
+		require.NoError(t, validator.Validate(context.Background(), clock, req, identity), "scenario=%q", tt.desc)
 
 	Inner:
 		for ri, rt := range tt.reviews {
@@ -941,6 +948,10 @@ func TestRolesForResourceRequest(t *testing.T) {
 				},
 			},
 		},
+		// splunk-super-admins is a role that will never be requested
+		"splunk-super-admins": {
+			// ...
+		},
 	}
 	roles := make(map[string]types.Role)
 	for name, spec := range roleDesc {
@@ -1045,9 +1056,11 @@ func TestRolesForResourceRequest(t *testing.T) {
 
 			clock := clockwork.NewFakeClock()
 			now := clock.Now().UTC()
-			identityExpires := now.Add(8 * time.Hour)
+			identity := tlsca.Identity{
+				Expires: now.Add(8 * time.Hour),
+			}
 
-			err = validator.Validate(context.Background(), clock, req, identityExpires)
+			err = validator.Validate(context.Background(), clock, req, identity)
 			require.ErrorIs(t, err, tc.expectError)
 			if err != nil {
 				return
@@ -1405,9 +1418,11 @@ func TestPruneRequestRoles(t *testing.T) {
 
 			clock := clockwork.NewFakeClock()
 			now := clock.Now().UTC()
-			identityExpires := now.Add(8 * time.Hour)
+			identity := tlsca.Identity{
+				Expires: now.Add(8 * time.Hour),
+			}
 
-			err = ValidateAccessRequestForUser(ctx, clock, g, req, identityExpires, ExpandVars(true))
+			err = ValidateAccessRequestForUser(ctx, clock, g, req, identity, ExpandVars(true))
 			if tc.expectError {
 				require.Error(t, err)
 				return

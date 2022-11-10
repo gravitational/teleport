@@ -2100,7 +2100,8 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		traits = user.GetTraits()
 
 	} else if req.AccessRequestID != "" {
-		accessRequest, err := a.getValidatedAccessRequest(ctx, req.User, req.AccessRequestID)
+		fmt.Printf("--> identity.Expires: %v\n", identity.Expires)
+		accessRequest, err := a.getValidatedAccessRequest(ctx, identity, req.User, req.AccessRequestID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2176,7 +2177,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	return sess, nil
 }
 
-func (a *Server) getValidatedAccessRequest(ctx context.Context, user, accessRequestID string) (types.AccessRequest, error) {
+func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.Identity, user string, accessRequestID string) (types.AccessRequest, error) {
 	reqFilter := types.AccessRequestFilter{
 		User: user,
 		ID:   accessRequestID,
@@ -2200,7 +2201,7 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, user, accessRequ
 		return nil, trace.AccessDenied("access request %q is awaiting approval", accessRequestID)
 	}
 
-	if err := services.ValidateAccessRequestForUser(ctx, a, req); err != nil {
+	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2768,14 +2769,14 @@ func (a *Server) DeleteNamespace(namespace string) error {
 	return a.Services.DeleteNamespace(namespace)
 }
 
-func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest, identityExpires time.Time) error {
+func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) error {
 	now := a.clock.Now().UTC()
 
 	req.SetCreationTime(now)
 
 	// If request is in state pending, variable expansion must be applied.
 	expandOpts := services.ExpandVars(req.GetState().IsPending())
-	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identityExpires, expandOpts); err != nil {
+	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity, expandOpts); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2790,7 +2791,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 	if err := a.Services.CreateAccessRequest(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
+	err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
 			Type: events.AccessRequestCreateEvent,
 			Code: events.AccessRequestCreateCode,

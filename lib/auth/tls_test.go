@@ -1325,6 +1325,8 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 
 	tt := setupAuthContext(ctx, t)
 
+	fmt.Printf("--> now: %v\n", tt.clock.Now())
+
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, clt.Close()) })

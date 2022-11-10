@@ -32,7 +32,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // AccessRequestCommand implements `tctl users` set of commands
@@ -263,7 +265,7 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client auth.ClientI) 
 	req.SetRequestReason(c.reason)
 
 	if c.dryRun {
-		err = services.ValidateAccessRequestForUser(ctx, client, req, services.ExpandVars(true))
+		err = services.ValidateAccessRequestForUser(ctx, clockwork.NewFakeClock(), client, req, tlsca.Identity{}, services.ExpandVars(true))
 		if err != nil {
 			return trace.Wrap(err)
 		}
