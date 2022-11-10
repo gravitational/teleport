@@ -151,9 +151,8 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 		if l.cfg.Middleware != nil {
 			if err := l.cfg.Middleware.OnNewConnection(ctx, l, conn); err != nil {
 				log.WithError(err).Error("Middleware failed to handle client connection.")
-				closeErr := conn.Close()
-				if closeErr != nil {
-					log.WithError(closeErr).Debug("Failed to close client connection.")
+				if err := conn.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+					log.WithError(err).Debug("Failed to close client connection.")
 				}
 				continue
 			}
