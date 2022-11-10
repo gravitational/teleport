@@ -671,7 +671,7 @@ trigger:
     include:
     - master
     - branch/*
-    - tcsc/branch/v11*
+    - tcsc/branch/v11/*
 workspace:
   path: C:/Drone/Workspace/push-build-native-windows-amd64
 platform:
@@ -18196,6 +18196,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 67b6ab8421a4d29d95b87d364a8dbbec9ea92b5b83d2cd751fedf86ed7a5150f
+hmac: 08f91cd9e43a740c4dcf0f6f295ded32f258b7cfa3ea24ddabe72c8b78548a45
 
 ...
