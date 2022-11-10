@@ -666,12 +666,10 @@ workspace:
 platform:
   os: windows
   arch: amd64
-nodes:
+node:
   buildbox_version: teleport10
 clone:
   disable: true
-concurrency:
-  limit: 1
 steps:
 - name: Check out Teleport
   commands:
@@ -921,7 +919,7 @@ workspace:
 platform:
   os: windows
   arch: amd64
-nodes:
+node:
   buildbox_version: teleport10
 clone:
   disable: true
@@ -8676,6 +8674,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: b447e14f67d454ee5e10003af00ce14dadfb59fd8111d00d49556661ac992c0e
+hmac: 0bb9ce006f6d7a862adef511ece2a312fccca9609f874d79feaac33185355fc7
 
 ...

@@ -113,7 +113,7 @@ func testProxyTunnelStrategyAgentMesh(t *testing.T) {
 			testResource: func(t *testing.T, p *proxyTunnelStrategy) {
 				p.makeDatabase(t)
 
-				// wait for the node to be connected to both proxies
+				// wait for the database to be connected to both proxies
 				waitForActiveTunnelConnections(t, p.proxies[0].Tunnel, p.cluster, 1)
 				waitForActiveTunnelConnections(t, p.proxies[1].Tunnel, p.cluster, 1)
 
@@ -304,6 +304,8 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T) {
 
 	conf := service.MakeDefaultConfig()
 	conf.DataDir = t.TempDir()
+	conf.Log = auth.log
+
 	conf.Auth.Enabled = true
 	conf.Auth.NetworkingConfig.SetTunnelStrategy(p.strategy)
 	conf.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
@@ -332,6 +334,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	conf.AuthServers = append(conf.AuthServers, *authAddr)
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
+	conf.Log = proxy.log
 
 	conf.Auth.Enabled = false
 	conf.SSH.Enabled = false
@@ -373,6 +376,7 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	conf.AuthServers = append(conf.AuthServers, utils.FromAddr(p.lb.Addr()))
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
+	conf.Log = node.log
 
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
@@ -409,6 +413,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	conf.AuthServers = append(conf.AuthServers, utils.FromAddr(p.lb.Addr()))
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
+	conf.Log = db.log
 
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
