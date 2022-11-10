@@ -666,6 +666,8 @@ workspace:
 platform:
   os: windows
   arch: amd64
+nodes:
+  buildbox_version: teleport10
 clone:
   disable: true
 concurrency:
@@ -919,6 +921,8 @@ workspace:
 platform:
   os: windows
   arch: amd64
+nodes:
+  buildbox_version: teleport10
 clone:
   disable: true
 depends_on:
@@ -1080,7 +1084,6 @@ steps:
     RELEASES_KEY:
       from_secret: RELEASES_KEY
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
-  failure: ignore
 - name: Clean up workspace (post)
   commands:
   - $ErrorActionPreference = 'Continue'
@@ -8673,6 +8676,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 85cc594714ff84ff91bd9c76d58aafe54a00b8d16231851f77e2cc04d88f3bdb
+hmac: b447e14f67d454ee5e10003af00ce14dadfb59fd8111d00d49556661ac992c0e
 
 ...
