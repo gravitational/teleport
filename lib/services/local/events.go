@@ -1356,7 +1356,7 @@ func resourceHeaderWithTemplate(event backend.Event, hdr types.ResourceHeader, o
 
 // WaitForEvent waits for the event matched by the specified event matcher in the given watcher.
 func WaitForEvent(ctx context.Context, watcher types.Watcher, m EventMatcher, clock clockwork.Clock) (types.Resource, error) {
-	tick := clock.NewTicker(defaults.WebHeadersTimeout)
+	tick := clock.NewTicker(defaults.WebHeadersTimeout * 10)
 	defer tick.Stop()
 
 	select {
