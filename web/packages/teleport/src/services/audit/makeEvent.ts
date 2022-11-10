@@ -1075,6 +1075,42 @@ export const formatters: Formatters = {
     format: ({ user, desktop_addr, length }) =>
       `User [${user}] sent ${length} bytes of clipboard data to desktop [${desktop_addr}]`,
   },
+  [eventCodes.DESKTOP_SHARED_DIRECTORY_START]: {
+    type: 'desktop.directory.share',
+    desc: 'Directory Sharing Started',
+    format: ({ user, desktop_addr, directory_name }) =>
+      `User [${user}] started sharing directory [${directory_name}] to desktop [${desktop_addr}]`,
+  },
+  [eventCodes.DESKTOP_SHARED_DIRECTORY_START_FAILURE]: {
+    type: 'desktop.directory.share',
+    desc: 'Directory Sharing Start Failed',
+    format: ({ user, desktop_addr, directory_name }) =>
+      `User [${user}] failed to start sharing directory [${directory_name}] to desktop [${desktop_addr}]`,
+  },
+  [eventCodes.DESKTOP_SHARED_DIRECTORY_READ]: {
+    type: 'desktop.directory.read',
+    desc: 'Directory Sharing Read',
+    format: ({ user, desktop_addr, directory_name, file_path, length }) =>
+      `User [${user}] read [${length}] bytes from file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop_addr}]`,
+  },
+  [eventCodes.DESKTOP_SHARED_DIRECTORY_READ_FAILURE]: {
+    type: 'desktop.directory.read',
+    desc: 'Directory Sharing Read Failed',
+    format: ({ user, desktop_addr, directory_name, file_path, length }) =>
+      `User [${user}] failed to read [${length}] bytes from file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop_addr}]`,
+  },
+  [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE]: {
+    type: 'desktop.directory.write',
+    desc: 'Directory Sharing Write',
+    format: ({ user, desktop_addr, directory_name, file_path, length }) =>
+      `User [${user}] wrote [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop_addr}]`,
+  },
+  [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE_FAILURE]: {
+    type: 'desktop.directory.write',
+    desc: 'Directory Sharing Write Failed',
+    format: ({ user, desktop_addr, directory_name, file_path, length }) =>
+      `User [${user}] failed to write [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop_addr}]`,
+  },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',
     desc: 'X11 Forwarding Requested',
