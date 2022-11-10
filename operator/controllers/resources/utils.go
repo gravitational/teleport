@@ -25,7 +25,6 @@ import (
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
 )
 
 const (
