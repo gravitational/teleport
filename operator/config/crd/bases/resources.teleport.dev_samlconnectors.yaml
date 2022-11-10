@@ -2,23 +2,23 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
-  name: teleportusers.resources.teleport.dev
+  name: teleportsamlconnectors.resources.teleport.dev
 spec:
   group: resources.teleport.dev
   names:
-    kind: TeleportUser
-    listKind: TeleportUserList
-    plural: teleportusers
+    kind: TeleportSAMLConnector
+    listKind: TeleportSAMLConnectorList
+    plural: teleportsamlconnectors
     shortNames:
-    - user
-    - users
-    singular: teleportuser
+    - samlconnector
+    - samlconnectors
+    singular: teleportsamlconnector
   scope: Namespaced
   versions:
   - name: v2
     schema:
       openAPIV3Schema:
-        description: User is the Schema for the users API
+        description: SAMLConnector is the Schema for the samlconnectors API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -33,72 +33,95 @@ spec:
           metadata:
             type: object
           spec:
-            description: User resource definition v2 from Teleport
+            description: SAMLConnector resource definition v2 from Teleport
             properties:
-              github_identities:
-                description: GithubIdentities list associated Github OAuth2 identities
-                  that let user log in using externally verified identity
-                items:
-                  properties:
-                    connector_id:
-                      description: ConnectorID is id of registered OIDC connector,
-                        e.g. 'google-example.com'
-                      type: string
-                    username:
-                      description: Username is username supplied by external identity
-                        provider
-                      type: string
-                  type: object
-                type: array
-              oidc_identities:
-                description: OIDCIdentities lists associated OpenID Connect identities
-                  that let user log in using externally verified identity
-                items:
-                  properties:
-                    connector_id:
-                      description: ConnectorID is id of registered OIDC connector,
-                        e.g. 'google-example.com'
-                      type: string
-                    username:
-                      description: Username is username supplied by external identity
-                        provider
-                      type: string
-                  type: object
-                type: array
-              roles:
-                description: Roles is a list of roles assigned to user
-                items:
-                  type: string
+              acs:
+                description: AssertionConsumerService is a URL for assertion consumer
+                  service on the service provider (Teleport's side).
+                type: string
+              allow_idp_initiated:
+                description: AllowIDPInitiated is a flag that indicates if the connector
+                  can be used for IdP-initiated logins.
+                type: boolean
+              assertion_key_pair:
+                description: EncryptionKeyPair is a key pair used for decrypting SAML
+                  assertions.
                 nullable: true
-                type: array
-              saml_identities:
-                description: SAMLIdentities lists associated SAML identities that
-                  let user log in using externally verified identity
+                properties:
+                  cert:
+                    description: Cert is a PEM-encoded x509 certificate.
+                    type: string
+                  private_key:
+                    description: PrivateKey is a PEM encoded x509 private key.
+                    type: string
+                type: object
+              attributes_to_roles:
+                description: AttributesToRoles is a list of mappings of attribute
+                  statements to roles.
                 items:
                   properties:
-                    connector_id:
-                      description: ConnectorID is id of registered OIDC connector,
-                        e.g. 'google-example.com'
+                    name:
+                      description: Name is an attribute statement name.
                       type: string
-                    username:
-                      description: Username is username supplied by external identity
-                        provider
+                    roles:
+                      description: Roles is a list of static teleport roles to map
+                        to.
+                      items:
+                        type: string
+                      nullable: true
+                      type: array
+                    value:
+                      description: Value is an attribute statement value to match.
                       type: string
                   type: object
                 type: array
-              traits:
-                additionalProperties:
-                  items:
+              audience:
+                description: Audience uniquely identifies our service provider.
+                type: string
+              cert:
+                description: Cert is the identity provider certificate PEM. IDP signs
+                  <Response> responses using this certificate.
+                type: string
+              display:
+                description: Display controls how this connector is displayed.
+                type: string
+              entity_descriptor:
+                description: EntityDescriptor is XML with descriptor. It can be used
+                  to supply configuration parameters in one XML file rather than supplying
+                  them in the individual elements.
+                type: string
+              entity_descriptor_url:
+                description: EntityDescriptorURL is a URL that supplies a configuration
+                  XML.
+                type: string
+              issuer:
+                description: Issuer is the identity provider issuer.
+                type: string
+              provider:
+                description: Provider is the external identity provider.
+                type: string
+              service_provider_issuer:
+                description: ServiceProviderIssuer is the issuer of the service provider
+                  (Teleport).
+                type: string
+              signing_key_pair:
+                description: SigningKeyPair is an x509 key pair used to sign AuthnRequest.
+                nullable: true
+                properties:
+                  cert:
+                    description: Cert is a PEM-encoded x509 certificate.
                     type: string
-                  type: array
-                description: Traits are key/value pairs received from an identity
-                  provider (through OIDC claims or SAML assertions) or from a system
-                  administrator for local accounts. Traits are used to populate role
-                  variables.
+                  private_key:
+                    description: PrivateKey is a PEM encoded x509 private key.
+                    type: string
                 type: object
+              sso:
+                description: SSO is the URL of the identity provider's SSO service.
+                type: string
             type: object
           status:
-            description: TeleportUserStatus defines the observed state of TeleportUser
+            description: TeleportSAMLConnectorStatus defines the observed state of
+              TeleportSAMLConnector
             properties:
               conditions:
                 description: Conditions represent the latest available observations
