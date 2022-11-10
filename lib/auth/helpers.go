@@ -589,6 +589,8 @@ type TestTLSServerConfig struct {
 	Listener net.Listener
 	// AcceptedUsage is a list of accepted usage restrictions
 	AcceptedUsage []string
+	// Clock is a mock-able clock.
+	Clock clockwork.Clock
 }
 
 // Auth returns auth server used by this TLS server
@@ -672,6 +674,7 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 		APIConfig:     *srv.APIConfig,
 		LimiterConfig: *srv.Limiter,
 		AcceptedUsage: cfg.AcceptedUsage,
+		Clock:         cfg.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

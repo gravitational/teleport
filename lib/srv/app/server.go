@@ -384,6 +384,7 @@ func (s *Server) stopDynamicLabels(name string) {
 // startHeartbeat starts the registration heartbeat to the auth server.
 func (s *Server) startHeartbeat(ctx context.Context, app types.Application) error {
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
+		Clock:           s.c.Clock,
 		Context:         s.closeContext,
 		Component:       teleport.ComponentApp,
 		Mode:            srv.HeartbeatModeApp,

@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -235,9 +236,9 @@ func WaitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 	return trace.BadParameter("proxy count on %v: %v (wanted %v)", clusterName, counts[clusterName], count)
 }
 
-func WaitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []apievents.AuditEvent {
+func WaitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, clock clockwork.Clock, eventType string) []apievents.AuditEvent {
 	max := time.Second
-	timeout := time.After(max)
+	timeout := clock.After(max)
 	bf, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: max / 10,
 		Max:  max,

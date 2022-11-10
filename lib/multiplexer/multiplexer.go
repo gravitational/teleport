@@ -185,7 +185,7 @@ func (m *Mux) Serve() error {
 		select {
 		case <-m.context.Done():
 			return nil
-		case <-time.After(5 * time.Second):
+		case <-m.Clock.After(5 * time.Second):
 			m.WithError(err).Debugf("Backoff on accept error.")
 		}
 	}

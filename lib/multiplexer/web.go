@@ -105,7 +105,7 @@ func (l *WebListener) Serve() error {
 			select {
 			case <-l.context.Done():
 				return trace.Wrap(net.ErrClosed, "listener is closed")
-			case <-time.After(5 * time.Second):
+			case <-l.cfg.Clock.After(5 * time.Second):
 				l.log.WithError(err).Warn("Backoff on accept error.")
 			}
 			continue

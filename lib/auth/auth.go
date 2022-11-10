@@ -230,6 +230,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
+		clock:           cfg.Clock,
 		bk:              cfg.Backend,
 		limiter:         limiter,
 		Authority:       cfg.Authority,
@@ -261,7 +262,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		as.clock = clockwork.NewRealClock()
 	}
 	as.githubOrgSSOCache, err = utils.NewFnCache(utils.FnCacheConfig{
-		TTL: githubCacheTimeout,
+		Clock: cfg.Clock,
+		TTL:   githubCacheTimeout,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

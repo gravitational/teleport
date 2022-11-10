@@ -532,6 +532,8 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 	)
 
 	mkMySQLLeafDBClient := func(t *testing.T) *client.Conn {
+		// Advance the fake clock to make sure we're in the valid range of the cert produced for this client.
+		clock.Advance(time.Since(clock.Now()) + 1*time.Second)
 		// Connect to the database service in leaf cluster via root cluster.
 		client, err := mysql.MakeTestClient(common.TestClientConfig{
 			AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
@@ -569,7 +571,7 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 
 		now := clock.Now()
 		clock.Advance(idleTimeout)
-		helpers.WaitForAuditEventTypeWithBackoff(t, pack.Root.Cluster.Process.GetAuthServer(), now, events.ClientDisconnectEvent)
+		helpers.WaitForAuditEventTypeWithBackoff(t, pack.Root.Cluster.Process.GetAuthServer(), now, clock, events.ClientDisconnectEvent)
 
 		_, err = client.Execute("select 1")
 		require.Error(t, err)
@@ -584,7 +586,7 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 
 		now := clock.Now()
 		clock.Advance(idleTimeout)
-		helpers.WaitForAuditEventTypeWithBackoff(t, pack.Leaf.Cluster.Process.GetAuthServer(), now, events.ClientDisconnectEvent)
+		helpers.WaitForAuditEventTypeWithBackoff(t, pack.Leaf.Cluster.Process.GetAuthServer(), now, clock, events.ClientDisconnectEvent)
 
 		_, err = client.Execute("select 1")
 		require.Error(t, err)

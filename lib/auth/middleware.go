@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
 	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
+	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
@@ -50,6 +51,8 @@ import (
 
 // TLSServerConfig is a configuration for TLS server
 type TLSServerConfig struct {
+	// Clock is a mock-able clock.
+	Clock clockwork.Clock
 	// Listener is a listener to bind to
 	Listener net.Listener
 	// TLS is a base TLS configuration
@@ -189,6 +192,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	server.mux, err = multiplexer.NewTLSListener(multiplexer.TLSListenerConfig{
 		Listener: tls.NewListener(cfg.Listener, server.cfg.TLS),
 		ID:       cfg.ID,
+		Clock:    cfg.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

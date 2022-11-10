@@ -379,7 +379,7 @@ type standaloneBundle struct {
 // TODO(codingllama): Consider refactoring newStandaloneTeleport into a public
 //
 //	function and reusing in other places.
-func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundle {
+func newStandaloneTeleport(t *testing.T, clock clockwork.FakeClock) *standaloneBundle {
 	randomAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
 	// Silent logger and console.
@@ -431,7 +431,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	authProcess := startAndWait(t, cfg, service.AuthTLSReady)
+	authProcess := startAndWait(t, clock, cfg, service.AuthTLSReady)
 	t.Cleanup(func() { authProcess.Close() })
 	authAddr, err := authProcess.AuthAddr()
 	require.NoError(t, err)
@@ -498,7 +498,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Proxy.DisableWebInterface = true
 	cfg.SSH.Enabled = false
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	proxyProcess := startAndWait(t, cfg, service.ProxyWebServerReady)
+	proxyProcess := startAndWait(t, clock, cfg, service.ProxyWebServerReady)
 	t.Cleanup(func() { proxyProcess.Close() })
 	proxyWebAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
@@ -516,10 +516,12 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	}
 }
 
-func startAndWait(t *testing.T, cfg *service.Config, eventName string) *service.TeleportProcess {
+func startAndWait(t *testing.T, clock clockwork.FakeClock, cfg *service.Config, eventName string) *service.TeleportProcess {
 	instance, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
 	require.NoError(t, instance.Start())
+
+	clock.Advance(10 * time.Second)
 
 	_, err = instance.WaitForEventTimeout(30*time.Second, eventName)
 	require.NoError(t, err, "timed out waiting for teleport")

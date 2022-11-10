@@ -25,6 +25,7 @@ import (
 	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
@@ -130,6 +131,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 type sessionCache struct {
 	mu    sync.Mutex
 	cache *ttlmap.TTLMap
+	clock clockwork.Clock
 
 	closeContext context.Context
 
@@ -137,11 +139,12 @@ type sessionCache struct {
 }
 
 // newSessionCache creates a new session cache.
-func newSessionCache(ctx context.Context, log *logrus.Entry) (*sessionCache, error) {
+func newSessionCache(ctx context.Context, clock clockwork.Clock, log *logrus.Entry) (*sessionCache, error) {
 	var err error
 
 	s := &sessionCache{
 		closeContext: ctx,
+		clock:        clock,
 		log:          log,
 	}
 
@@ -191,12 +194,12 @@ func (s *sessionCache) remove(key string) {
 
 // expireSessions ticks every second trying to close expired sessions.
 func (s *sessionCache) expireSessions() {
-	ticker := time.NewTicker(time.Second)
+	ticker := s.clock.NewTicker(time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-ticker.C:
+		case <-ticker.Chan():
 			s.expireSession()
 		case <-s.closeContext.Done():
 			return

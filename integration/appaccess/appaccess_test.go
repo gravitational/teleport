@@ -524,7 +524,10 @@ func testInvalidateAppSessionsOnLogout(p *Pack, t *testing.T) {
 
 // TestTCP tests proxying of plain TCP applications through app access.
 func TestTCP(t *testing.T) {
-	pack := Setup(t)
+	clock := clockwork.NewFakeClockAt(time.Now())
+	pack := SetupWithOptions(t, AppTestOptions{
+		Clock: clock,
+	})
 
 	tests := []struct {
 		description string
@@ -623,7 +626,6 @@ func TestTCPCertExpiration(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Now())
 	mCloseChannel := make(chan struct{})
 	pack := SetupWithOptions(t, AppTestOptions{
-		CertificateTTL:      5 * time.Second,
 		Clock:               clock,
 		MonitorCloseChannel: mCloseChannel,
 	})

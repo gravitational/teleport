@@ -836,7 +836,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	}
 
 	supervisor := NewSupervisor(processID, cfg.Log)
-	storage, err := auth.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
+	storage, err := auth.NewProcessStorage(supervisor.ExitContext(), cfg.Clock, filepath.Join(cfg.DataDir, teleport.ComponentProcess))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1474,6 +1474,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 
 		auditServiceConfig := events.AuditLogConfig{
+			Clock:         process.Clock,
 			Context:       process.ExitContext(),
 			DataDir:       filepath.Join(cfg.DataDir, teleport.LogsDir),
 			ServerID:      cfg.HostUUID,
@@ -1536,6 +1537,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 	// first, create the AuthServer
 	authServer, err := auth.Init(auth.InitConfig{
+		Clock:                   process.Clock,
 		Backend:                 b,
 		Authority:               cfg.Keygen,
 		ClusterConfiguration:    cfg.ClusterConfiguration,
@@ -1597,6 +1599,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Clock:     process.Clock,
 			Component: teleport.ComponentAuth,
 			Log:       log,
 			Client:    authServer.Services,
@@ -1615,6 +1618,7 @@ func (process *TeleportProcess) initAuthService() error {
 	// packages up the parts into a single upload before sending to auth)
 	if uploadHandler != nil {
 		err = events.StartNewUploadCompleter(process.ExitContext(), events.UploadCompleterConfig{
+			Clock:          process.Clock,
 			Uploader:       uploadHandler,
 			Component:      teleport.ComponentAuth,
 			AuditLog:       process.auditLog,
@@ -1639,6 +1643,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	apiConf := &auth.APIConfig{
+		Clock:          process.Clock,
 		AuthServer:     authServer,
 		Authorizer:     authorizer,
 		AuditLog:       process.auditLog,
@@ -1678,6 +1683,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 	// use multiplexer to leverage support for proxy protocol.
 	mux, err := multiplexer.New(multiplexer.Config{
+		Clock:               process.Clock,
 		EnableProxyProtocol: cfg.Auth.EnableProxyProtocol,
 		Listener:            listener,
 		ID:                  teleport.Component(process.id),
@@ -1690,6 +1696,7 @@ func (process *TeleportProcess) initAuthService() error {
 	authMetrics := &auth.Metrics{GRPCServerLatency: cfg.Metrics.GRPCServerLatency}
 
 	tlsServer, err := auth.NewTLSServer(auth.TLSServerConfig{
+		Clock:         process.Clock,
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,
 		LimiterConfig: cfg.Auth.Limiter,
@@ -1760,6 +1767,7 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
+		Clock:     process.Clock,
 		Mode:      srv.HeartbeatModeAuth,
 		Context:   process.GracefulExitContext(),
 		Component: teleport.ComponentAuth,
@@ -1887,6 +1895,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	}
 	process.log.Debugf("Creating in-memory backend for %v.", cfg.cacheName)
 	mem, err := memory.New(memory.Config{
+		Clock:     process.Clock,
 		Context:   process.ExitContext(),
 		EventsOff: !cfg.events,
 		Mirror:    true,
@@ -1904,6 +1913,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	}
 
 	return cache.New(cfg.setup(cache.Config{
+		Clock:            process.Clock,
 		Context:          process.ExitContext(),
 		Backend:          reporter,
 		Events:           cfg.services,
@@ -3396,6 +3406,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		tsrv, err = reversetunnel.NewServer(
 			reversetunnel.Config{
+				Clock:                         process.Clock,
 				Component:                     teleport.Component(teleport.ComponentProxy, process.id),
 				ID:                            process.Config.HostUUID,
 				ClusterName:                   clusterName,
@@ -3602,6 +3613,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		process.proxyPublicAddr(),
 		conn.Client,
 		regular.SetLimiter(proxyLimiter),
+		regular.SetClock(process.Clock),
 		regular.SetProxyMode(peerAddrString, tsrv, accessPoint),
 		regular.SetCiphers(cfg.Ciphers),
 		regular.SetKEXAlgorithms(cfg.KEXAlgorithms),
@@ -3638,6 +3650,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Create and register reverse tunnel AgentPool.
 	rcWatcher, err := reversetunnel.NewRemoteClusterTunnelManager(reversetunnel.RemoteClusterTunnelManagerConfig{
+		Clock:               process.Clock,
 		HostUUID:            conn.ServerIdentity.ID.HostUUID,
 		AuthClient:          conn.Client,
 		AccessPoint:         accessPoint,
@@ -3853,7 +3866,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				MaxConnectionIdle: 10 * time.Second,
 			}),
 		)
-		joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client)
+		joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client, process.Clock)
 		proto.RegisterJoinServiceServer(grpcServer, joinServiceServer)
 		process.RegisterCriticalFunc("proxy.grpc", func() error {
 			log.Infof("Starting proxy gRPC server on %v.", listeners.grpc.Addr())
@@ -3874,6 +3887,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 		alpnServer, err = alpnproxy.New(alpnproxy.ProxyConfig{
+			Clock:             process.Clock,
 			WebTLSConfig:      tlsConfigWeb.Clone(),
 			IdentityTLSConfig: identityTLSConf,
 			Router:            alpnRouter,

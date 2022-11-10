@@ -42,16 +42,19 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+
 	// Import to register Cassandra engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/cloud/users"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+
 	// Import to register Elasticsearch engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	// Import to register MongoDB engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
+
 	// Import to register Postgres engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/postgres"
 	// Import to register Snowflake engine.
@@ -510,6 +513,7 @@ func (s *Server) getProxiedDatabases() (databases types.Databases) {
 // startHeartbeat starts the registration heartbeat to the auth server.
 func (s *Server) startHeartbeat(ctx context.Context, database types.Database) error {
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
+		Clock:           s.cfg.Clock,
 		Context:         s.closeContext,
 		Component:       teleport.ComponentDatabase,
 		Mode:            srv.HeartbeatModeDB,

@@ -242,9 +242,8 @@ func (p *Pack) initWebSession(t *testing.T) {
 // credentials.
 func (p *Pack) initTeleportClient(t *testing.T, opts AppTestOptions) {
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
-		Process:        p.rootCluster.Process,
-		Username:       p.user.GetName(),
-		CertificateTTL: opts.CertificateTTL,
+		Process:  p.rootCluster.Process,
+		Username: p.user.GetName(),
 	})
 	require.NoError(t, err)
 
@@ -586,6 +585,7 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 		raConf.Auth.Enabled = false
 		raConf.Proxy.Enabled = false
 		raConf.SSH.Enabled = false
+		raConf.Discovery.Enabled = false
 		raConf.Apps.Enabled = true
 		raConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		raConf.Apps.MonitorCloseChannel = opts.MonitorCloseChannel
@@ -709,6 +709,9 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 	require.NoError(t, err)
 	require.Equal(t, len(configs), len(servers))
 
+	if opts.Clock != nil {
+		opts.Clock.Advance(1 * time.Millisecond)
+	}
 	for i, appServer := range servers {
 		srv := appServer
 		t.Cleanup(func() {
@@ -744,6 +747,7 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 		laConf.Auth.Enabled = false
 		laConf.Proxy.Enabled = false
 		laConf.SSH.Enabled = false
+		laConf.Discovery.Enabled = false
 		laConf.Apps.Enabled = true
 		laConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		laConf.Apps.MonitorCloseChannel = opts.MonitorCloseChannel

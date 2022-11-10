@@ -43,6 +43,7 @@ import (
 )
 
 type APIConfig struct {
+	Clock          clockwork.Clock
 	PluginRegistry plugin.Registry
 	AuthServer     *Server
 	AuditLog       events.IAuditLog
@@ -78,9 +79,13 @@ type APIServer struct {
 
 // NewAPIServer returns a new instance of APIServer HTTP handler
 func NewAPIServer(config *APIConfig) (http.Handler, error) {
+	clock := config.Clock
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
 	srv := APIServer{
 		APIConfig: *config,
-		Clock:     clockwork.NewRealClock(),
+		Clock:     clock,
 	}
 	srv.Router = *httprouter.New()
 	srv.Router.UseRawPath = true

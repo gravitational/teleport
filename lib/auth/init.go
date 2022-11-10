@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
@@ -197,6 +198,9 @@ type InitConfig struct {
 
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
+
+	// Clock is a mock-able clock.
+	Clock clockwork.Clock
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -988,7 +992,7 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 // ReadLocalIdentity reads, parses and returns the given pub/pri key + cert from the
 // key storage (dataDir).
 func ReadLocalIdentity(dataDir string, id IdentityID) (*Identity, error) {
-	storage, err := NewProcessStorage(context.TODO(), dataDir)
+	storage, err := NewProcessStorage(context.TODO(), clockwork.NewRealClock(), dataDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

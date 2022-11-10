@@ -19,14 +19,47 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const (
+	fakeClockTickDuration = 100 * time.Millisecond
+)
+
 func nullImpersonationCheck(context.Context, string, authztypes.SelfSubjectAccessReviewInterface) error {
 	return nil
+}
+
+// TickFakeClock will start a goroutine to tick a fake clock periodically.
+// This is intended to be run temporarily during integration tests so that
+// the starting of a Teleport process proceeds normally.
+func TickFakeClock(clock clockwork.Clock) (cleanup func()) {
+	emptyFunc := func() {}
+	if clock == nil {
+		return emptyFunc
+	}
+
+	if fakeClock, ok := clock.(clockwork.FakeClock); ok {
+		tickerDone := make(chan struct{})
+		go func() {
+			ticker := time.NewTicker(fakeClockTickDuration)
+			for {
+				select {
+				case <-ticker.C:
+					fakeClock.Advance(fakeClockTickDuration)
+				case <-tickerDone:
+					return
+				}
+			}
+		}()
+		return func() { close(tickerDone) }
+	}
+
+	return emptyFunc
 }
 
 func StartAndWait(process *service.TeleportProcess, expectedEvents []string) ([]service.Event, error) {
@@ -41,6 +74,7 @@ func StartAndWait(process *service.TeleportProcess, expectedEvents []string) ([]
 	receivedEvents := make([]service.Event, 0, len(expectedEvents))
 	ctx, cancel := context.WithTimeout(process.ExitContext(), 10*time.Second)
 	defer cancel()
+
 	for _, eventName := range expectedEvents {
 		if event, err := process.WaitForEvent(ctx, eventName); err == nil {
 			receivedEvents = append(receivedEvents, event)

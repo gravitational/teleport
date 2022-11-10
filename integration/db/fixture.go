@@ -258,6 +258,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 
 	// Create root cluster.
 	rootCfg := helpers.InstanceConfig{
+		Clock:       opts.clock,
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    opts.nodeName,
@@ -270,6 +271,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 
 	// Create leaf cluster.
 	leafCfg := helpers.InstanceConfig{
+		Clock:       opts.clock,
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    opts.nodeName,
@@ -292,6 +294,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	if opts.rootConfig != nil {
 		opts.rootConfig(rcConf)
 	}
+	rcConf.Clock = opts.clock
 
 	// Make leaf cluster config.
 	lcConf := service.MakeDefaultConfig()
@@ -305,12 +308,16 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	if opts.leafConfig != nil {
 		opts.rootConfig(lcConf)
 	}
+	lcConf.Clock = opts.clock
 
 	// Establish trust b/w root and leaf.
 	err = p.Root.Cluster.CreateEx(t, p.Leaf.Cluster.Secrets.AsSlice(), rcConf)
 	require.NoError(t, err)
 	err = p.Leaf.Cluster.CreateEx(t, p.Root.Cluster.Secrets.AsSlice(), lcConf)
 	require.NoError(t, err)
+
+	// Tick the fake clock to make sure setup triggers as expected.
+	defer helpers.TickFakeClock(opts.clock)()
 
 	// Start both clusters.
 	err = p.Leaf.Cluster.Start()
@@ -453,6 +460,7 @@ func containsDB(servers []types.DatabaseServer, name string) bool {
 // testLargeQuery tests a scenario where a user connects
 // to a MySQL database running in a root cluster.
 func (p *DatabasePack) testLargeQuery(t *testing.T) {
+	clock := clockwork.NewRealClock()
 	// Connect to the database service in root cluster.
 	client, err := mysql.MakeTestClient(common.TestClientConfig{
 		AuthClient: p.Root.Cluster.GetSiteAPI(p.Root.Cluster.Secrets.SiteName),
@@ -479,7 +487,7 @@ func (p *DatabasePack) testLargeQuery(t *testing.T) {
 	require.Equal(t, mysql.TestQueryResponse, result)
 	result.Close()
 
-	ee := helpers.WaitForAuditEventTypeWithBackoff(t, p.Root.Cluster.Process.GetAuthServer(), now, events.DatabaseSessionQueryEvent)
+	ee := helpers.WaitForAuditEventTypeWithBackoff(t, p.Root.Cluster.Process.GetAuthServer(), now, clock, events.DatabaseSessionQueryEvent)
 	require.Len(t, ee, 1)
 
 	query = "select 1"
@@ -489,7 +497,7 @@ func (p *DatabasePack) testLargeQuery(t *testing.T) {
 	result.Close()
 
 	require.Eventually(t, func() bool {
-		ee := helpers.WaitForAuditEventTypeWithBackoff(t, p.Root.Cluster.Process.GetAuthServer(), now, events.DatabaseSessionQueryEvent)
+		ee := helpers.WaitForAuditEventTypeWithBackoff(t, p.Root.Cluster.Process.GetAuthServer(), now, clock, events.DatabaseSessionQueryEvent)
 		return len(ee) == 2
 	}, time.Second*3, time.Millisecond*500)
 

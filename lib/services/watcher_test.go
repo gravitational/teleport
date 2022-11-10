@@ -121,6 +121,7 @@ func TestProxyWatcher(t *testing.T) {
 	presence := local.NewPresenceService(bk)
 	w, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Clock:          clock,
 			Component:      "test",
 			MaxRetryPeriod: 200 * time.Millisecond,
 			Client: &client{
@@ -133,11 +134,24 @@ func TestProxyWatcher(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
 
+	// The first event is always the current list of proxies, which should be empty.
+	select {
+	case changeset := <-w.ProxiesC:
+		require.Len(t, changeset, 0)
+		//require.Empty(t, resourceDiff(changeset[0], proxy))
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the first event.")
+	}
+
 	// Add a proxy server.
 	proxy := newProxyServer(t, "proxy1", "127.0.0.1:2023")
 	require.NoError(t, presence.UpsertProxy(proxy))
 
-	// The first event is always the current list of proxies.
+	clock.Advance(10 * time.Second)
+
+	// Detect the new proxy.
 	select {
 	case changeset := <-w.ProxiesC:
 		require.Len(t, changeset, 1)

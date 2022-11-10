@@ -94,6 +94,7 @@ func New(cfg Config) (*Memory, error) {
 	ctx, cancel := context.WithCancel(cfg.Context)
 	buf := backend.NewCircularBuffer(
 		backend.BufferCapacity(cfg.BufferSize),
+		backend.BufferClock(cfg.Clock),
 	)
 	buf.SetInit()
 	m := &Memory{
