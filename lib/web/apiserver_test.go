@@ -148,6 +148,15 @@ func TestMain(m *testing.M) {
 }
 
 func newWebSuite(t *testing.T) *WebSuite {
+	return newWebSuiteWithConfig(t, webSuiteConfig{})
+}
+
+type webSuiteConfig struct {
+	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
+	authPreferenceSpec *types.AuthPreferenceSpecV2
+}
+
+func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	mockU2F, err := mocku2f.Create()
 	require.NoError(t, err)
 	require.NotNil(t, mockU2F)
@@ -175,6 +184,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 			Dir:                     t.TempDir(),
 			Clock:                   s.clock,
 			ClusterNetworkingConfig: networkingConfig,
+			AuthPreferenceSpec:      cfg.authPreferenceSpec,
 		},
 	})
 	require.NoError(t, err)
@@ -4012,13 +4022,10 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 			},
 		})
 
-		s := newWebSuite(t)
-
-		// auth preference
 		const RPID = "localhost"
 
-		err := s.server.Auth().SetAuthPreference(s.ctx, &types.AuthPreferenceV2{
-			Spec: types.AuthPreferenceSpecV2{
+		s := newWebSuiteWithConfig(t, webSuiteConfig{
+			authPreferenceSpec: &types.AuthPreferenceSpecV2{
 				Type:          tc.authPreferenceType,
 				ConnectorName: tc.initialConnectorName,
 				SecondFactor:  constants.SecondFactorOn,
@@ -4027,7 +4034,6 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 				},
 			},
 		})
-		require.NoError(t, err)
 
 		// user and role
 		users := make([]types.User, tc.numberOfUsers)
