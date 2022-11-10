@@ -2123,6 +2123,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		// Let session expire with the shortest expiry time.
 		if expiresAt.After(accessRequest.GetAccessExpiry()) {
 			expiresAt = accessRequest.GetAccessExpiry()
+			fmt.Printf("--> expiresAt: %v\n", expiresAt)
 		}
 	} else if req.Switchback {
 		if prevSession.GetLoginTime().IsZero() {

@@ -989,28 +989,30 @@ func (m *RequestValidator) Validate(ctx context.Context, clock clockwork.Clock, 
 			req.SetSuggestedReviewers(apiutils.Deduplicate(m.SuggestedReviewers))
 		}
 
-		now := clock.Now().UTC()
-
-		// Calculate expiration of the Access Request.
-		//
-		// This is how long the Access Request will hang around for approval. In
-		// other words, the TTL on the types.AccessRequest resource itself.
-		ttl, err := resourceTTL(ctx, clock, identity.Expires, m.getter, req)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		req.SetExpiry(now.Add(ttl))
-
-		// Calculate the expiry time of the Access Request.
-		//
-		// This is the expiration time of the elevated certificate that will
-		// be issued if the Access Request is approved.
-		ttl, err = elevatedTTL(ctx, clock, identity.Expires, m.getter, req)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		req.SetAccessExpiry(now.Add(ttl))
 	}
+
+	now := clock.Now().UTC()
+
+	// Calculate expiration of the Access Request.
+	//
+	// This is how long the Access Request will hang around for approval. In
+	// other words, the TTL on the types.AccessRequest resource itself.
+	ttl, err := resourceTTL(ctx, clock, identity.Expires, m.getter, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	req.SetExpiry(now.Add(ttl))
+
+	// Calculate the expiry time of the Access Request.
+	//
+	// This is the expiration time of the elevated certificate that will
+	// be issued if the Access Request is approved.
+	ttl, err = elevatedTTL(ctx, clock, identity.Expires, m.getter, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("--> elevatedTTL: %v\n", ttl)
+	req.SetAccessExpiry(now.Add(ttl))
 
 	return nil
 }

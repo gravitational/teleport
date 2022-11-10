@@ -1376,6 +1376,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	roleReq, err := services.NewAccessRequest(username, requestableRoleName)
 	require.NoError(t, err)
 	roleReq.SetState(types.RequestState_APPROVED)
+	roleReq.SetAccessExpiry(tt.clock.Now().Add(8 * time.Hour))
 	err = clt.CreateAccessRequest(ctx, roleReq)
 	require.NoError(t, err)
 
@@ -1420,8 +1421,10 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 				PrevSessionID:   sess.GetName(),
 				AccessRequestID: request.GetMetadata().Name,
 			})
+			fmt.Printf("--> here 1: %v\n", err)
 			require.NoError(t, err)
 			newClt, err := tt.server.NewClientFromWebSession(newSess)
+			fmt.Printf("--> here 2: %v\n", err)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, newClt.Close()) })
 			return newClt, newSess
@@ -1519,6 +1522,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
+			fmt.Printf("--> START\n")
 			clt, sess := baseWebClient, baseWebSession
 			for _, extendSession := range tc.steps {
 				clt, sess = extendSession(t, clt, sess)
