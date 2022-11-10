@@ -6,7 +6,7 @@ on:
 jobs:
   build:
     name: Build Teleport Connect
-    
+
     runs-on: windows-2022
 
     steps:
@@ -15,11 +15,6 @@ jobs:
         with:
           path: teleport
           fetch-depth: 0
-
-      - name: Extract Teleport Version
-        id: version
-        working-directory: teleport
-        run: echo TELEPORT_VERSION=12.0.0 >> $GITHUB_ENV
 
       - name: Checkout Submodules
         uses: actions/checkout@v3
