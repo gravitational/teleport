@@ -21,14 +21,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
-
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 type mockGatewayCreator struct {
@@ -252,4 +254,59 @@ func TestGatewayCRUD(t *testing.T) {
 			}, daemon)
 		})
 	}
+}
+
+func TestUpdateTshdEventsServerAddress(t *testing.T) {
+	homeDir := t.TempDir()
+
+	storage, err := clusters.NewStorage(clusters.Config{
+		Dir:                homeDir,
+		InsecureSkipVerify: true,
+	})
+	require.NoError(t, err)
+
+	createTshdEventsClientCredsFuncCallCount := 0
+	createTshdEventsClientCredsFunc := func() (grpc.DialOption, error) {
+		createTshdEventsClientCredsFuncCallCount++
+		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+	}
+
+	daemon, err := New(Config{
+		Storage:                         storage,
+		CreateTshdEventsClientCredsFunc: createTshdEventsClientCredsFunc,
+	})
+	require.NoError(t, err)
+
+	ls, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { ls.Close() })
+
+	err = daemon.UpdateAndDialTshdEventsServerAddress(ls.Addr().String())
+	require.NoError(t, err)
+	require.NotNil(t, daemon.tshdEventsClient)
+	require.Equal(t, 1, createTshdEventsClientCredsFuncCallCount,
+		"Expected createTshdEventsClientCredsFunc to be called exactly once")
+}
+
+func TestUpdateTshdEventsServerAddress_CredsErr(t *testing.T) {
+	homeDir := t.TempDir()
+
+	storage, err := clusters.NewStorage(clusters.Config{
+		Dir:                homeDir,
+		InsecureSkipVerify: true,
+	})
+	require.NoError(t, err)
+
+	createTshdEventsClientCredsFunc := func() (grpc.DialOption, error) {
+		return nil, trace.Errorf("Error while creating creds")
+	}
+
+	daemon, err := New(Config{
+		Storage:                         storage,
+		CreateTshdEventsClientCredsFunc: createTshdEventsClientCredsFunc,
+	})
+	require.NoError(t, err)
+
+	err = daemon.UpdateAndDialTshdEventsServerAddress("foo")
+	require.ErrorContains(t, err, "Error while creating creds")
 }
