@@ -16,6 +16,7 @@ package daemon
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -85,6 +86,13 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 	return gateway, nil
 }
 
+type mockCLICommandProvider struct{}
+
+func (m mockCLICommandProvider) GetCommand(gateway *gateway.Gateway) (string, error) {
+	command := fmt.Sprintf("%s/%s", gateway.TargetName(), gateway.TargetSubresourceName())
+	return command, nil
+}
+
 type gatewayCRUDTestContext struct {
 	nameToGateway        map[string]*gateway.Gateway
 	mockGatewayCreator   *mockGatewayCreator
@@ -115,16 +123,17 @@ func TestGatewayCRUD(t *testing.T) {
 			name:                 "ListGateways",
 			gatewayNamesToCreate: []string{"gateway1", "gateway2"},
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
-				gateways := daemon.ListGateways()
-				gatewayURIs := map[uri.ResourceURI]struct{}{}
+				protoGateways, err := daemon.ListGateways()
+				require.NoError(t, err)
+				gatewayURIs := map[string]struct{}{}
 
-				for _, gateway := range gateways {
-					gatewayURIs[gateway.URI()] = struct{}{}
+				for _, protoGateway := range protoGateways {
+					gatewayURIs[protoGateway.Uri] = struct{}{}
 				}
 
-				require.Equal(t, 2, len(gateways))
-				require.Contains(t, gatewayURIs, c.nameToGateway["gateway1"].URI())
-				require.Contains(t, gatewayURIs, c.nameToGateway["gateway2"].URI())
+				require.Equal(t, 2, len(protoGateways))
+				require.Contains(t, gatewayURIs, c.nameToGateway["gateway1"].URI().String())
+				require.Contains(t, gatewayURIs, c.nameToGateway["gateway2"].URI().String())
 			},
 		},
 		{
@@ -170,9 +179,9 @@ func TestGatewayCRUD(t *testing.T) {
 
 				require.Equal(t, 0, oldListener.CloseCallCount)
 
-				updatedGateway, err := daemon.SetGatewayLocalPort(oldGateway.URI().String(), "12345")
+				updatedProtoGateway, err := daemon.SetGatewayLocalPort(oldGateway.URI().String(), "12345")
 				require.NoError(t, err)
-				require.Equal(t, "12345", updatedGateway.LocalPort())
+				require.Equal(t, "12345", updatedProtoGateway.LocalPort)
 				updatedGatewayAddress := c.mockTCPPortAllocator.RecentListener().RealAddr().String()
 
 				// Check if the restarted gateway is still available under the same URI.
@@ -241,9 +250,10 @@ func TestGatewayCRUD(t *testing.T) {
 			require.NoError(t, err)
 
 			daemon, err := New(Config{
-				Storage:          storage,
-				GatewayCreator:   mockGatewayCreator,
-				TCPPortAllocator: tt.tcpPortAllocator,
+				Storage:            storage,
+				GatewayCreator:     mockGatewayCreator,
+				TCPPortAllocator:   tt.tcpPortAllocator,
+				CLICommandProvider: &mockCLICommandProvider{},
 			})
 			require.NoError(t, err)
 
@@ -251,12 +261,14 @@ func TestGatewayCRUD(t *testing.T) {
 
 			for _, gatewayName := range tt.gatewayNamesToCreate {
 				gatewayName := gatewayName
-				gateway, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
+				protoGateway, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
 					TargetURI:             uri.NewClusterURI("foo").AppendDB(gatewayName).String(),
 					TargetUser:            "alice",
 					TargetSubresourceName: "",
 					LocalPort:             "",
 				})
+				require.NoError(t, err)
+				gateway, err := daemon.findGateway(protoGateway.Uri)
 				require.NoError(t, err)
 
 				nameToGateway[gatewayName] = gateway

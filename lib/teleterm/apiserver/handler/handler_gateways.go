@@ -21,7 +21,6 @@ import (
 
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
-	"github.com/gravitational/teleport/lib/teleterm/gateway"
 )
 
 // CreateGateway creates a gateway
@@ -38,30 +37,18 @@ func (s *Handler) CreateGateway(ctx context.Context, req *api.CreateGatewayReque
 		return nil, trace.Wrap(err)
 	}
 
-	apiGateway, err := newAPIGateway(*gateway)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return apiGateway, nil
+	return gateway, nil
 }
 
 // ListGateways lists all gateways
 func (s *Handler) ListGateways(ctx context.Context, req *api.ListGatewaysRequest) (*api.ListGatewaysResponse, error) {
-	gws := s.DaemonService.ListGateways()
-
-	apiGws := make([]*api.Gateway, 0, len(gws))
-	for _, gw := range gws {
-		apiGateway, err := newAPIGateway(gw)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		apiGws = append(apiGws, apiGateway)
+	gateways, err := s.DaemonService.ListGateways()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &api.ListGatewaysResponse{
-		Gateways: apiGws,
+		Gateways: gateways,
 	}, nil
 }
 
@@ -72,25 +59,6 @@ func (s *Handler) RemoveGateway(ctx context.Context, req *api.RemoveGatewayReque
 	}
 
 	return &api.EmptyResponse{}, nil
-}
-
-func newAPIGateway(gateway gateway.Gateway) (*api.Gateway, error) {
-	command, err := gateway.CLICommand()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &api.Gateway{
-		Uri:                   gateway.URI().String(),
-		TargetUri:             gateway.TargetURI(),
-		TargetName:            gateway.TargetName(),
-		TargetUser:            gateway.TargetUser(),
-		TargetSubresourceName: gateway.TargetSubresourceName(),
-		Protocol:              gateway.Protocol(),
-		LocalAddress:          gateway.LocalAddress(),
-		LocalPort:             gateway.LocalPort(),
-		CliCommand:            command,
-	}, nil
 }
 
 // RestartGateway stops a gateway and starts a new with identical parameters but fresh certs,
@@ -113,12 +81,7 @@ func (s *Handler) SetGatewayTargetSubresourceName(ctx context.Context, req *api.
 		return nil, trace.Wrap(err)
 	}
 
-	apiGateway, err := newAPIGateway(*gateway)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return apiGateway, nil
+	return gateway, nil
 }
 
 // SetGatewayLocalPort restarts the gateway under the new port without fetching new certs.
@@ -128,10 +91,5 @@ func (s *Handler) SetGatewayLocalPort(ctx context.Context, req *api.SetGatewayLo
 		return nil, trace.Wrap(err)
 	}
 
-	apiGateway, err := newAPIGateway(*gateway)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return apiGateway, nil
+	return gateway, nil
 }

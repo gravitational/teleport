@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -144,6 +145,26 @@ func NewWithLocalPort(gateway *Gateway, port string) (*Gateway, error) {
 
 	newGateway, err := New(cfg)
 	return newGateway, trace.Wrap(err)
+}
+
+// ToProto converts the gateway to its protobuf form.
+func (g *Gateway) ToProto() (*api.Gateway, error) {
+	command, err := g.CLICommand()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &api.Gateway{
+		Uri:                   g.URI().String(),
+		TargetUri:             g.TargetURI(),
+		TargetName:            g.TargetName(),
+		TargetUser:            g.TargetUser(),
+		TargetSubresourceName: g.TargetSubresourceName(),
+		Protocol:              g.Protocol(),
+		LocalAddress:          g.LocalAddress(),
+		LocalPort:             g.LocalPort(),
+		CliCommand:            command,
+	}, nil
 }
 
 // Close terminates gateway connection. Fails if called on an already closed gateway.

@@ -147,7 +147,7 @@ func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
 }
 
 // CreateGateway creates a gateway to given targetURI
-func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
+func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams) (*api.Gateway, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -156,7 +156,8 @@ func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		return nil, trace.Wrap(err)
 	}
 
-	return gateway, nil
+	protoGateway, err := gateway.ToProto()
+	return protoGateway, trace.Wrap(err)
 }
 
 type GatewayCreator interface {
@@ -265,21 +266,25 @@ func (s *Service) findGateway(gatewayURI string) (*gateway.Gateway, error) {
 }
 
 // ListGateways lists gateways
-func (s *Service) ListGateways() []gateway.Gateway {
+func (s *Service) ListGateways() ([]*api.Gateway, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	gws := make([]gateway.Gateway, 0, len(s.gateways))
+	gws := make([]*api.Gateway, 0, len(s.gateways))
 	for _, gateway := range s.gateways {
-		gws = append(gws, *gateway)
+		protoGateway, err := gateway.ToProto()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		gws = append(gws, protoGateway)
 	}
 
-	return gws
+	return gws, nil
 }
 
 // SetGatewayTargetSubresourceName updates the TargetSubresourceName field of a gateway stored in
 // s.gateways.
-func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceName string) (*gateway.Gateway, error) {
+func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceName string) (*api.Gateway, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -290,7 +295,8 @@ func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceN
 
 	gateway.SetTargetSubresourceName(targetSubresourceName)
 
-	return gateway, nil
+	protoGateway, err := gateway.ToProto()
+	return protoGateway, trace.Wrap(err)
 }
 
 // SetGatewayLocalPort creates a new gateway with the given port, swaps it with the old gateway
@@ -302,7 +308,7 @@ func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceN
 // correct that mistake and choose a different port.
 //
 // SetGatewayLocalPort is a noop if port is equal to the existing port.
-func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Gateway, error) {
+func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*api.Gateway, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -312,7 +318,8 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Ga
 	}
 
 	if localPort == oldGateway.LocalPort() {
-		return oldGateway, nil
+		protoOldGateway, err := oldGateway.ToProto()
+		return protoOldGateway, trace.Wrap(err)
 	}
 
 	newGateway, err := gateway.NewWithLocalPort(oldGateway, localPort)
@@ -343,7 +350,8 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Ga
 		}
 	}()
 
-	return newGateway, nil
+	protoNewGateway, err := newGateway.ToProto()
+	return protoNewGateway, trace.Wrap(err)
 }
 
 // GetAllServers returns a full list of nodes without pagination or sorting.
@@ -586,7 +594,8 @@ func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferReq
 // Service is the daemon service
 type Service struct {
 	cfg *Config
-	mu  sync.RWMutex
+	// mu guards gateways.
+	mu sync.RWMutex
 	// closeContext is canceled when Service is getting stopped. It is used as a context for the calls
 	// to the tshd events gRPC client.
 	closeContext context.Context
