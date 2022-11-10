@@ -20,9 +20,9 @@ import (
 	"context"
 	"testing"
 
+	containerpb "cloud.google.com/go/container/apiv1/containerpb"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	containerpb "google.golang.org/genproto/googleapis/container/v1"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/gcp"

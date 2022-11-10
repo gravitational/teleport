@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package gcp
 
 import (
@@ -24,10 +25,10 @@ import (
 	"testing"
 	"time"
 
+	containerpb "cloud.google.com/go/container/apiv1/containerpb"
 	gax "github.com/googleapis/gax-go/v2"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
-	containerpb "google.golang.org/genproto/googleapis/container/v1"
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport/api/types"

@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package gcp
 
 import (
@@ -22,11 +23,11 @@ import (
 	"time"
 
 	container "cloud.google.com/go/container/apiv1"
+	containerpb "cloud.google.com/go/container/apiv1/containerpb"
 	gax "github.com/googleapis/gax-go/v2"
 	"github.com/gravitational/trace"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	containerpb "google.golang.org/genproto/googleapis/container/v1"
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport/api/types"
@@ -173,15 +174,13 @@ func (g *gkeClient) ListClusters(ctx context.Context, projectID string, location
 		return nil, trace.BadParameter("projectID must be set")
 	}
 	if len(location) == 0 {
-		return nil, trace.BadParameter("zone must be set")
+		return nil, trace.BadParameter("location must be set")
 	}
-
-	location = convertLocationToGCP(location)
 
 	res, err := g.GKEClientConfig.ClusterClient.ListClusters(
 		ctx,
 		&containerpb.ListClustersRequest{
-			Parent: fmt.Sprintf("projects/%s/locations/%s", projectID, location),
+			Parent: fmt.Sprintf("projects/%s/locations/%s", projectID, convertLocationToGCP(location)),
 		},
 	)
 	if err != nil {

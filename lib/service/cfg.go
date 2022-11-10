@@ -1333,6 +1333,12 @@ type DiscoveryConfig struct {
 	GCPMatchers []services.GCPMatcher
 }
 
+// IsEmpty validates if the Discovery Service config has no cloud matchers.
+func (d DiscoveryConfig) IsEmpty() bool {
+	return len(d.AWSMatchers) == 0 &&
+		len(d.AzureMatchers) == 0 && len(d.GCPMatchers) == 0
+}
+
 // ParseHeader parses the provided string as a http header.
 func ParseHeader(header string) (*Header, error) {
 	parts := strings.SplitN(header, ":", 2)

@@ -19,9 +19,9 @@ package fetchers
 import (
 	"context"
 
+	containerpb "cloud.google.com/go/container/apiv1/containerpb"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	containerpb "google.golang.org/genproto/googleapis/container/v1"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
@@ -142,7 +142,6 @@ func (a *gkeFetcher) getMatchingKubeCluster(gkeCluster gcp.GKECluster) (types.Ku
 
 	switch st := gkeCluster.Status; st {
 	case containerpb.Cluster_RUNNING, containerpb.Cluster_RECONCILING, containerpb.Cluster_DEGRADED:
-		a.Log.WithField("cluster_name", gkeCluster.Name).Debugf("GKE cluster status is valid: %s", st)
 	default:
 		return nil, trace.CompareFailed("GKE cluster %q not enrolled due to its current status: %s", gkeCluster.Name, st)
 	}

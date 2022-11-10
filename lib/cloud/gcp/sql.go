@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package gcp
 
 import (
@@ -82,7 +83,6 @@ func (g *gcpSQLAdminClient) GetDatabaseInstance(ctx context.Context, db types.Da
 		return nil, trace.Wrap(err)
 	}
 	return dbi, nil
-
 }
 
 // GenerateEphemeralCert returns a new client certificate with RSA key created
