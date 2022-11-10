@@ -650,12 +650,16 @@ func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error
 			// invalidating the current Admin identity.
 			newKeys = additionalKeys.Clone()
 		}
-		if !a.keyStore.HasLocalAdditionalKeys(ca) {
-			// This auth server has no local AdditionalTrustedKeys in this CA.
+		hasUsableAdditionalKeys, err := a.keyStore.HasUsableAdditionalKeys(ca)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !hasUsableAdditionalKeys {
+			// This auth server has no usable AdditionalTrustedKeys in this CA.
 			// This is one of 2 cases:
 			// 1. There are no AdditionalTrustedKeys at all.
 			// 2. There are AdditionalTrustedKeys which were added by a
-			//    different auth server.
+			//    different HSM-enabled auth server.
 			// In either case, we need to add newly generated local keys.
 			newLocalKeys, err := newKeySet(a.keyStore, ca.GetID())
 			if err != nil {

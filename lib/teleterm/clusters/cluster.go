@@ -19,17 +19,17 @@ package clusters
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/teleterm/api/uri"
-
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
 // Cluster describes user settings and access to various resources.
@@ -50,11 +50,36 @@ type Cluster struct {
 	clusterClient *client.TeleportClient
 	// clock is a clock for time-related operations
 	clock clockwork.Clock
+	// Auth server features
+	// only present where the auth client can be queried
+	// and set with GetClusterFeatures
+	Features *proto.Features
 }
 
 // Connected indicates if connection to the cluster can be established
 func (c *Cluster) Connected() bool {
 	return c.status.Name != "" && !c.status.IsExpired(c.clock)
+}
+
+// GetClusterFeatures returns a list of features enabled/disabled by the auth server
+func (c *Cluster) GetClusterFeatures(ctx context.Context) (*proto.Features, error) {
+	var authPingResponse proto.PingResponse
+
+	err := addMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authPingResponse, err = proxyClient.CurrentCluster().Ping(ctx)
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return authPingResponse.ServerFeatures, nil
 }
 
 // GetRoles returns currently logged-in user roles

@@ -18,13 +18,14 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-
-	"github.com/gravitational/trace"
 )
 
 // New creates an instance of Daemon service
@@ -33,9 +34,13 @@ func New(cfg Config) (*Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	closeContext, cancel := context.WithCancel(context.Background())
+
 	return &Service{
-		cfg:      &cfg,
-		gateways: make(map[string]*gateway.Gateway),
+		cfg:          &cfg,
+		closeContext: closeContext,
+		cancel:       cancel,
+		gateways:     make(map[string]*gateway.Gateway),
 	}, nil
 }
 
@@ -99,12 +104,31 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 	return nil
 }
 
-// ResolveCluster resolves a cluster by URI
+// ResolveCluster resolves a cluster by URI and returns
+// information stored in the profile along with a TeleportClient.
+// It will not include detailed information returned from the web/auth servers
 func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
 	cluster, err := s.cfg.Storage.GetByResourceURI(uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	return cluster, nil
+}
+
+// GetCluster returns cluster information
+func (s *Service) GetCluster(ctx context.Context, uri string) (*clusters.Cluster, error) {
+	cluster, err := s.ResolveCluster(uri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	features, err := cluster.GetClusterFeatures(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cluster.Features = features
 
 	return cluster, nil
 }
@@ -514,9 +538,42 @@ func (s *Service) Stop() {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	s.cfg.Log.Info("Stopping")
+
 	for _, gateway := range s.gateways {
 		gateway.Close()
 	}
+
+	// s.closeContext is used for the tshd events client which might make requests as long as any of
+	// the resources managed by daemon.Service are up and running. So let's cancel the context only
+	// after closing those resources.
+	s.cancel()
+}
+
+// UpdateAndDialTshdEventsServerAddress allows the Electron app to provide the tshd events server
+// address.
+//
+// The startup of the app is orchestrated so that this method is called before any other method on
+// daemon.Service. This way all the other code in daemon.Service can assume that the tshd events
+// client is available right from the beginning, without the need for nil checks.
+func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	withCreds, err := s.cfg.CreateTshdEventsClientCredsFunc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	conn, err := grpc.Dial(serverAddress, withCreds)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	client := api.NewTshdEventsServiceClient(conn)
+	s.tshdEventsClient = client
+
+	return nil
 }
 
 func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress clusters.FileTransferProgressSender) error {
@@ -532,9 +589,18 @@ func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferReq
 type Service struct {
 	cfg *Config
 	mu  sync.RWMutex
+	// closeContext is canceled when Service is getting stopped. It is used as a context for the calls
+	// to the tshd events gRPC client.
+	closeContext context.Context
+	cancel       context.CancelFunc
 	// gateways holds the long-running gateways for resources on different clusters. So far it's been
 	// used mostly for database gateways but it has potential to be used for app access as well.
 	gateways map[string]*gateway.Gateway
+	// tshdEventsClient is created after UpdateAndDialTshdEventsServerAddress gets called. The startup
+	// of the whole app is orchestrated in a way which ensures that is the first Service method that
+	// gets called. This lets other methods in Service assume that tshdEventsClient is available from
+	// the start, without having to perform nil checks.
+	tshdEventsClient api.TshdEventsServiceClient
 }
 
 type CreateGatewayParams struct {

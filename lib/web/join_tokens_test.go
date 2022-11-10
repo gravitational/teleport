@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -30,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/trace"
 )
 
 func TestCreateNodeJoinToken(t *testing.T) {
@@ -575,6 +575,124 @@ func TestGetAppJoinScript(t *testing.T) {
 				for _, output := range tc.outputs {
 					require.Contains(t, script, output)
 				}
+			}
+		})
+	}
+}
+
+func TestGetDatabaseJoinScript(t *testing.T) {
+	validToken := "f18da1c9f6630a51e8daf121e7451daa"
+	emptySuggestedAgentMatcherLabelsToken := "f18da1c9f6630a51e8daf121e7451000"
+	internalResourceID := "967d38ff-7a61-4f42-bd2d-c61965b44db0"
+
+	m := &mockedNodeAPIGetter{
+		mockGetProxyServers: func() ([]types.Server, error) {
+			var s types.ServerV2
+			s.SetPublicAddr("test-host:12345678")
+
+			return []types.Server{&s}, nil
+		},
+		mockGetClusterCACert: func(context.Context) (*proto.GetClusterCACertResponse, error) {
+			fakeBytes := []byte(fixtures.SigningCertPEM)
+			return &proto.GetClusterCACertResponse{TLSCA: fakeBytes}, nil
+		},
+		mockGetToken: func(_ context.Context, token string) (types.ProvisionToken, error) {
+			provisionToken := &types.ProvisionTokenV2{
+				Metadata: types.Metadata{
+					Name: token,
+				},
+				Spec: types.ProvisionTokenSpecV2{
+					SuggestedLabels: types.Labels{
+						types.InternalResourceIDLabel: utils.Strings{internalResourceID},
+					},
+					SuggestedAgentMatcherLabels: types.Labels{
+						"env":     utils.Strings{"prod"},
+						"product": utils.Strings{"*"},
+					},
+				},
+			}
+			if token == validToken {
+				return provisionToken, nil
+			}
+			if token == emptySuggestedAgentMatcherLabelsToken {
+				provisionToken.Spec.SuggestedAgentMatcherLabels = types.Labels{}
+				return provisionToken, nil
+			}
+			return nil, trace.NotFound("token does not exist")
+		},
+	}
+
+	for _, test := range []struct {
+		desc            string
+		settings        scriptSettings
+		errAssert       require.ErrorAssertionFunc
+		extraAssertions func(script string)
+	}{
+		{
+			desc: "two installation methods",
+			settings: scriptSettings{
+				token:               validToken,
+				databaseInstallMode: true,
+				appInstallMode:      true,
+			},
+			errAssert: require.Error,
+		},
+		{
+			desc: "valid",
+			settings: scriptSettings{
+				databaseInstallMode: true,
+				token:               validToken,
+			},
+			errAssert: require.NoError,
+			extraAssertions: func(script string) {
+				require.Contains(t, script, validToken)
+				require.Contains(t, script, "test-host")
+				require.Contains(t, script, "sha256:")
+				require.Contains(t, script, "--labels ")
+				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
+				require.Contains(t, script, `
+db_service:
+  enabled: "yes"
+  resources:
+    - labels:
+        env: prod
+        product: '*'
+`)
+			},
+		},
+		{
+			desc: "empty syggestedAgentMatcherLabels",
+			settings: scriptSettings{
+				databaseInstallMode: true,
+				token:               emptySuggestedAgentMatcherLabelsToken,
+			},
+			errAssert: require.NoError,
+			extraAssertions: func(script string) {
+				require.Contains(t, script, emptySuggestedAgentMatcherLabelsToken)
+				require.Contains(t, script, "test-host")
+				require.Contains(t, script, "sha256:")
+				require.Contains(t, script, "--labels ")
+				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
+				require.Contains(t, script, `
+db_service:
+  enabled: "yes"
+  resources:
+    - labels:
+        {}
+`)
+			},
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			script, err := getJoinScript(context.Background(), test.settings, m)
+			test.errAssert(t, err)
+			if err != nil {
+				require.Empty(t, script)
+			}
+
+			if test.extraAssertions != nil {
+				t.Log(script)
+				test.extraAssertions(script)
 			}
 		})
 	}
