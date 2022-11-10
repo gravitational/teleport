@@ -3969,25 +3969,40 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 
 func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing.T) {
 	tt := []struct {
-		name                string
-		cloud               bool
-		numberOfUsers       int
-		resultConnectorName string
+		name                 string
+		cloud                bool
+		numberOfUsers        int
+		authPreferenceType   string
+		initialConnectorName string
+		resultConnectorName  string
 	}{{
-		name:                "first cloud sign-in changes connector to `passwordless`",
-		cloud:               true,
-		numberOfUsers:       1,
-		resultConnectorName: constants.PasswordlessConnector,
+		name:                 "first cloud sign-in changes connector to `passwordless`",
+		cloud:                true,
+		numberOfUsers:        1,
+		authPreferenceType:   constants.Local,
+		initialConnectorName: "",
+		resultConnectorName:  constants.PasswordlessConnector,
 	}, {
-		name:                "first non-cloud sign-in doesn't change the connector",
-		cloud:               false,
-		numberOfUsers:       1,
-		resultConnectorName: "",
+		name:                 "first non-cloud sign-in doesn't change the connector",
+		cloud:                false,
+		numberOfUsers:        1,
+		authPreferenceType:   constants.Local,
+		initialConnectorName: "",
+		resultConnectorName:  "",
 	}, {
-		name:                "second cloud sign-in doesn't change the connector",
-		cloud:               true,
-		numberOfUsers:       2,
-		resultConnectorName: "",
+		name:                 "second cloud sign-in doesn't change the connector",
+		cloud:                true,
+		numberOfUsers:        2,
+		authPreferenceType:   constants.Local,
+		initialConnectorName: "",
+		resultConnectorName:  "",
+	}, {
+		name:                 "first cloud sign-in does not change custom connector",
+		cloud:                true,
+		numberOfUsers:        2,
+		authPreferenceType:   constants.OIDC,
+		initialConnectorName: "custom",
+		resultConnectorName:  "custom",
 	}}
 
 	for _, tc := range tt {
@@ -4004,8 +4019,9 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 
 		err := s.server.Auth().SetAuthPreference(s.ctx, &types.AuthPreferenceV2{
 			Spec: types.AuthPreferenceSpecV2{
-				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOn,
+				Type:          tc.authPreferenceType,
+				ConnectorName: tc.initialConnectorName,
+				SecondFactor:  constants.SecondFactorOn,
 				Webauthn: &types.Webauthn{
 					RPID: RPID,
 				},
