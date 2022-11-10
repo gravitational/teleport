@@ -32,6 +32,7 @@ import (
 type SAMLConnector interface {
 	// ResourceWithSecrets provides common methods for objects
 	ResourceWithSecrets
+	ResourceWithOrigin
 	// GetDisplay returns display - friendly name for this provider.
 	GetDisplay() string
 	// SetDisplay sets friendly name for this provider.
@@ -235,6 +236,16 @@ func (o *SAMLConnectorV2) SetDisplay(display string) {
 // GetMetadata returns object metadata
 func (o *SAMLConnectorV2) GetMetadata() Metadata {
 	return o.Metadata
+}
+
+// Origin returns the origin value of the resource.
+func (o *SAMLConnectorV2) Origin() string {
+	return o.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (o *SAMLConnectorV2) SetOrigin(origin string) {
+	o.Metadata.SetOrigin(origin)
 }
 
 // SetExpiry sets expiry time for the object
