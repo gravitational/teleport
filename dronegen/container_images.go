@@ -72,12 +72,13 @@ type ImageTag struct {
 	IsImmutable      bool
 }
 
-func NewLatestTag() *ImageTag {
-	return &ImageTag{
-		ShellBaseValue:   "latest",
-		DisplayBaseValue: "latest",
-	}
-}
+// Commented out for linter, but left incase needed in the future
+// func NewLatestTag() *ImageTag {
+// 	return &ImageTag{
+// 		ShellBaseValue:   "latest",
+// 		DisplayBaseValue: "latest",
+// 	}
+// }
 
 func (it *ImageTag) AppendString(s string) {
 	it.ShellBaseValue += fmt.Sprintf("-%s", s)
