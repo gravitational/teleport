@@ -748,7 +748,7 @@ func Test_chooseProxyCommandTemplate(t *testing.T) {
 			wantTemplateArgs: map[string]any{"command": "echo \"hello world\""},
 			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
 
-Use the following command to connect to the database:
+Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
   $ echo "hello world"
 `,
 		},
@@ -773,7 +773,7 @@ Use the following command to connect to the database:
 			},
 			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
 
-Use one of the following commands to connect to the database:
+Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 
   * default: 
 
@@ -799,7 +799,7 @@ Use one of the following commands to connect to the database:
 			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
 To avoid port randomization, you can choose the listening port using the --port flag.
 
-Use the following command to connect to the database:
+Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
   $ echo "hello world"
 `,
 		},
@@ -826,7 +826,7 @@ Use the following command to connect to the database:
 			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
 To avoid port randomization, you can choose the listening port using the --port flag.
 
-Use one of the following commands to connect to the database:
+Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 
   * default: 
 
