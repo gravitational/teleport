@@ -99,7 +99,7 @@ func (c *sharedDirectoryAuditCache) getInitialized(sid sessionID) (entry *shared
 }
 
 // SetName returns a non-nil error if the audit cache entry for sid exceeds its maximum size.
-// It is the responsiblity of the caller to terminate the session if a non-nil error is returned.
+// It is the responsibility of the caller to terminate the session if a non-nil error is returned.
 func (c *sharedDirectoryAuditCache) SetName(sid sessionID, did directoryID, name directoryName) error {
 	c.Lock()
 	defer c.Unlock()
@@ -115,7 +115,7 @@ func (c *sharedDirectoryAuditCache) SetName(sid sessionID, did directoryID, name
 }
 
 // SetReadRequestInfo returns a non-nil error if the audit cache entry for sid exceeds its maximum size.
-// It is the responsiblity of the caller to terminate the session if a non-nil error is returned.
+// It is the responsibility of the caller to terminate the session if a non-nil error is returned.
 func (c *sharedDirectoryAuditCache) SetReadRequestInfo(sid sessionID, cid completionID, info readRequestInfo) error {
 	c.Lock()
 	defer c.Unlock()
@@ -131,7 +131,7 @@ func (c *sharedDirectoryAuditCache) SetReadRequestInfo(sid sessionID, cid comple
 }
 
 // SetWriteRequestInfo returns a non-nil error if the audit cache entry for sid exceeds its maximum size.
-// It is the responsiblity of the caller to terminate the session if a non-nil error is returned.
+// It is the responsibility of the caller to terminate the session if a non-nil error is returned.
 func (c *sharedDirectoryAuditCache) SetWriteRequestInfo(sid sessionID, cid completionID, info writeRequestInfo) error {
 	c.Lock()
 	defer c.Unlock()
