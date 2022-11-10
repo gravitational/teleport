@@ -661,7 +661,6 @@ trigger:
     include:
     - master
     - branch/*
-    - tcsc/branch/v10/*
 workspace:
   path: C:/Drone/Workspace/push-build-native-windows-amd64
 platform:
@@ -8675,6 +8674,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 17a894d045b625065811dc7e18d60c7669327e1029aa624f928bbc3575ac9728
+hmac: 0bb9ce006f6d7a862adef511ece2a312fccca9609f874d79feaac33185355fc7
 
 ...
