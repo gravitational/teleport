@@ -95,8 +95,8 @@ func SetTestTimeouts(svrKeepAliveTTL, keepAliveTick time.Duration) {
 	moduleLock.Lock()
 	defer moduleLock.Unlock()
 
-	serverKeepAliveTTL = svrKeepAliveTTL
-	keepAliveInterval = keepAliveTick
+	serverKeepAliveTTL = time.Duration(float64(svrKeepAliveTTL) * 1.1)
+	keepAliveInterval = time.Duration(float64(keepAliveTick) * 1.3)
 }
 
 func ServerKeepAliveTTL() time.Duration {
