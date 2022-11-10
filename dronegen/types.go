@@ -36,6 +36,7 @@ type pipeline struct {
 	Trigger     trigger          `yaml:"trigger"`
 	Workspace   workspace        `yaml:"workspace,omitempty"`
 	Platform    platform         `yaml:"platform,omitempty"`
+	Nodes       map[string]value `yaml:"nodes,omitempty"`
 	Clone       clone            `yaml:"clone,omitempty"`
 	DependsOn   []string         `yaml:"depends_on,omitempty"`
 	Concurrency concurrency      `yaml:"concurrency,omitempty"`

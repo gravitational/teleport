@@ -676,6 +676,8 @@ workspace:
 platform:
   os: windows
   arch: amd64
+nodes:
+  buildbox_version: teleport11
 clone:
   disable: true
 concurrency:
@@ -945,6 +947,8 @@ workspace:
 platform:
   os: windows
   arch: amd64
+nodes:
+  buildbox_version: teleport11
 clone:
   disable: true
 depends_on:
@@ -18193,6 +18197,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: aa1dd8dd1ad2d28ad9fbf4c096f3e1782d8fceee98f00ecbff53e38f52250973
+hmac: 5cd960df0567481f68f34595742abb6460a914665d896306debea0e183fb5259
 
 ...
