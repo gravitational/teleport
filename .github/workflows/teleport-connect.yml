@@ -22,7 +22,7 @@ jobs:
       - name: Checkout Submodules
         uses: actions/checkout@v3
         with:
-          repository: https://github.com/gravitational/webapps.git
+          repository: gravitational/webapps
           path: webapps
 
       - name: Install Go
