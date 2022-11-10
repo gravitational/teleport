@@ -106,7 +106,7 @@ func (c *Conn) WriteMessage(m Message) error {
 	return trace.Wrap(err)
 }
 
-// SendError is a convenience function for sending a Notification message.
+// SendNotification is a convenience function for sending a Notification message.
 func (c *Conn) SendNotification(message string, severity Severity) error {
 	return c.WriteMessage(Notification{Message: message, Severity: severity})
 }

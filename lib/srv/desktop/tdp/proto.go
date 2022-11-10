@@ -452,18 +452,6 @@ type Error struct {
 	Message string
 }
 
-type Severity byte
-
-const (
-	SeverityError   Severity = 0
-	SeverityWarning Severity = 1
-)
-
-type Notification struct {
-	Message  string
-	Severity Severity
-}
-
 // tdpMaxErrorMessageLength is somewhat arbitrary, as it is only sent *to*
 // the browser (Teleport never receives this message, so won't be decoding it)
 const tdpMaxErrorMessageLength = 10240
@@ -483,6 +471,19 @@ func decodeError(in io.Reader) (Error, error) {
 		return Error{}, trace.Wrap(err)
 	}
 	return Error{Message: message}, nil
+}
+
+type Severity byte
+
+const (
+	SeverityInfo    Severity = 0
+	SeverityWarning Severity = 1
+	SeverityError   Severity = 2
+)
+
+type Notification struct {
+	Message  string
+	Severity Severity
 }
 
 func (m Notification) Encode() ([]byte, error) {

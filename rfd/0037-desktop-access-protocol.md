@@ -226,13 +226,16 @@ This message sends a notification message with a severity level. Sent from serve
 `message_length` denotes the length of the `message` byte array. It doesn't include the `severity` byte.
 
 `severity` defines the severity of the `message`:
-- `0` is for an error
+- `0` is for info
 - `1` is for a warning
+- `2` is for an error
 
-An error (`0`) means that some fatal problem was encountered and the TDP connection is ending imminently.
-A notification with `severity == 0` should be preferred to the `error` message above.
+An error (`2`) means that some fatal problem was encountered and the TDP connection is ending imminently.
+A notification with `severity == 2` should be preferred to the `error` message above.
 
 A warning (`1`) means some non-fatal problem was encountered but the TDP connection can still continue.
+
+Info (`0`) can be used to communicate an arbitrary message back to the client without error semantics.
 
 #### 10 - MFA
 
