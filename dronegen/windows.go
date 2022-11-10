@@ -33,6 +33,9 @@ func newWindowsPipeline(name string) pipeline {
 	p.Workspace.Path = path.Join("C:/Drone/Workspace", name)
 	p.Concurrency.Limit = 1
 	p.Platform = platform{OS: "windows", Arch: "amd64"}
+	p.Nodes = map[string]value{
+		"buildbox_version": buildboxVersion,
+	}
 	return p
 }
 
