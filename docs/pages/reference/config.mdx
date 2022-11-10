@@ -735,9 +735,8 @@ proxy_service:
 
     # Get an automatic certificate from Letsencrypt.org using ACME via
     # TLS_ALPN-01 challenge.
-    # When using ACME, the cluster name must match the 'public_addr' of
-    # Teleport and the 'proxy_service' must be publicly accessible over port
-    # 443.
+    # When using ACME, the 'proxy_service' must be publicly accessible over
+    # port 443.
     # Also set using the CLI command:
     # 'teleport configure --acme --acme-email=email@example.com \
     # --cluster-name=tele.example.com -o file'
