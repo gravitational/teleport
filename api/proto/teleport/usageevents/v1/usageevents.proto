@@ -18,14 +18,14 @@ package teleport.usageevents.v1;
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1";
 
-// UsageUpgradeBannerClickEvent is a usage event sent by the UI when the upgrade
+// ExampleEvent is a usage event sent by the UI when the upgrade
 // banner is clicked.
-message UsageUpgradeBannerClickEvent {}
+message ExampleEvent {}
 
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
 message UsageEventOneOf {
   oneof event {
-    UsageUpgradeBannerClickEvent upgrade_banner_click = 1;
+    ExampleEvent example_event = 1;
   }
 }

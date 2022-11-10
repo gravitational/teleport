@@ -22,26 +22,26 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
-// UsageUpgradeBannerClickEvent is a usage event sent by the UI when the upgrade
+// ExampleEvent is a usage event sent by the UI when the upgrade
 // banner is clicked.
-type UsageUpgradeBannerClickEvent struct {
+type ExampleEvent struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *UsageUpgradeBannerClickEvent) Reset()         { *m = UsageUpgradeBannerClickEvent{} }
-func (m *UsageUpgradeBannerClickEvent) String() string { return proto.CompactTextString(m) }
-func (*UsageUpgradeBannerClickEvent) ProtoMessage()    {}
-func (*UsageUpgradeBannerClickEvent) Descriptor() ([]byte, []int) {
+func (m *ExampleEvent) Reset()         { *m = ExampleEvent{} }
+func (m *ExampleEvent) String() string { return proto.CompactTextString(m) }
+func (*ExampleEvent) ProtoMessage()    {}
+func (*ExampleEvent) Descriptor() ([]byte, []int) {
 	return fileDescriptor_94cf2ca1c69fd564, []int{0}
 }
-func (m *UsageUpgradeBannerClickEvent) XXX_Unmarshal(b []byte) error {
+func (m *ExampleEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *UsageUpgradeBannerClickEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *ExampleEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_UsageUpgradeBannerClickEvent.Marshal(b, m, deterministic)
+		return xxx_messageInfo_ExampleEvent.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -51,24 +51,24 @@ func (m *UsageUpgradeBannerClickEvent) XXX_Marshal(b []byte, deterministic bool)
 		return b[:n], nil
 	}
 }
-func (m *UsageUpgradeBannerClickEvent) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UsageUpgradeBannerClickEvent.Merge(m, src)
+func (m *ExampleEvent) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ExampleEvent.Merge(m, src)
 }
-func (m *UsageUpgradeBannerClickEvent) XXX_Size() int {
+func (m *ExampleEvent) XXX_Size() int {
 	return m.Size()
 }
-func (m *UsageUpgradeBannerClickEvent) XXX_DiscardUnknown() {
-	xxx_messageInfo_UsageUpgradeBannerClickEvent.DiscardUnknown(m)
+func (m *ExampleEvent) XXX_DiscardUnknown() {
+	xxx_messageInfo_ExampleEvent.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_UsageUpgradeBannerClickEvent proto.InternalMessageInfo
+var xxx_messageInfo_ExampleEvent proto.InternalMessageInfo
 
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
 type UsageEventOneOf struct {
 	// Types that are valid to be assigned to Event:
 	//
-	//	*UsageEventOneOf_UpgradeBannerClick
+	//	*UsageEventOneOf_ExampleEvent
 	Event                isUsageEventOneOf_Event `protobuf_oneof:"event"`
 	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
 	XXX_unrecognized     []byte                  `json:"-"`
@@ -114,11 +114,11 @@ type isUsageEventOneOf_Event interface {
 	Size() int
 }
 
-type UsageEventOneOf_UpgradeBannerClick struct {
-	UpgradeBannerClick *UsageUpgradeBannerClickEvent `protobuf:"bytes,1,opt,name=upgrade_banner_click,json=upgradeBannerClick,proto3,oneof" json:"upgrade_banner_click,omitempty"`
+type UsageEventOneOf_ExampleEvent struct {
+	ExampleEvent *ExampleEvent `protobuf:"bytes,1,opt,name=example_event,json=exampleEvent,proto3,oneof" json:"example_event,omitempty"`
 }
 
-func (*UsageEventOneOf_UpgradeBannerClick) isUsageEventOneOf_Event() {}
+func (*UsageEventOneOf_ExampleEvent) isUsageEventOneOf_Event() {}
 
 func (m *UsageEventOneOf) GetEvent() isUsageEventOneOf_Event {
 	if m != nil {
@@ -127,9 +127,9 @@ func (m *UsageEventOneOf) GetEvent() isUsageEventOneOf_Event {
 	return nil
 }
 
-func (m *UsageEventOneOf) GetUpgradeBannerClick() *UsageUpgradeBannerClickEvent {
-	if x, ok := m.GetEvent().(*UsageEventOneOf_UpgradeBannerClick); ok {
-		return x.UpgradeBannerClick
+func (m *UsageEventOneOf) GetExampleEvent() *ExampleEvent {
+	if x, ok := m.GetEvent().(*UsageEventOneOf_ExampleEvent); ok {
+		return x.ExampleEvent
 	}
 	return nil
 }
@@ -137,12 +137,12 @@ func (m *UsageEventOneOf) GetUpgradeBannerClick() *UsageUpgradeBannerClickEvent 
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*UsageEventOneOf) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
-		(*UsageEventOneOf_UpgradeBannerClick)(nil),
+		(*UsageEventOneOf_ExampleEvent)(nil),
 	}
 }
 
 func init() {
-	proto.RegisterType((*UsageUpgradeBannerClickEvent)(nil), "teleport.usageevents.v1.UsageUpgradeBannerClickEvent")
+	proto.RegisterType((*ExampleEvent)(nil), "teleport.usageevents.v1.ExampleEvent")
 	proto.RegisterType((*UsageEventOneOf)(nil), "teleport.usageevents.v1.UsageEventOneOf")
 }
 
@@ -151,24 +151,23 @@ func init() {
 }
 
 var fileDescriptor_94cf2ca1c69fd564 = []byte{
-	// 215 bytes of a gzipped FileDescriptorProto
+	// 196 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xd2, 0x2c, 0x49, 0xcd, 0x49,
 	0x2d, 0xc8, 0x2f, 0x2a, 0xd1, 0x2f, 0x2d, 0x4e, 0x4c, 0x4f, 0x4d, 0x2d, 0x4b, 0xcd, 0x2b, 0x29,
 	0xd6, 0x2f, 0x33, 0x44, 0xe6, 0xea, 0x15, 0x14, 0xe5, 0x97, 0xe4, 0x0b, 0x89, 0xc3, 0x94, 0xea,
-	0x21, 0xcb, 0x95, 0x19, 0x2a, 0xc9, 0x71, 0xc9, 0x84, 0x82, 0x44, 0x42, 0x0b, 0xd2, 0x8b, 0x12,
-	0x53, 0x52, 0x9d, 0x12, 0xf3, 0xf2, 0x52, 0x8b, 0x9c, 0x73, 0x32, 0x93, 0xb3, 0x5d, 0x41, 0x6a,
-	0x94, 0x5a, 0x19, 0xb9, 0xf8, 0xc1, 0x0a, 0xc0, 0x5c, 0xff, 0xbc, 0x54, 0xff, 0x34, 0xa1, 0x4c,
-	0x2e, 0x91, 0x52, 0x88, 0xf2, 0xf8, 0x24, 0xb0, 0xfa, 0xf8, 0x64, 0x90, 0x06, 0x09, 0x46, 0x05,
-	0x46, 0x0d, 0x6e, 0x23, 0x53, 0x3d, 0x1c, 0x76, 0xe9, 0xe1, 0xb3, 0xc8, 0x83, 0x21, 0x48, 0xa8,
-	0x14, 0x43, 0xca, 0x89, 0x9d, 0x8b, 0x15, 0xac, 0xdf, 0xc9, 0xff, 0xc4, 0x23, 0x39, 0xc6, 0x0b,
-	0x8f, 0xe4, 0x18, 0x1f, 0x3c, 0x92, 0x63, 0x8c, 0x72, 0x4c, 0xcf, 0x2c, 0xc9, 0x28, 0x4d, 0xd2,
-	0x4b, 0xce, 0xcf, 0xd5, 0x4f, 0x2f, 0x4a, 0x2c, 0xcb, 0x2c, 0x49, 0x2c, 0xc9, 0xcc, 0xcf, 0x4b,
-	0xcc, 0xd1, 0x87, 0x07, 0x49, 0x62, 0x41, 0xa6, 0x7e, 0x7a, 0x6a, 0x9e, 0x3e, 0xd8, 0xff, 0xfa,
-	0xe9, 0xf9, 0x68, 0x61, 0x94, 0xc4, 0x06, 0x96, 0x30, 0x06, 0x04, 0x00, 0x00, 0xff, 0xff, 0x35,
-	0x1d, 0x7e, 0x0a, 0x45, 0x01, 0x00, 0x00,
+	0x21, 0xcb, 0x95, 0x19, 0x2a, 0xf1, 0x71, 0xf1, 0xb8, 0x56, 0x24, 0xe6, 0x16, 0xe4, 0xa4, 0xba,
+	0x82, 0xc4, 0x94, 0x32, 0xb8, 0xf8, 0x43, 0x41, 0x2a, 0xc0, 0x3c, 0xff, 0xbc, 0x54, 0xff, 0x34,
+	0x21, 0x1f, 0x2e, 0xde, 0x54, 0x88, 0x92, 0x78, 0xb0, 0x3e, 0x09, 0x46, 0x05, 0x46, 0x0d, 0x6e,
+	0x23, 0x55, 0x3d, 0x1c, 0x66, 0xea, 0x21, 0x1b, 0xe8, 0xc1, 0x10, 0xc4, 0x93, 0x8a, 0xc4, 0x77,
+	0x62, 0xe7, 0x62, 0x05, 0xab, 0x74, 0xf2, 0x3f, 0xf1, 0x48, 0x8e, 0xf1, 0xc2, 0x23, 0x39, 0xc6,
+	0x07, 0x8f, 0xe4, 0x18, 0xa3, 0x1c, 0xd3, 0x33, 0x4b, 0x32, 0x4a, 0x93, 0xf4, 0x92, 0xf3, 0x73,
+	0xf5, 0xd3, 0x8b, 0x12, 0xcb, 0x32, 0x4b, 0x12, 0x4b, 0x32, 0xf3, 0xf3, 0x12, 0x73, 0xf4, 0xe1,
+	0x9e, 0x4c, 0x2c, 0xc8, 0xd4, 0x4f, 0x4f, 0xcd, 0xd3, 0x07, 0xfb, 0x48, 0x3f, 0x3d, 0x1f, 0xcd,
+	0xd7, 0x49, 0x6c, 0x60, 0x09, 0x63, 0x40, 0x00, 0x00, 0x00, 0xff, 0xff, 0x23, 0xb0, 0xcd, 0xb6,
+	0x17, 0x01, 0x00, 0x00,
 }
 
-func (m *UsageUpgradeBannerClickEvent) Marshal() (dAtA []byte, err error) {
+func (m *ExampleEvent) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -178,12 +177,12 @@ func (m *UsageUpgradeBannerClickEvent) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *UsageUpgradeBannerClickEvent) MarshalTo(dAtA []byte) (int, error) {
+func (m *ExampleEvent) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *UsageUpgradeBannerClickEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *ExampleEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -231,16 +230,16 @@ func (m *UsageEventOneOf) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *UsageEventOneOf_UpgradeBannerClick) MarshalTo(dAtA []byte) (int, error) {
+func (m *UsageEventOneOf_ExampleEvent) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *UsageEventOneOf_UpgradeBannerClick) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *UsageEventOneOf_ExampleEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
-	if m.UpgradeBannerClick != nil {
+	if m.ExampleEvent != nil {
 		{
-			size, err := m.UpgradeBannerClick.MarshalToSizedBuffer(dAtA[:i])
+			size, err := m.ExampleEvent.MarshalToSizedBuffer(dAtA[:i])
 			if err != nil {
 				return 0, err
 			}
@@ -263,7 +262,7 @@ func encodeVarintUsageevents(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return base
 }
-func (m *UsageUpgradeBannerClickEvent) Size() (n int) {
+func (m *ExampleEvent) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -290,14 +289,14 @@ func (m *UsageEventOneOf) Size() (n int) {
 	return n
 }
 
-func (m *UsageEventOneOf_UpgradeBannerClick) Size() (n int) {
+func (m *UsageEventOneOf_ExampleEvent) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
-	if m.UpgradeBannerClick != nil {
-		l = m.UpgradeBannerClick.Size()
+	if m.ExampleEvent != nil {
+		l = m.ExampleEvent.Size()
 		n += 1 + l + sovUsageevents(uint64(l))
 	}
 	return n
@@ -309,7 +308,7 @@ func sovUsageevents(x uint64) (n int) {
 func sozUsageevents(x uint64) (n int) {
 	return sovUsageevents(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func (m *UsageUpgradeBannerClickEvent) Unmarshal(dAtA []byte) error {
+func (m *ExampleEvent) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -332,10 +331,10 @@ func (m *UsageUpgradeBannerClickEvent) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: UsageUpgradeBannerClickEvent: wiretype end group for non-group")
+			return fmt.Errorf("proto: ExampleEvent: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: UsageUpgradeBannerClickEvent: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: ExampleEvent: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		default:
@@ -391,7 +390,7 @@ func (m *UsageEventOneOf) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field UpgradeBannerClick", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field ExampleEvent", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -418,11 +417,11 @@ func (m *UsageEventOneOf) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			v := &UsageUpgradeBannerClickEvent{}
+			v := &ExampleEvent{}
 			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
-			m.Event = &UsageEventOneOf_UpgradeBannerClick{v}
+			m.Event = &UsageEventOneOf_ExampleEvent{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

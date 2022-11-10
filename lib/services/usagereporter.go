@@ -63,17 +63,8 @@ type UsageSessionStart prehogv1.SessionStartEvent
 func (u *UsageSessionStart) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 	return &UsageSessionStart{
 		UserName:    a.Anonymize([]byte(u.UserName)),
-		SessionType: u.SessionType, // TODO: anonymize session type?
-		Interactive: u.Interactive,
+		SessionType: u.SessionType,
 	}
-}
-
-// UsageUpgradeBannerClick is a usage event emitted when a UI upgrade banner has
-// been clicked.
-type UsageUpgradeBannerClick prehogv1.UpgradeBannerClickEvent
-
-func (u *UsageUpgradeBannerClick) Anonymize(a utils.Anonymizer) UsageAnonymizable {
-	return &UsageUpgradeBannerClick{}
 }
 
 // UsageResourceCreate is an event emitted when various resource types have been
@@ -91,8 +82,9 @@ func (u *UsageResourceCreate) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 // API need to be defined here.
 func ConvertUsageEvent(event *usageevents.UsageEventOneOf) (UsageAnonymizable, error) {
 	switch event.GetEvent().(type) {
-	case *usageevents.UsageEventOneOf_UpgradeBannerClick:
-		return &UsageUpgradeBannerClick{}, nil
+	// TODO: No external events defined yet.
+	// case *usageevents.UsageEventOneOf_UpgradeBannerClick:
+	// 	return &UsageUpgradeBannerClick{}, nil
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
 	}

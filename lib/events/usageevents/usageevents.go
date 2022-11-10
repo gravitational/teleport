@@ -71,7 +71,18 @@ func (u *UsageLogger) filterAuditEvent(ctx context.Context, event apievents.Audi
 		return trace.Wrap(u.report(&services.UsageSessionStart{
 			UserName:    e.User,
 			SessionType: string(types.SSHSessionKind),
-			Interactive: true, // TODO: we don't know this in SessionStart
+		}))
+	case *apievents.GithubConnectorCreate:
+		return trace.Wrap(u.report(&services.UsageSSOCreate{
+			ConnectorType: types.KindGithubConnector,
+		}))
+	case *apievents.OIDCConnectorCreate:
+		return trace.Wrap(u.report(&services.UsageSSOCreate{
+			ConnectorType: types.KindOIDCConnector,
+		}))
+	case *apievents.SAMLConnectorCreate:
+		return trace.Wrap(u.report(&services.UsageSSOCreate{
+			ConnectorType: types.KindSAMLConnector,
 		}))
 	}
 

@@ -18,17 +18,20 @@ package local
 
 import (
 	"context"
-	"fmt"
+	"crypto/tls"
+	"crypto/x509"
 	"net/http"
 	"time"
 
 	"github.com/bufbuild/connect-go"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -61,6 +64,43 @@ const (
 	usageReporterMaxBufferSize = 20
 )
 
+var (
+	usageEventsSubmitted = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      teleport.MetricUsageEventsSubmitted,
+		Help:      "a count of usage events that have been generated",
+	})
+
+	usageBatchesTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      teleport.MetricUsageBatches,
+		Help:      "a count of batches enqueued for submission",
+	})
+
+	usageEventsRequeuedTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      teleport.MetricUsageEventsRequeued,
+		Help:      "a count of events that were requeued after a submission failed",
+	})
+
+	usageBatchSubmissionDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      teleport.MetricUsageBatchSubmissionDuration,
+		Help:      "a histogram of durations it took to submit a batch",
+	})
+
+	usageEventsDropped = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      teleport.MetricUsageEventsDropped,
+		Help:      "a count of events dropped due to submission buffer overflow",
+	})
+
+	usagePrometheusCollectors = []prometheus.Collector{
+		usageEventsSubmitted, usageBatchesTotal, usageEventsRequeuedTotal,
+		usageBatchSubmissionDuration, usageEventsDropped,
+	}
+)
+
 // DiscardUsageReporter is a dummy usage reporter that drops all events.
 type DiscardUsageReporter struct{}
 
@@ -75,7 +115,7 @@ func NewDiscardUsageReporter() *DiscardUsageReporter {
 }
 
 // submitFunc is a func that submits a batch of usage events.
-type usageSubmitFunc func(reporter *UsageReporter, batch []*prehogapi.SubmitEventRequest) error
+type UsageSubmitFunc func(reporter *UsageReporter, batch []*prehogapi.SubmitEventRequest) error
 
 type UsageReporter struct {
 	// Entry is a log entry
@@ -100,7 +140,7 @@ type UsageReporter struct {
 	submissionQueue chan []*prehogapi.SubmitEventRequest
 
 	// submit is the func that submits batches of events to a backend
-	submit usageSubmitFunc
+	submit UsageSubmitFunc
 
 	// clusterName is the cluster's name, used for anonymization and as an event
 	// field.
@@ -124,12 +164,16 @@ func (r *UsageReporter) runSubmit() {
 		case <-r.ctx.Done():
 			return
 		case batch := <-r.submissionQueue:
+			t0 := time.Now()
+
 			if err := r.submit(r, batch); err != nil {
 				r.Warnf("Failed to submit batch of %d usage events: %v", len(batch), err)
 
 				// Put the failed events back on the queue.
 				r.resubmitEvents(batch)
 			}
+
+			usageBatchSubmissionDuration.Observe(float64(time.Since(t0).Seconds()))
 		}
 	}
 }
@@ -160,6 +204,8 @@ func (r *UsageReporter) enqueueBatch() {
 	case r.submissionQueue <- events:
 		// Wrote to the queue successfully, so swap buf with the shortened one.
 		r.buf = remaining
+
+		usageBatchesTotal.Inc()
 	default:
 		// The queue is full, we'll try again later. Leave the existing buf in
 		// place.
@@ -188,6 +234,8 @@ func (r *UsageReporter) Run() {
 			if len(r.buf) >= r.maxBufferSize {
 				// TODO: What level should we log usage submission errors at?
 				r.Warnf("Usage event buffer is full, %d events will be discarded", len(events))
+
+				usageEventsDropped.Add(float64(len(events)))
 				break
 			}
 
@@ -195,6 +243,8 @@ func (r *UsageReporter) Run() {
 				keep := r.maxBufferSize - len(r.buf)
 				r.Warnf("Usage event buffer is full, %d events will be discarded", len(events)-keep)
 				events = events[:keep]
+
+				usageEventsDropped.Add(float64(len(events) - keep))
 			}
 
 			r.buf = append(r.buf, events...)
@@ -246,14 +296,6 @@ func (r *UsageReporter) convertEvent(event services.UsageAnonymizable) (*prehoga
 				SessionStart: (*prehogapi.SessionStartEvent)(e),
 			},
 		}, nil
-	case *services.UsageUpgradeBannerClick:
-		return &prehogapi.SubmitEventRequest{
-			ClusterName: clusterName,
-			Timestamp:   time,
-			Event: &prehogapi.SubmitEventRequest_UpgradeBannerClick{
-				UpgradeBannerClick: (*prehogapi.UpgradeBannerClickEvent)(e),
-			},
-		}, nil
 	default:
 		return nil, trace.BadParameter("unexpected event usage type %T", event)
 	}
@@ -271,6 +313,8 @@ func (r *UsageReporter) SubmitAnonymizedUsageEvents(events ...services.UsageAnon
 		}
 
 		anonymized = append(anonymized, converted)
+
+		usageEventsSubmitted.Inc()
 	}
 
 	r.events <- anonymized
@@ -281,32 +325,37 @@ func (r *UsageReporter) SubmitAnonymizedUsageEvents(events ...services.UsageAnon
 // resubmitEvents resubmits events that have already been processed (in case of
 // some error during submission).
 func (r *UsageReporter) resubmitEvents(events []*prehogapi.SubmitEventRequest) {
+	usageEventsRequeuedTotal.Add(float64(len(events)))
+
 	r.events <- events
 }
 
-// dummySubmit is a submit impl that only logs events.
-func dummySubmit(reporter *UsageReporter, events []*prehogapi.SubmitEventRequest) error {
-	l := log.WithFields(log.Fields{
-		trace.Component: teleport.Component(teleport.ComponentUsageReporting),
-	})
-
-	stringified := ""
-	for _, ev := range events {
-		stringified += fmt.Sprintf("%+v ", ev)
+func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *tls.Certificate, caCertPEM []byte) (UsageSubmitFunc, error) {
+	tlsConfig := &tls.Config{
+		// Self-signed test licenses may not have a proper issuer and won't be
+		// used if just passed in via Certificates, so we'll use this to
+		// explicitly set the client cert we want to use.
+		GetClientCertificate: func(cri *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			return clientCert, nil
+		},
 	}
 
-	l.Warnf("dummy submit %d: %+v", len(events), stringified)
+	if caCertPEM != nil {
+		pool := x509.NewCertPool()
+		pool.AppendCertsFromPEM(caCertPEM)
 
-	// pretend the remote is awful
-	time.Sleep(time.Second * 10)
+		tlsConfig.RootCAs = pool
+	}
 
-	l.Warnf("finished submitting %d events", len(events))
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			ForceAttemptHTTP2: true,
+			Proxy:             http.ProxyFromEnvironment,
+			TLSClientConfig:   tlsConfig,
+		},
+	}
 
-	return nil
-}
-
-func NewPrehogSubmitter(ctx context.Context) usageSubmitFunc {
-	client := prehogclient.NewTeleportReportingServiceClient(http.DefaultClient, "https://localhost:1234")
+	client := prehogclient.NewTeleportReportingServiceClient(httpClient, prehogEndpoint)
 
 	return func(reporter *UsageReporter, events []*prehogapi.SubmitEventRequest) error {
 		// Note: the backend doesn't support batching at the moment.
@@ -320,17 +369,22 @@ func NewPrehogSubmitter(ctx context.Context) usageSubmitFunc {
 		}
 
 		return nil
-	}
+	}, nil
 }
 
 // NewUsageReporter creates a new usage reporter. `Run()` must be executed to
 // process incoming events.
-func NewUsageReporter(ctx context.Context, clusterName types.ClusterName) (*UsageReporter, error) {
+func NewUsageReporter(ctx context.Context, clusterName types.ClusterName, submitter UsageSubmitFunc) (*UsageReporter, error) {
 	l := log.WithFields(log.Fields{
 		trace.Component: teleport.Component(teleport.ComponentUsageReporting),
 	})
 
 	anonymizer, err := utils.NewHMACAnonymizer(clusterName.GetClusterID())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = metrics.RegisterPrometheusCollectors(usagePrometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -343,7 +397,7 @@ func NewUsageReporter(ctx context.Context, clusterName types.ClusterName) (*Usag
 		anonymizer:      anonymizer,
 		events:          make(chan []*prehogapi.SubmitEventRequest),
 		submissionQueue: make(chan []*prehogapi.SubmitEventRequest),
-		submit:          dummySubmit, // TODO: pending real impl
+		submit:          submitter,
 		clock:           clockwork.NewRealClock(),
 		clusterName:     clusterName,
 		minBatchSize:    usageReporterMinBatchSize,
