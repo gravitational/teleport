@@ -1783,6 +1783,9 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 // trySettingConnectorNameToPasswordless sets cluster_auth_preference connectorName to `passwordless` when the first cloud user chooses passwordless as the authentication method.
 // This simplifies UX for cloud users, as they will not need to select a passwordless connector when logging in.
 func (h *Handler) trySettingConnectorNameToPasswordless(ctx context.Context, sessCtx *SessionContext, req changeUserAuthenticationRequest) error {
+	// We use the presence of a WebAuthn response, along with the absence of a
+	// password, as a proxy to determine that a passwordless registration took
+	// place, as it is not possible to infer that just from the WebAuthn response.
 	if req.WebauthnCreationResponse == nil && len(req.Password) == 0 {
 		return nil
 	}
