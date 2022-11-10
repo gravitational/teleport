@@ -23,10 +23,12 @@ jobs:
       - name: Install Go
         run: |
           choco install golang --version 1.19.2
+          refreshenv
           go version
 
-      - name: Install Node:      
+      - name: Install Node
         run: |
           choco install node --version 16.13.2
+          refreshenv
           npm config set msvs_version 2022
           corepack enable yarn
