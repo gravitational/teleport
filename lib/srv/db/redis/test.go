@@ -21,6 +21,7 @@ package redis
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v9"
@@ -38,6 +39,7 @@ type Client = redis.Client
 // ClientOptionsParams is a struct for client configuration options.
 type ClientOptionsParams struct {
 	skipPing bool
+	timeout  time.Duration
 }
 
 // ClientOptions allows setting test client options.
@@ -50,6 +52,13 @@ func SkipPing(skip bool) ClientOptions {
 	}
 }
 
+// WithTimeout overrides test client's default timeout.
+func WithTimeout(timeout time.Duration) ClientOptions {
+	return func(ts *ClientOptionsParams) {
+		ts.timeout = timeout
+	}
+}
+
 // MakeTestClient returns Redis client connection according to the provided
 // parameters.
 func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ...ClientOptions) (*Client, error) {
@@ -58,15 +67,25 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 		return nil, trace.Wrap(err)
 	}
 
-	clientOptions := &ClientOptionsParams{}
+	clientOptions := &ClientOptionsParams{
+		// set default timeout to 10 seconds for test clients.
+		timeout: 10 * time.Second,
+	}
 
 	for _, opt := range opts {
 		opt(clientOptions)
 	}
 
 	client := redis.NewClient(&redis.Options{
-		Addr:      config.Address,
-		TLSConfig: tlsConfig,
+		Addr:         config.Address,
+		TLSConfig:    tlsConfig,
+		DialTimeout:  clientOptions.timeout,
+		ReadTimeout:  clientOptions.timeout,
+		WriteTimeout: clientOptions.timeout,
+		// Set DisableAuthOnConnect to true to avoid automatically sending
+		// HELLO to the server to speed up the tests. Let the caller decide to
+		// send HELLO or not.
+		DisableAuthOnConnect: true,
 	})
 
 	if !clientOptions.skipPing {

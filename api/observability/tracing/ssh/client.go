@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -79,6 +80,15 @@ func NewClient(c ssh.Conn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request
 // doesn't service any global requests and writes the error to the first opened
 // channel.
 func isTracingSupported(clt *ssh.Client) (tracingCapability, error) {
+	srvVer := clt.ServerVersion()
+	if !strings.HasPrefix(string(srvVer), "SSH-2.0-Teleport") {
+		// Tracing is only supported by Teleport Nodes. Skip the check for
+		// all other implementations.
+		// Note: If tracing is not implemented SSH server should return ssh.UnknownChannelType,
+		//       but OpenSSH 7.x returns ssh.Prohibited, hence the check here.
+		return tracingUnsupported, nil
+	}
+
 	ch, _, err := clt.OpenChannel(TracingChannel, nil)
 	if err != nil {
 		var openError *ssh.OpenChannelError
