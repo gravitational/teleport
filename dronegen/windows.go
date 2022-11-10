@@ -31,9 +31,8 @@ const (
 func newWindowsPipeline(name string) pipeline {
 	p := newExecPipeline(name)
 	p.Workspace.Path = path.Join("C:/Drone/Workspace", name)
-	p.Concurrency.Limit = 1
 	p.Platform = platform{OS: "windows", Arch: "amd64"}
-	p.Nodes = map[string]value{
+	p.Node = map[string]value{
 		"buildbox_version": buildboxVersion,
 	}
 	return p
@@ -102,6 +101,7 @@ func windowsTagPipeline() pipeline {
 
 func windowsPushPipeline() pipeline {
 	p := newWindowsPipeline("push-build-native-windows-amd64")
+	p.Concurrency.Limit = 1
 	p.Trigger = trigger{
 		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
 		Branch: triggerRef{Include: []string{"master", "branch/*"}},

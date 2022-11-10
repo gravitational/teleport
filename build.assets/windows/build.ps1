@@ -129,7 +129,7 @@ function Install-Node {
         Expand-Archive -Path $NodeZipfile -DestinationPath $ToolchainDir
         Rename-Item -Path "$ToolchainDir/node-v$NodeVersion-win-x64" -NewName "$ToolchainDir/node"
         Enable-Node -ToolchainDir $ToolchainDir
-        npm config set msvs_version 2017
+        npm config set msvs_version 2022
         corepack enable yarn
     }
 }
