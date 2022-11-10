@@ -4001,7 +4001,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 		s := newWebSuite(t)
 
 		// auth preference
-		const RPID = "127.0.0.1"
+		const RPID = "localhost"
 
 		err := s.server.Auth().SetAuthPreference(s.ctx, &types.AuthPreferenceV2{
 			Spec: types.AuthPreferenceSpecV2{

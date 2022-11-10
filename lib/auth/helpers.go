@@ -300,7 +300,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOn,
 			Webauthn: &types.Webauthn{
-				RPID: "127.0.0.1",
+				RPID: "localhost",
 			},
 		}
 	}
