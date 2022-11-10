@@ -21,4 +21,12 @@ jobs:
           path: webapps
 
       - name: Install Go
-        run: choco install golang --version 1.19.2
+        run: |
+          choco install golang --version 1.19.2
+          go version
+
+      - name: Install Node:      
+        run: |
+          choco install node --version 16.13.2
+          npm config set msvs_version 2022
+          corepack enable yarn
