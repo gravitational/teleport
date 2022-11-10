@@ -32,7 +32,7 @@ func SetTestTimeouts(t time.Duration) {
 
 	apidefaults.SetTestTimeouts(t, t)
 
-	defaults.ResyncInterval = t
-	defaults.SessionRefreshPeriod = t
-	defaults.HeartbeatCheckPeriod = t
+	defaults.ResyncInterval = time.Duration(float64(t) * 1.1)
+	defaults.SessionRefreshPeriod = time.Duration(float64(t) * 1.2)
+	defaults.HeartbeatCheckPeriod = time.Duration(float64(t) * 1.3)
 }

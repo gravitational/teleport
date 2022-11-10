@@ -79,7 +79,10 @@ func newProxyTunnelStrategy(t *testing.T, cluster string, strategy *types.Tunnel
 }
 
 func TestProxyTunnelStrategy(t *testing.T) {
-	t.Parallel()
+	helpers.SetTestTimeouts(100 * time.Millisecond)
+	t.Cleanup(func() {
+		helpers.SetTestTimeouts(3 * time.Second)
+	})
 	t.Run("AgentMesh", testProxyTunnelStrategyAgentMesh)
 	t.Run("ProxyPeering", testProxyTunnelStrategyProxyPeering)
 }
