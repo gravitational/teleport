@@ -266,18 +266,6 @@ const (
 	KubeTeleportProxyALPNPrefix = "kube-teleport-proxy-alpn."
 )
 
-const (
-	// HTTPSProxy is an environment variable pointing to a HTTPS proxy.
-	HTTPSProxy = "HTTPS_PROXY"
-
-	// HTTPProxy is an environment variable pointing to a HTTP proxy.
-	HTTPProxy = "HTTP_PROXY"
-
-	// NoProxy is an environment variable matching the cases
-	// when HTTPS_PROXY or HTTP_PROXY is ignored
-	NoProxy = "NO_PROXY"
-)
-
 // SessionRecordingService is used to differentiate session recording services.
 type SessionRecordingService int
 
@@ -344,11 +332,12 @@ var SupportedAWSDiscoveryServices = []string{AWSServiceTypeEC2, AWSServiceTypeEK
 // Constants for Azure discovery.
 const (
 	AzureServiceTypeKubernetes = "aks"
+	AzureServiceTypeVM         = "vm"
 )
 
 // SupportedAzureDiscoveryServices is list of Azure services currently
 // supported by the Teleport discovery service.
-var SupportedAzureDiscoveryServices = []string{AzureServiceTypeKubernetes}
+var SupportedAzureDiscoveryServices = []string{AzureServiceTypeKubernetes, AzureServiceTypeVM}
 
 const (
 	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh

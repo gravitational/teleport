@@ -2073,7 +2073,7 @@ func TestCAGeneration(t *testing.T) {
 			},
 		},
 	}
-	keyStore, err := keystore.NewKeyStore(ksConfig)
+	keyStore, err := keystore.NewManager(ksConfig)
 	require.NoError(t, err)
 
 	for _, caType := range types.CertAuthTypes {
