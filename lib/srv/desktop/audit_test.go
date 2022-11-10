@@ -683,7 +683,7 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 func fillEntry(entry *sharedDirectoryAuditCacheEntry, did directoryID) {
 	for i := 0; i < entryMaxItems; i++ {
 		entry.readRequestCache[completionID(i)] = readRequestInfo{
-			directoryID: directoryID(did),
+			directoryID: did,
 		}
 	}
 }
