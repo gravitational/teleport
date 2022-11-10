@@ -22,9 +22,10 @@ import (
 	"crypto/rand"
 	"testing"
 
-	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 )
 
 func TestSignersWithSHA1Fallback(t *testing.T) {
