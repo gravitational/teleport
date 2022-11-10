@@ -29,9 +29,8 @@ const (
 func newWindowsPipeline(name string) pipeline {
 	p := newExecPipeline(name)
 	p.Workspace.Path = path.Join("C:/Drone/Workspace", name)
-	p.Concurrency.Limit = 1
 	p.Platform = platform{OS: "windows", Arch: "amd64"}
-	p.Nodes = map[string]value{
+	p.Node = map[string]value{
 		"buildbox_version": buildboxVersion,
 	}
 
@@ -43,7 +42,7 @@ func windowsTagPipeline() pipeline {
 
 	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Trigger = triggerTag
-
+	p.Concurrency.Limit = 1
 	p.Steps = []step{
 		cloneWindowsRepositoriesStep(p.Workspace.Path),
 		updateWindowsSubreposStep(p.Workspace.Path),

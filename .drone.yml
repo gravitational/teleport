@@ -661,17 +661,16 @@ trigger:
     include:
     - master
     - branch/*
+    - tcsc/branch/v10/*
 workspace:
   path: C:/Drone/Workspace/push-build-native-windows-amd64
 platform:
   os: windows
   arch: amd64
-nodes:
+node:
   buildbox_version: teleport10
 clone:
   disable: true
-concurrency:
-  limit: 1
 steps:
 - name: Check out Teleport
   commands:
@@ -921,7 +920,7 @@ workspace:
 platform:
   os: windows
   arch: amd64
-nodes:
+node:
   buildbox_version: teleport10
 clone:
   disable: true
@@ -8676,6 +8675,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: b447e14f67d454ee5e10003af00ce14dadfb59fd8111d00d49556661ac992c0e
+hmac: 17a894d045b625065811dc7e18d60c7669327e1029aa624f928bbc3575ac9728
 
 ...
