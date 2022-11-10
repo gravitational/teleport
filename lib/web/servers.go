@@ -34,25 +34,16 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindKubernetesCluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clusters, err := types.ResourcesWithLabels(resp.Resources).AsKubeClusters()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	accessChecker, err := ctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return listResourcesGetResponse{
-		Items:      ui.MakeKubeClusters(clusters, accessChecker.Roles()),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
-	}, nil
+	resp, err := handleClusterKubesGet(clt, r, accessChecker.Roles())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
 }
 
 // clusterDatabasesGet returns a list of db servers in a form the UI can present.
@@ -62,27 +53,11 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindDatabaseServer)
+	res, err := handleClusterDatabasesGet(clt, r, h.auth.clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	servers, err := types.ResourcesWithLabels(resp.Resources).AsDatabaseServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Make a list of all proxied databases.
-	var databases []types.Database
-	for _, server := range servers {
-		databases = append(databases, server.GetDatabase())
-	}
-
-	return listResourcesGetResponse{
-		Items:      ui.MakeDatabases(h.auth.clusterName, databases),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
-	}, nil
+	return res, nil
 }
 
 // clusterDesktopsGet returns a list of desktops in a form the UI can present.
@@ -92,21 +67,12 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindWindowsDesktop)
+	res, err := handleClusterDesktopsGet(clt, r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return res, nil
 
-	windowsDesktops, err := types.ResourcesWithLabels(resp.Resources).AsWindowsDesktops()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return listResourcesGetResponse{
-		Items:      ui.MakeDesktops(windowsDesktops),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
-	}, nil
 }
 
 // clusterDesktopServicesGet returns a list of desktop services in a form the UI can present.
