@@ -18,6 +18,7 @@ package proxy
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -27,12 +28,12 @@ import (
 	"strings"
 	"sync"
 
-	gwebsocket "github.com/gorilla/websocket"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	clientremotecommand "k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport"
+	"nhooyr.io/websocket"
 
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 )
@@ -62,7 +63,7 @@ type wsStreamExecutor struct {
 	url       string
 	protocols []string
 	cacheBuff *bytes.Buffer
-	conn      *gwebsocket.Conn
+	conn      *websocket.Conn
 	mu        *sync.Mutex
 }
 
@@ -90,7 +91,7 @@ func (e *wsStreamExecutor) Stream(options clientremotecommand.StreamOptions) err
 	}
 	conn := e.conn
 	// stream will block until execution is finished.
-	defer conn.Close()
+	defer conn.Close(websocket.StatusNormalClosure, "")
 	streamingProto := conn.Subprotocol()
 
 	found := false
@@ -118,10 +119,10 @@ func (e *wsStreamExecutor) Stream(options clientremotecommand.StreamOptions) err
 // To prevent this issue, and uniquely for testing, this client will send
 // an exit keyword specified by testingkubemock.CloseStreamMessage. Our mock server is expecting that
 // keyword and will return once it's received.
-
+//
 // The protocol docs are at https://pkg.go.dev/k8s.io/apiserver/pkg/util/wsstream#pkg-constants
 // Bellow we have a copy of the implemented binary protocol specification.
-
+//
 // The Websocket subprotocol "channel.k8s.io" prepends each binary message with a byte indicating
 // the channel number (zero indexed) the message was sent on. Messages in both directions should
 // prefix their messages with this channel byte. When used for remote execution, the channel numbers
@@ -135,7 +136,7 @@ func (e *wsStreamExecutor) Stream(options clientremotecommand.StreamOptions) err
 //	WRITE []byte{0, 102, 111, 111, 10} # send "foo\n" on channel 0 (STDIN)
 //	READ  []byte{1, 10}                # receive "\n" on channel 1 (STDOUT)
 //	CLOSE
-func (e *wsStreamExecutor) stream(conn *gwebsocket.Conn, options clientremotecommand.StreamOptions) error {
+func (e *wsStreamExecutor) stream(conn *websocket.Conn, options clientremotecommand.StreamOptions) error {
 	errChan := make(chan error, 3)
 	wg := sync.WaitGroup{}
 	if options.Stdin != nil {
@@ -147,8 +148,9 @@ func (e *wsStreamExecutor) stream(conn *gwebsocket.Conn, options clientremotecom
 				n, err := options.Stdin.Read(buf)
 				if errors.Is(err, io.EOF) && n == 0 {
 					// send the close payload indicating that there is nothing else to read from stdin.
-					if err := conn.WriteMessage(
-						gwebsocket.BinaryMessage,
+					if err := conn.Write(
+						context.Background(),
+						websocket.MessageBinary,
 						append([]byte{streamStdin}, []byte(testingkubemock.CloseStreamMessage)...),
 					); err != nil {
 						errChan <- err
@@ -167,7 +169,7 @@ func (e *wsStreamExecutor) stream(conn *gwebsocket.Conn, options clientremotecom
 				e.cacheBuff.Write([]byte{streamStdin})
 				e.cacheBuff.Write(buf[0:n])
 
-				if err := conn.WriteMessage(gwebsocket.BinaryMessage, e.cacheBuff.Bytes()); err != nil {
+				if err := conn.Write(context.Background(), websocket.MessageBinary, e.cacheBuff.Bytes()); err != nil {
 					e.mu.Unlock()
 					errChan <- err
 					return
@@ -184,7 +186,7 @@ func (e *wsStreamExecutor) stream(conn *gwebsocket.Conn, options clientremotecom
 	go func() {
 		defer wg.Done()
 		for {
-			_, buf, err := conn.ReadMessage()
+			_, buf, err := conn.Read(context.Background())
 
 			if len(buf) > 1 {
 				var w io.Writer
@@ -221,8 +223,7 @@ func (e *wsStreamExecutor) stream(conn *gwebsocket.Conn, options clientremotecom
 
 			if err != nil {
 				// check the connection was properly closed by server, and if true ignore the error.
-				var websocketErr *gwebsocket.CloseError
-				if errors.As(err, &websocketErr) && websocketErr.Code == gwebsocket.CloseNormalClosure {
+				if websocket.CloseStatus(err) == websocket.StatusNormalClosure {
 					err = nil
 				}
 				errChan <- err
@@ -273,45 +274,38 @@ func dial(rt http.RoundTripper, method string, url string) error {
 
 	resp, err := rt.RoundTrip(req)
 	if err != nil {
-		if !errors.Is(err, gwebsocket.ErrBadHandshake) {
-			return err
-		}
-		// resp.Body contains (a part of) the response when err == gwebsocket.ErrBadHandshake
-		responseErrorBytes, bodyErr := io.ReadAll(resp.Body)
-		if bodyErr != nil {
-			return err
-		}
-		// drain response body
+		if resp != nil {
+			// resp.Body may contain (a part of) the response when err != nil
+			responseErrorBytes, bodyErr := io.ReadAll(resp.Body)
+			if bodyErr != nil {
+				return err
+			}
 
-		_ = resp.Body.Close()
-		isStatusErr, err := parseError(responseErrorBytes)
-		if isStatusErr {
-			return err
+			isStatusErr, err := parseError(responseErrorBytes)
+			if isStatusErr {
+				return err
+			}
 		}
 		return fmt.Errorf("unable to upgrade connection: %w", err)
 	}
-	// if request is successful, ignore body payload and close.
-	io.Copy(io.Discard, resp.Body)
-	resp.Body.Close()
 
 	return nil
 }
 
 // RoundTrip connects to the remote websocket using TLS configuration.
-func (e *wsStreamExecutor) RoundTrip(request *http.Request) (retResp *http.Response, retErr error) {
-	dialer := gwebsocket.Dialer{
-		TLSClientConfig: e.tlsConfig,
-		Subprotocols:    supportedProtocols,
-	}
-	switch request.URL.Scheme {
-	case "https":
-		request.URL.Scheme = "wss"
-	case "http":
-		request.URL.Scheme = "ws"
-	}
-	wsConn, resp, err := dialer.DialContext(request.Context(), request.URL.String(), request.Header)
-	e.conn = wsConn
+func (e *wsStreamExecutor) RoundTrip(request *http.Request) (*http.Response, error) {
+	wsConn, resp, err := websocket.Dial(request.Context(), request.URL.String(),
+		&websocket.DialOptions{
+			HTTPHeader: request.Header,
+			HTTPClient: &http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: e.tlsConfig,
+				},
+			},
+			Subprotocols: e.protocols,
+		})
 
+	e.conn = wsConn
 	return resp, err
 }
 

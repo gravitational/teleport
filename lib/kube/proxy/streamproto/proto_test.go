@@ -17,21 +17,19 @@ limitations under the License.
 package streamproto
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"nhooyr.io/websocket"
 
 	"github.com/gravitational/teleport/api/types"
 )
-
-var upgrader = websocket.Upgrader{}
 
 func TestPingPong(t *testing.T) {
 	t.Parallel()
@@ -90,26 +88,22 @@ func TestPingPong(t *testing.T) {
 
 	errCh := make(chan error, 2)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ws, err := upgrader.Upgrade(w, r, nil)
+		ws, err := websocket.Accept(w, r, nil)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 
-		defer ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), time.Time{})
+		defer ws.Close(websocket.StatusNormalClosure, "")
 		errCh <- runServer(ws)
 	}))
 	defer server.Close()
 
 	url := "ws" + strings.TrimPrefix(server.URL, "http")
-	ws, resp, err := websocket.DefaultDialer.Dial(url, nil)
+	ws, _, err := websocket.Dial(context.Background(), url, nil)
 	require.NoError(t, err)
 
-	// Always drain/close the body.
-	io.Copy(io.Discard, resp.Body)
-	_ = resp.Body.Close()
-
 	go func() {
-		defer ws.Close()
+		defer ws.Close(websocket.StatusNormalClosure, "")
 		errCh <- runClient(ws)
 	}()
 

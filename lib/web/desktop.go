@@ -33,10 +33,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
+	"nhooyr.io/websocket"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -65,7 +65,7 @@ func (h *Handler) desktopConnectHandle(
 	}
 
 	log := ctx.log.WithField("desktop-name", desktopName)
-	log.Debug("New desktop access websocket connection")
+	log.Debug("New desktop access connection")
 
 	if err := h.createDesktopConnection(w, r, desktopName, log, ctx, site); err != nil {
 		// createDesktopConnection makes a best effort attempt to send an error to the user
@@ -89,18 +89,27 @@ func (h *Handler) createDesktopConnection(
 	r *http.Request,
 	desktopName string,
 	log *logrus.Entry,
-	ctx *SessionContext,
+	sctx *SessionContext,
 	site reversetunnel.RemoteSite,
 ) error {
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
+	// Safari doesn't handle compression correctly, so disable it
+	// https://github.com/nhooyr/websocket/issues/218
+	compressionMode := websocket.CompressionContextTakeover
+	if strings.Contains(r.UserAgent(), "Safari") {
+		compressionMode = websocket.CompressionDisabled
 	}
-	ws, err := upgrader.Upgrade(w, r, nil)
+	ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+		CompressionMode: compressionMode,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer ws.Close()
+
+	// this close only takes effect if we error early and don't reach the
+	// happy-path close at the end of this function
+	defer ws.Close(websocket.StatusInternalError, "desktop session terminated")
+
+	ctx := r.Context()
 
 	sendTDPError := func(ws *websocket.Conn, err error) error {
 		orig := err
@@ -109,7 +118,9 @@ func (h *Handler) createDesktopConnection(
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		ws.WriteMessage(websocket.BinaryMessage, b)
+		if err := ws.Write(ctx, websocket.MessageBinary, b); err != nil {
+			return trace.Wrap(err)
+		}
 		return orig
 	}
 
@@ -142,7 +153,7 @@ func (h *Handler) createDesktopConnection(
 	//
 	// In the future, we may want to do something smarter like latency-based
 	// routing.
-	clt, err := ctx.GetUserClient(site)
+	clt, err := sctx.GetUserClient(site)
 	if err != nil {
 		return sendTDPError(ws, trace.Wrap(err))
 	}
@@ -173,19 +184,19 @@ func (h *Handler) createDesktopConnection(
 		site:     site,
 		userAddr: r.RemoteAddr,
 	}
-	serviceConn, err := c.connectToWindowsService(ctx.parent.clusterName, validServiceIDs)
+	serviceConn, err := c.connectToWindowsService(sctx.parent.clusterName, validServiceIDs)
 	if err != nil {
 		return sendTDPError(ws, trace.Wrap(err, "cannot connect to Windows Desktop Service"))
 	}
 	defer serviceConn.Close()
 
-	pc, err := proxyClient(r.Context(), ctx, h.ProxyHostPort(), username)
+	pc, err := proxyClient(r.Context(), sctx, h.ProxyHostPort(), username)
 	if err != nil {
 		return sendTDPError(ws, trace.Wrap(err))
 	}
 	defer pc.Close()
 
-	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, ctx, desktopName, username, site.GetName())
+	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, sctx, desktopName, username, site.GetName())
 	if err != nil {
 		return sendTDPError(ws, err)
 	}
@@ -206,8 +217,10 @@ func (h *Handler) createDesktopConnection(
 		return sendTDPError(ws, err)
 	}
 
-	if err := proxyWebsocketConn(ws, serviceConnTLS); err != nil {
+	if err := proxyWebsocketConn(ctx, ws, serviceConnTLS); err != nil {
 		log.WithError(err).Warningf("Error proxying a desktop protocol websocket to windows_desktop_service")
+	} else {
+		ws.Close(websocket.StatusNormalClosure, "")
 	}
 	return nil
 }
@@ -327,10 +340,9 @@ func (c *connector) tryConnect(clusterName, desktopServiceID string) (net.Conn, 
 // proxyWebsocketConn does a bidrectional copy between the websocket
 // connection to the browser (ws) and the mTLS connection to Windows
 // Desktop Serivce (wds)
-func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
+func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn) error {
 	var closeOnce sync.Once
 	close := func() {
-		ws.Close()
 		wds.Close()
 	}
 
@@ -351,7 +363,7 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 		// write them to the websocket
 		for {
 			raw, err := tc.ReadRaw()
-			if utils.IsOKNetworkError(err) {
+			if utils.IsOKNetworkError(err) { // TODO(zmb3): maybe we can remove this
 				errs <- nil
 				return
 			}
@@ -360,7 +372,7 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 				return
 			}
 
-			err = ws.WriteMessage(websocket.BinaryMessage, raw)
+			err = ws.Write(ctx, websocket.MessageBinary, raw)
 			if utils.IsOKNetworkError(err) {
 				errs <- nil
 				return
@@ -376,10 +388,9 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 		defer closeOnce.Do(close)
 
 		// io.Copy is fine here, as the Windows Desktop Service
-		// operates on a stream and doesn't care if TPD messages
+		// operates on a stream and doesn't care if TDP messages
 		// are fragmented
-		stream := &WebsocketIO{Conn: ws}
-		_, err := io.Copy(wds, stream)
+		_, err := io.Copy(wds, websocket.NetConn(ctx, ws, websocket.MessageBinary))
 		if utils.IsOKNetworkError(err) {
 			err = nil
 		}

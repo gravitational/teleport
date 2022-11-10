@@ -30,7 +30,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/oxy/forward"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -112,44 +111,44 @@ func testWebsockets(p *Pack, t *testing.T) {
 		desc       string
 		inCookie   string
 		outMessage string
-		err        error
+		assert     require.ErrorAssertionFunc
 	}{
 		{
 			desc:       "root cluster, valid application session cookie, successful websocket (ws://) request",
 			inCookie:   p.CreateAppSession(t, p.rootWSPublicAddr, p.rootAppClusterName),
 			outMessage: p.rootWSMessage,
+			assert:     require.NoError,
 		},
 		{
 			desc:       "root cluster, valid application session cookie, successful secure websocket (wss://) request",
 			inCookie:   p.CreateAppSession(t, p.rootWSSPublicAddr, p.rootAppClusterName),
 			outMessage: p.rootWSSMessage,
+			assert:     require.NoError,
 		},
 		{
 			desc:       "leaf cluster, valid application session cookie, successful websocket (ws://) request",
 			inCookie:   p.CreateAppSession(t, p.leafWSPublicAddr, p.leafAppClusterName),
 			outMessage: p.leafWSMessage,
+			assert:     require.NoError,
 		},
 		{
 			desc:       "leaf cluster, valid application session cookie, successful secure websocket (wss://) request",
 			inCookie:   p.CreateAppSession(t, p.leafWSSPublicAddr, p.leafAppClusterName),
 			outMessage: p.leafWSSMessage,
+			assert:     require.NoError,
 		},
 		{
 			desc:     "invalid application session cookie, websocket request fails to dial",
 			inCookie: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-			err:      errors.New(""),
+			assert:   require.Error,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			tt := tt
 			body, err := p.makeWebsocketRequest(tt.inCookie, "/")
-			if tt.err != nil {
-				require.IsType(t, tt.err, trace.Unwrap(err))
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, tt.outMessage, body)
-			}
+			tt.assert(t, err)
+			require.Equal(t, tt.outMessage, body)
 		})
 	}
 }

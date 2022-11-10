@@ -22,11 +22,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/tools/remotecommand"
+	"nhooyr.io/websocket"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/terminal"
@@ -47,23 +48,20 @@ type KubeSession struct {
 
 // NewKubeSession joins a live kubernetes session.
 func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionTracker, kubeAddr string, tlsServer string, mode types.SessionParticipantMode, tlsConfig *tls.Config) (*KubeSession, error) {
-	ctx, cancel := context.WithCancel(ctx)
 	joinEndpoint := "wss://" + kubeAddr + "/api/v1/teleport/join/" + meta.GetSessionID()
 
 	if tlsServer != "" {
 		tlsConfig.ServerName = tlsServer
 	}
 
-	dialer := &websocket.Dialer{
-		TLSClientConfig: tlsConfig,
-	}
-
-	ws, resp, err := dialer.Dial(joinEndpoint, nil)
-	if resp != nil && resp.Body != nil {
-		defer resp.Body.Close()
-	}
+	ws, resp, err := websocket.Dial(ctx, joinEndpoint, &websocket.DialOptions{
+		HTTPClient: &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: tlsConfig,
+			},
+		},
+	})
 	if err != nil {
-		cancel()
 		if resp == nil || resp.Body == nil {
 			return nil, trace.Wrap(err)
 		}
@@ -85,13 +83,11 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionT
 
 	stream, err := streamproto.NewSessionStream(ws, streamproto.ClientHandshake{Mode: mode})
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 
 	term, err := terminal.New(tc.Stdin, tc.Stdout, tc.Stderr)
 	if err != nil {
-		cancel()
 		return nil, trace.Wrap(err)
 	}
 
@@ -106,6 +102,7 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionT
 	go handleOutgoingResizeEvents(ctx, stream, term)
 	go handleIncomingResizeEvents(stream, term)
 
+	ctx, cancel := context.WithCancel(ctx)
 	s := &KubeSession{stream, term, ctx, cancel, meta}
 	err = s.handleMFA(ctx, tc, mode, stdout)
 	if err != nil {

@@ -63,7 +63,7 @@ require (
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/google/uuid v1.3.0
 	github.com/googleapis/gax-go/v2 v2.7.0
-	github.com/gorilla/websocket v1.5.0
+	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/gravitational/configure v0.0.0-20180808141939-c3428bd84c23
 	github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70
 	github.com/gravitational/kingpin v2.1.11-0.20220901134012-2a1956e29525+incompatible
@@ -149,6 +149,7 @@ require (
 	k8s.io/client-go v0.25.4
 	k8s.io/klog/v2 v2.80.1
 	k8s.io/kubectl v0.25.4
+	nhooyr.io/websocket v1.8.7
 	sigs.k8s.io/controller-runtime v0.13.1
 	sigs.k8s.io/controller-tools v0.10.0
 	sigs.k8s.io/yaml v1.3.0

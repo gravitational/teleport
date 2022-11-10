@@ -38,10 +38,10 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
 	"github.com/gravitational/oxy/forward"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"nhooyr.io/websocket"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -202,14 +202,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 	s.testhttp = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if config.UseWebsockets {
-			upgrader := websocket.Upgrader{
-				ReadBufferSize:  1024,
-				WriteBufferSize: 1024,
-			}
-			ws, err := upgrader.Upgrade(w, r, nil)
+			ws, err := websocket.Accept(w, r, nil)
 			require.NoError(t, err)
 
-			err = ws.WriteMessage(websocket.TextMessage, []byte(s.message))
+			err = ws.Write(r.Context(), websocket.MessageText, []byte(s.message))
 			require.NoError(t, err)
 		} else {
 			fmt.Fprintln(w, s.message)
@@ -610,7 +606,7 @@ func TestHandleConnectionWS(t *testing.T) {
 	})
 
 	s.checkWSResponse(t, s.clientCertificate, func(messageType int, message string) {
-		require.Equal(t, websocket.TextMessage, messageType)
+		require.Equal(t, int(websocket.MessageText), messageType)
 		require.Equal(t, s.message, message)
 	})
 }
@@ -924,21 +920,6 @@ func (s *Suite) checkWSResponse(t *testing.T, clientCert tls.Certificate, checkM
 	defer pw.Close()
 	defer pr.Close()
 
-	dialer := websocket.Dialer{
-		NetDial: func(_, _ string) (net.Conn, error) {
-			return pr, nil
-		},
-		TLSClientConfig: &tls.Config{
-			// RootCAs is a pool of host certificates used to verify the identity of
-			// the server this client is connecting to.
-			RootCAs: s.hostCertPool,
-			// Certificates is the user's application specific certificate.
-			Certificates: []tls.Certificate{clientCert},
-			// Time defines the time anchor for certificate validation
-			Time: s.clock.Now,
-		},
-	}
-
 	var wg sync.WaitGroup
 	wg.Add(1)
 
@@ -949,22 +930,39 @@ func (s *Suite) checkWSResponse(t *testing.T, clientCert tls.Certificate, checkM
 	}()
 
 	// Issue request.
-	ws, resp, err := dialer.Dial("wss://"+constants.APIDomain, http.Header{})
+	ws, resp, err := websocket.Dial(context.Background(), "wss://"+constants.APIDomain,
+		&websocket.DialOptions{
+			HTTPClient: &http.Client{
+				Transport: &http.Transport{
+					Dial: func(_, _ string) (net.Conn, error) {
+						return pr, nil
+					},
+					TLSClientConfig: &tls.Config{
+						// RootCAs is a pool of host certificates used to verify the identity of
+						// the server this client is connecting to.
+						RootCAs: s.hostCertPool,
+						// Certificates is the user's application specific certificate.
+						Certificates: []tls.Certificate{clientCert},
+						// Time defines the time anchor for certificate validation
+						Time: s.clock.Now,
+					},
+				},
+			},
+		})
 	require.NoError(t, err)
 
 	// Check response.
 	require.Equal(t, resp.StatusCode, http.StatusSwitchingProtocols)
-	require.NoError(t, resp.Body.Close())
 
 	// Read websocket message
-	messageType, message, err := ws.ReadMessage()
+	messageType, message, err := ws.Read(context.Background())
 	require.NoError(t, err)
 
 	// Check message
-	checkMessage(messageType, string(message))
+	checkMessage(int(messageType), string(message))
 
 	// This should not trigger an error.
-	require.NoError(t, ws.Close())
+	require.NoError(t, ws.Close(websocket.StatusNormalClosure, ""))
 
 	// Close should not trigger an error.
 	require.NoError(t, s.appServer.Close())

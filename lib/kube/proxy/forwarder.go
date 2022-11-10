@@ -36,7 +36,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
 	"github.com/gravitational/oxy/forward"
 	fwdutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
@@ -55,6 +54,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
 	kubeexec "k8s.io/client-go/util/exec"
+	"nhooyr.io/websocket"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -238,11 +238,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		ctx:               closeCtx,
 		close:             close,
 		sessions:          make(map[uuid.UUID]*session),
-		upgrader: websocket.Upgrader{
-			ReadBufferSize:  1024,
-			WriteBufferSize: 1024,
-		},
-		clusterDetails: make(map[string]*kubeDetails),
+		clusterDetails:    make(map[string]*kubeDetails),
 	}
 
 	fwd.router.UseRawPath = true
@@ -298,8 +294,6 @@ type Forwarder struct {
 	rwMutexDetails sync.RWMutex
 	// sessions tracks in-flight sessions
 	sessions map[uuid.UUID]*session
-	// upgrades connections to websockets
-	upgrader websocket.Upgrader
 }
 
 // Close signals close to all outstanding or background operations
@@ -848,7 +842,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.NotFound("session %v not found", sessionID)
 	}
 
-	ws, err := f.upgrader.Upgrade(w, req, nil)
+	ws, err := websocket.Accept(w, req, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -876,7 +870,12 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		<-party.closeC
 		return nil
 	}(); err != nil {
-		writeErr := ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseInternalServerErr, err.Error()), time.Now().Add(time.Second*10))
+		// ensure we don't exceed the maximum length of a websocket close message
+		msg := err.Error()
+		if len(msg) > 123 {
+			msg = msg[:120] + "..."
+		}
+		writeErr := ws.Close(websocket.StatusInternalError, msg)
 		if writeErr != nil {
 			f.log.WithError(writeErr).Warn("Failed to send early-exit websocket close message.")
 		}
@@ -913,41 +912,45 @@ func (f *Forwarder) deleteSession(id uuid.UUID) {
 
 // remoteJoin forwards a join request to a remote cluster.
 func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, sess *clusterSession) (resp interface{}, err error) {
-	dialer := &websocket.Dialer{
-		TLSClientConfig: sess.tlsConfig,
-		NetDialContext:  sess.DialWithContext,
-	}
-
 	url := "wss://" + req.URL.Host
 	if req.URL.Port() != "" {
 		url = url + ":" + req.URL.Port()
 	}
 	url = url + req.URL.Path
 
-	wsTarget, respTarget, err := dialer.Dial(url, nil)
+	wsTarget, respTarget, err := websocket.Dial(req.Context(), url, &websocket.DialOptions{
+		HTTPClient: &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: sess.tlsConfig,
+				DialContext:     sess.DialWithContext,
+			},
+		},
+	})
 	if err != nil {
-		msg, err := io.ReadAll(respTarget.Body)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		if respTarget != nil && respTarget.Body != nil {
+			msg, err := io.ReadAll(respTarget.Body)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 
-		var obj map[string]interface{}
-		if err := json.Unmarshal(msg, &obj); err != nil {
-			return nil, trace.Wrap(err)
+			var obj map[string]interface{}
+			if err := json.Unmarshal(msg, &obj); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return obj, trace.Wrap(err)
 		}
-
-		return obj, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	defer wsTarget.Close()
-	defer respTarget.Body.Close()
 
-	wsSource, err := f.upgrader.Upgrade(w, req, nil)
+	defer wsTarget.Close(websocket.StatusNormalClosure, "")
+
+	wsSource, err := websocket.Accept(w, req, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer wsSource.Close()
+	defer wsSource.Close(websocket.StatusNormalClosure, "")
 
-	err = wsProxy(wsSource, wsTarget)
+	err = wsProxy(req.Context(), wsSource, wsTarget)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -957,53 +960,45 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 
 // wsProxy proxies a websocket connection between two clusters transparently to allow for
 // remote joins.
-func wsProxy(wsSource *websocket.Conn, wsTarget *websocket.Conn) error {
+func wsProxy(ctx context.Context, wsSource *websocket.Conn, wsTarget *websocket.Conn) error {
 	closeM := make(chan struct{})
 	errS := make(chan error)
 	errT := make(chan error)
 
 	go func() {
 		for {
-			ty, data, err := wsSource.ReadMessage()
+			typ, data, err := wsSource.Read(ctx)
 			if err != nil {
-				wsSource.Close()
+				if websocket.CloseStatus(err) == websocket.StatusNormalClosure {
+					err = nil
+				}
 				errS <- trace.Wrap(err)
 				return
 			}
 
-			wsTarget.WriteMessage(ty, data)
-
-			if ty == websocket.CloseMessage {
-				closeM <- struct{}{}
-				return
-			}
+			wsTarget.Write(ctx, typ, data)
 		}
 	}()
 
 	go func() {
 		for {
-			ty, data, err := wsTarget.ReadMessage()
+			typ, data, err := wsTarget.Read(ctx)
 			if err != nil {
-				wsTarget.Close()
+				if websocket.CloseStatus(err) == websocket.StatusNormalClosure {
+					err = nil
+				}
 				errT <- trace.Wrap(err)
 				return
 			}
 
-			wsSource.WriteMessage(ty, data)
-
-			if ty == websocket.CloseMessage {
-				closeM <- struct{}{}
-				return
-			}
+			wsSource.Write(ctx, typ, data)
 		}
 	}()
 
 	var err error
 	select {
 	case err = <-errS:
-		wsTarget.WriteMessage(websocket.CloseMessage, []byte{})
 	case err = <-errT:
-		wsSource.WriteMessage(websocket.CloseMessage, []byte{})
 	case <-closeM:
 	}
 

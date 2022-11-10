@@ -17,15 +17,15 @@ limitations under the License.
 package streamproto
 
 import (
+	"context"
 	"io"
 	"sync"
 	"sync/atomic"
-	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/tools/remotecommand"
+	"nhooyr.io/websocket"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
@@ -93,13 +93,13 @@ func NewSessionStream(conn *websocket.Conn, handshake interface{}) (*SessionStre
 	}
 
 	if isClient {
-		ty, data, err := conn.ReadMessage()
+		ty, data, err := conn.Read(context.Background())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		if ty != websocket.TextMessage {
-			return nil, trace.Errorf("Expected websocket control message, got %v", ty)
+		if ty != websocket.MessageText {
+			return nil, trace.Errorf("Expected websocket text message, got %v", ty)
 		}
 
 		var msg metaMessage
@@ -118,7 +118,7 @@ func NewSessionStream(conn *websocket.Conn, handshake interface{}) (*SessionStre
 			return nil, trace.Wrap(err)
 		}
 
-		if err := conn.WriteMessage(websocket.TextMessage, dataClientHandshake); err != nil {
+		if err := conn.Write(context.Background(), websocket.MessageText, dataClientHandshake); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
@@ -128,17 +128,17 @@ func NewSessionStream(conn *websocket.Conn, handshake interface{}) (*SessionStre
 			return nil, trace.Wrap(err)
 		}
 
-		if err := conn.WriteMessage(websocket.TextMessage, dataServerHandshake); err != nil {
+		if err := conn.Write(context.Background(), websocket.MessageText, dataServerHandshake); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		ty, data, err := conn.ReadMessage()
+		ty, data, err := conn.Read(context.Background())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		if ty != websocket.TextMessage {
-			return nil, trace.Errorf("Expected websocket control message, got %v", ty)
+		if ty != websocket.MessageText {
+			return nil, trace.Errorf("Expected websocket text message, got %v", ty)
 		}
 
 		var msg metaMessage
@@ -161,20 +161,28 @@ func (s *SessionStream) readTask() {
 	for {
 		defer s.closeOnce.Do(func() { close(s.done) })
 
-		ty, data, err := s.conn.ReadMessage()
+		ty, data, err := s.conn.Read(context.Background())
 		if err != nil {
-			if err != io.EOF && !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseAbnormalClosure, websocket.CloseNoStatusReceived) {
+			cs := websocket.CloseStatus(err)
+			if err != io.EOF &&
+				cs != websocket.StatusNormalClosure &&
+				cs != websocket.StatusAbnormalClosure &&
+				cs != websocket.StatusNoStatusRcvd {
 				log.WithError(err).Warn("Failed to read message from websocket")
+			}
+
+			if cs != -1 {
+				atomic.StoreInt32(&s.closed, 1)
 			}
 
 			return
 		}
 
-		if ty == websocket.BinaryMessage {
+		if ty == websocket.MessageBinary {
 			s.in <- data
 		}
 
-		if ty == websocket.TextMessage {
+		if ty == websocket.MessageText {
 			var msg metaMessage
 			if err := utils.FastUnmarshal(data, &msg); err != nil {
 				return
@@ -187,12 +195,6 @@ func (s *SessionStream) readTask() {
 			if msg.ForceTerminate {
 				close(s.forceTerminate)
 			}
-		}
-
-		if ty == websocket.CloseMessage {
-			s.conn.Close()
-			atomic.StoreInt32(&s.closed, 1)
-			return
 		}
 	}
 }
@@ -215,8 +217,7 @@ func (s *SessionStream) Write(data []byte) (int, error) {
 	s.writeSync.Lock()
 	defer s.writeSync.Unlock()
 
-	err := s.conn.WriteMessage(websocket.BinaryMessage, data)
-	if err != nil {
+	if err := s.conn.Write(context.Background(), websocket.MessageBinary, data); err != nil {
 		return 0, trace.Wrap(err)
 	}
 
@@ -233,7 +234,7 @@ func (s *SessionStream) Resize(size *remotecommand.TerminalSize) error {
 
 	s.writeSync.Lock()
 	defer s.writeSync.Unlock()
-	return trace.Wrap(s.conn.WriteMessage(websocket.TextMessage, json))
+	return trace.Wrap(s.conn.Write(context.Background(), websocket.MessageText, json))
 }
 
 // ResizeQueue returns a channel that will receive resize requests.
@@ -257,7 +258,7 @@ func (s *SessionStream) ForceTerminate() error {
 	s.writeSync.Lock()
 	defer s.writeSync.Unlock()
 
-	return trace.Wrap(s.conn.WriteMessage(websocket.TextMessage, json))
+	return trace.Wrap(s.conn.Write(context.Background(), websocket.MessageText, json))
 }
 
 func (s *SessionStream) Done() <-chan struct{} {
@@ -266,18 +267,9 @@ func (s *SessionStream) Done() <-chan struct{} {
 
 // Close closes the stream.
 func (s *SessionStream) Close() error {
-	if atomic.LoadInt32(&s.closed) == 0 {
-		atomic.StoreInt32(&s.closed, 1)
-
-		err := s.conn.WriteMessage(websocket.CloseMessage, []byte{})
-		if err != nil {
+	if atomic.CompareAndSwapInt32(&s.closed, 0, 1) {
+		if err := s.conn.Close(websocket.StatusNormalClosure, ""); err != nil {
 			log.Warnf("Failed to gracefully close websocket connection: %v", err)
-		}
-
-		select {
-		case <-s.done:
-		case <-time.After(time.Second * 5):
-			s.conn.Close()
 		}
 	}
 

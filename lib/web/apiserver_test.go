@@ -18,7 +18,6 @@ package web
 
 import (
 	"archive/tar"
-	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -51,7 +50,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -76,6 +74,7 @@ import (
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"nhooyr.io/websocket"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -1106,12 +1105,12 @@ func TestResizeTerminal(t *testing.T) {
 			default:
 			}
 
-			typ, b, err := ws.ReadMessage()
+			typ, b, err := ws.Read(ctx)
 			if err != nil {
 				errs <- err
 				return
 			}
-			if typ != websocket.BinaryMessage {
+			if typ != websocket.MessageBinary {
 				errs <- trace.BadParameter("expected binary message, got %v", typ)
 				return
 			}
@@ -1128,13 +1127,13 @@ func TestResizeTerminal(t *testing.T) {
 	pack1 := s.authPack(t, "foo")
 	ws1, sess, err := s.makeTerminal(t, pack1)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, ws1.Close()) })
+	t.Cleanup(func() { ws1.Close(websocket.StatusNormalClosure, "") })
 
 	// Create a new user "bar", open a terminal to the session created above
 	pack2 := s.authPack(t, "bar")
 	ws2, sess2, err := s.makeTerminal(t, pack2, withSessionID(sess.ID))
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, ws2.Close()) })
+	t.Cleanup(func() { ws2.Close(websocket.StatusNormalClosure, "") })
 
 	require.Equal(t, sess.ID, sess2.ID)
 
@@ -1201,7 +1200,8 @@ t1ready:
 	}
 	envelopeBytes, err := proto.Marshal(envelope)
 	require.NoError(t, err)
-	err = ws2.WriteMessage(websocket.BinaryMessage, envelopeBytes)
+
+	err = ws2.Write(s.ctx, websocket.MessageBinary, envelopeBytes)
 	require.NoError(t, err)
 
 	// the first terminal should see the resize event
@@ -1220,66 +1220,12 @@ t1ready:
 	}
 }
 
-func isResizeEventEnvelope(e *Envelope) bool {
-	if e.GetType() != defaults.WebsocketAudit {
-		return false
-	}
-	var ef events.EventFields
-	if err := json.Unmarshal([]byte(e.GetPayload()), &ef); err != nil {
-		return false
-	}
-	return ef.GetType() == events.ResizeEvent
-}
-
-// TestTerminalPing tests that the server sends continuous ping control messages.
-func TestTerminalPing(t *testing.T) {
-	t.Parallel()
-	s := newWebSuite(t)
-	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"), withKeepaliveInterval(500*time.Millisecond))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, ws.Close()) })
-
-	closed := false
-	done := make(chan struct{})
-	ws.SetPingHandler(func(message string) error {
-		if closed == false {
-			close(done)
-			closed = true
-		}
-
-		err := ws.WriteControl(websocket.PongMessage, []byte(message), time.Now().Add(time.Second))
-		if err == websocket.ErrCloseSent {
-			return nil
-		} else if e, ok := err.(net.Error); ok && e.Timeout() {
-			return nil
-		}
-		return err
-	})
-
-	// We need to continuously read incoming messages in order to process ping messages.
-	// We only care about receiving a ping here so dropping them is fine.
-	go func() {
-		for {
-			_, _, err := ws.ReadMessage()
-			if err != nil {
-				return
-			}
-		}
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(time.Minute):
-		t.Fatal("timeout waiting for ping")
-	}
-}
-
 func TestTerminal(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
 	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"))
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, ws.Close()) })
+	t.Cleanup(func() { require.NoError(t, ws.Close(websocket.StatusNormalClosure, "")) })
 
 	termHandler := newTerminalHandler()
 	stream := termHandler.asTerminalStream(ws)
@@ -1350,27 +1296,29 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 
 			// Open a terminal to a new session.
 			ws, _ := proxy.makeTerminal(t, pack, "")
+			t.Cleanup(func() { require.NoError(t, ws.Close(websocket.StatusNormalClosure, "")) })
 
 			// Wait for websocket authn challenge event.
-			ty, raw, err := ws.ReadMessage()
-			require.Nil(t, err)
-			require.Equal(t, websocket.BinaryMessage, ty)
+			ty, raw, err := ws.Read(ctx)
+			require.NoError(t, err)
+			require.Equal(t, websocket.MessageBinary, ty)
+
 			var env Envelope
-			require.Nil(t, proto.Unmarshal(raw, &env))
+			require.NoError(t, proto.Unmarshal(raw, &env))
 
 			chals := &client.MFAAuthenticateChallenge{}
-			require.Nil(t, json.Unmarshal([]byte(env.Payload), &chals))
+			require.NoError(t, json.Unmarshal([]byte(env.Payload), &chals))
 
 			// Send response over ws.
 			termHandler := newTerminalHandler()
 			_, err = termHandler.write(tc.getChallengeResponseBytes(chals, dev), ws)
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			// Test we can write.
 			stream := termHandler.asTerminalStream(ws)
 			_, err = io.WriteString(stream, "echo alpacas\r\n")
-			require.Nil(t, err)
-			require.Nil(t, waitForOutput(stream, "alpacas"))
+			require.NoError(t, err)
+			require.NoError(t, waitForOutput(stream, "alpacas"))
 		})
 	}
 }
@@ -1516,8 +1464,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 			ws := proxy.makeDesktopSession(t, pack, session.NewID(), env.server.TLS.Listener.Addr())
 			tc.mfaHandler(t, ws, dev)
 
-			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws})
-
+			tdpClient := tdp.NewConn(websocket.NetConn(ctx, ws, websocket.MessageBinary))
 			msg, err := tdpClient.ReadMessage()
 			require.NoError(t, err)
 			require.IsType(t, tdp.PNG2Frame{}, msg)
@@ -1526,18 +1473,19 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 }
 
 func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {
-	br := bufio.NewReader(&WebsocketIO{Conn: ws})
-	mt, err := br.ReadByte()
+	typ, b, err := ws.Read(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, tdp.TypeMFA, tdp.MessageType(mt))
+	require.Equal(t, websocket.MessageBinary, typ)
+	require.Equal(t, tdp.TypeMFA, tdp.MessageType(b[0]))
 
-	mfaChallange, err := tdp.DecodeMFAChallenge(br)
+	mfaChallenge, err := tdp.DecodeMFAChallenge(bytes.NewReader(b[1:]))
 	require.NoError(t, err)
+
 	res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
-		WebauthnChallenge: wanlib.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),
+		WebauthnChallenge: wanlib.CredentialAssertionToProto(mfaChallenge.WebauthnChallenge),
 	})
 	require.NoError(t, err)
-	err = tdp.NewConn(&WebsocketIO{Conn: ws}).WriteMessage(tdp.MFA{
+	err = tdp.NewConn(websocket.NetConn(context.Background(), ws, websocket.MessageBinary)).WriteMessage(tdp.MFA{
 		Type: defaults.WebsocketWebauthnChallenge[0],
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{
@@ -1553,7 +1501,7 @@ func TestWebAgentForward(t *testing.T) {
 	s := newWebSuite(t)
 	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"))
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, ws.Close()) })
+	t.Cleanup(func() { require.NoError(t, ws.Close(websocket.StatusNormalClosure, "")) })
 
 	termHandler := newTerminalHandler()
 	stream := termHandler.asTerminalStream(ws)
@@ -1652,7 +1600,6 @@ func TestCloseConnectionsOnLogout(t *testing.T) {
 
 	ws, _, err := s.makeTerminal(t, pack)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
 	termHandler := newTerminalHandler()
 	stream := termHandler.asTerminalStream(ws)
@@ -1683,7 +1630,7 @@ func TestCloseConnectionsOnLogout(t *testing.T) {
 
 	select {
 	case <-after:
-		t.Fatalf("timeout")
+		require.FailNow(t, "timeout")
 	case err := <-errC:
 		require.ErrorIs(t, err, io.EOF)
 	}
@@ -1739,7 +1686,7 @@ func TestPlayback(t *testing.T) {
 	pack := s.authPack(t, "foo")
 	ws, _, err := s.makeTerminal(t, pack)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, ws.Close()) })
+	t.Cleanup(func() { require.NoError(t, ws.Close(websocket.StatusNormalClosure, "")) })
 }
 
 type httpErrorMessage struct {
@@ -5773,27 +5720,31 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
 	u.RawQuery = q.Encode()
 
-	dialer := websocket.Dialer{}
-	dialer.TLSClientConfig = &tls.Config{
-		InsecureSkipVerify: true,
-	}
-
 	header := http.Header{}
 	header.Add("Origin", "http://localhost")
 	for _, cookie := range pack.cookies {
 		header.Add("Cookie", cookie.String())
 	}
 
-	ws, resp, err := dialer.Dial(u.String(), header)
+	ws, _, err := websocket.Dial(context.Background(), u.String(), &websocket.DialOptions{
+		HTTPHeader: header,
+		HTTPClient: &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			},
+		},
+	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	ty, raw, err := ws.ReadMessage()
+	ty, raw, err := ws.Read(context.Background())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	require.Equal(t, websocket.BinaryMessage, ty)
+	require.Equal(t, websocket.MessageBinary, ty)
 	var env Envelope
 
 	err = proto.Unmarshal(raw, &env)
@@ -5804,11 +5755,6 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 	var sessResp siteSessionGenerateResponse
 
 	err = json.Unmarshal([]byte(env.Payload), &sessResp)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	err = resp.Body.Close()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -5827,14 +5773,28 @@ func waitForOutput(stream *terminalStream, substr string) error {
 		}
 
 		out := make([]byte, 100)
-		_, err := stream.Read(out)
+		n, err := stream.Read(out)
+		if n > 0 {
+			if strings.Contains(removeSpace(string(out[:n])), substr) {
+				return nil
+			}
+		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if strings.Contains(removeSpace(string(out)), substr) {
-			return nil
-		}
 	}
+}
+
+func isResizeEventEnvelope(e *Envelope) bool {
+	if e.GetType() != defaults.WebsocketAudit {
+		return false
+	}
+	var ef events.EventFields
+	if err := json.Unmarshal([]byte(e.GetPayload()), &ef); err != nil {
+		return false
+	}
+
+	return ef.GetType() == events.ResizeEvent
 }
 
 func (s *WebSuite) client(opts ...roundtrip.ClientParam) *client.WebClient {
@@ -6412,27 +6372,25 @@ func (r *testProxy) makeTerminal(t *testing.T, pack *authPack, sessionID session
 	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
 	u.RawQuery = q.Encode()
 
-	dialer := websocket.Dialer{}
-	dialer.TLSClientConfig = &tls.Config{
-		InsecureSkipVerify: true,
-	}
-
 	header := http.Header{}
 	header.Add("Origin", "http://localhost")
 	for _, cookie := range pack.cookies {
 		header.Add("Cookie", cookie.String())
 	}
 
-	ws, resp, err := dialer.Dial(u.String(), header)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, ws.Close())
-		require.NoError(t, resp.Body.Close())
+	ws, _, err := websocket.Dial(context.Background(), u.String(), &websocket.DialOptions{
+		HTTPHeader: header,
+		HTTPClient: &http.Client{
+			Timeout: 5 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+		},
 	})
 
-	ty, raw, err := ws.ReadMessage()
+	ty, raw, err := ws.Read(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, websocket.BinaryMessage, ty)
+	require.Equal(t, websocket.MessageBinary, ty)
 	var env Envelope
 	require.NoError(t, proto.Unmarshal(raw, &env))
 
@@ -6456,21 +6414,23 @@ func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID s
 	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
 	u.RawQuery = q.Encode()
 
-	dialer := websocket.Dialer{}
-	dialer.TLSClientConfig = &tls.Config{
-		InsecureSkipVerify: true,
-	}
-
 	header := http.Header{}
 	for _, cookie := range pack.cookies {
 		header.Add("Cookie", cookie.String())
 	}
 
-	ws, resp, err := dialer.Dial(u.String(), header)
+	ws, _, err := websocket.Dial(context.Background(), u.String(), &websocket.DialOptions{
+		HTTPHeader: header,
+		HTTPClient: &http.Client{
+			Timeout: 5 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+		},
+	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, ws.Close())
-		require.NoError(t, resp.Body.Close())
+		require.NoError(t, ws.Close(websocket.StatusNormalClosure, ""))
 	})
 	return ws
 }

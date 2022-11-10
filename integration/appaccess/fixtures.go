@@ -15,6 +15,7 @@
 package appaccess
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -24,9 +25,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"nhooyr.io/websocket"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -123,11 +124,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 
 	createHandler := func(handler func(conn *websocket.Conn)) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
-			upgrader := websocket.Upgrader{
-				ReadBufferSize:  1024,
-				WriteBufferSize: 1024,
-			}
-			conn, err := upgrader.Upgrade(w, r, nil)
+			conn, err := websocket.Accept(w, r, nil)
 			require.NoError(t, err)
 			handler(conn)
 		}
@@ -140,14 +137,14 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	t.Cleanup(rootServer.Close)
 	// Websockets server in root cluster (ws://).
 	rootWSServer := httptest.NewServer(createHandler(func(conn *websocket.Conn) {
-		conn.WriteMessage(websocket.BinaryMessage, []byte(p.rootWSMessage))
-		conn.Close()
+		conn.Write(context.Background(), websocket.MessageBinary, []byte(p.rootWSMessage))
+		conn.Close(websocket.StatusNormalClosure, "")
 	}))
 	t.Cleanup(rootWSServer.Close)
 	// Secure websockets server in root cluster (wss://).
 	rootWSSServer := httptest.NewTLSServer(createHandler(func(conn *websocket.Conn) {
-		conn.WriteMessage(websocket.BinaryMessage, []byte(p.rootWSSMessage))
-		conn.Close()
+		conn.Write(context.Background(), websocket.MessageBinary, []byte(p.rootWSSMessage))
+		conn.Close(websocket.StatusNormalClosure, "")
 	}))
 	t.Cleanup(rootWSSServer.Close)
 	// Plain TCP application in root cluster (tcp://).
@@ -177,14 +174,14 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	t.Cleanup(leafServer.Close)
 	// Websockets server in leaf cluster (ws://).
 	leafWSServer := httptest.NewServer(createHandler(func(conn *websocket.Conn) {
-		conn.WriteMessage(websocket.BinaryMessage, []byte(p.leafWSMessage))
-		conn.Close()
+		conn.Write(context.Background(), websocket.MessageBinary, []byte(p.leafWSMessage))
+		conn.Close(websocket.StatusNormalClosure, "")
 	}))
 	t.Cleanup(leafWSServer.Close)
 	// Secure websockets server in leaf cluster (wss://).
 	leafWSSServer := httptest.NewTLSServer(createHandler(func(conn *websocket.Conn) {
-		conn.WriteMessage(websocket.BinaryMessage, []byte(p.leafWSSMessage))
-		conn.Close()
+		conn.Write(context.Background(), websocket.MessageBinary, []byte(p.leafWSSMessage))
+		conn.Close(websocket.StatusNormalClosure, "")
 	}))
 	t.Cleanup(leafWSSServer.Close)
 	// Plain TCP application in leaf cluster (tcp://).
@@ -200,12 +197,12 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	t.Cleanup(jwtServer.Close)
 	// Websocket header server dumps initial HTTP upgrade request in the response.
 	wsHeaderServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := (&websocket.Upgrader{}).Upgrade(w, r, nil)
+		conn, err := websocket.Accept(w, r, nil)
 		require.NoError(t, err)
 		reqDump, err := httputil.DumpRequest(r, false)
 		require.NoError(t, err)
-		require.NoError(t, conn.WriteMessage(websocket.BinaryMessage, reqDump))
-		require.NoError(t, conn.Close())
+		require.NoError(t, conn.Write(r.Context(), websocket.MessageBinary, reqDump))
+		require.NoError(t, conn.Close(websocket.StatusNormalClosure, ""))
 	}))
 	t.Cleanup(wsHeaderServer.Close)
 	headerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

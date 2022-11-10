@@ -29,10 +29,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"nhooyr.io/websocket"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -483,28 +483,37 @@ func (p *Pack) makeRequestWithClientCert(tlsConfig *tls.Config, method, endpoint
 // makeWebsocketRequest makes a websocket request with the given session cookie.
 func (p *Pack) makeWebsocketRequest(sessionCookie, endpoint string) (string, error) {
 	header := http.Header{}
-	dialer := websocket.Dialer{}
-
 	if sessionCookie != "" {
 		header.Set("Cookie", (&http.Cookie{
 			Name:  app.CookieName,
 			Value: sessionCookie,
 		}).String())
 	}
-	dialer.TLSClientConfig = &tls.Config{
-		InsecureSkipVerify: true,
-	}
-	conn, resp, err := dialer.Dial(fmt.Sprintf("wss://%s%s", p.rootCluster.Web, endpoint), header)
+
+	conn, _, err := websocket.Dial(
+		context.Background(),
+		fmt.Sprintf("wss://%s%s", p.rootCluster.Web, endpoint),
+		&websocket.DialOptions{
+			HTTPHeader: header,
+			HTTPClient: &http.Client{
+				Timeout: 5 * time.Second,
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				},
+			},
+		},
+	)
 	if err != nil {
 		return "", err
 	}
-	defer conn.Close()
-	defer resp.Body.Close()
-	stream := &web.WebsocketIO{Conn: conn}
-	data, err := io.ReadAll(stream)
-	if err != nil && websocket.IsUnexpectedCloseError(err, websocket.CloseAbnormalClosure) {
+
+	defer conn.Close(websocket.StatusNormalClosure, "")
+
+	data, err := io.ReadAll(websocket.NetConn(context.Background(), conn, websocket.MessageBinary))
+	if err != nil && websocket.CloseStatus(err) == websocket.StatusAbnormalClosure {
 		return "", err
 	}
+
 	return string(data), nil
 }
 
