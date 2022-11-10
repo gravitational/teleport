@@ -11,7 +11,7 @@ defaults:
 jobs:
   build:
     name: Build Teleport Connect
-    runs_on: windows-2022
+    runs-on: windows-2022
     steps:
       - name: Checkout Teleport
         uses: actions/checkout@v3
