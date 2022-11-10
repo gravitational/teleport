@@ -6,7 +6,9 @@ on:
 jobs:
   build:
     name: Build Teleport Connect
+    
     runs-on: windows-2022
+
     steps:
       - name: Checkout Teleport
         uses: actions/checkout@v3
