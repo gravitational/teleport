@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -36,6 +37,18 @@ func TestService_authz(t *testing.T) {
 		rpc       func() error
 		assertErr func(error) bool
 	}{
+		{
+			name: "BulkCreateDevice",
+			checker: &fakeChecker{
+				wantRule: types.KindDevice,
+				wantVerb: types.VerbCreate,
+			},
+			rpc: func() error {
+				_, err := devices.BulkCreateDevices(ctx, &devicepb.BulkCreateDevicesRequest{})
+				return err
+			},
+			assertErr: trace.IsBadParameter,
+		},
 		{
 			name: "CreateDevice",
 			checker: &fakeChecker{
@@ -557,6 +570,119 @@ func TestService_FindDevices(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestService_BulkCreateDevices(t *testing.T) {
+	emitter := &eventstest.MockEmitter{}
+	env := testenv.MustNew(testenv.WithEmitter(emitter))
+	defer env.Close()
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	resp, err := devices.BulkCreateDevices(ctx, &devicepb.BulkCreateDevicesRequest{
+		Devices: []*devicepb.Device{
+			// Valid.
+			{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "llama",
+			},
+			// Valid.
+			{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "alpaca",
+			},
+			// Invalid: missing asset tag.
+			{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "",
+			},
+			// Invalid: duplicate asset tag for macOS.
+			{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "llama",
+			},
+			// Valid.
+			{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "camel",
+			},
+			// Invalid: nil.
+			nil,
+		},
+	})
+	if err != nil {
+		t.Fatalf("BulkCreateDevice failed: %v", err)
+	}
+
+	// Verify response codes.
+	wantCodes := []codes.Code{
+		codes.OK,              // llama
+		codes.OK,              // alpaca
+		codes.InvalidArgument, // missing asset tag
+		codes.AlreadyExists,   // duplicate asset tag
+		codes.OK,              // camel
+		codes.InvalidArgument, // nil
+	}
+	var gotCodes []codes.Code
+	for i, dev := range resp.Devices {
+		// Using GetCode() because Status can be nil for successes.
+		code := codes.Code(dev.Status.GetCode())
+		gotCodes = append(gotCodes, code)
+
+		// Sanity check details about the responses.
+		switch {
+		case code == codes.OK && dev.Id == "":
+			t.Errorf("BulkCreateDevice: resp.Devices[%v].Id is empty, want non-empty", i)
+		case code != codes.OK && dev.Status.GetMessage() == "":
+			t.Errorf("BulkCreateDevice: resp.Devices[%v].Message is empty, want non-empty for code %s", i, code)
+		}
+	}
+	if diff := cmp.Diff(wantCodes, gotCodes); diff != "" {
+		t.Fatalf("BulkCreateDevice codes mismatch (-want +got)\n%s", diff)
+	}
+
+	// Verify that IDs match the expected asset tags.
+	// BulkCreate response order matches the request order.
+	wantDevices := map[string]string{
+		resp.Devices[0].Id: "llama",
+		resp.Devices[1].Id: "alpaca",
+		resp.Devices[4].Id: "camel",
+	}
+	listResp, err := devices.ListDevices(ctx, &devicepb.ListDevicesRequest{})
+	switch {
+	case err != nil:
+		t.Fatalf("ListDevices failed: %v", err)
+	case listResp.NextPageToken != "":
+		t.Fatal("ListDevices returned a non-empty nextPageToken")
+	}
+	gotDevices := make(map[string]string)
+	for _, got := range listResp.Devices {
+		gotDevices[got.Id] = got.AssetTag
+	}
+	if diff := cmp.Diff(wantDevices, gotDevices); diff != "" {
+		t.Errorf("Created devices mismatch (-want +got)\n%s", diff)
+	}
+
+	// Verify audit log.
+	wantEvents := []wantEvent{
+		// llama
+		{
+			Type: types.KindDevice,
+			Code: events.DeviceCreateCode,
+		},
+		// alpaca
+		{
+			Type: types.KindDevice,
+			Code: events.DeviceCreateCode,
+		},
+		// camel
+		{
+			Type: types.KindDevice,
+			Code: events.DeviceCreateCode,
+		},
+	}
+	assertEvents(t, emitter.Events(), wantEvents)
 }
 
 type wantEvent struct {

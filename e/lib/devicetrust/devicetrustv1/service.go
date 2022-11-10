@@ -100,6 +100,7 @@ func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRe
 
 	return dev, nil
 }
+
 func (s *Service) DeleteDevice(ctx context.Context, req *devicepb.DeleteDeviceRequest) (*emptypb.Empty, error) {
 	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
@@ -205,6 +206,41 @@ func (s *Service) ListDevices(ctx context.Context, req *devicepb.ListDevicesRequ
 	return &devicepb.ListDevicesResponse{
 		Devices:       devs,
 		NextPageToken: nextPageToken,
+	}, nil
+}
+
+func (s *Service) BulkCreateDevices(ctx context.Context, req *devicepb.BulkCreateDevicesRequest) (*devicepb.BulkCreateDevicesResponse, error) {
+	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(req.Devices) == 0 {
+		return nil, trace.BadParameter("devices required")
+	}
+
+	devs := s.storage.BulkCreateDevices(ctx, req.Devices)
+
+	// Emit audit events.
+	for _, created := range devs {
+		if created.GetId() == "" {
+			continue
+		}
+		s.emitAuditEvent(ctx, &apievents.DeviceEvent{
+			Metadata: apievents.Metadata{
+				Type: events.DeviceEvent,
+				Code: events.DeviceCreateCode,
+			},
+			Status: &apievents.Status{
+				Success: true,
+			},
+			Device: &apievents.DeviceMetadata{
+				DeviceId: created.Id,
+			},
+			User: getUserMetadata(ctx),
+		})
+	}
+
+	return &devicepb.BulkCreateDevicesResponse{
+		Devices: devs,
 	}, nil
 }
 
