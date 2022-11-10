@@ -3970,23 +3970,23 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing.T) {
 
 	tt := []struct {
-		cloud               bool
 		name                string
+		cloud               bool
 		numberOfUsers       int
 		resultConnectorName string
 	}{{
-		cloud:               true,
 		name:                "cloud, 1 user; signing with passwordless should change connectorName to `passwordless`",
+		cloud:               true,
 		numberOfUsers:       1,
 		resultConnectorName: constants.PasswordlessConnector,
 	}, {
-		cloud:               false,
 		name:                "not cloud, 1 user; signing with passwordless should not change connectorName",
+		cloud:               false,
 		numberOfUsers:       1,
 		resultConnectorName: "",
 	}, {
-		cloud:               true,
 		name:                "cloud, 2 users; signing with passwordless should not change connectorName",
+		cloud:               true,
 		numberOfUsers:       2,
 		resultConnectorName: "",
 	}}
