@@ -90,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	tlsutils "github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -141,7 +142,7 @@ type WebSuite struct {
 }
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
-// it as an argument. Otherwise it will run tests as normal.
+// it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	// If the test is re-executing itself, execute the command that comes over
@@ -150,6 +151,7 @@ func TestMain(m *testing.M) {
 		srv.RunAndExit(os.Args[1])
 		return
 	}
+	native.PrecomputeTestKeys()
 
 	// Otherwise run tests as normal.
 	code := m.Run()
