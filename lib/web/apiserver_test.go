@@ -4076,7 +4076,8 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 		req, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(body))
 		require.NoError(t, err)
 
-		const csrfToken = "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
+		csrfToken, err := csrf.GenerateToken()
+		require.NoError(t, err)
 		addCSRFCookieToReq(req, csrfToken)
 		req.Header.Set(csrf.HeaderName, csrfToken)
 		req.Header.Set("User-Agent", "test-ua")
