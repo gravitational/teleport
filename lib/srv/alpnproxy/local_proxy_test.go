@@ -284,6 +284,8 @@ func TestLocalProxyClosesConnOnError(t *testing.T) {
 	conn, err := net.Dial("tcp", lp.GetAddr())
 	require.NoError(t, err)
 
+	// set a read deadline so that if the connection is not closed,
+	// this test will fail quickly instead of hanging.
 	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	buf := make([]byte, 512)
 	_, err = conn.Read(buf)
