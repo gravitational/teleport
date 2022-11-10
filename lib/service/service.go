@@ -93,6 +93,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/plugin"
+	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/proxy/clusterdial"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -3441,6 +3442,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return nil
 		})
 	}
+
 	if !process.Config.Proxy.DisableTLS {
 		tlsConfigWeb, err = process.setupProxyTLSConfig(conn, tsrv, accessPoint, clusterName)
 		if err != nil {
@@ -3593,6 +3595,22 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		})
 	}
 
+	var siteGetter proxy.SiteGetter = tsrv
+	if process.Config.Proxy.DisableReverseTunnel {
+		siteGetter = proxy.NopSiteGetter{}
+	}
+
+	proxyRouter, err := proxy.NewRouter(proxy.RouterConfig{
+		ClusterName:         clusterName,
+		Log:                 process.log.WithField(trace.Component, "router"),
+		RemoteClusterGetter: accessPoint,
+		SiteGetter:          siteGetter,
+		TracerProvider:      process.TracingProvider,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	sshProxy, err := regular.New(cfg.Proxy.SSHAddr,
 		cfg.Hostname,
 		[]ssh.Signer{conn.ServerIdentity.KeySigner},
@@ -3602,7 +3620,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		process.proxyPublicAddr(),
 		conn.Client,
 		regular.SetLimiter(proxyLimiter),
-		regular.SetProxyMode(peerAddrString, tsrv, accessPoint),
+		regular.SetProxyMode(peerAddrString, tsrv, accessPoint, proxyRouter),
 		regular.SetCiphers(cfg.Ciphers),
 		regular.SetKEXAlgorithms(cfg.KEXAlgorithms),
 		regular.SetMACAlgorithms(cfg.MACAlgorithms),

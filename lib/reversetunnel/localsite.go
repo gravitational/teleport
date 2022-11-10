@@ -447,9 +447,9 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 	// return a tunnel connection to that node. Otherwise net.Dial to the target host.
 	conn, tunnelErr = s.dialTunnel(dreq)
 	if tunnelErr == nil {
-		dt := dialType_tunnel
+		dt := dialTypeTunnel
 		if params.FromPeerProxy {
-			dt = dialType_peerTunnel
+			dt = dialTypePeerTunnel
 		}
 
 		return newMetricConn(conn, dt, dialStart, s.srv.Clock), true, nil
@@ -462,7 +462,7 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 			params.ProxyIDs, params.ServerID, params.From, params.To, params.ConnType,
 		)
 		if peerErr == nil {
-			return newMetricConn(conn, dialType_peer, dialStart, s.srv.Clock), true, nil
+			return newMetricConn(conn, dialTypePeer, dialStart, s.srv.Clock), true, nil
 		}
 		s.log.WithError(peerErr).WithField("address", dreq.Address).Debug("Error occurred while dialing over peer proxy.")
 	}
@@ -494,7 +494,7 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 	}
 
 	// Return a direct dialed connection.
-	return newMetricConn(conn, dialType_direct, dialStart, s.srv.Clock), false, nil
+	return newMetricConn(conn, dialTypeDirect, dialStart, s.srv.Clock), false, nil
 }
 
 func (s *localSite) addConn(nodeID string, connType types.TunnelType, conn net.Conn, sconn ssh.Conn) (*remoteConn, error) {

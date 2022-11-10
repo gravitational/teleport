@@ -28,16 +28,16 @@ import (
 type dialType string
 
 const (
-	// dialType_direct is a direct dialed connection.
-	dialType_direct dialType = "direct"
-	// dialType_peer is a connection established through a peer proxy.
-	dialType_peer dialType = "peer"
-	// dialType_tunnel is a connection established over a local reverse tunnel initiated
+	// dialTypeDirect is a direct dialed connection.
+	dialTypeDirect dialType = "direct"
+	// dialTypePeer is a connection established through a peer proxy.
+	dialTypePeer dialType = "peer"
+	// dialTypeTunnel is a connection established over a local reverse tunnel initiated
 	// by a client.
-	dialType_tunnel dialType = "tunnel"
-	// dialType_peerTunnel is a connection established over a local reverse tunnel
+	dialTypeTunnel dialType = "tunnel"
+	// dialTypePeerTunnel is a connection established over a local reverse tunnel
 	// initiated by a peer proxy.
-	dialType_peerTunnel dialType = "peer-tunnel"
+	dialTypePeerTunnel dialType = "peer-tunnel"
 )
 
 // metricConn reports metrics for reversetunnel connections.
