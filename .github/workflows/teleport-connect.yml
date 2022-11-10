@@ -3,11 +3,6 @@ on:
   push:
     branches:
       - tcsc/windows-gha-skunkworks
-
-defaults:
-  run:
-    working-directory: /workspace
-
 jobs:
   build:
     name: Build Teleport Connect
