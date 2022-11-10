@@ -19,14 +19,87 @@ package httplib
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/gravitational/roundtrip"
 	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/require"
 )
+
+type netError struct{}
+
+func (e *netError) Error() string   { return "net" }
+func (e *netError) Timeout() bool   { return true }
+func (e *netError) Temporary() bool { return true }
+
+func TestConvertResponse(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name           string
+		err            error
+		expected       string
+		verifyResponse func(*testing.T, error, string)
+	}{
+		{
+			name: "url error",
+			err: &url.Error{
+				Op:  "POST",
+				URL: "http://localhost",
+				Err: errors.New("error goes here"),
+			},
+			expected: "POST \"http://localhost\": error goes here",
+			verifyResponse: func(t *testing.T, err error, expected string) {
+				require.Error(t, err)
+				require.Equal(t, err.Error(), expected)
+			},
+		},
+		{
+			name: "url with path error",
+			err: &url.Error{
+				Op:  "POST",
+				URL: "http://localhost?path%20foobar",
+				Err: errors.New("error goes here"),
+			},
+			expected: "POST \"http://localhost?path%20foobar\": error goes here",
+			verifyResponse: func(t *testing.T, err error, expected string) {
+				require.Error(t, err)
+				require.Equal(t, err.Error(), expected)
+			},
+		},
+		{
+			name:     "timeout error",
+			err:      &netError{},
+			expected: "unable to complete the request due to a timeout, please try again in a few minutes",
+			verifyResponse: func(t *testing.T, err error, expected string) {
+				require.Error(t, err)
+				require.Equal(t, err.Error(), expected)
+			},
+		},
+		{
+			name:     "normal error",
+			err:      errors.New("this is a normal error"),
+			expected: "this is a normal error",
+			verifyResponse: func(t *testing.T, err error, expected string) {
+				require.Error(t, err)
+				require.Equal(t, err.Error(), expected)
+			},
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ConvertResponse(&roundtrip.Response{}, test.err)
+			test.verifyResponse(t, err, test.expected)
+		})
+	}
+
+}
 
 func TestRewritePaths(t *testing.T) {
 	handler := newTestHandler()
