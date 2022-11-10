@@ -34,6 +34,7 @@ type LegacySHA1Signer struct {
 	Signer ssh.AlgorithmSigner
 }
 
+// PublicKey returns the public key from the underlying signer.
 func (s *LegacySHA1Signer) PublicKey() ssh.PublicKey {
 	return s.Signer.PublicKey()
 }

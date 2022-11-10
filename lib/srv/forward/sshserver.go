@@ -612,7 +612,12 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*trac
 		return nil, trace.AccessDenied("agent must be forwarded to proxy")
 	}
 
-	authMethod := ssh.PublicKeysCallback(signersWithSHA1Fallback(s.userAgent.Signers))
+	signers, err := s.userAgent.Signers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authMethod := ssh.PublicKeysCallback(signersWithSHA1Fallback(signers))
 
 	clientConfig := &ssh.ClientConfig{
 		User: systemLogin,
@@ -644,26 +649,20 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*trac
 // signersWithSHA1Fallback returns the signers provided by signersCb and appends
 // the same signers with forced SHA-1 signature to the end. This behavior is
 // required as older OpenSSH version <= 7.6 don't support SHA-2 signed certificates.
-func signersWithSHA1Fallback(signersCb func() ([]ssh.Signer, error)) func() ([]ssh.Signer, error) {
+func signersWithSHA1Fallback(signers []ssh.Signer) func() ([]ssh.Signer, error) {
 	return func() ([]ssh.Signer, error) {
-		signers, err := signersCb()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		combinedSigners := make([]ssh.Signer, len(signers), 2*len(signers))
-		// Copy the original signers. All of them should be using SHA2-512 for signing.
-		// Order is important here as we want SHA2-signers to be used first.
-		copy(combinedSigners[:], signers)
-
+		var sha1Signers []ssh.Signer
 		for _, signer := range signers {
 			if s, ok := signer.(ssh.AlgorithmSigner); ok && s.PublicKey().Type() == ssh.CertAlgoRSAv01 {
-				// If certificate signer supports Sign(rand io.Reader, data []byte) method,
-				// add SHA-1 signer.
-				combinedSigners = append(combinedSigners, &sshutils.LegacySHA1Signer{Signer: s})
+				// If certificate signer supports SignWithAlgorithm(rand io.Reader, data []byte, algorithm string)
+				// method from the ssh.AlgorithmSigner interface add SHA-1 signer.
+				sha1Signers = append(sha1Signers, &sshutils.LegacySHA1Signer{Signer: s})
 			}
 		}
 
-		return combinedSigners, nil
+		// Merge original signers with the SHA-1 we created.
+		// Order is important here as we want SHA2 signers to be used first.
+		return append(signers, sha1Signers...), nil
 	}
 }
 
