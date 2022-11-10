@@ -14,7 +14,7 @@ it and join the cluster.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - AWS account with EC2 instances and permissions to create and attach IAM
-policies as well as permission to create Systems Manager documents.
+policies.
 - EC2 instances running Ubuntu/Debian/RHEL/Amazon Linux 2 if making use of the
 default Teleport install script. (For other Linux distributions, you can
 install Teleport manually.)
@@ -36,9 +36,6 @@ the command:
             "Sid": "VisualEditor0",
             "Effect": "Allow",
             "Action": [
-                "ssm:SendCommand",
-                "ec2:DescribeInstances",
-                "ssm:GetCommandInvocation",
                 "iam:GetPolicy",
                 "iam:TagPolicy",
                 "iam:ListPolicyVersions",
@@ -61,7 +58,7 @@ Create this policy and apply it to the Node (EC2 instance) that will run the Dis
 
 <Admonition type="tip">
 
-If you plan on running the Discovery Service on the same node already running
+If you plan on running the Discovery Service on the same Node already running
 another Teleport service (Auth or Proxy, for example), you can skip this step.
 
 </Admonition>
@@ -72,7 +69,7 @@ Install Teleport on the EC2 instance that will run the Discovery Service:
 
 ## Step 3/5. Configure Teleport to discover EC2 instances
 
-Assuming a discrete Node for the Discovery Service, the service requires a
+If you are running the Discovery Service on its own host, the service requires a
 valid auth token to connect to the cluster. Generate one by running the
 following command against your Teleport Auth Service:
 
@@ -81,7 +78,7 @@ $ tctl tokens add --type=discovery
 ```
 
 Save the generated token in `/tmp/token` on the Node (EC2 instance) that will
-run the Discovery Service:
+run the Discovery Service.
 
 In order to enable EC2 instance discovery the `discovery_service.aws` section
 of `teleport.yaml` must include at least one entry:
@@ -111,7 +108,7 @@ discovery_service:
 
 ## Step 4/5. Bootstrap the Discovery Service
 
-On the same node as above, run `teleport discovery bootstrap`. This command
+On the same Node as above, run `teleport discovery bootstrap`. This command
 will generate and display the additional IAM policies and SSM documents
 required to enable the Discovery Service:
 
@@ -200,7 +197,7 @@ Confirm? [y/N]: y
 
 Once Teleport is configured for discovery, it can be started and EC2 instances
 matching the tags specified in the AWS section will begin to be added to the
-teleport cluster automatically. You can start Teleport now, or follow the next
+Teleport cluster automatically. You can start Teleport now, or follow the next
 section to customize the Teleport installation script first.
 
 ## Step 5/5. [Optional] Customize the default installer script
