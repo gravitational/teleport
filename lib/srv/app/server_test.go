@@ -35,8 +35,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/oxy/forward"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -49,12 +55,6 @@ import (
 	libsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -297,6 +297,8 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		apps = config.Apps
 	}
 
+	discard := events.NewDiscardEmitter()
+
 	s.appServer, err = New(s.closeContext, &Config{
 		Clock:            s.clock,
 		DataDir:          s.dataDir,
@@ -313,6 +315,8 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		Cloud:            &testCloud{},
 		ResourceMatchers: config.ResourceMatchers,
 		OnReconcile:      config.OnReconcile,
+		LockWatcher:      lockWatcher,
+		Emitter:          discard,
 	})
 	require.NoError(t, err)
 

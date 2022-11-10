@@ -41,8 +41,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/lib/githubactions"
-
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
@@ -70,8 +68,10 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/inventory"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -185,13 +185,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.AssertionReplayService == nil {
 		cfg.AssertionReplayService = local.NewAssertionReplayService(cfg.Backend)
 	}
-	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
-		native.PrecomputeKeys()
-		cfg.KeyStoreConfig.RSAKeyPairSource = native.GenerateKeyPair
-	}
-	if cfg.KeyStoreConfig.HostUUID == "" {
-		cfg.KeyStoreConfig.HostUUID = cfg.HostUUID
-	}
 	if cfg.TraceClient == nil {
 		cfg.TraceClient = tracing.NewNoopClient()
 	}
@@ -203,7 +196,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	keyStore, err := keystore.NewKeyStore(cfg.KeyStoreConfig)
+	if cfg.KeyStoreConfig.PKCS11 != (keystore.PKCS11Config{}) {
+		cfg.KeyStoreConfig.PKCS11.HostUUID = cfg.HostUUID
+	} else {
+		native.PrecomputeKeys()
+		cfg.KeyStoreConfig.Software.RSAKeyPairSource = native.GenerateKeyPair
+	}
+	keyStore, err := keystore.NewManager(cfg.KeyStoreConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -273,6 +272,15 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 				Clock: as.clock,
 			},
 		)
+	}
+	if as.circleCITokenValidate == nil {
+		as.circleCITokenValidate = func(
+			ctx context.Context, organizationID, token string,
+		) (*circleci.IDTokenClaims, error) {
+			return circleci.ValidateToken(
+				ctx, as.clock, circleci.IssuerURLTemplate, organizationID, token,
+			)
+		}
 	}
 
 	return &as, nil
@@ -431,9 +439,9 @@ type Server struct {
 	// session related streams
 	streamer events.Streamer
 
-	// keyStore is an interface for interacting with private keys in CAs which
-	// may be backed by HSMs
-	keyStore keystore.KeyStore
+	// keyStore manages all CA private keys, which  may or may not be backed by
+	// HSMs
+	keyStore *keystore.Manager
 
 	// lockWatcher is a lock watcher, used to verify cert generation requests.
 	lockWatcher *services.LockWatcher
@@ -457,6 +465,10 @@ type Server struct {
 	// ghaIDTokenValidator allows ID tokens from GitHub Actions to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
 	ghaIDTokenValidator ghaIDTokenValidator
+
+	// circleCITokenValidate allows ID tokens from CircleCI to be validated by
+	// the auth server. It can be overridden for the purpose of tests.
+	circleCITokenValidate func(ctx context.Context, organizationID, token string) (*circleci.IDTokenClaims, error)
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
@@ -915,7 +927,7 @@ func (a *Server) generateHostCert(p services.HostCertParams) ([]byte, error) {
 }
 
 // GetKeyStore returns the KeyStore used by the auth server
-func (a *Server) GetKeyStore() keystore.KeyStore {
+func (a *Server) GetKeyStore() *keystore.Manager {
 	return a.keyStore
 }
 
@@ -3730,19 +3742,23 @@ func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {
 
 // addAdditionalTrustedKeysAtomic performs an atomic CompareAndSwap to update
 // the given CA with newKeys added to the AdditionalTrustedKeys
-func (a *Server) addAddtionalTrustedKeysAtomic(
+func (a *Server) addAdditionalTrustedKeysAtomic(
 	ctx context.Context,
 	currentCA types.CertAuthority,
 	newKeys types.CAKeySet,
-	needsUpdate func(types.CertAuthority) bool,
+	needsUpdate func(types.CertAuthority) (bool, error),
 ) error {
 	for {
 		select {
-		case <-a.closeCtx.Done():
-			return trace.Wrap(a.closeCtx.Err())
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
 		default:
 		}
-		if !needsUpdate(currentCA) {
+		updateRequired, err := needsUpdate(currentCA)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !updateRequired {
 			return nil
 		}
 
@@ -3753,7 +3769,7 @@ func (a *Server) addAddtionalTrustedKeysAtomic(
 			return trace.Wrap(err)
 		}
 
-		err := a.CompareAndSwapCertAuthority(newCA, currentCA)
+		err = a.CompareAndSwapCertAuthority(newCA, currentCA)
 		if err != nil && !trace.IsCompareFailed(err) {
 			return trace.Wrap(err)
 		}
@@ -3772,7 +3788,7 @@ func (a *Server) addAddtionalTrustedKeysAtomic(
 
 // newKeySet generates a new sets of keys for a given CA type.
 // Keep this function in sync with lib/service/suite/suite.go:NewTestCAWithConfig().
-func newKeySet(keyStore keystore.KeyStore, caID types.CertAuthID) (types.CAKeySet, error) {
+func newKeySet(keyStore *keystore.Manager, caID types.CertAuthID) (types.CAKeySet, error) {
 	var keySet types.CAKeySet
 	switch caID.Type {
 	case types.UserCA, types.HostCA:
@@ -3808,7 +3824,11 @@ func newKeySet(keyStore keystore.KeyStore, caID types.CertAuthID) (types.CAKeySe
 // ensureLocalAdditionalKeys adds additional trusted keys to the CA if they are not
 // already present.
 func (a *Server) ensureLocalAdditionalKeys(ctx context.Context, ca types.CertAuthority) error {
-	if a.keyStore.HasLocalAdditionalKeys(ca) {
+	hasUsableKeys, err := a.keyStore.HasUsableAdditionalKeys(ca)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if hasUsableKeys {
 		// nothing to do
 		return nil
 	}
@@ -3818,9 +3838,13 @@ func (a *Server) ensureLocalAdditionalKeys(ctx context.Context, ca types.CertAut
 		return trace.Wrap(err)
 	}
 
-	err = a.addAddtionalTrustedKeysAtomic(ctx, ca, newKeySet, func(ca types.CertAuthority) bool {
-		return !a.keyStore.HasLocalAdditionalKeys(ca)
-	})
+	// The CA still needs an update while the keystore does not have any usable
+	// keys in the CA.
+	needsUpdate := func(ca types.CertAuthority) (bool, error) {
+		hasUsableKeys, err := a.keyStore.HasUsableAdditionalKeys(ca)
+		return !hasUsableKeys, trace.Wrap(err)
+	}
+	err = a.addAdditionalTrustedKeysAtomic(ctx, ca, newKeySet, needsUpdate)
 	if err != nil {
 		return trace.Wrap(err)
 	}

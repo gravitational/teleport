@@ -31,6 +31,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
+	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/http/httpguts"
+	"k8s.io/apimachinery/pkg/util/validation"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
@@ -56,16 +66,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
-	"go.opentelemetry.io/otel/attribute"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/net/http/httpguts"
-	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // Rate describes a rate ratio, i.e. the number of "events" that happen over
@@ -1044,6 +1044,10 @@ type AppsConfig struct {
 
 	// ResourceMatchers match cluster database resources.
 	ResourceMatchers []services.ResourceMatcher
+
+	// MonitorCloseChannel will be signaled when a monitor closes a connection.
+	// Used only for testing. Optional.
+	MonitorCloseChannel chan struct{}
 }
 
 // App is the specific application that will be proxied by the application
@@ -1323,7 +1327,7 @@ type DiscoveryConfig struct {
 	Enabled bool
 	// AWSMatchers are used to match EC2 instances for auto enrollment.
 	AWSMatchers []services.AWSMatcher
-	// AzureMatchers are used to match resources for auto discovery.
+	// AzureMatchers are used to match resources for auto enrollment.
 	AzureMatchers []services.AzureMatcher
 }
 

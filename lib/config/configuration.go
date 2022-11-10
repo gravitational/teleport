@@ -723,13 +723,13 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
 			)
 		}
 
-		cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
+		cfg.Auth.KeyStore.PKCS11.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
 	}
 
-	cfg.Auth.KeyStore.TokenLabel = fc.Auth.CAKeyParams.PKCS11.TokenLabel
-	cfg.Auth.KeyStore.SlotNumber = fc.Auth.CAKeyParams.PKCS11.SlotNumber
+	cfg.Auth.KeyStore.PKCS11.TokenLabel = fc.Auth.CAKeyParams.PKCS11.TokenLabel
+	cfg.Auth.KeyStore.PKCS11.SlotNumber = fc.Auth.CAKeyParams.PKCS11.SlotNumber
 
-	cfg.Auth.KeyStore.Pin = fc.Auth.CAKeyParams.PKCS11.Pin
+	cfg.Auth.KeyStore.PKCS11.Pin = fc.Auth.CAKeyParams.PKCS11.Pin
 	if fc.Auth.CAKeyParams.PKCS11.PinPath != "" {
 		if fc.Auth.CAKeyParams.PKCS11.Pin != "" {
 			return trace.BadParameter("can not set both pin and pin_path")
@@ -753,7 +753,7 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		pin := strings.TrimRight(string(pinBytes), "\r\n")
-		cfg.Auth.KeyStore.Pin = pin
+		cfg.Auth.KeyStore.PKCS11.Pin = pin
 	}
 	return nil
 }

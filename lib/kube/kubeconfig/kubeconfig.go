@@ -22,15 +22,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -60,6 +59,17 @@ type Values struct {
 
 	// TLSServerName is SNI host value passed to the server.
 	TLSServerName string
+
+	// Impersonate allows to define the default impersonated user.
+	// Must be a subset of kubernetes_users or the Teleport username
+	// otherwise Teleport will deny the request.
+	Impersonate string
+	// ImpersonateGroups allows to define the default values for impersonated groups.
+	// Must be a subset of kubernetes_groups otherwise Teleport will deny
+	// the request.
+	ImpersonateGroups []string
+	// Namespace allows to define the default namespace value.
+	Namespace string
 }
 
 // ExecValues contain values for configuring tsh as an exec auth plugin in
@@ -131,6 +141,8 @@ func Update(path string, v Values, storeAllCAs bool) error {
 				execArgs = append(execArgs, fmt.Sprintf("--proxy=%s", v.ProxyAddr))
 			}
 			authInfo := &clientcmdapi.AuthInfo{
+				Impersonate:       v.Impersonate,
+				ImpersonateGroups: v.ImpersonateGroups,
 				Exec: &clientcmdapi.ExecConfig{
 					APIVersion: "client.authentication.k8s.io/v1beta1",
 					Command:    v.Exec.TshBinaryPath,
@@ -145,7 +157,7 @@ func Update(path string, v Values, storeAllCAs bool) error {
 			}
 			config.AuthInfos[authName] = authInfo
 
-			setContext(config.Contexts, contextName, clusterName, authName)
+			setContext(config.Contexts, contextName, clusterName, authName, v.Namespace)
 		}
 		if v.Exec.SelectCluster != "" {
 			contextName := ContextName(v.TeleportClusterName, v.Exec.SelectCluster)
@@ -173,7 +185,7 @@ func Update(path string, v Values, storeAllCAs bool) error {
 				ClientKeyData:         rsaKeyPEM,
 			}
 
-			setContext(config.Contexts, v.TeleportClusterName, v.TeleportClusterName, v.TeleportClusterName)
+			setContext(config.Contexts, v.TeleportClusterName, v.TeleportClusterName, v.TeleportClusterName, v.Namespace)
 			config.CurrentContext = v.TeleportClusterName
 		} else if !trace.IsBadParameter(err) {
 			return trace.Wrap(err)
@@ -184,7 +196,7 @@ func Update(path string, v Values, storeAllCAs bool) error {
 	return Save(path, *config)
 }
 
-func setContext(contexts map[string]*clientcmdapi.Context, name, cluster, auth string) {
+func setContext(contexts map[string]*clientcmdapi.Context, name, cluster, auth string, namespace string) {
 	lastContext := contexts[name]
 	newContext := &clientcmdapi.Context{
 		Cluster:  cluster,
@@ -194,6 +206,13 @@ func setContext(contexts map[string]*clientcmdapi.Context, name, cluster, auth s
 		newContext.Namespace = lastContext.Namespace
 		newContext.Extensions = lastContext.Extensions
 	}
+
+	// If a user specifies the default namespace we should override it.
+	// Otherwise we should carry the namespace previously defined for the context.
+	if len(namespace) > 0 {
+		newContext.Namespace = namespace
+	}
+
 	contexts[name] = newContext
 }
 
