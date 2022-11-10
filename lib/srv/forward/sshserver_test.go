@@ -27,7 +27,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func Test_signersWithSHA1Fallback(t *testing.T) {
+func TestSignersWithSHA1Fallback(t *testing.T) {
 	assertSHA2Signer := func(t *testing.T, signer ssh.Signer) {
 		require.Equal(t, ssh.CertAlgoRSAv01, signer.PublicKey().Type())
 
@@ -57,19 +57,17 @@ func Test_signersWithSHA1Fallback(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		signersCb func(t *testing.T) func() ([]ssh.Signer, error)
+		signersCb func(t *testing.T) []ssh.Signer
 		want      func(t *testing.T, got []ssh.Signer)
 	}{
 		{
 			name: "simple",
-			signersCb: func(t *testing.T) func() ([]ssh.Signer, error) {
-				return func() ([]ssh.Signer, error) {
-					signer, err := apisshutils.MakeTestSSHCA()
-					require.NoError(t, err)
-					cert, err := apisshutils.MakeRealHostCert(signer)
-					require.NoError(t, err)
-					return []ssh.Signer{cert}, nil
-				}
+			signersCb: func(t *testing.T) []ssh.Signer {
+				signer, err := apisshutils.MakeTestSSHCA()
+				require.NoError(t, err)
+				cert, err := apisshutils.MakeRealHostCert(signer)
+				require.NoError(t, err)
+				return []ssh.Signer{cert}
 			},
 			want: func(t *testing.T, signers []ssh.Signer) {
 				// We expect 2 certificates, order matters.
@@ -80,12 +78,10 @@ func Test_signersWithSHA1Fallback(t *testing.T) {
 		},
 		{
 			name: "public key only",
-			signersCb: func(t *testing.T) func() ([]ssh.Signer, error) {
-				return func() ([]ssh.Signer, error) {
-					signer, err := apisshutils.MakeTestSSHCA()
-					require.NoError(t, err)
-					return []ssh.Signer{signer}, nil
-				}
+			signersCb: func(t *testing.T) []ssh.Signer {
+				signer, err := apisshutils.MakeTestSSHCA()
+				require.NoError(t, err)
+				return []ssh.Signer{signer}
 			},
 			want: func(t *testing.T, signers []ssh.Signer) {
 				// public key should not be copied
