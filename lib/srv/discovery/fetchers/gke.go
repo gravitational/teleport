@@ -111,7 +111,7 @@ func (a *gkeFetcher) ResourceType() string {
 }
 
 func (a *gkeFetcher) Cloud() string {
-	return GCP
+	return types.CloudGCP
 }
 
 // gcpLabelsToTeleportLabels converts GKE labels to a labels map.
