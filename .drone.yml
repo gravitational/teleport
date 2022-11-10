@@ -651,7 +651,7 @@ steps:
 
 kind: pipeline
 type: exec
-name: push-build-native-windows-teleport10-amd64
+name: push-build-native-windows-teleport11-amd64
 trigger:
   event:
     include:
@@ -672,7 +672,7 @@ platform:
   os: windows
   arch: amd64
 node:
-  buildbox_version: teleport10
+  buildbox_version: teleport11
 clone:
   disable: true
 concurrency:
