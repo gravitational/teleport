@@ -125,6 +125,11 @@ type WindowsService struct {
 	// cfg.AccessPoint.GetClusterName multiple times.
 	clusterName string
 
+	// auditCache caches information from shared directory
+	// TDP messages that are needed for
+	// creating shared directory audit events.
+	auditCache sharedDirectoryAuditCache
+
 	closeCtx context.Context
 	close    func()
 }
@@ -361,6 +366,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		clusterName: clusterName.GetClusterName(),
 		closeCtx:    ctx,
 		close:       close,
+		auditCache:  newSharedDirectoryAuditCache(),
 	}
 
 	// initialize LDAP - if this fails it will automatically schedule a retry.
@@ -831,8 +837,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	}()
 
 	delay := timer()
-	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr())
-	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr())
+	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr(), tdpConn)
+	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr(), tdpConn)
 
 	sessionStartTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
 	rdpc, err := rdpclient.New(rdpclient.Config{
@@ -896,7 +902,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 }
 
 func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.Emitter, delay func() int64,
-	id *tlsca.Identity, sessionID, desktopAddr string) func(m tdp.Message, b []byte) {
+	id *tlsca.Identity, sessionID, desktopAddr string, tdpConn *tdp.Conn) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
 		case byte(tdp.TypePNG2Frame), byte(tdp.TypePNGFrame), byte(tdp.TypeError):
@@ -925,12 +931,24 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 				// it on the TDP connection
 				s.onClipboardReceive(ctx, emitter, id, sessionID, desktopAddr, int32(len(clip)))
 			}
+		case byte(tdp.TypeSharedDirectoryAcknowledge):
+			if message, ok := m.(tdp.SharedDirectoryAcknowledge); ok {
+				s.onSharedDirectoryAcknowledge(ctx, emitter, id, sessionID, desktopAddr, message)
+			}
+		case byte(tdp.TypeSharedDirectoryReadRequest):
+			if message, ok := m.(tdp.SharedDirectoryReadRequest); ok {
+				s.onSharedDirectoryReadRequest(ctx, emitter, id, sessionID, desktopAddr, message, tdpConn)
+			}
+		case byte(tdp.TypeSharedDirectoryWriteRequest):
+			if message, ok := m.(tdp.SharedDirectoryWriteRequest); ok {
+				s.onSharedDirectoryWriteRequest(ctx, emitter, id, sessionID, desktopAddr, message, tdpConn)
+			}
 		}
 	}
 }
 
 func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter events.Emitter, delay func() int64,
-	id *tlsca.Identity, sessionID, desktopAddr string) func(m tdp.Message) {
+	id *tlsca.Identity, sessionID, desktopAddr string, tdpConn *tdp.Conn) func(m tdp.Message) {
 	return func(m tdp.Message) {
 		switch msg := m.(type) {
 		case tdp.ClientScreenSpec, tdp.MouseButton, tdp.MouseMove:
@@ -958,6 +976,12 @@ func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter even
 			// received clipboard data from the user (over TDP) and are sending
 			// it to the remote desktop
 			s.onClipboardSend(ctx, emitter, id, sessionID, desktopAddr, int32(len(msg)))
+		case tdp.SharedDirectoryAnnounce:
+			s.onSharedDirectoryAnnounce(ctx, emitter, id, sessionID, desktopAddr, m.(tdp.SharedDirectoryAnnounce), tdpConn)
+		case tdp.SharedDirectoryReadResponse:
+			s.onSharedDirectoryReadResponse(ctx, emitter, id, sessionID, desktopAddr, msg)
+		case tdp.SharedDirectoryWriteResponse:
+			s.onSharedDirectoryWriteResponse(ctx, emitter, id, sessionID, desktopAddr, msg)
 		}
 	}
 }
