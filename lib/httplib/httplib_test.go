@@ -41,10 +41,9 @@ func TestConvertResponse(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name           string
-		err            error
-		expected       string
-		verifyResponse func(*testing.T, error, string)
+		name     string
+		err      error
+		expected string
 	}{
 		{
 			name: "url error",
@@ -54,10 +53,6 @@ func TestConvertResponse(t *testing.T) {
 				Err: errors.New("error goes here"),
 			},
 			expected: "POST \"http://localhost\": error goes here",
-			verifyResponse: func(t *testing.T, err error, expected string) {
-				require.Error(t, err)
-				require.Equal(t, err.Error(), expected)
-			},
 		},
 		{
 			name: "url with path error",
@@ -67,35 +62,24 @@ func TestConvertResponse(t *testing.T) {
 				Err: errors.New("error goes here"),
 			},
 			expected: "POST \"http://localhost?path%20foobar\": error goes here",
-			verifyResponse: func(t *testing.T, err error, expected string) {
-				require.Error(t, err)
-				require.Equal(t, err.Error(), expected)
-			},
 		},
 		{
 			name:     "timeout error",
 			err:      &netError{},
 			expected: "unable to complete the request due to a timeout, please try again in a few minutes",
-			verifyResponse: func(t *testing.T, err error, expected string) {
-				require.Error(t, err)
-				require.Equal(t, err.Error(), expected)
-			},
 		},
 		{
 			name:     "normal error",
 			err:      errors.New("this is a normal error"),
 			expected: "this is a normal error",
-			verifyResponse: func(t *testing.T, err error, expected string) {
-				require.Error(t, err)
-				require.Equal(t, err.Error(), expected)
-			},
 		},
 	}
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := ConvertResponse(&roundtrip.Response{}, test.err)
-			test.verifyResponse(t, err, test.expected)
+			require.Error(t, err)
+			require.Equal(t, err.Error(), test.expected)
 		})
 	}
 
