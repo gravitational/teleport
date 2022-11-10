@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -42,6 +43,8 @@ type AppTestOptions struct {
 	RootClusterListeners helpers.InstanceListenerSetupFunc
 	LeafClusterListeners helpers.InstanceListenerSetupFunc
 	CertificateTTL       time.Duration
+	Clock                clockwork.FakeClock
+	MonitorCloseChannel  chan struct{}
 
 	RootConfig func(config *service.Config)
 	LeafConfig func(config *service.Config)
@@ -167,7 +170,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 		}
 		c.Close()
 	})
-	t.Cleanup(func() { rootTCPServer.Close() })
+	t.Cleanup(func() { rootTCPTwoWayServer.Close() })
 	// HTTP server in leaf cluster.
 	leafServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, p.leafMessage)
@@ -257,6 +260,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 
 	// Create a new Teleport instance with passed in configuration.
 	rootCfg := helpers.InstanceConfig{
+		Clock:       opts.Clock,
 		ClusterName: "example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Host,
@@ -271,6 +275,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 
 	// Create a new Teleport instance with passed in configuration.
 	leafCfg := helpers.InstanceConfig{
+		Clock:       opts.Clock,
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Host,
@@ -299,6 +304,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	if opts.RootConfig != nil {
 		opts.RootConfig(rcConf)
 	}
+	rcConf.Clock = opts.Clock
 
 	lcConf := service.MakeDefaultConfig()
 	lcConf.Console = nil
@@ -316,6 +322,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	if opts.RootConfig != nil {
 		opts.RootConfig(lcConf)
 	}
+	lcConf.Clock = opts.Clock
 
 	err = p.leafCluster.CreateEx(t, p.rootCluster.Secrets.AsSlice(), lcConf)
 	require.NoError(t, err)
@@ -331,11 +338,11 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 
 	// At least one rootAppServer should start during the setup
 	rootAppServersCount := 1
-	p.rootAppServers = p.startRootAppServers(t, rootAppServersCount, opts.ExtraRootApps)
+	p.rootAppServers = p.startRootAppServers(t, rootAppServersCount, opts)
 
 	// At least one leafAppServer should start during the setup
 	leafAppServersCount := 1
-	p.leafAppServers = p.startLeafAppServers(t, leafAppServersCount, opts.ExtraLeafApps)
+	p.leafAppServers = p.startLeafAppServers(t, leafAppServersCount, opts)
 
 	// Create user for tests.
 	p.initUser(t)
