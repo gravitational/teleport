@@ -4018,7 +4018,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 		users := make([]types.User, tc.numberOfUsers)
 
 		for i := 0; i < tc.numberOfUsers; i++ {
-			user, err := types.NewUser(fmt.Sprint("test_user_", i))
+			user, err := types.NewUser(fmt.Sprintf("test_user_%v", i))
 			require.NoError(t, err)
 
 			user.SetCreatedBy(types.CreatedBy{
