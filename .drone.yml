@@ -8737,6 +8737,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: b7ff97dfe6be915626217658d4aa5cb49a56ee2ecf2e051dacf04abc50a303fe
+hmac: ae942abe4c88a6d20d87d5715581b544013d8f4b150eb1cb35bbf297e391c759
 
 ...
