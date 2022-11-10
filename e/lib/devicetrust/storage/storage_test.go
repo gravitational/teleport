@@ -5,12 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -19,6 +22,101 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
+
+func TestS_BulkCreateDevices(t *testing.T) {
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+
+	// Make sure "alpaca" already exists before we attempt the bulk creation.
+	alpacaDev, err := s.CreateDevice(ctx, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "alpaca",
+	})
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	// Bulk create a few devices, mixing successes and failures.
+	devs := s.BulkCreateDevices(ctx, []*devicepb.Device{
+		// OK.
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "llama",
+		},
+		// NOK, duplicate within devs.
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "llama",
+		},
+		// NOK, duplicate in storage.
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "alpaca",
+		},
+		// NOK, duplicate within devs (and in storage).
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "alpaca",
+		},
+		// OK.
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "camel",
+		},
+		// NOK, invalid OsType.
+		{
+			OsType:   devicepb.OSType_OS_TYPE_UNSPECIFIED,
+			AssetTag: "cat",
+		},
+	})
+
+	// Verify response codes.
+	wantCodes := []codes.Code{
+		codes.OK,              // llama
+		codes.AlreadyExists,   // llama dupe
+		codes.AlreadyExists,   // alpaca dupe
+		codes.AlreadyExists,   // alpaca dupe
+		codes.OK,              // camel
+		codes.InvalidArgument, // cat, missing OsType
+	}
+	gotCodes := make([]codes.Code, len(devs))
+	for i, dev := range devs {
+		c := codes.Code(dev.GetStatus().GetCode())
+		gotCodes[i] = c
+
+		// Sanity check IDs.
+		if c == codes.OK && dev.GetId() == "" {
+			t.Errorf("BulkCreateDevices: device #%v has code %s but an empty ID", i, c)
+		}
+	}
+	if diff := cmp.Diff(wantCodes, gotCodes); diff != "" {
+		t.Fatalf("BulkCreateDevices codes mismatch (-want +got):\n%s", diff)
+	}
+	llamaDev := devs[0]
+	camelDev := devs[4]
+
+	// Verify stored devices.
+	pageSize := len(devs) + 2 // devs+alpaca+1, so we can detect unwanted devices
+	stored, _, err := s.ListDevices(ctx, pageSize, "" /* pageToken */, devicepb.DeviceView_DEVICE_VIEW_LIST)
+	if err != nil {
+		t.Fatalf("ListDevices failed: %v", err)
+	}
+	wantDevs := map[string]string{
+		alpacaDev.Id: "alpaca",
+		llamaDev.Id:  "llama", // AssetTag not present in DeviceOrStatus.
+		camelDev.Id:  "camel",
+	}
+	gotDevs := make(map[string]string)
+	for _, dev := range stored {
+		gotDevs[dev.Id] = dev.AssetTag
+	}
+	if diff := cmp.Diff(wantDevs, gotDevs); diff != "" {
+		t.Errorf("ListDevices mismatch (-want +got):\n%s", diff)
+	}
+}
 
 func TestS_CreateDevice(t *testing.T) {
 	env := mustNewEnv()
@@ -138,6 +236,62 @@ func TestS_CreateDevice_reusedAssetTags(t *testing.T) {
 
 	if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 		t.Errorf("GetDevicesByAssetTag: mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestS_CreateDevice_concurrentAssetTags tests a CreateDevice race condition
+// where neither CreateDevice calls can determine if an asset tag is legitimate
+// or hanging. In this scenario, both devices are registered for the same asset
+// tag.
+func TestS_CreateDevice_concurrentAssetTags(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping potential long-running test")
+	}
+
+	timeout := time.After(1 * time.Second)
+
+	// Run until we hit the desired scenario or time out.
+	for i := 0; true; i++ {
+		select {
+		case <-timeout:
+			t.Log("Stopping test before desired scenario was achieved")
+			return
+		default:
+		}
+
+		env := mustNewEnv()
+		defer env.Close()
+
+		s := env.S
+		ctx := context.Background()
+
+		var wg sync.WaitGroup
+		createLlama := func() {
+			if _, err := s.CreateDevice(ctx, &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "llama",
+			}); err != nil && !trace.IsAlreadyExists(err) {
+				t.Errorf("CreateDevice returned an unexpected error: %v (want nil or already exists)", err)
+			}
+			wg.Done()
+		}
+
+		wg.Add(2)
+		go createLlama()
+		go createLlama()
+		wg.Wait()
+
+		stored, err := s.GetDevicesByAssetTag(ctx, "llama")
+		if err != nil {
+			t.Fatalf("GetDevicesByAssetTag failed: %v", err)
+		}
+		if len(stored) < 1 {
+			t.Errorf("GetDevicesByAssetTag returned %v devices, want at least 1", len(stored))
+		}
+		if len(stored) == 2 {
+			t.Logf("Got tag override scenario on i=%v, stopping the test", i)
+			return
+		}
 	}
 }
 

@@ -6,13 +6,18 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/sync/errgroup"
+	statuspb "google.golang.org/genproto/googleapis/rpc/status"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -50,14 +55,103 @@ func (s *S) nowUTC() time.Time {
 	return s.backend().Clock().Now().UTC()
 }
 
+// BulkCreateDevices creates devices in bulk.
+// Returns, for each device, a DeviceOrStatus with a non-empty ID in case of
+// success, or a failure Status in case of error. The response is guaranteed to
+// have the same ordering as the input.
+func (s *S) BulkCreateDevices(ctx context.Context, devs []*devicepb.Device) []*devicepb.DeviceOrStatus {
+	errToStatus := func(err error) *statuspb.Status {
+		return status.Convert(trail.ToGRPC(err)).Proto()
+	}
+
+	resp := make([]*devicepb.DeviceOrStatus, len(devs)) // same order as devs
+	seenTags := make(map[assetTagKey]struct{})
+	for i, dev := range devs {
+		resp[i] = &devicepb.DeviceOrStatus{}
+
+		// Is the device valid?
+		if err := validateForCreate(dev); err != nil {
+			resp[i].Status = errToStatus(err)
+			continue
+		}
+
+		// Is the tag repeated within devs?
+		tag := assetTagKey{
+			osType:   dev.OsType,
+			assetTag: dev.AssetTag,
+		}
+		if _, ok := seenTags[tag]; ok {
+			resp[i].Status = errToStatus(trace.AlreadyExists("asset tag already requested"))
+			continue
+		}
+		seenTags[tag] = struct{}{}
+	}
+
+	// Group used mainly for an upper bound in the number of goroutines.
+	var g errgroup.Group
+	const maxCreateGoroutines = 4
+	g.SetLimit(maxCreateGoroutines)
+
+	// mu guards resp in the block below.
+	var mu sync.Mutex
+	for i, dev := range devs {
+		mu.Lock()
+		ok := resp[i].Status.GetCode() == int32(codes.OK)
+		mu.Unlock()
+		if !ok {
+			continue // Errored on pre-validation.
+		}
+
+		i := i
+		dev := dev
+		g.Go(func() error {
+			created, err := s.createDevice(ctx, dev)
+			mu.Lock()
+			resp[i].Status = errToStatus(err)
+			resp[i].Id = created.GetId()
+			mu.Unlock()
+			return nil
+		})
+	}
+
+	// Error swallowed on purpose, we record errors in the response itself.
+	_ = g.Wait()
+
+	return resp
+}
+
+// assetTagKey is used to detect duplicate tags.
+type assetTagKey struct {
+	osType   devicepb.OSType
+	assetTag string
+}
+
 // CreateDevice creates a new Device in storage and updates the necessary
 // indexes (such as the asset tag index).
 // Returns the stored device.
+// Prefer using BulkCreateDevices if you want to create multiple devices
+// concurrently.
 func (s *S) CreateDevice(ctx context.Context, dev *devicepb.Device) (*devicepb.Device, error) {
 	if err := validateForCreate(dev); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	return s.createDevice(ctx, dev)
+}
+
+func validateForCreate(d *devicepb.Device) error {
+	switch {
+	case d == nil:
+		return trace.BadParameter("device required")
+	case d.OsType == devicepb.OSType_OS_TYPE_UNSPECIFIED:
+		return trace.BadParameter("unknown or invalid os_type")
+	case d.AssetTag == "":
+		return trace.BadParameter("asset_tag required")
+	}
+	return nil
+}
+
+func (s *S) createDevice(ctx context.Context, dev *devicepb.Device) (*devicepb.Device, error) {
 	// Marshal device to start, just in the extremely unlikely case that it fails.
 	now := s.nowUTC()
 	stored := &storedDevice{
@@ -71,32 +165,20 @@ func (s *S) CreateDevice(ctx context.Context, dev *devicepb.Device) (*devicepb.D
 		return nil, trace.Wrap(err, "marshal device")
 	}
 
-	// Disallow duplicate asset tags for the same OS. This naturally ignores "hanging"
-	// asset tag mappings while providing a modicum of consistency - ideally we'd
-	// have a true unique constraint.
-	sameTagDevs, err := s.GetDevicesByAssetTag(ctx, stored.AssetTag)
-	if err != nil {
-		return nil, trace.Wrap(err, "verifying asset tag uniqueness")
-	}
-	for _, other := range sameTagDevs {
-		if other.OsType == dev.OsType {
-			return nil, trace.AlreadyExists("asset tag already registered")
-		}
-	}
-
 	deviceID := uuid.NewString()
 
 	// Create/update asset tag index.
 	// It's OK to leave the asset tag mapping behind if writing the device fails.
-	if err := s.updateAssetTagIndex(ctx, stored.AssetTag, &deviceRef{
+	ref := &deviceRef{
 		DeviceID: deviceID,
 		OSType:   stored.OSType,
-	}); err != nil {
+	}
+	if err := s.updateAssetTagIndex(ctx, stored.AssetTag, ref); err != nil {
 		return nil, trace.Wrap(err, "update asset tag index")
 	}
 
 	// Write device.
-	if _, err := s.backend().Put(ctx, backend.Item{
+	if _, err := s.backend().Create(ctx, backend.Item{
 		Key:   deviceKey(deviceID),
 		Value: storedJSON,
 	}); err != nil {
@@ -104,18 +186,6 @@ func (s *S) CreateDevice(ctx context.Context, dev *devicepb.Device) (*devicepb.D
 	}
 
 	return storedToDevice(deviceID, stored), nil
-}
-
-func validateForCreate(d *devicepb.Device) error {
-	switch {
-	case d == nil:
-		return trace.BadParameter("device required")
-	case d.OsType == devicepb.OSType_OS_TYPE_UNSPECIFIED:
-		return trace.BadParameter("unknown or invalid os_type")
-	case d.AssetTag == "":
-		return trace.BadParameter("asset_tag required")
-	}
-	return nil
 }
 
 func (s *S) updateAssetTagIndex(ctx context.Context, assetTag string, ref *deviceRef) error {
@@ -133,7 +203,7 @@ func (s *S) updateAssetTagIndex(ctx context.Context, assetTag string, ref *devic
 		current, getErr := s.backend().Get(ctx, assetTagKey)
 		switch {
 		case trace.IsNotFound(getErr): // New asset tag
-			retry, lastErr = s.putDeviceRef(ctx, assetTagKey, ref)
+			retry, lastErr = s.createDeviceRef(ctx, assetTagKey, ref)
 			if lastErr != nil {
 				logger.WithError(lastErr).Debug("Failed to write new asset tag mapping, retrying")
 			}
@@ -154,14 +224,14 @@ func (s *S) updateAssetTagIndex(ctx context.Context, assetTag string, ref *devic
 		case lastErr == nil: // Update OK
 			return nil
 		case !retry:
-			return trace.Wrap(getErr)
+			return trace.Wrap(lastErr)
 		}
 	}
 
 	return trace.Wrap(lastErr)
 }
 
-func (s *S) putDeviceRef(ctx context.Context, key []byte, ref *deviceRef) (retryable bool, err error) {
+func (s *S) createDeviceRef(ctx context.Context, key []byte, ref *deviceRef) (retryable bool, err error) {
 	val, err := json.Marshal(&devicesRef{
 		Devices: []*deviceRef{ref},
 	})
@@ -169,11 +239,10 @@ func (s *S) putDeviceRef(ctx context.Context, key []byte, ref *deviceRef) (retry
 		return false, trace.Wrap(err, "marshal device reference")
 	}
 
-	_, err = s.backend().Put(ctx, backend.Item{
+	if _, err := s.backend().Create(ctx, backend.Item{
 		Key:   key,
 		Value: val,
-	})
-	if err != nil {
+	}); err != nil {
 		return true, trace.Wrap(err)
 	}
 	return false, nil
@@ -190,6 +259,21 @@ func (s *S) appendDeviceRef(ctx context.Context, current *backend.Item, ref *dev
 		if existing.DeviceID == ref.DeviceID {
 			return false, nil
 		}
+		if existing.OSType == ref.OSType {
+			// Does the device _really_ exist?
+			// Let's not have a hanging mapping inutilize an asset tag.
+			if _, getErr := s.backend().Get(ctx, deviceKey(existing.DeviceID)); getErr == nil {
+				return false, trace.AlreadyExists("asset tag already registered")
+			}
+
+			// We either found a hanging mapping or there is a race on CreateDevice.
+			// Let both tags be, admins can clear duplicate devices manually.
+			s.logger.WithFields(log.Fields{
+				"AssetTag":   deviceIDFromKey(current.Key),
+				"ExistingID": existing.DeviceID,
+				"NewID":      ref.DeviceID,
+			}).Warn("Found possible duplicate on asset tag mapping")
+		}
 	}
 	refs.Devices = append(refs.Devices, ref)
 
@@ -198,11 +282,10 @@ func (s *S) appendDeviceRef(ctx context.Context, current *backend.Item, ref *dev
 		return false, trace.Wrap(err, "marshal device references")
 	}
 
-	_, err = s.backend().CompareAndSwap(ctx, *current, backend.Item{
+	if _, err := s.backend().CompareAndSwap(ctx, *current, backend.Item{
 		Key:   current.Key,
 		Value: val,
-	})
-	if err != nil {
+	}); err != nil {
 		return true, trace.Wrap(err)
 	}
 	return false, nil
@@ -213,6 +296,8 @@ func (s *S) DeleteDevice(ctx context.Context, deviceID string) error {
 	if deviceID == "" {
 		return trace.BadParameter("device ID required")
 	}
+
+	// TODO(codingllama): Remove asset tag mapping as well.
 
 	err := s.backend().Delete(ctx, deviceKey(deviceID))
 	return trace.Wrap(err)
