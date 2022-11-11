@@ -7895,6 +7895,11 @@ trigger:
     - gravitational/*
 clone:
   disable: true
+depends_on:
+- promote-build
+- teleport-container-images-branch-promote
+- publish-apt-new-repos
+- publish-yum-new-repos
 steps:
 - name: Check if commit is tagged
   image: alpine
@@ -18259,6 +18264,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 81c902c2a4a92e35a08da34642a4f738fd67d3ae995f3e549ca3d76c7cec33a5
+hmac: d68d03c8d2eb0969d47c9d203dccf2435e2c2606851805cf9130a6de30e97526
 
 ...
