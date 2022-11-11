@@ -7554,7 +7554,7 @@ steps:
         path: /root/.aws
     commands:
       - cd /go/chart/
-      - aws s3 sync s3://$AWS_S3_BUCKET/
+      - aws s3 sync . s3://$AWS_S3_BUCKET/
 
   # NOTE: all mandatory steps for a release promotion need to go BEFORE this
   # step, as there is a chance that everything afterwards will be skipped.
