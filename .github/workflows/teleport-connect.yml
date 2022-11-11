@@ -30,9 +30,9 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@v3
         with:
-          node-version: 16.13.2
+          node-version: 16.18.1
 
-      -name: Configure Node
+      - name: Configure Node
         run: |
           npm config set msvs_version 2022
           corepack enable yarn
