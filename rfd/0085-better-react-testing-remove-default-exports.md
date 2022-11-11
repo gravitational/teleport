@@ -11,7 +11,7 @@ Improve the webapps codebase by changing the way we test our components and writ
 
 ## Why
 
-The current convention is to use Storybook to render our large, full components in their different states.  This has a
+The current convention is to use Storybook stories to test components in their different states with the use of snapshots.  This has a
 couple of knock-on effects.
 
 ### Component Architecture
