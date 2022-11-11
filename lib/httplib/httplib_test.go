@@ -52,7 +52,7 @@ func TestConvertResponse(t *testing.T) {
 				URL: "http://localhost",
 				Err: errors.New("error goes here"),
 			},
-			expected: "POST \"http://localhost\": error goes here",
+			expected: "error goes here",
 		},
 		{
 			name: "url with path error",
@@ -61,7 +61,7 @@ func TestConvertResponse(t *testing.T) {
 				URL: "http://localhost?path%20foobar",
 				Err: errors.New("error goes here"),
 			},
-			expected: "POST \"http://localhost?path%20foobar\": error goes here",
+			expected: "error goes here",
 		},
 		{
 			name:     "timeout error",
@@ -79,7 +79,7 @@ func TestConvertResponse(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := ConvertResponse(&roundtrip.Response{}, test.err)
 			require.Error(t, err)
-			require.Equal(t, err.Error(), test.expected)
+			require.Equal(t, test.expected, err.Error())
 		})
 	}
 
