@@ -62,6 +62,10 @@ const (
 	// discarded when requeued.
 	//usageReporterMaxBufferSize = 1000
 	usageReporterMaxBufferSize = 20
+
+	// usageReporterSubmitDelay is a mandatory delay added to each batch submission
+	// to avoid spamming the prehog instance.
+	usageReporterSubmitDelay = time.Second * 1
 )
 
 var (
@@ -89,6 +93,18 @@ var (
 		Help:      "a histogram of durations it took to submit a batch",
 	})
 
+	usageBatchesSubmitted = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      teleport.MetricUsageBatchesSubmitted,
+		Help:      "a count of event batches successfully submitted",
+	})
+
+	usageBatchesFailed = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      teleport.MetricUsageBatchesFailed,
+		Help:      "a count of event batches that failed to submit",
+	})
+
 	usageEventsDropped = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: teleport.MetricNamespace,
 		Name:      teleport.MetricUsageEventsDropped,
@@ -97,7 +113,8 @@ var (
 
 	usagePrometheusCollectors = []prometheus.Collector{
 		usageEventsSubmitted, usageBatchesTotal, usageEventsRequeuedTotal,
-		usageBatchSubmissionDuration, usageEventsDropped,
+		usageBatchSubmissionDuration, usageBatchesSubmitted, usageBatchesFailed,
+		usageEventsDropped,
 	}
 )
 
@@ -146,14 +163,27 @@ type UsageReporter struct {
 	// field.
 	clusterName types.ClusterName
 
-	// minBatchSize is the minimum batch size
+	// minBatchSize is the minimum batch size before a submit is triggered due
+	// to size.
 	minBatchSize int
+
+	// maxBatchSize is the maximum size of a batch that may be sent at once.
 	maxBatchSize int
-	maxBatchAge  time.Duration
+
+	// maxBatchAge is the
+	maxBatchAge time.Duration
 
 	// maxBufferSize is the maximum number of events that can be queued in the
 	// buffer.
 	maxBufferSize int
+
+	// submitDelay is the amount of delay added between all batch submission
+	// attempts.
+	submitDelay time.Duration
+
+	// ready is used to indicate the reporter is ready for its clock to be
+	// manipulated, used to avoid race conditions in tests.
+	ready chan struct{}
 }
 
 // runSubmit starts the submission thread. It should be run as a background
@@ -169,12 +199,19 @@ func (r *UsageReporter) runSubmit() {
 			if err := r.submit(r, batch); err != nil {
 				r.Warnf("Failed to submit batch of %d usage events: %v", len(batch), err)
 
+				usageBatchesFailed.Inc()
+
 				// Put the failed events back on the queue.
 				r.resubmitEvents(batch)
+			} else {
+				usageBatchesSubmitted.Inc()
 			}
 
 			usageBatchSubmissionDuration.Observe(float64(time.Since(t0).Seconds()))
 		}
+
+		// Always sleep a bit to avoid spamming the server.
+		r.clock.Sleep(r.submitDelay)
 	}
 }
 
@@ -214,12 +251,14 @@ func (r *UsageReporter) enqueueBatch() {
 
 // Run begins processing incoming usage events. It should be run in a goroutine.
 func (r *UsageReporter) Run() {
-	r.Warnf("Started usage reporter")
+	timer := r.clock.NewTimer(r.maxBatchAge)
 
 	// Also start the submission goroutine.
 	go r.runSubmit()
 
-	timer := r.clock.NewTimer(r.maxBatchAge)
+	// Mark as ready for testing: `clock.Advance()` has no effect if `timer`
+	// hasn't been initialized.
+	close(r.ready)
 
 	for {
 		select {
@@ -296,6 +335,14 @@ func (r *UsageReporter) convertEvent(event services.UsageAnonymizable) (*prehoga
 				SessionStart: (*prehogapi.SessionStartEvent)(e),
 			},
 		}, nil
+	case *services.UsageResourceCreate:
+		return &prehogapi.SubmitEventRequest{
+			ClusterName: clusterName,
+			Timestamp:   time,
+			Event: &prehogapi.SubmitEventRequest_ResourceCreate{
+				ResourceCreate: (*prehogapi.ResourceCreateEvent)(e),
+			},
+		}, nil
 	default:
 		return nil, trace.BadParameter("unexpected event usage type %T", event)
 	}
@@ -353,6 +400,10 @@ func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *
 			Proxy:             http.ProxyFromEnvironment,
 			TLSClientConfig:   tlsConfig,
 		},
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Timeout: 5 * time.Second,
 	}
 
 	client := prehogclient.NewTeleportReportingServiceClient(httpClient, prehogEndpoint)
@@ -395,8 +446,8 @@ func NewUsageReporter(ctx context.Context, clusterName types.ClusterName, submit
 		ctx:             ctx,
 		cancel:          cancel,
 		anonymizer:      anonymizer,
-		events:          make(chan []*prehogapi.SubmitEventRequest),
-		submissionQueue: make(chan []*prehogapi.SubmitEventRequest),
+		events:          make(chan []*prehogapi.SubmitEventRequest, 1),
+		submissionQueue: make(chan []*prehogapi.SubmitEventRequest, 1),
 		submit:          submitter,
 		clock:           clockwork.NewRealClock(),
 		clusterName:     clusterName,
@@ -404,5 +455,7 @@ func NewUsageReporter(ctx context.Context, clusterName types.ClusterName, submit
 		maxBatchSize:    usageReporterMaxBatchSize,
 		maxBatchAge:     usageReporterMaxBatchAge,
 		maxBufferSize:   usageReporterMaxBufferSize,
+		submitDelay:     usageReporterSubmitDelay,
+		ready:           make(chan struct{}),
 	}, nil
 }
