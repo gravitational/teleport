@@ -140,6 +140,12 @@ discovery_service:
        "env": "prod" # Match EC2 instances where tag:env=prod
 ```
 
+- Edit the `teleport.auth_servers` key to match your Auth or Proxy server URI
+  and port.
+- Adjust the keys under `discovery_service.aws` to match your EC2 environment,
+  specifically the regions and tags you want to associate with the discovery
+  service.
+
 ## Step 5/6. Bootstrap the Discovery Service
 
 On the same Node as above, run `teleport discovery bootstrap`. This command
