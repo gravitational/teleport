@@ -7877,129 +7877,6 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/relcli.go (main.relcliPipeline)
-################################################
-
-kind: pipeline
-type: kubernetes
-name: publish-rlz
-environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.76-beta.1
-trigger:
-  event:
-    include:
-    - promote
-  target:
-    include:
-    - production
-  repo:
-    include:
-    - gravitational/*
-clone:
-  disable: true
-depends_on:
-- promote-build
-- teleport-container-images-branch-promote
-- publish-apt-new-repos
-- publish-yum-new-repos
-steps:
-- name: Check if commit is tagged
-  image: alpine
-  commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
-    && exit 1)'
-- name: Wait for docker
-  image: docker
-  commands:
-  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  volumes:
-  - name: dockersock
-    path: /var/run
-- name: Assume AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
-    AWS_ROLE:
-      from_secret: TELEPORT_BUILD_READ_ONLY_AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-- name: Pull relcli
-  image: docker:cli
-  commands:
-  - apk add --no-cache aws-cli
-  - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker pull $RELCLI_IMAGE
-  environment:
-    AWS_DEFAULT_REGION: us-west-2
-  volumes:
-  - name: dockersock
-    path: /var/run
-  - name: awsconfig
-    path: /root/.aws
-- name: Publish in Release API
-  image: docker:git
-  commands:
-  - mkdir -p /tmpfs/creds
-  - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
-  - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
-  - trap "rm -rf /tmpfs/creds" EXIT
-  - |-
-    docker run -i -v /tmpfs/creds:/tmpfs/creds \
-      -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
-      $RELCLI_IMAGE relcli auto_publish -f -v 6
-  environment:
-    RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
-    RELCLI_CERT: /tmpfs/creds/releases.crt
-    RELCLI_KEY: /tmpfs/creds/releases.key
-    RELEASES_CERT:
-      from_secret: RELEASES_CERT
-    RELEASES_KEY:
-      from_secret: RELEASES_KEY
-  volumes:
-  - name: dockersock
-    path: /var/run
-  - name: tmpfs
-    path: /tmpfs
-  - name: awsconfig
-    path: /root/.aws
-services:
-- name: Start Docker
-  image: docker:dind
-  privileged: true
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-  - name: dockersock
-    path: /var/run
-volumes:
-- name: dockersock
-  temp: {}
-- name: tmpfs
-  temp:
-    medium: memory
-- name: awsconfig
-  temp: {}
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
 # Generated at dronegen/mac.go (main.newDarwinPipeline)
 ################################################
 
@@ -18264,8 +18141,131 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/relcli.go (main.relcliPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: publish-rlz
+environment:
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.76-beta.1
+trigger:
+  event:
+    include:
+    - promote
+  target:
+    include:
+    - production
+  repo:
+    include:
+    - gravitational/*
+clone:
+  disable: true
+depends_on:
+- promote-build
+- teleport-container-images-branch-promote
+- publish-apt-new-repos
+- publish-yum-new-repos
+steps:
+- name: Check if commit is tagged
+  image: alpine
+  commands:
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+    && exit 1)'
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_ROLE:
+      from_secret: TELEPORT_BUILD_READ_ONLY_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+- name: Pull relcli
+  image: docker:cli
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker pull $RELCLI_IMAGE
+  environment:
+    AWS_DEFAULT_REGION: us-west-2
+  volumes:
+  - name: dockersock
+    path: /var/run
+  - name: awsconfig
+    path: /root/.aws
+- name: Publish in Release API
+  image: docker:git
+  commands:
+  - mkdir -p /tmpfs/creds
+  - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
+  - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
+  - trap "rm -rf /tmpfs/creds" EXIT
+  - |-
+    docker run -i -v /tmpfs/creds:/tmpfs/creds \
+      -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
+      $RELCLI_IMAGE relcli auto_publish -f -v 6
+  environment:
+    RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
+    RELCLI_CERT: /tmpfs/creds/releases.crt
+    RELCLI_KEY: /tmpfs/creds/releases.key
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
+  volumes:
+  - name: dockersock
+    path: /var/run
+  - name: tmpfs
+    path: /tmpfs
+  - name: awsconfig
+    path: /root/.aws
+services:
+- name: Start Docker
+  image: docker:dind
+  privileged: true
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: dockersock
+  temp: {}
+- name: tmpfs
+  temp:
+    medium: memory
+- name: awsconfig
+  temp: {}
 ---
 kind: signature
-hmac: f3ac71e0c6aeb152c650a2ebf0aec67e746cd42e88962e4b37f15e55283557dd
+hmac: b5e959ba3f3d3d2b2013c1ff51d9f84750dfe9272ea9c376c5cd67600675c40f
 
 ...
