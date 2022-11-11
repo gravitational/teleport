@@ -1,4 +1,4 @@
-// Copyright 2021 Gravitational, Inc
+// Copyright 2022 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,15 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package handler
 
-func promoteBuildPipelines() []pipeline {
-	promotePipelines := make([]pipeline, 0)
-	promotePipelines = append(promotePipelines, promoteBuildOsRepoPipelines()...)
+import (
+	"context"
 
-	return promotePipelines
-}
+	"github.com/gravitational/trace"
 
-func publishReleasePipeline() pipeline {
-	return relcliPipeline(triggerPromote, "publish-rlz", "Publish in Release API", "relcli auto_publish -f -v 6")
+	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
+)
+
+func (h *Handler) UpdateTshdEventsServerAddress(ctx context.Context, req *api.UpdateTshdEventsServerAddressRequest) (*api.UpdateTshdEventsServerAddressResponse, error) {
+	if err := h.DaemonService.UpdateAndDialTshdEventsServerAddress(req.Address); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &api.UpdateTshdEventsServerAddressResponse{}, nil
 }
