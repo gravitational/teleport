@@ -967,7 +967,7 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 	}
 
 	if cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext); err != nil {
-		scx.WithError(err).Error("Failed to open enhanced recording (interactive) session")
+		s.log.WithError(err).Error("Failed to open enhanced recording (interactive) session")
 		return trace.Wrap(err)
 	} else if cgroupID > 0 {
 		// If a cgroup ID was assigned then enhanced session recording was enabled.
@@ -979,17 +979,17 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 			scx.srv.GetRestrictedSessionManager().CloseSession(sessionContext, cgroupID)
 			err = scx.srv.GetBPF().CloseSession(sessionContext)
 			if err != nil {
-				scx.WithError(err).Error("Failed to close enhanced recording (interactive) session")
+				s.log.WithError(err).Error("Failed to close enhanced recording (interactive) session")
 			}
 		}()
 	}
 
-	scx.Debug("Waiting for continue signal")
+	s.log.Debug("Waiting for continue signal")
 
 	// Process has been placed in a cgroup, continue execution.
 	s.term.Continue()
 
-	scx.Debug("Got continue signal")
+	s.log.Debug("Got continue signal")
 
 	// wait for exec.Cmd (or receipt of "exit-status" for a forwarding node),
 	// once it is received wait for the io.Copy above to finish, then broadcast
@@ -997,7 +997,7 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 	go func() {
 		result, err := s.term.Wait()
 		if err != nil {
-			scx.WithError(err).Error("Received error waiting for the interactive session to finish")
+			s.log.WithError(err).Error("Received error waiting for the interactive session to finish")
 		}
 
 		// wait for copying from the pty to be complete or a timeout before
@@ -1036,12 +1036,12 @@ func (s *session) startTerminal(ctx context.Context, scx *ServerContext) error {
 	if s.term = scx.GetTerm(); s.term != nil {
 		scx.SetTerm(nil)
 	} else if s.term, err = NewTerminal(scx); err != nil {
-		scx.Infof("Unable to allocate new terminal: %v", err)
+		s.log.Infof("Unable to allocate new terminal: %v", err)
 		return trace.Wrap(err)
 	}
 
 	if err := s.term.Run(ctx); err != nil {
-		scx.Errorf("Unable to run shell command: %v.", err)
+		s.log.Errorf("Unable to run shell command: %v.", err)
 		return trace.ConvertSystemError(err)
 	}
 
@@ -1137,7 +1137,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		return trace.Wrap(err)
 	}
 	if result != nil {
-		scx.Debugf("Exec request (%v) result: %v.", execRequest, result)
+		s.log.Debugf("Exec request (%v) result: %v.", execRequest, result)
 		scx.SendExecResult(*result)
 	}
 
@@ -1156,7 +1156,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	}
 	cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext)
 	if err != nil {
-		scx.WithError(err).Errorf("Failed to open enhanced recording (exec) session: %v", execRequest.GetCommand())
+		s.log.WithError(err).Errorf("Failed to open enhanced recording (exec) session: %v", execRequest.GetCommand())
 		return trace.Wrap(err)
 	}
 
@@ -1186,7 +1186,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		// or running in a recording proxy, this is simply a NOP.
 		err = scx.srv.GetBPF().CloseSession(sessionContext)
 		if err != nil {
-			scx.WithError(err).Error("Failed to close enhanced recording (exec) session")
+			s.log.WithError(err).Error("Failed to close enhanced recording (exec) session")
 		}
 
 		s.emitSessionEndEvent()
