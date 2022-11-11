@@ -13,8 +13,8 @@ state: draft
 
 ## What
 
-Allow teleport users to request access to specific applications and groups and access
-applications in Okta.
+Allow Teleport users to request access to specific applications and groups and access
+Okta applications from within Teleport.
 
 ## Why
 
@@ -24,6 +24,12 @@ Teleport will be useful.
 
 ## Details
 
+### Base assumptions
+
+It is assumed that Okta is the source of truth with respect to which users have access to which
+applications. If a user has access to an application in Okta, the user will have access to that
+application in Teleport regardless of the user's permissions within Teleport.
+
 ### UX
 
 #### Application Access UI
@@ -31,18 +37,20 @@ Teleport will be useful.
 * After authenticating into Teleport and accessing the "Applications" item in the menu,
   a list of apps sourced from Okta will appear.
 * When users click on an Okta sourced app in the UI, the application will open in a separate tab.
+* If users do not have access to an application and are able to request access to it, the link will
+  be greyed out and an option will be available in the drop down menu to the right that allows users
+  to request access to the application. If the application is not requestable, the application will
+  not appear in the list of applications belonging to the user.
 * These applications will *not* be behind Teleport's proxy, and will redirect to the proper Okta
   sourced URL for the application. Users will be taken through Okta's authentication process for
   this process. If users are already logged into Okta, this will be a transparent passthrough to
   the application.
-* If a user does not have access to an application but is allowed to request access to it, the application link will show up but will be greyed out and an option will
-  be available in the drop down menu to the right that allows users to request access to the
-  application.
 
 #### Teleport CLI
 
 * Okta applications will show up when doing a `tsh apps ls` from the command line, with a type "okta".
-* Logging in will **not** work for Okta apps.
+* Okta groups will be queryable by doing a new command `tsh okta groups ls`.
+* Logging in (`tsh app login <app-name>`) will **not** work for Okta apps.
 
 #### Access requests
 
@@ -78,52 +86,19 @@ flowchart LR
   OktaSvc<-->Okta
 ```
 
-### Okta service with generic identity provider interface
+### Okta service and configuration
 
-An Okta service should be introduced that synchronizes Okta applications, users, and
-groups with Teleport equivalents. To potentially expand this later, we'll create a
-generic `IdentityProvider` interface that should be implemented for synchronizing with
-Okta.
-
-```go
-// IdentityProvider is an interface that identity providers are expected to
-// implement to support integration into the application access service.
-type IdentityProvider interface {
-  // GetAllApplications will return all applications managed by a provider. The provider
-  // is expected to do any translation work necessary to map the internal
-  // concept of applicatiosn into Teleport's application.
-  GetAllApplications() ([]types.Application, error)
-  
-  // GetAllRoles will return all roles managed by an identity provider. The provider
-  // is expected to do any translation work necessary to map the internal
-  // concept of groups/roles into Teleport's role.
-  GetAllRoles() ([]types.Role, error)
-
-  // AssignUserToApplication will assign the given user permissions to the given application. This will be
-  // used by access requests.
-  AssignUserToApplication(user types.User, app types.Application) error
-
-  // AssignUserToGroup will assign the given user to the given external group.
-  // This will be used by access requests.
-  AssignUserToGroup(user types.User, group types.ExternalGroup) error
-}
-```
-
-### Okta configuration
-
-The Okta service should have its own unique top level configuration. The following config fields will
-be available in the Teleport config YAML, along with associated environment variables:
+An Okta service should be introduced that synchronizes Okta applications, users, and groups with
+Teleport equivalents and new objects.  The Okta service should have its own unique top level
+configuration. The following config fields will be available in the Teleport config YAML, along
+with associated environment variables:
 
 | Name | Environment Variable | Required | Description |
 |------|----------------------|----------|-------------|
 | `api_url` | `TELEPORT_OKTA_API_URL` | :heavy_check_mark: | The API URL so that Teleport knows which Okta endpoint to hit.
-| `role_prefix` | `TELEPORT_OKTA_ROLE_PREFIX` | :x: | A role prefix to prepend to each group role created in Teleport. Defaults to `okta`.
-| `role_template` | `TELEPORT_OKTA_ROLE_TEMPLATE` | :x: | A role template for Teleport roles created by the Okta service. Defaults to allowing application read access for applications that belong to a specific Okta group.
 
 The Okta API token must be configured using an environment variable or command line
 argument to prevent the possibility of users accidentally checking in this key.
-
-**Note**: The details of the `role_prefix` and `role_template` will be discussed further in [the Okta to Teleport mapping section](#okta-to-teleport-mappings)
 
 #### YAML example
 
@@ -131,7 +106,6 @@ argument to prevent the possibility of users accidentally checking in this key.
 okta_service:
   enabled: true
   api_url: https://my-okta-endpoint.okta.com
-  role_prefix: okta # This is the default role prefix.
 ```
 
 #### CLI examples (API token)
@@ -167,7 +141,8 @@ e-mail used for Okta, this will be unnecessary.
 
 The background synchronization process, which synchronizes all applications from Okta, is expected
 to run roughly every 2 minutes. This process wil translate Okta users, groups, and applications
-into their Teleport equivalents.
+into their Teleport equivalents. One thing to note here is that Okta does not support a watch API,
+so this synchronization process is necessarily poll based.
 
 ```mermaid
 sequenceDiagram
@@ -192,34 +167,15 @@ applications respectively.
 
 ##### Groups
 
-A Teleport role will be created for each Okta group. Each group will be prepended with a configurable
-`role_prefix` which defaults to `okta/` and then suffixed with the type and name of the object, delimited by
-`/` characters.  For example, if an Okta group called `Developers` was synchronized to Teleport,
-it would be called `okta/group/Developers`.
-
-These roles use a configurable `role_template` when created which defaults to allowing users access to
-applications that belong to this group. The resulting role for `okta/group/Developers` would look like:
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: okta/group/Developers
-spec:
-  allow:
-    app_labels:
-      group: "okta/group/Developers"
-```
-
-The corresponding application labels will be populated by application synchronization.
+A new `OktaGroup` will be created for each Okta group. These groups will contain mappings of 
 
 ##### Applications
 
 When applications are synchronized with Teleport, they will be created in application access as
 HTTP apps that use the `appLinks` from Okta as their URI. If there is more than one `appLink`
 associated with an Okta application, it will be split into multiple applications for
-each `appLink` with the unique name of each `appLink` used to disambiguate them. The `origin` field
-in the application metadata will be set to `okta`.
+each `appLink` with the unique name of each `appLink` used to disambiguate them. The
+`teleport.dev/origin` field in the application metadata will be set to `okta`.
 
 Applications in Okta can be assigned to groups, and the groups that the application is assigned
 to will be used to create labels for the application.
@@ -239,11 +195,7 @@ kind: app
 version: v3
 metadata:
   name: Slack
-  origin: okta
-  labels:
-    okta/group/Developers: ""
-    okta/group/Sales: ""
-    okta/app/123456789: "" # Application specific label
+  teleport.dev/origin: okta
 spec:
   uri: https://my-okta-domain.okta.com/appLink
 ```
@@ -258,6 +210,36 @@ API or UI. These requests will submit access requests through Teleport's
 [existing access request functionality](https://goteleport.com/docs/access-controls/access-requests/).
 The Okta service will monitor these approval requests and take appropriate
 action based on the request and the resource targeted.
+
+### Okta service with generic identity provider interface
+
+To potentially expand to more identity providers later, we'll create a generic `IdentityProvider`
+interface that should be implemented for synchronizing with Okta.
+
+```go
+// IdentityProvider is an interface that identity providers are expected to
+// implement to support integration into the application access service.
+type IdentityProvider interface {
+  // GetAllApplications will return all applications managed by a provider. The provider
+  // is expected to do any translation work necessary to map the internal
+  // concept of applicatiosn into Teleport's application.
+  GetAllApplications() ([]types.Application, error)
+  
+  // GetAllRoles will return all roles managed by an identity provider. The provider
+  // is expected to do any translation work necessary to map the internal
+  // concept of groups/roles into Teleport's role.
+  GetAllRoles() ([]types.Role, error)
+
+  // AssignUserToApplication will assign the given user permissions to the given application. This will be
+  // used by access requests.
+  AssignUserToApplication(user types.User, app types.Application) error
+
+  // AssignUserToGroup will assign the given user to the given external group.
+  // This will be used by access requests.
+  AssignUserToGroup(user types.User, group types.ExternalGroup) error
+}
+```
+
 
 ### APIs used by the Okta service
 
