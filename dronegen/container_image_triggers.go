@@ -82,7 +82,7 @@ func NewPromoteTrigger(branchMajorVersion string) *TriggerInfo {
 				RelativeVersionName: "branch",
 			},
 		},
-		SetupSteps: []step{verifyNotPrereleaseStep()},
+		SetupSteps: []step{verifyTaggedStep()},
 	}
 }
 
