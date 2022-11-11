@@ -48,7 +48,7 @@ Teleport will be useful.
 
 * When a user requests access to an application or group, the existing approval workflow
   will be used to add this access to the user.
-* Changes will be reflected in the identity provider backend when this occurs.
+* Changes will be reflected in Okta when this occurs.
 
 ### High level architecture
 
