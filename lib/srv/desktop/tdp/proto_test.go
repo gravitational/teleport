@@ -138,7 +138,7 @@ func loadBitmaps(b *testing.B) []PNG2Frame {
 
 func TestMFA(t *testing.T) {
 	var buff bytes.Buffer
-	c := NewConn(&buff)
+	c := NewConn(&fakeConn{Buffer: &buff})
 
 	mfaWant := &MFA{
 		Type: defaults.WebsocketWebauthnChallenge[0],
