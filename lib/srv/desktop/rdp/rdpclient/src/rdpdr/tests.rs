@@ -341,7 +341,7 @@ fn test_handle_device_reply() {
             },
             request: Box::new(ServerDeviceAnnounceResponse {
                 device_id: 1,
-                result_code: 0,
+                result_code: NTSTATUS::STATUS_SUCCESS,
             }),
         },
         vec![],

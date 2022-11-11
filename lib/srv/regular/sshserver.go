@@ -1673,7 +1673,7 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 }
 
 func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
-	sb, err := s.parseSubsystemRequest(req, serverContext)
+	sb, err := s.parseSubsystemRequest(req, ch, serverContext)
 	if err != nil {
 		serverContext.Warnf("Failed to parse subsystem request: %v: %v.", req, err)
 		return trace.Wrap(err)
@@ -1902,6 +1902,12 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 	}
 }
 
+// TODO: tsh scp will display neither the message sent in stderr or in
+// the reply; github.com/pkg/sftp ignores the SSH channel stderr, and
+// golang.org/x/crypto/ssh.channel.SendRequest ignores the message in
+// a channel reply. This is bad UX for users, as
+// 'ssh: subsystem request failed' will be the only error displayed when
+// access is denied.
 func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
 	s.Logger.Error(err)
 	// Terminate the error with a newline when writing to remote channel's
@@ -1917,7 +1923,7 @@ func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
 	}
 }
 
-func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext) (srv.Subsystem, error) {
+func (s *Server) parseSubsystemRequest(req *ssh.Request, ch ssh.Channel, ctx *srv.ServerContext) (srv.Subsystem, error) {
 	var r sshutils.SubsystemReq
 	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
 		return nil, trace.BadParameter("failed to parse subsystem request: %v", err)
@@ -1929,6 +1935,11 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 	case s.proxyMode && strings.HasPrefix(r.Name, "proxysites"):
 		return parseProxySitesSubsys(r.Name, s)
 	case r.Name == sftpSubsystem:
+		if err := ctx.CheckSFTPAllowed(); err != nil {
+			s.replyError(ch, req, err)
+			return nil, trace.Wrap(err)
+		}
+
 		return newSFTPSubsys()
 	default:
 		return nil, trace.BadParameter("unrecognized subsystem: %v", r.Name)

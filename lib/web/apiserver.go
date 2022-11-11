@@ -557,7 +557,6 @@ func (h *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httpro
 // getUserContext returns user context
 //
 // GET /webapi/sites/:site/context
-//
 func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	cn, err := h.cfg.AccessPoint.GetClusterName()
 	if err != nil {
@@ -1419,10 +1418,9 @@ func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 //
 // {"user": "alex", "pass": "abc123", "second_factor_token": "token", "second_factor_type": "totp"}
 //
-// Response
+// # Response
 //
 // {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
-//
 func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *CreateSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -1489,7 +1487,6 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 // Response:
 //
 // {"message": "ok"}
-//
 func (h *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	err := h.logout(r.Context(), w, ctx)
 	if err != nil {
@@ -1698,7 +1695,6 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (in
 // Response:
 //
 // {"version":"U2F_V2","challenge":"randombase64string","appId":"https://mycorp.com:3080"}
-//
 func (h *Handler) u2fRegisterRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	res, err := h.auth.proxyClient.CreateRegisterChallenge(r.Context(), &proto.CreateRegisterChallengeRequest{
 		TokenID:    p.ByName("token"),
@@ -1750,7 +1746,7 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 // { "user": "bob", "password": "pass", "pub_key": "key to sign", "ttl": 1000000000 }                   # password-only
 // { "user": "bob", "webauthn_challenge_response": {...}, "pub_key": "key to sign", "ttl": 1000000000 } # mfa
 //
-// Success response
+// # Success response
 //
 // { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
 func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -1804,7 +1800,6 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 // Successful response:
 //
 // {"sites": {"name": "localhost", "last_connected": "RFC3339 time", "status": "active"}}
-//
 func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
 	// Get a client to the Auth Server with the logged in users identity. The
 	// identity of the logged in user is used to fetch the list of nodes.
@@ -1870,26 +1865,17 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindNode)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers, err := types.ResourcesWithLabels(resp.Resources).AsServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	userRoles, err := ctx.GetUserRoles()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return listResourcesGetResponse{
-		Items:      ui.MakeServers(site.GetName(), servers, userRoles),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
-	}, nil
+	res, err := handleClusterNodesGet(clt, r, site.GetName(), userRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res, nil
 }
 
 // siteNodeConnect connect to the site node
@@ -1901,10 +1887,9 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 //
 // {"server_id": "uuid", "login": "admin", "term": {"h": 120, "w": 100}, "sid": "123"}
 //
-// Session id can be empty
+// # Session id can be empty
 //
 // Successful response is a websocket stream that allows read write to the server
-//
 func (h *Handler) siteNodeConnect(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -2050,7 +2035,6 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 // Response body:
 //
 // {"session": {"id": "sid", "terminal_params": {"w": 100, "h": 100}, "parties": [], "login": "bob"}}
-//
 func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	sessionID, err := session.ParseID(p.ByName("sid"))
 	if err != nil {
@@ -2101,16 +2085,17 @@ func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, erro
 // GET /v1/webapi/sites/:site/events/search
 //
 // Query parameters:
-//   "from"    : date range from, encoded as RFC3339
-//   "to"      : date range to, encoded as RFC3339
-//   "limit"   : optional maximum number of events to return on each fetch
-//   "startKey": resume events search from the last event received,
-//               empty string means start search from beginning
-//   "include" : optional comma-separated list of event names to return e.g.
-//               include=session.start,session.end, all are returned if empty
-//   "order":    optional ordering of events. Can be either "asc" or "desc"
-//               for ascending and descending respectively.
-//               If no order is provided it defaults to descending.
+//
+//	"from"    : date range from, encoded as RFC3339
+//	"to"      : date range to, encoded as RFC3339
+//	"limit"   : optional maximum number of events to return on each fetch
+//	"startKey": resume events search from the last event received,
+//	            empty string means start search from beginning
+//	"include" : optional comma-separated list of event names to return e.g.
+//	            include=session.start,session.end, all are returned if empty
+//	"order":    optional ordering of events. Can be either "asc" or "desc"
+//	            for ascending and descending respectively.
+//	            If no order is provided it defaults to descending.
 func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	values := r.URL.Query()
 
@@ -2130,14 +2115,15 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 // GET /v1/webapi/sites/:site/sessions/search
 //
 // Query parameters:
-//   "from"    : date range from, encoded as RFC3339
-//   "to"      : date range to, encoded as RFC3339
-//   "limit"   : optional maximum number of events to return on each fetch
-//   "startKey": resume events search from the last event received,
-//               empty string means start search from beginning
-//   "order":    optional ordering of events. Can be either "asc" or "desc"
-//               for ascending and descending respectively.
-//               If no order is provided it defaults to descending.
+//
+//	"from"    : date range from, encoded as RFC3339
+//	"to"      : date range to, encoded as RFC3339
+//	"limit"   : optional maximum number of events to return on each fetch
+//	"startKey": resume events search from the last event received,
+//	            empty string means start search from beginning
+//	"order":    optional ordering of events. Can be either "asc" or "desc"
+//	            for ascending and descending respectively.
+//	            If no order is provided it defaults to descending.
 func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	searchSessionEvents := func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 		return clt.SearchSessionEvents(from, to, limit, order, startKey, nil, "")
@@ -2241,8 +2227,9 @@ func queryOrder(query url.Values, name string, def types.EventOrder) (types.Even
 // GET /v1/webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream?query
 //
 // Query parameters:
-//   "offset"   : bytes from the beginning
-//   "bytes"    : number of bytes to read (it won't return more than 512Kb)
+//
+//	"offset"   : bytes from the beginning
+//	"bytes"    : number of bytes to read (it won't return more than 512Kb)
 //
 // Unlike other request handlers, this one does not return JSON.
 // It returns the binary stream unencoded, directly in the respose body,
@@ -2351,13 +2338,13 @@ type eventsListGetResponse struct {
 // GET /v1/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events?after=N
 //
 // Query:
-//    "after" : cursor value of an event to return "newer than" events
-//              good for repeated polling
+//
+//	"after" : cursor value of an event to return "newer than" events
+//	          good for repeated polling
 //
 // Response body (each event is an arbitrary JSON structure)
 //
 // {"events": [{...}, {...}, ...}
-//
 func (h *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	sessionID, err := session.ParseID(p.ByName("sid"))
 	if err != nil {
@@ -2412,10 +2399,9 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 //
 // { "user": "bob", "password": "pass", "otp_token": "tok", "pub_key": "key to sign", "ttl": 1000000000 }
 //
-// Success response
+// # Success response
 //
 // { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
-//
 func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *client.CreateSSHCertReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -2455,16 +2441,16 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 //
 // * Request body:
 //
-// {
-//     "token": "foo",
-//     "certificate_authorities": ["AQ==", "Ag=="]
-// }
+//	{
+//	    "token": "foo",
+//	    "certificate_authorities": ["AQ==", "Ag=="]
+//	}
 //
 // * Response:
 //
-// {
-//     "certificate_authorities": ["AQ==", "Ag=="]
-// }
+//	{
+//	    "certificate_authorities": ["AQ==", "Ag=="]
+//	}
 func (h *Handler) validateTrustedCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var validateRequestRaw auth.ValidateTrustedClusterRequestRaw
 	if err := httplib.ReadJSON(r, &validateRequestRaw); err != nil {
