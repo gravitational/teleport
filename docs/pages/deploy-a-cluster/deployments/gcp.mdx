@@ -37,8 +37,6 @@ tool across clouds.
 You can use Teleport for all the services that you would SSH into. This guide is
 focused on Google Compute Engine.
 
-We plan on expanding our guide to eventually include using Teleport with Google Kubernetes Engine (GKE).
-
 ## GCP Teleport Introduction
 
 This guide will cover how to setup, configure and run Teleport on GCP.
@@ -46,7 +44,7 @@ This guide will cover how to setup, configure and run Teleport on GCP.
 GCP Services required to run Teleport in High Availability:
 
 - [Compute Engine: VM Instances with Instance Groups](#compute-engine-vm-instances-with-instance-groups)
-- [Computer Engine: Health Checks](#computer-engine-health-checks)
+- [Compute Engine: Health Checks](#compute-engine-health-checks)
 - [Storage: Cloud Firestore](#storage-google-cloud-storage)
 - [Storage: Google Cloud Storage](#storage-google-cloud-storage)
 - [Network Services: Load Balancing](#network-services-load-balancing)
@@ -72,7 +70,7 @@ To run Teleport in a High Availability configuration we recommend using `n1-stan
 Production. It's best practice to separate the proxy and authentication server, using
 Instance groups for the proxy and auth server.
 
-### Computer Engine: Health Checks
+### Compute Engine: Health Checks
 
 GCP relies heavily on [Health Checks](https://cloud.google.com/load-balancing/docs/health-checks),
 this is helpful when adding new instances to an instance group.
