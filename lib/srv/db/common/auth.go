@@ -46,8 +46,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
 	"github.com/aws/aws-sdk-go/service/redshift"
 
+	gcpcredentialspb "cloud.google.com/go/iam/credentials/apiv1/credentialspb"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
-	gcpcredentialspb "google.golang.org/genproto/googleapis/iam/credentials/v1"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
