@@ -4,11 +4,19 @@ ifneq ("$(wildcard /bin/bash)","")
 SHELL := /bin/bash -o pipefail
 endif
 BUILDDIR ?= build
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS)' -trimpath
+TELEPORT_DEBUG ?= false
 CGOFLAG ?= CGO_ENABLED=1
 RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
 BINARIES ?= $(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/tbot
 CLOUD_DOCKERFILE ?= ../build.assets/charts/Dockerfile
+
+# When TELEPORT_DEBUG is true, set flags so produce
+# debugger-friendly builds.
+ifeq ("$(TELEPORT_DEBUG)","true")
+BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
+else
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS)' -trimpath
+endif
 
 DOCKER_IMAGE_ENT_QUAY ?= quay.io/gravitational/teleport-ent
 DOCKER_IMAGE_ENT_ECR ?= public.ecr.aws/gravitational/teleport-ent
