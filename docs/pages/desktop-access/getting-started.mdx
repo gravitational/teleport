@@ -15,7 +15,8 @@ The features documented on this page are available in Teleport `10.2.6` and high
 
 </Details>
 
-This guide will help you configure Teleport and Active Directory in order to provide secure, passwordless access to Windows desktops.
+This guide will help you configure Teleport and Active Directory in order to
+provide secure, passwordless access to Windows desktops.
 
 ## Prerequisites
 
@@ -44,21 +45,29 @@ This guide will help you configure Teleport and Active Directory in order to pro
 
 ## Step 2/2. Run the discovery wizard
 
-In your web browser, access the teleport Web UI at <ScopedBlock scope={["oss", "enterprise"]}>`teleport.example.com`</ScopedBlock><ScopedBlock scope={["cloud"]}>`mytennant.teleport.sh`</ScopedBlock>. Click on your user name at the top right and select **Manage Access**, Select "Desktop" from the main menu, then **NEXT**:
+In your web browser, access the teleport Web UI at <ScopedBlock scope={["oss", "enterprise"]}>
+`teleport.example.com`</ScopedBlock><ScopedBlock scope={["cloud"]}>
+`mytennant.teleport.sh`</ScopedBlock>. Click on your user name at the top right
+and select **Manage Access**, Select "Desktop" from the main menu, then **NEXT**:
 
-If you already have Active Directory installed, skip to the next step. Otherwise, copy and paste the first command provided into a Windows PowerShell window. If you aren't already running AD Certificate services, copy and paste the second command after the first one completes and the server restarts:
+If you already have Active Directory installed, skip to the next step. Otherwise,
+copy and paste the first command provided into a Windows PowerShell window. If
+you aren't already running AD Certificate services, copy and paste the second
+command after the first one completes and the server restarts:
 
 ![Install Active Directory](../../img/desktop-access/install-active-directory.png)
 
 Once the server is restarted from one or both command executions, click **NEXT**.
 
-Copy and paste the provided command into a Windows PowerShell window to download and run the 'configure Active Directory' script:
+Copy and paste the provided command into a Windows PowerShell window to download
+and run the 'configure Active Directory' script:
 
 ![Configure Active Directory](../../img/desktop-access/configure-active-directory.png)
 
 Click **NEXT**.
 
-The PowerShell script will output a Teleport configuration block. Copy this block to a temporary location. Click **Next**.
+The PowerShell script will output a Teleport configuration block. Copy this
+block to a temporary location. Click **Next**.
 
 On the Linux host you installed Teleport to run as the Desktop Access connector,
 edit `/etc/teleport.yaml` and paste the configuration provided by the output of
@@ -179,9 +188,11 @@ ssh_service:
 </TabItem>
 </Tabs>
 
-The access wizard will detect when the new Teleport instance has joined the cluster, and you can then click **Next**.
+The access wizard will detect when the new Teleport instance has joined the
+cluster, and you can then click **Next**.
 
-Teleport will discover available Windows desktops in the domain, and list them under **Desktops**. Click **Finish** then **BROWSE EXISTING RESOURCES** to see them:
+Teleport will discover available Windows desktops in the domain, and list them
+under **Desktops**. Click **Finish** then **BROWSE EXISTING RESOURCES** to see them:
 
 ![Desktops Discovered](../../img/desktop-access/auto-discovered-desktops.png)
 
