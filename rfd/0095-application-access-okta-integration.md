@@ -162,12 +162,31 @@ sequenceDiagram
 
 #### Okta to Teleport mappings
 
-Okta groups and applications will be mapped by the background synchronization into Teleport roles and
-applications respectively.
+Okta groups and applications will be mapped by the background synchronization into new
+`OktaGroup` and `OktaApplication` objects.
 
 ##### Groups
 
-A new `OktaGroup` will be created for each Okta group. These groups will contain mappings of 
+A new `OktaGroup` will be created for each Okta group. `OktaGroup`s will contain a list of Okta users
+that belong to this group. This will be later used for RBAC calculation.
+
+```yaml
+kind: okta_group
+version: v3
+metadata:
+  name: Developers
+  teleport.dev/origin: okta
+spec:
+  users:
+    - mike@goteleport.com
+    - roman@goteleport.com
+    - zac@goteleport.com
+    ...
+  applications:
+    - 123456789
+    - 234567890
+    ...
+```
 
 ##### Applications
 
@@ -175,20 +194,10 @@ When applications are synchronized with Teleport, they will be created in applic
 HTTP apps that use the `appLinks` from Okta as their URI. If there is more than one `appLink`
 associated with an Okta application, it will be split into multiple applications for
 each `appLink` with the unique name of each `appLink` used to disambiguate them. The
-`teleport.dev/origin` field in the application metadata will be set to `okta`.
-
-Applications in Okta can be assigned to groups, and the groups that the application is assigned
-to will be used to create labels for the application.
-
-One complicating factor for us is that Okta allows per-application user assignment as well. As a
-result, we'll need to create a role for each application with a list of users assigned to it and allow
-it to access the application which will have a label based off of the application's unique ID
-within Okta. The label and role will look like `okta/app/123456789`. Unfortunately, Okta allows
-duplicate application names, so we'll have to use the actual unique identifier here. The role will have
-the same role template that are used by groups, but with the application specific label targeted.
-
-Using the same prefixes listed in the previous section for groups, if an application `Slack` is
-assigned to `Developers` and `Sales`, the resulting application object would look like:
+`teleport.dev/origin` field in the application metadata will be set to `okta`. Additionally, a
+field called `okta_application_id` will be present in the metadata that will allow for mapping
+the application to an internal `OktaApplication` object that will be created as part of the
+synchronization process. The applications will look like the following:
 
 ```yaml
 kind: app
@@ -196,20 +205,85 @@ version: v3
 metadata:
   name: Slack
   teleport.dev/origin: okta
+  okta_application_id: 123456789
 spec:
   uri: https://my-okta-domain.okta.com/appLink
 ```
 
-### Requesting access to applications and groups
+The `OktaApplication` that will be created will contain a list of Okta users and groups which are
+explicitly assigned these applications. This will allow us to calculate RBAC for individual users
+for applications.  These objects will look like the following:
 
-TODO: This needs more brainstorming -- I'm leaving this bit until later to make sure the
-basics are more ironed out.
+```yaml
+kind: okta_application
+version: v3
+metadata:
+  name: 123456789
+spec:
+  users:
+    - mike@goteleport.com
+    - roman@goteleport.com
+    - zac@goteleport.com
+    ...
+  groups:
+    - Developers
+    - Administrators
+    ...
+```
+
+### Requesting access to applications and groups
 
 A user will be able to submit access requests to specific applications and groups through the
 API or UI. These requests will submit access requests through Teleport's
 [existing access request functionality](https://goteleport.com/docs/access-controls/access-requests/).
 The Okta service will monitor these approval requests and take appropriate
 action based on the request and the resource targeted.
+
+#### Group approval
+
+When an approval request has been accepted for a group, the Okta service assign the user to the given
+group. When the approval is rescinded, the user will be removed from the group.
+
+#### Application approval
+
+When an approval request has been accepted for an application, the Okta service will assign the user
+to the application. When the approval is rescinded, the user will be removed from teh application.
+
+#### What groups and applications can users request?
+
+New fields in role objects will indicate which groups useres in this role can request.
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: example
+spec:
+  allow:
+    okta_apps: ["app1", "app2"]
+    okta_groups: ["group1", "group2"]
+```
+
+This will not affect things if users already have access to these through the Okta, but if they don't,
+they'll be able to request these.
+
+#### Note about Okta administration workflows
+
+For approving temporary access, Teleport will assign users to groups and applications independently of
+Okta administration. This could potentially create awkward administrator workflows where users appear
+to have access to a group or application and then see it disappear later as approvals are approved and
+rescinded. This is something we'll need to make sure to document well so that it doesn't catch users
+unaware.
+
+### RBAC calculation
+
+RBAC calculation will utilize the `OktaGroup` and `OktaApplication` objects to determine if a user
+has access to an application or group.
+
+`OktaGroup` has a list of associated users and associated applications, so our RBAC calculation will
+determine if a user has access to this group and access to particular applications. Similarly,
+`OktaApplication` has a list of associated users, so if a user belongs to a list of users associated
+with the application, our RBAC calculation will utilize this.
 
 ### Okta service with generic identity provider interface
 
@@ -240,7 +314,6 @@ type IdentityProvider interface {
 }
 ```
 
-
 ### APIs used by the Okta service
 
 The Okta provider will use the following APIs:
@@ -257,6 +330,15 @@ all groups known to Okta. These results are paginated and may require multiple c
 
 The Okta service will need to actively monitor and take action on access requests, which is a
 mechanism which does not currently exist today.
+
+#### Application metadata
+
+Application metadata will include a new field for `okta_application_id` for mapping applications
+to `OktaApplication` objects.
+
+#### `OktaGroup` and `OktaApplication` objects
+
+As described in the RFD, these two objects will be created as part of the synchronization process.
 
 ### Audit events
 
@@ -283,6 +365,11 @@ A number of new audit events will be created as part of this effort:
 
 ### Implementation plan
 
+#### `OktaGroup` and `OktaApplication` objects
+
+The `OktaGroup` and `OktaApplication` objects should be implemented along with any database and
+gRPC modifications that are required.
+
 #### Okta service configuration
 
 Implement the ability to configure the Okta service. Doing this first will make subsequent
@@ -292,6 +379,28 @@ Part of this will include implementing any stubs needed for the Okta service its
 #### Okta service API communication
 
 The Okta service will be able to communicate with Okta and retrieve lists of
-applications and groups without doing anything with them yet.
+applications and groups and synchronizing them with the Teleport backend.
 
-####
+#### Okta RBAC calculation
+
+The Okta RBAC calculation will be updated to utilize `OktaGroup` and `OktaApplication` objects.
+
+#### Application access synchronization
+
+Okta applications will be synchronized with the application access service so that users will be
+able to have access to Okta applications from the Teleport UI and listed in `tsh app ls`.
+
+#### Application request
+
+The application request workflow will be implemented hereApplication access synchronization
+
+Okta applications will be synchronized with the application access service so that users will be
+able to have access to Okta applications from the Teleport UI and listed in `tsh app ls`.
+
+#### `OktaApplication` approval request.
+
+The `OktaApplication` approval request workflow will be implemented.
+
+#### `OktaGroup` approval request.
+
+The `OktaGroup` approval request workflow will be implemented.
