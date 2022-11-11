@@ -150,6 +150,28 @@ func CalculateAccessCapabilities(ctx context.Context, clt RequestValidatorGetter
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if len(req.ResourceIDs) != 0 {
+		// First collect all possible search_as_roles.
+		var rolesToRequest []string
+		for _, roleName := range v.Roles.AllowSearch {
+			if !v.CanSearchAsRole(roleName) {
+				continue
+			}
+			rolesToRequest = append(rolesToRequest, roleName)
+		}
+		if len(rolesToRequest) == 0 {
+			return nil, trace.BadParameter(`user attempted to fetch necessary roles for a resource request but does not have any "search_as_roles"`)
+		}
+
+		// Prune the list of roles to request to only those which may be necessary
+		// to access the requested resources.
+		caps.NecessaryRolesForResources, err = v.PruneResourceRequestRoles(ctx, req.ResourceIDs, "", rolesToRequest)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	if req.RequestableRoles {
 		caps.RequestableRoles, err = v.GetRequestableRoles()
 		if err != nil {
@@ -1097,7 +1119,7 @@ func (m *RequestValidator) setRolesForResourceRequest(ctx context.Context, req t
 	// Prune the list of roles to request to only those which may be necessary
 	// to access the requested resources.
 	var err error
-	rolesToRequest, err = m.pruneResourceRequestRoles(ctx, req.GetRequestedResourceIDs(), req.GetLoginHint(), rolesToRequest)
+	rolesToRequest, err = m.PruneResourceRequestRoles(ctx, req.GetRequestedResourceIDs(), req.GetLoginHint(), rolesToRequest)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1317,7 +1339,7 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 	}
 }
 
-// pruneResourceRequestRoles takes an access request and does one of two things:
+// PruneResourceRequestRoles takes an access request and does one of two things:
 //  1. If it is a role request, returns it unchanged.
 //  2. If it is a resource request, all available `search_as_roles` for the user
 //     should have been populated on the request by `ValidateAccessReqeustForUser`.
@@ -1328,7 +1350,7 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 //     should be satisfied by exactly 1 role. The first such role will be
 //     requested, all others will be pruned unless they are necessary to access
 //     a different resource in the set.
-func (m *RequestValidator) pruneResourceRequestRoles(
+func (m *RequestValidator) PruneResourceRequestRoles(
 	ctx context.Context,
 	resourceIDs []types.ResourceID,
 	loginHint string,
@@ -1390,6 +1412,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			necessaryRoles[role.GetName()] = struct{}{}
 		}
 	}
+
 	if len(necessaryRoles) == 0 {
 		resourcesStr, err := types.ResourceIDsToString(resourceIDs)
 		if err != nil {

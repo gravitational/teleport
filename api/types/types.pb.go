@@ -4847,8 +4847,10 @@ var xxx_messageInfo_AccessRequestFilter proto.InternalMessageInfo
 type AccessCapabilities struct {
 	// RequestableRoles is a list of existent roles which the user is allowed to request.
 	RequestableRoles []string `protobuf:"bytes,1,rep,name=RequestableRoles,proto3" json:"requestable_roles,omitempty"`
+	// NecessaryRolesForResources is a list of the roles necessary to access a given set of resources.
+	NecessaryRolesForResources []string `protobuf:"bytes,2,rep,name=NecessaryRolesForResources,proto3" json:"necessary_roles,omitempty"`
 	// SuggestedReviewers is a list of all reviewers which are suggested by the user's roles.
-	SuggestedReviewers   []string `protobuf:"bytes,2,rep,name=SuggestedReviewers,proto3" json:"suggested_reviewers,omitempty"`
+	SuggestedReviewers   []string `protobuf:"bytes,3,rep,name=SuggestedReviewers,proto3" json:"suggested_reviewers,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -4895,9 +4897,12 @@ type AccessCapabilitiesRequest struct {
 	// RequestableRoles is a flag indicating that we would like to view the list of roles
 	// that the user is able to request.
 	RequestableRoles bool `protobuf:"varint,2,opt,name=RequestableRoles,proto3" json:"requestable_roles,omitempty"`
+	// ResourceIDs is the list of the ResourceIDs of the resources we would like to view
+	// the necessary roles for.
+	ResourceIDs []ResourceID `protobuf:"bytes,3,rep,name=ResourceIDs,proto3" json:"resource_ids,omitempty"`
 	// SuggestedReviewers is a flag indicating that we would like to view the list of all
 	// reviewers which are suggested by the user's roles.
-	SuggestedReviewers   bool     `protobuf:"varint,3,opt,name=SuggestedReviewers,proto3" json:"suggested_reviewers,omitempty"`
+	SuggestedReviewers   bool     `protobuf:"varint,4,opt,name=SuggestedReviewers,proto3" json:"suggested_reviewers,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -17944,6 +17949,15 @@ func (m *AccessCapabilities) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			copy(dAtA[i:], m.SuggestedReviewers[iNdEx])
 			i = encodeVarintTypes(dAtA, i, uint64(len(m.SuggestedReviewers[iNdEx])))
 			i--
+			dAtA[i] = 0x1a
+		}
+	}
+	if len(m.NecessaryRolesForResources) > 0 {
+		for iNdEx := len(m.NecessaryRolesForResources) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.NecessaryRolesForResources[iNdEx])
+			copy(dAtA[i:], m.NecessaryRolesForResources[iNdEx])
+			i = encodeVarintTypes(dAtA, i, uint64(len(m.NecessaryRolesForResources[iNdEx])))
+			i--
 			dAtA[i] = 0x12
 		}
 	}
@@ -17991,7 +18005,21 @@ func (m *AccessCapabilitiesRequest) MarshalToSizedBuffer(dAtA []byte) (int, erro
 			dAtA[i] = 0
 		}
 		i--
-		dAtA[i] = 0x18
+		dAtA[i] = 0x20
+	}
+	if len(m.ResourceIDs) > 0 {
+		for iNdEx := len(m.ResourceIDs) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.ResourceIDs[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintTypes(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x1a
+		}
 	}
 	if m.RequestableRoles {
 		i--
@@ -28749,6 +28777,12 @@ func (m *AccessCapabilities) Size() (n int) {
 			n += 1 + l + sovTypes(uint64(l))
 		}
 	}
+	if len(m.NecessaryRolesForResources) > 0 {
+		for _, s := range m.NecessaryRolesForResources {
+			l = len(s)
+			n += 1 + l + sovTypes(uint64(l))
+		}
+	}
 	if len(m.SuggestedReviewers) > 0 {
 		for _, s := range m.SuggestedReviewers {
 			l = len(s)
@@ -28773,6 +28807,12 @@ func (m *AccessCapabilitiesRequest) Size() (n int) {
 	}
 	if m.RequestableRoles {
 		n += 2
+	}
+	if len(m.ResourceIDs) > 0 {
+		for _, e := range m.ResourceIDs {
+			l = e.Size()
+			n += 1 + l + sovTypes(uint64(l))
+		}
 	}
 	if m.SuggestedReviewers {
 		n += 2
@@ -49052,6 +49092,38 @@ func (m *AccessCapabilities) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NecessaryRolesForResources", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.NecessaryRolesForResources = append(m.NecessaryRolesForResources, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field SuggestedReviewers", wireType)
 			}
 			var stringLen uint64
@@ -49186,6 +49258,40 @@ func (m *AccessCapabilitiesRequest) Unmarshal(dAtA []byte) error {
 			}
 			m.RequestableRoles = bool(v != 0)
 		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ResourceIDs", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ResourceIDs = append(m.ResourceIDs, ResourceID{})
+			if err := m.ResourceIDs[len(m.ResourceIDs)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field SuggestedReviewers", wireType)
 			}

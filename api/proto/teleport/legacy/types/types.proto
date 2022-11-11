@@ -1811,8 +1811,10 @@ message AccessRequestFilter {
 message AccessCapabilities {
   // RequestableRoles is a list of existent roles which the user is allowed to request.
   repeated string RequestableRoles = 1 [(gogoproto.jsontag) = "requestable_roles,omitempty"];
+  // NecessaryRolesForResources is a list of the roles necessary to access a given set of resources.
+  repeated string NecessaryRolesForResources = 2 [(gogoproto.jsontag) = "necessary_roles,omitempty"];
   // SuggestedReviewers is a list of all reviewers which are suggested by the user's roles.
-  repeated string SuggestedReviewers = 2 [(gogoproto.jsontag) = "suggested_reviewers,omitempty"];
+  repeated string SuggestedReviewers = 3 [(gogoproto.jsontag) = "suggested_reviewers,omitempty"];
 }
 
 // AccessCapabilitiesRequest encodes parameters for the GetAccessCapabilities method.
@@ -1823,9 +1825,15 @@ message AccessCapabilitiesRequest {
   // RequestableRoles is a flag indicating that we would like to view the list of roles
   // that the user is able to request.
   bool RequestableRoles = 2 [(gogoproto.jsontag) = "requestable_roles,omitempty"];
+  // ResourceIDs is the list of the ResourceIDs of the resources we would like to view
+  // the necessary roles for.
+  repeated ResourceID ResourceIDs = 3 [
+    (gogoproto.jsontag) = "resource_ids,omitempty",
+    (gogoproto.nullable) = false
+  ];
   // SuggestedReviewers is a flag indicating that we would like to view the list of all
   // reviewers which are suggested by the user's roles.
-  bool SuggestedReviewers = 3 [(gogoproto.jsontag) = "suggested_reviewers,omitempty"];
+  bool SuggestedReviewers = 4 [(gogoproto.jsontag) = "suggested_reviewers,omitempty"];
 }
 
 // ResourceID is a unique identifier for a teleport resource.
