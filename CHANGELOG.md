@@ -1,5 +1,23 @@
 # Changelog
 
+## 10.3.7
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with agent forwarding not working for auto-created Linux users. [#17585](https://github.com/gravitational/teleport/pull/17585)
+* Fixed issue with incorrect exec command in MS Teams plugin systemd unit file. [#18029](https://github.com/gravitational/teleport/pull/18029)
+* Fixed issue with not being able to connect to OpenSSH 7.4. [#18247](https://github.com/gravitational/teleport/pull/18247)
+* Fixed issue with `tsh proxy ssh` not respecting `HTTPS_PROXY`. [#18294](https://github.com/gravitational/teleport/pull/18294)
+* Fixed issue with `tbot` failing to parse certain kernel versions. [#18300](https://github.com/gravitational/teleport/pull/18300)
+* Fixed issue with Kubernetes proxy caching client credentials between sessions. [#18110](https://github.com/gravitational/teleport/pull/18110)
+* Fixed issue with terminated session resources not being freed up quickly enough. [#18052](https://github.com/gravitational/teleport/pull/18052)
+* Fixed issue with agents losing track of proxies they're unable to connect to. [#18152](https://github.com/gravitational/teleport/pull/18152)
+* Fixed issue with sessions spawning excessive amounts of goroutines. [#18213](https://github.com/gravitational/teleport/pull/18213)
+* Fixed issue with invalid tunnel agent connections not being closed. [#18225](https://github.com/gravitational/teleport/pull/18225)
+* Added back button to Access Manager's Test Connection screens. [webapps#1326](https://github.com/gravitational/webapps/pull/1326)
+* Updated CA for Azure-hosted PostgreSQL databases. [#18173](https://github.com/gravitational/teleport/pull/18173)
+* Improved `tsh` performance by reducing the number of roundtrips to server. [#18054](https://github.com/gravitational/teleport/pull/18054)
+
 ## 10.3.6
 
 This release of Teleport contains multiple improvements and bug fixes.
