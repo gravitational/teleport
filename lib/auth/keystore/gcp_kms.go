@@ -93,9 +93,7 @@ type gcpKMSKeyStore struct {
 
 // newGCPKMSKeyStore returns a new keystore configured to use a GCP KMS keyring
 // to manage all key material.
-func newGCPKMSKeyStore(cfg *GCPKMSConfig, logger logrus.FieldLogger) (*gcpKMSKeyStore, error) {
-	ctx := context.TODO()
-
+func newGCPKMSKeyStore(ctx context.Context, cfg *GCPKMSConfig, logger logrus.FieldLogger) (*gcpKMSKeyStore, error) {
 	kmsClient, err := kms.NewKeyManagementClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -117,9 +115,7 @@ func newGCPKMSKeyStore(cfg *GCPKMSConfig, logger logrus.FieldLogger) (*gcpKMSKey
 // crypto.Signer. The returned identifier for gcpKMSKeyStore encoded the full
 // GCP KMS key version name, and can be passed to getSigner later to get the same
 // crypto.Signer.
-func (g *gcpKMSKeyStore) generateRSA(opts ...RSAKeyOption) ([]byte, crypto.Signer, error) {
-	ctx := context.TODO()
-
+func (g *gcpKMSKeyStore) generateRSA(ctx context.Context, opts ...RSAKeyOption) ([]byte, crypto.Signer, error) {
 	options := &RSAKeyOptions{}
 	for _, opt := range opts {
 		opt(options)
@@ -168,8 +164,7 @@ func (g *gcpKMSKeyStore) generateRSA(opts ...RSAKeyOption) ([]byte, crypto.Signe
 }
 
 // getSigner returns a crypto.Signer for the given pem-encoded private key.
-func (g *gcpKMSKeyStore) getSigner(rawKey []byte) (crypto.Signer, error) {
-	ctx := context.TODO()
+func (g *gcpKMSKeyStore) getSigner(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
 	keyID, err := parseGCPKMSKeyID(rawKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -198,7 +193,7 @@ func (g *gcpKMSKeyStore) deleteKey(ctx context.Context, rawKey []byte) error {
 // configured with the same keyring. This is a divergence from the PKCS#11
 // keystore where different auth servers will always create their own keys even
 // if configured to use the same HSM
-func (g *gcpKMSKeyStore) canSignWithKey(raw []byte, keyType types.PrivateKeyType) (bool, error) {
+func (g *gcpKMSKeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
 	if keyType != types.PrivateKeyType_GCP_KMS {
 		return false, nil
 	}
