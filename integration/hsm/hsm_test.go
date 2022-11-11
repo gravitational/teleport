@@ -180,7 +180,11 @@ func (t *teleportService) waitForLocalAdditionalKeys(ctx context.Context) error 
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if t.process.GetAuthServer().GetKeyStore().HasLocalAdditionalKeys(ca) {
+		hasUsableKeys, err := t.process.GetAuthServer().GetKeyStore().HasUsableAdditionalKeys(ctx, ca)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if hasUsableKeys {
 			break
 		}
 	}
@@ -343,7 +347,7 @@ func TestHSMRotation(t *testing.T) {
 	authConfig := newHSMAuthConfig(ctx, t, liteBackendConfig(t), log)
 	auth1 := newTeleportService(t, authConfig, "auth1")
 	t.Cleanup(func() {
-		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(nil))
+		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil))
 	})
 	teleportServices := TeleportServices{auth1}
 
@@ -410,7 +414,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	auth1Config := newHSMAuthConfig(ctx, t, storageConfig, log)
 	auth1 := newTeleportService(t, auth1Config, "auth1")
 	t.Cleanup(func() {
-		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(nil),
+		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil),
 			"failed to delete hsm keys during test cleanup")
 	})
 	authServices := TeleportServices{auth1}
@@ -443,7 +447,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	auth2 := newTeleportService(t, auth2Config, "auth2")
 	require.NoError(t, auth2.waitForStart(ctx))
 	t.Cleanup(func() {
-		require.NoError(t, auth2.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(nil))
+		require.NoError(t, auth2.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil))
 	})
 	authServices = append(authServices, auth2)
 	teleportServices = append(teleportServices, auth2)
