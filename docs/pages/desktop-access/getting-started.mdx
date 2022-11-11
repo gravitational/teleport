@@ -15,7 +15,7 @@ The features documented on this page are available in Teleport `10.2.6` and high
 
 </Details>
 
-This guide will help you configure Teleport and your Active Directory domain controller to communicate securely with each other, register available desktops with your Teleport cluster, and provide secure access to them.
+This guide will help you configure Teleport and Active Directory in order to provide secure, passwordless access to Windows desktops.
 
 ## Prerequisites
 
@@ -26,9 +26,11 @@ This guide will help you configure Teleport and your Active Directory domain con
 </ScopedBlock>
 - A server or virtual machine running a Windows Server operating system.
 
-- A host where you will run the Teleport Desktop Service.
-  <ScopedBlock scope={["oss", "enterprise"]}> This **can not** be the same instance
-  of Teleport running your Auth and/or Proxy service(s). To install Desktop Access into an existing Teleport instance running other services, see the [Manual Setup](manual-setup.mdx) guide for Desktop Access.</ScopedBlock>
+- A Linux host where you will run the Teleport Desktop Service.
+  <ScopedBlock scope={["oss", "enterprise"]}> This guide assumes that you will
+  run Teleport's Windows Desktop Service on a dedicated host. To install Desktop
+  Access into an existing Teleport instance running other services, see the
+  [Manual Setup](manual-setup.mdx) guide for Desktop Access.</ScopedBlock>
 
 - An Active Directory domain, configured for LDAPS (Teleport requires an
   encrypted LDAP connection). Typically this means installing
@@ -44,7 +46,7 @@ This guide will help you configure Teleport and your Active Directory domain con
 
 In your web browser, access the teleport Web UI at <ScopedBlock scope={["oss", "enterprise"]}>`teleport.example.com`</ScopedBlock><ScopedBlock scope={["cloud"]}>`mytennant.teleport.sh`</ScopedBlock>. Click on your user name at the top right and select **Manage Access**, Select "Desktop" from the main menu, then **NEXT**:
 
-If your Windows server is already running as an Active Directory controller, skip to the next step. Otherwise, copy and paste the first command provided into a Windows PowerShell window. If your server is not already running AD Certificate Services, copy and paste the second command after the first one completes and the server restarts:
+If you already have Active Directory installed, skip to the next step. Otherwise, copy and paste the first command provided into a Windows PowerShell window. If you aren't already running AD Certificate services, copy and paste the second command after the first one completes and the server restarts:
 
 ![Install Active Directory](../../img/desktop-access/install-active-directory.png)
 
@@ -58,7 +60,9 @@ Click **NEXT**.
 
 The PowerShell script will output a Teleport configuration block. Copy this block to a temporary location. Click **Next**.
 
-On the host you installed Teleport to run as the Desktop Access connector, edit `/etc/teleport.yaml` and paste the configuration provided by the output of the previous step:
+On the Linux host you installed Teleport to run as the Desktop Access connector,
+edit `/etc/teleport.yaml` and paste the configuration provided by the output of
+the previous step. Review and edit the addition as necessarily for your environment:
 
 ```yaml
 version: v3
