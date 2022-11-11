@@ -24,7 +24,7 @@ ARCH ?= amd64
 
 GOLANG_VERSION ?= go1.19.2
 
-NODE_VERSION ?= 16.13.2
+NODE_VERSION ?= 16.18.1
 
 RUST_VERSION ?= 1.64.0 # don't bump this without checking GLIBC compatibility
 LIBBPF_VERSION ?= 0.7.0-teleport
@@ -275,6 +275,13 @@ grpc-teleterm: buildbox-teleterm
 	docker run \
 		$(DOCKERFLAGS) -e CLANG_FORMAT=/usr/bin/clang-format-10 -t $(BUILDBOX_TELETERM) \
 		make -C /go/src/github.com/gravitational/teleport grpc-teleterm/host
+
+# fix-imports runs GCI to sort and re-order Go imports in a deterministic way.
+.PHONY: fix-imports
+fix-imports: buildbox
+	docker run \
+		$(DOCKERFLAGS) -t $(BUILDBOX) \
+		make -C /go/src/github.com/gravitational/teleport fix-imports/host
 
 #
 # Removes the docker image

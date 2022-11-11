@@ -6,6 +6,10 @@ issues:
     - linters:
       - revive
       text: "exported: exported const"
+    # TODO(hugoShaka): Remove once https://github.com/dominikh/go-tools/issues/1294 is fixed
+    - linters:
+      - unused
+      path: 'operator/controllers/resources/(.+)_controller_test\.go'
     # TODO(codingllama): Remove ignore after the new golangci-lint image lands.
     # For some reason this particular files causes problems between different
     # goimports versions.
