@@ -110,8 +110,6 @@ type ServerOption func(*Server) error
 
 // NewServer creates and configures a new Server instance
 func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
-	closeCtx, cancelFunc := context.WithCancel(context.TODO())
-
 	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -213,7 +211,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.KeyStoreConfig.Software.RSAKeyPairSource = native.GenerateKeyPair
 	}
 	cfg.KeyStoreConfig.Logger = log
-	keyStore, err := keystore.NewManager(closeCtx, cfg.KeyStoreConfig)
+	keyStore, err := keystore.NewManager(context.Background(), cfg.KeyStoreConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -239,6 +237,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		StatusInternal:        cfg.Status,
 	}
 
+	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
 		bk:              cfg.Backend,
 		limiter:         limiter,
