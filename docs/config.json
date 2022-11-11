@@ -1784,6 +1784,11 @@
       "permanent": true
     },
     {
+      "source": "/machine-id/reference/cli/",
+      "destination": "/reference/cli/",
+      "permanent": true
+    },
+    {
       "source": "/setup/admin/",
       "destination": "/management/admin/",
       "permanent": true
