@@ -35,7 +35,7 @@ Teleport will be useful.
   sourced URL for the application. Users will be taken through Okta's authentication process for
   this process. If users are already logged into Okta, this will be a transparent passthrough to
   the application.
-* If users do not have access to an application, the link will be greyed out and an option will
+* If a user does not have access to an application but is allowed to request access to it, the application link will show up but will be greyed out and an option will
   be available in the drop down menu to the right that allows users to request access to the
   application.
 
