@@ -7,7 +7,7 @@ state: draft
 
 ## What
 
-Improve the webapps codebase by changing the way we test our components and write our component stories.
+Improve the webapps codebase by clarifying the way we test our components and write our component stories.
 
 ## Why
 
