@@ -41,7 +41,7 @@ Teleport will be useful.
 
 #### Teleport CLI
 
-* Okta applications will show up when doing a `tsh apps ls` from the command line.
+* Okta applications will show up when doing a `tsh apps ls` from the command line, with a type "okta".
 * Logging in will **not** work for Okta apps.
 
 #### Access requests
