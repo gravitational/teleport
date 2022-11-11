@@ -360,9 +360,94 @@ To insert a details block like the one above, use this syntax:
 If `scopeOnly` is assigned to `{true}`, the component will only be visible
 in the provided scope and invisible in all other scopes.
 
+## In-page edits
+
+Teleport deeply integrates with a user's infrastructure, so configuration
+options, URLs, and other values often vary from setup to setup. Docs pages can
+define variables that users can edit, allowing them to tailor their
+documentation experience to their own environment.
+
+### The Var component
+
+To declare a variable, use the `Var` component, as shown in the two `code`
+snippets below:
+
+````markdown
+<Details title="Getting cluster information" opened>
+Log in to your Teleport cluster using the following command:
+
+```code
+$ tsh login --user=<Var name="user"/> --proxy=<Var name="proxy" description="Domain name of your Teleport Web UI" />
+```
+
+Get information about your Teleport cluster:
+
+```code
+$ curl https://<Var name="proxy"/>/webapi/ping
+```
+
+</Details>
+````
+
+Here is the result:
+
+<Details title="Getting cluster information" opened>
+Log in to your Teleport cluster using the following command:
+
+```code
+$ tsh login --user=<Var name="user"/> --proxy=<Var name="proxy" description="Domain name of your Teleport Web UI" />
+```
+
+Get information about your Teleport cluster:
+
+```code
+$ curl https://<Var name="proxy"/>/webapi/ping
+```
+
+</Details>
+
+When a user updates the value of an in-page variable, the values of any `Var`
+components with the same `name` property update automatically. When you copy a
+`code` snippet using the copy button, the values of any in-page variables within
+the `code` snippet are added to the clipboard.
+
+The `description` field is used in the `VarList` component, which we explain in
+the next section. You only need to specify the `description` once.
+
+<Admonition type="tip" title="Global variables">
+
+Variables are scoped to a single page by default. You can make a variable
+preserve its value across all of the pages a user visits by adding the
+`isGlobal` property to the `<Var/>` tag. Variable values are not preserved
+between browser sessions.
+
+</Admonition>
+
+`Var` tags must be self closing (ending in `/>`).
+
+### The VarList component
+
+To provide a key for all of the global and page-local variables the docs have
+defined, use the `VarList` component:
+
+```markdown
+<Details title="Page variables" opened>
+<VarList/>
+</Details>
+```
+
+This results in the following:
+
+<Details title="Page variables" opened>
+<VarList/>
+</Details>
+
+The description we added to the `proxy` variable appears here. Since the `user`
+variable does not have a description, the `VarList` shows its name instead.
+
 ## Figures
 
-{/* TODO: Document all props */}
+{/* TODO: Document all props*/}
 
 The `Figure` component can help with using images, figures, and diagrams:
 
@@ -383,6 +468,27 @@ The `Figure` component can help with using images, figures, and diagrams:
   ![Example](../../../img/overview.png)
 </Figure>
 ```
+
+## Icons
+
+The `Icon` component lets you insert icons into documentation text. This is
+useful when referencing a UI element with an icon. For example:
+
+```md
+In the main menu, click on <Icon name="desktop" inline size="sm"/> **Desktops**
+to view desktops available to your Teleport user.
+```
+
+Which renders as:
+
+In the main menu, click on <Icon name="desktop" inline size="sm"/> **Desktops**
+to view desktops available to your Teleport user.
+
+<Details title="Available icons">
+
+(!docs/pages/includes/icons-table.mdx!)
+
+</Details>
 
 ## ScopedBlock
 
