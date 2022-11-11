@@ -2711,7 +2711,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			name: "correct config",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
+					PKCS11: &PKCS11{
 						ModulePath: securePKCS11LibPath,
 						TokenLabel: "foo",
 						SlotNumber: &slotNumber,
@@ -2732,7 +2732,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			name: "correct config with pin file",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
+					PKCS11: &PKCS11{
 						ModulePath: securePKCS11LibPath,
 						TokenLabel: "foo",
 						SlotNumber: &slotNumber,
@@ -2753,7 +2753,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			name: "err when pin and pin path configured",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
+					PKCS11: &PKCS11{
 						Pin:     "oops",
 						PinPath: securePinFilePath,
 					},
@@ -2765,7 +2765,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			name: "err when pkcs11 world writable",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
+					PKCS11: &PKCS11{
 						ModulePath: worldWritablePKCS11LibPath,
 					},
 				},
@@ -2779,7 +2779,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			name: "err when pin file world-readable",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
+					PKCS11: &PKCS11{
 						PinPath: worldReadablePinFilePath,
 					},
 				},
@@ -2788,6 +2788,45 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 				"HSM pin file (%s) must not be world-readable",
 				worldReadablePinFilePath,
 			),
+		},
+		{
+			name: "correct gcp config",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					GoogleCloudKMS: &GoogleCloudKMS{
+						KeyRing:         "/projects/my-project/locations/global/keyRings/my-keyring",
+						ProtectionLevel: "HSM",
+					},
+				},
+			},
+			want: keystore.Config{
+				GCPKMS: keystore.GCPKMSConfig{
+					KeyRing:         "/projects/my-project/locations/global/keyRings/my-keyring",
+					ProtectionLevel: "HSM",
+				},
+			},
+		},
+		{
+			name: "gcp config no protection level",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					GoogleCloudKMS: &GoogleCloudKMS{
+						KeyRing: "/projects/my-project/locations/global/keyRings/my-keyring",
+					},
+				},
+			},
+			errMessage: "must set protection_level in ca_key_params.gcp_kms",
+		},
+		{
+			name: "gcp config no keyring",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					GoogleCloudKMS: &GoogleCloudKMS{
+						ProtectionLevel: "HSM",
+					},
+				},
+			},
+			errMessage: "must set keyring in ca_key_params.gcp_kms",
 		},
 	}
 
