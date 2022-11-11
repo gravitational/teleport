@@ -134,7 +134,7 @@ okta_service:
   role_prefix: okta # This is the default role prefix.
 ```
 
-#### CLI exmples (API token)
+#### CLI examples (API token)
 ```bash
 # Command line argument example
 teleport start --okta-api-token 12345678
