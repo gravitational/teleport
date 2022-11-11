@@ -4523,10 +4523,12 @@ type AccessCapabilities struct {
 	// RequestableRoles is a list of existent roles which the user is allowed to request.
 	RequestableRoles []string `protobuf:"bytes,1,rep,name=RequestableRoles,proto3" json:"requestable_roles,omitempty"`
 	// SuggestedReviewers is a list of all reviewers which are suggested by the user's roles.
-	SuggestedReviewers   []string `protobuf:"bytes,2,rep,name=SuggestedReviewers,proto3" json:"suggested_reviewers,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	SuggestedReviewers []string `protobuf:"bytes,2,rep,name=SuggestedReviewers,proto3" json:"suggested_reviewers,omitempty"`
+	// ApplicableRolesForResources is a list of the roles applicable for access to a given set of resources.
+	ApplicableRolesForResources []string `protobuf:"bytes,3,rep,name=ApplicableRolesForResources,proto3" json:"applicable_roles,omitempty"`
+	XXX_NoUnkeyedLiteral        struct{} `json:"-"`
+	XXX_unrecognized            []byte   `json:"-"`
+	XXX_sizecache               int32    `json:"-"`
 }
 
 func (m *AccessCapabilities) Reset()         { *m = AccessCapabilities{} }
@@ -4572,10 +4574,13 @@ type AccessCapabilitiesRequest struct {
 	RequestableRoles bool `protobuf:"varint,2,opt,name=RequestableRoles,proto3" json:"requestable_roles,omitempty"`
 	// SuggestedReviewers is a flag indicating that we would like to view the list of all
 	// reviewers which are suggested by the user's roles.
-	SuggestedReviewers   bool     `protobuf:"varint,3,opt,name=SuggestedReviewers,proto3" json:"suggested_reviewers,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	SuggestedReviewers bool `protobuf:"varint,3,opt,name=SuggestedReviewers,proto3" json:"suggested_reviewers,omitempty"`
+	// ResourceIDs is the list of the ResourceIDs of the resources we would like to view
+	// the necessary roles for.
+	ResourceIDs          []ResourceID `protobuf:"bytes,4,rep,name=ResourceIDs,proto3" json:"resource_ids,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
+	XXX_unrecognized     []byte       `json:"-"`
+	XXX_sizecache        int32        `json:"-"`
 }
 
 func (m *AccessCapabilitiesRequest) Reset()         { *m = AccessCapabilitiesRequest{} }
@@ -16937,6 +16942,15 @@ func (m *AccessCapabilities) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
+	if len(m.ApplicableRolesForResources) > 0 {
+		for iNdEx := len(m.ApplicableRolesForResources) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.ApplicableRolesForResources[iNdEx])
+			copy(dAtA[i:], m.ApplicableRolesForResources[iNdEx])
+			i = encodeVarintTypes(dAtA, i, uint64(len(m.ApplicableRolesForResources[iNdEx])))
+			i--
+			dAtA[i] = 0x1a
+		}
+	}
 	if len(m.SuggestedReviewers) > 0 {
 		for iNdEx := len(m.SuggestedReviewers) - 1; iNdEx >= 0; iNdEx-- {
 			i -= len(m.SuggestedReviewers[iNdEx])
@@ -16981,6 +16995,20 @@ func (m *AccessCapabilitiesRequest) MarshalToSizedBuffer(dAtA []byte) (int, erro
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.ResourceIDs) > 0 {
+		for iNdEx := len(m.ResourceIDs) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.ResourceIDs[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintTypes(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x22
+		}
 	}
 	if m.SuggestedReviewers {
 		i--
@@ -27192,6 +27220,12 @@ func (m *AccessCapabilities) Size() (n int) {
 			n += 1 + l + sovTypes(uint64(l))
 		}
 	}
+	if len(m.ApplicableRolesForResources) > 0 {
+		for _, s := range m.ApplicableRolesForResources {
+			l = len(s)
+			n += 1 + l + sovTypes(uint64(l))
+		}
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -27213,6 +27247,12 @@ func (m *AccessCapabilitiesRequest) Size() (n int) {
 	}
 	if m.SuggestedReviewers {
 		n += 2
+	}
+	if len(m.ResourceIDs) > 0 {
+		for _, e := range m.ResourceIDs {
+			l = e.Size()
+			n += 1 + l + sovTypes(uint64(l))
+		}
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -46424,6 +46464,38 @@ func (m *AccessCapabilities) Unmarshal(dAtA []byte) error {
 			}
 			m.SuggestedReviewers = append(m.SuggestedReviewers, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ApplicableRolesForResources", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ApplicableRolesForResources = append(m.ApplicableRolesForResources, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipTypes(dAtA[iNdEx:])
@@ -46547,6 +46619,40 @@ func (m *AccessCapabilitiesRequest) Unmarshal(dAtA []byte) error {
 				}
 			}
 			m.SuggestedReviewers = bool(v != 0)
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ResourceIDs", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ResourceIDs = append(m.ResourceIDs, ResourceID{})
+			if err := m.ResourceIDs[len(m.ResourceIDs)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipTypes(dAtA[iNdEx:])
