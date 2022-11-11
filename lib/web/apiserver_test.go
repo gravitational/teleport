@@ -4392,9 +4392,6 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			// if tt.name != "success" {
-			// 	return
-			// }
 			localEnv := env
 
 			if tt.stopNode {
@@ -4897,6 +4894,212 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 
 			require.Equal(t, expectedFailedTraces, gotFailedTraces)
 		})
+	}
+}
+
+func TestCreateDatabase(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	username := "someuser"
+	roleCreateDatabase, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindDatabase,
+					[]string{types.VerbCreate}),
+			},
+			DatabaseLabels: types.Labels{
+				types.Wildcard: {types.Wildcard},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	env := newWebPack(t, 1)
+	clusterName := env.server.ClusterName()
+	pack := env.proxies[0].authPack(t, username, []types.Role{roleCreateDatabase})
+
+	createDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases")
+
+	for _, tt := range []struct {
+		name           string
+		req            createDatabaseRequest
+		expectedStatus int
+		errAssert      require.ErrorAssertionFunc
+	}{
+		{
+			name: "valid",
+			req: createDatabaseRequest{
+				Name:     "mydatabase",
+				Protocol: "mysql",
+				URI:      "someuri",
+			},
+			expectedStatus: http.StatusOK,
+			errAssert:      require.NoError,
+		},
+		{
+			name: "valid with labels",
+			req: createDatabaseRequest{
+				Name:     "dbwithlabels",
+				Protocol: "mysql",
+				URI:      "someuri",
+				Labels: []ui.Label{
+					{
+						Name:  "env",
+						Value: "prod",
+					},
+				},
+			},
+			expectedStatus: http.StatusOK,
+			errAssert:      require.NoError,
+		},
+		{
+			name: "empty name",
+			req: createDatabaseRequest{
+				Name:     "",
+				Protocol: "mysql",
+				URI:      "someuri",
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "missing database name")
+			},
+		},
+		{
+			name: "empty protocol",
+			req: createDatabaseRequest{
+				Name:     "emptyprotocol",
+				Protocol: "",
+				URI:      "someuri",
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "missing protocol")
+			},
+		},
+		{
+			name: "empty uri",
+			req: createDatabaseRequest{
+				Name:     "emptyuri",
+				Protocol: "mysql",
+				URI:      "",
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "missing uri")
+			},
+		},
+	} {
+		// Create database
+		resp, err := pack.clt.PostJSON(ctx, createDatabaseEndpoint, tt.req)
+		tt.errAssert(t, err)
+
+		require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
+
+		if err != nil {
+			continue
+		}
+
+		// Ensure database exists
+		database, err := env.proxies[0].client.GetDatabase(ctx, tt.req.Name)
+		require.NoError(t, err)
+
+		require.Equal(t, database.GetName(), tt.req.Name)
+		require.Equal(t, database.GetProtocol(), tt.req.Protocol)
+		require.Equal(t, database.GetURI(), tt.req.URI)
+
+		// At least the provided labels exist in the database resource
+		databaseLabels := database.GetAllLabels()
+		for _, label := range tt.req.Labels {
+			require.Contains(t, databaseLabels, label.Name, "label not found")
+			require.Equal(t, label.Value, databaseLabels[label.Name], "label exists but has unexpected value")
+		}
+	}
+}
+
+func TestUpdateDatabase(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	databaseName := "somedb"
+	username := "someuser"
+	roleCreateUpdateDatabase, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindDatabase,
+					[]string{types.VerbCreate, types.VerbUpdate, types.VerbRead}),
+			},
+			DatabaseLabels: types.Labels{
+				types.Wildcard: {types.Wildcard},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	env := newWebPack(t, 1)
+	clusterName := env.server.ClusterName()
+	pack := env.proxies[0].authPack(t, username, []types.Role{roleCreateUpdateDatabase})
+
+	// Create database
+	createDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases")
+	_, err = pack.clt.PostJSON(ctx, createDatabaseEndpoint, createDatabaseRequest{
+		Name:     databaseName,
+		Protocol: "mysql",
+		URI:      "somuri",
+	})
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name           string
+		req            updateDatabaseRequest
+		expectedStatus int
+		errAssert      require.ErrorAssertionFunc
+	}{
+		{
+			name: "valid",
+			req: updateDatabaseRequest{
+				CACert: fakeValidTLSCert,
+			},
+			expectedStatus: http.StatusOK,
+			errAssert:      require.NoError,
+		},
+		{
+			name: "empty ca_cert",
+			req: updateDatabaseRequest{
+				CACert: "",
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "missing CA certificate data")
+			},
+		},
+		{
+			name: "invalid certificate",
+			req: updateDatabaseRequest{
+				CACert: "Not a certificate",
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "could not parse provided CA as X.509 PEM certificate")
+			},
+		},
+	} {
+		// Update database's CA Cert
+		updateDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases", databaseName)
+		resp, err := pack.clt.PutJSON(ctx, updateDatabaseEndpoint, tt.req)
+		tt.errAssert(t, err)
+
+		require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
+
+		if err != nil {
+			continue
+		}
+
+		// Ensure database was updated
+		database, err := env.proxies[0].client.GetDatabase(ctx, databaseName)
+		require.NoError(t, err)
+
+		require.Equal(t, database.GetCA(), fakeValidTLSCert)
 	}
 }
 
