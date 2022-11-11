@@ -16,11 +16,17 @@ jobs:
           path: teleport
           fetch-depth: 0
 
-      - name: Checkout Submodules
+      - name: Checkout Webapps
         uses: actions/checkout@v3
-        with:
+        with:          
           repository: gravitational/webapps
           path: webapps
+
+      - name: Checkout Webapps Enterprise
+        uses: actions/checkout@v3
+        with:          
+          repository: gravitational/webapps.e
+          path: webapps/e
 
       - name: Install Go
         uses: actions/setup-go@v3
@@ -41,7 +47,8 @@ jobs:
         working-directory: teleport
         env:
           GCO_ENABLED: 1
-        run: go build -o build/tsh.exe ./tool/tsh
+        run: |
+          go build -o build/tsh.exe ./tool/tsh
 
       - name: Build Teleport Connect
         working-directory: webapps        
