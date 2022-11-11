@@ -1,0 +1,63 @@
+name: integration-tests-non-root
+run-name: Integration tests (non-root) - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+
+jobs:
+  test:
+    name: Integration tests (non-root)
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    container: 
+      image: public.ecr.aws/gravitational/teleport-buildbox:teleport11
+      env:
+        TELEPORT_ETCD_TEST: yes
+        TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
+      options: --cap-add=SYS_ADMIN --privileged
+
+    services:
+      etcd0:
+        image: gzigzigzeo/teleport-ci-etcd:latest
+        ports:
+          - 2379:2379
+          - 2380:2380
+          - 3379:3379
+
+    steps:
+      - name: Install git 2.18+
+        run: |
+          apt-get -y update && apt-get -y install software-properties-common 
+          add-apt-repository -y ppa:git-core/ppa
+          apt-get -y update && apt-get -y install git
+
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Chown
+        run: |
+          mkdir -p $(go env GOMODCACHE)
+          mkdir -p $(go env GOCACHE)
+          chown -Rf ci:ci /workspace $(go env GOMODCACHE) $(go env GOCACHE)
+        continue-on-error: true
+
+      - name: Run tests
+        timeout-minutes: 40
+        run: runuser -u ci -g ci make rdpclient integration
+
+      - name: Upload artifacts
+        if: always()
+        uses: ./.github/actions/upload-artifacts

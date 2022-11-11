@@ -1,0 +1,63 @@
+name: Prepare Teleport workspace
+description: Prepares Teleport /workspace filder
+inputs:
+  workload_identity_provider:
+    description: Google Cloud identity provider
+    required: false
+    default: projects/671314886056/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+
+  service_account:
+    description: Google Cloud Storage service account name
+    required: false
+    default: teleport-storage@just-terminus-366813.iam.gserviceaccount.com
+
+  cache_key:
+    description: Cache infix used in cache actions
+    required: false
+    default: ${{ github.workflow }}
+  
+runs:
+  using: "composite"
+  steps:
+    - name: Mark /workspace as git safe.directory
+      shell: bash
+      run: |
+        git config --global --add safe.directory /workspace
+        git config --global --add safe.directory /workspace/webassets
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v0
+      with:
+        workload_identity_provider: ${{ inputs.workload_identity_provider }}
+        service_account: ${{ inputs.service_account }}
+
+    - name: Fetch go cache paths
+      id: go-cache-paths
+      shell: bash
+      run: |
+        echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+        echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+
+    - name: Go build cache
+      uses: actions/cache@v3
+      with:
+        path: ${{ steps.go-cache-paths.outputs.go-build }}
+        key: ${{ runner.os }}-go-build-${{ inputs.cache_key }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: ${{ runner.os }}-go-build-${{ github.cache_key }}-
+
+    - name: Go mod cache
+      uses: actions/cache@v3
+      with:
+        path: ${{ steps.go-cache-paths.outputs.go-mod }}
+        key: ${{ runner.os }}-go-mod-${{ inputs.cache_key }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: ${{ runner.os }}-go-mod-${{ inputs.workflow }}-
+
+    - name: Rust cargo cache
+      uses: actions/cache@v3
+      with:
+        path: |
+          /workspace/target
+          /usr/local/cargo/registry
+          /usr/local/cargo/git
+        key: ${{ runner.os }}-cargo-${{ inputs.cache_key }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: ${{ runner.os }}-cargo-${{ inputs.cache_key }}-

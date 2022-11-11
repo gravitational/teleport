@@ -1,0 +1,46 @@
+name: integration-tests-root
+run-name: Integration tests (root) - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+
+jobs:
+  test:
+    name: Integration tests (root)
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    container: 
+      image: public.ecr.aws/gravitational/teleport-buildbox:teleport11
+      options: --cap-add=SYS_ADMIN --privileged
+
+    steps:
+      - name: Install git 2.18+
+        run: |
+          apt-get -y update && apt-get -y install software-properties-common 
+          add-apt-repository -y ppa:git-core/ppa
+          apt-get -y update && apt-get -y install git
+
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Run tests
+        timeout-minutes: 40
+        run: |
+          make rdpclient integration-root
+
+      - name: Upload artifacts
+        if: always()
+        uses: ./.github/actions/upload-artifacts

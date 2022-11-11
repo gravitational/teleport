@@ -1,0 +1,32 @@
+FROM ubuntu:18.04
+
+ARG BUILDARCH
+ARG ETCD_VERSION
+
+ADD examples/etcd/certs /certs
+
+RUN mkdir -p /data
+
+RUN apt-get update -y --fix-missing && \
+    apt-get -q -y upgrade && \
+    apt-get install -q -y --no-install-recommends \
+        ca-certificates \
+        curl
+
+RUN (curl -L https://github.com/coreos/etcd/releases/download/v${ETCD_VERSION}/etcd-v${ETCD_VERSION}-linux-${BUILDARCH}.tar.gz | tar -xz && \
+     cp etcd-v${ETCD_VERSION}-linux-${BUILDARCH}/etcd* /bin/ && \
+     rm -rf etcd-v${ETCD_VERSION}-linux-${BUILDARCH})
+
+EXPOSE 2379 2380 3379
+
+ENTRYPOINT /bin/etcd --name teleportstorage \
+    --data-dir /data \
+    --initial-cluster-state new \
+    --cert-file /certs/server-cert.pem \
+    --key-file /certs/server-key.pem \
+    --trusted-ca-file /certs/ca-cert.pem \
+    --advertise-client-urls=https://0.0.0.0:2379 \
+    --listen-client-urls=https://0.0.0.0:2379 \
+    --client-cert-auth \
+    --listen-metrics-urls=http://0.0.0.0:3379 \
+    --debug

@@ -1,0 +1,17 @@
+name: Prepare Teleport workspace
+description: Prepares Teleport /workspace filder
+inputs:
+  bucket_name:
+    description: Google Cloud bucket name
+    required: false
+    default: teleport-test-logs
+
+runs:
+  using: "composite"
+  steps:
+    - name: Upload artifacts
+      uses: google-github-actions/upload-cloud-storage@v0
+      with:
+        path: /workspace/test-logs
+        destination: ${{ inputs.bucket_name }}/${{ github.workflow }}-${{ github.run_id }}
+        parent: false

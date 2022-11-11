@@ -1,0 +1,26 @@
+name: go-lint
+run-name: make lint
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  lint:
+    name: make lint
+    runs-on: ubuntu-latest
+
+    container:
+      image: public.ecr.aws/gravitational/teleport-buildbox:teleport11
+      env:
+        GO_LINT_FLAGS: --timeout=15m
+      volumes:
+        - ${{ github.workspace }}:/workspace
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Run linter
+        run: cd /workspace && make lint
