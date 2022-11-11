@@ -400,14 +400,17 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 				return nil, trace.Wrap(err)
 			}
 			if !hasUsableActiveKeys && hasUsableAdditionalKeys {
-				log.Warnf("This auth server has a newly added or removed HSM and will not " +
+				log.Warn("This auth server has a newly added or removed HSM and will not " +
 					"be able to perform any signing operations. You must rotate all CAs " +
-					"before routing traffic to this auth server. See https://goteleport.com/docs/admin-guide/#certificate-rotation")
+					"before routing traffic to this auth server. See https://goteleport.com/docs/management/operations/ca-rotation/")
 			}
-			if !ca.AllKeyTypesMatch() {
-				log.Warnf("%s CA contains a combination of raw and PKCS#11 keys. If you are attempting to"+
-					" configure HSM support, make sure it is configured on all auth servers in this"+
-					" cluster and then perform a CA rotation: https://goteleport.com/docs/admin-guide/#certificate-rotation", caID.Type)
+			allKeyTypes := ca.AllKeyTypes()
+			numKeyTypes := len(allKeyTypes)
+			if numKeyTypes > 1 {
+				log.Warnf("%s CA contains a combination of %s and %s keys. If you are attempting to"+
+					" configure HSM or KMS support, make sure it is configured on all auth servers in"+
+					" this cluster and then perform a CA rotation: https://goteleport.com/docs/management/operations/ca-rotation/",
+					caID.Type, strings.Join(allKeyTypes[:numKeyTypes-1], ", "), allKeyTypes[numKeyTypes-1])
 			}
 		}
 	}
