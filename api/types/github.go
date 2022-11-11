@@ -31,6 +31,7 @@ import (
 type GithubConnector interface {
 	// ResourceWithSecrets is a common interface for all resources
 	ResourceWithSecrets
+	ResourceWithOrigin
 	// SetMetadata sets object metadata
 	SetMetadata(meta Metadata)
 	// GetClientID returns the connector client ID
@@ -134,6 +135,16 @@ func (c *GithubConnectorV3) SetMetadata(meta Metadata) {
 // GetMetadata returns the connector metadata
 func (c *GithubConnectorV3) GetMetadata() Metadata {
 	return c.Metadata
+}
+
+// Origin returns the origin value of the resource.
+func (c *GithubConnectorV3) Origin() string {
+	return c.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (c *GithubConnectorV3) SetOrigin(origin string) {
+	c.Metadata.SetOrigin(origin)
 }
 
 // WithoutSecrets returns an instance of resource without secrets.

@@ -762,6 +762,8 @@ enum PrivateKeyType {
   RAW = 0;
   // PKCS11 is a private key backed by a PKCS11 device such as HSM.
   PKCS11 = 1;
+  // GCP_KMS is a private key backed by GCP KMS.
+  GCP_KMS = 2;
 }
 
 // SSHKeyPair is an SSH CA key pair.
