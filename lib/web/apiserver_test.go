@@ -65,6 +65,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -2264,11 +2265,12 @@ func TestTokenGeneration(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "token")
 
 	tt := []struct {
-		name       string
-		roles      types.SystemRoles
-		shouldErr  bool
-		joinMethod types.JoinMethod
-		allow      []*types.TokenRule
+		name                        string
+		roles                       types.SystemRoles
+		shouldErr                   bool
+		joinMethod                  types.JoinMethod
+		suggestedAgentMatcherLabels types.Labels
+		allow                       []*types.TokenRule
 	}{
 		{
 			name:      "single node role",
@@ -2308,6 +2310,14 @@ func TestTokenGeneration(t *testing.T) {
 			allow:      []*types.TokenRule{{AWSAccount: "1234"}},
 			shouldErr:  false,
 		},
+		{
+			name:  "adds the agent match labels",
+			roles: types.SystemRoles{types.RoleDatabase},
+			suggestedAgentMatcherLabels: types.Labels{
+				"*": apiutils.Strings{"*"},
+			},
+			shouldErr: false,
+		},
 	}
 
 	for _, tc := range tt {
@@ -2315,9 +2325,10 @@ func TestTokenGeneration(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			re, err := pack.clt.PostJSON(context.Background(), endpoint, types.ProvisionTokenSpecV2{
-				Roles:      tc.roles,
-				JoinMethod: tc.joinMethod,
-				Allow:      tc.allow,
+				Roles:                       tc.roles,
+				JoinMethod:                  tc.joinMethod,
+				Allow:                       tc.allow,
+				SuggestedAgentMatcherLabels: tc.suggestedAgentMatcherLabels,
 			})
 
 			if tc.shouldErr {
@@ -2352,8 +2363,73 @@ func TestTokenGeneration(t *testing.T) {
 			}
 			// if no joinMethod is provided, expect token method
 			require.Equal(t, expectedJoinMethod, generatedToken.GetJoinMethod())
+
+			require.Equal(t, tc.suggestedAgentMatcherLabels, generatedToken.GetSuggestedAgentMatcherLabels())
 		})
 	}
+}
+
+func TestInstallDatabaseScriptGeneration(t *testing.T) {
+	const username = "test-user@example.com"
+
+	// Users should be able to create Tokens even if they can't update them
+	roleTokenCRD, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindToken,
+					[]string{types.VerbCreate, types.VerbRead}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, username, []types.Role{roleTokenCRD})
+
+	// Create a new token with the desired SuggestedAgentMatcherLabels
+	endpointGenerateToken := pack.clt.Endpoint("webapi", "token")
+	re, err := pack.clt.PostJSON(
+		context.Background(),
+		endpointGenerateToken,
+		types.ProvisionTokenSpecV2{
+			Roles: types.SystemRoles{types.RoleDatabase},
+			SuggestedAgentMatcherLabels: types.Labels{
+				"stage": apiutils.Strings{"prod"},
+			},
+		})
+	require.NoError(t, err)
+
+	var responseToken nodeJoinToken
+	require.NoError(t, json.Unmarshal(re.Bytes(), &responseToken))
+
+	// Generating the script with the token should return the SuggestedAgentMatcherLabels provided in the first request
+	endpointInstallDatabase := pack.clt.Endpoint("scripts", responseToken.ID, "install-database.sh")
+
+	t.Log(responseToken, endpointInstallDatabase)
+	req, err := http.NewRequest(http.MethodGet, endpointInstallDatabase, nil)
+	require.NoError(t, err)
+
+	anonHTTPClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+
+	resp, err := anonHTTPClient.Do(req)
+	require.NoError(t, err)
+
+	scriptBytes, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	require.NoError(t, resp.Body.Close())
+
+	script := string(scriptBytes)
+
+	// It contains the agenbtMatchLabels
+	require.Contains(t, script, "stage: prod")
 }
 
 func TestSignMTLS(t *testing.T) {
@@ -4316,9 +4392,6 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			// if tt.name != "success" {
-			// 	return
-			// }
 			localEnv := env
 
 			if tt.stopNode {
@@ -4821,6 +4894,212 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 
 			require.Equal(t, expectedFailedTraces, gotFailedTraces)
 		})
+	}
+}
+
+func TestCreateDatabase(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	username := "someuser"
+	roleCreateDatabase, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindDatabase,
+					[]string{types.VerbCreate}),
+			},
+			DatabaseLabels: types.Labels{
+				types.Wildcard: {types.Wildcard},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	env := newWebPack(t, 1)
+	clusterName := env.server.ClusterName()
+	pack := env.proxies[0].authPack(t, username, []types.Role{roleCreateDatabase})
+
+	createDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases")
+
+	for _, tt := range []struct {
+		name           string
+		req            createDatabaseRequest
+		expectedStatus int
+		errAssert      require.ErrorAssertionFunc
+	}{
+		{
+			name: "valid",
+			req: createDatabaseRequest{
+				Name:     "mydatabase",
+				Protocol: "mysql",
+				URI:      "someuri",
+			},
+			expectedStatus: http.StatusOK,
+			errAssert:      require.NoError,
+		},
+		{
+			name: "valid with labels",
+			req: createDatabaseRequest{
+				Name:     "dbwithlabels",
+				Protocol: "mysql",
+				URI:      "someuri",
+				Labels: []ui.Label{
+					{
+						Name:  "env",
+						Value: "prod",
+					},
+				},
+			},
+			expectedStatus: http.StatusOK,
+			errAssert:      require.NoError,
+		},
+		{
+			name: "empty name",
+			req: createDatabaseRequest{
+				Name:     "",
+				Protocol: "mysql",
+				URI:      "someuri",
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "missing database name")
+			},
+		},
+		{
+			name: "empty protocol",
+			req: createDatabaseRequest{
+				Name:     "emptyprotocol",
+				Protocol: "",
+				URI:      "someuri",
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "missing protocol")
+			},
+		},
+		{
+			name: "empty uri",
+			req: createDatabaseRequest{
+				Name:     "emptyuri",
+				Protocol: "mysql",
+				URI:      "",
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "missing uri")
+			},
+		},
+	} {
+		// Create database
+		resp, err := pack.clt.PostJSON(ctx, createDatabaseEndpoint, tt.req)
+		tt.errAssert(t, err)
+
+		require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
+
+		if err != nil {
+			continue
+		}
+
+		// Ensure database exists
+		database, err := env.proxies[0].client.GetDatabase(ctx, tt.req.Name)
+		require.NoError(t, err)
+
+		require.Equal(t, database.GetName(), tt.req.Name)
+		require.Equal(t, database.GetProtocol(), tt.req.Protocol)
+		require.Equal(t, database.GetURI(), tt.req.URI)
+
+		// At least the provided labels exist in the database resource
+		databaseLabels := database.GetAllLabels()
+		for _, label := range tt.req.Labels {
+			require.Contains(t, databaseLabels, label.Name, "label not found")
+			require.Equal(t, label.Value, databaseLabels[label.Name], "label exists but has unexpected value")
+		}
+	}
+}
+
+func TestUpdateDatabase(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	databaseName := "somedb"
+	username := "someuser"
+	roleCreateUpdateDatabase, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindDatabase,
+					[]string{types.VerbCreate, types.VerbUpdate, types.VerbRead}),
+			},
+			DatabaseLabels: types.Labels{
+				types.Wildcard: {types.Wildcard},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	env := newWebPack(t, 1)
+	clusterName := env.server.ClusterName()
+	pack := env.proxies[0].authPack(t, username, []types.Role{roleCreateUpdateDatabase})
+
+	// Create database
+	createDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases")
+	_, err = pack.clt.PostJSON(ctx, createDatabaseEndpoint, createDatabaseRequest{
+		Name:     databaseName,
+		Protocol: "mysql",
+		URI:      "somuri",
+	})
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name           string
+		req            updateDatabaseRequest
+		expectedStatus int
+		errAssert      require.ErrorAssertionFunc
+	}{
+		{
+			name: "valid",
+			req: updateDatabaseRequest{
+				CACert: fakeValidTLSCert,
+			},
+			expectedStatus: http.StatusOK,
+			errAssert:      require.NoError,
+		},
+		{
+			name: "empty ca_cert",
+			req: updateDatabaseRequest{
+				CACert: "",
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "missing CA certificate data")
+			},
+		},
+		{
+			name: "invalid certificate",
+			req: updateDatabaseRequest{
+				CACert: "Not a certificate",
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "could not parse provided CA as X.509 PEM certificate")
+			},
+		},
+	} {
+		// Update database's CA Cert
+		updateDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases", databaseName)
+		resp, err := pack.clt.PutJSON(ctx, updateDatabaseEndpoint, tt.req)
+		tt.errAssert(t, err)
+
+		require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
+
+		if err != nil {
+			continue
+		}
+
+		// Ensure database was updated
+		database, err := env.proxies[0].client.GetDatabase(ctx, databaseName)
+		require.NoError(t, err)
+
+		require.Equal(t, database.GetCA(), fakeValidTLSCert)
 	}
 }
 
@@ -5344,7 +5623,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		client,
 		t.TempDir(),
 		"",
-		utils.NetAddr{},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "proxy-1.example.com:443"},
 		client,
 		regular.SetUUID(proxyID),
 		regular.SetProxyMode("", revTunServer, client),

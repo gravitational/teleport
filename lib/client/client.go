@@ -2137,7 +2137,7 @@ func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr No
 		ctx,
 		ReissueParams{
 			NodeName:       nodeName(nodeAddr.Addr),
-			RouteToCluster: nodeAddr.Cluster,
+			RouteToCluster: proxy.ClusterName(),
 			MFACheck:       nodeAddr.MFACheck,
 		},
 		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
