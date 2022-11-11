@@ -1410,46 +1410,81 @@ func TestWebAgentForward(t *testing.T) {
 func TestActiveSessions(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	sid := session.NewID()
 	pack := s.authPack(t, "foo")
 
-	ws, err := s.makeTerminal(t, pack, withSessionID(sid))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, ws.Close()) })
+	start := time.Now()
+	kinds := []types.SessionKind{
+		types.SSHSessionKind,
+		types.KubernetesSessionKind,
+		types.WindowsDesktopSessionKind,
+		types.DatabaseSessionKind,
+		types.AppSessionKind,
+	}
+	ids := make(map[string]struct{})
 
-	termHandler := newTerminalHandler()
-	stream := termHandler.asTerminalStream(ws)
-
-	// To make sure we have a session.
-	_, err = io.WriteString(stream, "echo vinsong\r\n")
-	require.NoError(t, err)
-
-	// Make sure server has replied.
-	err = waitForOutput(stream, "vinsong")
-	require.NoError(t, err)
-
-	var sessResp *siteSessionsGetResponse
-	require.Eventually(t, func() bool {
-		// Get site nodes and make sure the node has our active party.
-		re, err := pack.clt.Get(s.ctx, pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"), url.Values{})
+	for _, kind := range kinds {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID:    string(session.NewID()),
+			ClusterName:  s.server.ClusterName(),
+			Kind:         string(kind),
+			State:        types.SessionState_SessionStateRunning,
+			Created:      start,
+			Expires:      start.Add(1 * time.Hour),
+			Hostname:     s.node.GetInfo().GetHostname(),
+			DesktopName:  s.node.GetInfo().GetHostname(),
+			AppName:      s.node.GetInfo().GetHostname(),
+			DatabaseName: s.node.GetInfo().GetHostname(),
+			Address:      s.srvID,
+			Login:        pack.login,
+			Participants: []types.Participant{
+				{ID: "id", User: "user-1", LastActive: start},
+			},
+		})
 		require.NoError(t, err)
-		require.NoError(t, json.Unmarshal(re.Bytes(), &sessResp))
-		return len(sessResp.Sessions) == 1
-	}, time.Second*5, 250*time.Millisecond)
+		ids[tracker.GetSessionID()] = struct{}{}
 
-	sess := sessResp.Sessions[0]
-	require.Equal(t, sid, sess.ID)
-	require.Equal(t, s.node.GetNamespace(), sess.Namespace)
-	require.NotNil(t, sess.Parties)
-	require.Greater(t, sess.TerminalParams.H, 0)
-	require.Greater(t, sess.TerminalParams.W, 0)
-	require.Equal(t, pack.login, sess.Login)
-	require.False(t, sess.Created.IsZero())
-	require.False(t, sess.LastActive.IsZero())
-	require.Equal(t, s.srvID, sess.ServerID)
-	require.Equal(t, s.node.GetInfo().GetHostname(), sess.ServerHostname)
-	require.Equal(t, s.srvID, sess.ServerAddr)
-	require.Equal(t, s.server.ClusterName(), sess.ClusterName)
+		_, err = s.server.Auth().CreateSessionTracker(context.Background(), tracker)
+		require.NoError(t, err)
+	}
+
+	// create an inactive session, which should not show up
+	inactive, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID:    string(session.NewID()),
+		ClusterName:  s.server.ClusterName(),
+		Kind:         string(types.SSHSessionKind),
+		State:        types.SessionState_SessionStateTerminated,
+		Created:      time.Now(),
+		Expires:      time.Now().Add(1 * time.Hour),
+		Hostname:     s.node.GetInfo().GetHostname(),
+		Address:      s.srvID,
+		Login:        pack.login,
+		Participants: nil,
+	})
+	require.NoError(t, err)
+	_, err = s.server.Auth().CreateSessionTracker(context.Background(), inactive)
+	require.NoError(t, err)
+
+	re, err := pack.clt.Get(s.ctx, pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"), url.Values{})
+	require.NoError(t, err)
+
+	var sessResp siteSessionsGetResponse
+	require.NoError(t, json.Unmarshal(re.Bytes(), &sessResp))
+	require.Len(t, sessResp.Sessions, len(kinds))
+
+	for _, session := range sessResp.Sessions {
+		require.Contains(t, ids, string(session.ID))
+		require.Equal(t, s.node.GetNamespace(), session.Namespace)
+		require.NotNil(t, session.Parties)
+		require.Greater(t, session.TerminalParams.H, 0)
+		require.Greater(t, session.TerminalParams.W, 0)
+		require.Equal(t, pack.login, session.Login)
+		require.False(t, session.Created.IsZero())
+		require.False(t, session.LastActive.IsZero())
+		require.Equal(t, s.srvID, session.ServerID)
+		require.Equal(t, s.node.GetInfo().GetHostname(), session.ServerHostname)
+		require.Equal(t, s.srvID, session.ServerAddr)
+		require.Equal(t, s.server.ClusterName(), session.ClusterName)
+	}
 }
 
 func TestCloseConnectionsOnLogout(t *testing.T) {
@@ -2783,6 +2818,182 @@ func TestClusterDatabasesGet(t *testing.T) {
 		Type:     types.DatabaseTypeSelfHosted,
 		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
 	}, resp.Items[0])
+}
+
+func TestClusterDatabaseGet(t *testing.T) {
+	env := newWebPack(t, 1)
+	ctx := context.Background()
+
+	proxy := env.proxies[0]
+
+	dbNames := []string{"db1", "db2"}
+	dbUsers := []string{"user1", "user2"}
+
+	for _, tt := range []struct {
+		name            string
+		preRegisterDB   bool
+		databaseName    string
+		userRoles       func(*testing.T) []types.Role
+		expectedDBUsers []string
+		expectedDBNames []string
+		requireError    require.ErrorAssertionFunc
+	}{
+		{
+			name:          "valid",
+			preRegisterDB: true,
+			databaseName:  "valid",
+			requireError:  require.NoError,
+		},
+		{
+			name:          "notfound",
+			preRegisterDB: true,
+			databaseName:  "otherdb",
+			requireError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(tt, trace.IsNotFound(err), "expected a not found error, got %v", err)
+			},
+		},
+		{
+			name:          "notauthorized",
+			preRegisterDB: true,
+			databaseName:  "notauthorized",
+			userRoles: func(tt *testing.T) []types.Role {
+				role, err := types.NewRole(
+					"myrole",
+					types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							DatabaseLabels: types.Labels{
+								"env": apiutils.Strings{"staging"},
+							},
+						},
+					},
+				)
+				require.NoError(tt, err)
+				return []types.Role{role}
+			},
+			requireError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(tt, trace.IsNotFound(err), "expected a not found error, got %v", err)
+			},
+		},
+		{
+			name:          "nodb",
+			preRegisterDB: false,
+			databaseName:  "nodb",
+			userRoles: func(tt *testing.T) []types.Role {
+				roleWithDBName, err := types.NewRole(
+					"myroleWithDBName",
+					types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							DatabaseLabels: types.Labels{
+								"env": apiutils.Strings{"prod"},
+							},
+							DatabaseNames: dbNames,
+						},
+					},
+				)
+				require.NoError(tt, err)
+
+				return []types.Role{roleWithDBName}
+			},
+			expectedDBNames: dbNames,
+			expectedDBUsers: dbUsers,
+			requireError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(tt, trace.IsNotFound(err), "expected a not found error, got %v", err)
+			},
+		},
+		{
+			name:          "authorizedDBNamesUsers",
+			preRegisterDB: true,
+			databaseName:  "authorizedDBNamesUsers",
+			userRoles: func(tt *testing.T) []types.Role {
+				roleWithDBName, err := types.NewRole(
+					"myroleWithDBName",
+					types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							DatabaseLabels: types.Labels{
+								"env": apiutils.Strings{"prod"},
+							},
+							DatabaseNames: dbNames,
+						},
+					},
+				)
+				require.NoError(tt, err)
+
+				roleWithDBUser, err := types.NewRole(
+					"myroleWithDBUser",
+					types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							DatabaseLabels: types.Labels{
+								"env": apiutils.Strings{"prod"},
+							},
+							DatabaseUsers: dbUsers,
+						},
+					},
+				)
+				require.NoError(tt, err)
+
+				return []types.Role{roleWithDBUser, roleWithDBName}
+			},
+			expectedDBNames: dbNames,
+			expectedDBUsers: dbUsers,
+			requireError:    require.NoError,
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create default pre-registerDB
+			if tt.preRegisterDB {
+				db, err := types.NewDatabaseV3(types.Metadata{
+					Name: tt.name,
+					Labels: map[string]string{
+						"env": "prod",
+					},
+				}, types.DatabaseSpecV3{
+					Protocol: "test-protocol",
+					URI:      "test-uri",
+				})
+				require.NoError(t, err)
+
+				dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+					Name: tt.name,
+				}, types.DatabaseServerSpecV3{
+					Hostname: tt.name,
+					Protocol: "test-protocol",
+					URI:      "test-uri",
+					HostID:   uuid.NewString(),
+					Database: db,
+				})
+				require.NoError(t, err)
+
+				_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
+				require.NoError(t, err)
+			}
+
+			var roles []types.Role
+			if tt.userRoles != nil {
+				roles = tt.userRoles(t)
+			}
+
+			pack := proxy.authPack(t, tt.name+"_user@example.com", roles)
+
+			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases", tt.databaseName)
+			re, err := pack.clt.Get(ctx, endpoint, nil)
+			tt.requireError(t, err)
+			if err != nil {
+				return
+			}
+
+			resp := ui.Database{}
+			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+
+			require.Equal(t, tt.databaseName, resp.Name, "database name")
+			require.Equal(t, types.DatabaseTypeSelfHosted, resp.Type, "database type")
+			require.EqualValues(t, []ui.Label{{Name: "env", Value: "prod"}}, resp.Labels)
+			require.ElementsMatch(t, tt.expectedDBUsers, resp.DatabaseUsers)
+			require.ElementsMatch(t, tt.expectedDBNames, resp.DatabaseNames)
+		})
+	}
 }
 
 func TestClusterKubesGet(t *testing.T) {
@@ -4339,9 +4550,6 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			// if tt.name != "success" {
-			// 	return
-			// }
 			localEnv := env
 
 			if tt.stopNode {
@@ -4844,6 +5052,212 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 
 			require.Equal(t, expectedFailedTraces, gotFailedTraces)
 		})
+	}
+}
+
+func TestCreateDatabase(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	username := "someuser"
+	roleCreateDatabase, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindDatabase,
+					[]string{types.VerbCreate}),
+			},
+			DatabaseLabels: types.Labels{
+				types.Wildcard: {types.Wildcard},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	env := newWebPack(t, 1)
+	clusterName := env.server.ClusterName()
+	pack := env.proxies[0].authPack(t, username, []types.Role{roleCreateDatabase})
+
+	createDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases")
+
+	for _, tt := range []struct {
+		name           string
+		req            createDatabaseRequest
+		expectedStatus int
+		errAssert      require.ErrorAssertionFunc
+	}{
+		{
+			name: "valid",
+			req: createDatabaseRequest{
+				Name:     "mydatabase",
+				Protocol: "mysql",
+				URI:      "someuri",
+			},
+			expectedStatus: http.StatusOK,
+			errAssert:      require.NoError,
+		},
+		{
+			name: "valid with labels",
+			req: createDatabaseRequest{
+				Name:     "dbwithlabels",
+				Protocol: "mysql",
+				URI:      "someuri",
+				Labels: []ui.Label{
+					{
+						Name:  "env",
+						Value: "prod",
+					},
+				},
+			},
+			expectedStatus: http.StatusOK,
+			errAssert:      require.NoError,
+		},
+		{
+			name: "empty name",
+			req: createDatabaseRequest{
+				Name:     "",
+				Protocol: "mysql",
+				URI:      "someuri",
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "missing database name")
+			},
+		},
+		{
+			name: "empty protocol",
+			req: createDatabaseRequest{
+				Name:     "emptyprotocol",
+				Protocol: "",
+				URI:      "someuri",
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "missing protocol")
+			},
+		},
+		{
+			name: "empty uri",
+			req: createDatabaseRequest{
+				Name:     "emptyuri",
+				Protocol: "mysql",
+				URI:      "",
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "missing uri")
+			},
+		},
+	} {
+		// Create database
+		resp, err := pack.clt.PostJSON(ctx, createDatabaseEndpoint, tt.req)
+		tt.errAssert(t, err)
+
+		require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
+
+		if err != nil {
+			continue
+		}
+
+		// Ensure database exists
+		database, err := env.proxies[0].client.GetDatabase(ctx, tt.req.Name)
+		require.NoError(t, err)
+
+		require.Equal(t, database.GetName(), tt.req.Name)
+		require.Equal(t, database.GetProtocol(), tt.req.Protocol)
+		require.Equal(t, database.GetURI(), tt.req.URI)
+
+		// At least the provided labels exist in the database resource
+		databaseLabels := database.GetAllLabels()
+		for _, label := range tt.req.Labels {
+			require.Contains(t, databaseLabels, label.Name, "label not found")
+			require.Equal(t, label.Value, databaseLabels[label.Name], "label exists but has unexpected value")
+		}
+	}
+}
+
+func TestUpdateDatabase(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	databaseName := "somedb"
+	username := "someuser"
+	roleCreateUpdateDatabase, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindDatabase,
+					[]string{types.VerbCreate, types.VerbUpdate, types.VerbRead}),
+			},
+			DatabaseLabels: types.Labels{
+				types.Wildcard: {types.Wildcard},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	env := newWebPack(t, 1)
+	clusterName := env.server.ClusterName()
+	pack := env.proxies[0].authPack(t, username, []types.Role{roleCreateUpdateDatabase})
+
+	// Create database
+	createDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases")
+	_, err = pack.clt.PostJSON(ctx, createDatabaseEndpoint, createDatabaseRequest{
+		Name:     databaseName,
+		Protocol: "mysql",
+		URI:      "somuri",
+	})
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name           string
+		req            updateDatabaseRequest
+		expectedStatus int
+		errAssert      require.ErrorAssertionFunc
+	}{
+		{
+			name: "valid",
+			req: updateDatabaseRequest{
+				CACert: fakeValidTLSCert,
+			},
+			expectedStatus: http.StatusOK,
+			errAssert:      require.NoError,
+		},
+		{
+			name: "empty ca_cert",
+			req: updateDatabaseRequest{
+				CACert: "",
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "missing CA certificate data")
+			},
+		},
+		{
+			name: "invalid certificate",
+			req: updateDatabaseRequest{
+				CACert: "Not a certificate",
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "could not parse provided CA as X.509 PEM certificate")
+			},
+		},
+	} {
+		// Update database's CA Cert
+		updateDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases", databaseName)
+		resp, err := pack.clt.PutJSON(ctx, updateDatabaseEndpoint, tt.req)
+		tt.errAssert(t, err)
+
+		require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
+
+		if err != nil {
+			continue
+		}
+
+		// Ensure database was updated
+		database, err := env.proxies[0].client.GetDatabase(ctx, databaseName)
+		require.NoError(t, err)
+
+		require.Equal(t, database.GetCA(), fakeValidTLSCert)
 	}
 }
 

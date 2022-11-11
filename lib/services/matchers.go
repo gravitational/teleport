@@ -70,7 +70,7 @@ type AzureMatcher struct {
 	ResourceGroups []string
 	// Types are Azure resource types to match, for example "mysql" or "postgres".
 	Types []string
-	// Regions are Azure regions to query for databases.
+	// Regions are Azure regions to query for resources.
 	Regions []string
 	// ResourceTags are Azure tags to match.
 	ResourceTags types.Labels
