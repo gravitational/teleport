@@ -645,8 +645,16 @@
               "slug": "/server-access/guides/host-user-creation/"
             },
             {
+              "title": "Linux Auditing System",
+              "slug": "/server-access/guides/auditd/"
+            },
+            {
               "title": "EC2 Instance Discovery (Preview)",
               "slug": "/server-access/guides/ec2-discovery/"
+            },
+            {
+              "title": "Using Teleport with Ansible",
+              "slug": "/server-access/guides/ansible/"
             }
           ]
         }
@@ -739,6 +747,10 @@
               "slug": "/database-access/guides/dynamodb/"
             },
             {
+              "title": "AWS Keyspaces (Apache Cassandra)",
+              "slug": "/database-access/guides/aws-cassandra-keyspaces/"
+            },
+            {
               "title": "GCP Cloud SQL PostgreSQL",
               "slug": "/database-access/guides/postgres-cloudsql/"
             },
@@ -797,6 +809,10 @@
             {
               "title": "Snowflake (Preview)",
               "slug": "/database-access/guides/snowflake/"
+            },
+            {
+              "title": "Self-Hosted Cassandra & ScyllaDB",
+              "slug": "/database-access/guides/cassandra-self-hosted/"
             },
             {
               "title": "Dynamic Registration",
@@ -961,6 +977,10 @@
             {
               "title": "Applications",
               "slug": "/machine-id/guides/applications/"
+            },
+            {
+              "title": "Host Certificates",
+              "slug": "/machine-id/guides/host-certificate/"
             }
           ]
         }

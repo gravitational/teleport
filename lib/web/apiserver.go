@@ -550,12 +550,15 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	// join scripts
 	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(h.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(h.getAppJoinScriptHandle))
+	h.GET("/scripts/:token/install-database.sh", httplib.MakeHandler(h.getDatabaseJoinScriptHandle))
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
 	h.GET("/webapi/sites/:site/resources/check", h.WithClusterAuth(h.checkAccessToRegisteredResource))
 
 	// Database access handlers.
 	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.clusterDatabasesGet))
+	h.POST("/webapi/sites/:site/databases", h.WithClusterAuth(h.handleDatabaseCreate))
+	h.PUT("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.handleDatabaseUpdate))
 
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
@@ -2300,6 +2303,7 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 			return nil, trace.Wrap(err)
 		}
 
+		req.Session.Kind = types.SSHSessionKind
 		req.Session.ServerHostname = hostname
 	}
 
@@ -2346,6 +2350,9 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 		ServerAddr:            tracker.GetAddress(),
 		ClusterName:           clusterName,
 		KubernetesClusterName: tracker.GetKubeCluster(),
+		DesktopName:           tracker.GetDesktopName(),
+		AppName:               tracker.GetAppName(),
+		DatabaseName:          tracker.GetDatabaseName(),
 	}
 }
 
@@ -2370,9 +2377,7 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 
 	sessions := make([]session.Session, 0, len(trackers))
 	for _, tracker := range trackers {
-		// Only return ssh and k8s session type.
-		isSSHOrK8s := tracker.GetSessionKind() == types.SSHSessionKind || tracker.GetSessionKind() == types.KubernetesSessionKind
-		if isSSHOrK8s && tracker.GetState() != types.SessionState_SessionStateTerminated {
+		if tracker.GetState() != types.SessionState_SessionStateTerminated {
 			sessions = append(sessions, trackerToLegacySession(tracker, p.ByName("site")))
 		}
 	}
