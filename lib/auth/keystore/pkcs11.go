@@ -123,7 +123,7 @@ func (p *pkcs11KeyStore) findUnusedID() (uuid.UUID, error) {
 // generateRSA creates a new RSA private key and returns its identifier and a
 // crypto.Signer. The returned identifier can be passed to getSigner later to
 // get the same crypto.Signer.
-func (p *pkcs11KeyStore) generateRSA(_ ...RSAKeyOption) ([]byte, crypto.Signer, error) {
+func (p *pkcs11KeyStore) generateRSA(ctx context.Context, options ...RSAKeyOption) ([]byte, crypto.Signer, error) {
 	p.log.Debug("Creating new HSM keypair")
 	id, err := p.findUnusedID()
 	if err != nil {
@@ -148,7 +148,7 @@ func (p *pkcs11KeyStore) generateRSA(_ ...RSAKeyOption) ([]byte, crypto.Signer, 
 }
 
 // getSigner returns a crypto.Signer for the given key identifier, if it is found.
-func (p *pkcs11KeyStore) getSigner(rawKey []byte) (crypto.Signer, error) {
+func (p *pkcs11KeyStore) getSigner(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
 	if t := keyType(rawKey); t != types.PrivateKeyType_PKCS11 {
 		return nil, trace.BadParameter("pkcs11KeyStore cannot get signer for key type %s", t.String())
 	}
@@ -177,7 +177,7 @@ func (p *pkcs11KeyStore) getSigner(rawKey []byte) (crypto.Signer, error) {
 // this host. If the HSM is disconnected or the key material has been deleted
 // the error will not be detected here but when the first signature is
 // attempted.
-func (p *pkcs11KeyStore) canSignWithKey(raw []byte, keyType types.PrivateKeyType) (bool, error) {
+func (p *pkcs11KeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
 	if keyType != types.PrivateKeyType_PKCS11 {
 		return false, nil
 	}
@@ -221,7 +221,7 @@ func (p *pkcs11KeyStore) DeleteUnusedKeys(ctx context.Context, usedKeys [][]byte
 		if keyType(usedKey) != types.PrivateKeyType_PKCS11 {
 			continue
 		}
-		signer, err := p.getSigner(usedKey)
+		signer, err := p.getSigner(ctx, usedKey)
 		if trace.IsNotFound(err) {
 			// key is for different host, or truly not found in HSM. Either
 			// way, it won't be deleted below.
