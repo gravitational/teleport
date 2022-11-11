@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+
+	"github.com/gravitational/teleport/lib/httplib"
 )
 
 // CreateUserEventRequest contains the event and properties associated with a user event
@@ -16,8 +16,8 @@ import (
 type CreateUserEventRequest struct {
 	// Event describes the event being captured
 	Event string `json:"event"`
-	// Properties a key value set of event metadata.
-	Properties map[string]interface{} `json:"properties"`
+	// Alert is a banner click event property
+	Alert string `json:"alert"`
 }
 
 // CheckAndSetDefaults validates the Request has the required fields.
@@ -25,13 +25,6 @@ func (r *CreateUserEventRequest) CheckAndSetDefaults() error {
 	if r.Event == "" {
 		return trace.BadParameter("missing required parameter Event")
 	}
-
-	if r.Properties == nil {
-		r.Properties = make(map[string]interface{})
-	}
-
-	r.Properties["trial"] = modules.GetModules().CloudTrial()
-	r.Properties["cloud"] = modules.GetModules().Features().Cloud
 
 	return nil
 }
