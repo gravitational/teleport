@@ -27,7 +27,11 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
+
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/google/go-cmp/cmp"
@@ -344,6 +348,85 @@ func TestListNodes(t *testing.T) {
 	require.EqualValues(t, 5, len(nodes))
 	expectedNodes = append(testNodes[:3], testNodes[4:6]...)
 	require.Empty(t, cmp.Diff(expectedNodes, nodes))
+}
+
+// TestStreamSessionEvents_User ensures that when a user streams a session's events, it emits an audit event.
+func TestStreamSessionEvents_User(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	username := "user"
+	user, _, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// ignore the response as we don't want the events or the error (the session will not exist)
+	_, _ = clt.StreamSessionEvents(ctx, "44c6cea8-362f-11ea-83aa-125400432324", 0)
+
+	// we need to wait for a short period to ensure the event is returned
+	time.Sleep(500 * time.Millisecond)
+
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(time.Time{}, time.Now().Add(time.Minute), "", []string{events.SessionRecordingAccessEvent}, 10, types.EventOrderDescending, "")
+	require.NoError(t, err)
+
+	event := searchEvents[0].(*apievents.SessionRecordingAccess)
+	require.Equal(t, username, event.User)
+}
+
+// TestStreamSessionEvents_Builtin ensures that when a builtin role streams a session's events, it does not emit
+// an audit event.
+func TestStreamSessionEvents_Builtin(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	identity := TestBuiltin(types.RoleProxy)
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// ignore the response as we don't want the events or the error (the session will not exist)
+	_, _ = clt.StreamSessionEvents(ctx, "44c6cea8-362f-11ea-83aa-125400432324", 0)
+
+	// we need to wait for a short period to ensure the event is returned
+	time.Sleep(500 * time.Millisecond)
+
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(time.Time{}, time.Now().Add(time.Minute), "", []string{events.SessionRecordingAccessEvent}, 10, types.EventOrderDescending, "")
+	require.NoError(t, err)
+
+	require.Equal(t, 0, len(searchEvents))
+}
+
+// TestGetSessionEvents ensures that when a user streams a session's events, it emits an audit event.
+func TestGetSessionEvents(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestTLSServer(t)
+
+	username := "user"
+	user, _, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// ignore the response as we don't want the events or the error (the session will not exist)
+	_, _ = clt.GetSessionEvents(defaults.Namespace, "44c6cea8-362f-11ea-83aa-125400432324", 0, false)
+
+	// we need to wait for a short period to ensure the event is returned
+	time.Sleep(500 * time.Millisecond)
+
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(time.Time{}, time.Now().Add(time.Minute), "", []string{events.SessionRecordingAccessEvent}, 10, types.EventOrderDescending, "")
+	require.NoError(t, err)
+
+	event := searchEvents[0].(*apievents.SessionRecordingAccess)
+	require.Equal(t, username, event.User)
 }
 
 // TestAPILockedOut tests Auth API when there are locks involved.
@@ -1326,4 +1409,383 @@ func TestKindClusterConfig(t *testing.T) {
 			require.NoError(t, err)
 		}
 	})
+}
+
+func TestListNodes_WithRoles(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	const nodePerPool = 3
+
+	// inserts a pool nodes with different labels
+	insertNodes := func(ctx context.Context, t *testing.T, srv *Server, nodeCount int, labels map[string]string) {
+		for i := 0; i < nodeCount; i++ {
+			name := uuid.New()
+			addr := fmt.Sprintf("node-%s.example.com", name)
+
+			node := &types.ServerV2{
+				Kind:    types.KindNode,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name:      name,
+					Namespace: defaults.Namespace,
+					Labels:    labels,
+				},
+				Spec: types.ServerSpecV2{
+					Addr:       addr,
+					PublicAddr: addr,
+				},
+			}
+
+			_, err := srv.UpsertNode(ctx, node)
+			require.NoError(t, err)
+		}
+	}
+
+	// creates roles that deny the given labels
+	createRole := func(ctx context.Context, t *testing.T, srv *Server, name string, labels map[string]apiutils.Strings) {
+		role, err := types.NewRole(name, types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				Logins: []string{"root"},
+				NodeLabels: types.Labels{
+					"*": []string{types.Wildcard},
+				},
+			},
+			Deny: types.RoleConditions{
+				NodeLabels: labels,
+			},
+		})
+		require.NoError(t, err)
+		err = srv.UpsertRole(ctx, role)
+		require.NoError(t, err)
+	}
+
+	// the pool from which nodes and roles are created from
+	pool := map[string]struct {
+		denied map[string]apiutils.Strings
+		labels map[string]string
+	}{
+		"other": {
+			denied: nil,
+			labels: map[string]string{
+				"other": "123",
+			},
+		},
+		"a": {
+			denied: map[string]apiutils.Strings{
+				"pool": {"a"},
+			},
+			labels: map[string]string{
+				"pool": "a",
+			},
+		},
+		"b": {
+			denied: map[string]apiutils.Strings{
+				"pool": {"b"},
+			},
+			labels: map[string]string{
+				"pool": "b",
+			},
+		},
+		"c": {
+			denied: map[string]apiutils.Strings{
+				"pool": {"c"},
+			},
+			labels: map[string]string{
+				"pool": "c",
+			},
+		},
+		"d": {
+			denied: map[string]apiutils.Strings{
+				"pool": {"d"},
+			},
+			labels: map[string]string{
+				"pool": "d",
+			},
+		},
+		"e": {
+			denied: map[string]apiutils.Strings{
+				"pool": {"e"},
+			},
+			labels: map[string]string{
+				"pool": "e",
+			},
+		},
+	}
+
+	// create the nodes and role
+	for name, data := range pool {
+		insertNodes(ctx, t, srv.Auth(), nodePerPool, data.labels)
+		createRole(ctx, t, srv.Auth(), name, data.denied)
+	}
+
+	nodeCount := len(pool) * nodePerPool
+
+	cases := []struct {
+		name     string
+		roles    []string
+		expected int
+	}{
+		{
+			name:     "all allowed",
+			roles:    []string{"other"},
+			expected: nodeCount,
+		},
+		{
+			name:     "role a",
+			roles:    []string{"a"},
+			expected: nodeCount - nodePerPool,
+		},
+		{
+			name:     "role a,b",
+			roles:    []string{"a", "b"},
+			expected: nodeCount - (2 * nodePerPool),
+		},
+		{
+			name:     "role a,b,c",
+			roles:    []string{"a", "b", "c"},
+			expected: nodeCount - (3 * nodePerPool),
+		},
+		{
+			name:     "role a,b,c,d",
+			roles:    []string{"a", "b", "c", "d"},
+			expected: nodeCount - (4 * nodePerPool),
+		},
+		{
+			name:     "role a,b,c,d,e",
+			roles:    []string{"a", "b", "c", "d", "e"},
+			expected: nodeCount - (5 * nodePerPool),
+		},
+	}
+
+	// ensure that a user can see the correct number of resources for their role(s)
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			user, err := types.NewUser(uuid.New())
+			require.NoError(t, err)
+
+			for _, role := range tt.roles {
+				user.AddRole(role)
+			}
+
+			err = srv.Auth().UpsertUser(user)
+			require.NoError(t, err)
+
+			clt, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			var (
+				nodes []types.Server
+				key   string
+			)
+			for {
+				resp, nextKey, err := clt.ListNodes(ctx, proto.ListNodesRequest{
+					Namespace: defaults.Namespace,
+					StartKey:  key,
+					Limit:     nodePerPool,
+				})
+				require.NoError(t, err)
+
+				nodes = append(nodes, resp...)
+				key = nextKey
+
+				if key == "" {
+					break
+				}
+			}
+
+			require.Len(t, nodes, tt.expected)
+		})
+	}
+}
+
+func TestListResources_WithRoles(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	const dbPerPool = 3
+
+	// inserts a pool dbs with different labels
+	insertDatabases := func(ctx context.Context, t *testing.T, srv *Server, dbCount int, labels map[string]string) {
+		for i := 0; i < dbCount; i++ {
+			name := uuid.New()
+			addr := fmt.Sprintf("db-%s.example.com", name)
+
+			dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+				Name:      name,
+				Namespace: defaults.Namespace,
+				Labels:    labels,
+			}, types.DatabaseServerSpecV3{
+				HostID:   name,
+				Hostname: addr,
+			})
+			require.NoError(t, err)
+
+			_, err = srv.UpsertDatabaseServer(ctx, dbServer)
+			require.NoError(t, err)
+		}
+	}
+
+	// creates roles that deny the given labels
+	createRole := func(ctx context.Context, t *testing.T, srv *Server, name string, labels map[string]apiutils.Strings) {
+		role, err := types.NewRole(name, types.RoleSpecV4{
+			Allow: types.RoleConditions{
+				Logins: []string{"root"},
+				DatabaseLabels: types.Labels{
+					"*": []string{types.Wildcard},
+				},
+			},
+			Deny: types.RoleConditions{
+				DatabaseLabels: labels,
+			},
+		})
+		require.NoError(t, err)
+		err = srv.UpsertRole(ctx, role)
+		require.NoError(t, err)
+	}
+
+	// the pool from which nodes and roles are created from
+	pool := map[string]struct {
+		denied map[string]apiutils.Strings
+		labels map[string]string
+	}{
+		"other": {
+			denied: nil,
+			labels: map[string]string{
+				"other": "123",
+			},
+		},
+		"a": {
+			denied: map[string]apiutils.Strings{
+				"pool": {"a"},
+			},
+			labels: map[string]string{
+				"pool": "a",
+			},
+		},
+		"b": {
+			denied: map[string]apiutils.Strings{
+				"pool": {"b"},
+			},
+			labels: map[string]string{
+				"pool": "b",
+			},
+		},
+		"c": {
+			denied: map[string]apiutils.Strings{
+				"pool": {"c"},
+			},
+			labels: map[string]string{
+				"pool": "c",
+			},
+		},
+		"d": {
+			denied: map[string]apiutils.Strings{
+				"pool": {"d"},
+			},
+			labels: map[string]string{
+				"pool": "d",
+			},
+		},
+		"e": {
+			denied: map[string]apiutils.Strings{
+				"pool": {"e"},
+			},
+			labels: map[string]string{
+				"pool": "e",
+			},
+		},
+	}
+
+	// create the nodes and role
+	for name, data := range pool {
+		insertDatabases(ctx, t, srv.Auth(), dbPerPool, data.labels)
+		createRole(ctx, t, srv.Auth(), name, data.denied)
+	}
+
+	nodeCount := len(pool) * dbPerPool
+
+	cases := []struct {
+		name     string
+		roles    []string
+		expected int
+	}{
+		{
+			name:     "all allowed",
+			roles:    []string{"other"},
+			expected: nodeCount,
+		},
+		{
+			name:     "role a",
+			roles:    []string{"a"},
+			expected: nodeCount - dbPerPool,
+		},
+		{
+			name:     "role a,b",
+			roles:    []string{"a", "b"},
+			expected: nodeCount - (2 * dbPerPool),
+		},
+		{
+			name:     "role a,b,c",
+			roles:    []string{"a", "b", "c"},
+			expected: nodeCount - (3 * dbPerPool),
+		},
+		{
+			name:     "role a,b,c,d",
+			roles:    []string{"a", "b", "c", "d"},
+			expected: nodeCount - (4 * dbPerPool),
+		},
+		{
+			name:     "role a,b,c,d,e",
+			roles:    []string{"a", "b", "c", "d", "e"},
+			expected: nodeCount - (5 * dbPerPool),
+		},
+	}
+
+	// ensure that a user can see the correct number of resources for their role(s)
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			user, err := types.NewUser(uuid.New())
+			require.NoError(t, err)
+
+			for _, role := range tt.roles {
+				user.AddRole(role)
+			}
+
+			err = srv.Auth().UpsertUser(user)
+			require.NoError(t, err)
+
+			clt, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			var nodes []types.Resource
+			var key string
+			for {
+				resp, nextKey, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+					Namespace:    defaults.Namespace,
+					ResourceType: types.KindDatabaseServer,
+					StartKey:     key,
+					Limit:        dbPerPool,
+				})
+				require.NoError(t, err)
+
+				nodes = append(nodes, resp...)
+
+				if nextKey == "" {
+					break
+				}
+
+				key = nextKey
+			}
+
+			require.Len(t, nodes, tt.expected)
+		})
+
+	}
 }

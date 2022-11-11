@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -33,7 +34,7 @@ type collection interface {
 	// will apply said resources to the cache.  fetch *must*
 	// not mutate cache state outside of the apply function.
 	fetch(ctx context.Context) (apply func(ctx context.Context) error, err error)
-	// process processes event
+	// processEvent processes event
 	processEvent(ctx context.Context, e types.Event) error
 	// watchKind returns a watch
 	// required for this collection
@@ -52,7 +53,9 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 			if c.Trust == nil {
 				return nil, trace.BadParameter("missing parameter Trust")
 			}
-			collections[resourceKind] = &certAuthority{watch: watch, Cache: c}
+			var filter types.CertAuthorityFilter
+			filter.FromMap(watch.Filter)
+			collections[resourceKind] = &certAuthority{Cache: c, watch: watch, filter: filter}
 		case types.KindStaticTokens:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
@@ -258,6 +261,13 @@ type resourceKind struct {
 	kind    string
 	subkind string
 	version string
+}
+
+func (r resourceKind) String() string {
+	if r.subkind == "" {
+		return r.kind
+	}
+	return fmt.Sprintf("%s/%s", r.kind, r.subkind)
 }
 
 type accessRequest struct {
@@ -786,6 +796,8 @@ func (c *namespace) watchKind() types.WatchKind {
 type certAuthority struct {
 	*Cache
 	watch types.WatchKind
+	// filter extracted from watch.Filter, to avoid rebuilding it on every event
+	filter types.CertAuthorityFilter
 }
 
 // erase erases all data in the collection
@@ -846,6 +858,19 @@ func (c *certAuthority) fetchCertAuthorities(ctx context.Context, caType types.C
 		}
 		return nil, trace.Wrap(err)
 	}
+
+	// this can be removed once we get the ability to fetch CAs with a filter,
+	// but it should be harmless, and it could be kept as additional safety
+	if !c.filter.IsEmpty() {
+		filteredCAs := make([]types.CertAuthority, 0, len(authorities))
+		for _, ca := range authorities {
+			if c.filter.Match(ca) {
+				filteredCAs = append(filteredCAs, ca)
+			}
+		}
+		authorities = filteredCAs
+	}
+
 	return func(ctx context.Context) error {
 		if err := c.trustCache.DeleteAllCertAuthorities(caType); err != nil {
 			if !trace.IsNotFound(err) {
@@ -881,6 +906,9 @@ func (c *certAuthority) processEvent(ctx context.Context, event types.Event) err
 		resource, ok := event.Resource.(types.CertAuthority)
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if !c.filter.Match(resource) {
+			return nil
 		}
 		if err := c.trustCache.UpsertCertAuthority(resource); err != nil {
 			return trace.Wrap(err)

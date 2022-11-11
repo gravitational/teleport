@@ -6,10 +6,12 @@ description: How to upgrade Teleport components
 In this guide, we will show you how to upgrade all of the components in your
 Teleport cluster.
 
+(!docs/pages/includes/cloud/call-to-action.mdx!)
+
 ## Production releases
 
 <Notice type="warning">
-Avoid running pre-releases (release candidates) in production environments.
+  Avoid running pre-releases (release candidates) in production environments.
 </Notice>
 
 The Teleport development team uses [Semantic Versioning](https://semver.org/),
@@ -18,10 +20,10 @@ use.
 
 ## Component compatibility
 
-<Details 
-scope={["cloud"]} 
-scopeOnly 
-opened 
+<Details
+scope={["cloud"]}
+scopeOnly
+opened
 title="Auth Service and Proxy Service versions">
 
 In Teleport Cloud, we manage the Auth and Proxy Services for you. You can
@@ -32,20 +34,24 @@ command, where `mytenant` is the name of your Teleport Cloud tenant:
 $ curl -s https://mytenant.teleport.sh/webapi/ping | jq '.server_version'
 ```
 
-Read the following rules to ensure that your Teleport Nodes are compatible with
-the Teleport Auth and Proxy Services. You should check the version of the Auth
-and Proxy Services regularly to make sure that your Teleport Nodes are
-compatible.
+Read the following rules to ensure that your Teleport resource services (e.g.,
+the SSH Service and Database Service) are compatible with the Teleport Auth and
+Proxy Services. You should check the version of the Auth and Proxy Services
+regularly to make sure that your Teleport resource services are compatible.
 
 </Details>
 
 When running multiple binaries of Teleport within a cluster, the following rules apply:
 
-- **Patch and minor** versions are always compatible, for example, any 5.0.1 component will work with any 5.0.3 component and 6.1.0 component will work with any 6.7.0 component.
-- Major versions are always compatible with the **previous** major release. This means you must not attempt to upgrade from 5.x.x straight to 7.x.x. You must upgrade to 6.x.x first.
-- The above applies to both clients and servers. For example, a 6.x.x Proxy Service is
-  compatible with 5.x.x Nodes and 5.x.x `tsh`. But we don't guarantee that a
-  7.x.x `tsh` will work with a 5.x.x Proxy Service.
+- **Patch and minor** versions are always compatible, for example, any 8.0.1
+  component will work with any 8.0.3 component and any 8.1.0 component will work
+  with any 8.3.0 component.
+- Servers support clients that are 1 major version behind, but do not support
+  clients that are on a newer major version. For example, an 8.x.x Proxy Service
+  is compatible with 7.x.x Nodes and 7.x.x `tsh`, but we don't guarantee that a
+  9.x.x Node will work with an 8.x.x Proxy Service. This also means you must not
+  attempt to upgrade from 6.x.x straight to 8.x.x. You must upgrade to 7.x.x
+  first.
 
 ## Backup
 
@@ -57,9 +63,13 @@ Back up before upgrading. We have more instructions in [Backing up Teleport](./b
 <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 When upgrading a single Teleport cluster:
 
-1. **Upgrade the Auth Service first**. The Auth Service keeps the cluster state and, if there are data format changes introduced in the new version, will perform necessary migrations.
-2. Upgrade Proxy Service instances. These are stateless and can be upgraded in any sequence or at the same time.
-3. Finally, upgrade your Teleport Nodes in any sequence or at the same time.
+1. **Upgrade the Auth Service first**. The Auth Service keeps the cluster state
+   and, if there are data format changes introduced in the new version, will
+   perform necessary migrations.
+2. Upgrade Proxy Service instances. These are stateless and can be upgraded in
+   any sequence or at the same time.
+3. Finally, upgrade your Teleport resource services in any sequence or at the
+   same time.
 
 <Admonition
   type="warning"
@@ -67,30 +77,34 @@ When upgrading a single Teleport cluster:
 >
   If several Auth Service instances are running in the High Availability configuration
   (for example, in an AWS Auto Scaling group), you must shrink the group to
-  **just one Auth Service** before performing an upgrade. 
-  
-  While Teleport will attempt to perform any necessary migrations, we recommend users create a backup of their backend before upgrading the Auth Server as a
-  precaution. This allows for a safe rollback in case the migration itself fails.
+  **just one Auth Service** before performing an upgrade.
+
+While Teleport will attempt to perform any necessary migrations, we recommend users create a backup of their backend before upgrading the Auth Server as a
+precaution. This allows for a safe rollback in case the migration itself fails.
+
 </Admonition>
 
 When upgrading multiple clusters:
 
 1. First, upgrade the root cluster, i.e. the one that other clusters trust.
 2. Upgrade the Trusted Clusters.
+
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Cloud">
 
 The Teleport Auth Service and Proxy Service are upgraded automatically. When
-upgrading Nodes, you may upgrade in any sequence or at the same time.
+upgrading resource services, you may upgrade in any sequence or at the same
+time.
 
 When upgrading multiple clusters:
 
 1. First, upgrade the root cluster, i.e. the one that other clusters trust.
 2. Upgrade the Trusted Clusters.
+
 </TabItem>
 </Tabs>
 
 ## Further reading
 
 If you would like to learn how to upgrade a single `teleport` binary, read
-[Upgrade the Teleport Binary](../admin/graceful-restarts.mdx).
+[Upgrade the Teleport Binary](../admin/upgrading-the-teleport-binary.mdx).

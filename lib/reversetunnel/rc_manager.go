@@ -27,6 +27,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -67,6 +68,9 @@ type RemoteClusterTunnelManagerConfig struct {
 	HostUUID string
 	// LocalCluster is a cluster name this client is a member of.
 	LocalCluster string
+	// LocalAuthAddresses is a list of auth servers to use when dialing back to
+	// the local cluster.
+	LocalAuthAddresses []string
 	// Local ReverseTunnelServer to reach other cluster members connecting to
 	// this proxy over a tunnel.
 	ReverseTunnelServer Server
@@ -216,6 +220,7 @@ func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig,
 		HostSigner:          cfg.HostSigner,
 		HostUUID:            cfg.HostUUID,
 		LocalCluster:        cfg.LocalCluster,
+		LocalAuthAddresses:  cfg.LocalAuthAddresses,
 		Clock:               cfg.Clock,
 		KubeDialAddr:        cfg.KubeDialAddr,
 		ReverseTunnelServer: cfg.ReverseTunnelServer,
@@ -225,7 +230,7 @@ func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig,
 
 		// Configs for remote cluster.
 		Cluster:  cluster,
-		Resolver: StaticResolver(addr),
+		Resolver: StaticResolver(addr, apitypes.ProxyListenerMode_Separate),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed creating reverse tunnel pool for remote cluster %q at address %q: %v", cluster, addr, err)

@@ -291,6 +291,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_CertificateCreate{
 			CertificateCreate: e,
 		}
+	case *SFTP:
+		out.Event = &OneOf_SFTP{
+			SFTP: e,
+		}
+	case *SessionRecordingAccess:
+		out.Event = &OneOf_SessionRecordingAccess{
+			SessionRecordingAccess: e,
+		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())
 		unknown := &Unknown{}

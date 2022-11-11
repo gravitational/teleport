@@ -1,0 +1,36 @@
+# This workflow will create backport Pull Requests whenever a pull request with
+# the appropriate labels is merged.
+name: Backport
+on:
+  pull_request:
+    types:
+      - closed
+
+# Limit the permissions on the GitHub token for this workflow to the subset
+# that is required. In this case, the backport workflow needs to be able to
+# create branches and create/update PRs, so it needs write access to
+# "pull-requests" and "contents" permissions.
+permissions:
+  pull-requests: write
+  contents: write
+
+jobs:
+  backport-pull-request:
+    name: Backport Pull Request
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout main branch of shared-workflow repository.
+      - name: Checkout shared-workflow
+        uses: actions/checkout@v3
+        with:
+          repository: gravitational/shared-workflows
+          path: .github/shared-workflows
+          ref: main
+      - name: Installing Go
+        uses: actions/setup-go@v3
+        with:
+          go-version-file: .github/shared-workflows/bot/go.mod
+        # Run "check" subcommand on bot.
+      - name: Backport PR
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=backport -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"

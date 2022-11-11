@@ -345,14 +345,17 @@ CI/CD pipeline.
 For this kind of automation, it is recommended to create a separate Teleport
 user for bots and request a certificate for them with a long time to live (TTL).
 
-In this example, we're creating a certificate with a TTL of one hour for the 
+In this example, we're creating a certificate with a TTL of one hour for the
 `jenkins` user and storing it in a `jenkins.pem` file, which can be later used with
 `-i` (identity) flag for `tsh`.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
-# To be executed on a Teleport Auth Server
+# Log in to your cluster with tsh so you can use tctl from your local machine.
+# You can also run tctl on your Auth Service host without running "tsh login"
+# first.
+$ tsh login --proxy=teleport.example.com --user=myuser
 $ tctl auth sign --ttl=1h --user=jenkins --out=jenkins.pem
 ```
 
@@ -370,7 +373,7 @@ $ tctl auth sign --ttl=1h --user=jenkins --out=jenkins.pem
 [CLI Docs - tctl auth sign](../../setup/reference/cli.mdx#tctl-auth-sign)
 
 Now `jenkins.pem` can be copied to the Jenkins server and passed to the `-i`
-(identity file) flag of `tsh`. 
+(identity file) flag of `tsh`.
 
 `tctl auth sign` is an admin's equivalent of `tsh login --out` and allows for
 unrestricted certificate TTL values.
@@ -406,6 +409,12 @@ $ tsh ls os=osx
 ```
 
 [CLI Docs -tsh ls](../../setup/reference/cli.mdx#tsh-ls)
+
+<Details title="Not seeing Nodes?" opened={false}>
+
+(!docs/pages/includes/node-logins.mdx!)
+
+</Details>
 
 ## Interactive shell
 
@@ -614,6 +623,11 @@ other user can join you through their terminal by typing:
 $ tsh join <session_ID>
 ```
 
+The Teleport user joining the session must have access to the same SSH principal
+used to start the session. In this case, Teleport user `joe` is logged in to the
+SSH Node as Unix user `joe`, so only Teleport users with a role allowing login `joe`
+will be able to join.
+
 <Notice type="note" scope={["oss", "enterprise"]}>
   Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).
 </Notice>
@@ -713,6 +727,38 @@ establishes a reverse SSH tunnel back into your Teleport Cloud tenant's Proxy
 Service, and this tunnel is used to establish inbound SSH connections.
 
 </ScopedBlock>
+
+## X11 forwarding
+
+In order to run graphical programs within an SSH session, such as an IDE like
+Virtual Studio Code, you'll need to request X11 forwarding for the session with
+the `-X` flag.
+
+```code
+$ tsh ssh -X node01
+```
+
+X11 forwarding provides the server with secure access to your local X Server
+so that it can communicate directly with your local display and I/O devices.
+
+<Notice type="note">
+  The `-Y` flag can be used to start Trusted X11 forwarding. This is needed
+  in order to enable more "unsafe" features, such as running clipboard or
+  screenshot utilities like `xclip`. However, it provides the server with
+  unmitigated access to your local X Server and puts your local machine at
+  risk of X11 attacks, so it should only be used with extreme caution.
+</Notice>
+
+In order to use X11 forwarding, you'll need to enable it on the Teleport Node.
+You'll also need to ensure that your user has the `permit_x11_forwarding` role option:
+
+```code
+$ tsh status
+> Profile URL:        https://proxy.example.com:3080
+  Logged in as:       dev
+  ...
+  Extensions:         permit-X11-forwarding
+```
 
 ## Further reading
 - [CLI Reference](../../setup/reference/cli.mdx).

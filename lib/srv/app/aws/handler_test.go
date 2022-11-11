@@ -33,7 +33,10 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -137,11 +140,27 @@ func TestAWSSignerHandler(t *testing.T) {
 	}
 }
 
-func staticAWSCredentials(client.ConfigProvider, *tlsca.Identity) *credentials.Credentials {
+func staticAWSCredentials(client.ConfigProvider, *common.SessionContext) *credentials.Credentials {
 	return credentials.NewStaticCredentials("AKIDl", "SECRET", "SESSION")
 }
 
-func createSuite(t *testing.T, handler http.HandlerFunc) *httptest.Server {
+type suite struct {
+	*httptest.Server
+
+	identity *tlsca.Identity
+	app      types.Application
+}
+
+func createSuite(t *testing.T, handler http.HandlerFunc) *suite {
+	user := auth.LocalUser{Username: "user"}
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "awsconsole",
+	}, types.AppSpecV3{
+		URI:        constants.AWSConsoleURL,
+		PublicAddr: "test.local",
+	})
+	require.NoError(t, err)
+
 	awsAPIMock := httptest.NewUnstartedServer(handler)
 	awsAPIMock.StartTLS()
 	t.Cleanup(func() {
@@ -168,12 +187,21 @@ func createSuite(t *testing.T, handler http.HandlerFunc) *httptest.Server {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		ctx := context.WithValue(context.Background(), auth.ContextUser, auth.LocalUser{Username: "user"})
-		svc.Handle(writer, request.WithContext(ctx))
+		request = common.WithSessionContext(request, &common.SessionContext{
+			Identity: &user.Identity,
+			App:      app,
+		})
+
+		svc.Handle(writer, request)
 	})
 	server := httptest.NewServer(mux)
 	t.Cleanup(func() {
 		server.Close()
 	})
-	return server
+
+	return &suite{
+		Server:   server,
+		identity: &user.Identity,
+		app:      app,
+	}
 }

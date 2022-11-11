@@ -4,7 +4,9 @@ description: How to customize SSH and Kubernetes access using Teleport.
 h1: Teleport Access Requests
 ---
 
-#### Approving Requests using an External Integration
+With Teleport, users can request additional roles via a third-party
+communication service. The Access Request API makes it easy to dynamically
+approve or deny these requests.
 
 - [Integrating Teleport with Slack](ssh-approval-slack.mdx)
 - [Integrating Teleport with Mattermost](ssh-approval-mattermost.mdx)
@@ -13,11 +15,6 @@ h1: Teleport Access Requests
 - [Integrating Teleport with PagerDuty](ssh-approval-pagerduty.mdx)
 
 ## Access Requests Setup
-
-Teleport has the ability for users to request additional roles. The
-Access Request API makes it easy to dynamically approve or deny these requests.
-
-### Setup
 
 **Contractor Role**
 This role allows the contractor to request the role DBA.
@@ -261,3 +258,4 @@ $ tctl request approve --roles=role-1,role-3 --reason='Approved, but not role-2 
 | Jira Server | | Project Board | [Setup Jira Server](ssh-approval-jira-server.mdx) |
 | Jira Cloud | | Project Board | [Setup Jira Cloud](ssh-approval-jira-cloud.mdx) |
 | PagerDuty | | Schedule | [Setup PagerDuty](ssh-approval-pagerduty.mdx) |
+

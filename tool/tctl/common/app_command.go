@@ -51,10 +51,10 @@ func (c *AppsCommand) Initialize(app *kingpin.Application, config *service.Confi
 }
 
 // TryRun attempts to run subcommands like "apps ls".
-func (c *AppsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (c *AppsCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.appsList.FullCommand():
-		err = c.ListApps(client)
+		err = c.ListApps(ctx, client)
 	default:
 		return false, nil
 	}
@@ -63,8 +63,8 @@ func (c *AppsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 
 // ListApps prints the list of applications that have recently sent heartbeats
 // to the cluster.
-func (c *AppsCommand) ListApps(client auth.ClientI) error {
-	servers, err := client.GetApplicationServers(context.TODO(), apidefaults.Namespace)
+func (c *AppsCommand) ListApps(ctx context.Context, client auth.ClientI) error {
+	servers, err := client.GetApplicationServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -86,7 +86,7 @@ func (c *AppsCommand) ListApps(client auth.ClientI) error {
 	return nil
 }
 
-var appMessageTemplate = template.Must(template.New("app").Parse(`The invite token: {{.token}}.
+var appMessageTemplate = template.Must(template.New("app").Parse(`The invite token: {{.token}}
 This token will expire in {{.minutes}} minutes.
 
 Fill out and run this command on a node to make the application available:

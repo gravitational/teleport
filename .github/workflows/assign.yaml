@@ -1,5 +1,5 @@
 # This workflow is run whenever a pull request is opened, re-opened, or taken
-# out of draft (ready for review). 
+# out of draft (ready for review).
 #
 # NOTE: pull_request_target behaves the same as pull_request except it grants a
 # read/write token to workflows running on a pull request from a fork. While
@@ -33,14 +33,17 @@ jobs:
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     steps:
-      # Checkout master branch of Teleport repository. This is to prevent an
-      # attacker from submitting their own review assignment logic.
-      - name: Checkout master branch
-        uses: actions/checkout@v2
+      # Checkout main branch of shared-workflow repository.
+      - name: Checkout shared-workflow
+        uses: actions/checkout@v3
         with:
-          ref: master
-      - name: Installing the latest version of Go.
-        uses: actions/setup-go@v2
-      # Run "assign" subcommand on bot.
+          repository: gravitational/shared-workflows
+          path: .github/shared-workflows
+          ref: main
+      - name: Installing Go
+        uses: actions/setup-go@v3
+        with:
+          go-version-file: .github/shared-workflows/bot/go.mod
+        # Run "check" subcommand on bot.
       - name: Assigning reviewers
-        run: cd .github/workflows/robot && go run main.go -workflow=assign -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=assign -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"

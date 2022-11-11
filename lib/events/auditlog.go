@@ -1064,8 +1064,10 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 			e <- trace.BadParameter("audit log is closing, aborting the download")
 			return c, e
 		}
+	} else {
+		defer cancel()
 	}
-	defer cancel()
+
 	rawSession, err := os.OpenFile(tarballPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
 	if err != nil {
 		e <- trace.Wrap(err)

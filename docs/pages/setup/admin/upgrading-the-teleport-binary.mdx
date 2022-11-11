@@ -1,0 +1,174 @@
+---
+title: Upgrading the Teleport Binary
+description: How to upgrade a teleport binary without sacrificing availability.
+---
+
+In this guide, we will show you how to upgrade the `teleport` binary on a Linux
+host without sacrificing availability.
+
+<Details title="Using containers?">
+
+If you are running `teleport` as a container, see
+[How to Run Teleport Using Docker](../guides/docker.mdx) for information on
+specifying a version.
+
+</Details>
+
+## Prerequisites
+
+This guide requires a host where the `teleport` binary is running. The version
+of the binary must be behind the latest.
+ 
+For Teleport major version `(=teleport.major_version=)` the latest version is `(=teleport.version=)`.
+Compare this to the version of Teleport you have installed on the host:
+
+```code
+$ teleport version
+Teleport v8.3.7 git:v8.3.7-0-ga8d066935 go1.17.3
+  ```
+
+## Step 1/3. Download a new Teleport binary
+
+Preserve the old binary, just in case the upgrade goes wrong.
+
+```code
+$ DIR=$(which teleport | xargs dirname)
+$ sudo mv ${DIR}/teleport ${DIR}/teleport.bak
+```
+
+Install the newest version of Teleport on the host:
+
+(!/docs/pages/includes/install-linux.mdx!)
+
+## Step 2/3. Fork the `teleport` process
+
+Fork a new `teleport` process by sending it the `USR2` signal:
+
+```code
+$ sudo kill -USR2 $(pidof teleport)
+```
+
+The original `teleport` process forked a new child process and passed existing file descriptors
+to the child. You now have two processes handling requests on the same socket:
+
+```code
+$ pidof teleport
+# 235276 235119
+```
+
+In our example, `235276` is a PID of the child process, and `235119` is a PID of the parent.
+
+<Details type="tip" opened={false} title="Not sure which process is the parent?">
+
+You can use the following command, which prints the parent for each PID returned
+by `pidof`:
+
+```code
+$ ps -o ppid= -p $(pidof teleport)
+   1494
+   1495
+```
+
+</Details>
+
+In the logs you will see that the parent process reports that it has forked a new child
+process, and the child accepts file descriptors from its parent.
+
+```txt
+2021-08-19T10:16:51-07:00 [PROC:1]  INFO Forked new child process. path:/usr/local/teleport service/signals.go:457
+2021-08-19T10:16:51-07:00 [PROC:1]  INFO Using file descriptor diag 127.0.0.1:3434 passed by the parent process. service/signals.go:207
+```
+
+## Step 3/3. Return to a single `teleport` process
+
+After forking the new `teleport` process, check the logs to ensure that the
+process is running as expected. After that, you should either roll back or
+complete the upgrade:
+
+<Tabs>
+  <TabItem label="Rollback">
+  If the new binary behaves with errors, shut down the child process:
+  ```code
+  $ sudo kill -TERM 235276
+  2022-04-20T15:33:58Z INFO [PROC:1]    Got signal "terminated", exiting immediately. service/signals.go:86
+  2022-04-20T15:33:58Z WARN [PROC:1]    Forked teleport process 235276 has exited with status: 0. service/signals.go:506
+  ```
+  
+  <Admonition
+  type="danger"
+  title="WARNING"
+  >
+
+    Do not forget to restore the original binary
+    ```code
+    $ sudo mv ${DIR}/teleport.bak ${DIR}/teleport
+    ```
+  </Admonition>
+    
+  You can retry the process again later.
+  </TabItem>
+  <TabItem label="Finish the upgrade">
+
+  <Admonition
+    type="danger"
+    title="WARNING"
+  >
+
+    If you are upgrading a `teleport` daemon using an SSH connection established
+    via Teleport, make sure to connect to the newly upgraded `teleport` process
+    and shut down the previous `teleport` process from it.
+    
+    You can see which `teleport` process handles the connection by using
+    `pstree`:
+
+    ```code
+    $ pstree -aps $$
+    # systemd,1 splash
+    #  └─systemd,6247 --user
+    #      └─teleport-,235276
+    #          └─bash,190718
+    #              └─pstree,242371 -aps 190718
+    ```
+
+  </Admonition>
+     
+    Shut down the parent process gracefully using `SIGQUIT`:
+
+    ```code
+    $ sudo kill -QUIT 235119
+    ```
+
+    The parent process will log a graceful shutdown:
+
+    ```txt
+    2021-08-19T10:32:10-07:00 INFO [PROXY:SER] Shutting down gracefully. service/service.go:2952
+    ```
+
+    In a couple of minutes, all existing connections drain off and the parent will exit:
+
+    ```code
+    $ pidof teleport
+    # 235276
+    ```
+    
+    If for some reason, the parent process gets stuck (e.g., waiting for
+    existing connections to finish), you can shut it down non-gracefully:
+
+    ```code
+    $ sudo kill -TERM 235119
+    ```
+
+    You are all set.
+  </TabItem>
+</Tabs>
+
+## Further reading
+
+In this guide, we explained how to upgrade the `teleport` binary on a single
+host. If you would like to learn how to upgrade all of the components in a
+Teleport cluster while preserving compatibility, read
+[Upgrading a Teleport Cluster](../operations/upgrading.mdx).
+
+See the full list of supported signals in the
+[Teleport Signals Reference](../reference/signals.mdx).
+

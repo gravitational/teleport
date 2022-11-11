@@ -24,6 +24,7 @@ import (
 
 	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/trace"
+	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	directory "google.golang.org/api/admin/directory/v1"
 	"google.golang.org/api/cloudidentity/v1"
@@ -75,7 +76,7 @@ func addGoogleWorkspaceClaims(ctx context.Context, connector types.OIDCConnector
 
 		if credentials != nil {
 			log.Debugf("fetching transitive Google groups for %v", email)
-			googleGroups, err = groupsFromGoogleCloudIdentity(ctx, email, option.WithCredentials(credentials))
+			googleGroups, err = groupsFromGoogleCloudIdentity(ctx, email, option.WithTokenSource(credentials))
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -91,7 +92,7 @@ func addGoogleWorkspaceClaims(ctx context.Context, connector types.OIDCConnector
 			}
 
 			log.Debugf("fetching direct Google groups with no domain filtering for %v", email)
-			googleGroups, err = groupsFromGoogleDirectory(ctx, email, "", option.WithCredentials(credentials))
+			googleGroups, err = groupsFromGoogleDirectory(ctx, email, "", option.WithTokenSource(credentials))
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -115,7 +116,7 @@ func addGoogleWorkspaceClaims(ctx context.Context, connector types.OIDCConnector
 		}
 
 		log.Debugf("fetching direct Google groups for %v, filtering by domain %v", email, hostedDomain)
-		googleGroups, err = groupsFromGoogleDirectory(ctx, email, hostedDomain, option.WithCredentials(credentials))
+		googleGroups, err = groupsFromGoogleDirectory(ctx, email, hostedDomain, option.WithTokenSource(credentials))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -137,7 +138,7 @@ func addGoogleWorkspaceClaims(ctx context.Context, connector types.OIDCConnector
 	return claims, nil
 }
 
-func getGoogleWorkspaceCredentials(ctx context.Context, connector types.OIDCConnector, scopes ...string) (*google.Credentials, error) {
+func getGoogleWorkspaceCredentials(ctx context.Context, connector types.OIDCConnector, scopes ...string) (oauth2.TokenSource, error) {
 	var jsonCredentials []byte
 	var credentialLoadingMethod string
 	if connector.GetGoogleServiceAccountURI() != "" {
@@ -158,29 +159,28 @@ func getGoogleWorkspaceCredentials(ctx context.Context, connector types.OIDCConn
 		jsonCredentials = []byte(connector.GetGoogleServiceAccount())
 	}
 
+	// we only support service_account credentials (the only ones that allow
+	// specifying an arbitrary Subject)
+	jwtConfig, err := google.JWTConfigFromJSON(jsonCredentials, scopes...)
+	if err != nil {
+		return nil, trace.BadParameter("unable to parse google service account from %v: %v", credentialLoadingMethod, err)
+	}
 	// The "Admin SDK Directory API" needs admin delegation (see
 	// https://developers.google.com/admin-sdk/directory/v1/guides/delegation
 	// and
 	// https://developers.google.com/identity/protocols/oauth2/service-account#delegatingauthority )
 	// and the "Cloud Identity API" needs an account with View permission on
 	// all groups to work reliably.
-	credentialsParams := google.CredentialsParams{
-		Subject: connector.GetGoogleAdminEmail(),
-		Scopes:  scopes,
-	}
+	jwtConfig.Subject = connector.GetGoogleAdminEmail()
 
-	credentials, err := google.CredentialsFromJSONWithParams(ctx, jsonCredentials, credentialsParams)
-	if err != nil {
-		return nil, trace.BadParameter("unable to parse google service account from %v: %v", credentialLoadingMethod, err)
-	}
-
-	token, err := credentials.TokenSource.Token()
+	tokenSource := jwtConfig.TokenSource(ctx)
+	token, err := tokenSource.Token()
 	if err != nil || !token.Valid() {
 		log.Debugf("failed to obtain valid Google Workspace credentials for scopes %v", scopes)
 		return nil, nil
 	}
 
-	return credentials, nil
+	return tokenSource, nil
 }
 
 func groupsFromGoogleDirectory(ctx context.Context, email, filterDomain string, clientOptions ...option.ClientOption) ([]string, error) {

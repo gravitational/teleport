@@ -59,9 +59,7 @@ func (c *AccessCommand) Initialize(app *kingpin.Application, config *service.Con
 }
 
 // TryRun attempts to run subcommands like "access ls".
-func (c *AccessCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
-
-	ctx := context.TODO()
+func (c *AccessCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.accessList.FullCommand():
 		access := datalog.NodeAccessRequest{Username: c.user, Login: c.login, Node: c.node, Namespace: c.namespace}

@@ -80,16 +80,16 @@ INTERACTIVE=false
 
 # the default value of each variable is a templatable Go value so that it can
 # optionally be replaced by the server before the script is served up
-TELEPORT_VERSION="{{.version}}"
-TARGET_HOSTNAME="{{.hostname}}"
-TARGET_PORT="{{.port}}"
-JOIN_TOKEN="{{.token}}"
-JOIN_METHOD="{{.joinMethod}}"
-CA_PIN_HASHES="{{.caPins}}"
+TELEPORT_VERSION='{{.version}}'
+TARGET_HOSTNAME='{{.hostname}}'
+TARGET_PORT='{{.port}}'
+JOIN_TOKEN='{{.token}}'
+JOIN_METHOD='{{.joinMethod}}'
+CA_PIN_HASHES='{{.caPins}}'
 ARG_CA_PIN_HASHES=""
-APP_INSTALL_MODE="{{.appInstallMode}}"
-APP_NAME="{{.appName}}"
-APP_URI="{{.appURI}}"
+APP_INSTALL_MODE='{{.appInstallMode}}'
+APP_NAME='{{.appName}}'
+APP_URI='{{.appURI}}'
 
 # usage message
 # shellcheck disable=SC2086
@@ -496,14 +496,14 @@ proxy_service:
 EOF
 }
 # get the auth section of a node config
-get_node_auth_config() { 
-    if [[ ${JOIN_METHOD} == "iam" ]]; then 
+get_node_auth_config() {
+    if [[ ${JOIN_METHOD} == "iam" ]]; then
         echo "join_params:
     token_name: ${JOIN_TOKEN}
     method: iam
-"; 
-    else 
-        echo "auth_token: ${JOIN_TOKEN}"; fi 
+";
+    else
+        echo "auth_token: ${JOIN_TOKEN}"; fi
 }
 # checks whether the given host is running MacOS
 is_macos_host() { if [[ ${OSTYPE} == "darwin"* ]]; then return 0; else return 1; fi }

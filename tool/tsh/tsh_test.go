@@ -29,11 +29,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
-	"golang.org/x/crypto/ssh"
-
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -44,12 +40,19 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
+	"go.uber.org/atomic"
+	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -132,7 +135,7 @@ func TestFailedLogin(t *testing.T) {
 		return nil, loginFailed
 	}
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -221,7 +224,7 @@ func TestOIDCLogin(t *testing.T) {
 
 	buf := bytes.NewBuffer([]byte{})
 	sc := bufio.NewScanner(buf)
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -277,7 +280,7 @@ func TestLoginIdentityOut(t *testing.T) {
 
 	identPath := filepath.Join(t.TempDir(), "ident")
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -317,7 +320,7 @@ func TestRelogin(t *testing.T) {
 
 	buf := bytes.NewBuffer([]byte{})
 	sc := bufio.NewScanner(buf)
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -331,7 +334,7 @@ func TestRelogin(t *testing.T) {
 	require.NoError(t, err)
 	findMOTD(t, sc, motd)
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -346,14 +349,14 @@ func TestRelogin(t *testing.T) {
 	require.NoError(t, err)
 	findMOTD(t, sc, motd)
 
-	err = Run([]string{"logout"}, setHomePath(tmpHomePath),
+	err = Run(context.Background(), []string{"logout"}, setHomePath(tmpHomePath),
 		cliOption(func(cf *CLIConf) error {
 			cf.overrideStderr = buf
 			return nil
 		}))
 	require.NoError(t, err)
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -537,7 +540,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	leafAuth, _ := makeTestServers(t, withClusterName(t, "leafcluster"))
 	tryCreateTrustedCluster(t, leafAuth.GetAuthServer(), trustedCluster)
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -549,7 +552,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -558,7 +561,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -567,7 +570,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -578,7 +581,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 
 	errChan := make(chan error)
 	go func() {
-		errChan <- Run([]string{
+		errChan <- Run(context.Background(), []string{
 			"request",
 			"new",
 			"--insecure",
@@ -1301,8 +1304,9 @@ func TestMakeTableWithTruncatedColumn(t *testing.T) {
 }
 
 type testServersOpts struct {
-	bootstrap       []types.Resource
-	authConfigFuncs []func(cfg *service.AuthConfig)
+	bootstrap          []types.Resource
+	authConfigFuncs    []func(cfg *service.AuthConfig)
+	serviceConfigFuncs []func(cfg *service.Config)
 }
 
 type testServerOptFunc func(o *testServersOpts)
@@ -1320,6 +1324,16 @@ func withAuthConfig(fn func(cfg *service.AuthConfig)) testServerOptFunc {
 		}
 
 		o.authConfigFuncs = append(o.authConfigFuncs, fn)
+	}
+}
+
+func withConfig(fn func(cfg *service.Config)) testServerOptFunc {
+	return func(o *testServersOpts) {
+		if o.serviceConfigFuncs == nil {
+			o.serviceConfigFuncs = []func(cfg *service.Config){}
+		}
+
+		o.serviceConfigFuncs = append(o.serviceConfigFuncs, fn)
 	}
 }
 
@@ -1381,12 +1395,17 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 		fn(&cfg.Auth)
 	}
 
+	for _, fn := range options.serviceConfigFuncs {
+		fn(cfg)
+	}
+
 	auth, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
 	require.NoError(t, auth.Start())
 
 	t.Cleanup(func() {
-		auth.Close()
+		require.NoError(t, auth.Close())
+		require.NoError(t, auth.Wait())
 	})
 
 	// Wait for proxy to become ready.
@@ -1424,7 +1443,8 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	require.NoError(t, proxy.Start())
 
 	t.Cleanup(func() {
-		proxy.Close()
+		require.NoError(t, proxy.Close())
+		require.NoError(t, proxy.Wait())
 	})
 
 	// Wait for proxy to become ready.
@@ -1582,6 +1602,128 @@ func Test_getUsersForDb(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got := getUsersForDb(tc.database, tc.roles)
 			require.Equal(t, tc.result, got)
+		})
+	}
+}
+
+func TestExportingTraces(t *testing.T) {
+	connector := mockConnector(t)
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	spanAssertion := func(containsTSH bool) func(t require.TestingT, i interface{}, i2 ...interface{}) {
+		return func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			spans, ok := i.([]*otlp.ScopeSpans)
+			require.True(t, ok)
+
+			var scopes []string
+			for _, span := range spans {
+				scopes = append(scopes, span.Scope.Name)
+			}
+
+			if containsTSH {
+				require.Contains(t, scopes, teleport.ComponentTSH)
+			} else {
+				require.NotContains(t, scopes, teleport.ComponentTSH)
+			}
+		}
+	}
+
+	cases := []struct {
+		name          string
+		cfg           func(c *tracing.Collector) service.TracingConfig
+		spanAssertion require.ValueAssertionFunc
+	}{
+		{
+			name: "spans exported with auth sampling all",
+			cfg: func(c *tracing.Collector) service.TracingConfig {
+				return service.TracingConfig{
+					Enabled:      true,
+					ExporterURL:  c.GRPCAddr(),
+					SamplingRate: 1.0,
+				}
+			},
+			spanAssertion: spanAssertion(true),
+		},
+		{
+			name: "spans exported with auth sampling none",
+			cfg: func(c *tracing.Collector) service.TracingConfig {
+				return service.TracingConfig{
+					Enabled:      true,
+					ExporterURL:  c.HTTPAddr(),
+					SamplingRate: 0.0,
+				}
+			},
+			spanAssertion: spanAssertion(true),
+		},
+		{
+			name: "spans not exported when tracing disabled",
+			cfg: func(c *tracing.Collector) service.TracingConfig {
+				return service.TracingConfig{}
+			},
+			spanAssertion: require.Empty,
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			tmpHomePath := t.TempDir()
+			collector, err := tracing.NewCollector(tracing.CollectorConfig{})
+			require.NoError(t, err)
+
+			errCh := make(chan error)
+			go func() {
+				errCh <- collector.Start()
+			}()
+			t.Cleanup(func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+				defer cancel()
+				require.NoError(t, collector.Shutdown(ctx))
+				require.NoError(t, <-errCh)
+			})
+
+			authProcess, proxyProcess := makeTestServers(t,
+				withBootstrap(connector, alice),
+				withConfig(func(cfg *service.Config) {
+					cfg.Tracing = tt.cfg(collector)
+				}),
+			)
+
+			authServer := authProcess.GetAuthServer()
+			require.NotNil(t, authServer)
+
+			proxyAddr, err := proxyProcess.ProxyWebAddr()
+			require.NoError(t, err)
+
+			// --trace should have no impact on login, since login is whitelisted
+			err = Run(context.Background(), []string{
+				"login",
+				"--insecure",
+				"--auth", connector.GetName(),
+				"--proxy", proxyAddr.String(),
+				"--trace",
+			}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+				cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+				return nil
+			})
+			require.NoError(t, err)
+			// ensure login doesn't generate any spans from tsh. we can't
+			// check for an empty span list here because other spans may be
+			// generated from background components running within the auth/proxy
+			loginAssertion := spanAssertion(false)
+			loginAssertion(t, collector.Spans())
+
+			err = Run(context.Background(), []string{
+				"ls",
+				"--insecure",
+				"--auth", connector.GetName(),
+				"--proxy", proxyAddr.String(),
+				"--trace",
+			}, setHomePath(tmpHomePath))
+			require.NoError(t, err)
+			tt.spanAssertion(t, collector.Spans())
 		})
 	}
 }

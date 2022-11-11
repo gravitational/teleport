@@ -35,8 +35,9 @@ policies is sufficient.
 No IAM credentials at all are required on the Teleport Auth server.
 
 <Admonition type="warning">
-The IAM join method is not compatible with the `--insecure-no-tls` flag, and is
-currently not supported in the AWS China or GovCloud partitions.
+The IAM join method will not work if TLS is terminated at a load balancer in
+front of your Teleport Proxy Service unless the Node using this method is
+connecting directly to the Auth Service.
 </Admonition>
 
 ## Prerequisites

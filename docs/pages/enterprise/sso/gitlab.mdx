@@ -15,13 +15,6 @@ like:
 - Only members of "ProductionKubernetes" can access production Kubernetes clusters
 - Developers must never SSH into production servers.
 
-<Admonition
-  type="warning"
-  title="Version Warning"
->
-  This guide requires a commercial edition of Teleport.
-</Admonition>
-
 ## Enable default OIDC authentication
 
 (!docs/pages/includes/enterprise/oidcauthentication.mdx!)
@@ -30,7 +23,7 @@ like:
 
 You should have at least one group configured in GitLab to map to Teleport roles. In this example we use the names `gitlab-dev` and `gitlab-admin`.  Assign users to each of these groups.
 
-1. Create a Application in one of your Groups that will allow using GitLab as a OAuh provider to Teleport.
+1. Create a Application in one of your Groups that will allow using GitLab as a OAuth provider to Teleport.
 
 Settings
 

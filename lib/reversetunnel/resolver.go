@@ -18,50 +18,77 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Resolver looks up reverse tunnel addresses
-type Resolver func() (*utils.NetAddr, error)
+type Resolver func(ctx context.Context) (*utils.NetAddr, types.ProxyListenerMode, error)
 
 // CachingResolver wraps the provided Resolver with one that will cache the previous result
 // for 3 seconds to reduce the number of resolutions in an effort to mitigate potentially
 // overwhelming the Resolver source.
-func CachingResolver(resolver Resolver, clock clockwork.Clock) (Resolver, error) {
+func CachingResolver(ctx context.Context, resolver Resolver, clock clockwork.Clock) (Resolver, error) {
 	cache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:   3 * time.Second,
-		Clock: clock,
+		TTL:     3 * time.Second,
+		Clock:   clock,
+		Context: ctx,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return func() (*utils.NetAddr, error) {
-		a, err := cache.Get(context.TODO(), "resolver", func() (interface{}, error) {
-			return resolver()
+
+	type data struct {
+		addr *utils.NetAddr
+		mode types.ProxyListenerMode
+	}
+
+	return func(ctx context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
+		a, err := cache.Get(ctx, "resolver", func(ctx context.Context) (interface{}, error) {
+			addr, mode, err := resolver(ctx)
+			if err != nil {
+				return nil, err
+			}
+
+			return &data{addr: addr, mode: mode}, nil
 		})
 		if err != nil {
-			return nil, err
+			return nil, types.ProxyListenerMode_Separate, err
 		}
-		return a.(*utils.NetAddr), nil
+
+		d := a.(*data)
+		if d.addr != nil {
+			// make a copy to avoid a data race when the caching resolver is shared by goroutines.
+			addrCopy := *d.addr
+			return &addrCopy, d.mode, nil
+		}
+
+		return d.addr, d.mode, nil
 	}, nil
 }
 
 // WebClientResolver returns a Resolver which uses the web proxy to
 // discover where the SSH reverse tunnel server is running.
-func WebClientResolver(ctx context.Context, addrs []utils.NetAddr, insecureTLS bool) Resolver {
-	return func() (*utils.NetAddr, error) {
+func WebClientResolver(addrs []utils.NetAddr, insecureTLS bool) Resolver {
+	return func(ctx context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
 		var errs []error
+		mode := types.ProxyListenerMode_Separate
 		for _, addr := range addrs {
 			// In insecure mode, any certificate is accepted. In secure mode the hosts
 			// CAs are used to validate the certificate on the proxy.
-			// Ignore HTTP proxy for backwards compatibility.
-			tunnelAddr, err := webclient.GetTunnelAddr(
-				&webclient.Config{Context: ctx, ProxyAddr: addr.String(), Insecure: insecureTLS, IgnoreHTTPProxy: true})
+			resp, err := webclient.Find(&webclient.Config{Context: ctx, ProxyAddr: addr.String(), Insecure: insecureTLS})
 
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+
+			tunnelAddr, err := resp.Proxy.TunnelAddr()
 			if err != nil {
 				errs = append(errs, err)
 				continue
@@ -74,21 +101,24 @@ func WebClientResolver(ctx context.Context, addrs []utils.NetAddr, insecureTLS b
 			}
 
 			addr.Addr = utils.ReplaceUnspecifiedHost(addr, defaults.HTTPListenPort)
-			return addr, nil
+			if resp.Proxy.TLSRoutingEnabled {
+				mode = types.ProxyListenerMode_Multiplex
+			}
+			return addr, mode, nil
 		}
-		return nil, trace.NewAggregate(errs...)
+		return nil, mode, trace.NewAggregate(errs...)
 	}
 }
 
 // StaticResolver returns a Resolver which will always resolve to
 // the provided address
-func StaticResolver(address string) Resolver {
+func StaticResolver(address string, mode types.ProxyListenerMode) Resolver {
 	addr, err := utils.ParseAddr(address)
 	if err == nil {
 		addr.Addr = utils.ReplaceUnspecifiedHost(addr, defaults.HTTPListenPort)
 	}
 
-	return func() (*utils.NetAddr, error) {
-		return addr, err
+	return func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
+		return addr, mode, err
 	}
 }

@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package proxy
 
 import (
@@ -21,16 +22,15 @@ import (
 	"net"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/api/observability/tracing"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"golang.org/x/crypto/ssh"
-
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -40,18 +40,25 @@ var log = logrus.WithFields(logrus.Fields{
 // dialWithDeadline works around the case when net.DialWithTimeout
 // succeeds, but key exchange hangs. Setting deadline on connection
 // prevents this case from happening
-func dialWithDeadline(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
-	conn, err := net.DialTimeout(network, addr, config.Timeout)
+func dialWithDeadline(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
+	dialer := &net.Dialer{
+		Timeout: config.Timeout,
+	}
+
+	conn, err := dialer.DialContext(ctx, network, addr)
 	if err != nil {
 		return nil, err
 	}
-	return sshutils.NewClientConnWithDeadline(conn, addr, config)
+	return tracessh.NewClientConnWithDeadline(ctx, conn, addr, config)
 }
 
 // dialALPNWithDeadline allows connecting to Teleport in single-port mode. SSH protocol is wrapped into
 // TLS connection where TLS ALPN protocol is set to ProtocolReverseTunnel allowing ALPN Proxy to route the
 // incoming connection to ReverseTunnel proxy service.
-func (d directDial) dialALPNWithDeadline(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
+func (d directDial) dialALPNWithDeadline(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
+	ctx, span := tracing.DefaultProvider().Tracer("dialer").Start(ctx, "directDial/dialALPNWithDeadline")
+	defer span.End()
+
 	dialer := &net.Dialer{
 		Timeout: config.Timeout,
 	}
@@ -63,20 +70,26 @@ func (d directDial) dialALPNWithDeadline(network string, addr string, config *ss
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsConn, err := tls.DialWithDialer(dialer, network, addr, conf)
+
+	tlsDialer := tls.Dialer{
+		NetDialer: dialer,
+		Config:    conf,
+	}
+
+	tlsConn, err := tlsDialer.DialContext(ctx, network, addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sshutils.NewClientConnWithDeadline(tlsConn, addr, config)
+	return tracessh.NewClientConnWithDeadline(ctx, tlsConn, addr, config)
 }
 
 // A Dialer is a means for a client to establish a SSH connection.
 type Dialer interface {
 	// Dial establishes a client connection to a SSH server.
-	Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error)
+	Dial(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error)
 
 	// DialTimeout acts like Dial but takes a timeout.
-	DialTimeout(network, address string, timeout time.Duration) (net.Conn, error)
+	DialTimeout(ctx context.Context, network, address string, timeout time.Duration) (net.Conn, error)
 }
 
 type directDial struct {
@@ -100,15 +113,15 @@ func (d directDial) getTLSConfig(addr *utils.NetAddr) (*tls.Config, error) {
 }
 
 // Dial calls ssh.Dial directly.
-func (d directDial) Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
+func (d directDial) Dial(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
 	if d.tlsRoutingEnabled {
-		client, err := d.dialALPNWithDeadline(network, addr, config)
+		client, err := d.dialALPNWithDeadline(ctx, network, addr, config)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return client, nil
 	}
-	client, err := dialWithDeadline(network, addr, config)
+	client, err := dialWithDeadline(ctx, network, addr, config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -116,7 +129,11 @@ func (d directDial) Dial(network string, addr string, config *ssh.ClientConfig) 
 }
 
 // DialTimeout acts like Dial but takes a timeout.
-func (d directDial) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
+func (d directDial) DialTimeout(ctx context.Context, network, address string, timeout time.Duration) (net.Conn, error) {
+	dialer := &net.Dialer{
+		Timeout: timeout,
+	}
+
 	if d.tlsRoutingEnabled {
 		addr, err := utils.ParseAddr(address)
 		if err != nil {
@@ -126,15 +143,19 @@ func (d directDial) DialTimeout(network, address string, timeout time.Duration) 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		tlsConn, err := tls.DialWithDialer(&net.Dialer{
-			Timeout: timeout,
-		}, "tcp", address, conf)
+
+		tlsDialer := tls.Dialer{
+			NetDialer: dialer,
+			Config:    conf,
+		}
+
+		tlsConn, err := tlsDialer.DialContext(ctx, "tcp", address)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return tlsConn, nil
 	}
-	conn, err := net.DialTimeout(network, address, timeout)
+	conn, err := dialer.DialContext(ctx, network, address)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -164,9 +185,8 @@ func (d proxyDial) getTLSConfig(addr *utils.NetAddr) (*tls.Config, error) {
 }
 
 // DialTimeout acts like Dial but takes a timeout.
-func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
+func (d proxyDial) DialTimeout(ctx context.Context, network, address string, timeout time.Duration) (net.Conn, error) {
 	// Build a proxy connection first.
-	ctx := context.Background()
 	if timeout > 0 {
 		timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
@@ -197,14 +217,16 @@ func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (
 
 // Dial first connects to a proxy, then uses the connection to establish a new
 // SSH connection.
-func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
+func (d proxyDial) Dial(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
 	// Build a proxy connection first.
-	pconn, err := apiclient.DialProxy(context.Background(), d.proxyHost, addr)
+	pconn, err := apiclient.DialProxy(ctx, d.proxyHost, addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if config.Timeout > 0 {
-		pconn.SetReadDeadline(time.Now().Add(config.Timeout))
+		if err := pconn.SetReadDeadline(time.Now().Add(config.Timeout)); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if d.tlsRoutingEnabled {
 		address, err := utils.ParseAddr(addr)
@@ -219,14 +241,16 @@ func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (
 	}
 
 	// Do the same as ssh.Dial but pass in proxy connection.
-	c, chans, reqs, err := ssh.NewClientConn(pconn, addr, config)
+	c, chans, reqs, err := tracessh.NewClientConn(ctx, pconn, addr, config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if config.Timeout > 0 {
-		pconn.SetReadDeadline(time.Time{})
+		if err := pconn.SetReadDeadline(time.Time{}); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
-	return ssh.NewClient(c, chans, reqs), nil
+	return tracessh.NewClient(c, chans, reqs), nil
 }
 
 type dialerOptions struct {

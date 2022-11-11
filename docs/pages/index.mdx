@@ -19,17 +19,9 @@ With Teleport you can:
 
 Quickly see how Teleport works in one of our demo environments.
 
-<TileSet>
-  <Tile icon="code2" title="Browser Lab" href="https://play.instruqt.com/teleport/invite/rgvuva4gzkon">
-    Try Teleport using our guided interactive labs.
-  </Tile>
-  <Tile icon="integrations" title="Docker Compose Lab" href="./getting-started/docker-compose.mdx">
-    Try Teleport locally using Docker Compose.
-  </Tile>
-    <Tile icon="kubernetes" title="Kubernetes Lab" href="./kubernetes-access/getting-started/local.mdx">
-    See how Teleport runs on Kubernetes with this local lab.
-  </Tile>
-</TileSet>
+- [Browser Lab](https://goteleport.com/labs/): Try Teleport using our guided interactive labs.
+- [Docker Compose Lab](./getting-started/docker-compose.mdx): Try Teleport locally using Docker Compose.
+- [Kubernetes Lab](./getting-started/local-kubernetes.mdx): See how Teleport runs on Kubernetes with this local lab.
 
 ## Choose an edition
 
@@ -38,96 +30,31 @@ Teleport, Teleport Enterprise, or Teleport Cloud.
 
 You can also [compare Teleport editions](faq.mdx#how-is-open-source-different-from-enterprise).
 
-<TileSet>
-  <Tile 
-  icon="stack"
-  title="Open Source Teleport"
-  href="./getting-started/linux-server/?scope=oss"
-  >
-
-  Learn how to host your own open source Teleport deployment on a standalone
-  Linux server.
-
-  </Tile>
-  <Tile
-  icon="building"
-  title="Teleport Enterprise"
-  href="./enterprise/introduction.mdx/?scope=enterprise"
-  >
-
-  Get started with a self-hosted Teleport Enterprise deployment, which gives you
-  more advanced features and full customization.
-
-  </Tile>
-
-  <Tile icon="cloud" title="Teleport Cloud" href="./cloud/getting-started/?scope=cloud">
-
-    Try Teleport hosted by us in the cloud for free.
-
-  </Tile>
-</TileSet>
+- [Open Source Teleport](./getting-started/linux-server.mdx): Learn how to host your own open source Teleport deployment on a standalone Linux server.
+- [Teleport Enterprise](./enterprise/introduction.mdx): Get started with a self-hosted Teleport Enterprise deployment, which gives you more advanced features and full customization.
+- [Teleport Cloud](./cloud/getting-started.mdx): Try Teleport hosted by us in the cloud for free.
 
 ## Configure access
 
 Secure your infrastructure while keeping your engineers productive.
 
-<TileSet>
 <ScopedBlock scope={["cloud", "enterprise"]}>
-<Tile
-  title="Set up SSO"
-  icon="list"
-  href="./enterprise/sso.mdx"
->
-
-Configure Teleport's integration with your SSO provider so you can automatically
-on– and off-board users.
-
-</Tile>
+- [Set up SSO](./enterprise/sso.mdx):Configure Teleport's integration with your SSO provider so you can automatically on– and off-board users.
 </ScopedBlock>
 <ScopedBlock scope={["oss"]}>
-<Tile
-  title="Set up SSO"
-  icon="github"
-  href="./setup/admin/github-sso.mdx"
->
-
-Configure Teleport's integration with GitHub so you can automatically on– and
-off-board users.
-
-</Tile>
+- [Set up SSO](./setup/admin/github-sso.mdx):Configure Teleport's integration with GitHub so you can automatically on– and off-board users.
 </ScopedBlock>
-<Tile
-  title="Define roles"
-  icon="lock"
-  href="./access-controls/guides/role-templates.mdx"
->
-
-Manage who can access which parts of your infrastructure.
-
-</Tile>
-</TileSet>
+- [Define roles](./access-controls/guides/role-templates.mdx):Manage who can access which parts of your infrastructure.
 
 ## Add your infrastructure
 
 Use Teleport to provide secure access to all of your infrastructure.
 
-<TileSet>
-  <Tile icon="bolt" title="Server Access" href="./getting-started.mdx">
-    Single sign-on, short-lived certificates, and auditing for SSH servers.
-  </Tile>
-  <Tile icon="window" title="Application Access" href="./application-access/introduction.mdx">
-    Secure access to internal dashboards and web applications.
-  </Tile>
-  <Tile icon="kubernetes" title="Kubernetes Access" href="./kubernetes-access/introduction.mdx">
-    Single sign-on, auditing, and unified access for Kubernetes clusters.
-  </Tile>
-  <Tile icon="database" title="Database Access" href="./database-access/introduction.mdx">
-    Secure access to PostgreSQL, MySQL and MongoDB databases.
-  </Tile>
-  <Tile icon="desktop" title="Desktop Access" href="./desktop-access/introduction.mdx">
-    Secure browser-based access to desktop environments.
-  </Tile>
-</TileSet>
+- [Server Access](./getting-started.mdx): Single sign-on, short-lived certificates, and auditing for SSH servers.
+- [Application Access](./application-access/introduction.mdx): Secure access to internal dashboards and web applications.
+- [Kubernetes Access](./kubernetes-access/introduction.mdx): Single sign-on, auditing, and unified access for Kubernetes clusters.
+- [Database Access](./database-access/introduction.mdx): Secure access to SQL and NoSQL databases.
+- [Desktop Access](./desktop-access/introduction.mdx): Secure browser-based access to desktop environments.
 
 <TileSet>
   <TileList title="Reach out" icon="question">

@@ -332,6 +332,14 @@ const (
 	SessionUploadCode = "T2005I"
 	// SessionDataCode is the session data event code.
 	SessionDataCode = "T2006I"
+	// AppSessionStartCode is the application session start code.
+	AppSessionStartCode = "T2007I"
+	// AppSessionChunkCode is the application session chunk create code.
+	AppSessionChunkCode = "T2008I"
+	// AppSessionRequestCode is the application request/response code.
+	AppSessionRequestCode = "T2009I"
+	// SessionRecordingAccessCode is the session recording view data event code.
+	SessionRecordingAccessCode = "T2012I"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
@@ -339,16 +347,6 @@ const (
 	AppUpdateCode = "TAP04I"
 	// AppDeleteCode is the app.delete event code.
 	AppDeleteCode = "TAP05I"
-
-	// AppSessionStartCode is the application session start code.
-	AppSessionStartCode = "T2007I"
-	// AppSessionChunkCode is the application session chunk create code.
-	AppSessionChunkCode = "T2008I"
-	// AppSessionRequestCode is the application request/response code.
-	AppSessionRequestCode = "T2009I"
-
-	// SessionConnectCode is the session connect event code.
-	SessionConnectCode = "T2010I"
 
 	// DatabaseSessionStartCode is the database session start event code.
 	DatabaseSessionStartCode = "TDB00I"
@@ -409,6 +407,44 @@ const (
 	// Note: some requests (like exec into a pod) use other codes (like
 	// ExecCode).
 	KubeRequestCode = "T3009I"
+
+	// The following codes correspond to SFTP file operations.
+	SFTPOpenCode            = "TS001I"
+	SFTPOpenFailureCode     = "TS001E"
+	SFTPCloseCode           = "TS002I"
+	SFTPCloseFailureCode    = "TS002E"
+	SFTPReadCode            = "TS003I"
+	SFTPReadFailureCode     = "TS003E"
+	SFTPWriteCode           = "TS004I"
+	SFTPWriteFailureCode    = "TS004E"
+	SFTPLstatCode           = "TS005I"
+	SFTPLstatFailureCode    = "TS005E"
+	SFTPFstatCode           = "TS006I"
+	SFTPFstatFailureCode    = "TS006E"
+	SFTPSetstatCode         = "TS007I"
+	SFTPSetstatFailureCode  = "TS007E"
+	SFTPFsetstatCode        = "TS008I"
+	SFTPFsetstatFailureCode = "TS008E"
+	SFTPOpendirCode         = "TS009I"
+	SFTPOpendirFailureCode  = "TS009E"
+	SFTPReaddirCode         = "TS010I"
+	SFTPReaddirFailureCode  = "TS010E"
+	SFTPRemoveCode          = "TS011I"
+	SFTPRemoveFailureCode   = "TS011E"
+	SFTPMkdirCode           = "TS012I"
+	SFTPMkdirFailureCode    = "TS012E"
+	SFTPRmdirCode           = "TS013I"
+	SFTPRmdirFailureCode    = "TS013E"
+	SFTPRealpathCode        = "TS014I"
+	SFTPRealpathFailureCode = "TS014E"
+	SFTPStatCode            = "TS015I"
+	SFTPStatFailureCode     = "TS015E"
+	SFTPRenameCode          = "TS016I"
+	SFTPRenameFailureCode   = "TS016E"
+	SFTPReadlinkCode        = "TS017I"
+	SFTPReadlinkFailureCode = "TS017E"
+	SFTPSymlinkCode         = "TS018I"
+	SFTPSymlinkFailureCode  = "TS018E"
 
 	// SessionCommandCode is a session command code.
 	SessionCommandCode = "T4000I"

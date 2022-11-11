@@ -547,7 +547,7 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 - [ ] Verify that changing passwords works for U2F enabled
 - [ ] Verify that login works with WebAuthn enabled
 - [ ] Verify that changing passwords works for WebAuthn enabled
-- [ ] Verify that login works for Github/SAML/OIDC
+- [ ] Verify that login works for GitHub/SAML/OIDC
 - [ ] Verify that account is locked after several unsuccessful attempts
 - [ ] Verify that redirect to original URL works after successful login
 

@@ -280,6 +280,20 @@ func NextPaginationKey(r types.Resource) string {
 	}
 }
 
+// GetPaginationKey returns the pagination key given resource.
+func GetPaginationKey(r types.Resource) string {
+	switch resourceWithType := r.(type) {
+	case types.DatabaseServer:
+		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
+	case types.AppServer:
+		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
+	case types.WindowsDesktop:
+		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
+	default:
+		return r.GetName()
+	}
+}
+
 // MaskKeyName masks the given key name.
 // e.g "123456789" -> "******789"
 func MaskKeyName(keyName string) []byte {

@@ -4,21 +4,13 @@ description: How to configure SSH access with OAuth2 or OIDC (OpenID connect) us
 h1: OAuth2 / OIDC Authentication for SSH
 ---
 
-This guide will cover how to configure an SSO provider using [OpenID Connect](http://openid.net/connect/)
+This guide will explain how to configure an SSO provider using [OpenID Connect](http://openid.net/connect/)
 (also known as OIDC) to issue SSH credentials to a specific groups of users.
 When used in combination with role based access control (RBAC) it allows SSH
 administrators to define policies like:
 
 - Only members of "DBA" group can SSH into machines running PostgreSQL.
 - Developers must never SSH into production servers.
-- ... and many others.
-
-<Admonition
-  type="warning"
-  title="Version Warning"
->
-  This guide requires an Enterprise edition of Teleport.
-</Admonition>
 
 ## Enable default OIDC authentication
 
@@ -69,8 +61,9 @@ Create the connector:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
-# Log in to your Teleport cluster so you can use tctl remotely.
-# You can also run tctl on your Auth Service host.
+# Log in to your cluster with tsh so you can use tctl from your local machine.
+# You can also run tctl on your Auth Service host without running "tsh login"
+# first.
 $ tsh login --proxy=teleport.example.com --user=myuser
 $ tctl create oidc-connector.yaml
 ```
@@ -79,7 +72,7 @@ $ tctl create oidc-connector.yaml
 <ScopedBlock scope={["cloud"]}>
 
 ```code
-# Log in to your Teleport cluster so you can use tctl remotely
+# Log in to your Teleport cluster so you can use tctl remotely.
 $ tsh login --proxy=mytenant.teleport.sh --user=myuser
 $ tctl create oidc-connector.yaml
 ```

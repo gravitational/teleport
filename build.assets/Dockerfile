@@ -153,7 +153,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
     rustup target add i686-unknown-linux-gnu && \
     rustup target add arm-unknown-linux-gnueabihf && \
     rustup target add aarch64-unknown-linux-gnu && \
-    cargo install cbindgen
+    cargo install --locked --version 0.24.3 cbindgen
 
 USER root
 

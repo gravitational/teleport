@@ -10,8 +10,10 @@ This guide will help you to:
 - Connect to your databases through Teleport.
 
 <Admonition type="note" title="Aurora Serverless">
-  Aurora Serverless does not support IAM authentication at the time of this
-  writing so it can't be used with Database Access.
+  Aurora Serverless v1 does not support IAM authentication so it can't be used
+  with Database Access. It is recommended to upgrade to [Aurora Serverless
+  v2](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2.html)
+  which does support IAM authentication.
 </Admonition>
 
 ## Prerequisites
@@ -363,6 +365,8 @@ $ tsh db ls
   Primary, reader, and custom endpoints of Aurora clusters have names of
   `<cluster-id>`, `<cluster-id>-reader`, and
   `<cluster-id>-custom-<endpoint-name>` respectively.
+
+  You can override the `<cluster-id>` part of the name with `teleport.dev/database_name` AWS tag.
 </Admonition>
 
 Log into particular database using `tsh db login` command:

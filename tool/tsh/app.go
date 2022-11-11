@@ -48,7 +48,7 @@ func onAppLogin(cf *CLIConf) error {
 	var arn string
 	if app.IsAWSConsole() {
 		var err error
-		arn, err = getARNFromFlags(cf, profile)
+		arn, err = getARNFromFlags(cf, profile, app)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -87,9 +87,10 @@ func onAppLogin(cf *CLIConf) error {
 			"awsCmd":     "s3 ls",
 		})
 	}
-	return appLoginTpl.Execute(os.Stdout, map[string]string{
-		"appName": app.GetName(),
-		"curlCmd": formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL),
+	return appLoginTpl.Execute(os.Stdout, map[string]interface{}{
+		"appName":  app.GetName(),
+		"curlCmd":  formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL),
+		"insecure": cf.InsecureSkipVerify,
 	})
 }
 
@@ -97,7 +98,10 @@ func onAppLogin(cf *CLIConf) error {
 var appLoginTpl = template.Must(template.New("").Parse(
 	`Logged into app {{.appName}}. Example curl command:
 
-{{.curlCmd}}
+{{.curlCmd}}{{ if .insecure }}
+
+WARNING: tsh was called with --insecure, so this curl command will be unable to validate the certificate presented by Teleport.
+{{- end }}
 `))
 
 // awsCliTpl is the message that gets printed to a user upon successful aws app login.
@@ -190,6 +194,20 @@ func onAppConfig(cf *CLIConf) error {
 }
 
 func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format string) string {
+	var curlInsecureFlag string
+	if tc.InsecureSkipVerify {
+		curlInsecureFlag = "--insecure "
+	}
+
+	curlCmd := fmt.Sprintf(`curl %s\
+  --cert %v \
+  --key %v \
+  https://%v:%v`,
+		curlInsecureFlag,
+		profile.AppCertPath(appName),
+		profile.KeyPath(),
+		appPublicAddr,
+		tc.WebProxyPort())
 	switch format {
 	case appFormatURI:
 		return fmt.Sprintf("https://%v:%v", appPublicAddr, tc.WebProxyPort())
@@ -200,16 +218,7 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 	case appFormatKey:
 		return profile.KeyPath()
 	case appFormatCURL:
-		return fmt.Sprintf(`curl \
-  --cacert %v \
-  --cert %v \
-  --key %v \
-  https://%v:%v`,
-			profile.CACertPath(),
-			profile.AppCertPath(appName),
-			profile.KeyPath(),
-			appPublicAddr,
-			tc.WebProxyPort())
+		return curlCmd
 	}
 	return fmt.Sprintf(`Name:      %v
 URI:       https://%v:%v

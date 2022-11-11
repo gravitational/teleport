@@ -176,7 +176,7 @@ spec:
         secret:
           secretName: "license"
 {{- end }}
-{{- if .Values.gcp.credentialSecretName }}
+{{- if (eq .Values.chartMode "gcp") }}
       - name: gcp-credentials
         secret:
           secretName: {{ required "gcp.credentialSecretName is required in chart values" .Values.gcp.credentialSecretName }}

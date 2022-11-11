@@ -22,6 +22,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -58,6 +59,8 @@ type FileLogConfig struct {
 	// SearchDirs is a function that returns
 	// search directories, if not set, only Dir is used
 	SearchDirs func() ([]string, error)
+	// MaxScanTokenSize define maximum line entry size.
+	MaxScanTokenSize int
 }
 
 // CheckAndSetDefaults checks and sets config defaults
@@ -85,6 +88,9 @@ func (cfg *FileLogConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.UIDGenerator == nil {
 		cfg.UIDGenerator = utils.NewRealUID()
+	}
+	if cfg.MaxScanTokenSize == 0 {
+		cfg.MaxScanTokenSize = bufio.MaxScanTokenSize
 	}
 	return nil
 }
@@ -153,6 +159,21 @@ func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent
 		return trace.NotFound(
 			"file log is not found due to permission or disk issue")
 	}
+
+	if len(line) > l.MaxScanTokenSize {
+		switch {
+		case canReduceMessageSize(event):
+			line, err = l.trimSizeAndMarshal(event)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		default:
+			fields := log.Fields{"event_type": event.GetType(), "event_size": len(line)}
+			l.WithFields(fields).Warnf("Got a event that exeeded max allowed size.")
+			return trace.BadParameter("event size %q exceeds max entry size %q", len(line), l.MaxScanTokenSize)
+		}
+	}
+
 	// log it to the main log file:
 	_, err = fmt.Fprintln(l.file, string(line))
 	return trace.ConvertSystemError(err)
@@ -197,6 +218,31 @@ func (l *FileLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 		fmt.Fprintln(l.file, string(line))
 	}
 	return nil
+}
+
+func canReduceMessageSize(event apievents.AuditEvent) bool {
+	_, ok := event.(messageSizeTrimmer)
+	return ok
+}
+
+func (l *FileLog) trimSizeAndMarshal(event apievents.AuditEvent) ([]byte, error) {
+	s, ok := event.(messageSizeTrimmer)
+	if !ok {
+		return nil, trace.BadParameter("invalid event type %T", event)
+	}
+	sEvent := s.TrimToMaxSize(l.MaxScanTokenSize)
+	line, err := utils.FastMarshal(sEvent)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(line) > l.MaxScanTokenSize {
+		return nil, trace.BadParameter("event %T reached max FileLog entry size limit", event.Size())
+	}
+	return line, nil
+}
+
+type messageSizeTrimmer interface {
+	TrimToMaxSize(int) apievents.AuditEvent
 }
 
 // SearchEvents is a flexible way to find events.
@@ -585,10 +631,17 @@ func (l *FileLog) findInFile(path string, filter searchEventsFilter) ([]EventFie
 	}
 	defer lf.Close()
 
+	lineNo := 0
 	// for each line...
-	retval := []EventFields{}
+	var retval []EventFields
 	scanner := bufio.NewScanner(lf)
-	for lineNo := 0; scanner.Scan(); lineNo++ {
+
+	// If custom MaxScanTokenSize was used allocate a custom buffer with a new size.
+	if l.MaxScanTokenSize != bufio.MaxScanTokenSize {
+		buf := make([]byte, 0, l.MaxScanTokenSize)
+		scanner.Buffer(buf, l.MaxScanTokenSize)
+	}
+	for ; scanner.Scan(); lineNo++ {
 		// Optimization: to avoid parsing JSON unnecessarily, we filter out lines
 		// that don't contain the event type.
 		match := len(filter.eventTypes) == 0
@@ -605,7 +658,7 @@ func (l *FileLog) findInFile(path string, filter searchEventsFilter) ([]EventFie
 		// parse JSON on the line and compare event type field to what's
 		// in the query:
 		var ef EventFields
-		if err = json.Unmarshal(scanner.Bytes(), &ef); err != nil {
+		if err := utils.FastUnmarshal(scanner.Bytes(), &ef); err != nil {
 			l.Warnf("invalid JSON in %s line %d", path, lineNo)
 			continue
 		}
@@ -626,6 +679,18 @@ func (l *FileLog) findInFile(path string, filter searchEventsFilter) ([]EventFie
 
 		if accepted {
 			retval = append(retval, ef)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		switch {
+		case errors.Is(err, bufio.ErrTooLong):
+			fields := log.Fields{"path": path, "line": lineNo}
+			l.WithFields(fields).
+				Warnf("FileLog contains very large entries. Scan operation will return partial result.")
+		default:
+			l.WithError(err).Errorf("Failed to scan AuditLog.")
+
 		}
 	}
 

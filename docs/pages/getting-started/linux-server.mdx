@@ -8,14 +8,6 @@ This tutorial will guide you through the steps needed to install and run
 Teleport (=teleport.version=) on a Linux machine, then show you how to use
 Teleport to configure access to resources.
 
-<Details scopeOnly={true} scope={["cloud"]} title="Teleport Cloud">
-This guide deploys the Teleport Auth Service and Proxy Service, which are fully managed in Teleport Cloud. If you are a Teleport Cloud customer, we recommend following our guides for deploying specific services on your Teleport Nodes. Here are some examples:
-
-- [Application Access](../application-access/getting-started.mdx)
-- [Database Access](../database-access/getting-started.mdx)
-- [Server Access](../server-access/getting-started.mdx)
-</Details>
-
 We will run the following Teleport services:
 
 - **Teleport Auth Service:** The certificate authority for your cluster. It
@@ -32,6 +24,8 @@ We will run the following Teleport services:
   and other features.
 
 (!docs/pages/includes/permission-warning.mdx!)
+
+(!docs/pages/includes/cloud/call-to-action.mdx!)
 
 ## Prerequisites
 
@@ -169,10 +163,10 @@ app_service:
       public_addr: "demo.teleport.example.com"
 ```
 
-## Start Teleport
+### Start Teleport
 
 On your Linux machine, run the following command to start the `teleport` daemon
-(this depends on how you installed Telport earlier).
+(this depends on how you installed Teleport earlier).
 
 <Tabs>
   <TabItem label="Package manager RPM/DEB">
@@ -193,7 +187,7 @@ You can access Teleport's Web UI via HTTPS at the domain you created earlier
 (e.g., `https://teleport.example.com`). You should see a welcome screen similar
 to the following:
 
-![Teleport User Registration](../../img/quickstart/login.png)
+![Teleport Welcome Screen](../../img/quickstart/welcome.png)
 
 ## Step 4/6. Create a Teleport user and set up two-factor authentication
 
@@ -262,6 +256,7 @@ Install `tsh` on your local machine:
     ```
 
     <Admonition type="note">
+
       The Teleport package in Homebrew is not maintained by Teleport and we can't
       guarantee its reliability or security. We recommend the use of our [own Teleport packages](https://goteleport.com/teleport/download?os=mac).
 
@@ -269,6 +264,7 @@ Install `tsh` on your local machine:
       `tctl` are compatible with the versions you run server-side. Homebrew usually
       ships the latest release of Teleport, which may be incompatible with older
       versions. See our [compatibility policy](../setup/operations/upgrading.mdx#component-compatibility) for details.
+
     </Admonition>
   </TabItem>
 
@@ -383,3 +379,4 @@ Teleport tasks, such as:
 ## Further reading
 
 - How Let's Encrypt uses the [ACME protocol](https://letsencrypt.org/how-it-works/) to issue certificates
+

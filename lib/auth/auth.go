@@ -20,7 +20,6 @@ limitations under the License.
 // * Authority server itself that implements signing and acl logic
 // * HTTP server wrapper for authority server
 // * HTTP client wrapper
-//
 package auth
 
 import (
@@ -50,9 +49,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	saml2 "github.com/russellhaering/gosaml2"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -60,6 +59,8 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -68,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -151,6 +153,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.KeyStoreConfig.HostUUID == "" {
 		cfg.KeyStoreConfig.HostUUID = cfg.HostUUID
 	}
+	if cfg.TraceClient == nil {
+		cfg.TraceClient = tracing.NewNoopClient()
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -193,7 +198,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			Events:               cfg.Events,
 			WindowsDesktops:      cfg.WindowsDesktops,
 		},
-		keyStore: keyStore,
+		keyStore:    keyStore,
+		traceClient: cfg.TraceClient,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -296,8 +302,8 @@ var (
 // Server keeps the cluster together. It acts as a certificate authority (CA) for
 // a cluster and:
 //   - generates the keypair for the node it's running on
-//	 - invites other SSH nodes to a cluster, by issuing invite tokens
-//	 - adds other SSH nodes to a cluster, by checking their token and signing their keys
+//   - invites other SSH nodes to a cluster, by issuing invite tokens
+//   - adds other SSH nodes to a cluster, by checking their token and signing their keys
 //   - same for users and their sessions
 //   - checks public keys to see if they're signed by it (can be trusted or not)
 type Server struct {
@@ -351,6 +357,10 @@ type Server struct {
 
 	// lockWatcher is a lock watcher, used to verify cert generation requests.
 	lockWatcher *services.LockWatcher
+
+	// traceClient is used to forward spans to the upstream collector for components
+	// within the cluster that don't have a direct connection to said collector
+	traceClient otlptrace.Client
 }
 
 // SetCache sets cache used by auth server
@@ -405,7 +415,10 @@ func (a *Server) runPeriodicOperations() {
 		Duration: apidefaults.ServerKeepAliveTTL() * 2,
 		Jitter:   utils.NewSeventhJitter(),
 	})
-	promTicker := time.NewTicker(defaults.PrometheusScrapeInterval)
+	promTicker := interval.New(interval.Config{
+		Duration: defaults.PrometheusScrapeInterval,
+		Jitter:   utils.NewSeventhJitter(),
+	})
 	missedKeepAliveCount := 0
 	defer ticker.Stop()
 	defer heartbeatCheckTicker.Stop()
@@ -435,7 +448,7 @@ func (a *Server) runPeriodicOperations() {
 			}
 			// Update prometheus gauge
 			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
-		case <-promTicker.C:
+		case <-promTicker.Next():
 			a.updateVersionMetrics()
 		}
 	}
@@ -444,42 +457,33 @@ func (a *Server) runPeriodicOperations() {
 // updateVersionMetrics leverages the cache to report all versions of teleport servers connected to the
 // cluster via prometheus metrics
 func (a *Server) updateVersionMetrics() {
-	hostID := make(map[string]struct{})
+	const resourceLimit = 1000
+	hostID := make(map[string]bool)
 	versionCount := make(map[string]int)
 
 	// Nodes, Proxies, Auths, KubeServices, and WindowsDesktopServices use the UUID as the name field where
 	// DB and App store it in the spec. Check expiry due to DynamoDB taking up to 48hr to expire from backend
 	// and then store hostID and version count information.
-	serverCheck := func(server interface{}) {
-		type serverKubeWindows interface {
-			Expiry() time.Time
-			GetName() string
-			GetTeleportVersion() string
-		}
-		type appDB interface {
-			serverKubeWindows
-			GetHostID() string
+	resourceCheck := func(resource types.Resource) {
+		if resource.Expiry().Before(a.clock.Now()) {
+			return
 		}
 
-		// appDB needs to be first as it also matches the serverKubeWindows interface
-		if a, ok := server.(appDB); ok {
-			if a.Expiry().Before(time.Now()) {
-				return
-			}
-			if _, present := hostID[a.GetHostID()]; !present {
-				hostID[a.GetHostID()] = struct{}{}
-				versionCount[a.GetTeleportVersion()]++
-			}
-		} else if s, ok := server.(serverKubeWindows); ok {
-			if s.Expiry().Before(time.Now()) {
-				return
-			}
-			if _, present := hostID[s.GetName()]; !present {
-				hostID[s.GetName()] = struct{}{}
-				versionCount[s.GetTeleportVersion()]++
-			}
+		id := resource.GetName()
+		if r, ok := resource.(interface{ GetHostID() string }); ok {
+			id = r.GetHostID()
+		}
+
+		if hostID[id] {
+			return
+		}
+
+		if r, ok := resource.(interface{ GetTeleportVersion() string }); ok {
+			hostID[id] = true
+			versionCount[r.GetTeleportVersion()]++
 		}
 	}
+
 	client := a.GetCache()
 
 	proxyServers, err := client.GetProxies()
@@ -487,7 +491,7 @@ func (a *Server) updateVersionMetrics() {
 		log.Debugf("Failed to get Proxies for teleport_registered_servers metric: %v", err)
 	}
 	for _, proxyServer := range proxyServers {
-		serverCheck(proxyServer)
+		resourceCheck(proxyServer)
 	}
 
 	authServers, err := client.GetAuthServers()
@@ -495,31 +499,52 @@ func (a *Server) updateVersionMetrics() {
 		log.Debugf("Failed to get Auth servers for teleport_registered_servers metric: %v", err)
 	}
 	for _, authServer := range authServers {
-		serverCheck(authServer)
+		resourceCheck(authServer)
 	}
 
-	servers, err := client.GetNodes(a.closeCtx, apidefaults.Namespace)
-	if err != nil {
-		log.Debugf("Failed to get Nodes for teleport_registered_servers metric: %v", err)
-	}
-	for _, server := range servers {
-		serverCheck(server)
+	// retrieve nodes in batches to prevent excessive memory consumption
+	for ok, startKey := true, ""; ok; ok = startKey != "" {
+		req := proto.ListNodesRequest{
+			Namespace: apidefaults.Namespace,
+			Limit:     resourceLimit,
+			StartKey:  startKey,
+		}
+
+		servers, nextKey, err := client.ListNodes(a.closeCtx, req)
+		if err != nil {
+			log.Debugf("Failed to get Nodes for teleport_registered_servers metric :%v", err)
+			startKey = ""
+			continue
+		}
+
+		for _, server := range servers {
+			resourceCheck(server)
+		}
+
+		startKey = nextKey
 	}
 
-	dbs, err := client.GetDatabaseServers(a.closeCtx, apidefaults.Namespace)
-	if err != nil {
-		log.Debugf("Failed to get Database servers for teleport_registered_servers metric: %v", err)
-	}
-	for _, db := range dbs {
-		serverCheck(db)
-	}
+	// retrieve db servers and app servers in batches to prevent excessive memory consumption
+	for _, kind := range []string{types.KindDatabaseServer, types.KindAppServer} {
+		for ok, startKey := true, ""; ok; ok = startKey != "" {
+			resources, nextKey, err := client.ListResources(a.closeCtx, proto.ListResourcesRequest{
+				ResourceType: kind,
+				Namespace:    apidefaults.Namespace,
+				Limit:        resourceLimit,
+				StartKey:     startKey,
+			})
+			if err != nil {
+				log.Debugf("Failed to get %q for teleport_registered_servers  metric: %v", kind, err)
+				startKey = ""
+				continue
+			}
 
-	apps, err := client.GetApplicationServers(a.closeCtx, apidefaults.Namespace)
-	if err != nil {
-		log.Debugf("Failed to get Application servers for teleport_registered_servers metric: %v", err)
-	}
-	for _, app := range apps {
-		serverCheck(app)
+			for _, resource := range resources {
+				resourceCheck(resource)
+			}
+
+			startKey = nextKey
+		}
 	}
 
 	kubeServices, err := client.GetKubeServices(a.closeCtx)
@@ -527,7 +552,7 @@ func (a *Server) updateVersionMetrics() {
 		log.Debugf("Failed to get Kube services for teleport_registered_servers metric: %v", err)
 	}
 	for _, kubeService := range kubeServices {
-		serverCheck(kubeService)
+		resourceCheck(kubeService)
 	}
 
 	windowsServices, err := client.GetWindowsDesktopServices(a.closeCtx)
@@ -535,7 +560,7 @@ func (a *Server) updateVersionMetrics() {
 		log.Debugf("Failed to get Window Desktop Services for teleport_registered_servers metric: %v", err)
 	}
 	for _, windowsService := range windowsServices {
-		serverCheck(windowsService)
+		resourceCheck(windowsService)
 	}
 
 	// reset the gauges so that any versions that fall off are removed from exported metrics
@@ -1239,12 +1264,12 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 
 // PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is
 // already checked before issuing the second factor challenge
-func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (types.WebSession, error) {
+func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identity tlsca.Identity) (types.WebSession, error) {
 	roles, traits, err := services.ExtractFromIdentity(a, identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := a.NewWebSession(types.NewWebSessionRequest{
+	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:           user,
 		Roles:          roles,
 		Traits:         traits,
@@ -1253,7 +1278,7 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (t
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.upsertWebSession(context.TODO(), user, sess); err != nil {
+	if err := a.upsertWebSession(ctx, user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess.WithoutSecrets(), nil
@@ -1853,8 +1878,8 @@ func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response
 //
 // If there is a switchback request, the roles will switchback to user's default roles and
 // the expiration time is derived from users recently logged in time.
-func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (types.WebSession, error) {
-	prevSession, err := a.GetWebSession(context.TODO(), types.GetWebSessionRequest{
+func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identity tlsca.Identity) (types.WebSession, error) {
+	prevSession, err := a.GetWebSession(ctx, types.GetWebSessionRequest{
 		User:      req.User,
 		SessionID: req.PrevSessionID,
 	})
@@ -1918,7 +1943,7 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 	}
 
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
-	sess, err := a.NewWebSession(types.NewWebSessionRequest{
+	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:           req.User,
 		Roles:          roles,
 		Traits:         traits,
@@ -1932,7 +1957,9 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (t
 	// Keep preserving the login time.
 	sess.SetLoginTime(prevSession.GetLoginTime())
 
-	if err := a.upsertWebSession(context.TODO(), req.User, sess); err != nil {
+	sess.SetConsumedAccessRequestID(req.AccessRequestID)
+
+	if err := a.upsertWebSession(ctx, req.User, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1977,12 +2004,12 @@ func (a *Server) getRolesAndExpiryFromAccessRequest(user, accessRequestID string
 
 // CreateWebSession creates a new web session for user without any
 // checks, is used by admins
-func (a *Server) CreateWebSession(user string) (types.WebSession, error) {
+func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
 	u, err := a.GetUser(user, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := a.NewWebSession(types.NewWebSessionRequest{
+	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:      user,
 		Roles:     u.GetRoles(),
 		Traits:    u.GetTraits(),
@@ -1991,7 +2018,7 @@ func (a *Server) CreateWebSession(user string) (types.WebSession, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.upsertWebSession(context.TODO(), user, sess); err != nil {
+	if err := a.upsertWebSession(ctx, user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil
@@ -2358,7 +2385,7 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 }
 
 // NewWebSession creates and returns a new web session for the specified request
-func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession, error) {
+func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
 	user, err := a.GetUser(req.User, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2368,7 +2395,7 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 		return nil, trace.Wrap(err)
 	}
 
-	netCfg, err := a.GetClusterNetworkingConfig(context.TODO())
+	netCfg, err := a.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2763,52 +2790,58 @@ func (a *Server) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]t
 	return a.GetCache().ListNodes(ctx, req)
 }
 
-// NodePageFunc is a function to run on each page iterated over.
-type NodePageFunc func(next []types.Server) (stop bool, err error)
-
-// IterateNodePages can be used to iterate over pages of nodes.
-func (a *Server) IterateNodePages(ctx context.Context, req proto.ListNodesRequest, f NodePageFunc) (string, error) {
+// IterateNodes can be used to iterate over pages of nodes.
+func (a *Server) IterateNodes(ctx context.Context, req proto.ListNodesRequest, f func(types.Server) error) error {
 	for {
 		nextPage, nextKey, err := a.ListNodes(ctx, req)
 		if err != nil {
-			return "", trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
-		stop, err := f(nextPage)
-		if err != nil {
-			return "", trace.Wrap(err)
+		for _, srv := range nextPage {
+			if err := f(srv); err != nil {
+				if errors.Is(err, ErrDone) {
+					return nil
+				}
+				return trace.Wrap(err)
+			}
 		}
 
 		// Iterator stopped before end of pages or
 		// there are no more pages, return nextKey
-		if stop || nextKey == "" {
-			return nextKey, nil
+		if nextKey == "" {
+			return nil
 		}
 
 		req.StartKey = nextKey
 	}
 }
 
-// ResourcePageFunc is a function to run on each page iterated over.
-type ResourcePageFunc func(next []types.Resource) (stop bool, err error)
+// ErrDone indicates that resource iteration is complete
+var ErrDone = errors.New("done iterating")
 
-// IterateResourcePages can be used to iterate over pages of resources.
-func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourcesRequest, f ResourcePageFunc) (string, error) {
+// IterateResources loads all resources matching the provided request and passes them one by one to the provided
+// callback function. To stop iteration callers may return ErrDone from the callback function, which will result in
+// a nil return from IterateResources. Any other errors returned from the callback function cause iteration to stop
+// and the error to be returned.
+func (a *Server) IterateResources(ctx context.Context, req proto.ListResourcesRequest, f func(resource types.Resource) error) error {
 	for {
-		nextPage, nextKey, err := a.ListResources(ctx, req)
+		resources, nextKey, err := a.ListResources(ctx, req)
 		if err != nil {
-			return "", trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
-		stop, err := f(nextPage)
-		if err != nil {
-			return "", trace.Wrap(err)
+		for _, resource := range resources {
+			if err := f(resource); err != nil {
+				if errors.Is(err, ErrDone) {
+					return nil
+				}
+				return trace.Wrap(err)
+			}
 		}
 
-		// Iterator stopped before end of pages or
-		// there are no more pages, return nextKey
-		if stop || nextKey == "" {
-			return nextKey, nil
+		if nextKey == "" {
+			return nil
 		}
 
 		req.StartKey = nextKey

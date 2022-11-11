@@ -10,17 +10,16 @@ Here are the most common scenarios:
 - Improve the security of your system and prevent one successful phishing attack from compromising your system.
 - Satisfy FedRAMP AC-3 Dual authorization control that requires approval of two authorized individuals.
 
-Let's set up Teleport's access requests to require the approval of two team members
-for a privileged role `dbadmin`.
+In this guide, we will set up Teleport's access requests to require the approval
+of two team members for a privileged role `dbadmin`.
 
-<Notice
-  type="danger"
-  scope="oss"
->
+<ScopedBlock scope="oss">
+
   This guide requires a commercial edition of Teleport. The open source
   edition of Teleport only supports [GitHub](../../setup/admin/github-sso.mdx) as
   an SSO provider.
-</Notice>
+
+</ScopedBlock>
 
 <Admonition title="Note" type="tip">
   The steps below describe how to use Teleport with Mattermost. You can also [integrate with many other providers](../../enterprise/workflow/index.mdx).

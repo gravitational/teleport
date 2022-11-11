@@ -5,14 +5,9 @@ h1: Running Teleport Enterprise in High Availability mode on AWS
 ---
 
 This guide is designed to accompany our [reference Terraform code](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform/ha-autoscale-cluster#terraform-based-provisioning-example-amazon-single-ami)
-and describe how to use and administrate the resulting Teleport deployment.
+and describe how to manage the resulting Teleport deployment.
 
-<Details scope={["cloud"]} scopeOnly={true} opened={true} title="Teleport Cloud">
-Our reference Terraform code deploys self-hosted instances of the Teleport Auth Service and Proxy Service. Since Teleport Cloud manages these services for you, users interested in Terraform should consult the following guides instead of this one:
-
-- To get started with Teleport and Terraform: [Terraform Provider](../guides/terraform-provider.mdx)
-- For a full reference: [Terraform Provider Resources](../reference/terraform-provider.mdx)
-</Details>
+(!docs/pages/includes/cloud/call-to-action.mdx!)
 
 ## Prerequisites
 
@@ -526,7 +521,7 @@ $ tsh ssh root@ip-172-31-11-69-ec2-internal
   You are using LetsEncrypt if your `use_acm` variable is set to `"false"`.
 </Admonition>
 
-#### Auth service
+#### Auth Service
 
 ```code
 $ systemctl status teleport-auth.service
@@ -541,7 +536,7 @@ $ systemctl status teleport-auth.service
 # Mar 05 18:04:39 ip-172-31-0-196.ec2.internal /usr/bin/teleport[3766]: INFO [CA]        Generating TLS certificate {0x3767920 0xc00155d200 CN=teleport-admin,O=admin,POSTALCODE={\"kubernetes_groups\":null\,\"logins\":null},STREET=,L=root 2020-03-06 06:04:39.844777551 +0000 UTC []}. common_name:teleport-admin dns_name...
 ```
 
-You can get detailed logs for the Teleport auth servers using the `journalctl` command:
+You can get detailed logs for the Teleport Auth Service using the `journalctl` command:
 
 ```code
 $ journalctl -u teleport-auth.service
@@ -558,7 +553,7 @@ $ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR
 
 You can run `tctl` commands on **any** of the auth instances connected to your cluster, however.
 
-#### Proxy service
+#### Proxy Service
 
 ```code
 $ systemctl status teleport-proxy.service
@@ -574,7 +569,7 @@ $ systemctl status teleport-proxy.service
 # Mar 05 20:58:50 ip-172-31-2-109.ec2.internal /usr/bin/teleport[4514]: ERRO             read tcp 172.31.2.109:3023->172.31.2.143:38011: read: connection reset by peer
 ```
 
-You can get detailed logs for the Teleport proxy service using the `journalctl` command:
+You can get detailed logs for the Teleport Proxy Service using the `journalctl` command:
 
 ```code
 $ journalctl -u teleport-proxy.service
@@ -589,7 +584,7 @@ $ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR
 # 172.31.3.215
 ```
 
-#### Node service
+#### Node Service
 
 ```code
 $ systemctl status teleport-node.service
@@ -605,7 +600,7 @@ $ systemctl status teleport-node.service
 # Mar 05 17:18:25 ip-172-31-11-69.ec2.internal /usr/bin/teleport[4456]: INFO [AUDIT:1]   Setting directory /var/lib/teleport/log/upload/sessions owner...o:1639
 ```
 
-You can get detailed logs for the Teleport node service using the `journalctl` command:
+You can get detailed logs for the Teleport Node Service using the `journalctl` command:
 
 ```code
 $ journalctl -u teleport-node.service
@@ -619,7 +614,7 @@ $ journalctl -u teleport-node.service
 
 When using ACM, the service name for the proxy is different (`teleport-proxy-acm.service` vs `teleport-proxy.service`).
 
-#### Auth service
+#### Auth Service
 
 ```code
 $ systemctl status teleport-auth.service
@@ -634,7 +629,7 @@ $ systemctl status teleport-auth.service
 # Mar 05 18:04:39 ip-172-31-0-196.ec2.internal /usr/bin/teleport[3766]: INFO [CA]        Generating TLS certificate {0x3767920 0xc00155d200 CN=teleport-admin,O=admin,POSTALCODE={\"kubernetes_groups\":null\,\"logins\":null},STREET=,L=root 2020-03-06 06:04:39.844777551 +0000 UTC []}. common_name:teleport-admin dns_name...
 ```
 
-You can get detailed logs for the Teleport auth server using the `journalctl` command:
+You can get detailed logs for the Teleport Auth Service using the `journalctl` command:
 
 ```code
 $ journalctl -u teleport-auth.service
@@ -651,7 +646,7 @@ $ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR
 
 You can run `tctl` commands on **any** of the auth instances connected to your cluster, however.
 
-#### Proxy service (ACM)
+#### Proxy Service (ACM)
 
 ```code
 $ systemctl status teleport-proxy-acm.service
@@ -667,7 +662,7 @@ $ systemctl status teleport-proxy-acm.service
 # Mar 05 20:58:50 ip-172-31-2-109.ec2.internal /usr/bin/teleport[4514]: ERRO             read tcp 172.31.2.109:3023->172.31.2.143:38011: read: connection reset by peer
 ```
 
-You can get detailed logs for the Teleport proxy service using the `journalctl` command:
+You can get detailed logs for the Teleport Proxy Service using the `journalctl` command:
 
 ```code
 $ journalctl -u teleport-proxy-acm.service
@@ -682,7 +677,7 @@ $ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR
 # 172.31.3.215
 ```
 
-#### Node service
+#### Node Service
 
 ```code
 $ systemctl status teleport-node.service
@@ -698,7 +693,7 @@ $ systemctl status teleport-node.service
 # Mar 05 17:18:25 ip-172-31-11-69.ec2.internal /usr/bin/teleport[4456]: INFO [AUDIT:1]   Setting directory /var/lib/teleport/log/upload/sessions owner...o:1639
 ```
 
-You can get detailed logs for the Teleport node service using the `journalctl` command:
+You can get detailed logs for the Teleport Node Service using the `journalctl` command:
 
 ```code
 $ journalctl -u teleport-node.service
@@ -727,7 +722,7 @@ $ aws ssm get-parameter --region ${TF_VAR_region} --name "/teleport/${TF_VAR_clu
 
 You should use this so that nodes can validate the auth server's identity when joining your cluster.
 
-### Getting the node join token
+### Getting the Node join token
 
 You can use this command to get a join token for your Teleport cluster:
 
@@ -738,26 +733,26 @@ $ aws ssm get-parameter --region ${TF_VAR_region} --name "/teleport/${TF_VAR_clu
 
 You can also generate a Node join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../admin/adding-nodes.mdx).
 
-### Joining nodes via the Teleport auth server
+### Joining Nodes via the Teleport Auth Service
 
-To join Teleport nodes in the same VPC via the auth server, you can find the hostname for the auth load balancer with
-this command:
+To join Teleport Nodes in the same VPC via the Auth Service, you can find the
+hostname for the Auth Service load balancer with this command:
 
 ```code
 $ aws elbv2 describe-load-balancers --names "${TF_VAR_cluster_name}-auth" --query "LoadBalancers[*].DNSName" --output text
 # example-cluster-auth-c5b0fc2764ee015b.elb.us-east-1.amazonaws.com
 ```
 
-With this method, the nodes should be configured like so:
+With this method, the Nodes should be configured like so:
 
 ```yaml
 auth_servers:
   - example-cluster-auth-c5b0fc2764ee015b.elb.us-east-1.amazonaws.com:3025
 ```
 
-### Joining nodes via Teleport IoT/node tunneling
+### Joining Nodes via Teleport IoT/Node tunneling
 
-To join Teleport nodes from outside the same VPC, you will either need to investigate VPC peering/gateways (out of scope
+To join Teleport Nodes from outside the same VPC, you will either need to investigate VPC peering/gateways (out of scope
 for this document) or join your nodes using [Teleport's node tunneling](../admin/adding-nodes.mdx) functionality.
 
 With this method, you can join the nodes using the public facing proxy address - `teleport.example.com:443` for our
@@ -768,9 +763,9 @@ auth_servers:
   - teleport.example.com:443
 ```
 
-### Trusted clusters
+### Trusted Clusters
 
-To add a trusted cluster, you'll need the hostname of the proxy load balancer. You can get it using this command:
+To add a Trusted Cluster, you'll need the hostname of the proxy load balancer. You can get it using this command:
 
 ```code
 $ aws elbv2 describe-load-balancers --names "${TF_VAR_cluster_name}-proxy" --query "LoadBalancers[*].DNSName" --output text

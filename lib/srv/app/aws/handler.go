@@ -18,26 +18,24 @@ package aws
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"net/http"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
-	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
-	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -142,7 +140,7 @@ func (s *SigningService) Handle(rw http.ResponseWriter, r *http.Request) {
 // 5) Sign HTTP request.
 // 6) Forward the signed HTTP request to the AWS API.
 func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
-	identity, err := getUserIdentityFromContext(req.Context())
+	sessionCtx, err := common.GetSessionContext(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -150,7 +148,7 @@ func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signedReq, err := s.prepareSignedRequest(req, resolvedEndpoint, identity)
+	signedReq, err := s.prepareSignedRequest(req, resolvedEndpoint, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -159,16 +157,6 @@ func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, trace.Wrap(err)
 	}
 	return resp, nil
-}
-
-func getUserIdentityFromContext(ctx context.Context) (*tlsca.Identity, error) {
-	ctxUser := ctx.Value(auth.ContextUser)
-	userI, ok := ctxUser.(auth.IdentityGetter)
-	if !ok {
-		return nil, trace.BadParameter("failed to get user identity")
-	}
-	identity := userI.GetIdentity()
-	return &identity, nil
 }
 
 func (s *SigningService) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {
@@ -187,7 +175,7 @@ func (s *SigningService) formatForwardResponseError(rw http.ResponseWriter, r *h
 
 // prepareSignedRequest creates a new HTTP request and rewrites the header from the original request and returns a new
 // HTTP request signed by STS AWS API.
-func (s *SigningService) prepareSignedRequest(r *http.Request, re *endpoints.ResolvedEndpoint, identity *tlsca.Identity) (*http.Request, error) {
+func (s *SigningService) prepareSignedRequest(r *http.Request, re *endpoints.ResolvedEndpoint, sessionCtx *common.SessionContext) (*http.Request, error) {
 	payload, err := awsutils.GetAndReplaceReqBody(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -199,7 +187,7 @@ func (s *SigningService) prepareSignedRequest(r *http.Request, re *endpoints.Res
 	}
 	rewriteHeaders(r, reqCopy)
 	// Sign the copy of the request.
-	signer := v4.NewSigner(s.getSigningCredentials(s.Session, identity))
+	signer := awsutils.NewSigner(s.getSigningCredentials(s.Session, sessionCtx), re.SigningName)
 	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), re.SigningName, re.SigningRegion, s.Clock.Now())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -220,13 +208,17 @@ func rewriteHeaders(r *http.Request, reqCopy *http.Request) {
 	reqCopy.Header.Del("Content-Length")
 }
 
-type getSigningCredentialsFunc func(c client.ConfigProvider, identity *tlsca.Identity) *credentials.Credentials
+type getSigningCredentialsFunc func(c client.ConfigProvider, sessionCtx *common.SessionContext) *credentials.Credentials
 
-func getAWSCredentialsFromSTSAPI(provider client.ConfigProvider, identity *tlsca.Identity) *credentials.Credentials {
-	return stscreds.NewCredentials(provider, identity.RouteToApp.AWSRoleARN,
+func getAWSCredentialsFromSTSAPI(provider client.ConfigProvider, sessionCtx *common.SessionContext) *credentials.Credentials {
+	return stscreds.NewCredentials(provider, sessionCtx.Identity.RouteToApp.AWSRoleARN,
 		func(cred *stscreds.AssumeRoleProvider) {
-			cred.RoleSessionName = identity.Username
-			cred.Expiry.SetExpiration(identity.Expires, 0)
+			cred.RoleSessionName = sessionCtx.Identity.Username
+			cred.Expiry.SetExpiration(sessionCtx.Identity.Expires, 0)
+
+			if externalID := sessionCtx.App.GetAWSExternalID(); externalID != "" {
+				cred.ExternalID = aws.String(externalID)
+			}
 		},
 	)
 }

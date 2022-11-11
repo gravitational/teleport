@@ -4,17 +4,45 @@ description: Getting started with Teleport - identity-aware access plane for SSH
 layout: tocless-doc
 ---
 
-<TileSet>
-  <Tile icon="server" title="Linux" href="./getting-started/linux-server.mdx">
-    Get started with Teleport on a standalone Linux server.
-  </Tile>
-  <Tile icon="bolt" title="Docker" href="./getting-started/docker-compose.mdx">
-    Try Teleport locally using Docker Compose.
-  </Tile>
-  <Tile icon="kubernetes" title="Kubernetes" href="./kubernetes-access/getting-started/local.mdx">
-    Get started with Teleport and Kubernetes.
-  </Tile>
-  <Tile icon="cloud" title="Cloud" href="https://goteleport.com/signup">
-    Try Teleport hosted by us in the cloud for free.
-  </Tile>
-</TileSet>
+Follow these guides to get started using Teleport.
+
+## Try a lab on your local machine
+
+- [Browser Lab](https://goteleport.com/labs): Try Teleport using our guided interactive labs.
+- [Docker Compose Lab](./getting-started/docker-compose.mdx): Try Teleport locally using Docker Compose.
+- [Kubernetes Lab](./getting-started/local-kubernetes.mdx): See how Teleport runs on Kubernetes with this local lab.
+
+## Deploy to your infrastructure
+
+Not sure which edition of Teleport is right for you? View our [comparison chart](./faq.mdx#how-is-open-source-different-from-enterprise).
+
+<Tabs>
+<TabItem scope="oss" label="Open Source Teleport">
+
+Host your own Teleport deployment.
+
+- [Linux Server](./getting-started/linux-server.mdx): Learn how to host your own open source Teleport deployment on a standalone Linux server.
+- [Kubernetes](./getting-started/kubernetes-cluster.mdx): Learn how to host your own open source Teleport deployment on Kubernetes.
+
+</TabItem>
+<TabItem scope="cloud" label="Teleport Cloud">
+
+Teleport Cloud is a deployment of the Auth Service and Proxy Service,
+managed by a dedicated team at Teleport.
+
+- [Learn More](./cloud/getting-started.mdx): Learn how to start using Teleport Cloud.
+- [Start your Free Trial](https://goteleport.com/signup): Try Teleport hosted by us in the cloud for free.
+
+</TabItem>
+<TabItem scope="enterprise" label="Teleport Enterprise">
+
+  Get started with a self-hosted Teleport Enterprise deployment, which gives you
+  more advanced features and full customization.
+
+- [Getting Started](./enterprise/getting-started.mdx): Learn how to deploy Teleport Enterprise.
+- [Kubernetes](./getting-started/kubernetes-cluster.mdx): Learn how to host your Teleport Enterprise deployment on Kubernetes.
+
+</TabItem>
+</Tabs>
+
+

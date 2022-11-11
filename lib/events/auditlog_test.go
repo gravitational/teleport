@@ -20,13 +20,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 
 	"github.com/gravitational/teleport"
@@ -462,6 +465,54 @@ func (a *AuditTestSuite) TestLegacyHandler(c *check.C) {
 
 	err = compare()
 	c.Assert(err, check.IsNil)
+}
+
+func TestConcurrentStreaming(t *testing.T) {
+	uploader := NewMemoryUploader()
+	alog, err := NewAuditLog(AuditLogConfig{
+		DataDir:        t.TempDir(),
+		RecordSessions: true,
+		Clock:          clockwork.NewFakeClock(),
+		ServerID:       "remote",
+		UploadHandler:  uploader,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { alog.Close() })
+
+	ctx := context.Background()
+	sid := session.ID("abc123")
+
+	// upload a bogus session so that we can try to stream its events
+	// (this is not valid protobuf, so the stream is not expected to succeed)
+	_, err = uploader.Upload(ctx, sid, io.NopCloser(strings.NewReader(`asdfasdfasdfasdfasdef`)))
+	require.NoError(t, err)
+
+	// run multiple concurrent streams, which forces the second one to wait
+	// on the download that the first one started
+	streams := 2
+	errors := make(chan error, streams)
+	for i := 0; i < streams; i++ {
+		go func() {
+			eventsC, errC := alog.StreamSessionEvents(ctx, sid, 0)
+			for {
+				select {
+				case err := <-errC:
+					errors <- err
+				case _, ok := <-eventsC:
+					if !ok {
+						errors <- nil
+						return
+					}
+				}
+			}
+		}()
+	}
+
+	// This test just verifies that the streamer does not panic when multiple
+	// concurrent streams are waiting on the same download to complete.
+	for i := 0; i < streams; i++ {
+		<-errors
+	}
 }
 
 // TestExternalLog tests forwarding server and upload

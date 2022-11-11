@@ -146,14 +146,14 @@ information about the cluster.
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `-l, --login` | none | an identity name | the login identity that the Teleport User should use |
-| `--proxy` | none | `host:https_port[,ssh_proxy_port]` | set SSH proxy address |
-| `--user` | `$USER` | none | the Teleport User name |
-| `--ttl` | none | relative duration like 5s, 2m, or 3h | set time to live for a SSH session, session ttl unrestricted if unset {/* TODO Check this */} |
+| `-l, --login` | none | an identity name | The login identity that the Teleport user will use |
+| `--proxy` | none | `host:https_port[,ssh_proxy_port]` | Teleport Proxy Service address |
+| `--user` | `$USER` | none | The Teleport username |
+| `--ttl` | `720` (12 hours) | integer | Number of minutes a certificate issued for the `tsh` user will be valid for |
 | `-i, --identity` | none | **string** filepath | Identity file |
 | `--cert-format` | `file` | `file` or `openssh` | SSH certificate format |
-| `--insecure` | none | none | Do not verify server's certificate and host name. Use only in test environments |
-| `--auth` | `local` | any defined [authentication connector](./authentication.mdx) | Specify the type of authentication connector to use. |
+| `--insecure` | none | none | Do not verify the server's certificate and host name. Use only in test environments. |
+| `--auth` | `local` | Any defined [authentication connector](./authentication.mdx) | Specify the type of authentication connector to use. |
 | `--skip-version-check` | none | none | Skip version checking between server and client. |
 | `-d, --debug` | none | none | Verbose logging to stdout |
 | `-J, --jumphost` | none | A jump host | SSH jumphost |
@@ -168,7 +168,7 @@ $ tsh help
 
 ### tsh version
 
-Prints client version:
+Print the version of your `tsh` binary:
 
 ```code
 $ tsh version
@@ -205,6 +205,9 @@ $ tsh ssh [<flags>] <[user@]host> [<command>...]
 | `-o, --option` | `local` | | OpenSSH options in the format used in the configuration file |
 | `--enable-escape-sequences` | | | Enable support for SSH escape sequences. Type `~?` during an SSH session to list supported sequences. |
 | `--no-use-local-ssh-agent` | | | Do not load generated SSH certificates into the local ssh-agent (specified via `$SSH_AUTH_SOCK`). Useful when using `gpg-agent` or Yubikeys. You can also set the `TELEPORT_USE_LOCAL_SSH_AGENT` environment variable to `false` (default `true`) |
+| `-X, --x11-untrusted` | none | none | Requests untrusted (secure) X11 forwarding for this session. |
+| `-Y, --x11-trusted` | none | none | Requests trusted (insecure) X11 forwarding for this session. This can make your local machine vulnerable to attacks, use with caution. |
+| `--x11-untrusted-timeout` | 10m | duration | Sets a timeout for untrusted X11 forwarding, after which the client will reject any forwarding requests from the server. |
 
 #### Global flags
 
@@ -363,6 +366,12 @@ List cluster nodes:
 $ tsh ls [<flags>] [<label>]
 ```
 
+<Details title="Not seeing Nodes?" opened={false}>
+
+(!docs/pages/includes/node-logins.mdx!)
+
+</Details>
+
 {/* TODO: label? or labels? seems like it only supports one label at a time */}
 
 #### Arguments
@@ -471,7 +480,7 @@ $ tsh login [<flags>] [<cluster>]
 
 #### Arguments
 
-- `<cluster>` - the name of the cluster,  see [Trusted Cluster](../../setup/admin/trustedclusters.mdx#introduction) for more information.
+- `<cluster>` - the name of the cluster,  see [Trusted Cluster](../../setup/admin/trustedclusters.mdx) for more information.
 
 #### Flags
 
@@ -521,7 +530,7 @@ $ tsh --ttl=1 login
 # Login using the local Teleport 'admin' user:
 $ tsh --proxy=proxy.example.com --auth=local --user=admin login
 
-# Login using Github as an SSO provider, assuming the Github connector is called "github"
+# Login using GitHub as an SSO provider, assuming the GitHub connector is called "github"
 $ tsh --proxy=proxy.example.com --auth=github --user=admin login
 
 # Suppress the opening of the system default browser for external provider logins
@@ -651,7 +660,7 @@ Environment variables configure your tsh client and can help you avoid using fla
 
 | Environment Variable | Description | Example Value |
 | - | - | - |
-| TELEPORT_AUTH | Name of a defined SAML, OIDC, or Github auth connector | okta |
+| TELEPORT_AUTH | Name of a defined SAML, OIDC, or GitHub auth connector | okta |
 | TELEPORT_CLUSTER | Name of a Teleport root or leaf cluster | cluster.example.com |
 | TELEPORT_LOGIN | Login name to be used by default on the remote host | root |
 | TELEPORT_LOGIN_BIND_ADDR | Address in the form of host:port to bind to for login command webhook | host:port |
@@ -711,11 +720,11 @@ cluster. This can be done in three ways:
 Service signs an identity file when a user runs `tctl auth sign` or
 `tsh login --out=<output-path>`, and the user can include the path to the
 identity file in the `--identity` flag when running `tctl` commands.
-  
+
 When using the `--identity` flag, the user must provide the `--auth-server` flag
 with the address of an Auth Service or Proxy Service so `tctl` knows which
 cluster to authenticate to.
-  
+
 ### On the same host as the Teleport Auth Service
 
 If there is a Teleport configuration file on the host where `tctl` is run,
@@ -765,7 +774,7 @@ cluster. This can be done in two ways:
 Service signs an identity file when a user runs `tctl auth sign` or
 `tsh login --out=<output-path>`, and the user can include the path to the
 identity file in the `--identity` flag when running `tctl` commands.
-  
+
 When using the `--identity` flag, the user must alo provide the `--auth-server`
 flag with the address of an Auth Service or Proxy Service so `tctl` knows which
 cluster to authenticate to.
@@ -1386,7 +1395,7 @@ $ tctl top http://127.0.0.1:3000 5s
 
 ### tctl version
 
-Print cluster version:
+Print the version of your `tctl` binary:
 
 ```code
 tctl version
@@ -1408,7 +1417,7 @@ tctl access ls [--user <user> | --login <login> | --node <hostname>][<flags>]
 | - | - | - | - |
 | `--user` | none | existing user | Teleport user name |
 | `--login` | none | user login | Teleport user login |
-| `--node` | none | existing hostname | Teleport node hostname |
+| `--node` | none | existing hostname | Teleport Node hostname |
 | `--namespace` | default | existing namespace | Teleport namespace |
 
 #### Examples

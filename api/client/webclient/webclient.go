@@ -32,13 +32,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/utils"
-	"golang.org/x/net/http/httpproxy"
-
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/net/http/httpproxy"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // Config specifies information when building requests with the
@@ -62,6 +65,8 @@ type Config struct {
 	IgnoreHTTPProxy bool
 	// Timeout is a timeout for requests.
 	Timeout time.Duration
+	// TraceProvider is used to retrieve a Tracer for creating spans
+	TraceProvider oteltrace.TracerProvider
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -75,6 +80,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.Timeout == 0 {
 		c.Timeout = defaults.DefaultDialTimeout
+	}
+	if c.TraceProvider == nil {
+		c.TraceProvider = tracing.DefaultProvider()
 	}
 	return nil
 }
@@ -96,18 +104,24 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 		}
 	}
 	return &http.Client{
-		Transport: &transport,
-		Timeout:   cfg.Timeout,
+		Transport: otelhttp.NewTransport(
+			&transport,
+			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+		),
+		Timeout: cfg.Timeout,
 	}, nil
 }
 
 // doWithFallback attempts to execute an HTTP request using https, and then
 // fall back to plain HTTP under certain, very specific circumstances.
-//  * The caller must specifically allow it via the allowPlainHTTP parameter, and
-//  * The target host must resolve to the loopback address.
+//   - The caller must specifically allow it via the allowPlainHTTP parameter, and
+//   - The target host must resolve to the loopback address.
+//
 // If these conditions are not met, then the plain-HTTP fallback is not allowed,
 // and a the HTTPS failure will be considered final.
 func doWithFallback(clt *http.Client, allowPlainHTTP bool, extraHeaders map[string]string, req *http.Request) (*http.Response, error) {
+	span := oteltrace.SpanFromContext(req.Context())
+
 	// first try https and see how that goes
 	req.URL.Scheme = "https"
 	for k, v := range extraHeaders {
@@ -115,6 +129,7 @@ func doWithFallback(clt *http.Client, allowPlainHTTP bool, extraHeaders map[stri
 	}
 
 	log.Debugf("Attempting %s %s%s", req.Method, req.URL.Host, req.URL.Path)
+	span.AddEvent("sending https request")
 	resp, err := clt.Do(req)
 
 	// If the HTTPS succeeds, return that.
@@ -133,6 +148,7 @@ func doWithFallback(clt *http.Client, allowPlainHTTP bool, extraHeaders map[stri
 	// clear-text HTTP to see if that works.
 	req.URL.Scheme = "http"
 	log.Warnf("Request for %s %s%s falling back to PLAIN HTTP", req.Method, req.URL.Host, req.URL.Path)
+	span.AddEvent("falling back to http request")
 	resp, err = clt.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -150,9 +166,12 @@ func Find(cfg *Config) (*PingResponse, error) {
 	}
 	defer clt.CloseIdleConnections()
 
+	ctx, span := cfg.TraceProvider.Tracer("webclient").Start(cfg.Context, "webclient/Find")
+	defer span.End()
+
 	endpoint := fmt.Sprintf("https://%s/webapi/find", cfg.ProxyAddr)
 
-	req, err := http.NewRequestWithContext(cfg.Context, http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -167,6 +186,8 @@ func Find(cfg *Config) (*PingResponse, error) {
 	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	pr.Proxy.webAddr = cfg.ProxyAddr
 
 	return pr, nil
 }
@@ -183,12 +204,15 @@ func Ping(cfg *Config) (*PingResponse, error) {
 	}
 	defer clt.CloseIdleConnections()
 
+	ctx, span := cfg.TraceProvider.Tracer("webclient").Start(cfg.Context, "webclient/Ping")
+	defer span.End()
+
 	endpoint := fmt.Sprintf("https://%s/webapi/ping", cfg.ProxyAddr)
 	if cfg.ConnectorName != "" {
 		endpoint = fmt.Sprintf("%s/%s", endpoint, cfg.ConnectorName)
 	}
 
-	req, err := http.NewRequestWithContext(cfg.Context, http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -207,28 +231,12 @@ func Ping(cfg *Config) (*PingResponse, error) {
 	}
 	pr := &PingResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "cannot parse server response; is %q a Teleport server?", "https://"+cfg.ProxyAddr)
 	}
+
+	pr.Proxy.webAddr = cfg.ProxyAddr
 
 	return pr, nil
-}
-
-// GetTunnelAddr returns the tunnel address either set in an environment variable or retrieved from the web proxy.
-func GetTunnelAddr(cfg *Config) (string, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return "", trace.Wrap(err)
-	}
-	// If TELEPORT_TUNNEL_PUBLIC_ADDR is set, nothing else has to be done, return it.
-	if tunnelAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); tunnelAddr != "" {
-		return extractHostPort(tunnelAddr)
-	}
-
-	// Ping web proxy to retrieve tunnel proxy address.
-	pr, err := Find(cfg)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return tunnelAddr(cfg.ProxyAddr, pr.Proxy)
 }
 
 func GetMOTD(cfg *Config) (*MotD, error) {
@@ -238,9 +246,12 @@ func GetMOTD(cfg *Config) (*MotD, error) {
 	}
 	defer clt.CloseIdleConnections()
 
+	ctx, span := cfg.TraceProvider.Tracer("webclient").Start(cfg.Context, "webclient/GetMOTD")
+	defer span.End()
+
 	endpoint := fmt.Sprintf("https://%s/webapi/motd", cfg.ProxyAddr)
 
-	req, err := http.NewRequestWithContext(cfg.Context, http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -303,6 +314,8 @@ type ProxySettings struct {
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool `json:"tls_routing_enabled"`
+
+	webAddr string
 }
 
 // KubeProxySettings is kubernetes proxy settings
@@ -417,27 +430,33 @@ type GithubSettings struct {
 	Display string `json:"display"`
 }
 
-// The tunnel addr is retrieved in the following preference order:
-//  1. If proxy support ALPN listener where all services are exposed on single port return ProxyPublicAddr/ProxyAddr.
-//  2. Reverse Tunnel Public Address.
-//  3. SSH Proxy Public Address Host + Tunnel Port.
-//  4. HTTP Proxy Public Address Host + Tunnel Port.
-//  5. Proxy Address Host + Tunnel Port.
-func tunnelAddr(proxyAddr string, settings ProxySettings) (string, error) {
-	if settings.TLSRoutingEnabled {
-		return tunnelAddrForTLSRouting(proxyAddr, settings)
+func (ps *ProxySettings) TunnelAddr() (string, error) {
+	// If TELEPORT_TUNNEL_PUBLIC_ADDR is set, nothing else has to be done, return it.
+	if tunnelAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); tunnelAddr != "" {
+		addr, err := extractHostPort(tunnelAddr)
+		return addr, trace.Wrap(err)
+	}
+
+	addr, err := ps.tunnelProxyAddr()
+	return addr, trace.Wrap(err)
+}
+
+// tunnelProxyAddr returns the tunnel proxy address for the proxy settings.
+func (ps *ProxySettings) tunnelProxyAddr() (string, error) {
+	if ps.TLSRoutingEnabled {
+		return ps.tunnelAddrForTLSRouting(ps.webAddr)
 	}
 
 	// If a tunnel public address is set, nothing else has to be done, return it.
-	sshSettings := settings.SSH
+	sshSettings := ps.SSH
 	if sshSettings.TunnelPublicAddr != "" {
 		return extractHostPort(sshSettings.TunnelPublicAddr)
 	}
 
 	// Extract the port the tunnel server is listening on.
 	tunnelPort := strconv.Itoa(defaults.SSHProxyTunnelListenPort)
-	if sshSettings.TunnelListenAddr != "" {
-		if port, err := extractPort(sshSettings.TunnelListenAddr); err == nil {
+	if ps.SSH.TunnelListenAddr != "" {
+		if port, err := extractPort(ps.SSH.TunnelListenAddr); err == nil {
 			tunnelPort = port
 		}
 	}
@@ -445,19 +464,19 @@ func tunnelAddr(proxyAddr string, settings ProxySettings) (string, error) {
 	// If a tunnel public address has not been set, but a related HTTP or SSH
 	// public address has been set, extract the hostname but use the port from
 	// the tunnel listen address.
-	if sshSettings.SSHPublicAddr != "" {
-		if host, err := ExtractHost(sshSettings.SSHPublicAddr); err == nil {
+	if ps.SSH.SSHPublicAddr != "" {
+		if host, err := ExtractHost(ps.SSH.SSHPublicAddr); err == nil {
 			return net.JoinHostPort(host, tunnelPort), nil
 		}
 	}
-	if sshSettings.PublicAddr != "" {
-		if host, err := ExtractHost(sshSettings.PublicAddr); err == nil {
+	if ps.SSH.PublicAddr != "" {
+		if host, err := ExtractHost(ps.SSH.PublicAddr); err == nil {
 			return net.JoinHostPort(host, tunnelPort), nil
 		}
 	}
 
 	// If nothing is set, fallback to the address dialed with tunnel port.
-	host, err := ExtractHost(proxyAddr)
+	host, err := ExtractHost(ps.webAddr)
 	if err != nil {
 		return "", trace.Wrap(err, "failed to parse the given proxy address")
 	}
@@ -465,11 +484,11 @@ func tunnelAddr(proxyAddr string, settings ProxySettings) (string, error) {
 }
 
 // tunnelAddrForTLSRouting returns reverse tunnel proxy address for proxy supporting TLS Routing.
-func tunnelAddrForTLSRouting(proxyAddr string, settings ProxySettings) (string, error) {
-	if settings.SSH.PublicAddr != "" {
+func (ps *ProxySettings) tunnelAddrForTLSRouting(proxyAddr string) (string, error) {
+	if ps.SSH.PublicAddr != "" {
 		// Check if PublicAddr contains a port number.
-		if _, err := extractPort(settings.SSH.PublicAddr); err == nil {
-			return extractHostPort(settings.SSH.PublicAddr)
+		if _, err := extractPort(ps.SSH.PublicAddr); err == nil {
+			return extractHostPort(ps.SSH.PublicAddr)
 		}
 		// Get port number from proxyAddr or use default one.
 		port := strconv.Itoa(defaults.ProxyWebListenPort)
@@ -477,7 +496,7 @@ func tunnelAddrForTLSRouting(proxyAddr string, settings ProxySettings) (string, 
 			port = webPort
 		}
 
-		if host, err := ExtractHost(settings.SSH.PublicAddr); err == nil {
+		if host, err := ExtractHost(ps.SSH.PublicAddr); err == nil {
 			return net.JoinHostPort(host, port), nil
 		}
 	}

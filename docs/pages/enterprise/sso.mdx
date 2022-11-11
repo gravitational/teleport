@@ -4,32 +4,17 @@ description: How to set up single sign-on (SSO) for SSH using Gravitational Tele
 h1: Single Sign-On (SSO) for SSH
 ---
 
-Users of the Enterprise edition of Teleport can login with SSH, Kubernetes, Databases and Web applications
-through a Single Sign-On (SSO) provider used the rest of the organization.
+Users of the Enterprise edition of Teleport can log in to servers, Kubernetes
+clusters, databases, web applications, and Windows desktops through your
+organization's Single Sign-On (SSO) provider.
 
-<TileSet>
-  <Tile icon="bolt" title="Azure Active Directory (AD)" href="./sso/azuread.mdx">
-    Configure Azure Active Directory SSO for SSH, Kubernetes, Database and Web apps.
-  </Tile>
-  <Tile icon="bolt" title="Active Directory (ADFS)" href="./sso/adfs.mdx">
-    Configure Windows Active Directory SSO for SSH, Kubernetes, Database and Web apps.
-  </Tile>
-  <Tile icon="bolt" title="Google Workspace" href="./sso/google-workspace.mdx">
-    Configure Gsuite SSO for SSH, Kubernetes, Database and Web apps.
-  </Tile>
-  <Tile icon="bolt" title="GitLab" href="./sso/gitlab.mdx">
-    Configure Gitlab SSO for SSH, Kubernetes, Database and Web apps.
-  </Tile>
-  <Tile icon="bolt" title="OneLogin" href="./sso/one-login.mdx">
-    Configure OneLogin SSO for SSH, Kubernetes, Database and Web apps.
-  </Tile>
-  <Tile icon="bolt" title="OIDC" href="./sso/oidc.mdx">
-    Configure OIDC SSO for SSH, Kubernetes, Database and Web apps.
-  </Tile>
-  <Tile icon="bolt" title="Okta" href="./sso/okta.mdx">
-    Configure Okta SSO for SSH, Kubernetes, Database and Web apps.
-  </Tile>
-</TileSet>
+- [Azure Active Directory (AD)](./sso/azuread.mdx): Configure Azure Active Directory SSO for SSH, Kubernetes, databases, desktops and web apps.
+- [Active Directory (ADFS)](./sso/adfs.mdx): Configure Windows Active Directory SSO for SSH, Kubernetes, databases, desktops and web apps.
+- [Google Workspace](./sso/google-workspace.mdx): Configure Google Workspace SSO for SSH, Kubernetes, databases, desktops and web apps.
+- [GitLab](./sso/gitlab.mdx): Configure GitLab SSO for SSH, Kubernetes, databases, desktops and web apps.
+- [OneLogin](./sso/one-login.mdx): Configure OneLogin SSO for SSH, Kubernetes, databases, desktops and web apps.
+- [OIDC](./sso/oidc.mdx): Configure OIDC SSO for SSH, Kubernetes, databases, desktops and web apps.
+- [Okta](./sso/okta.mdx): Configure Okta SSO for SSH, Kubernetes, databases, desktops and web apps.
 
 ## How does SSO work?
 
@@ -111,11 +96,11 @@ spec:
 ```
 
 - See [examples/resources](https://github.com/gravitational/teleport/tree/master/examples/resources)
-  directory in the Teleport Github repository for examples of possible connectors.
+  directory in the Teleport GitHub repository for examples of possible connectors.
 - You may use `entity_descriptor_url`, in lieu of `entity_descriptor`, to fetch the entity descriptor from
   your IDP. Though, we recommend "pinning" the entity descriptor by including the XML rather than fetching from a URL.
 
-### User Logins
+### User logins
 
 Often it is required to restrict SSO users to their unique UNIX logins when they
 connect to Teleport nodes. To support this:
@@ -216,7 +201,7 @@ SAML and OIDC types:
 
 | Provider | YAML | Example |
 | - | - | - |
-| Github | `display: Github` | ![github](../../img/teleport-sso/github@2x.png) |
+| GitHub | `display: GitHub` | ![github](../../img/teleport-sso/github@2x.png) |
 | Microsoft | `display: Microsoft` | ![microsoft](../../img/teleport-sso/microsoft@2x.png) |
 | Google | `display: Google` | ![google](../../img/teleport-sso/google@2x.png) |
 | BitBucket | `display: Bitbucket` | ![bitbucket](../../img/teleport-sso/bitbucket@2x.png) |
@@ -237,5 +222,46 @@ must be able to:
 If something is not working, we recommend to:
 
 - Double-check the host names, tokens and TCP ports in a connector definition.
-- Look into Teleport's audit log for claim mapping problems. It is usually stored on the
-  auth server in the `/var/lib/teleport/log` directory.ad
+- Look into Teleport's audit log for claim mapping problems.
+
+### Using the Web UI
+
+If you get "access denied" or other login errors, the number one place to check is the Audit
+Log. You can access it in the **Activity** tab of the Teleport Web UI.
+
+Example of a user being denied because the role `clusteradmin` wasn't set up:
+
+```json
+{
+  "code": "T1001W",
+  "error": "role clusteradmin is not found",
+  "event": "user.login",
+  "method": "oidc",
+  "success": false,
+  "time": "2019-06-15T19:38:07Z",
+  "uid": "cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"
+}
+```
+
+### Teleport does not show the expected Nodes
+
+(!docs/pages/includes/node-logins.mdx!)
+
+When configuring SSO, ensure that the identity provider is populating each user's 
+traits correctly. For a user to see a Node in Teleport, the result of populating a
+ template variable in a role's `allow.logins` must match at least one of a user's
+ `traits.logins`.
+
+In this example a user will have usernames `ubuntu`, `debian` and usernames from the SSO trait `logins` for Nodes that have a `env: dev` label.  If the SSO trait username is `bob` then the usernames would include `ubuntu`, `debian`, and `bob`.
+
+```yaml
+kind: role
+metadata:
+  name: example-role
+spec:
+  allow:
+    logins: ['{{external.logins}}', ubuntu, debian]
+    node_labels:
+      'env': 'dev'
+version: v5
+```

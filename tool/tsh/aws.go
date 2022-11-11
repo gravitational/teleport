@@ -27,14 +27,15 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"sort"
 	"strings"
 	"time"
 
+	awsarn "github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -42,8 +43,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	awsarn "github.com/aws/aws-sdk-go/aws/arn"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 const (
@@ -199,14 +199,17 @@ func loadAWSAppCertificate(tc *client.TeleportClient, appName string) (tls.Certi
 	return cert, nil
 }
 
-func printArrayAs(arr []string, columnName string) {
-	sort.Strings(arr)
-	if len(arr) == 0 {
+func printAWSRoles(roles awsutils.Roles) {
+	if len(roles) == 0 {
 		return
 	}
-	t := asciitable.MakeTable([]string{columnName})
-	for _, v := range arr {
-		t.AddRow([]string{v})
+
+	roles.Sort()
+
+	t := asciitable.MakeTable([]string{"Role Name", "Role ARN"})
+	for _, role := range roles {
+		// Use role.Display for role names to match what AWS web console shows.
+		t.AddRow([]string{role.Display, role.ARN})
 	}
 	fmt.Println(t.AsBuffer().String())
 
@@ -222,56 +225,44 @@ func setFakeAWSEnvCredentials(accessKeyID, secretKey string) error {
 	return nil
 }
 
-func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus) (string, error) {
+func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus, app types.Application) (string, error) {
+	// Filter AWS roles by AWS account ID. If AWS account ID is empty, all
+	// roles are returned.
+	roles := awsutils.FilterAWSRoles(profile.AWSRolesARNs, app.GetAWSAccountID())
+
 	if cf.AWSRole == "" {
+		if len(roles) == 1 {
+			log.Infof("AWS Role %v is selected by default as it is the only role configured for this AWS app.", roles[0].Display)
+			return roles[0].ARN, nil
+		}
+
+		printAWSRoles(roles)
 		return "", trace.BadParameter("--aws-role flag is required")
 	}
-	for _, v := range profile.AWSRolesARNs {
-		if v == cf.AWSRole {
-			return v, nil
+
+	// Match by role ARN.
+	if awsarn.IsARN(cf.AWSRole) {
+		if role, found := roles.FindRoleByARN(cf.AWSRole); found {
+			return role.ARN, nil
 		}
+
+		printAWSRoles(roles)
+		return "", trace.NotFound("failed to find the %q role ARN", cf.AWSRole)
 	}
 
-	roleNameToARN := make(map[string]string)
-	for _, v := range profile.AWSRolesARNs {
-		arn, err := awsarn.Parse(v)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		// Example of the ANR Resource: 'role/EC2FullAccess' or 'role/path/to/customrole'
-		parts := strings.Split(arn.Resource, "/")
-		if len(parts) < 1 || parts[0] != "role" {
-			continue
-		}
-		roleName := strings.Join(parts[1:], "/")
-
-		if val, ok := roleNameToARN[roleName]; ok && cf.AWSRole == roleName {
-			return "", trace.BadParameter(
-				"provided role name %q is ambiguous between %q and %q ARNs, please specify full role ARN",
-				cf.AWSRole, val, arn.String())
-		}
-		roleNameToARN[roleName] = arn.String()
+	// Match by role name.
+	rolesMatched := roles.FindRolesByName(cf.AWSRole)
+	switch len(rolesMatched) {
+	case 1:
+		return rolesMatched[0].ARN, nil
+	case 0:
+		printAWSRoles(roles)
+		return "", trace.NotFound("failed to find the %q role name", cf.AWSRole)
+	default:
+		// Print roles matched the provided role name.
+		printAWSRoles(rolesMatched)
+		return "", trace.BadParameter("provided role name %q is ambiguous, please specify full role ARN", cf.AWSRole)
 	}
-
-	roleARN, ok := roleNameToARN[cf.AWSRole]
-	if !ok {
-		printArrayAs(profile.AWSRolesARNs, "Available Role ARNs")
-		printArrayAs(mapKeysToSlice(roleNameToARN), "Available Role Names")
-		inputType := "ARN"
-		if !awsarn.IsARN(cf.AWSRole) {
-			inputType = "name"
-		}
-		return "", trace.NotFound("failed to find the %q role %s", cf.AWSRole, inputType)
-	}
-	return roleARN, nil
-}
-
-func mapKeysToSlice(m map[string]string) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	return out
 }
 
 type tempSelfSignedLocalCert struct {

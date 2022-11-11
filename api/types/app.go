@@ -64,6 +64,8 @@ type Application interface {
 	IsAWSConsole() bool
 	// GetAWSAccountID returns value of label containing AWS account ID on this app.
 	GetAWSAccountID() string
+	// GetAWSExternalID returns the AWS External ID configured for this app.
+	GetAWSExternalID() string
 	// Copy returns a copy of this app resource.
 	Copy() *AppV3
 }
@@ -232,12 +234,31 @@ func (a *AppV3) GetRewrite() *Rewrite {
 
 // IsAWSConsole returns true if this app is AWS management console.
 func (a *AppV3) IsAWSConsole() bool {
-	return strings.HasPrefix(a.Spec.URI, constants.AWSConsoleURL)
+	// TODO(greedy52) support region based console URL like:
+	// https://us-east-1.console.aws.amazon.com/
+	for _, consoleURL := range []string{
+		constants.AWSConsoleURL,
+		constants.AWSUSGovConsoleURL,
+		constants.AWSCNConsoleURL,
+	} {
+		if strings.HasPrefix(a.Spec.URI, consoleURL) {
+			return true
+		}
+	}
+	return false
 }
 
 // GetAWSAccountID returns value of label containing AWS account ID on this app.
 func (a *AppV3) GetAWSAccountID() string {
 	return a.Metadata.Labels[constants.AWSAccountIDLabel]
+}
+
+// GetAWSExternalID returns the AWS External ID configured for this app.
+func (a *AppV3) GetAWSExternalID() string {
+	if a.Spec.AWS == nil {
+		return ""
+	}
+	return a.Spec.AWS.ExternalID
 }
 
 // String returns the app string representation.

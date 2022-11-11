@@ -72,7 +72,7 @@ Let's take a look at how each protocol Teleport supports implements TLS routing.
 ## SSH
 
 Teleport client `tsh`, when connecting to an SSH node, first dials Teleport
-proxy over TLS and requests `teleport-ssh-proxy` ALPN protocol.
+proxy over TLS and requests `teleport-proxy-ssh` ALPN protocol.
 
 No local proxy is started in this case as `tsh` uses this TLS connection as a
 transport to establish the SSH connection.
@@ -83,17 +83,17 @@ To support standard OpenSSH client, Teleport provides a `tsh proxy ssh` command
 which can be used as a `ProxyCommand`.
 
 Similarly to `tsh ssh`, `tsh proxy ssh` establishes a TLS tunnel to Teleport
-proxy with `teleport-ssh-proxy` ALPN protocol, which `ssh` then connects over.
+proxy with `teleport-proxy-ssh` ALPN protocol, which `ssh` then connects over.
 
 See the [OpenSSH client](../server-access/guides/openssh.mdx) guide for details on
 how it's configured.
 
 ## Reverse tunnels
 
-Reverse tunnel agents for Teleport node, application and database services, as
-well as for trusted clusters, open a TLS tunnel to the cluster's proxy with
-`teleport-reversetunnel` ALPN protocol and then dials SSH over it establishing
-the reverse tunnel connection.
+Reverse tunnel workers within the Teleport Node, Application and Database
+Services, as well as for Trusted Clusters, open a TLS tunnel to the cluster's
+Proxy Service with the `teleport-reversetunnel` ALPN protocol. The workers then
+dial SSH over the tunnel, establishing a secure connection.
 
 ## Kubernetes
 

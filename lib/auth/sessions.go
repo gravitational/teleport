@@ -196,7 +196,7 @@ func (s *Server) createWebSession(ctx context.Context, req types.NewWebSessionRe
 	// It's safe to extract the roles and traits directly from services.User
 	// because this occurs during the user creation process and services.User
 	// is not fetched from the backend.
-	session, err := s.NewWebSession(req)
+	session, err := s.NewWebSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -442,6 +442,18 @@ func TestConfigReading(t *testing.T) {
 			PublicAddr: apiutils.Strings([]string{"winsrv.example.com:3028", "no-port.winsrv.example.com"}),
 			Hosts:      apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
 		},
+		Tracing: TracingService{
+			EnabledFlag: "yes",
+			ExporterURL: "https://localhost:4318",
+			KeyPairs: []KeyPair{
+				{
+					PrivateKey:  "/etc/teleport/exporter.key",
+					Certificate: "/etc/teleport/exporter.crt",
+				},
+			},
+			CACerts:                []string{"/etc/teleport/exporter.crt"},
+			SamplingRatePerMillion: 10,
+		},
 	}, cmp.AllowUnexported(Service{})))
 	require.True(t, conf.Auth.Configured())
 	require.True(t, conf.Auth.Enabled())
@@ -459,6 +471,7 @@ func TestConfigReading(t *testing.T) {
 	require.True(t, conf.Metrics.Enabled())
 	require.True(t, conf.WindowsDesktop.Configured())
 	require.True(t, conf.WindowsDesktop.Enabled())
+	require.True(t, conf.Tracing.Enabled())
 
 	// good config from file
 	conf, err = ReadFromFile(testConfigs.configFileStatic)
@@ -1205,6 +1218,18 @@ func makeConfigFixture() string {
 		Hosts:      apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
 	}
 
+	// Tracing service.
+	conf.Tracing.EnabledFlag = "yes"
+	conf.Tracing.ExporterURL = "https://localhost:4318"
+	conf.Tracing.SamplingRatePerMillion = 10
+	conf.Tracing.CACerts = []string{"/etc/teleport/exporter.crt"}
+	conf.Tracing.KeyPairs = []KeyPair{
+		{
+			PrivateKey:  "/etc/teleport/exporter.key",
+			Certificate: "/etc/teleport/exporter.crt",
+		},
+	}
+
 	return conf.DebugDumpToYAML()
 }
 
@@ -1250,6 +1275,74 @@ ssh_service:
 		err := Configure(&clf, cfg)
 		require.NoError(t, err, comment)
 		require.Equal(t, tt.outPermitUserEnvironment, cfg.SSH.PermitUserEnvironment, comment)
+	}
+}
+
+func TestSetDefaultListenerAddresses(t *testing.T) {
+	tests := []struct {
+		desc string
+		fc   FileConfig
+		want service.ProxyConfig
+	}{
+		{
+			desc: "v1 config should set default proxy listen addresses",
+			fc: FileConfig{
+				Version: defaults.TeleportConfigVersionV1,
+				Proxy: Proxy{
+					Service: Service{
+						defaultEnabled: true,
+					},
+				},
+			},
+			want: service.ProxyConfig{
+				WebAddr:                 *utils.MustParseAddr("0.0.0.0:3080"),
+				ReverseTunnelListenAddr: *utils.MustParseAddr("0.0.0.0:3024"),
+				SSHAddr:                 *utils.MustParseAddr("0.0.0.0:3023"),
+				Enabled:                 true,
+				EnableProxyProtocol:     true,
+				Kube: service.KubeProxyConfig{
+					Enabled: false,
+				},
+				Limiter: limiter.Config{
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
+				},
+			},
+		},
+		{
+			desc: "v2 config should not set any default listen addresses",
+			fc: FileConfig{
+				Version: defaults.TeleportConfigVersionV2,
+				Proxy: Proxy{
+					Service: Service{
+						defaultEnabled: true,
+					},
+					WebAddr: "0.0.0.0:9999",
+				},
+			},
+			want: service.ProxyConfig{
+				WebAddr:             *utils.MustParseAddr("0.0.0.0:9999"),
+				Enabled:             true,
+				EnableProxyProtocol: true,
+				Kube: service.KubeProxyConfig{
+					Enabled: true,
+				},
+				Limiter: limiter.Config{
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			cfg := service.MakeDefaultConfig()
+
+			require.NoError(t, ApplyFileConfig(&tt.fc, cfg))
+			require.NoError(t, Configure(&CommandLineFlags{}, cfg))
+
+			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, cmpopts.EquateEmpty()))
+		})
 	}
 }
 
@@ -1510,32 +1603,6 @@ func TestProxyConfigurationVersion(t *testing.T) {
 					MaxConnections:   defaults.LimiterMaxConnections,
 					MaxNumberOfUsers: 250,
 				},
-			},
-			checkErr: require.NoError,
-		},
-		{
-			desc: "v1 config should generate default listener addresses",
-			fc: FileConfig{
-				Version: defaults.TeleportConfigVersionV1,
-				Proxy: Proxy{
-					Service: Service{
-						defaultEnabled: true,
-					},
-				},
-			},
-			want: service.ProxyConfig{
-				Enabled:             true,
-				EnableProxyProtocol: true,
-				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
-				},
-				WebAddr: *defaults.ProxyWebListenAddr(),
-				Kube: service.KubeProxyConfig{
-					Enabled: false,
-				},
-				ReverseTunnelListenAddr: *defaults.ReverseTunnelListenAddr(),
-				SSHAddr:                 *defaults.ProxyListenAddr(),
 			},
 			checkErr: require.NoError,
 		},

@@ -3,8 +3,17 @@ title: Scaling
 description: How to configure Teleport for large-scale deployments
 ---
 
-This section covers recommended configurations for large-scale
+This section explains the recommended configuration settings for large-scale
 deployments of Teleport.
+
+<ScopedBlock scope="cloud">
+
+For Teleport Cloud customers, the settings in this guide are configured
+automatically.
+
+</ScopedBlock>
+
+(!docs/pages/includes/cloud/call-to-action.mdx!)
 
 ## Prerequisites
 
@@ -68,3 +77,4 @@ $ cat /proc/$(pidof teleport)/limits
 # Limit                     Soft Limit           Hard Limit           Units
 # Max open files            65536                65536                files
 ```
+

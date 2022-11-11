@@ -19,7 +19,7 @@ Enterprise Edition:
 
 <Tabs>
   <TabItem label="Open Source">
-    Github's `teams_to_logins` section maps users to roles based on users' teams.
+    GitHub's `teams_to_logins` section maps users to roles based on users' teams.
 
     ```yaml
     kind: github
@@ -28,18 +28,18 @@ Enterprise Edition:
       # Connector name that will be used with `tsh --auth=github login`
       name: github
     spec:
-      # Client ID of Github OAuth app
+      # Client ID of GitHub OAuth app
       client_id: client-id
-      # Client secret of Github OAuth app
+      # Client secret of GitHub OAuth app
       client_secret: client-secret
       # This name will be shown on UI login screen
-      display: Github
+      display: GitHub
       # Change tele.example.com to your domain name
       redirect_url: https://tele.example.com:443/v1/webapi/github/callback
       # Map github teams to teleport roles
       teams_to_logins:
-        - organization: octocats # Github organization name
-          team: admin            # Github team name within that organization
+        - organization: octocats # GitHub organization name
+          team: admin            # GitHub team name within that organization
           # keep this field as is for now
           logins: ["admin"]
     ```
@@ -57,7 +57,7 @@ Enterprise Edition:
     spec:
       acs: https://tele.example.com/v1/webapi/saml/acs
       attributes_to_roles:
-      # Any user who has SAML `groups` atrribute with value `okta-admin`
+      # Any user who has SAML `groups` attribute with value `okta-admin`
       # will be given the Teleport `kube-access` role.
       - {name: "groups", value: "okta-admin", roles: ["kube-access"]}
       entity_descriptor: |
@@ -123,8 +123,9 @@ Create or update this role using `tctl`:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
-# Log in to your Teleport cluster so you can use tctl remotely.
-# You can also run tctl on your Auth Service host.
+# Log in to your cluster with tsh so you can use tctl from your local machine.
+# You can also run tctl on your Auth Service host without running "tsh login"
+# first.
 $ tsh login --proxy=teleport.example.com --user=myuser
 $ tctl create -f member.yaml
 ```
@@ -143,7 +144,7 @@ $ tctl create -f member.yaml
 Assign this role to a user in OIDC or SAML connector:
 
 <Tabs>
-  <TabItem label="Github (OSS)">
+  <TabItem label="GitHub (OSS)">
     ```yaml
     kind: github
     version: v3
@@ -151,19 +152,19 @@ Assign this role to a user in OIDC or SAML connector:
       # Connector name that will be used with `tsh --auth=github login`
       name: github
     spec:
-      # Client ID of Github OAuth app
+      # Client ID of GitHub OAuth app
       client_id: client-id
-      # Client secret of Github OAuth app
+      # Client secret of GitHub OAuth app
       client_secret: client-secret
       # This name will be shown on UI login screen
-      display: Github
+      display: GitHub
       # Change tele.example.com to your domain name
       redirect_url: https://tele.example.com:443/v1/webapi/github/callback
       # Map github teams to kubernetes groups
       teams_to_logins:
-        - organization: octocats # Github organization name
-          team: admin            # Github team name within that organization
-          # List of Kubernetes groups this Github team is allowed to connect to
+        - organization: octocats # GitHub organization name
+          team: admin            # GitHub team name within that organization
+          # List of Kubernetes groups this GitHub team is allowed to connect to
           # Keep this field as is for now
           logins: ["admins"]
     ```
@@ -222,7 +223,7 @@ Label each cluster with key-value pairs describing the cluster:
 <Tabs>
   <TabItem label="Helm">
     ```code
-    # Install or upgrade the agent or cluster and set labels:
+    # Install or upgrade Teleport and set labels:
     $ helm upgrade teleport-agent teleport-kube-agent --set kubeClusterName={CLUSTER?}\
       --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent\
       --set labels.env=prod --set labels.region=us-west-1

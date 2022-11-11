@@ -17,10 +17,12 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/pem"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -70,7 +72,7 @@ func TestDatabaseLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Log into Teleport cluster.
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
 	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
@@ -83,7 +85,7 @@ func TestDatabaseLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Log into test Postgres database.
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"db", "login", "--debug", "postgres",
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
@@ -95,7 +97,7 @@ func TestDatabaseLogin(t *testing.T) {
 	require.Len(t, keys, 0)
 
 	// Log into test Mongo database.
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"db", "login", "--debug", "--db-user", "admin", "mongo",
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
@@ -105,6 +107,66 @@ func TestDatabaseLogin(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, certs, 1)
 	require.Len(t, keys, 1)
+}
+
+func TestListDatabase(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+	ctx := context.Background()
+
+	tshHome := t.TempDir()
+	t.Setenv(types.HomeEnvVar, tshHome)
+
+	s := newTestSuite(t,
+		withRootConfigFunc(func(cfg *service.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Databases.Enabled = true
+			cfg.Databases.Databases = []service.Database{{
+				Name:     "root-postgres",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			}}
+		}),
+		withLeafCluster(),
+		withLeafConfigFunc(func(cfg *service.Config) {
+			cfg.Databases.Enabled = true
+			cfg.Databases.Databases = []service.Database{{
+				Name:     "leaf-postgres",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			}}
+		}),
+	)
+
+	mustLogin(t, s)
+
+	captureStdout := new(bytes.Buffer)
+	err := Run(ctx, []string{
+		"db",
+		"ls",
+		"--insecure",
+		"--debug",
+	}, func(cf *CLIConf) error {
+		cf.overrideStdout = io.MultiWriter(os.Stdout, captureStdout)
+		return nil
+	})
+	require.NoError(t, err)
+	require.Contains(t, captureStdout.String(), "root-postgres")
+
+	captureStdout.Reset()
+	err = Run(ctx, []string{
+		"db",
+		"ls",
+		"--cluster",
+		"leaf1",
+		"--insecure",
+		"--debug",
+	}, func(cf *CLIConf) error {
+		cf.overrideStdout = io.MultiWriter(os.Stdout, captureStdout)
+		return nil
+	})
+	require.NoError(t, err)
+	require.Contains(t, captureStdout.String(), "leaf-postgres")
 }
 
 func TestFormatDatabaseListCommand(t *testing.T) {
@@ -324,4 +386,62 @@ func decodePEM(pemPath string) (certs []pem.Block, keys []pem.Block, err error) 
 		}
 	}
 	return certs, keys, nil
+}
+
+func TestFormatDatabaseConnectArgs(t *testing.T) {
+	tests := []struct {
+		name    string
+		cluster string
+		route   tlsca.RouteToDatabase
+		want    string
+	}{
+		{
+			name:    "match user and db name, cluster set",
+			cluster: "foo",
+			route:   tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, ServiceName: "svc"},
+			want:    "tsh db connect --cluster=foo --db-user=<user> --db-name=<name> svc",
+		},
+		{
+			name:    "match user and db name",
+			cluster: "",
+			route:   tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, ServiceName: "svc"},
+			want:    "tsh db connect --db-user=<user> --db-name=<name> svc",
+		},
+		{
+			name:    "match user and db name, username given",
+			cluster: "",
+			route:   tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, Username: "bob", ServiceName: "svc"},
+			want:    "tsh db connect --db-name=<name> svc",
+		},
+		{
+			name:    "match user and db name, db name given",
+			cluster: "",
+			route:   tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, Database: "sales", ServiceName: "svc"},
+			want:    "tsh db connect --db-user=<user> svc",
+		},
+		{
+			name:    "match user and db name, both given",
+			cluster: "",
+			route:   tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, Database: "sales", Username: "bob", ServiceName: "svc"},
+			want:    "tsh db connect svc",
+		},
+		{
+			name:    "match user name",
+			cluster: "",
+			route:   tlsca.RouteToDatabase{Protocol: defaults.ProtocolMySQL, ServiceName: "svc"},
+			want:    "tsh db connect --db-user=<user> svc",
+		},
+		{
+			name:    "match user name, given",
+			cluster: "",
+			route:   tlsca.RouteToDatabase{Protocol: defaults.ProtocolMySQL, Username: "bob", ServiceName: "svc"},
+			want:    "tsh db connect svc",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := formatConnectCommand(tt.cluster, tt.route)
+			require.Equal(t, tt.want, out)
+		})
+	}
 }

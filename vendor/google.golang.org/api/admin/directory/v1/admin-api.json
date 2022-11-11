@@ -937,6 +937,11 @@
                       "location": "query",
                       "type": "string"
                     },
+                    "orderBy": {
+                      "description": "The order to sort results by. Must be one of display_name, description, make_and_model, or create_time. Default order is ascending, but descending order can be returned by appending \"desc\" to the order_by field. For instance, \"description desc\" will return the printers sorted by description in descending order.",
+                      "location": "query",
+                      "type": "string"
+                    },
                     "orgUnitId": {
                       "description": "Organization Unit that we want to list the printers for. When org_unit is not present in the request then all printers of the customer are returned (or filtered). When org_unit is present in the request then only printers available to this OU will be returned (owned or inherited). You may see if printer is owned or inherited for this OU by looking at Printer.org_unit_id.",
                       "location": "query",
@@ -1369,12 +1374,12 @@
           "parameterOrder": [],
           "parameters": {
             "customer": {
-              "description": "The unique ID for the customer's Google Workspace account. In case of a multi-domain account, to fetch all groups for a customer, fill this field instead of domain. As an account administrator, you can also use the `my_customer` alias to represent your account's `customerId`. The `customerId` is also returned as part of the [Users](/admin-sdk/directory/v1/reference/users)",
+              "description": "The unique ID for the customer's Google Workspace account. In case of a multi-domain account, to fetch all groups for a customer, fill in this field instead of `domain`. You can also use the `my_customer` alias to represent your account's `customerId`. The `customerId` is also returned as part of the [Users](/admin-sdk/directory/v1/reference/users) resource. Either the `customer` or the `domain` parameter must be provided.",
               "location": "query",
               "type": "string"
             },
             "domain": {
-              "description": "The domain name. Use this field to get fields from only one domain. To return all domains for a customer account, use the `customer` query parameter instead.",
+              "description": "The domain name. Use this field to get groups from only one domain. To return all domains for a customer account, use the `customer` query parameter instead.",
               "location": "query",
               "type": "string"
             },
@@ -3703,7 +3708,7 @@
               "type": "string"
             },
             "domain": {
-              "description": "The domain name. Use this field to get fields from only one domain. To return all domains for a customer account, use the `customer` query parameter instead. Either the `customer` or the `domain` parameter must be provided.",
+              "description": "The domain name. Use this field to get groups from only one domain. To return all domains for a customer account, use the `customer` query parameter instead. Either the `customer` or the `domain` parameter must be provided.",
               "location": "query",
               "type": "string"
             },
@@ -3782,7 +3787,7 @@
               "type": "string"
             },
             "sortOrder": {
-              "description": "Whether to return results in ascending or descending order.",
+              "description": "Whether to return results in ascending or descending order, ignoring case.",
               "enum": [
                 "ASCENDING",
                 "DESCENDING"
@@ -4402,7 +4407,7 @@
       }
     }
   },
-  "revision": "20211221",
+  "revision": "20220621",
   "rootUrl": "https://admin.googleapis.com/",
   "schemas": {
     "Alias": {
@@ -5184,11 +5189,11 @@
           "type": "string"
         },
         "orgUnitId": {
-          "description": "The unique ID of the organizational unit. orgUnitPath is the human readable version of orgUnitId. While orgUnitPath may change by renaming an organizational unit within the path, orgUnitId is unchangeable for one organizational unit. This property can be [updated](/admin-sdk/directory/v1/guides/manage-chrome-devices#update_chrome_device) using the API, and this will be supported in the future.",
+          "description": "The unique ID of the organizational unit. orgUnitPath is the human readable version of orgUnitId. While orgUnitPath may change by renaming an organizational unit within the path, orgUnitId is unchangeable for one organizational unit. This property can be [updated](/admin-sdk/directory/v1/guides/manage-chrome-devices#move_chrome_devices_to_ou) using the API. For more information about how to create an organizational structure for your device, see the [administration help center](https://support.google.com/a/answer/182433).",
           "type": "string"
         },
         "orgUnitPath": {
-          "description": "The full parent path with the organizational unit's name associated with the device. Path names are case insensitive. If the parent organizational unit is the top-level organization, it is represented as a forward slash, `/`. This property can be [updated](/admin-sdk/directory/v1/guides/manage-chrome-devices#update_chrome_device) using the API. For more information about how to create an organizational structure for your device, see the [administration help center](https://support.google.com/a/answer/182433).",
+          "description": "The full parent path with the organizational unit's name associated with the device. Path names are case insensitive. If the parent organizational unit is the top-level organization, it is represented as a forward slash, `/`. This property can be [updated](/admin-sdk/directory/v1/guides/manage-chrome-devices#move_chrome_devices_to_ou) using the API. For more information about how to create an organizational structure for your device, see the [administration help center](https://support.google.com/a/answer/182433).",
           "type": "string"
         },
         "osVersion": {
@@ -5756,7 +5761,7 @@
       "type": "object"
     },
     "Empty": {
-      "description": "A generic empty message that you can re-use to avoid defining duplicated empty messages in your APIs. A typical example is to use it as the request or the response type of an API method. For instance: service Foo { rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty); } The JSON representation for `Empty` is empty JSON object `{}`.",
+      "description": "A generic empty message that you can re-use to avoid defining duplicated empty messages in your APIs. A typical example is to use it as the request or the response type of an API method. For instance: service Foo { rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty); }",
       "id": "Empty",
       "properties": {},
       "type": "object"
@@ -5905,11 +5910,11 @@
       "id": "Group",
       "properties": {
         "adminCreated": {
-          "description": "Value is `true` if this group was created by an administrator rather than a user.",
+          "description": "Read-only. Value is `true` if this group was created by an administrator rather than a user.",
           "type": "boolean"
         },
         "aliases": {
-          "description": "List of a group's alias email addresses.",
+          "description": "Read-only. A list of a group's alias email addresses.",
           "items": {
             "type": "string"
           },
@@ -5938,7 +5943,7 @@
           "type": "string"
         },
         "id": {
-          "description": "The unique ID of a group. A group `id` can be used as a group request URI's `groupKey`.",
+          "description": "Read-only. The unique ID of a group. A group `id` can be used as a group request URI's `groupKey`.",
           "type": "string"
         },
         "kind": {
@@ -5951,7 +5956,7 @@
           "type": "string"
         },
         "nonEditableAliases": {
-          "description": "List of the group's non-editable alias email addresses that are outside of the account's primary domain or subdomains. These are functioning email addresses used by the group. This is a read-only property returned in the API's response for a group. If edited in a group's POST or PUT request, the edit is ignored by the API service.",
+          "description": "Read-only. A list of the group's non-editable alias email addresses that are outside of the account's primary domain or subdomains. These are functioning email addresses used by the group. This is a read-only property returned in the API's response for a group. If edited in a group's POST or PUT request, the edit is ignored by the API service.",
           "items": {
             "type": "string"
           },
@@ -6013,7 +6018,7 @@
           "type": "string"
         },
         "printers": {
-          "description": "List of printers. If `org_unit_id` was given in the request, then only printers visible for this OU will be returned. If `org_unit_id` was given in the request, then all printers will be returned.",
+          "description": "List of printers. If `org_unit_id` was given in the request, then only printers visible for this OU will be returned. If `org_unit_id` was not given in the request, then all printers will be returned.",
           "items": {
             "$ref": "Printer"
           },
@@ -6621,7 +6626,7 @@
       "id": "RoleAssignment",
       "properties": {
         "assignedTo": {
-          "description": "The unique ID of the user this role is assigned to.",
+          "description": "The unique ID of the entity this role is assigned to—either the `user_id` of a user or the `uniqueId` of a service account, as defined in [Identity and Access Management (IAM)](https://cloud.google.com/iam/docs/reference/rest/v1/projects.serviceAccounts).",
           "type": "string"
         },
         "etag": {
@@ -6994,7 +6999,7 @@
           "type": "any"
         },
         "hashFunction": {
-          "description": "Stores the hash format of the password property. We recommend sending the `password` property value as a base 16 bit hexadecimal-encoded hash value. Set the `hashFunction` values as either the [SHA-1](https://wikipedia.org/wiki/SHA-1), [MD5](https://wikipedia.org/wiki/MD5), or [crypt](https://en.wikipedia.org/wiki/Crypt_\\(C\\)) hash format.",
+          "description": "Stores the hash format of the `password` property. The following `hashFunction` values are allowed: * `MD5` - Accepts simple hex-encoded values. * `SHA1` - Accepts simple hex-encoded values. * `crypt` - Compliant with the [C crypt library](https://en.wikipedia.org/wiki/Crypt_%28C%29). Supports the DES, MD5 (hash prefix `$1$`), SHA-256 (hash prefix `$5$`), and SHA-512 (hash prefix `$6$`) hash algorithms. If rounds are specified as part of the prefix, they must be 10,000 or fewer.",
           "type": "string"
         },
         "id": {

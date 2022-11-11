@@ -100,9 +100,9 @@ Spec contains parameters of a resource.
 |                 `traits`|         set | User traits                                                     |
 |             `traits.key`|      string | Trait name                                                      |
 |           `traits.value`| string list | Trait values                                                    |
-|      `github_identities`| object list | List of associated Github OAuth2 identities                     |
-| `github_identities.connector_id` | string | An id of registered Github connector, e.g. 'github.com'     |
-| `github_identities.username` | string | Github username                                                 |
+|      `github_identities`| object list | List of associated GitHub OAuth2 identities                     |
+| `github_identities.connector_id` | string | An id of registered GitHub connector, e.g. 'github.com'     |
+| `github_identities.username` | string | GitHub username                                                 |
 |      `oidc_identities`| object list | List of OpenID Connect identities                                 |
 | `oidc_identities.connector_id` | string | An id of registered OIDC connector, e.g. 'google-example.com' |
 | `oidc_identities.username` | string | OIDC username                                                     |
@@ -188,19 +188,19 @@ Role specification consists of two sections: `allow` and `deny`. They are identi
 |           `app_labels.key`|      string | Application name                                                |
 |        `app_labels.values`| string list | List of labels                                                  |
 |           `cluster_labels`|         set | Cluster labels                                                  |
-|       `cluster_labels.key`|      string | Cluster name                                                    | 
+|       `cluster_labels.key`|      string | Cluster name                                                    |
 |    `cluster_labels.values`| string list | List of labels                                                  |
 |                `db_labels`|         set | Database labels                                                 |
-|            `db_labels.key`|      string | Database name                                                   | 
+|            `db_labels.key`|      string | Database name                                                   |
 |         `db_labels.values`| string list | List of labels                                                  |
 |        `kubernetes_labels`|         set | Kubernetes labels                                               |
 |    `kubernetes_labels.key`|      string | Kubernetes cluster name                                         |
 | `kubernetes_labels.values`| string list | List of labels                                                  |
 |              `node_labels`|         set | Node labels                                                     |
-|          `node_labels.key`|      string | Node name                                                       | 
+|          `node_labels.key`|      string | Node name                                                       |
 |       `node_labels.values`| string list | List of labels                                                  |
 |              `impersonate`|      object | Specifies whether users are allowed  to issue certificates for other users or groups |
-|        `impersonate.roles`| string list | list of roles this role is allowed to impersonate               | 
+|        `impersonate.roles`| string list | list of roles this role is allowed to impersonate               |
 |        `impersonate.users`| string list | List of users this role is allowed to impersonate               |
 |        `impersonate.where`|      string | Optional advanced matcher                                       |
 |                    `rules`|         set | List of rules and their access levels. Rules are a high level construct used for access control |
@@ -264,7 +264,8 @@ Options specify session, connection and auditing permissions of the role.
 
 ## teleport_provision_token
 
-Provision tokens authenticate teleport nodes and proxies when they first join the cluster.
+Provision tokens authenticate Teleport resource services and Proxy Service
+instances when they first join the cluster.
 
 **metadata**
 
@@ -303,15 +304,15 @@ Spec contains parameters of a resource.
 
 | Name                                | Type        | Description                                                     |
 |-------------------------------------|-------------|-----------------------------------------------------------------|
-| `client_id`                         | string      | Github OAuth app client ID                                      |
-| `client_secret`                     | string      | Github OAuth app client secret                                  |
+| `client_id`                         | string      | GitHub OAuth app client ID                                      |
+| `client_secret`                     | string      | GitHub OAuth app client secret                                  |
 | `display`                           | string      | Connector display name                                          |
 | `redirect_url`                      | string      | Authorization callback URL                                      |
-| `teams_to_logins`                   | set         | Maps Github team memberships onto allowed logins/roles.
+| `teams_to_logins`                   | set         | Maps GitHub team memberships onto allowed logins/roles.
 | `teams_to_logins.kubernetes_groups` | string list | List of allowed kubernetes groups for this org/team             |
 | `teams_to_logins.kubernetes_users`  | string list | List of allowed kubernetes users to impersonate for this org/team |
 | `teams_to_logins.logins`            | string list | List of allowed logins for this org/team                        |
-| `teams_to_logins.organization`      | string      | Github organization a user belongs to                           |
+| `teams_to_logins.organization`      | string      | GitHub organization a user belongs to                           |
 | `teams_to_logins.team`              | string      | Team within the organization a user belongs to                  |
 
 ## teleport_oidc_connector
@@ -378,7 +379,7 @@ Spec contains parameters of a resource.
 | `acs`                        | string      | URL for assertion consumer service  on the service provider (Teleport's side) |
 | `audience`                   | string      | Audience uniquely identifies our service provider                             |
 | `cert`                       | string      | Cert is the identity provider certificate PEM. IDP signs `Response` responses using this certificate |
-| `display`                    | string      | Connector display name                                                        | 
+| `display`                    | string      | Connector display name                                                        |
 | `entity_descriptor`          | string      | XML with descriptor. It can be used to supply configuration  parameters in one XML file rather than supplying them in the individual elements. |
 | `entity_descriptor_url`      | string      | URL that supplies a configuration XML |
 | `issuer`                     | string      | Identity provider issuer |
@@ -429,7 +430,7 @@ Spec contains parameters of a resource.
 
 ## teleport_auth_preference
 
-The auth preferenfce resource defines cluster auth preference for the Teleport cluster. This resource is a singleton. It gots reset on deletion.
+The auth preference resource defines cluster auth preference for the Teleport cluster. This resource is a singleton. It gots reset on deletion.
 
 **metadata**
 

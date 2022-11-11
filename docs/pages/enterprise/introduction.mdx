@@ -4,24 +4,27 @@ description: Introduction to features and benefits of using Teleport Enterprise.
 h1: Teleport Enterprise
 ---
 
-This section will give an overview of Teleport Enterprise, the commercial product built around
- Teleport Open Source core. For those that want to jump right in, you can play
-with the [Getting Started Guide for Teleport Enterprise](getting-started.mdx).
+Teleport Enterprise is a commercial product built around Teleport's open source
+core.
+
+For those that want to jump right in, you can play with the
+[Getting Started Guide for Teleport Enterprise](getting-started.mdx).
 
 The table below gives a quick overview of the benefits of Teleport Enterprise.
 
 | Teleport Enterprise Feature | Description |
 | - | - |
-| [Single Sign-On (SSO)](#sso) | Allows Teleport to integrate with existing enterprise identity systems. Examples include Active Directory, Github, Google Apps and numerous identity middleware solutions like Auth0, Okta, and so on. Teleport supports SAML and OAuth/OpenID Connect protocols to interact with them. |
+| [Single Sign-On (SSO)](#sso) | Allows Teleport to integrate with existing enterprise identity systems. Examples include Active Directory, GitHub, Google Apps and numerous identity middleware solutions like Auth0, Okta, and so on. Teleport supports SAML and OAuth/OpenID Connect protocols to interact with them. |
 | [Access Requests](workflow/index.mdx) | User interface for teams to create and review requests to access infrastructure with escalated privileges. |
 | [FedRAMP/FIPS](#fedrampfips) | Access controls to meet the requirements in a FedRAMP System Security Plan (SSP). This includes a FIPS 140-2 friendly build of Teleport Enterprise as well as a variety of improvements to aid in complying with security controls even in FedRAMP High environments. |
+| [Hardware Security Module support](./hsm.mdx)|The Teleport Auth Service can use your organization's HSM to generate TLS credentials, ensuring a highly reliable and secure public key infrastructure.|
 | Commercial Support | Support SLA with guaranteed response times. |
 
 <Admonition
   type="tip"
   title="Contact Information"
 >
-  Try Teleport Enteprise for [free in the cloud](https://goteleport.com/signup/) or [contact sales](https://goteleport.com/signup/enterprise/).
+  Try Teleport Enterprise for [free in the cloud](https://goteleport.com/signup/) or [contact sales](https://goteleport.com/signup/enterprise/).
 </Admonition>
 
 ## SSO
@@ -56,7 +59,7 @@ See the [SSO](sso.mdx) chapter for more details.
   type="tip"
   title="Contact Information"
 >
-  Try Teleport Enteprise for [free in the cloud](https://goteleport.com/signup/) or [contact sales](https://goteleport.com/signup/enterprise/).
+  Try Teleport Enterprise for [free in the cloud](https://goteleport.com/signup/) or [contact sales](https://goteleport.com/signup/enterprise/).
 </Admonition>
 
 ## FedRAMP/FIPS
@@ -72,10 +75,23 @@ In FIPS mode, if non-compliant algorithms are chosen, Teleport will fail to star
 In addition, Teleport checks if the binary was compiled against an approved
 cryptographic module (BoringCrypto) and fails to start if it was not.
 
-See our [FedRAMP for SSH and Kubernetes](fedramp.mdx) guide for more infromation.
+See our [FedRAMP for SSH and Kubernetes](fedramp.mdx) guide for more information.
 
 ## Access Requests
 
 With Teleport we've introduced the ability for users to request additional roles. The Access Request API makes it easy to dynamically approve or deny these requests.
 
 See [Access Requests Guide for more information](workflow/index.mdx)
+
+## Hardware Security Module support
+
+Teleport relies on a TLS private key and certificate in order to encrypt traffic
+and authenticate clients. With Teleport Enterprise, you can configure Teleport
+to use TLS credentials based on your organization's Hardware Security Module,
+improving the security and reliability of Teleport's public key infrastructure.
+
+See [HSM Support](./hsm.mdx) for more information.
+
+## License file
+
+Commercial Teleport subscriptions require a valid license. See [Enterprise License File](./license.mdx) for how to manage the file in your Teleport Enterprise deployment.

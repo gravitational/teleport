@@ -45,6 +45,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -66,9 +67,11 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testlog"
+	"github.com/gravitational/teleport/tool/teleport/common"
 
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
+	"github.com/pkg/sftp"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
@@ -202,6 +205,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
 	t.Run("UUIDBasedProxy", suite.bind(testUUIDBasedProxy))
 	t.Run("WindowChange", suite.bind(testWindowChange))
+	t.Run("SFTP", suite.bind(testSFTP))
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
@@ -316,7 +320,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// should have no sessions:
-			sessions, err := site.GetSessions(apidefaults.Namespace)
+			sessions, err := site.GetSessions(ctx, apidefaults.Namespace)
 			require.NoError(t, err)
 			require.Empty(t, sessions)
 
@@ -356,7 +360,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			// wait for the user to join this session:
 			for len(session.Parties) == 0 {
 				time.Sleep(time.Millisecond * 5)
-				session, err = site.GetSession(apidefaults.Namespace, sessionID)
+				session, err = site.GetSession(ctx, apidefaults.Namespace, sessionID)
 				require.NoError(t, err)
 			}
 			// make sure it's us who joined! :)
@@ -618,11 +622,9 @@ func testInteroperability(t *testing.T, suite *integrationTestSuite) {
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	// If the test is re-executing itself, execute the command that comes over
-	// the pipe.
-	if len(os.Args) == 2 &&
-		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand || os.Args[1] == teleport.CheckHomeDirSubCommand) {
-		srv.RunAndExit(os.Args[1])
+	// If the test is re-executing itself, handle the appropriate sub-command.
+	if srv.IsReexec() {
+		common.Run(common.Options{Args: os.Args[1:]})
 		return
 	}
 
@@ -2181,7 +2183,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	auxCAS, err := aux.Secrets.GetCAs()
 	require.NoError(t, err)
 	for _, auxCA := range auxCAS {
-		err = tc.AddTrustedCA(auxCA)
+		err = tc.AddTrustedCA(ctx, auxCA)
 		require.NoError(t, err)
 	}
 
@@ -3214,10 +3216,11 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 		{
 			inRecordLocation: types.RecordAtNode,
 		},
-		// Run tests when Teleport is recording sessions at the proxy.
-		{
-			inRecordLocation: types.RecordAtProxy,
-		},
+		// Run tests when Teleport is recording sessions at the proxy
+		// (temporarily disabled, see https://github.com/gravitational/teleport/issues/16224)
+		// {
+		// 	inRecordLocation: types.RecordAtProxy,
+		// },
 	}
 
 	for _, tt := range tests {
@@ -3376,6 +3379,7 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
+	ctx := context.Background()
 
 	var err error
 
@@ -3406,7 +3410,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	require.NotNil(t, site)
 
 	// should have no sessions in it to start with
-	sessions, _ := site.GetSessions(apidefaults.Namespace)
+	sessions, _ := site.GetSessions(ctx, apidefaults.Namespace)
 	require.Len(t, sessions, 0)
 
 	// create interactive session (this goroutine is this user's terminal time)
@@ -3423,12 +3427,12 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 		require.NoError(t, err)
 		cl.Stdout = myTerm
 		cl.Stdin = myTerm
-		err = cl.SSH(context.TODO(), []string{}, false)
+		err = cl.SSH(ctx, []string{}, false)
 		endCh <- err
 	}()
 
 	// wait until there's a session in there:
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	sessions, err = waitForSessionToBeEstablished(timeoutCtx, apidefaults.Namespace, site)
 	require.NoError(t, err)
@@ -3437,7 +3441,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	// wait for the user to join this session
 	for len(session.Parties) == 0 {
 		time.Sleep(time.Millisecond * 5)
-		session, err = site.GetSession(apidefaults.Namespace, sessions[0].ID)
+		session, err = site.GetSession(ctx, apidefaults.Namespace, sessions[0].ID)
 		require.NoError(t, err)
 	}
 	// make sure it's us who joined! :)
@@ -4412,6 +4416,7 @@ func runAndMatch(tc *client.TeleportClient, attempts int, command []string, patt
 func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
+	ctx := context.Background()
 
 	teleport := suite.newTeleport(t, nil, true)
 	defer teleport.StopAll()
@@ -4435,7 +4440,7 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		cl.Stdout = personA
 		cl.Stdin = personA
 
-		err = cl.SSH(context.TODO(), []string{}, false)
+		err = cl.SSH(ctx, []string{}, false)
 		if !isSSHError(err) {
 			require.NoError(t, err)
 		}
@@ -4462,8 +4467,8 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		cl.Stdin = personB
 
 		// Change the size of the window immediately after it is created.
-		cl.OnShellCreated = func(s *ssh.Session, c *ssh.Client, terminal io.ReadWriteCloser) (exit bool, err error) {
-			err = s.WindowChange(48, 160)
+		cl.OnShellCreated = func(s *tracessh.Session, c *tracessh.Client, terminal io.ReadWriteCloser) (exit bool, err error) {
+			err = s.WindowChange(ctx, 48, 160)
 			if err != nil {
 				return true, trace.Wrap(err)
 			}
@@ -4471,7 +4476,7 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		}
 
 		for i := 0; i < 10; i++ {
-			err = cl.Join(context.TODO(), apidefaults.Namespace, session.ID(sessionID), personB)
+			err = cl.Join(ctx, apidefaults.Namespace, session.ID(sessionID), personB)
 			if err == nil || isSSHError(err) {
 				err = nil
 				break
@@ -5288,27 +5293,38 @@ func testExecEvents(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	lsPath, err := exec.LookPath("ls")
-	require.NoError(t, err)
-
 	// Creates new teleport cluster
 	main := suite.newTeleport(t, nil, true)
 	defer main.StopAll()
 
+	// Max event size for file log (bufio.MaxScanTokenSize) should be 64k, make
+	// a command much larger than that.
+	lotsOfBytes := bytes.Repeat([]byte{'a'}, 100*1024)
+
 	execTests := []struct {
 		name          string
 		isInteractive bool
-		outCommand    string
+		command       string
 	}{
 		{
 			name:          "PTY allocated",
 			isInteractive: true,
-			outCommand:    lsPath,
+			command:       "echo 1",
 		},
 		{
 			name:          "PTY not allocated",
 			isInteractive: false,
-			outCommand:    lsPath,
+			command:       "echo 2",
+		},
+		{
+			name:          "long command interactive",
+			isInteractive: true,
+			command:       "true 1 " + string(lotsOfBytes),
+		},
+		{
+			name:          "long command uninteractive",
+			isInteractive: false,
+			command:       "true 2 " + string(lotsOfBytes),
 		},
 	}
 
@@ -5322,16 +5338,76 @@ func testExecEvents(t *testing.T, suite *integrationTestSuite) {
 				Port:        main.GetPortSSHInt(),
 				Interactive: tt.isInteractive,
 			}
-			_, err := runCommand(t, main, []string{lsPath}, clientConfig, 1)
+			_, err := runCommand(t, main, []string{tt.command}, clientConfig, 1)
+			require.NoError(t, err)
+
+			expectedCommandPrefix := tt.command
+			if len(expectedCommandPrefix) > 32 {
+				expectedCommandPrefix = expectedCommandPrefix[:32]
+			}
+
+			// Make sure the session start event was emitted to the audit log
+			// and includes (a prefix of) the command
+			_, err = findMatchingEventInLog(main, events.SessionStartEvent, func(fields events.EventFields) bool {
+				initialCommand := fields.GetStrings("initial_command")
+				return events.SessionStartCode == fields.GetCode() && len(initialCommand) == 1 &&
+					strings.HasPrefix(initialCommand[0], expectedCommandPrefix)
+			})
 			require.NoError(t, err)
 
 			// Make sure the exec event was emitted to the audit log.
-			eventFields, err := findEventInLog(main, events.ExecEvent)
+			_, err = findMatchingEventInLog(main, events.ExecEvent, func(fields events.EventFields) bool {
+				return events.ExecCode == fields.GetCode() &&
+					strings.HasPrefix(fields.GetString(events.ExecEventCommand), expectedCommandPrefix)
+			})
 			require.NoError(t, err)
-			require.Equal(t, events.ExecCode, eventFields.GetCode())
-			require.Equal(t, tt.outCommand, eventFields.GetString(events.ExecEventCommand))
 		})
 	}
+
+	t.Run("long running", func(t *testing.T) {
+		clientConfig := ClientConfig{
+			Login:       suite.me.Username,
+			Cluster:     Site,
+			Host:        Host,
+			Port:        main.GetPortSSHInt(),
+			Interactive: false,
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+
+		cmd := "sleep 10"
+
+		errC := make(chan error)
+		go func() {
+			_, err := runCommandWithContext(ctx, t, main, []string{cmd}, clientConfig, 1)
+			errC <- err
+		}()
+
+		// Make sure the session start event was emitted immediately to the audit log
+		// before waiting for the command to complete, and includes the command
+		startEvent, err := findMatchingEventInLog(main, events.SessionStartEvent, func(fields events.EventFields) bool {
+			initialCommand := fields.GetStrings("initial_command")
+			return len(initialCommand) == 1 && initialCommand[0] == cmd
+		})
+		require.NoError(t, err)
+
+		sessionID := startEvent.GetString(events.SessionEventID)
+		require.NotEmpty(t, sessionID)
+
+		cancel()
+		// This may or may not be an error, depending on whether we canceled it
+		// before the command died of natural causes, no need to test the value
+		// here but we'll wait for it in order to avoid leaking goroutines
+		<-errC
+
+		// Wait for the session end event to avoid writes to the tempdir after
+		// the test completes (and make sure it's actually sent)
+		require.Eventually(t, func() bool {
+			_, err := findMatchingEventInLog(main, events.SessionEndEvent, func(fields events.EventFields) bool {
+				return sessionID == fields.GetString(events.SessionEventID)
+			})
+			return err == nil
+		}, 30*time.Second, 1*time.Second)
+	})
 }
 
 func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestSuite) {
@@ -5498,6 +5574,14 @@ func findEventInLog(t *TeleInstance, eventName string) (events.EventFields, erro
 
 // findCommandEventInLog polls the event log looking for an event of a particular type.
 func findCommandEventInLog(t *TeleInstance, eventName string, programName string) (events.EventFields, error) {
+	return findMatchingEventInLog(t, eventName, func(fields events.EventFields) bool {
+		eventType := fields[events.EventType]
+		eventPath := fields[events.Path]
+		return eventType == eventName && eventPath == programName
+	})
+}
+
+func findMatchingEventInLog(t *TeleInstance, eventName string, match func(events.EventFields) bool) (events.EventFields, error) {
 	for i := 0; i < 10; i++ {
 		eventFields, err := eventsInLog(t.Config.DataDir+"/log/events.log", eventName)
 		if err != nil {
@@ -5506,15 +5590,7 @@ func findCommandEventInLog(t *TeleInstance, eventName string, programName string
 		}
 
 		for _, fields := range eventFields {
-			eventType, ok := fields[events.EventType]
-			if !ok {
-				continue
-			}
-			eventPath, ok := fields[events.Path]
-			if !ok {
-				continue
-			}
-			if eventType == eventName && eventPath == programName {
+			if match(fields) {
 				return fields, nil
 			}
 		}
@@ -5577,6 +5653,10 @@ func runCommandWithCertReissue(t *testing.T, instance *TeleInstance, cmd []strin
 // the result. If multiple attempts are requested, a 250 millisecond delay is
 // added between them before giving up.
 func runCommand(t *testing.T, instance *TeleInstance, cmd []string, cfg ClientConfig, attempts int) (string, error) {
+	return runCommandWithContext(context.Background(), t, instance, cmd, cfg, attempts)
+}
+
+func runCommandWithContext(ctx context.Context, t *testing.T, instance *TeleInstance, cmd []string, cfg ClientConfig, attempts int) (string, error) {
 	tc, err := instance.NewClient(cfg)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -5593,7 +5673,7 @@ func runCommand(t *testing.T, instance *TeleInstance, cmd []string, cfg ClientCo
 	}()
 	tc.Stdout = write
 	for i := 0; i < attempts; i++ {
-		err = tc.SSH(context.TODO(), cmd, false)
+		err = tc.SSH(ctx, cmd, false)
 		if err == nil {
 			break
 		}
@@ -5929,4 +6009,95 @@ outer:
 	}
 
 	t.FailNow()
+}
+
+func testSFTP(t *testing.T, suite *integrationTestSuite) {
+	// Create Teleport instance.
+	teleport := suite.newTeleport(t, nil, true)
+	t.Cleanup(func() {
+		teleport.StopAll()
+	})
+
+	client, err := teleport.NewClient(ClientConfig{
+		Login:   suite.me.Username,
+		Cluster: Site,
+		Host:    Host,
+	})
+	require.NoError(t, err)
+
+	// Create SFTP session.
+	ctx := context.Background()
+	proxyClient, err := client.ConnectToProxy(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		proxyClient.Close()
+	})
+
+	sftpClient, err := sftp.NewClient(proxyClient.Client.Client)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, sftpClient.Close())
+	})
+
+	// Create file that will be uploaded and downloaded.
+	tempDir := t.TempDir()
+	testFilePath := filepath.Join(tempDir, "testfile")
+	testFile, err := os.Create(testFilePath)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, testFile.Close())
+	})
+
+	_, err = testFile.WriteString("This is test data.")
+	require.NoError(t, err)
+	require.NoError(t, testFile.Sync())
+
+	// Test stat'ing a file.
+	t.Run("stat", func(t *testing.T) {
+		fi, err := sftpClient.Stat(testFilePath)
+		require.NoError(t, err)
+		require.NotNil(t, fi)
+	})
+
+	// Test downloading a file.
+	t.Run("download", func(t *testing.T) {
+		testFileDownload := testFilePath + "-download"
+		downloadFile, err := os.Create(testFileDownload)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, downloadFile.Close())
+		})
+
+		remoteDownloadFile, err := sftpClient.Open(testFilePath)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, remoteDownloadFile.Close())
+		})
+
+		_, err = io.Copy(downloadFile, remoteDownloadFile)
+		require.NoError(t, err)
+	})
+
+	// Test uploading a file.
+	t.Run("upload", func(t *testing.T) {
+		testFileUpload := testFilePath + "-upload"
+		remoteUploadFile, err := sftpClient.Create(testFileUpload)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, remoteUploadFile.Close())
+		})
+
+		_, err = io.Copy(remoteUploadFile, testFile)
+		require.NoError(t, err)
+	})
+
+	t.Run("chmod", func(t *testing.T) {
+		err = sftpClient.Chmod(testFilePath, 0777)
+		require.NoError(t, err)
+	})
+
+	// Ensure SFTP audit events are present.
+	sftpEvent, err := findEventInLog(teleport, events.SFTPEvent)
+	require.NoError(t, err)
+	require.Equal(t, testFilePath, sftpEvent.GetString(events.SFTPPath))
 }

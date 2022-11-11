@@ -55,8 +55,8 @@ type CertAuthID struct {
 	DomainName string       `json:"domain_name"`
 }
 
-func (c *CertAuthID) String() string {
-	return fmt.Sprintf("CA(type=%v, domain=%v)", c.Type, c.DomainName)
+func (c CertAuthID) String() string {
+	return fmt.Sprintf("CA(type=%q, domain=%q)", c.Type, c.DomainName)
 }
 
 // Check returns error if any of the id parameters are bad, nil otherwise

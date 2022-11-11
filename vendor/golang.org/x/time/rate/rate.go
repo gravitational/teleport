@@ -53,10 +53,9 @@ func Every(interval time.Duration) Limit {
 //
 // The methods AllowN, ReserveN, and WaitN consume n tokens.
 type Limiter struct {
-	limit Limit
-	burst int
-
 	mu     sync.Mutex
+	limit  Limit
+	burst  int
 	tokens float64
 	// last is the last time the limiter's tokens field was updated
 	last time.Time
@@ -76,6 +75,8 @@ func (lim *Limiter) Limit() Limit {
 // Burst values allow more events to happen at once.
 // A zero Burst allows no events, unless limit == Inf.
 func (lim *Limiter) Burst() int {
+	lim.mu.Lock()
+	defer lim.mu.Unlock()
 	return lim.burst
 }
 
@@ -144,7 +145,6 @@ func (r *Reservation) DelayFrom(now time.Time) time.Duration {
 // Cancel is shorthand for CancelAt(time.Now()).
 func (r *Reservation) Cancel() {
 	r.CancelAt(time.Now())
-	return
 }
 
 // CancelAt indicates that the reservation holder will not perform the reserved action
@@ -185,8 +185,6 @@ func (r *Reservation) CancelAt(now time.Time) {
 			r.lim.lastEvent = prevEvent
 		}
 	}
-
-	return
 }
 
 // Reserve is shorthand for ReserveN(time.Now(), 1).
@@ -196,7 +194,7 @@ func (lim *Limiter) Reserve() *Reservation {
 
 // ReserveN returns a Reservation that indicates how long the caller must wait before n events happen.
 // The Limiter takes this Reservation into account when allowing future events.
-// ReserveN returns false if n exceeds the Limiter's burst size.
+// The returned Reservation’s OK() method returns false if n exceeds the Limiter's burst size.
 // Usage example:
 //   r := lim.ReserveN(time.Now(), 1)
 //   if !r.OK() {
@@ -229,7 +227,7 @@ func (lim *Limiter) WaitN(ctx context.Context, n int) (err error) {
 	lim.mu.Unlock()
 
 	if n > burst && limit != Inf {
-		return fmt.Errorf("rate: Wait(n=%d) exceeds limiter's burst %d", n, lim.burst)
+		return fmt.Errorf("rate: Wait(n=%d) exceeds limiter's burst %d", n, burst)
 	}
 	// Check if ctx is already cancelled
 	select {
@@ -359,26 +357,20 @@ func (lim *Limiter) reserveN(now time.Time, n int, maxFutureReserve time.Duratio
 
 // advance calculates and returns an updated state for lim resulting from the passage of time.
 // lim is not changed.
+// advance requires that lim.mu is held.
 func (lim *Limiter) advance(now time.Time) (newNow time.Time, newLast time.Time, newTokens float64) {
 	last := lim.last
 	if now.Before(last) {
 		last = now
 	}
 
-	// Avoid making delta overflow below when last is very old.
-	maxElapsed := lim.limit.durationFromTokens(float64(lim.burst) - lim.tokens)
-	elapsed := now.Sub(last)
-	if elapsed > maxElapsed {
-		elapsed = maxElapsed
-	}
-
 	// Calculate the new number of tokens, due to time that passed.
+	elapsed := now.Sub(last)
 	delta := lim.limit.tokensFromDuration(elapsed)
 	tokens := lim.tokens + delta
 	if burst := float64(lim.burst); tokens > burst {
 		tokens = burst
 	}
-
 	return now, last, tokens
 }
 
@@ -386,15 +378,11 @@ func (lim *Limiter) advance(now time.Time) (newNow time.Time, newLast time.Time,
 // of time it takes to accumulate them at a rate of limit tokens per second.
 func (limit Limit) durationFromTokens(tokens float64) time.Duration {
 	seconds := tokens / float64(limit)
-	return time.Nanosecond * time.Duration(1e9*seconds)
+	return time.Duration(float64(time.Second) * seconds)
 }
 
 // tokensFromDuration is a unit conversion function from a time duration to the number of tokens
 // which could be accumulated during that duration at a rate of limit tokens per second.
 func (limit Limit) tokensFromDuration(d time.Duration) float64 {
-	// Split the integer and fractional parts ourself to minimize rounding errors.
-	// See golang.org/issues/34861.
-	sec := float64(d/time.Second) * float64(limit)
-	nsec := float64(d%time.Second) * float64(limit)
-	return sec + nsec/1e9
+	return d.Seconds() * float64(limit)
 }

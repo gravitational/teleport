@@ -4,13 +4,37 @@ description: How to get started with Teleport Open Source Edition using Docker C
 h1: Get started with Docker Compose
 ---
 
-This guide will help you understand how Teleport works by spinning up a demo cluster on your local machine using Docker Compose.
-It will also show you how to use Teleport with OpenSSH, Ansible, and Teleport's native client, `tsh`. 
+This guide will help you understand how Teleport works by spinning up a demo
+cluster on your local machine using Docker Compose. It will also show you how to
+use Teleport with OpenSSH, Ansible, and Teleport's native client, `tsh`.
+
+<Admonition title="Production deployments" type="tip">
+
+This guide is intended as a local lab for educational purposes. If you would
+like to set up Teleport for production usage, please see:
+
+<ScopedBlock scope="oss">
+
+[Getting Started on a Linux Server](./linux-server.mdx)
+
+</ScopedBlock>
+<ScopedBlock scope="cloud">
+
+[Getting Started](../cloud/getting-started.mdx)
+
+</ScopedBlock>
+<ScopedBlock scope="enterprise">
+
+[Getting Started](../enterprise/getting-started.mdx)
+
+</ScopedBlock>
+
+</Admonition>
 
 ## Prerequisites
 
 - Teleport v(=teleport.version=) Open Source or Enterprise.
-- Docker v(=docker.version=) or later and [`docker-compose`](https://docs.docker.com/compose/install/) v(=docker.compose.version=) or later.
+- Docker v(=docker.version=) or later and [`docker-compose`](https://docs.docker.com/compose/install/) v(=docker.compose.version=) or later (or the Compose plugin for Docker).
 
 ```code
 $ docker-compose version
@@ -26,7 +50,7 @@ $ docker version
 Let's use `docker-compose` to start Teleport demo lab - a configured local cluster:
 
 ```code
-# Download the quick start file from our Github repo
+# Download the quick start file from our GitHub repo
 $ curl -Lso teleport-lab.yml https://raw.githubusercontent.com/gravitational/teleport/v(=teleport.version=)/docker/teleport-lab.yml
 # Start teleport demo lab using docker-compose
 $ docker-compose -f teleport-lab.yml up -d
@@ -70,7 +94,7 @@ Teleport is a bastion server for your OpenSSH hosts. SSH into OpenSSH server and
 $ ssh root@mars.openssh.teleport
 ```
 
-You can also run ansible on Teleport nodes and OpenSSH servers:
+You can also run Ansible on Teleport Nodes and OpenSSH servers:
 
 ```code
 # From term container
@@ -90,9 +114,9 @@ You can see Teleport's nodes registered in the cluster using `tsh ls` command:
 ```code
 # From term container
 $ tsh ls
-# Node Name     Address        Labels                     
-# ------------- -------------- -------------------------- 
-# luna.teleport 127.0.0.1:3022 env=example, hostname=luna 
+# Node Name     Address        Labels
+# ------------- -------------- --------------------------
+# luna.teleport 127.0.0.1:3022 env=example, hostname=luna
 ```
 
 ## Step 3/3. Explore web UI
@@ -122,14 +146,14 @@ Port `443` on the Teleport container is published to the local host, so you can 
 - Learn about [Teleport Access Controls](../access-controls/getting-started.mdx).
 - Get started with [Teleport Session Recording](../server-access/guides/bpf-session-recording.mdx).
 - Try out one of our [Database Access Guides](../database-access/guides.mdx).
-- For Kubernetes environments, try out one of our [Helm Guides](../kubernetes-access/helm/guides.mdx).
+- For Kubernetes environments, try out one of our [Helm Guides](../setup/helm-deployments.mdx).
 
 ## Under the hood
 
 Let's unpack some of the setup that made the demo possible.
 Teleport's authentication is based on client certificates and certificate authorities.
 
-Here is `ssh.cfg` that instructs `ssh` client to use Teleport
+Here is `~/.ssh/config`, which instructs the `ssh` client to use Teleport
 as a bastion server:
 
 ```
@@ -137,7 +161,7 @@ as a bastion server:
 Host *.openssh.teleport
     ProxyCommand ssh -o "ForwardAgent yes" -p 3023 proxy.luna.teleport -s proxy:%h:22
 
-# Hosts without openssh suffix are Teleport nodes listening on port 3022
+# Hosts without openssh suffix are Teleport Nodes listening on port 3022
 Host *.teleport !proxy.luna.teleport
     ProxyCommand ssh -o "ForwardAgent yes" -p 3023 proxy.luna.teleport -s proxy:%h:3022
 ```
@@ -164,7 +188,7 @@ HostKey /mnt/shared/certs/mars.openssh.teleport
 HostCertificate /mnt/shared/certs/mars.openssh.teleport-cert.pub
 ```
 
-Teleport's user and role for used for bot access:
+Teleport's user and role used for bot access:
 
 ```yaml
 kind: role
@@ -172,9 +196,9 @@ version: v4
 metadata:
   name: bot
 spec:
-  # SSH options used for user sessions 
+  # SSH options used for user sessions
   options:
-    # max_session_ttl defines the TTL (time to live) of SSH certificates 
+    # max_session_ttl defines the TTL (time to live) of SSH certificates
     # issued to the users with this role.
     max_session_ttl: 10h
 

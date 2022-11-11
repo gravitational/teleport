@@ -4,7 +4,14 @@ description: How to configure Hardware Security Modules to manage your Teleport 
 h1: Teleport HSM Support
 ---
 
-This guide will show you how to set up the Teleport Auth Server to use a hardware security module (HSM) to store and handle private keys.
+This guide will show you how to set up the Teleport Auth Service to use a
+hardware security module (HSM) to store and handle private keys.
+
+<ScopedBlock scope={["oss", "cloud"]}>
+
+This guide is intended for Teleport Enterprise users.
+
+</ScopedBlock>
 
 ## Prerequisites
 
@@ -18,9 +25,10 @@ This guide will show you how to set up the Teleport Auth Server to use a hardwar
 
 - The PKCS#11 module for your HSM.
 
-<Details scope={["cloud", "oss"]} opened={true} scopeOnly={true} title="Compabitility Warning">
+<Admonition type="warning" scope={["cloud", "oss"]} opened={true} scopeOnly={true} title="Compatibility Warning">
 Teleport Cloud and Teleport Open Source do not currently support HSM.
-</Details>
+
+</Admonition>
 
 While most PKCS#11 HSMs should be supported, the Teleport team tests with AWS
 CloudHSM, YubiHSM2, and SoftHSM2.
@@ -164,7 +172,7 @@ reading.
 If you are connecting an HSM to an existing Teleport cluster, restart the auth
 server for the configuration changes to take effect. New CA keys will
 automatically be generated in the HSM. For these keys to be trusted by the rest
-of the cluster you will need to permorm a CA rotation, see
+of the cluster you will need to perform a CA rotation, see
 [Step 4](#step-45-certificate-rotation-with-hsm). The auth server will not perform
 any signing operations until the rotation has started. In an HA cluster you
 should add the HSM to the auth configuration one server at a time, and do not
@@ -209,3 +217,4 @@ access to the cluster and have to re-join.
 You are all set! Check the teleport logs for `Creating new HSM key pair` to
 confirm that the feature is working. You can also check that keys were created
 in your HSM using your HSM's admin tool.
+

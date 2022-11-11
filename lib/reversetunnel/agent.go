@@ -23,6 +23,7 @@ package reversetunnel
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -31,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
@@ -90,6 +92,9 @@ type AgentConfig struct {
 	ReverseTunnelServer Server
 	// LocalClusterName is the name of the cluster this agent is running in.
 	LocalClusterName string
+	// LocalAuthAddresses is a list of auth servers to use when dialing back to
+	// the local cluster.
+	LocalAuthAddresses []string
 	// Component is the teleport component that this agent runs in.
 	// It's important for routing incoming requests for local services (like an
 	// IoT node or kubernetes service).
@@ -164,6 +169,8 @@ type Agent struct {
 	log         log.FieldLogger
 	ctx         context.Context
 	cancel      context.CancelFunc
+	claimCtx    context.Context
+	claimCancel context.CancelFunc
 	authMethods []ssh.AuthMethod
 	// state is the state of this agent
 	state string
@@ -187,10 +194,13 @@ func NewAgent(cfg AgentConfig) (*Agent, error) {
 		return nil, trace.Wrap(err)
 	}
 	ctx, cancel := context.WithCancel(cfg.Context)
+	claimCtx, claimCancel := context.WithCancel(ctx)
 	a := &Agent{
 		AgentConfig: cfg,
 		ctx:         ctx,
 		cancel:      cancel,
+		claimCtx:    claimCtx,
+		claimCancel: claimCancel,
 		authMethods: []ssh.AuthMethod{ssh.PublicKeys(cfg.Signer)},
 		state:       agentStateConnecting,
 		log:         cfg.Log,
@@ -277,7 +287,7 @@ func (a *Agent) getReverseTunnelDetails() *reverseTunnelDetails {
 	return &pd
 }
 
-func (a *Agent) connect() (conn *ssh.Client, err error) {
+func (a *Agent) connect() (conn *tracessh.Client, err error) {
 	if a.reverseTunnelDetails == nil {
 		a.reverseTunnelDetails = a.getReverseTunnelDetails()
 	}
@@ -295,7 +305,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 	for _, authMethod := range a.authMethods {
 		// Create a dialer (that respects HTTP proxies) and connect to remote host.
 		dialer := proxy.DialerFromEnvironment(a.Addr.Addr, opts...)
-		pconn, err := dialer.DialTimeout(a.Addr.AddrNetwork, a.Addr.Addr, apidefaults.DefaultDialTimeout)
+		pconn, err := dialer.DialTimeout(a.Context, a.Addr.AddrNetwork, a.Addr.Addr, apidefaults.DefaultDialTimeout)
 		if err != nil {
 			a.log.WithError(err).Debugf("Dial to %v failed.", a.Addr.Addr)
 			continue
@@ -316,7 +326,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 
 		// Build a new client connection. This is done to get access to incoming
 		// global requests which dialer.Dial would not provide.
-		conn, chans, reqs, err := ssh.NewClientConn(pconn, a.Addr.Addr, &ssh.ClientConfig{
+		conn, chans, reqs, err := tracessh.NewClientConn(a.Context, pconn, a.Addr.Addr, &ssh.ClientConfig{
 			User:            a.Username,
 			Auth:            []ssh.AuthMethod{authMethod},
 			HostKeyCallback: callback,
@@ -332,7 +342,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 		emptyCh := make(chan *ssh.Request)
 		close(emptyCh)
 
-		client := ssh.NewClient(conn, chans, emptyCh)
+		client := tracessh.NewClient(conn, chans, emptyCh)
 
 		// Start a goroutine to process global requests from the server.
 		go a.handleGlobalRequests(a.ctx, reqs)
@@ -368,6 +378,17 @@ func (a *Agent) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.
 					a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
 					continue
 				}
+			case reconnectRequest:
+				a.log.Debug("Received reconnect advisory request from proxy.")
+				if r.WantReply {
+					err := r.Reply(true, nil)
+					if err != nil {
+						a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
+					}
+				}
+
+				a.claimCancel()
+				a.Lease.Release()
 			default:
 				// This handles keep-alive messages and matches the behaviour of OpenSSH.
 				err := r.Reply(false, nil)
@@ -393,6 +414,7 @@ func (a *Agent) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.
 func (a *Agent) run() {
 	defer a.setState(agentStateDisconnected)
 	defer a.Lease.Release()
+	defer a.claimCancel()
 
 	a.setState(agentStateConnecting)
 
@@ -417,40 +439,36 @@ func (a *Agent) run() {
 		"remote-addr": remote,
 	}).Info("Connected.")
 
-	// wrap up remaining business logic in closure for easy
-	// conditional execution.
-	doWork := func() {
-		a.log.Debugf("Agent connected to proxy: %v.", a.getPrincipalsList())
-		a.setState(agentStateConnected)
-		// Notify waiters that the agent has connected.
-		if a.EventsC != nil {
-			select {
-			case a.EventsC <- ConnectedEvent:
-			case <-a.ctx.Done():
-				a.log.Debug("Context is closing.")
-				return
-			default:
-			}
-		}
-
-		// A connection has been established start - processing requests. Note that
-		// this function blocks while the connection is up. It will unblock when
-		// the connection is closed either due to intermittent connectivity issues
-		// or permanent loss of a proxy.
-		err = a.processRequests(conn)
-		if err != nil {
-			a.log.Warnf("Unable to continue processioning requests: %v.", err)
-			return
-		}
-	}
 	// if Tracker was provided, then the agent shouldn't continue unless
 	// no other agents hold a claim.
 	if a.Tracker != nil {
-		if !a.Tracker.WithProxy(doWork, a.getPrincipalsList()...) {
+		if ok := a.Tracker.ClaimContext(a.claimCtx, a.getPrincipalsList()...); !ok {
 			a.log.Debugf("Proxy already held by other agent: %v, releasing.", a.getPrincipalsList())
+			return
 		}
-	} else {
-		doWork()
+	}
+
+	a.log.Debugf("Agent connected to proxy: %v.", a.getPrincipalsList())
+	a.setState(agentStateConnected)
+	// Notify waiters that the agent has connected.
+	if a.EventsC != nil {
+		select {
+		case a.EventsC <- ConnectedEvent:
+		case <-a.ctx.Done():
+			a.log.Debug("Context is closing.")
+			return
+		default:
+		}
+	}
+
+	// A connection has been established start - processing requests. Note that
+	// this function blocks while the connection is up. It will unblock when
+	// the connection is closed either due to intermittent connectivity issues
+	// or permanent loss of a proxy.
+	err = a.processRequests(conn)
+	if err != nil {
+		a.log.Warnf("Unable to continue processioning requests: %v.", err)
+		return
 	}
 }
 
@@ -460,7 +478,7 @@ const ConnectedEvent = "connected"
 // processRequests is a blocking function which runs in a loop sending heartbeats
 // to the given SSH connection and processes inbound requests from the
 // remote proxy
-func (a *Agent) processRequests(conn *ssh.Client) error {
+func (a *Agent) processRequests(conn *tracessh.Client) error {
 	netConfig, err := a.AccessPoint.GetClusterNetworkingConfig(a.ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -469,7 +487,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 	ticker := time.NewTicker(netConfig.GetKeepAliveInterval())
 	defer ticker.Stop()
 
-	hb, reqC, err := conn.OpenChannel(chanHeartbeat, nil)
+	hb, reqC, err := conn.OpenChannel(a.ctx, chanHeartbeat, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -477,7 +495,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 	newDiscoveryC := conn.HandleChannelOpen(chanDiscovery)
 
 	// send first ping right away, then start a ping timer:
-	if _, err := hb.SendRequest("ping", false, nil); err != nil {
+	if _, err := hb.SendRequest(a.ctx, "ping", false, nil); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -489,7 +507,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 		// time to ping:
 		case <-ticker.C:
 			bytes, _ := a.Clock.Now().UTC().MarshalText()
-			_, err := hb.SendRequest("ping", false, bytes)
+			_, err := hb.SendRequest(a.ctx, "ping", false, bytes)
 			if err != nil {
 				a.log.Error(err)
 				return trace.Wrap(err)
@@ -516,6 +534,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				log:                 a.log,
 				closeContext:        a.ctx,
 				authClient:          a.Client,
+				authServers:         a.LocalAuthAddresses,
 				kubeDialAddr:        a.KubeDialAddr,
 				channel:             ch,
 				requestCh:           req,
@@ -566,17 +585,18 @@ func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 				a.log.Infof("Connection closed, returning")
 				return
 			}
-			r, err := unmarshalDiscoveryRequest(req.Payload)
-			if err != nil {
-				a.log.Warningf("Bad payload: %v.", err)
+
+			var r discoveryRequest
+			if err := json.Unmarshal(req.Payload, &r); err != nil {
+				a.log.WithError(err).Warn("Bad payload")
 				return
 			}
-			r.ClusterAddr = a.Addr
+
+			proxies := r.ProxyNames()
+			a.log.Debugf("Received discovery request: %v", proxies)
+
 			if a.Tracker != nil {
-				// Notify tracker of all known proxies.
-				for _, p := range r.Proxies {
-					a.Tracker.TrackExpected(p.GetName())
-				}
+				a.Tracker.TrackExpected(proxies...)
 			}
 		}
 	}
@@ -586,6 +606,7 @@ const (
 	chanHeartbeat    = "teleport-heartbeat"
 	chanDiscovery    = "teleport-discovery"
 	chanDiscoveryReq = "discovery"
+	reconnectRequest = "reconnect@goteleport.com"
 )
 
 const (

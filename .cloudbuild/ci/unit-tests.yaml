@@ -1,18 +1,19 @@
 timeout: 25m
 
 options:
-  machineType: 'E2_HIGHCPU_32'
-  
-  # This build needs to run in environments where the _GITHUB_DEPLOY_KEY_SRC  
+  pool:
+    name: projects/ci-account/locations/us-west1/workerPools/high-cpu-pool
+
+  # This build needs to run in environments where the _GITHUB_DEPLOY_KEY_SRC
   # substitution is defined, but also environments where it isn't. The
   # ALLOW_LOOSE option disables GCBs strict checking of substitution usage,
   # so that the build will still run if _GITHUB_DEPLOY_KEY_SRC is not defined.
   substitution_option: ALLOW_LOOSE
-  
+
 steps:
-  # Run the unit tests. Actual content of this job depends on the changes 
+  # Run the unit tests. Actual content of this job depends on the changes
   # detected in the PR
-  - name: quay.io/gravitational/teleport-buildbox:teleport8
+  - name: public.ecr.aws/gravitational/teleport-buildbox:teleport8
     id: run-tests
     dir: /workspace/.cloudbuild/scripts
     entrypoint: bash

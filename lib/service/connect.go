@@ -29,11 +29,11 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 
-	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -415,6 +415,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			Clock:                process.Clock,
 			EC2IdentityDocument:  ec2IdentityDocument,
 			JoinMethod:           process.Config.JoinMethod,
+			FIPS:                 process.Config.FIPS,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -552,7 +553,7 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 				process.log.Debugf("Skipping event %v for %v", event.Type, event.Resource.GetName())
 				continue
 			}
-			if ca.GetType() != types.HostCA && ca.GetClusterName() != conn.ClientIdentity.ClusterName {
+			if ca.GetType() != types.HostCA || ca.GetClusterName() != conn.ClientIdentity.ClusterName {
 				process.log.Debugf("Skipping event for %v %v", ca.GetType(), ca.GetClusterName())
 				continue
 			}
@@ -888,9 +889,9 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 }
 
 func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAddr, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, error) {
-	resolver := reversetunnel.WebClientResolver(process.ExitContext(), authServers, lib.IsInsecureDevMode())
+	resolver := reversetunnel.WebClientResolver(authServers, lib.IsInsecureDevMode())
 
-	resolver, err := reversetunnel.CachingResolver(resolver, process.Clock)
+	resolver, err := reversetunnel.CachingResolver(process.ExitContext(), resolver, process.Clock)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -905,7 +906,8 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 		return nil, trace.Wrap(err)
 	}
 	clt, err := auth.NewClient(apiclient.Config{
-		Dialer: dialer,
+		Context: process.ExitContext(),
+		Dialer:  dialer,
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
@@ -940,13 +942,14 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 			return nil, trace.Wrap(err)
 		}
 		dialOpts = append(dialOpts, []grpc.DialOption{
-			grpc.WithChainUnaryInterceptor(metadata.UnaryClientInterceptor, om.UnaryClientInterceptor(grpcMetrics)),
-			grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor, om.StreamClientInterceptor(grpcMetrics)),
+			grpc.WithUnaryInterceptor(om.UnaryClientInterceptor(grpcMetrics)),
+			grpc.WithStreamInterceptor(om.StreamClientInterceptor(grpcMetrics)),
 		}...)
 	}
 
 	clt, err := auth.NewClient(apiclient.Config{
-		Addrs: utils.NetAddrsToStrings(authServers),
+		Context: process.ExitContext(),
+		Addrs:   utils.NetAddrsToStrings(authServers),
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},

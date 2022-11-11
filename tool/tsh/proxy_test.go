@@ -18,6 +18,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -29,11 +30,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
@@ -84,7 +85,7 @@ func TestTSHSSH(t *testing.T) {
 }
 
 func testRootClusterSSHAccess(t *testing.T, s *suite) {
-	err := Run([]string{
+	err := Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -95,7 +96,7 @@ func testRootClusterSSHAccess(t *testing.T, s *suite) {
 		return nil
 	})
 	require.NoError(t, err)
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"ssh",
 		s.root.Config.Hostname,
 		"echo", "hello",
@@ -103,7 +104,7 @@ func testRootClusterSSHAccess(t *testing.T, s *suite) {
 	require.NoError(t, err)
 
 	identityFile := path.Join(t.TempDir(), "identity.pem")
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -116,7 +117,7 @@ func testRootClusterSSHAccess(t *testing.T, s *suite) {
 	})
 	require.NoError(t, err)
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"--proxy", s.root.Config.Proxy.WebAddr.String(),
 		"--insecure",
 		"-i", identityFile,
@@ -128,7 +129,7 @@ func testRootClusterSSHAccess(t *testing.T, s *suite) {
 }
 
 func testLeafClusterSSHAccess(t *testing.T, s *suite) {
-	err := Run([]string{
+	err := Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -142,16 +143,18 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		err = Run([]string{
+		err = Run(context.Background(), []string{
 			"ssh",
+			"--proxy", s.root.Config.Proxy.WebAddr.String(),
 			s.leaf.Config.Hostname,
 			"echo", "hello",
 		})
+		t.Logf("ssh to leaf failed %v", err)
 		return err == nil
 	}, 5*time.Second, time.Second)
 
 	identityFile := path.Join(t.TempDir(), "identity.pem")
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -164,7 +167,7 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 	})
 	require.NoError(t, err)
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"--proxy", s.root.Config.Proxy.WebAddr.String(),
 		"--insecure",
 		"-i", identityFile,
@@ -177,7 +180,9 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 }
 
 func testJumpHostSSHAccess(t *testing.T, s *suite) {
-	err := Run([]string{
+	ctx := context.Background()
+
+	err := Run(ctx, []string{
 		"login",
 		"--insecure",
 		"--auth", s.connector.GetName(),
@@ -189,7 +194,7 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	})
 	require.NoError(t, err)
 
-	err = Run([]string{
+	err = Run(ctx, []string{
 		"login",
 		"--insecure",
 		s.leaf.Config.Auth.ClusterName.GetClusterName(),
@@ -200,7 +205,7 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	require.NoError(t, err)
 
 	// Connect to leaf node though jump host set to leaf proxy SSH port.
-	err = Run([]string{
+	err = Run(ctx, []string{
 		"ssh",
 		"--insecure",
 		"-J", s.leaf.Config.Proxy.SSHAddr.Addr,
@@ -212,18 +217,39 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	})
 	require.NoError(t, err)
 
-	// Connect to leaf node though jump host set to proxy web port where TLS Routing is enabled.
-	err = Run([]string{
-		"ssh",
-		"--insecure",
-		"-J", s.leaf.Config.Proxy.WebAddr.Addr,
-		s.leaf.Config.Hostname,
-		"echo", "hello",
-	}, func(cf *CLIConf) error {
-		cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
-		return nil
+	t.Run("root cluster online", func(t *testing.T) {
+		// Connect to leaf node though jump host set to proxy web port where TLS Routing is enabled.
+		err = Run(ctx, []string{
+			"ssh",
+			"--insecure",
+			"-J", s.leaf.Config.Proxy.WebAddr.Addr,
+			s.leaf.Config.Hostname,
+			"echo", "hello",
+		}, func(cf *CLIConf) error {
+			cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
+			return nil
+		})
+		require.NoError(t, err)
 	})
-	require.NoError(t, err)
+
+	t.Run("root cluster offline", func(t *testing.T) {
+		// Terminate root cluster.
+		err = s.root.Close()
+		require.NoError(t, err)
+
+		// Check JumpHost flow when root cluster is offline.
+		err = Run(ctx, []string{
+			"ssh",
+			"--insecure",
+			"-J", s.leaf.Config.Proxy.WebAddr.Addr,
+			s.leaf.Config.Hostname,
+			"echo", "hello",
+		}, func(cf *CLIConf) error {
+			cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
+			return nil
+		})
+		require.NoError(t, err)
+	})
 }
 
 // TestProxySSHDial verifies "tsh proxy ssh" command.
@@ -257,7 +283,7 @@ func TestProxySSHDial(t *testing.T) {
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -276,7 +302,7 @@ func TestProxySSHDial(t *testing.T) {
 	// "subsystem request failed" error.
 	// For real case scenario the 'tsh proxy ssh' and openssh binary use stdin,stdout,stderr pipes
 	// as communication channels but in unit test there is no easy way to mock this behavior.
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"proxy", "ssh", unreachableSubsystem,
 	}, setHomePath(tmpHomePath))
 	require.Contains(t, err.Error(), "subsystem request failed")
@@ -398,7 +424,7 @@ func createAgent(t *testing.T) string {
 }
 
 func mustLogin(t *testing.T, s *suite) {
-	err := Run([]string{
+	err := Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -413,7 +439,7 @@ func mustLogin(t *testing.T, s *suite) {
 
 func mustGetOpenSSHConfigFile(t *testing.T) string {
 	var buff bytes.Buffer
-	err := Run([]string{
+	err := Run(context.Background(), []string{
 		"config",
 	}, func(cf *CLIConf) error {
 		cf.overrideStdout = &buff

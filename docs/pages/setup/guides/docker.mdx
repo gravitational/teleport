@@ -54,7 +54,14 @@ $ docker version
 <TabItem scope={["oss"]} label="Open Source">
 We provide pre-built Docker images for every version of Teleport.
 
-These images are hosted on quay.io. All tags under `quay.io/gravitational/teleport` [are Teleport Open Source images](https://quay.io/repository/gravitational/teleport?tag=latest\&tab=tags).
+These images are hosted on Amazon ECR Public. All tags under `public.ecr.aws/gravitational/teleport` [are Teleport Open Source images](https://gallery.ecr.aws/gravitational/teleport).
+
+<Admonition
+  type="warning"
+  title="Quay Docker Images"
+>
+Docker images will continue to be published to quay.io until Teleport 8 is EOL.
+</Admonition>
 
 The table below gives an idea of how our image naming scheme works. We offer images that
 point to a static version of Teleport, as well as images that are automatically rebuilt
@@ -67,8 +74,8 @@ keep your Teleport installation up to date.
    <tr><td>Image name</td><td>Teleport version</td><td>Image automatically updated?</td><td>Image base</td></tr>
  </thead>
  <tbody>
-   <tr><td>`(=teleport.latest_oss_docker_image=)`</td><td>The latest version of Teleport Open Source (=version=)</td><td>Yes</td><td>[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)</td></tr>
-   <tr><td>`quay.io/gravitational/teleport:(=teleport.version=)`</td><td>The version specified in the image's tag (i.e. (=teleport.version=))</td><td>No</td><td>[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)</td></tr> 
+   <tr><td>`public.ecr.aws/gravitational/teleport:(=teleport.major_version=)`</td><td>The latest version of Teleport Open Source (=teleport.major_version=)</td><td>Yes</td><td>[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)</td></tr>
+   <tr><td>`(=teleport.latest_oss_docker_image=)`</td><td>The version specified in the image's tag (i.e. (=teleport.version=))</td><td>No</td><td>[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)</td></tr> 
  </tbody>
 </table>
 
@@ -215,6 +222,6 @@ root@localhost:~#
 
 ## Next steps
 
-- Try out one of our [Helm Guides](../../kubernetes-access/helm/guides.mdx).
+- Try out one of our [Helm Guides](../../setup/helm-deployments.mdx).
 - Try out one of our [Database Access Guides](../../database-access/guides.mdx).
 - Learn about [Teleport Server Access](../../server-access/introduction.mdx).

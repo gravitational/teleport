@@ -29,7 +29,7 @@ A lock can target the following objects or attributes:
 - a Teleport [RBAC](../reference.mdx) role by the role's name
 - an MFA device by the device's UUID
 - an OS/UNIX login
-- a Teleport node by the node's UUID (effectively unregistering it from the
+- a Teleport Node by the Node's UUID (effectively unregistering it from the
   cluster)
 - a Windows desktop by the desktop's name
 - an [Access Request](../../enterprise/workflow/index.mdx) by UUID
@@ -60,7 +60,7 @@ with one of the following options:
   ```
   </TabItem>
   <TabItem label="Multi-factor device">
-  All connections initated with per-session MFA matching the device ID will be locked.
+  All connections initiated with per-session MFA matching the device ID will be locked.
   ```code
   $ tctl lock --mfa-device=d6c06a18-e147-4232-9dfe-6f83a28d5850 --message="All contractor access is disabled for 10h." --ttl=10h
   # Created a lock with name "d6c06a18-e147-4232-9dfe-6f83a28d5850".
@@ -185,7 +185,7 @@ Deleting a lock will allow new sessions or host connections.
 
 ## Next steps: Locking modes
 
-If a Teleport node or Proxy Service cannot properly synchronize its local lock
+If a Teleport Node or Proxy Service cannot properly synchronize its local lock
 view with the backend, there is a decision to be made about whether to rely on
 the last known locks. This decision strategy is encoded as one of the two modes:
 - `strict` mode causes all interactions to be terminated when the locks are not

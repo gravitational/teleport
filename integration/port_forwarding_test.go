@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/session"
+
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -58,7 +59,7 @@ func waitForSessionToBeEstablished(ctx context.Context, namespace string, site a
 			return nil, ctx.Err()
 
 		case <-ticker.C:
-			ss, err := site.GetSessions(namespace)
+			ss, err := site.GetSessions(ctx, namespace)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

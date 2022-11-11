@@ -22,16 +22,24 @@ import (
 	"crypto/rsa"
 	"crypto/x509/pkix"
 	"encoding/json"
+	"errors"
 	"fmt"
 	mathrand "math/rand"
 	"os"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
+	"github.com/coreos/go-oidc/jose"
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+	. "gopkg.in/check.v1"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -54,14 +62,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"github.com/coreos/go-oidc/jose"
-	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/require"
-	. "gopkg.in/check.v1"
 )
 
 type testPack struct {
@@ -1135,14 +1135,16 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 
 func TestNewWebSession(t *testing.T) {
 	t.Parallel()
-	p, err := newTestPack(context.Background(), t.TempDir())
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
 	// Set a web idle timeout.
 	duration := time.Duration(5) * time.Minute
 	cfg := types.DefaultClusterNetworkingConfig()
 	cfg.SetWebIdleTimeout(duration)
-	p.a.SetClusterNetworkingConfig(context.Background(), cfg)
+	err = p.a.SetClusterNetworkingConfig(ctx, cfg)
+	require.NoError(t, err)
 
 	// Create a user.
 	user, _, err := CreateUserAndRole(p.a, "test-user", []string{"test-role"})
@@ -1158,7 +1160,7 @@ func TestNewWebSession(t *testing.T) {
 	}
 	bearerTokenTTL := utils.MinTTL(req.SessionTTL, BearerTokenTTL)
 
-	ws, err := p.a.NewWebSession(req)
+	ws, err := p.a.NewWebSession(ctx, req)
 	require.NoError(t, err)
 	require.Equal(t, user.GetName(), ws.GetUser())
 	require.Equal(t, duration, ws.GetIdleTimeout())
@@ -1794,4 +1796,292 @@ func compareDevices(t *testing.T, got []*types.MFADevice, want ...*types.MFADevi
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("compareDevices mismatch (-want +got):\n%s", diff)
 	}
+}
+
+type mockCache struct {
+	Cache
+
+	resources      []types.Resource
+	resourcesError error
+
+	nodes      []types.Server
+	nodesError error
+}
+
+func (m mockCache) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.Resource, string, error) {
+	if m.resourcesError != nil {
+		return nil, "", m.resourcesError
+	}
+
+	if req.StartKey != "" {
+		return nil, "", nil
+	}
+
+	return m.resources, "", nil
+}
+
+func (m mockCache) ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error) {
+	if m.nodesError != nil {
+		return nil, "", m.nodesError
+	}
+
+	if req.StartKey != "" {
+		return nil, "", nil
+	}
+
+	return m.nodes, "", nil
+}
+
+func TestIterateResources(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	fail := errors.New("fail")
+
+	const resourceCount = 100
+	nodes := make([]types.Resource, 0, resourceCount)
+
+	for i := 0; i < resourceCount; i++ {
+		s, err := types.NewServer(uuid.New(), types.KindNode, types.ServerSpecV2{})
+		require.NoError(t, err)
+		nodes = append(nodes, s)
+	}
+
+	cases := []struct {
+		name           string
+		limit          int32
+		filterFn       func(labels types.Resource) error
+		errorAssertion require.ErrorAssertionFunc
+		cache          mockCache
+	}{
+		{
+			name:  "ListResources fails",
+			cache: mockCache{resourcesError: fail},
+			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, i...)
+				require.ErrorIs(t, err, fail)
+			},
+		},
+		{
+			name:           "Done returns no errors",
+			cache:          mockCache{resources: nodes},
+			errorAssertion: require.NoError,
+			filterFn: func(labels types.Resource) error {
+				return ErrDone
+			},
+		},
+		{
+			name:  "fatal errors are propagated",
+			cache: mockCache{resources: nodes},
+			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, i...)
+				require.ErrorIs(t, err, fail)
+			},
+			filterFn: func(labels types.Resource) error {
+				return fail
+			},
+		},
+		{
+			name:           "no errors iterates the entire resource set",
+			cache:          mockCache{resources: nodes},
+			errorAssertion: require.NoError,
+			filterFn: func(labels types.Resource) error {
+				return nil
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := &Server{cache: tt.cache}
+
+			err := srv.IterateResources(ctx, proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Namespace:    apidefaults.Namespace,
+				Limit:        tt.limit,
+			}, tt.filterFn)
+			tt.errorAssertion(t, err)
+		})
+	}
+}
+
+func TestIterateNodes(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	fail := errors.New("fail")
+
+	const resourceCount = 100
+	nodes := make([]types.Server, 0, resourceCount)
+
+	for i := 0; i < resourceCount; i++ {
+		s, err := types.NewServer(uuid.New(), types.KindNode, types.ServerSpecV2{})
+		require.NoError(t, err)
+		nodes = append(nodes, s)
+	}
+
+	cases := []struct {
+		name           string
+		limit          int32
+		filterFn       func(s types.Server) error
+		errorAssertion require.ErrorAssertionFunc
+		cache          mockCache
+	}{
+		{
+			name:  "ListNodes fails",
+			cache: mockCache{nodesError: fail},
+			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, i...)
+				require.ErrorIs(t, err, fail)
+			},
+		},
+		{
+			name:           "Done returns no errors",
+			cache:          mockCache{nodes: nodes},
+			errorAssertion: require.NoError,
+			filterFn: func(s types.Server) error {
+				return ErrDone
+			},
+		},
+		{
+			name:  "fatal errors are propagated",
+			cache: mockCache{nodes: nodes},
+			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, i...)
+				require.ErrorIs(t, err, fail)
+			},
+			filterFn: func(s types.Server) error {
+				return fail
+			},
+		},
+		{
+			name:           "no errors iterates the entire resource set",
+			cache:          mockCache{nodes: nodes},
+			errorAssertion: require.NoError,
+			filterFn: func(s types.Server) error {
+				return nil
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := &Server{cache: tt.cache}
+
+			err := srv.IterateNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+				Limit:     tt.limit,
+			}, tt.filterFn)
+			tt.errorAssertion(t, err)
+		})
+	}
+}
+
+func TestVersionMetrics(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	const resourceCount = 1100
+
+	expiry := srv.Auth().clock.Now().Add(time.Hour)
+	for i := 0; i < resourceCount; i++ {
+		version := strconv.Itoa(i % 2)
+
+		// create node
+		s, err := types.NewServer(uuid.New(), types.KindNode, types.ServerSpecV2{Version: version})
+		require.NoError(t, err)
+		s.SetExpiry(expiry)
+
+		_, err = srv.Auth().UpsertNode(ctx, s)
+		require.NoError(t, err)
+
+		// create database resource.
+		db, err := types.NewDatabaseV3(types.Metadata{
+			Name:    uuid.New(),
+			Expires: &expiry,
+		},
+			types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			})
+		require.NoError(t, err)
+
+		dbserver, err := types.NewDatabaseServerV3(types.Metadata{
+			Name:    uuid.New(),
+			Expires: &expiry,
+		},
+			types.DatabaseServerSpecV3{
+				Version:  version,
+				Hostname: "host",
+				HostID:   uuid.New(),
+				Database: db,
+			})
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertDatabaseServer(ctx, dbserver)
+		require.NoError(t, err)
+
+		// create app server
+		app, err := types.NewAppV3(types.Metadata{Name: uuid.New()}, types.AppSpecV3{URI: "localhost"})
+		require.NoError(t, err)
+
+		appserver, err := types.NewAppServerV3(types.Metadata{
+			Name:    uuid.New(),
+			Expires: &expiry,
+		}, types.AppServerSpecV3{
+			Hostname: "host",
+			HostID:   uuid.New(),
+			App:      app,
+			Version:  version,
+		})
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertApplicationServer(ctx, appserver)
+		require.NoError(t, err)
+
+		// create desktop
+		desktop, err := types.NewWindowsDesktopServiceV3(uuid.New(), types.WindowsDesktopServiceSpecV3{
+			Addr:            "localhost:1234",
+			TeleportVersion: version,
+		})
+		require.NoError(t, err)
+		desktop.SetExpiry(expiry)
+
+		_, err = srv.Auth().UpsertWindowsDesktopService(ctx, desktop)
+		require.NoError(t, err)
+
+		// create kube service
+		kube := &types.ServerV2{
+			Metadata: types.Metadata{Name: uuid.New(), Expires: &expiry},
+			Kind:     types.KindKubeService,
+			Version:  types.V2,
+			Spec: types.ServerSpecV2{
+				KubernetesClusters: []*types.KubernetesCluster{{Name: "root-kube-cluster"}},
+				Version:            version,
+			},
+		}
+
+		require.NoError(t, srv.Auth().UpsertKubeService(ctx, kube))
+	}
+
+	// calculate the versions of all resources
+	srv.Auth().updateVersionMetrics()
+
+	// half the resources should be version 1
+	version1, err := registeredAgents.GetMetricWithLabelValues("1")
+	require.NoError(t, err)
+	require.Equal(t, resourceCount*2.5, testutil.ToFloat64(version1))
+
+	// half the resources should be version 2
+	version0, err := registeredAgents.GetMetricWithLabelValues("0")
+	require.NoError(t, err)
+	require.Equal(t, resourceCount*2.5, testutil.ToFloat64(version0))
+
 }

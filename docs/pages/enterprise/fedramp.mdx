@@ -1,7 +1,7 @@
 ---
-title: FedRAMP compliance for SSH, Kubernetes and Applications
-description: How to configure SSH, Kubernetes and Application access to be FedRAMP compliant, including support for FIPS 140-2
-h1: FedRAMP for SSH and Kubernetes and Application Access
+title: FedRAMP Compliance for Infrastructure Access 
+description: How to configure SSH, Kubernetes, database, and web app access to be FedRAMP compliant, including support for FIPS 140-2.
+h1: FedRAMP Compliance for Infrastructure Access 
 ---
 
 Teleport provides the foundation to meet FedRAMP requirements for the purposes of accessing infrastructure. This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS\_140-2), also known as the Federal Information Processing Standard, which is the US government approved standard for cryptographic modules. This document outlines a high
@@ -90,7 +90,8 @@ ssh_service:
 
 ### Teleport Node
 
-Save the following configuration file as `/etc/teleport.yaml` on the node server.
+Save the following configuration file as `/etc/teleport.yaml` on the Node
+Service host:
 
 ```yaml
 teleport:
@@ -109,7 +110,7 @@ proxy_service:
 ### Systemd Unit File
 
 Next, download the systemd service unit file from the [examples directory](https://github.com/gravitational/teleport/tree/master/examples/systemd/fips)
-on Github and save it as `/etc/systemd/system/teleport.service` on both servers.
+on GitHub and save it as `/etc/systemd/system/teleport.service` on both servers.
 
 ```bsh
 # run this on both servers:

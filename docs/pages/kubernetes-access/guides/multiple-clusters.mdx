@@ -12,7 +12,7 @@ This guide will show you how to use Teleport as an access plane for multiple Kub
 - The Teleport Kubernetes Service running in a Kubernetes cluster, version >=
   v(=kubernetes.major_version=).(=kubernetes.minor_version=).0. We will assume
   that you have already followed
-  [Connect a Kubernetes Cluster to Teleport](../getting-started/agent.mdx)
+  [Connect a Kubernetes Cluster to Teleport](../getting-started.mdx)
 - The `jq` tool to process `JSON` output. This is available via common package
   managers
 - An additional Kubernetes cluster version >=
@@ -32,8 +32,8 @@ Teleport can act as an access plane for multiple Kubernetes clusters.
 
 We will assume that the domain of your Teleport cluster is `tele.example.com`.
 
-Let's start a lightweight agent in another Kubernetes cluster `cookie` and
-connect it to `tele.example.com`.
+Let's start the Teleport Kubernetes Service in another Kubernetes cluster,
+`cookie`, and connect it to `tele.example.com`.
 
 We will need a join token from `tele.example.com`:
 
@@ -84,8 +84,8 @@ Teleport can act as an access plane for multiple Kubernetes clusters.
 
 We will assume that the domain of your Teleport cluster is `mytenant.teleport.sh`.
 
-Let's start a lightweight agent in another Kubernetes cluster `cookie` and
-connect it to `mytenant.teleport.sh`.
+Let's start the Teleport Kubernetes Service in another Kubernetes cluster,
+`cookie`, and connect it to `tele.example.com`.
 
 We will need a join token from `mytenant.teleport.sh`:
 
@@ -128,4 +128,11 @@ $ kubectl get pods
 ```
 
 </TabItem>
+
 </Tabs>
+
+<Details title="Not seeing Kubernetes clusters?">
+
+(!docs/pages/includes/kubernetes-access/rbac.mdx!)
+
+</Details>

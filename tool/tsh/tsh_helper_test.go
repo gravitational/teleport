@@ -228,7 +228,21 @@ func runTeleport(t *testing.T, cfg *service.Config) *service.TeleportProcess {
 		require.NoError(t, process.Close())
 		require.NoError(t, process.Wait())
 	})
-	waitForEvents(t, process, service.ProxyWebServerReady, service.NodeSSHReady)
+
+	serviceReadyEvents := []string{
+		service.ProxyWebServerReady,
+		service.NodeSSHReady,
+	}
+	if cfg.Databases.Enabled {
+		serviceReadyEvents = append(serviceReadyEvents, service.DatabasesReady)
+	}
+	waitForEvents(t, process, serviceReadyEvents...)
+
+	if cfg.Databases.Enabled {
+		for _, database := range cfg.Databases.Databases {
+			waitForDatabase(t, process, database)
+		}
+	}
 	return process
 }
 

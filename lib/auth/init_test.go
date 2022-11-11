@@ -921,7 +921,7 @@ func TestIdentityChecker(t *testing.T) {
 			require.NoError(t, err)
 
 			dialer := proxy.DialerFromEnvironment(sshServer.Addr())
-			sconn, err := dialer.Dial("tcp", sshServer.Addr(), sshClientConfig)
+			sconn, err := dialer.Dial(ctx, "tcp", sshServer.Addr(), sshClientConfig)
 			if test.err {
 				require.Error(t, err)
 			} else {

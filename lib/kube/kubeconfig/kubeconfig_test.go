@@ -253,7 +253,8 @@ func TestUpdateWithExec(t *testing.T) {
 				fmt.Sprintf("--kube-cluster=%s", kubeCluster),
 				fmt.Sprintf("--teleport-cluster=%s", clusterName),
 			},
-			Env: []clientcmdapi.ExecEnvVar{{Name: homeEnvVar, Value: home}},
+			Env:             []clientcmdapi.ExecEnvVar{{Name: homeEnvVar, Value: home}},
+			InteractiveMode: clientcmdapi.IfAvailableExecInteractiveMode,
 		},
 	}
 	wantConfig.Contexts[contextName] = &clientcmdapi.Context{

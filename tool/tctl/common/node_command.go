@@ -77,12 +77,12 @@ func (c *NodeCommand) Initialize(app *kingpin.Application, config *service.Confi
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *NodeCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (c *NodeCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.nodeAdd.FullCommand():
-		err = c.Invite(client)
+		err = c.Invite(ctx, client)
 	case c.nodeList.FullCommand():
-		err = c.ListActive(client)
+		err = c.ListActive(ctx, client)
 
 	default:
 		return false, nil
@@ -96,7 +96,7 @@ This token will expire in %d minutes
 Use this token when defining a trusted cluster resource on a remote cluster.
 `
 
-var nodeMessageTemplate = template.Must(template.New("node").Parse(`The invite token: {{.token}}.
+var nodeMessageTemplate = template.Must(template.New("node").Parse(`The invite token: {{.token}}
 This token will expire in {{.minutes}} minutes.
 
 Run this on the new node to join the cluster:
@@ -115,13 +115,13 @@ Please note:
 
 // Invite generates a token which can be used to add another SSH node
 // to a cluster
-func (c *NodeCommand) Invite(client auth.ClientI) error {
+func (c *NodeCommand) Invite(ctx context.Context, client auth.ClientI) error {
 	// parse --roles flag
 	roles, err := types.ParseTeleportRoles(c.roles)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	token, err := client.GenerateToken(context.TODO(), auth.GenerateTokenRequest{Roles: roles, TTL: c.ttl, Token: c.token})
+	token, err := client.GenerateToken(ctx, auth.GenerateTokenRequest{Roles: roles, TTL: c.ttl, Token: c.token})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -152,7 +152,7 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 		} else {
 			authServer := authServers[0].GetAddr()
 
-			pingResponse, err := client.Ping(context.TODO())
+			pingResponse, err := client.Ping(ctx)
 			if err != nil {
 				log.Debugf("unnable to ping auth client: %s.", err.Error())
 			}
@@ -190,8 +190,7 @@ func (c *NodeCommand) Invite(client auth.ClientI) error {
 
 // ListActive retreives the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
-func (c *NodeCommand) ListActive(client auth.ClientI) error {
-	ctx := context.TODO()
+func (c *NodeCommand) ListActive(ctx context.Context, client auth.ClientI) error {
 	nodes, err := client.GetNodes(ctx, c.namespace)
 	if err != nil {
 		return trace.Wrap(err)

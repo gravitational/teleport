@@ -39,6 +39,20 @@ All installations include `teleport`, `tsh`, `tctl`, and `tbot`.
 
 (!docs/pages/includes/install-linux.mdx!)
 
+<Details 
+title="Using APT or YUM for versions prior to Teleport 10?" 
+scopeOnly={false}
+>
+
+If you've previously installed Teleport via the APT
+repo at `https://deb.releases.teleport.dev/`, you can upgrade by
+re-running the "Debian/Ubuntu (DEB)" install instructions above.
+
+We will also continue to maintain the legacy APT repo at
+`https://deb.releases.teleport.dev/` for the foreseeable future.
+
+</Details>
+
 Check the [Downloads](https://goteleport.com/download/) page for the most
 up-to-date information.
 
@@ -48,9 +62,16 @@ up-to-date information.
 <TabItem scope={["oss"]} label="Open Source">
 We provide pre-built Docker images for every version of Teleport.
 
-These images are hosted on quay.io. All tags under
-`quay.io/gravitational/teleport`
-[are Teleport Open Source images](https://quay.io/repository/gravitational/teleport?tag=latest\&tab=tags).
+These images are hosted on Amazon ECR Public. All tags under
+`public.ecr.aws/gravitational/teleport`
+[are Teleport Open Source images](https://gallery.ecr.aws/gravitational/teleport).
+
+<Admonition
+  type="warning"
+  title="Quay Docker Images"
+>
+Docker images will continue to be published to quay.io until Teleport 8 is EOL.
+</Admonition>
 
 The table below gives an idea of how our image naming scheme works. We offer
 images that point to a static version of Teleport as well as images that are
@@ -61,8 +82,8 @@ date.
 
 |Image name|Teleport version|Image automatically updated?|Image base|
 |-|-|-|-|
-|`(=teleport.latest_oss_docker_image=)`|The latest version of Teleport Open Source|Yes|[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)|
-|`quay.io/gravitational/teleport:(=teleport.version=)`|The version specified in the image's tag (i.e. (=teleport.version=))|No|[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)|
+|`public.ecr.aws/gravitational/teleport:(=teleport.major_version=)`|The latest version of Teleport Open Source|Yes|[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)|
+|`(=teleport.latest_oss_docker_image=)`|The version specified in the image's tag (i.e. (=teleport.version=))|No|[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)|
 
 For testing, we always recommend that you use the latest released version of Teleport, which is currently `(=teleport.latest_oss_docker_image=)`.
 
@@ -95,12 +116,13 @@ chart.
 
 |Chart|Included Services|Values Reference|
 |-|-|-|
-|`teleport-cluster`|Auth Service<br/>Proxy Service<br/>Other Teleport services if using a custom configuration|[Reference](kubernetes-access/helm/reference/teleport-cluster.mdx)
-|`teleport-kube-agent`|Kubernetes Service<br/>Application Service<br/>Database Service|[Reference](kubernetes-access/helm/reference/teleport-kube-agent.mdx)|
+|`teleport-cluster`|Auth Service<br/>Proxy Service<br/>Other Teleport services if using a custom configuration|[Reference](setup/helm-reference/teleport-cluster.mdx)
+|`teleport-kube-agent`|Kubernetes Service<br/>Application Service<br/>Database Service|[Reference](setup/helm-reference/teleport-kube-agent.mdx)|
 
 
 ## macOS
 
+<ScopedBlock scope={["oss", "cloud"]}>
 <Tabs>
   <TabItem label="Installer">
 
@@ -214,6 +236,30 @@ chart.
   </TabItem>
 
 </Tabs>
+</ScopedBlock>
+<ScopedBlock scope="enterprise">
+  You can download one of the following .pkg installers for macOS:
+
+  |Link|Binaries|
+  |-|-|
+  |[`teleport-ent-(=teleport.version=).pkg`](https://get.gravitational.com/teleport-ent-(=teleport.version=).pkg)|`teleport`<br/>`tctl`<br/>`tsh`<br/>`tbot`|
+  |[`tsh-(=teleport.version=).pkg`](https://get.gravitational.com/tsh-(=teleport.version=).pkg)|`tsh`|
+
+  You can also fetch an installer via the command line: 
+
+  ```code
+  $ curl -O https://get.gravitational.com/teleport-ent-(=teleport.version=).pkg
+  # Installs on Macintosh HD
+  $ sudo installer -pkg teleport-ent-(=teleport.version=).pkg -target / 
+  # Password:
+  # installer: Package name is teleport-ent-(=teleport.version=)
+  # installer: Upgrading at base path /
+  # installer: The upgrade was successful.
+  $ which teleport
+  # /usr/local/bin/teleport
+  ```
+
+</ScopedBlock>
 
 ## Windows (tsh client only)
 

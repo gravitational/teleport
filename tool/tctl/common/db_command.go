@@ -51,10 +51,10 @@ func (c *DBCommand) Initialize(app *kingpin.Application, config *service.Config)
 }
 
 // TryRun attempts to run subcommands like "db ls".
-func (c *DBCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (c *DBCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.dbList.FullCommand():
-		err = c.ListDatabases(client)
+		err = c.ListDatabases(ctx, client)
 	default:
 		return false, nil
 	}
@@ -63,8 +63,8 @@ func (c *DBCommand) TryRun(cmd string, client auth.ClientI) (match bool, err err
 
 // ListDatabases prints the list of database proxies that have recently sent
 // heartbeats to the cluster.
-func (c *DBCommand) ListDatabases(client auth.ClientI) error {
-	servers, err := client.GetDatabaseServers(context.TODO(), apidefaults.Namespace)
+func (c *DBCommand) ListDatabases(ctx context.Context, client auth.ClientI) error {
+	servers, err := client.GetDatabaseServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -85,7 +85,7 @@ func (c *DBCommand) ListDatabases(client auth.ClientI) error {
 	return nil
 }
 
-var dbMessageTemplate = template.Must(template.New("db").Parse(`The invite token: {{.token}}.
+var dbMessageTemplate = template.Must(template.New("db").Parse(`The invite token: {{.token}}
 This token will expire in {{.minutes}} minutes.
 
 Fill out and run this command on a node to start proxying the database:

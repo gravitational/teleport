@@ -35,9 +35,15 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/jonboulle/clockwork"
+	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -46,6 +52,8 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -55,12 +63,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/pquerna/otp/totp"
-	"gopkg.in/check.v1"
-
-	"github.com/gravitational/trace"
 )
 
 type TLSSuite struct {
@@ -948,6 +950,21 @@ func TestGetCurrentUser(t *testing.T) {
 	}, currentUser)
 }
 
+func TestGetCurrentUserRoles(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	user1, user1Role, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user-role"})
+	require.NoError(t, err)
+
+	client1, err := srv.NewClient(TestIdentity{I: LocalUser{Username: user1.GetName()}})
+	require.NoError(t, err)
+
+	roles, err := client1.GetCurrentUserRoles(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(roles, []types.Role{user1Role}, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+}
+
 func (s *TLSSuite) TestAuthPreference(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
@@ -1117,7 +1134,7 @@ func (s *TLSSuite) TestValidateUploadSessionRecording(c *check.C) {
 			Login:          "bob",
 			Namespace:      apidefaults.Namespace,
 		}
-		c.Assert(clt.CreateSession(sess), check.IsNil)
+		c.Assert(clt.CreateSession(context.Background(), sess), check.IsNil)
 
 		err = clt.UploadSessionRecording(events.SessionRecording{
 			Namespace: apidefaults.Namespace,
@@ -1208,7 +1225,7 @@ func (s *TLSSuite) TestValidatePostSessionSlice(c *check.C) {
 			Login:          "bob",
 			Namespace:      apidefaults.Namespace,
 		}
-		c.Assert(clt.CreateSession(sess), check.IsNil)
+		c.Assert(clt.CreateSession(context.Background(), sess), check.IsNil)
 
 		marshal := func(f events.EventFields) []byte {
 			data, err := json.Marshal(f)
@@ -1240,8 +1257,9 @@ func (s *TLSSuite) TestValidatePostSessionSlice(c *check.C) {
 func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
+	ctx := context.Background()
 
-	out, err := clt.GetSessions(apidefaults.Namespace)
+	out, err := clt.GetSessions(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.DeepEquals, []session.Session{})
 
@@ -1254,9 +1272,9 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 		Login:          "bob",
 		Namespace:      apidefaults.Namespace,
 	}
-	c.Assert(clt.CreateSession(sess), check.IsNil)
+	c.Assert(clt.CreateSession(ctx, sess), check.IsNil)
 
-	out, err = clt.GetSessions(apidefaults.Namespace)
+	out, err = clt.GetSessions(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(out, check.DeepEquals, []session.Session{sess})
@@ -1447,6 +1465,7 @@ func (s *TLSSuite) TestOTPCRUD(c *check.C) {
 func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
+	ctx := context.Background()
 
 	user := "user1"
 	pass := []byte("abc123")
@@ -1478,10 +1497,10 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	web, err := s.server.NewClientFromWebSession(ws)
 	c.Assert(err, check.IsNil)
 
-	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	_, err = web.GetWebSessionInfo(ctx, user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
-	new, err := web.ExtendWebSession(WebSessionReq{
+	new, err := web.ExtendWebSession(ctx, WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 	})
@@ -1489,16 +1508,16 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	c.Assert(new, check.NotNil)
 
 	// Requesting forbidden action for user fails
-	err = web.DeleteUser(context.TODO(), user)
+	err = web.DeleteUser(ctx, user)
 	fixtures.ExpectAccessDenied(c, err)
 
-	err = clt.DeleteWebSession(user, ws.GetName())
+	err = clt.DeleteWebSession(ctx, user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
-	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	_, err = web.GetWebSessionInfo(ctx, user, ws.GetName())
 	c.Assert(err, check.NotNil)
 
-	_, err = web.ExtendWebSession(WebSessionReq{
+	_, err = web.ExtendWebSession(ctx, WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 	})
@@ -1508,6 +1527,7 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
+	ctx := context.Background()
 
 	user := "user2"
 	pass := []byte("abc123")
@@ -1538,7 +1558,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	c.Assert(err, check.IsNil)
 
 	initialRole := newUser.GetRoles()[0]
-	initialSession, err := web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	initialSession, err := web.GetWebSessionInfo(ctx, user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
 	// Create a approved access request.
@@ -1549,10 +1569,10 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	accessReq.SetAccessExpiry(s.clock.Now().Add(time.Minute * 10))
 	accessReq.SetState(types.RequestState_APPROVED)
 
-	err = clt.CreateAccessRequest(context.Background(), accessReq)
+	err = clt.CreateAccessRequest(ctx, accessReq)
 	c.Assert(err, check.IsNil)
 
-	sess1, err := web.ExtendWebSession(WebSessionReq{
+	sess1, err := web.ExtendWebSession(ctx, WebSessionReq{
 		User:            user,
 		PrevSessionID:   ws.GetName(),
 		AccessRequestID: accessReq.GetMetadata().Name,
@@ -1594,7 +1614,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	c.Assert(certRequests(sess1.GetTLSCert()), check.DeepEquals, []string{accessReq.GetName()})
 
 	// Test switch back to default role and expiry.
-	sess2, err := web.ExtendWebSession(WebSessionReq{
+	sess2, err := web.ExtendWebSession(ctx, WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 		Switchback:    true,
@@ -2575,13 +2595,13 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 	userClient, err := s.server.NewClientFromWebSession(ws)
 	c.Assert(err, check.IsNil)
 
-	_, err = userClient.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	_, err = userClient.GetWebSessionInfo(ctx, user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
-	err = clt.DeleteWebSession(user, ws.GetName())
+	err = clt.DeleteWebSession(ctx, user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
-	_, err = userClient.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	_, err = userClient.GetWebSessionInfo(ctx, user, ws.GetName())
 	c.Assert(err, check.NotNil)
 }
 

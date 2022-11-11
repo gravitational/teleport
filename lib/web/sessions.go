@@ -29,12 +29,13 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -61,6 +62,9 @@ type SessionContext struct {
 	// clt holds a connection to the root auth. Note that requests made using this
 	// client are made with the identity of the user and are NOT cached.
 	clt *auth.Client
+	// remoteClientCache holds the remote clients that have been used in this
+	// session.
+	remoteClientCache
 
 	// unsafeCachedAuthClient holds a read-only cache to root auth. Note this access
 	// point cache is authenticated with the identity of the node, not of the
@@ -77,9 +81,6 @@ type SessionContext struct {
 	resources *sessionResources
 	// session refers the web session created for the user.
 	session types.WebSession
-
-	mu        sync.Mutex
-	remoteClt map[string]auth.ClientI
 }
 
 // String returns the text representation of this context
@@ -127,19 +128,6 @@ func (c *SessionContext) validateBearerToken(ctx context.Context, token string) 
 	return nil
 }
 
-func (c *SessionContext) addRemoteClient(siteName string, remoteClient auth.ClientI) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.remoteClt[siteName] = remoteClient
-}
-
-func (c *SessionContext) getRemoteClient(siteName string) (auth.ClientI, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	remoteClt, ok := c.remoteClt[siteName]
-	return remoteClt, ok
-}
-
 // GetClient returns the client connected to the auth server
 func (c *SessionContext) GetClient() (auth.ClientI, error) {
 	return c.clt, nil
@@ -167,7 +155,7 @@ func (c *SessionContext) GetUserClient(site reversetunnel.RemoteSite) (auth.Clie
 	}
 
 	// check if we already have a connection to this cluster
-	remoteClt, ok := c.getRemoteClient(site.GetName())
+	remoteClt, ok := c.getRemoteClient(site)
 	if !ok {
 		rClt, err := c.newRemoteClient(site)
 		if err != nil {
@@ -177,7 +165,10 @@ func (c *SessionContext) GetUserClient(site reversetunnel.RemoteSite) (auth.Clie
 		// we'll save the remote client in our session context so we don't have to
 		// build a new connection next time. all remote clients will be closed when
 		// the session context is closed.
-		c.addRemoteClient(site.GetName(), rClt)
+		err = c.addRemoteClient(site, rClt)
+		if err != nil {
+			c.log.WithError(err).Info("Failed closing stale remote client for site: ", site.GetName())
+		}
 
 		return rClt, nil
 	}
@@ -211,7 +202,7 @@ func (c *SessionContext) tryRemoteTLSClient(cluster reversetunnel.RemoteSite) (a
 	}
 	_, err = clt.GetDomainName()
 	if err != nil {
-		return clt, trace.Wrap(err)
+		return nil, trace.NewAggregate(err, clt.Close())
 	}
 	return clt, nil
 }
@@ -276,8 +267,8 @@ func (c *SessionContext) GetUser() string {
 
 // extendWebSession creates a new web session for this user
 // based on the previous session
-func (c *SessionContext) extendWebSession(accessRequestID string, switchback bool) (types.WebSession, error) {
-	session, err := c.clt.ExtendWebSession(auth.WebSessionReq{
+func (c *SessionContext) extendWebSession(ctx context.Context, accessRequestID string, switchback bool) (types.WebSession, error) {
+	session, err := c.clt.ExtendWebSession(ctx, auth.WebSessionReq{
 		User:            c.user,
 		PrevSessionID:   c.session.GetName(),
 		AccessRequestID: accessRequestID,
@@ -286,6 +277,7 @@ func (c *SessionContext) extendWebSession(accessRequestID string, switchback boo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return session, nil
 }
 
@@ -394,18 +386,7 @@ func (c *SessionContext) GetSessionID() string {
 // Close cleans up resources associated with this context and removes it
 // from the user context
 func (c *SessionContext) Close() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	var errors []error
-	for _, clt := range c.remoteClt {
-		if err := clt.Close(); err != nil {
-			errors = append(errors, err)
-		}
-	}
-	if err := c.clt.Close(); err != nil {
-		errors = append(errors, err)
-	}
-	return trace.NewAggregate(errors...)
+	return trace.NewAggregate(c.remoteClientCache.Close(), c.clt.Close())
 }
 
 // getToken returns the bearer token associated with the underlying
@@ -825,7 +806,6 @@ func (s *sessionCache) newSessionContextFromSession(session types.WebSession) (*
 	ctx := &SessionContext{
 		clt:                    userClient,
 		unsafeCachedAuthClient: s.accessPoint,
-		remoteClt:              make(map[string]auth.ClientI),
 		user:                   session.GetUser(),
 		session:                session,
 		parent:                 s,
@@ -985,4 +965,56 @@ func (h *Handler) waitForWebSession(ctx context.Context, req types.GetWebSession
 		logger.WithError(err).Warn("Failed to wait for web session.")
 	}
 	return trace.Wrap(err)
+}
+
+// remoteClientCache stores remote clients keyed by site name while also keeping
+// track of the actual remote site associated with the client (in case the
+// remote site has changed). Safe for concurrent access. Closes all clients and
+// wipes the cache on Close.
+type remoteClientCache struct {
+	sync.Mutex
+	clients map[string]struct {
+		auth.ClientI
+		reversetunnel.RemoteSite
+	}
+}
+
+func (c *remoteClientCache) addRemoteClient(site reversetunnel.RemoteSite, remoteClient auth.ClientI) error {
+	c.Lock()
+	defer c.Unlock()
+	if c.clients == nil {
+		c.clients = make(map[string]struct {
+			auth.ClientI
+			reversetunnel.RemoteSite
+		})
+	}
+	var err error
+	if c.clients[site.GetName()].ClientI != nil {
+		err = c.clients[site.GetName()].ClientI.Close()
+	}
+	c.clients[site.GetName()] = struct {
+		auth.ClientI
+		reversetunnel.RemoteSite
+	}{remoteClient, site}
+	return err
+}
+
+func (c *remoteClientCache) getRemoteClient(site reversetunnel.RemoteSite) (auth.ClientI, bool) {
+	c.Lock()
+	defer c.Unlock()
+	remoteClt, ok := c.clients[site.GetName()]
+	return remoteClt.ClientI, ok && remoteClt.RemoteSite == site
+}
+
+func (c *remoteClientCache) Close() error {
+	c.Lock()
+	defer c.Unlock()
+
+	errors := make([]error, 0, len(c.clients))
+	for _, clt := range c.clients {
+		errors = append(errors, clt.ClientI.Close())
+	}
+	c.clients = nil
+
+	return trace.NewAggregate(errors...)
 }

@@ -415,6 +415,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 	}
+	if fc.Tracing.Enabled() {
+		if err := applyTracingConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
 	return nil
 }
@@ -849,8 +854,6 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.Proxy.ACME = *acme
 
-	applyDefaultProxyListenerAddresses(cfg)
-
 	return nil
 }
 
@@ -1187,6 +1190,11 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 				Headers:  headers,
 			}
 		}
+		if application.AWS != nil {
+			app.AWS = &service.AppAWS{
+				ExternalID: application.AWS.ExternalID,
+			}
+		}
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1356,6 +1364,47 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			Regexp: r,
 			Labels: rule.Labels,
 		})
+	}
+
+	return nil
+}
+
+// applyTracingConfig applies file configuration for the "tracing_service" section.
+func applyTracingConfig(fc *FileConfig, cfg *service.Config) error {
+	// Tracing is enabled.
+	cfg.Tracing.Enabled = true
+
+	if fc.Tracing.ExporterURL == "" {
+		return trace.BadParameter("tracing_service is enabled but no exporter_url is specified")
+	}
+
+	cfg.Tracing.ExporterURL = fc.Tracing.ExporterURL
+	cfg.Tracing.SamplingRate = float64(fc.Tracing.SamplingRatePerMillion) / 1_000_000.0
+
+	for _, p := range fc.Tracing.KeyPairs {
+		// Check that the certificate exists on disk. This exists to provide the
+		// user a sensible error message.
+		if !utils.FileExists(p.PrivateKey) {
+			return trace.NotFound("tracing_service private key does not exist: %s", p.PrivateKey)
+		}
+		if !utils.FileExists(p.Certificate) {
+			return trace.NotFound("tracing_service cert does not exist: %s", p.Certificate)
+		}
+
+		cfg.Tracing.KeyPairs = append(cfg.Tracing.KeyPairs, service.KeyPairPath{
+			PrivateKey:  p.PrivateKey,
+			Certificate: p.Certificate,
+		})
+	}
+
+	for _, caCert := range fc.Tracing.CACerts {
+		// Check that the certificate exists on disk. This exists to provide the
+		// user a sensible error message.
+		if !utils.FileExists(caCert) {
+			return trace.NotFound("tracing_service ca cert does not exist: %s", caCert)
+		}
+
+		cfg.Tracing.CACerts = append(cfg.Tracing.CACerts, caCert)
 	}
 
 	return nil
@@ -1839,6 +1888,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	if clf.PermitUserEnvironment {
 		cfg.SSH.PermitUserEnvironment = true
 	}
+
+	// set the default proxy listener addresses for config v1, if not already set
+	applyDefaultProxyListenerAddresses(cfg)
 
 	return nil
 }

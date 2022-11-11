@@ -35,10 +35,12 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -593,8 +595,15 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	// AWS CLI, automatically use SigV4 for all services that support it (All services expect Amazon SimpleDB
 	// but this AWS service has been deprecated)
 	if aws.IsSignedByAWSSigV4(r) && app.IsAWSConsole() {
+		// TODO(greedy52) create a proper sessionChunk for AWS requests to
+		// record audit events.
+		sessionCtx := &common.SessionContext{
+			Identity: identity,
+			App:      app,
+		}
+
 		// Sign the request based on RouteToApp.AWSRoleARN user identity and route signed request to the AWS API.
-		s.awsSigner.Handle(w, r)
+		s.awsSigner.Handle(w, common.WithSessionContext(r, sessionCtx))
 		return nil
 	}
 
@@ -604,9 +613,10 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		s.log.Debugf("Redirecting %v to AWS mananement console with role %v.",
 			identity.Username, identity.RouteToApp.AWSRoleARN)
 		url, err := s.c.Cloud.GetAWSSigninURL(AWSSigninRequest{
-			Identity:  identity,
-			TargetURL: app.GetURI(),
-			Issuer:    app.GetPublicAddr(),
+			Identity:   identity,
+			TargetURL:  app.GetURI(),
+			Issuer:     app.GetPublicAddr(),
+			ExternalID: app.GetAWSExternalID(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -735,7 +745,7 @@ func (s *Server) newHTTPServer() *http.Server {
 	authMiddleware.Wrap(s)
 
 	return &http.Server{
-		Handler:           authMiddleware,
+		Handler:           httplib.MakeTracingHandler(authMiddleware, teleport.ComponentApp),
 		ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 		ErrorLog:          utils.NewStdlogger(s.log.Error, teleport.ComponentApp),
 	}

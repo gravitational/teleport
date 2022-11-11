@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"os"
 	"os/user"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -64,16 +65,20 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	app = utils.InitCLIParser("teleport", "Clustered SSH service. Learn more at https://goteleport.com/teleport")
 
 	// define global flags:
-	var ccf config.CommandLineFlags
-	var scpFlags scp.Flags
-	var dumpFlags dumpFlags
+	var (
+		ccf                 config.CommandLineFlags
+		scpFlags            scp.Flags
+		dumpFlags           dumpFlags
+		systemdInstallFlags installSystemdFlags
+	)
 
 	// define commands:
 	start := app.Command("start", "Starts the Teleport service.")
 	status := app.Command("status", "Print the status of the current SSH session.")
 	dump := app.Command("configure", "Generate a simple config file to get started.")
-	ver := app.Command("version", "Print the version.")
+	ver := app.Command("version", "Print the version of your teleport binary.")
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
+	sftp := app.Command("sftp", "Server-side implementation of SFTP.").Hidden()
 	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
 	forward := app.Command(teleport.ForwardSubCommand, "Used internally by Teleport to re-exec itself to port forward.").Hidden()
 	checkHomeDir := app.Command(teleport.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
@@ -205,6 +210,16 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbStartCmd.Flag("diag-addr", "Start diagnostic prometheus and healthz endpoint.").StringVar(&ccf.DiagnosticAddr)
 	dbStartCmd.Alias(dbUsageExamples) // We're using "alias" section to display usage examples.
 
+	// "teleport install" command and its subcommands
+	installCmd := app.Command("install", "Teleport install commands.")
+	systemdInstall := installCmd.Command("systemd", "Creates a systemd unit file configuration.")
+	systemdInstall.Flag("env-file", "Full path to the environment file.").Default(config.SystemdDefaultEnvironmentFile).StringVar(&systemdInstallFlags.EnvironmentFile)
+	systemdInstall.Flag("pid-file", "Full path to the PID file.").Default(config.SystemdDefaultPIDFile).StringVar(&systemdInstallFlags.PIDFile)
+	systemdInstall.Flag("fd-limit", "Maximum number of open file descriptors.").Default(fmt.Sprintf("%v", config.SystemdDefaultFileDescriptorLimit)).IntVar(&systemdInstallFlags.FileDescriptorLimit)
+	systemdInstall.Flag("teleport-path", "Full path to the Teleport binary.").StringVar(&systemdInstallFlags.TeleportInstallationFile)
+	systemdInstall.Flag("output", "Write to stdout with -o=stdout or custom path with -o=file:///path").Short('o').Default(teleport.SchemeStdout).StringVar(&systemdInstallFlags.output)
+	systemdInstall.Alias(systemdInstallExamples) // We're using "alias" section to display usage examples.
+
 	// define a hidden 'scp' command (it implements server-side implementation of handling
 	// 'scp' requests)
 	scpc.Flag("t", "sink mode (data consumer)").Short('t').Default("false").BoolVar(&scpFlags.Sink)
@@ -276,6 +291,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		}
 	case scpc.FullCommand():
 		err = onSCP(&scpFlags)
+	case sftp.FullCommand():
+		err = onSFTP()
 	case status.FullCommand():
 		err = onStatus()
 	case dump.FullCommand():
@@ -288,6 +305,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onCheckHome()
 	case ver.FullCommand():
 		utils.PrintVersion()
+	case systemdInstall.FullCommand():
+		err = onDumpSystemdUnitFile(systemdInstallFlags)
 	}
 	if err != nil {
 		utils.FatalError(err)
@@ -350,6 +369,17 @@ func (flags *dumpFlags) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+func normalizeOutput(output string) string {
+	switch output {
+	case teleport.SchemeFile, "":
+		output = teleport.SchemeFile + "://" + defaults.ConfigFilePath
+	case teleport.SchemeStdout:
+		output = teleport.SchemeStdout + "://"
+	}
+
+	return output
 }
 
 // onConfigDump is the handler for "configure" CLI command
@@ -455,6 +485,65 @@ func onConfigDump(flags dumpFlags) error {
 	}
 
 	return nil
+}
+
+func dumpConfigFile(outputURI, contents, comment string) (string, error) {
+	// Generate a new config.
+	uri, err := url.Parse(outputURI)
+	if err != nil {
+		return "", trace.BadParameter("could not parse output value %q, use --output=%q",
+			outputURI, defaults.ConfigFilePath)
+	}
+
+	switch uri.Scheme {
+	case teleport.SchemeStdout:
+		fmt.Printf("%s\n%s\n", comment, contents)
+		return "", nil
+	case teleport.SchemeFile, "":
+		if uri.Path == "" {
+			return "", trace.BadParameter("missing path in --output=%q", uri)
+		}
+		if !filepath.IsAbs(uri.Path) {
+			return "", trace.BadParameter("please use absolute path for file %v", uri.Path)
+		}
+
+		configDir := path.Dir(outputURI)
+		err := os.MkdirAll(configDir, 0755)
+		err = trace.ConvertSystemError(err)
+		if err != nil {
+			if trace.IsAccessDenied(err) {
+				return "", trace.Wrap(err, "permission denied creating directory %s", configDir)
+			}
+
+			return "", trace.Wrap(err, "error creating config file directory %s", configDir)
+		}
+
+		f, err := os.OpenFile(uri.Path, os.O_RDWR|os.O_CREATE|os.O_EXCL, teleport.FileMaskOwnerOnly)
+		err = trace.ConvertSystemError(err)
+		if err != nil {
+			if trace.IsAlreadyExists(err) {
+				return "", trace.AlreadyExists("will not overwrite existing file %v, rm -f %v and try again", uri.Path, uri.Path)
+			}
+
+			if trace.IsAccessDenied(err) {
+				return "", trace.Wrap(err, "could not write to config file, missing sudo?")
+			}
+
+			return "", trace.Wrap(err)
+		}
+		if _, err := f.Write([]byte(contents)); err != nil {
+			f.Close()
+			return "", trace.Wrap(trace.ConvertSystemError(err), "could not write to config file, missing sudo?")
+		}
+		if err := f.Close(); err != nil {
+			return "", trace.Wrap(err, "could not close file %v", uri.Path)
+		}
+
+		return uri.Path, nil
+	default:
+		return "", trace.BadParameter(
+			"unsupported --output=%v, use path for example --output=%v", uri.Scheme, defaults.ConfigFilePath)
+	}
 }
 
 // onSCP implements handling of 'scp' requests on the server side. When the teleport SSH daemon

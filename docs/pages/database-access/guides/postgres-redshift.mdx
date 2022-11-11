@@ -245,6 +245,10 @@ $ tsh db login redshift
   You can be logged into multiple databases simultaneously.
 </Admonition>
 
+<Admonition type="note" title="Note">
+  You can override the database name by applying the `teleport.dev/database_name` AWS tag to the resource. The value of the tag will be used as the database name.
+</Admonition>
+
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 

@@ -1,5 +1,5 @@
 # This example connector uses SAML to authenticate against
-# Active Directory Feneration Services (ADFS)
+# Active Directory Federation Services (ADFS)
 kind: saml
 version: v2
 metadata:

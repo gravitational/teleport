@@ -84,6 +84,9 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 	if p.awsRole != "" {
 		urlQuery.Add("awsrole", p.awsRole)
 	}
+	if p.path != "" {
+		urlQuery.Add("path", p.path)
+	}
 
 	u := url.URL{
 		Scheme:   "https",
@@ -100,6 +103,7 @@ type launcherURLParams struct {
 	publicAddr  string
 	stateToken  string
 	awsRole     string
+	path        string
 }
 
 // makeRouterHandler creates a httprouter.Handle.

@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -103,7 +104,7 @@ func sshProxyWithTLSRouting(cf *CLIConf, tc *libclient.TeleportClient, targetHos
 		return trace.Wrap(err)
 	}
 	defer lp.Close()
-	if err := lp.SSHProxy(tc.LocalAgent()); err != nil {
+	if err := lp.SSHProxy(cf.Context, tc.LocalAgent()); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -143,8 +144,15 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	database, err := pickActiveDatabase(cf)
+	profile, err := libclient.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+	database, err := getDatabaseInfo(cf, client, cf.DatabaseService)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := maybeDatabaseLogin(cf, client, profile, database); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -170,11 +178,6 @@ func onProxyCommandDB(cf *CLIConf) error {
 		lp.Close()
 	}()
 
-	profile, err := libclient.StatusCurrent(cf.HomePath, cf.Proxy)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	err = dbProxyTpl.Execute(os.Stdout, map[string]string{
 		"database": database.ServiceName,
 		"address":  listener.Addr().String(),
@@ -187,7 +190,10 @@ func onProxyCommandDB(cf *CLIConf) error {
 	}
 
 	defer lp.Close()
-	if err := lp.Start(cf.Context); err != nil {
+	// To avoid termination of background DB teleport proxy when a SIGINT is received don't use the cf.Context.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := lp.Start(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

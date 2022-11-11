@@ -27,11 +27,29 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
+
+const (
+	// ProxyHelloSignature is a string which Teleport proxy will send
+	// right after the initial SSH "handshake/version" message if it detects
+	// talking to a Teleport server.
+	ProxyHelloSignature = "Teleport-Proxy"
+)
+
+// HandshakePayload structure is sent as a JSON blob by the teleport
+// proxy to every SSH server who identifies itself as Teleport server
+//
+// It allows teleport proxies to communicate additional data to server
+type HandshakePayload struct {
+	// ClientAddr is the IP address of the remote client
+	ClientAddr string `json:"clientAddr,omitempty"`
+	// TracingContext contains tracing information so that spans can be correlated
+	// across ssh boundaries
+	TracingContext map[string]string `json:"tracingContext,omitempty"`
+}
 
 // ParseCertificate parses an SSH certificate from the authorized_keys format.
 func ParseCertificate(buf []byte) (*ssh.Certificate, error) {
@@ -246,7 +264,7 @@ func hostKeyFallbackFunc(knownHosts []ssh.PublicKey) func(hostname string, remot
 
 // KeysEqual is constant time compare of the keys to avoid timing attacks
 func KeysEqual(ak, bk ssh.PublicKey) bool {
-	a := ssh.Marshal(ak)
-	b := ssh.Marshal(bk)
-	return (len(a) == len(b) && subtle.ConstantTimeCompare(a, b) == 1)
+	a := ak.Marshal()
+	b := bk.Marshal()
+	return subtle.ConstantTimeCompare(a, b) == 1
 }

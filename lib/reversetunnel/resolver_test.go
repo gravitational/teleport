@@ -16,21 +16,28 @@ package reversetunnel
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestStaticResolver(t *testing.T) {
 	cases := []struct {
 		name             string
 		address          string
+		mode             types.ProxyListenerMode
 		errorAssertionFn require.ErrorAssertionFunc
 		expected         *utils.NetAddr
 	}{
@@ -48,23 +55,30 @@ func TestStaticResolver(t *testing.T) {
 				AddrNetwork: "tcp",
 				Path:        "",
 			},
+			mode: types.ProxyListenerMode_Multiplex,
 		},
 	}
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			addr, err := StaticResolver(tt.address)()
+			addr, mode, err := StaticResolver(tt.address, tt.mode)(context.Background())
 			tt.errorAssertionFn(t, err)
 			if err != nil {
 				return
 			}
 
 			require.Empty(t, cmp.Diff(tt.expected, addr))
+			require.Equal(t, tt.mode, mode)
 		})
 	}
 }
 
 func TestResolveViaWebClient(t *testing.T) {
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(&webclient.PingResponse{})
+	}))
+	t.Cleanup(srv.Close)
 
 	fakeAddr := utils.NetAddr{}
 
@@ -93,7 +107,7 @@ func TestResolveViaWebClient(t *testing.T) {
 		},
 		{
 			name:             "valid address yields NetAddr",
-			addrs:            []utils.NetAddr{fakeAddr},
+			addrs:            []utils.NetAddr{{Addr: srv.Listener.Addr().String()}},
 			address:          "localhost:80",
 			errorAssertionFn: require.NoError,
 			expected: &utils.NetAddr{
@@ -107,7 +121,7 @@ func TestResolveViaWebClient(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(defaults.TunnelPublicAddrEnvar, tt.address)
-			addr, err := WebClientResolver(context.Background(), tt.addrs, true)()
+			addr, _, err := WebClientResolver(tt.addrs, true)(context.Background())
 			tt.errorAssertionFn(t, err)
 			if err != nil {
 				return
@@ -119,35 +133,49 @@ func TestResolveViaWebClient(t *testing.T) {
 }
 
 func TestCachingResolver(t *testing.T) {
-	randomResolver := func() (*utils.NetAddr, error) {
+	randomResolver := func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
 		return &utils.NetAddr{
 			Addr:        uuid.New().String(),
 			AddrNetwork: uuid.New().String(),
 			Path:        uuid.New().String(),
-		}, nil
+		}, types.ProxyListenerMode_Multiplex, nil
 	}
 
 	clock := clockwork.NewFakeClock()
-	resolver, err := CachingResolver(randomResolver, clock)
+	resolver, err := CachingResolver(context.Background(), randomResolver, clock)
 	require.NoError(t, err)
 
-	addr, err := resolver()
+	// This is a data race check.
+	// We start a goroutine that mutates the underlying NetAddr, but without invalidating the cache.
+	// The caching resolver must return a pointer to a copy of the NetAddr to avoid a data race.
+	go func() {
+		addr, _, err := resolver(context.Background())
+		require.NoError(t, err)
+		// data race check: write to *addr
+		addr.Addr = ""
+	}()
+
+	addr, mode, err := resolver(context.Background())
 	require.NoError(t, err)
 
-	addr2, err := resolver()
+	addr2, mode2, err := resolver(context.Background())
 	require.NoError(t, err)
 
+	// data race check: read from *addr
 	require.Equal(t, addr, addr2)
+	require.Equal(t, mode, mode2)
 
 	clock.Advance(time.Hour)
 
-	addr3, err := resolver()
+	addr3, mode3, err := resolver(context.Background())
 	require.NoError(t, err)
 
 	require.NotEqual(t, addr2, addr3)
+	require.Equal(t, mode2, mode3)
 
-	addr4, err := resolver()
+	addr4, mode4, err := resolver(context.Background())
 	require.NoError(t, err)
 
 	require.Equal(t, addr3, addr4)
+	require.Equal(t, mode3, mode4)
 }

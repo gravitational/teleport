@@ -62,8 +62,9 @@ To create an application resource, run:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
-# Log in to your Teleport cluster so you can use tctl remotely.
-# You can also run tctl on your Auth Service host.
+# Log in to your cluster with tsh so you can use tctl from your local machine.
+# You can also run tctl on your Auth Service host without running "tsh login"
+# first.
 $ tsh login --proxy=teleport.example.com --user=myuser
 $ tctl create app.yaml
 ```
@@ -81,8 +82,8 @@ $ tctl create app.yaml
 
 
 After the resource has been created, it will appear among the list of available
-apps (in `tsh app ls` or UI) as long as at least one application agent picks it
-up according to its label selectors.
+apps (in `tsh app ls` or UI) as long as at least one Application Service
+instance picks it up according to its label selectors.
 
 To update an existing application resource, run:
 

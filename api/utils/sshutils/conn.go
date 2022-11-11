@@ -21,33 +21,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
-	"time"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
-// NewClientConnWithDeadline establishes new client connection with specified deadline
-func NewClientConnWithDeadline(conn net.Conn, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
-	if config.Timeout > 0 {
-		conn.SetReadDeadline(time.Now().Add(config.Timeout))
-	}
-	c, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
-	if err != nil {
-		return nil, err
-	}
-	if config.Timeout > 0 {
-		conn.SetReadDeadline(time.Time{})
-	}
-	return ssh.NewClient(c, chans, reqs), nil
-}
-
 // ConnectProxyTransport opens a channel over the remote tunnel and connects
 // to the requested host.
-func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (*ChConn, bool, error) {
+//
+// Returns the net.Conn wrapper over an SSH channel, whether the provided ssh.Conn
+// should be considered invalid due to errors opening or sending a request to the
+// channel while setting up the ChConn, and any error that occurs.
+func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (conn *ChConn, invalid bool, err error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, false, trace.Wrap(err)
 	}
@@ -59,9 +47,11 @@ func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (*ChCon
 
 	channel, discard, err := sconn.OpenChannel(constants.ChanTransport, nil)
 	if err != nil {
-		ssh.DiscardRequests(discard)
-		return nil, false, trace.Wrap(err)
+		return nil, true, trace.Wrap(err)
 	}
+
+	// DiscardRequests will return when the channel or underlying connection is closed.
+	go ssh.DiscardRequests(discard)
 
 	// Send a special SSH out-of-band request called "teleport-transport"
 	// the agent on the other side will create a new TCP/IP connection to
@@ -69,7 +59,7 @@ func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (*ChCon
 	// this SSH channel.
 	ok, err := channel.SendRequest(constants.ChanTransportDialReq, true, payload)
 	if err != nil {
-		return nil, true, trace.Wrap(err)
+		return nil, true, trace.NewAggregate(trace.Wrap(err), channel.Close())
 	}
 	if !ok {
 		defer channel.Close()

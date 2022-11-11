@@ -45,13 +45,14 @@ By default, it is stored in `/etc/teleport.yaml`.
   enable you to roll back to the previous configuration if you need to.
 
 - Teleport Cloud manages the Auth Service and Proxy Service for you. Your
-  Teleport Nodes should include the following configuration options to avoid
+  Teleport resource services (e.g., the Application Service and Database
+  Service) should include the following configuration options to avoid
   unintended effects:
 
   ```yaml
   auth_service:
     enabled: no
-  
+
   proxy_service:
     enabled: no
   ```
@@ -91,8 +92,8 @@ teleport:
     # (https://goteleport.com/docs/admin-guide/#adding-nodes-to-the-cluster).
     ca_pin: "sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
 
-    # When running in multi-homed or NATed environments Teleport nodes need
-    # to know which IP it will be reachable at by other nodes
+    # When running in multi-homed or NATed environments Teleport Nodes need
+    # to know which IP it will be reachable at by other Nodes.
     #
     # This value can be specified as FQDN e.g. host.example.com
     advertise_ip: 10.1.0.5
@@ -143,8 +144,9 @@ teleport:
     # section of the Admin Manual (https://goteleport.com/docs/admin-guide/#high-availability)
     # to learn how to configure DynamoDB, S3, etcd, and other highly available back-ends.
     storage:
-        # By default teleport uses the `data_dir` directory on a local filesystem
-        type: dir
+        # By default teleport uses a SQLite database in the `data_dir`
+        # directory on a local filesystem
+        type: sqlite
 
         # List of locations where the audit log events will be stored. By default,
         # they are stored in `/var/lib/teleport/log`
@@ -158,7 +160,23 @@ teleport:
         # for more information (https://goteleport.com/docs/admin-guide/#using-amazon-s3).
         audit_sessions_uri: 's3://example.com/path/to/bucket?region=us-east-1'
 
-        # DynamoDB Specific Section
+        # SQLite-specific section:
+
+        # The default path is the `backend` directory in the `data_dir`
+        path: /var/lib/teleport/backend/
+        # SQLite's `synchronous` pragma, can be set to `"OFF"` for improved
+        # write performance in exchange for reliability against system crashes
+        # (see https://www.sqlite.org/pragma.html#pragma_synchronous).
+        sync: FULL
+        # SQLite's `journal_mode` pragma, by default it doesn't change the mode from
+        # the SQLite default (DELETE unless the database file is using WAL mode).
+        # For improved performance without sacrificing reliability it's possible to
+        # set `journal` to `WAL` and `sync` to `NORMAL`, but only when using a filesystem
+        # that supports locks (see https://www.sqlite.org/pragma.html#pragma_journal_mode).
+        #journal: DELETE
+
+        # DynamoDB-specific section:
+
         # continuous_backups is used to enable continuous backups.
         continuous_backups: [true|false]
 
@@ -238,7 +256,7 @@ auth_service:
     authentication:
         # default authentication type. possible values are 'local' and 'github' for OSS
         #  and 'oidc', 'saml' and 'false' for Enterprise.
-        #  only local authentication (Teleport's own user DB) & Github is supported in the open
+        #  only local authentication (Teleport's own user DB) & GitHub is supported in the open
         #  source version
         type: local
 
@@ -348,7 +366,7 @@ auth_service:
         # (https://goteleport.com/docs/access-controls/guides/locking/#locking-mode).
         locking_mode: best_effort
 
-    # IP and the port to bind to. Other Teleport nodes will be connecting to
+    # IP and the port to bind to. Other Teleport Nodes will be connecting to
     # this port (AKA "Auth API" or "Cluster API") to validate client
     # certificates
     listen_addr: 0.0.0.0:3025
@@ -513,13 +531,13 @@ ssh_service:
     port_forwarding: true
 
     # When x11.enabled is set to yes, users with the "permit_x11_forwarding"
-    # role option will be able to request X11 forwarding sessions with 
+    # role option will be able to request X11 forwarding sessions with
     # "tsh ssh -X".
     #
     # X11 forwarding will only work if the server has the "xauth" binary
-    # installed and the Teleport node can open Unix sockets.
+    # installed and the Teleport Node can open Unix sockets.
     # e.g. "$TEMP/.X11-unix/X[display_number]."
-    x11: 
+    x11:
       # no by default
       enabled: yes
       # display_offset can be used to specify the start of the range of X11
@@ -702,6 +720,7 @@ kubernetes_service:
     labels:
       env: "prod"
     # Optional Dynamic Labels
+    commands:
     - name: "os"
        command: ["/usr/bin/uname"]
        period: "5s"

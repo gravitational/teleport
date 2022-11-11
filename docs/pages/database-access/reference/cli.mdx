@@ -19,7 +19,7 @@ Database Access, including:
 
 ## teleport db start
 
-Starts Teleport Database Service agent.
+Starts Teleport Database Service.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
@@ -83,6 +83,66 @@ $ tctl auth sign --format=db --host=host1,localhost,127.0.0.1 --out=db --ttl=219
 | `--host` | Comma-separated SANs to encode in the certificate. Must contain the hostname Teleport will use to connect to the database. |
 | `--out` | Name prefix for output files. |
 | `--ttl` | Certificate validity period. |
+
+<Details title="Setting up RBAC for signing database certificates">
+
+The `tctl` user must have permissions to impersonate the Teleport Database
+Service role, `Db`, in order to generate a signed database certificate. To add
+these impersonation privileges to your Teleport user, run the following
+commands.
+
+First, define a role that can impersonate the `Db` user. Add the following
+content to a file called `db-impersonator.yaml`:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: db-impersonator
+spec:
+  options:
+  allow:
+    impersonate:
+      users: ['Db']
+      roles: ['Db']
+```
+
+Create the fole:
+
+```code
+$ tctl create -f db-impersonator.yaml
+```
+
+Retrieve your Teleport user's dynamic configuration resource so you can add the
+`db-impersonator` role:
+
+```code
+$ TELEPORT_USER=<your user>
+$ tctl get user/${TELEPORT_USER?} > myuser.yaml
+```
+
+Edit `myuser.yaml` to add the `db-impersonator` role:
+
+```diff
+spec:
+   - access
+   - auditor
+   - editor
++  - db-impersonator
+   status:
+     is_locked: false
+```
+
+Update your user:
+
+```code
+$ tctl create -f myuser.yaml
+```
+
+Log out of your Teleport cluster and log in again. You will now be able to run
+`tctl auth sign` for database-specific certificate formats.
+
+</Details>
 
 (!docs/pages/includes/database-access/ttl-note.mdx!)
 

@@ -17,11 +17,13 @@ limitations under the License.
 package srv
 
 import (
+	"context"
+
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/trace"
 )
 
 // TermHandlers are common terminal handling functions used by both the
@@ -33,28 +35,29 @@ type TermHandlers struct {
 // HandleExec handles requests of type "exec" which can execute with or
 // without a TTY. Result of execution is propagated back on the ExecResult
 // channel of the context.
-func (t *TermHandlers) HandleExec(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
+func (t *TermHandlers) HandleExec(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *ServerContext) error {
 	// Save the request within the context.
-	ctx.request = req
+	if err := scx.SetSSHRequest(req); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Parse the exec request and store it in the context.
-	_, err := parseExecRequest(req, ctx)
-	if err != nil {
+	if _, err := parseExecRequest(req, scx); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// If a terminal was previously allocated for this command, run command in
 	// an interactive session. Otherwise run it in an exec session.
-	if ctx.GetTerm() != nil {
-		return t.SessionRegistry.OpenSession(ch, req, ctx)
+	if scx.GetTerm() != nil {
+		return t.SessionRegistry.OpenSession(ctx, ch, req, scx)
 	}
-	return t.SessionRegistry.OpenExecSession(ch, req, ctx)
+	return t.SessionRegistry.OpenExecSession(ctx, ch, req, scx)
 }
 
 // HandlePTYReq handles requests of type "pty-req" which allocate a TTY for
 // "exec" or "shell" requests. The "pty-req" includes the size of the TTY as
 // well as the terminal type requested.
-func (t *TermHandlers) HandlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
+func (t *TermHandlers) HandlePTYReq(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *ServerContext) error {
 	// parse and extract the requested window size of the pty
 	ptyRequest, err := parsePTYReq(req)
 	if err != nil {
@@ -70,28 +73,28 @@ func (t *TermHandlers) HandlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *Serve
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ctx.Debugf("Requested terminal %q of size %v", ptyRequest.Env, *params)
+	scx.Debugf("Requested terminal %q of size %v", ptyRequest.Env, *params)
 
 	// get an existing terminal or create a new one
-	term := ctx.GetTerm()
+	term := scx.GetTerm()
 	if term == nil {
 		// a regular or forwarding terminal will be allocated
-		term, err = NewTerminal(ctx)
+		term, err = NewTerminal(scx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		ctx.SetTerm(term)
-		ctx.termAllocated = true
+		scx.SetTerm(term)
+		scx.termAllocated = true
 	}
-	if err := term.SetWinSize(*params); err != nil {
-		ctx.Errorf("Failed setting window size: %v", err)
+	if err := term.SetWinSize(ctx, *params); err != nil {
+		scx.Errorf("Failed setting window size: %v", err)
 	}
 	term.SetTermType(ptyRequest.Env)
 	term.SetTerminalModes(termModes)
 
 	// update the session
-	if err := t.SessionRegistry.NotifyWinChange(*params, ctx); err != nil {
-		ctx.Errorf("Unable to update session: %v", err)
+	if err := t.SessionRegistry.NotifyWinChange(ctx, *params, scx); err != nil {
+		scx.Errorf("Unable to update session: %v", err)
 	}
 
 	return nil
@@ -99,18 +102,23 @@ func (t *TermHandlers) HandlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *Serve
 
 // HandleShell handles requests of type "shell" which request a interactive
 // shell be created within a TTY.
-func (t *TermHandlers) HandleShell(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
+func (t *TermHandlers) HandleShell(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *ServerContext) error {
 	var err error
 
 	// Save the request within the context.
-	ctx.request = req
+	if err := scx.SetSSHRequest(req); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Creating an empty exec request implies a interactive shell was requested.
-	ctx.ExecRequest, err = NewExecRequest(ctx, "")
+	execRequest, err := NewExecRequest(scx, "")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := t.SessionRegistry.OpenSession(ch, req, ctx); err != nil {
+	if err := scx.SetExecRequest(execRequest); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := t.SessionRegistry.OpenSession(ctx, ch, req, scx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -120,7 +128,7 @@ func (t *TermHandlers) HandleShell(ch ssh.Channel, req *ssh.Request, ctx *Server
 // HandleWinChange handles requests of type "window-change" which update the
 // size of the PTY running on the server and update any other members in the
 // party.
-func (t *TermHandlers) HandleWinChange(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
+func (t *TermHandlers) HandleWinChange(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *ServerContext) error {
 	params, err := parseWinChange(req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -128,7 +136,7 @@ func (t *TermHandlers) HandleWinChange(ch ssh.Channel, req *ssh.Request, ctx *Se
 
 	// Update any other members in the party that the window size has changed
 	// and to update their terminal windows accordingly.
-	err = t.SessionRegistry.NotifyWinChange(*params, ctx)
+	err = t.SessionRegistry.NotifyWinChange(ctx, *params, scx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -144,12 +152,15 @@ func parseExecRequest(req *ssh.Request, ctx *ServerContext) (Exec, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx.ExecRequest, err = NewExecRequest(ctx, r.Command)
+	execRequest, err := NewExecRequest(ctx, r.Command)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := ctx.SetExecRequest(execRequest); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return ctx.ExecRequest, nil
+	return execRequest, nil
 }
 
 func parsePTYReq(req *ssh.Request) (*sshutils.PTYReqParams, error) {
@@ -174,9 +185,5 @@ func parseWinChange(req *ssh.Request) (*rsession.TerminalParams, error) {
 	}
 
 	params, err := rsession.NewTerminalParamsFromUint32(r.W, r.H)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return params, nil
+	return params, trace.Wrap(err)
 }

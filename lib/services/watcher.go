@@ -55,9 +55,6 @@ type ResourceWatcherConfig struct {
 	Log logrus.FieldLogger
 	// MaxRetryPeriod is the maximum retry period on failed watchers.
 	MaxRetryPeriod time.Duration
-	// RefetchPeriod is a period after which to explicitly refetch the resources.
-	// It is to protect against unexpected cache syncing issues.
-	RefetchPeriod time.Duration
 	// Clock is used to control time.
 	Clock clockwork.Clock
 	// Client is used to create new watchers.
@@ -79,9 +76,6 @@ func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.MaxRetryPeriod == 0 {
 		cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
-	}
-	if cfg.RefetchPeriod == 0 {
-		cfg.RefetchPeriod = defaults.LowResPollingPeriod
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -217,10 +211,7 @@ func (p *resourceWatcher) runWatchLoop() {
 		}
 		if err != nil {
 			p.Log.Warningf("Restart watch on error: %v.", err)
-		} else {
-			p.Log.Debug("Triggering scheduled refetch.")
 		}
-
 	}
 }
 
@@ -236,7 +227,6 @@ func (p *resourceWatcher) watch() error {
 		return trace.Wrap(err)
 	}
 	defer watcher.Close()
-	refetchC := time.After(p.RefetchPeriod)
 
 	// before fetch, make sure watcher is synced by receiving init event,
 	// to avoid the scenario:
@@ -254,9 +244,7 @@ func (p *resourceWatcher) watch() error {
 	// by receiving init event first.
 	select {
 	case <-watcher.Done():
-		return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
-	case <-refetchC:
-		return nil
+		return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
 	case <-p.ctx.Done():
 		return trace.ConnectionProblem(p.ctx.Err(), "context is closing")
 	case event := <-watcher.Events():
@@ -274,9 +262,7 @@ func (p *resourceWatcher) watch() error {
 	for {
 		select {
 		case <-watcher.Done():
-			return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
-		case <-refetchC:
-			return nil
+			return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
 		case <-p.ctx.Done():
 			return trace.ConnectionProblem(p.ctx.Err(), "context is closing")
 		case event := <-watcher.Events():
@@ -366,10 +352,7 @@ func (p *proxyCollector) getResourcesAndUpdateCurrent(ctx context.Context) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(proxies) == 0 {
-		// At least one proxy ought to exist.
-		return trace.NotFound("empty proxy list")
-	}
+
 	newCurrent := make(map[string]types.Server, len(proxies))
 	for _, proxy := range proxies {
 		newCurrent[proxy.GetName()] = proxy

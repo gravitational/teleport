@@ -138,8 +138,8 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 			Certificate:  cert,
 		},
 		session:     &session{id: "xxx", term: &fakeTerminal{f: f}},
-		ExecRequest: &localExec{Ctx: s.ctx},
-		request: &ssh.Request{
+		execRequest: &localExec{Ctx: s.ctx},
+		sshRequest: &ssh.Request{
 			Type: sshutils.ExecRequest,
 		},
 	}
@@ -188,7 +188,7 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	c.Assert(cmd.SysProcAttr.Pdeathsig, check.Equals, syscall.SIGKILL)
 
 	// Non-empty command (exec a prog).
-	s.ctx.ExecRequest.SetCommand("ls -lh /etc")
+	s.ctx.execRequest.SetCommand("ls -lh /etc")
 	execCmd, err = s.ctx.ExecCommand()
 	c.Assert(err, check.IsNil)
 	cmd, err = buildCommand(execCmd, s.usr, nil, nil, nil)
@@ -201,7 +201,7 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	c.Assert(cmd.SysProcAttr.Pdeathsig, check.Equals, syscall.SIGKILL)
 
 	// Command without args.
-	s.ctx.ExecRequest.SetCommand("top")
+	s.ctx.execRequest.SetCommand("top")
 	execCmd, err = s.ctx.ExecCommand()
 	c.Assert(err, check.IsNil)
 	cmd, err = buildCommand(execCmd, s.usr, nil, nil, nil)
@@ -294,7 +294,7 @@ func (s *ExecSuite) TestContinue(c *check.C) {
 	ctx.Identity.Login = s.usr.Username
 	ctx.Identity.TeleportUser = "galt"
 	ctx.ServerConn = &ssh.ServerConn{Conn: s}
-	ctx.ExecRequest = &localExec{
+	ctx.execRequest = &localExec{
 		Ctx:     ctx,
 		Command: lsPath,
 	}
@@ -302,7 +302,7 @@ func (s *ExecSuite) TestContinue(c *check.C) {
 	c.Assert(err, check.IsNil)
 	ctx.contr, ctx.contw, err = os.Pipe()
 	c.Assert(err, check.IsNil)
-	ctx.request = &ssh.Request{
+	ctx.sshRequest = &ssh.Request{
 		Type: sshutils.ExecRequest,
 	}
 
@@ -366,7 +366,7 @@ func (f *fakeTerminal) AddParty(delta int) {
 }
 
 // Run will run the terminal.
-func (f *fakeTerminal) Run() error {
+func (f *fakeTerminal) Run(ctx context.Context) error {
 	return nil
 }
 
@@ -380,7 +380,7 @@ func (f *fakeTerminal) Wait() (*ExecResult, error) {
 func (f *fakeTerminal) Continue() {}
 
 // Kill will force kill the terminal.
-func (f *fakeTerminal) Kill() error {
+func (f *fakeTerminal) Kill(ctx context.Context) error {
 	return nil
 }
 
@@ -410,7 +410,7 @@ func (f *fakeTerminal) GetWinSize() (*term.Winsize, error) {
 }
 
 // SetWinSize sets the window size of the terminal.
-func (f *fakeTerminal) SetWinSize(params rsession.TerminalParams) error {
+func (f *fakeTerminal) SetWinSize(ctx context.Context, params rsession.TerminalParams) error {
 	return nil
 }
 

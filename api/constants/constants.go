@@ -17,6 +17,12 @@ limitations under the License.
 // Package constants defines Teleport-specific constants
 package constants
 
+import (
+	"encoding/json"
+
+	"github.com/gravitational/trace"
+)
+
 const (
 	// DefaultImplicitRole is implicit role that gets added to all service.RoleSet
 	// objects.
@@ -108,6 +114,13 @@ const (
 
 	// AWSConsoleURL is the URL of AWS management console.
 	AWSConsoleURL = "https://console.aws.amazon.com"
+	// AWSUSGovConsoleURL is the URL of AWS management console for AWS GovCloud
+	// (US) Partition.
+	AWSUSGovConsoleURL = "https://console.amazonaws-us-gov.com"
+	// AWSCNConsoleURL is the URL of AWS management console for AWS China
+	// Partition.
+	AWSCNConsoleURL = "https://console.amazonaws.cn"
+
 	// AWSAccountIDLabel is the key of the label containing AWS account ID.
 	AWSAccountIDLabel = "aws_account_id"
 
@@ -137,6 +150,48 @@ const (
 	// is required only for users that have MFA devices registered.
 	SecondFactorOptional = SecondFactorType("optional")
 )
+
+// UnmarshalYAML supports parsing off|on into string on SecondFactorType.
+func (sft *SecondFactorType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var tmp interface{}
+	if err := unmarshal(&tmp); err != nil {
+		return err
+	}
+	switch v := tmp.(type) {
+	case string:
+		*sft = SecondFactorType(v)
+	case bool:
+		if v {
+			*sft = SecondFactorOn
+		} else {
+			*sft = SecondFactorOff
+		}
+	default:
+		return trace.BadParameter("SecondFactorType invalid type %T", v)
+	}
+	return nil
+}
+
+// UnmarshalJSON supports parsing off|on into string on SecondFactorType.
+func (sft *SecondFactorType) UnmarshalJSON(data []byte) error {
+	var tmp interface{}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	switch v := tmp.(type) {
+	case string:
+		*sft = SecondFactorType(v)
+	case bool:
+		if v {
+			*sft = SecondFactorOn
+		} else {
+			*sft = SecondFactorOff
+		}
+	default:
+		return trace.BadParameter("SecondFactorType invalid type %T", v)
+	}
+	return nil
+}
 
 // LockingMode determines how a (possibly stale) set of locks should be applied
 // to an interaction.
