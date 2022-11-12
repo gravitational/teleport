@@ -1,6 +1,6 @@
 <div align="center">
-   <a href="https://goteleport.com/teleport-connect-2022">
-   <img src="./assets/img/user-conference-2022.png" width=750/>
+   <a href="https://goteleport.com/teleport/download">
+   <img src="./assets/img/teleport_platform.png" width=750/>
    </a>
    <div align="center" style="padding: 25px">
       <a href="https://goteleport.com/teleport/download">
