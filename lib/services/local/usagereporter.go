@@ -26,6 +26,7 @@ import (
 	"github.com/bufbuild/connect-go"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -396,9 +397,12 @@ func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *
 
 	httpClient := &http.Client{
 		Transport: &http.Transport{
-			ForceAttemptHTTP2: true,
-			Proxy:             http.ProxyFromEnvironment,
-			TLSClientConfig:   tlsConfig,
+			ForceAttemptHTTP2:   true,
+			Proxy:               http.ProxyFromEnvironment,
+			TLSClientConfig:     tlsConfig,
+			IdleConnTimeout:     defaults.HTTPIdleTimeout,
+			MaxIdleConns:        defaults.HTTPMaxIdleConns,
+			MaxIdleConnsPerHost: defaults.HTTPMaxConnsPerHost,
 		},
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
