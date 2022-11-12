@@ -1,6 +1,6 @@
 <div align="center">
    <a href="https://goteleport.com/teleport/download">
-   <img src="./assets/img/teleport_platform.png" width=750/>
+   <img src="./assets/img/hero-teleport-platform.png" width=750/>
    </a>
    <div align="center" style="padding: 25px">
       <a href="https://goteleport.com/teleport/download">
