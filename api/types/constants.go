@@ -357,6 +357,16 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	AWSInstanceIDLabel = TeleportNamespace + "/instance-id"
+
+	// CloudLabel is used to identify the cloud where the resource was discovered.
+	CloudLabel = TeleportNamespace + "/cloud"
+
+	// CloudAWS identifies that a resource was discovered in AWS.
+	CloudAWS = "AWS"
+	// CloudAzure identifies that a resource was discovered in Azure.
+	CloudAzure = "Azure"
+	// CloudGCP identifies that a resource was discovered in GCP.
+	CloudGCP = "GCP"
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
