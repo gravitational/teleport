@@ -19,6 +19,7 @@ package aws
 import (
 	"context"
 	"crypto/tls"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -28,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -247,6 +249,50 @@ func TestAWSSignerHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestURLForResolvedEndpoint(t *testing.T) {
+	tests := []struct {
+		name                 string
+		inputReq             *http.Request
+		inputResolvedEnpoint *endpoints.ResolvedEndpoint
+		requireError         require.ErrorAssertionFunc
+		expectURL            string
+	}{
+		{
+			name:     "bad resolved endpoint",
+			inputReq: mustNewRequest(t, "GET", "http://1.2.3.4/hello/world?aa=2", nil),
+			inputResolvedEnpoint: &endpoints.ResolvedEndpoint{
+				URL: string([]byte{0x05}),
+			},
+			requireError: require.Error,
+		},
+		{
+			name:     "replaced host and scheme",
+			inputReq: mustNewRequest(t, "GET", "http://1.2.3.4/hello/world?aa=2", nil),
+			inputResolvedEnpoint: &endpoints.ResolvedEndpoint{
+				URL: "https://local.test.com",
+			},
+			expectURL:    "https://local.test.com/hello/world?aa=2",
+			requireError: require.NoError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actualURL, err := urlForResolvedEndpoint(test.inputReq, test.inputResolvedEnpoint)
+			require.Equal(t, test.expectURL, actualURL)
+			test.requireError(t, err)
+		})
+	}
+}
+
+func mustNewRequest(t *testing.T, method, url string, body io.Reader) *http.Request {
+	t.Helper()
+
+	r, err := http.NewRequest(method, url, body)
+	require.NoError(t, err)
+	return r
 }
 
 func staticAWSCredentials(client.ConfigProvider, *common.SessionContext) *credentials.Credentials {

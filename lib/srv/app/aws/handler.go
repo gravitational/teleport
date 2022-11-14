@@ -18,9 +18,9 @@ package aws
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
@@ -184,7 +184,10 @@ func (s *SigningService) formatForwardResponseError(rw http.ResponseWriter, r *h
 // prepareSignedRequest creates a new HTTP request and rewrites the header from the original request and returns a new
 // HTTP request signed by STS AWS API.
 func (s *SigningService) prepareSignedRequest(r *http.Request, payload []byte, re *endpoints.ResolvedEndpoint, sessionCtx *common.SessionContext) (*http.Request, error) {
-	url := fmt.Sprintf("%s%s", re.URL, r.URL.Opaque)
+	url, err := urlForResolvedEndpoint(r, re)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	reqCopy, err := http.NewRequest(r.Method, url, bytes.NewReader(payload))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -210,6 +213,24 @@ func rewriteHeaders(r *http.Request, reqCopy *http.Request) {
 		}
 	}
 	reqCopy.Header.Del("Content-Length")
+}
+
+// urlForResolvedEndpoint creates an URL based on input request and resolved endpoint.
+func urlForResolvedEndpoint(r *http.Request, re *endpoints.ResolvedEndpoint) (string, error) {
+	resolvedURL, err := url.Parse(re.URL)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// Replaces scheme and host. Keeps original path etc.
+	clone := *r.URL
+	if resolvedURL.Host != "" {
+		clone.Host = resolvedURL.Host
+	}
+	if resolvedURL.Scheme != "" {
+		clone.Scheme = resolvedURL.Scheme
+	}
+	return clone.String(), nil
 }
 
 type getSigningCredentialsFunc func(c client.ConfigProvider, sessionCtx *common.SessionContext) *credentials.Credentials

@@ -78,10 +78,7 @@ func (m *MultiLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes
 // Returns all events that happen during a session sorted by time
 // (oldest first).
 //
-// after tells to use only return events after a specified cursor Id
-//
-// This function is usually used in conjunction with GetSessionReader to
-// replay recorded session streams.
+// after is used to return events after a specified cursor ID
 func (m *MultiLog) GetSessionEvents(namespace string, sid session.ID, after int, fetchPrintEvents bool) (events []EventFields, err error) {
 	for _, log := range m.loggers {
 		events, err = log.GetSessionEvents(namespace, sid, after, fetchPrintEvents)

@@ -19,7 +19,6 @@ package types
 import (
 	"fmt"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -60,6 +59,8 @@ type Database interface {
 	SetURI(string)
 	// GetCA returns the database CA certificate.
 	GetCA() string
+	// SetCA sets the database CA certificate in the Spec.TLS field.
+	SetCA(string)
 	// GetTLS returns the database TLS configuration.
 	GetTLS() DatabaseTLS
 	// SetStatusCA sets the database CA certificate in the status field.
@@ -85,12 +86,6 @@ type Database interface {
 	GetAD() AD
 	// GetType returns the database authentication type: self-hosted, RDS, Redshift or Cloud SQL.
 	GetType() string
-	// GetIAMPolicy returns AWS IAM policy for the database.
-	GetIAMPolicy() (string, error)
-	// GetIAMAction returns AWS IAM action needed to connect to the database.
-	GetIAMAction() string
-	// GetIAMResources returns AWS IAM resources that provide access to the database.
-	GetIAMResources() []string
 	// GetSecretStore returns secret store configurations.
 	GetSecretStore() SecretStore
 	// GetManagedUsers returns a list of database users that are managed by Teleport.
@@ -265,6 +260,11 @@ func (d *DatabaseV3) GetCA() string {
 		return d.Spec.CACert
 	}
 	return d.Status.CACert
+}
+
+// SetCA sets the database CA certificate in the Spec.TLS.CACert field.
+func (d *DatabaseV3) SetCA(caCert string) {
+	d.Spec.TLS.CACert = caCert
 }
 
 // GetTLS returns Database TLS configuration.
@@ -608,57 +608,6 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	return nil
 }
 
-// GetIAMPolicy returns AWS IAM policy for this database.
-func (d *DatabaseV3) GetIAMPolicy() (string, error) {
-	switch d.GetType() {
-	case DatabaseTypeRDS, DatabaseTypeRDSProxy:
-		policy, err := d.getRDSPolicy()
-		return policy, trace.Wrap(err)
-	case DatabaseTypeRedshift:
-		policy, err := d.getRedshiftPolicy()
-		return policy, trace.Wrap(err)
-	}
-	return "", trace.BadParameter("GetIAMPolicy is not supported policy for database type %s", d.GetType())
-}
-
-// GetIAMAction returns AWS IAM action needed to connect to the database.
-func (d *DatabaseV3) GetIAMAction() string {
-	switch d.GetType() {
-	case DatabaseTypeRDS, DatabaseTypeRDSProxy:
-		return "rds-db:connect"
-	case DatabaseTypeRedshift:
-		return "redshift:GetClusterCredentials"
-	}
-	return ""
-}
-
-// GetIAMResources returns AWS IAM resources that provide access to the database.
-func (d *DatabaseV3) GetIAMResources() []string {
-	aws := d.GetAWS()
-	partition := awsutils.GetPartitionFromRegion(aws.Region)
-	switch d.GetType() {
-	case DatabaseTypeRDS, DatabaseTypeRDSProxy:
-		if aws.Region != "" && aws.AccountID != "" && d.getRDSResourceID() != "" {
-			return []string{
-				fmt.Sprintf("arn:%v:rds-db:%v:%v:dbuser:%v/*",
-					partition, aws.Region, aws.AccountID, d.getRDSResourceID()),
-			}
-		}
-	case DatabaseTypeRedshift:
-		if aws.Region != "" && aws.AccountID != "" && aws.Redshift.ClusterID != "" {
-			return []string{
-				fmt.Sprintf("arn:%v:redshift:%v:%v:dbuser:%v/*",
-					partition, aws.Region, aws.AccountID, aws.Redshift.ClusterID),
-				fmt.Sprintf("arn:%v:redshift:%v:%v:dbname:%v/*",
-					partition, aws.Region, aws.AccountID, aws.Redshift.ClusterID),
-				fmt.Sprintf("arn:%v:redshift:%v:%v:dbgroup:%v/*",
-					partition, aws.Region, aws.AccountID, aws.Redshift.ClusterID),
-			}
-		}
-	}
-	return nil
-}
-
 // GetSecretStore returns secret store configurations.
 func (d *DatabaseV3) GetSecretStore() SecretStore {
 	return d.Spec.AWS.SecretStore
@@ -672,74 +621,6 @@ func (d *DatabaseV3) GetManagedUsers() []string {
 // SetManagedUsers sets a list of database users that are managed by Teleport.
 func (d *DatabaseV3) SetManagedUsers(users []string) {
 	d.Status.ManagedUsers = users
-}
-
-// getRDSPolicy returns IAM policy document for this RDS or RDS Proxy database.
-func (d *DatabaseV3) getRDSPolicy() (string, error) {
-	region := d.GetAWS().Region
-	if region == "" {
-		region = "<region>"
-	}
-	accountID := d.GetAWS().AccountID
-	if accountID == "" {
-		accountID = "<account_id>"
-	}
-	resourceID := d.getRDSResourceID()
-	if resourceID == "" {
-		resourceID = "<resource_id>"
-	}
-
-	var sb strings.Builder
-	err := rdsPolicyTemplate.Execute(&sb, arnTemplateInput{
-		Partition:  awsutils.GetPartitionFromRegion(region),
-		Region:     region,
-		AccountID:  accountID,
-		ResourceID: resourceID,
-	})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return sb.String(), nil
-}
-
-// getRDSResourceID returns the resource ID for RDS or RDS Proxy database.
-func (d *DatabaseV3) getRDSResourceID() string {
-	switch d.GetType() {
-	case DatabaseTypeRDS:
-		return d.GetAWS().RDS.ResourceID
-	case DatabaseTypeRDSProxy:
-		return d.GetAWS().RDSProxy.ResourceID
-	default:
-		return ""
-	}
-}
-
-// getRedshiftPolicy returns IAM policy document for this Redshift database.
-func (d *DatabaseV3) getRedshiftPolicy() (string, error) {
-	region := d.GetAWS().Region
-	if region == "" {
-		region = "<region>"
-	}
-	accountID := d.GetAWS().AccountID
-	if accountID == "" {
-		accountID = "<account_id>"
-	}
-	clusterID := d.GetAWS().Redshift.ClusterID
-	if clusterID == "" {
-		clusterID = "<cluster_id>"
-	}
-
-	var sb strings.Builder
-	err := redshiftPolicyTemplate.Execute(&sb, arnTemplateInput{
-		Partition:  awsutils.GetPartitionFromRegion(region),
-		Region:     region,
-		AccountID:  accountID,
-		ResourceID: clusterID,
-	})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return sb.String(), nil
 }
 
 const (
@@ -811,36 +692,3 @@ func (d Databases) Less(i, j int) bool { return d[i].GetName() < d[j].GetName() 
 
 // Swap swaps two databases.
 func (d Databases) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
-
-type arnTemplateInput struct {
-	Partition, Region, AccountID, ResourceID string
-}
-
-var (
-	// rdsPolicyTemplate is the IAM policy template for RDS databases access.
-	rdsPolicyTemplate = template.Must(template.New("").Parse(`{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "rds-db:connect",
-      "Resource": "arn:{{.Partition}}:rds-db:{{.Region}}:{{.AccountID}}:dbuser:{{.ResourceID}}/*"
-    }
-  ]
-}`))
-	// redshiftPolicyTemplate is the IAM policy template for Redshift databases access.
-	redshiftPolicyTemplate = template.Must(template.New("").Parse(`{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "redshift:GetClusterCredentials",
-      "Resource": [
-        "arn:{{.Partition}}:redshift:{{.Region}}:{{.AccountID}}:dbuser:{{.ResourceID}}/*",
-        "arn:{{.Partition}}:redshift:{{.Region}}:{{.AccountID}}:dbname:{{.ResourceID}}/*",
-        "arn:{{.Partition}}:redshift:{{.Region}}:{{.AccountID}}:dbgroup:{{.ResourceID}}/*"
-      ]
-    }
-  ]
-}`))
-)
