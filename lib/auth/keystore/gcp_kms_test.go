@@ -29,13 +29,15 @@ import (
 	"time"
 
 	kms "cloud.google.com/go/kms/apiv1"
+	"cloud.google.com/go/kms/apiv1/kmspb"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/api/option"
-	kmspb "google.golang.org/genproto/googleapis/cloud/kms/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/keystore/internal/faketime"
@@ -44,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -329,8 +330,9 @@ func newTestGCPKMSClient(t *testing.T, dialer contextDialer) *kms.KeyManagementC
 
 	conn, err := grpc.Dial("bufconn",
 		grpc.WithContextDialer(dialer),
-		grpc.WithInsecure(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
+	require.NoError(t, err)
 	kmsClient, err := kms.NewKeyManagementClient(ctx, option.WithGRPCConn(conn))
 	require.NoError(t, err)
 
@@ -436,7 +438,7 @@ func TestGCPKMSKeystore(t *testing.T) {
 					// Tick again so the keystore can see the active key. If the
 					// active key was seen immediately after the previous tick
 					// then the tick will never be received and this will hang
-					// until testCtx is cancelled, so run it in a background
+					// until testCtx is canceled, so run it in a background
 					// goroutine.
 					wg.Add(1)
 					go func() {
