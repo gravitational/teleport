@@ -155,8 +155,6 @@ func TestAddKey(t *testing.T) {
 func TestLoadKey(t *testing.T) {
 	s := makeSuite(t)
 	keyAgent := s.newKeyAgent(t)
-	err := keyAgent.UnloadKeys()
-	require.NoError(t, err)
 
 	// get all the keys in the teleport and system agent
 	teleportAgentKeys, err := keyAgent.ExtendedAgent.List()
@@ -258,7 +256,14 @@ func TestHostCertVerification(t *testing.T) {
 	// By default user has not refused any hosts.
 	require.False(t, lka.UserRefusedHosts())
 
-	lka.AddKey(s.key)
+	err = lka.AddKey(s.key)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err = lka.UnloadKey(s.key.KeyIndex)
+		require.NoError(t, err)
+	})
+
 	// Create a CA, generate a keypair for the CA, and add it to the known
 	// hosts cache (done by "tsh login").
 	keygen := testauthority.New()
@@ -431,7 +436,14 @@ func TestHostKeyVerification(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	lka.AddKey(s.key)
+	err = lka.AddKey(s.key)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err = lka.UnloadKey(s.key.KeyIndex)
+		require.NoError(t, err)
+	})
+
 	// Call SaveTrustedCerts to create cas profile dir - this step is needed to support migration from profile combined
 	// CA file certs.pem to per cluster CA files in cas profile directory.
 	err = lka.keyStore.SaveTrustedCerts(s.hostname, nil)
