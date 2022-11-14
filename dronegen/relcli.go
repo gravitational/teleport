@@ -14,7 +14,7 @@
 
 package main
 
-const relcliImage = "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.76-beta.1"
+const relcliImage = "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.76-beta.2"
 
 func relcliPipeline(trigger trigger, name string, stepName string, command string) pipeline {
 	p := newKubePipeline(name)
