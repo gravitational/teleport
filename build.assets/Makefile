@@ -208,7 +208,7 @@ buildbox-arm: buildbox
 .PHONY:buildbox-arm-centos7
 buildbox-arm-centos7: buildbox-centos7
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM_CENTOS7) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM_CENTOS7) || true; fi;
-	docker build \
+	DOCKER_BUILDKIT=1 docker build \
 		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
 		--cache-from $(BUILDBOX_CENTOS7) \
 		--cache-from $(BUILDBOX_ARM_CENTOS7) \
@@ -427,12 +427,11 @@ release-arm64: buildbox-arm
 
 .PHONY: release-arm-centos7
 release-arm-centos7: buildbox-arm-centos7
-	$(MAKE) release ARCH=arm BUILDBOX_NAME=$(BUILDBOX_ARM_CENTOS7)
+	$(MAKE) release-generic-arm-centos7 ARCH=arm BUILDBOX_NAME=$(BUILDBOX_ARM_CENTOS7) REPRODUCIBLE=no
 
 .PHONY: release-arm64-centos7
 release-arm64-centos7: buildbox-arm-centos7
-	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM_CENTOS7)
-
+	$(MAKE) release-generic-arm-centos7 ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM_CENTOS7) REPRODUCIBLE=no
 
 .PHONY: release-amd64-centos7
 release-amd64-centos7: buildbox-centos7
@@ -469,6 +468,15 @@ release-centos7: buildbox-centos7
 release-centos7-fips:
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
 		/usr/bin/scl enable devtoolset-11 '/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=no'
+
+#
+# Create a 32- or 64-bit ARM Teleport package for CentOS 7 using the build container.
+#
+.PHONY:release-generic-arm-centos7
+release-generic-arm-centos7: buildbox-arm-centos7
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_ARM_CENTOS7) \
+		/usr/bin/scl enable devtoolset-11 'make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no'
+
 
 #
 # Create a Windows Teleport package using the build container.
