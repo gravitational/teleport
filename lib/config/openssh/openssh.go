@@ -53,7 +53,7 @@ Host *.{{ $clusterName }} !{{ $dot.ProxyHost }}
     {{- if eq $dot.AppName "tsh" }}
     ProxyCommand "{{ $dot.ExecutablePath }}" proxy ssh --cluster={{ $clusterName }} --proxy={{ $dot.ProxyHost }} %r@%h:%p
 {{- end }}{{- if eq $dot.AppName "tbot" }}
-    ProxyCommand "{{ $dot.ExecutablePath }}" proxy --destination-dir={{ $dot.DestinationDir }} --proxy={{ $dot.ProxyHost }} ssh --cluster={{ $clusterName }}  %r@%h:%p
+    ProxyCommand "{{ $dot.ExecutablePath }}" proxy --destination-dir={{ $dot.DestinationDir }} --proxy={{ $dot.ProxyHost }} ssh --cluster={{ $clusterName }} -l "%r" %h:%p
 {{- end }}
 {{- end }}
 
