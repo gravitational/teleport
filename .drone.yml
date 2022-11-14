@@ -6352,7 +6352,7 @@ steps:
       - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # set version
-      - if [[ "$(echo v1.2.3-fred.1)" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
   - name: Assume Download AWS Role
     image: amazon/aws-cli
@@ -6390,7 +6390,7 @@ steps:
         path: /root/.aws
     commands:
       - export VERSION=$(cat /go/.version.txt)
-      - if [[ "$(echo v1.2.3-fred.1)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
 
   - name: Assume Packer AWS Role
@@ -6526,7 +6526,7 @@ steps:
       - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # set version
-      - if [[ "$(echo v1.2.3-fred.1)" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
   - name: Assume Download AWS Role
     image: amazon/aws-cli
@@ -6564,7 +6564,7 @@ steps:
         path: /root/.aws
     commands:
       - export VERSION=$(cat /go/.version.txt)
-      - if [[ "$(echo v1.2.3-fred.1)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
 
@@ -7302,7 +7302,7 @@ steps:
   - name: Check if commit is tagged
     image: alpine
     commands:
-      - "[ -n $(echo v1.2.3-fred.1) ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)"
+      - "[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)"
 
   - name: Assume Download AWS Role
     image: amazon/aws-cli
@@ -7387,7 +7387,7 @@ steps:
         mkdir -p /go/src/github.com/gravitational/teleport
         cd /go/src/github.com/gravitational/teleport
         git init && git remote add origin ${DRONE_REMOTE_URL}
-        git fetch origin +refs/tags/$(echo v1.2.3-fred.1):
+        git fetch origin +refs/tags/${DRONE_TAG}:
         git checkout -qf FETCH_HEAD
 
   - name: Assume AMI Download AWS Role
@@ -7571,7 +7571,7 @@ steps:
     image: golang:1.17-alpine
     commands:
       - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
-      - go run ./cmd/check -tag $(echo v1.2.3-fred.1) -check prerelease || (echo '---> Not publishing $(echo v1.2.3-fred.1) packages to RPM and DEB repos' && exit 78)
+      - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> Not publishing ${DRONE_TAG} packages to RPM and DEB repos' && exit 78)
 
   - name: Assume RPM Repo AWS Role
     image: amazon/aws-cli
@@ -7673,7 +7673,7 @@ steps:
     image: golang:1.17-alpine
     commands:
       - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
-      - go run ./cmd/check -tag $(echo v1.2.3-fred.1) -check latest || (echo '---> Not publishing ${DRONE_REPO} packages to DEB repo' && exit 78)
+      - go run ./cmd/check -tag ${DRONE_TAG} -check latest || (echo '---> Not publishing ${DRONE_REPO} packages to DEB repo' && exit 78)
 
   - name: Assume Deb Repo AWS Role
     image: amazon/aws-cli
@@ -18166,6 +18166,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 5bb158520950e163e5978eee73f7c8ef1ae3da426602374d3064a7a79b69e340
+hmac: 6f92c7b515424d3830b89c184069fa667268d244aba5478240723ebf815d963c
 
 ...
