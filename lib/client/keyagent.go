@@ -287,11 +287,9 @@ func (a *LocalKeyAgent) UnloadKey(key KeyIndex) error {
 
 		// remove any teleport keys we currently have loaded in the agent for this user and proxy
 		for _, agentKey := range keyList {
-			if agentKeyIdx, ok := parseTeleportAgentKeyComment(agentKey.Comment); ok {
-				if key.ProxyHost == agentKeyIdx.ProxyHost && key.Username == agentKeyIdx.Username {
-					if err = agent.Remove(agentKey); err != nil {
-						a.log.Warnf("Unable to communicate with agent and remove key: %v", err)
-					}
+			if agentKeyIdx, ok := parseTeleportAgentKeyComment(agentKey.Comment); ok && agentKeyIdx.Match(key) {
+				if err = agent.Remove(agentKey); err != nil {
+					a.log.Warnf("Unable to communicate with agent and remove key: %v", err)
 				}
 			}
 		}

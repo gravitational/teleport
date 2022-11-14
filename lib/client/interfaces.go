@@ -70,6 +70,15 @@ func (idx KeyIndex) Check() error {
 	return nil
 }
 
+// Match compares this key index to the given matchKey index.
+// It will be considered a match if all non-zero elements of
+// the matchKey are matched by this key index.
+func (idx KeyIndex) Match(matchKey KeyIndex) bool {
+	return (matchKey.ProxyHost == "" || matchKey.ProxyHost == idx.ProxyHost) &&
+		(matchKey.ClusterName == "" || matchKey.ClusterName == idx.ClusterName) &&
+		(matchKey.Username == "" || matchKey.Username == idx.Username)
+}
+
 // Key describes a complete (signed) client key
 type Key struct {
 	KeyIndex
