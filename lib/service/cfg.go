@@ -861,12 +861,20 @@ type DatabaseAWS struct {
 	SecretStore DatabaseAWSSecretStore
 	// AccountID is the AWS account ID.
 	AccountID string
+	// RedshiftServerless contains RedshiftServerless specific settings.
+	RedshiftServerless DatabaseAWSRedshiftServerless
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
 type DatabaseAWSRedshift struct {
 	// ClusterID is the Redshift cluster identifier.
 	ClusterID string
+}
+
+// DatabaseAWSRedshiftServerless contains AWS Redshift Serverless specific settings.
+type DatabaseAWSRedshiftServerless struct {
+	// WorkgroupName is the Redshift Serverless workgroup name.
+	WorkgroupName string
 }
 
 // DatabaseAWSRDS contains AWS RDS specific settings.

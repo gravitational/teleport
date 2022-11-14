@@ -45,6 +45,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless/redshiftserverlessiface"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 	"github.com/aws/aws-sdk-go/service/ssm"
@@ -63,12 +65,33 @@ import (
 
 // Clients provides interface for obtaining cloud provider clients.
 type Clients interface {
+	// GetGCPIAMClient returns GCP IAM client.
+	GetGCPIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
+	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
+	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
+	// GetInstanceMetadataClient returns instance metadata client based on which
+	// cloud provider Teleport is running on, if any.
+	GetInstanceMetadataClient(ctx context.Context) (InstanceMetadata, error)
+	// GetGCPGKEClient returns GKE client.
+	GetGCPGKEClient(context.Context) (gcp.GKEClient, error)
+	// AWSClients is an interface for providing AWS API clients.
+	AWSClients
+	// AzureClients is an interface for Azure-specific API clients
+	AzureClients
+	// Closer closes all initialized clients.
+	io.Closer
+}
+
+// AWSClients is an interface for providing AWS API clients.
+type AWSClients interface {
 	// GetAWSSession returns AWS session for the specified region.
 	GetAWSSession(region string) (*awssession.Session, error)
 	// GetAWSRDSClient returns AWS RDS client for the specified region.
 	GetAWSRDSClient(region string) (rdsiface.RDSAPI, error)
 	// GetAWSRedshiftClient returns AWS Redshift client for the specified region.
 	GetAWSRedshiftClient(region string) (redshiftiface.RedshiftAPI, error)
+	// GetAWSRedshiftServerlessClient returns AWS Redshift Serverless client for the specified region.
+	GetAWSRedshiftServerlessClient(region string) (redshiftserverlessiface.RedshiftServerlessAPI, error)
 	// GetAWSElastiCacheClient returns AWS ElastiCache client for the specified region.
 	GetAWSElastiCacheClient(region string) (elasticacheiface.ElastiCacheAPI, error)
 	// GetAWSMemoryDBClient returns AWS MemoryDB client for the specified region.
@@ -85,19 +108,6 @@ type Clients interface {
 	GetAWSSSMClient(region string) (ssmiface.SSMAPI, error)
 	// GetAWSEKSClient returns AWS EKS client for the specified region.
 	GetAWSEKSClient(region string) (eksiface.EKSAPI, error)
-	// GetGCPIAMClient returns GCP IAM client.
-	GetGCPIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
-	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
-	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
-	// GetInstanceMetadataClient returns instance metadata client based on which
-	// cloud provider Teleport is running on, if any.
-	GetInstanceMetadataClient(ctx context.Context) (InstanceMetadata, error)
-	// GetGCPGKEClient returns GKE client.
-	GetGCPGKEClient(context.Context) (gcp.GKEClient, error)
-	// AzureClients is an interface for Azure-specific API clients
-	AzureClients
-	// Closer closes all initialized clients.
-	io.Closer
 }
 
 // AzureClients is an interface for Azure-specific API clients
@@ -202,6 +212,15 @@ func (c *cloudClients) GetAWSRedshiftClient(region string) (redshiftiface.Redshi
 		return nil, trace.Wrap(err)
 	}
 	return redshift.New(session), nil
+}
+
+// GetAWSRedshiftServerlessClient returns AWS Redshift Serverless client for the specified region.
+func (c *cloudClients) GetAWSRedshiftServerlessClient(region string) (redshiftserverlessiface.RedshiftServerlessAPI, error) {
+	session, err := c.GetAWSSession(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return redshiftserverless.New(session), nil
 }
 
 // GetAWSElastiCacheClient returns AWS ElastiCache client for the specified region.
@@ -607,6 +626,7 @@ type TestCloudClients struct {
 	RDS                     rdsiface.RDSAPI
 	RDSPerRegion            map[string]rdsiface.RDSAPI
 	Redshift                redshiftiface.RedshiftAPI
+	RedshiftServerless      redshiftserverlessiface.RedshiftServerlessAPI
 	ElastiCache             elasticacheiface.ElastiCacheAPI
 	MemoryDB                memorydbiface.MemoryDBAPI
 	SecretsManager          secretsmanageriface.SecretsManagerAPI
@@ -646,6 +666,11 @@ func (c *TestCloudClients) GetAWSRDSClient(region string) (rdsiface.RDSAPI, erro
 // GetAWSRedshiftClient returns AWS Redshift client for the specified region.
 func (c *TestCloudClients) GetAWSRedshiftClient(region string) (redshiftiface.RedshiftAPI, error) {
 	return c.Redshift, nil
+}
+
+// GetAWSRedshiftServerlessClient returns AWS Redshift Serverless client for the specified region.
+func (c *TestCloudClients) GetAWSRedshiftServerlessClient(region string) (redshiftserverlessiface.RedshiftServerlessAPI, error) {
+	return c.RedshiftServerless, nil
 }
 
 // GetAWSElastiCacheClient returns AWS ElastiCache client for the specified region.

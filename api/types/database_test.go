@@ -389,3 +389,57 @@ func TestCassandraAWSEndpoint(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+func TestDatabaseFromRedshiftServerlessEndpoint(t *testing.T) {
+	t.Parallel()
+
+	t.Run("workgroup", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "test",
+		}, DatabaseSpecV3{
+			Protocol: "postgres",
+			URI:      "my-workgroup.1234567890.us-east-1.redshift-serverless.amazonaws.com:5439",
+		})
+		require.NoError(t, err)
+		require.Equal(t, AWS{
+			AccountID: "1234567890",
+			Region:    "us-east-1",
+			RedshiftServerless: RedshiftServerless{
+				WorkgroupName: "my-workgroup",
+			},
+		}, database.GetAWS())
+	})
+
+	t.Run("vpc endpoint", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "test",
+		}, DatabaseSpecV3{
+			Protocol: "postgres",
+			URI:      "my-vpc-endpoint-xxxyyyzzz.1234567890.us-east-1.redshift-serverless.amazonaws.com:5439",
+			AWS: AWS{
+				RedshiftServerless: RedshiftServerless{
+					WorkgroupName: "my-workgroup",
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, AWS{
+			AccountID: "1234567890",
+			Region:    "us-east-1",
+			RedshiftServerless: RedshiftServerless{
+				WorkgroupName: "my-workgroup",
+				EndpointName:  "my-vpc",
+			},
+		}, database.GetAWS())
+	})
+
+	t.Run("vpc endpoint mising workgroup name", func(t *testing.T) {
+		_, err := NewDatabaseV3(Metadata{
+			Name: "test",
+		}, DatabaseSpecV3{
+			Protocol: "postgres",
+			URI:      "my-vpc-endpoint-xxxyyyzzz.1234567890.us-east-1.redshift-serverless.amazonaws.com:5439",
+		})
+		require.Error(t, err)
+	})
+}

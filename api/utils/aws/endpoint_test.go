@@ -447,3 +447,66 @@ func TestCassandraEndpointRegion(t *testing.T) {
 	}
 
 }
+
+func TestRedshiftServerlessEndpoint(t *testing.T) {
+	tests := []struct {
+		name                               string
+		endpoint                           string
+		expectIsRedshiftServerlessEndpoint bool
+		expectDetails                      *RedshiftServerlessEndpointDetails
+	}{
+		{
+			name:                               "workgroup endpoint",
+			endpoint:                           "my-workgroup.1234567890.us-east-1.redshift-serverless.amazonaws.com:5439",
+			expectIsRedshiftServerlessEndpoint: true,
+			expectDetails: &RedshiftServerlessEndpointDetails{
+				WorkgroupName: "my-workgroup",
+				AccountID:     "1234567890",
+				Region:        "us-east-1",
+			},
+		},
+		{
+			name:                               "vpc endpoint",
+			endpoint:                           "my-vpc-endpoint-xxxyyyzzz.1234567890.us-east-1.redshift-serverless.amazonaws.com",
+			expectIsRedshiftServerlessEndpoint: true,
+			expectDetails: &RedshiftServerlessEndpointDetails{
+				EndpointName: "my-vpc",
+				AccountID:    "1234567890",
+				Region:       "us-east-1",
+			},
+		},
+		{
+			name:                               "cn-north-1",
+			endpoint:                           "my-workgroup.1234567890.redshift-serverless.cn-north-1.amazonaws.com.cn:5439",
+			expectIsRedshiftServerlessEndpoint: true,
+			expectDetails: &RedshiftServerlessEndpointDetails{
+				WorkgroupName: "my-workgroup",
+				AccountID:     "1234567890",
+				Region:        "cn-north-1",
+			},
+		},
+		{
+			name:                               "localhost:5432",
+			endpoint:                           "localhost",
+			expectIsRedshiftServerlessEndpoint: false,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, test.expectIsRedshiftServerlessEndpoint, IsRedshiftServerlessEndpoint(test.endpoint))
+
+			actualDetails, err := ParseRedshiftServerlessEndpoint(test.endpoint)
+			if !test.expectIsRedshiftServerlessEndpoint {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err))
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expectDetails, actualDetails)
+			}
+		})
+	}
+}

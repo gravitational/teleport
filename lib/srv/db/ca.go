@@ -47,6 +47,7 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 	switch database.GetType() {
 	case types.DatabaseTypeRDS,
 		types.DatabaseTypeRedshift,
+		types.DatabaseTypeRedshiftServerless,
 		types.DatabaseTypeElastiCache,
 		types.DatabaseTypeMemoryDB,
 		types.DatabaseTypeAWSKeyspaces,
@@ -139,16 +140,11 @@ func (s *Server) getCACertPaths(database types.Database) ([]string, error) {
 	case types.DatabaseTypeRedshift:
 		return []string{filepath.Join(s.cfg.DataDir, filepath.Base(redshiftCAURLForDatabase(database)))}, nil
 
-	// ElastiCache databases are signed with Amazon root CA. In most cases,
-	// x509.SystemCertPool should be sufficient to verify ElastiCache servers.
-	// However, x509.SystemCertPool does not support windows for go versions
-	// older than 1.18. In addition, system cert path can be overridden by
-	// environment variables on many OSes. Therefore, Amazon root CA is
-	// downloaded here to be safe.
-	//
-	// AWS MemoryDB uses same CA as ElastiCache.
+	// Databases with Amazon Root CA.
 	case types.DatabaseTypeElastiCache,
-		types.DatabaseTypeMemoryDB:
+		types.DatabaseTypeMemoryDB,
+		types.DatabaseTypeRDSProxy,
+		types.DatabaseTypeRedshiftServerless:
 		return []string{filepath.Join(s.cfg.DataDir, filepath.Base(amazonRootCA1URL))}, nil
 
 	// Each Cloud SQL instance has its own CA.

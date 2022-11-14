@@ -23,14 +23,18 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	gcpcredentialspb "cloud.google.com/go/iam/credentials/apiv1/credentialspb"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
 	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -38,11 +42,13 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/cloud"
+	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	libazure "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -61,6 +67,8 @@ type Auth interface {
 	GetRDSAuthToken(sessionCtx *Session) (string, error)
 	// GetRedshiftAuthToken generates Redshift auth token.
 	GetRedshiftAuthToken(sessionCtx *Session) (string, string, error)
+	// GetRedshiftServerlessAuthToken generates Redshift Serverless auth token.
+	GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error)
 	// GetCloudSQLAuthToken generates Cloud SQL auth token.
 	GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetCloudSQLPassword generates password for a Cloud SQL database user.
@@ -217,6 +225,26 @@ propagate):
 `, err, policy)
 	}
 	return *resp.DbUser, *resp.DbPassword, nil
+}
+
+// GetRedshiftServerlessAuthToken generates Redshift Serverless auth token.
+func (a *dbAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error) {
+	awsMetadata := sessionCtx.Database.GetAWS()
+	session, err := libcloudaws.GetSessionForRole(UsernameToAWSRoleARN(sessionCtx.DatabaseUser, awsMetadata))
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+
+	a.cfg.Log.Debugf("Generating Redshift Serverless auth token for %s.", sessionCtx)
+	client := redshiftserverless.New(session, aws.NewConfig().WithRegion(awsMetadata.Region))
+	resp, err := client.GetCredentialsWithContext(ctx, &redshiftserverless.GetCredentialsInput{
+		WorkgroupName: aws.String(awsMetadata.RedshiftServerless.WorkgroupName),
+		DbName:        stringPtrOrNilIfEmpty(sessionCtx.DatabaseName),
+	})
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	return aws.StringValue(resp.DbUser), aws.StringValue(resp.DbPassword), nil
 }
 
 // GetCloudSQLAuthToken returns authorization token that will be used as a
@@ -543,10 +571,14 @@ func shouldUseSystemCertPool(sessionCtx *Session) bool {
 	case types.DatabaseTypeAzure:
 		return true
 
-	case types.DatabaseTypeRDSProxy:
+		// TODO
 		// AWS RDS Proxy uses Amazon Root CAs.
 		//
 		// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.howitworks.html#rds-proxy-security.tls
+	case types.DatabaseTypeElastiCache,
+		types.DatabaseTypeMemoryDB,
+		types.DatabaseTypeRDSProxy,
+		types.DatabaseTypeRedshiftServerless:
 		return true
 	}
 	return false
@@ -757,4 +789,30 @@ func matchAzureResourceName(resourceID, name string) bool {
 	}
 
 	return parsedResource.Name == name
+}
+
+// UsernameToAWSRoleARN converts a database username to AWS role ARN.
+func UsernameToAWSRoleARN(username string, aws types.AWS) string {
+	if arn.IsARN(username) {
+		return username
+	}
+	resource := username
+	if !strings.Contains(resource, "/") {
+		resource = fmt.Sprintf("role/%s", username)
+	}
+
+	return arn.ARN{
+		Partition: awsutils.GetPartitionFromRegion(aws.Region),
+		Service:   iam.ServiceName,
+		AccountID: aws.AccountID,
+		Resource:  resource,
+	}.String()
+}
+
+// TODO
+func stringPtrOrNilIfEmpty(s string) *string {
+	if len(s) == 0 {
+		return nil
+	}
+	return &s
 }

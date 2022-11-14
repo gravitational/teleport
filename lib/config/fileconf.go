@@ -1472,7 +1472,7 @@ type Database struct {
 	StaticLabels map[string]string `yaml:"static_labels,omitempty"`
 	// DynamicLabels is a list of database dynamic labels.
 	DynamicLabels []CommandLabel `yaml:"dynamic_labels,omitempty"`
-	// AWS contains AWS specific settings for RDS/Aurora/Redshift databases.
+	// AWS contains AWS specific settings for AWS hosted databases.
 	AWS DatabaseAWS `yaml:"aws"`
 	// GCP contains GCP specific settings for Cloud SQL databases.
 	GCP DatabaseGCP `yaml:"gcp"`
@@ -1536,6 +1536,8 @@ type DatabaseAWS struct {
 	MemoryDB DatabaseAWSMemoryDB `yaml:"memorydb"`
 	// AccountID is the AWS account ID.
 	AccountID string `yaml:"account_id,omitempty"`
+	// RedshiftServerless contains RedshiftServerless specific settings.
+	RedshiftServerless DatabaseAWSRedshiftServerless `yaml:"redshift_severless"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -1562,6 +1564,12 @@ type DatabaseAWSElastiCache struct {
 type DatabaseAWSMemoryDB struct {
 	// ClusterName is the MemoryDB cluster name.
 	ClusterName string `yaml:"cluster_name,omitempty"`
+}
+
+// DatabaseAWSRedshiftServerless contains AWS Redshift Serverless specific settings.
+type DatabaseAWSRedshiftServerless struct {
+	// WorkgroupName is the Redshift Serverless workgroup name.
+	WorkgroupName string `yaml:"workgroup_name,omitempty"`
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.

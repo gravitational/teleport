@@ -394,6 +394,11 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "rdsproxy,omitempty"
   ];
+  // RedshiftServerless contains AWS Redshift Serverless specific metadata.
+  RedshiftServerless RedshiftServerless = 9 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "redshift_serverless,omitempty"
+  ];
 }
 
 // SecretStore contains secret store configurations.
@@ -454,6 +459,14 @@ message MemoryDB {
   bool TLSEnabled = 3 [(gogoproto.jsontag) = "tls_enabled,omitempty"];
   // EndpointType is the type of the endpoint.
   string EndpointType = 4 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
+}
+
+// RedshiftServerless contains AWS Redshift Serverless specific metadata.
+message RedshiftServerless {
+  // WorkgroupName is the workgroup name.
+  string WorkgroupName = 1 [(gogoproto.jsontag) = "workgroup_name,omitempty"];
+  // EndpointName is the VPC endpoint name.
+  string EndpointName = 2 [(gogoproto.jsontag) = "endpoint_name,omitempty"];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
