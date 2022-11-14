@@ -2560,6 +2560,13 @@ func setHomePath(path string) cliOption {
 	}
 }
 
+func setKubeConfigPath(path string) cliOption {
+	return func(cf *CLIConf) error {
+		cf.kubeConfigPath = path
+		return nil
+	}
+}
+
 func setIdentity(path string) cliOption {
 	return func(cf *CLIConf) error {
 		cf.IdentityFileIn = path
