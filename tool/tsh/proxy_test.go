@@ -299,15 +299,21 @@ func TestProxySSH(t *testing.T) {
 				err := runProxySSH(proxyRequest, setHomePath(t.TempDir()))
 				require.Error(t, err)
 
+				// login into Teleport
+				homePath, kubeConfigPath := mustLogin(t, s)
+
 				// Should succeed with login
-				err = runProxySSH(proxyRequest, setHomeAndKubeConfigPaths(mustLogin(t, s)))
+				err = runProxySSH(proxyRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath))
 				require.NoError(t, err)
 			})
 
 			t.Run("re-login", func(t *testing.T) {
 				t.Parallel()
 
-				err := runProxySSH(proxyRequest, setHomeAndKubeConfigPaths(mustLogin(t, s)), setMockSSOLogin(t, s))
+				// login into Teleport
+				homePath, kubeConfigPath := mustLogin(t, s)
+
+				err := runProxySSH(proxyRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath), setMockSSOLogin(t, s))
 				require.NoError(t, err)
 			})
 
@@ -322,7 +328,11 @@ func TestProxySSH(t *testing.T) {
 				t.Parallel()
 
 				invalidLoginRequest := fmt.Sprintf("%s@%s", "invalidUser", proxyRequest)
-				err := runProxySSH(invalidLoginRequest, setHomeAndKubeConfigPaths(mustLogin(t, s)), setMockSSOLogin(t, s))
+
+				// login into Teleport
+				homePath, kubeConfigPath := mustLogin(t, s)
+
+				err := runProxySSH(invalidLoginRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath), setMockSSOLogin(t, s))
 				require.Error(t, err)
 				require.True(t, utils.IsHandshakeFailedError(err), "expected handshake error, got %v", err)
 			})

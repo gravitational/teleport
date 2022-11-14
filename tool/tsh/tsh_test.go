@@ -2546,14 +2546,6 @@ func setHomePath(path string) cliOption {
 	}
 }
 
-func setHomeAndKubeConfigPaths(homePath, kubeconfigPath string) cliOption {
-	return func(cf *CLIConf) error {
-		cf.HomePath = homePath
-		cf.kubeConfigPath = kubeconfigPath
-		return nil
-	}
-}
-
 func setKubeConfigPath(path string) cliOption {
 	return func(cf *CLIConf) error {
 		cf.kubeConfigPath = path
