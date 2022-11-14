@@ -2280,8 +2280,8 @@ func serializeDatabases(databases []types.Database, format string, roleSet servi
 }
 
 type dbUsers struct {
-	Allowed []string `json:"allowed"`
-	Denied  []string `json:"denied"`
+	Allowed []string `json:"allowed,omitempty"`
+	Denied  []string `json:"denied,omitempty"`
 }
 
 type databaseWithUsers struct {
