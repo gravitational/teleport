@@ -287,13 +287,13 @@ func (c *testContext) genTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 
 	ttl := roles.AdjustSessionTTL(10 * time.Minute)
 
-	ca, err := authServer.GetCertAuthority(context.Background(), types.CertAuthID{
+	ca, err := authServer.GetCertAuthority(c.ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	require.NoError(t, err)
 
-	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(ca)
+	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(c.ctx, ca)
 	require.NoError(t, err)
 
 	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)
