@@ -195,7 +195,7 @@ func TestURLForResolvedEndpoint(t *testing.T) {
 	}
 }
 
-func mustNewRequest(t testing.TB, method, url string, body io.Reader) *http.Request {
+func mustNewRequest(t *testing.T, method, url string, body io.Reader) *http.Request {
 	t.Helper()
 
 	r, err := http.NewRequest(method, url, body)
