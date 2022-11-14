@@ -85,7 +85,7 @@ const startCmd = `teleport start --config=${configFile}`;
 
 function getConfigCmd(token: string, host: string) {
   return `teleport configure --output=${configFile} --app-name=[example-app] --app-uri=http://localhost/ \
---roles=app --token=${token} --auth-server=${host} --data-dir=${cfg.configDir}`;
+--roles=app --token=${token} --proxy=${host} --data-dir=${cfg.configDir}`;
 }
 
 type StepsWithoutTokenProps = {

@@ -1500,7 +1500,7 @@ exports[`render manual tab with local user 1`] = `
                   $
                 </div>
                 <div>
-                  teleport configure --output=$HOME/.config/app_config.yaml --app-name=[example-app] --app-uri=http://localhost/ --roles=app --token=[generated-join-token] --auth-server=localhost:443 --data-dir=$HOME/.config
+                  teleport configure --output=$HOME/.config/app_config.yaml --app-name=[example-app] --app-uri=http://localhost/ --roles=app --token=[generated-join-token] --proxy=localhost:443 --data-dir=$HOME/.config
                 </div>
               </div>
               <button
@@ -1972,7 +1972,7 @@ exports[`render manual tab with sso user 1`] = `
                   $
                 </div>
                 <div>
-                  teleport configure --output=$HOME/.config/app_config.yaml --app-name=[example-app] --app-uri=http://localhost/ --roles=app --token=[generated-join-token] --auth-server=localhost:443 --data-dir=$HOME/.config
+                  teleport configure --output=$HOME/.config/app_config.yaml --app-name=[example-app] --app-uri=http://localhost/ --roles=app --token=[generated-join-token] --proxy=localhost:443 --data-dir=$HOME/.config
                 </div>
               </div>
               <button
@@ -2407,7 +2407,7 @@ exports[`render manual tab with token 1`] = `
                   $
                 </div>
                 <div>
-                  teleport configure --output=$HOME/.config/app_config.yaml --app-name=[example-app] --app-uri=http://localhost/ --roles=app --token=join-token --auth-server=localhost:443 --data-dir=$HOME/.config
+                  teleport configure --output=$HOME/.config/app_config.yaml --app-name=[example-app] --app-uri=http://localhost/ --roles=app --token=join-token --proxy=localhost:443 --data-dir=$HOME/.config
                 </div>
               </div>
               <button
