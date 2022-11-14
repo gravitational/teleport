@@ -112,7 +112,7 @@ func testProxyTunnelStrategyAgentMesh(t *testing.T) {
 			testResource: func(t *testing.T, p *proxyTunnelStrategy) {
 				p.makeDatabase(t)
 
-				// wait for the node to be connected to both proxies
+				// wait for the database to be connected to both proxies
 				helpers.WaitForActiveTunnelConnections(t, p.proxies[0].Tunnel, p.cluster, 1)
 				helpers.WaitForActiveTunnelConnections(t, p.proxies[1].Tunnel, p.cluster, 1)
 
@@ -303,6 +303,8 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T) {
 
 	conf := service.MakeDefaultConfig()
 	conf.DataDir = t.TempDir()
+	conf.Log = auth.Log
+
 	conf.Auth.Enabled = true
 	conf.Auth.NetworkingConfig.SetTunnelStrategy(p.strategy)
 	conf.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
@@ -331,6 +333,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	conf.SetAuthServerAddress(*authAddr)
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
+	conf.Log = proxy.Log
 
 	conf.Auth.Enabled = false
 	conf.SSH.Enabled = false
@@ -371,13 +374,15 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	})
 
 	conf := service.MakeDefaultConfig()
-	conf.SetAuthServerAddress(utils.FromAddr(p.lb.Addr()))
+	conf.Version = types.V3
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
+	conf.Log = node.Log
 
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
 	conf.SSH.Enabled = true
+	conf.ProxyServer = utils.FromAddr(p.lb.Addr())
 
 	process, err := service.NewTeleport(conf)
 	require.NoError(t, err)
@@ -413,14 +418,16 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	})
 
 	conf := service.MakeDefaultConfig()
-	conf.SetAuthServerAddress(utils.FromAddr(p.lb.Addr()))
+	conf.Version = types.V3
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
+	conf.Log = db.Log
 
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
 	conf.SSH.Enabled = false
 	conf.Databases.Enabled = true
+	conf.ProxyServer = utils.FromAddr(p.lb.Addr())
 	conf.Databases.Databases = []service.Database{
 		{
 			Name:     p.cluster + "-postgres",
