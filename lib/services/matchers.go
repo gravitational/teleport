@@ -120,7 +120,7 @@ func MatchResourceByFilters(
 ) (bool, error) {
 	var specResource types.ResourceWithLabels
 
-	if hasTeleportInternalLabel(resource) {
+	if filter.HideTeleportInternal && hasTeleportInternalLabel(resource) {
 		return false, nil
 	}
 
@@ -294,6 +294,8 @@ type MatchResourceFilter struct {
 	SearchKeywords []string
 	// PredicateExpression holds boolean conditions that must be matched.
 	PredicateExpression string
+	// HideTeleportInternal is a flag that if set to true hides label starting with teleport.internal
+	HideTeleportInternal bool
 }
 
 const (

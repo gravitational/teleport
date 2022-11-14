@@ -373,7 +373,7 @@ func TestMatchResourceOmitInternalLabel(t *testing.T) {
 		{
 			name:        "a server resource without internal label",
 			shouldMatch: true,
-			filters:     MatchResourceFilter{ResourceKind: types.KindNode},
+			filters:     MatchResourceFilter{ResourceKind: types.KindNode, HideTeleportInternal: true},
 			resource: func() types.ResourceWithLabels {
 				server, err := types.NewServerWithLabels("foo", types.KindNode, types.ServerSpecV2{}, map[string]string{
 					"some-label": "some value",
@@ -386,7 +386,7 @@ func TestMatchResourceOmitInternalLabel(t *testing.T) {
 		{
 			name:        "a server resource with internal label",
 			shouldMatch: false,
-			filters:     MatchResourceFilter{ResourceKind: types.KindNode},
+			filters:     MatchResourceFilter{ResourceKind: types.KindNode, HideTeleportInternal: true},
 			resource: func() types.ResourceWithLabels {
 				server, err := types.NewServerWithLabels("foo", types.KindNode, types.ServerSpecV2{}, map[string]string{
 					"teleport.internal": "test",
@@ -399,7 +399,7 @@ func TestMatchResourceOmitInternalLabel(t *testing.T) {
 		{
 			name:        "a server resource with label starting with teleport.internal",
 			shouldMatch: false,
-			filters:     MatchResourceFilter{ResourceKind: types.KindNode},
+			filters:     MatchResourceFilter{ResourceKind: types.KindNode, HideTeleportInternal: true},
 			resource: func() types.ResourceWithLabels {
 				server, err := types.NewServerWithLabels("foo", types.KindNode, types.ServerSpecV2{}, map[string]string{
 					"teleport.internal/alina": "test",
@@ -413,7 +413,8 @@ func TestMatchResourceOmitInternalLabel(t *testing.T) {
 			name:     "unsupported resource kind",
 			resource: func() types.ResourceWithLabels { return nil },
 			filters: MatchResourceFilter{
-				ResourceKind: "unsupported",
+				ResourceKind:         "unsupported",
+				HideTeleportInternal: true,
 			},
 			shouldMatch:     false,
 			shouldHaveError: true,
@@ -438,7 +439,8 @@ func TestMatchResourceOmitInternalLabel(t *testing.T) {
 				return appServer
 			},
 			filters: MatchResourceFilter{
-				ResourceKind: types.KindAppServer,
+				ResourceKind:         types.KindAppServer,
+				HideTeleportInternal: true,
 			},
 		},
 		{
@@ -461,7 +463,8 @@ func TestMatchResourceOmitInternalLabel(t *testing.T) {
 				return appServer
 			},
 			filters: MatchResourceFilter{
-				ResourceKind: types.KindAppServer,
+				ResourceKind:         types.KindAppServer,
+				HideTeleportInternal: true,
 			},
 		},
 	}
