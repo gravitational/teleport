@@ -623,7 +623,6 @@ func TestTCPCertExpiration(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Now())
 	mCloseChannel := make(chan struct{})
 	pack := SetupWithOptions(t, AppTestOptions{
-		CertificateTTL:      5 * time.Second,
 		Clock:               clock,
 		MonitorCloseChannel: mCloseChannel,
 	})
