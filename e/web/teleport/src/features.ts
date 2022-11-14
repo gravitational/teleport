@@ -1,3 +1,5 @@
+import React from 'react';
+
 import * as Icons from 'design/Icon';
 import * as OSS from 'teleport/features';
 import { Feature } from 'teleport/types';
@@ -5,9 +7,19 @@ import Ctx from 'teleport/teleportContext';
 
 import cfg from 'e-teleport/config';
 import { ReviewRequests, NewRequest } from 'e-teleport/Workflow';
-import AuthConnectors from 'e-teleport/AuthConnectors';
-import AccountE from 'e-teleport/Account';
-import { SupportE } from 'e-teleport/Support';
+
+const AuthConnectors = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "e-auth-connectors" */ 'e-teleport/AuthConnectors'
+    )
+);
+const AccountE = React.lazy(
+  () => import(/* webpackChunkName: "e-account" */ 'e-teleport/Account')
+);
+const SupportE = React.lazy(
+  () => import(/* webpackChunkName: "e-support" */ 'e-teleport/Support')
+);
 
 class FeatureAuthConnectors extends OSS.FeatureAuthConnectors {
   route = {

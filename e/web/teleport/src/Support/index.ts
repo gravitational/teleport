@@ -1,4 +1,3 @@
-import React from 'react';
+import Support from './Support';
 
-const SupportE = React.lazy(() => import('./Support'));
-export { SupportE };
+export default Support;

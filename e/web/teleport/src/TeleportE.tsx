@@ -8,7 +8,6 @@ import Teleport, {
 
 import cfg from 'e-teleport/config';
 import WaitingRoom from 'e-teleport/WaitingRoom';
-import { Discover } from 'e-teleport/Discover';
 
 import { getEnterpriseFeatures } from 'e-teleport/features';
 
@@ -45,6 +44,8 @@ function publicRoutes() {
     ...renderPublicRoutes(),
   ];
 }
+
+const Discover = React.lazy(() => import('e-teleport/Discover'));
 
 function privateRoutes() {
   return <WaitingRoom>{renderPrivateRoutes(Main, Discover)}</WaitingRoom>;
