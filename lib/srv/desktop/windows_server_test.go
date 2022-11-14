@@ -217,7 +217,7 @@ func TestEmitsRecordingEventsOnSend(t *testing.T) {
 
 	delay := func() int64 { return 0 }
 	handler := s.makeTDPSendHandler(context.Background(), emitter, delay,
-		nil, "session-1", "windows.example.com")
+		nil, "session-1", "windows.example.com", &tdp.Conn{})
 
 	// the handler accepts both the message structure and its encoded form,
 	// but our logic only depends on the encoded form, so pass a nil message
@@ -248,7 +248,7 @@ func TestSkipsExtremelyLargePNGs(t *testing.T) {
 
 	delay := func() int64 { return 0 }
 	handler := s.makeTDPSendHandler(context.Background(), emitter, delay,
-		nil, "session-1", "windows.example.com")
+		nil, "session-1", "windows.example.com", &tdp.Conn{})
 
 	// the handler accepts both the message structure and its encoded form,
 	// but our logic only depends on the encoded form, so pass a nil message
@@ -269,7 +269,7 @@ func TestEmitsRecordingEventsOnReceive(t *testing.T) {
 
 	delay := func() int64 { return 0 }
 	handler := s.makeTDPReceiveHandler(context.Background(), emitter, delay,
-		nil, "session-1", "windows.example.com")
+		nil, "session-1", "windows.example.com", &tdp.Conn{})
 
 	msg := tdp.MouseButton{
 		Button: tdp.LeftMouseButton,
@@ -290,7 +290,7 @@ func TestEmitsClipboardSendEvents(t *testing.T) {
 	s, id, emitter := setup()
 	handler := s.makeTDPReceiveHandler(context.Background(),
 		emitter, func() int64 { return 0 },
-		id, "session-0", "windows.example.com")
+		id, "session-0", "windows.example.com", &tdp.Conn{})
 
 	fakeClipboardData := make([]byte, 1024)
 	rand.Read(fakeClipboardData)
@@ -314,7 +314,7 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 	s, id, emitter := setup()
 	handler := s.makeTDPSendHandler(context.Background(),
 		emitter, func() int64 { return 0 },
-		id, "session-0", "windows.example.com")
+		id, "session-0", "windows.example.com", &tdp.Conn{})
 
 	fakeClipboardData := make([]byte, 512)
 	rand.Read(fakeClipboardData)
@@ -334,4 +334,129 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 	require.Equal(t, "windows.example.com", cs.DesktopAddr)
 	require.Equal(t, s.clusterName, cs.ClusterName)
 	require.Equal(t, start, cs.Time)
+}
+
+// TestAuditCacheLifecycle confirms that the audit cache is properly
+// initialized upon receipt of a tdp.SharedDirectoryAnnounce message,
+// and properly cleaned up upon session end.
+func TestAuditCacheLifecycle(t *testing.T) {
+	s, id, emitter := setup()
+	sid := "session-0"
+	desktopAddr := "windows.example.com"
+	testDirName := "test-dir"
+	path := "test/path/test-file.txt"
+	var did uint32 = 2
+	var cid uint32 = 999
+	var offset uint64 = 500
+	var length uint32 = 1000
+	recvHandler := s.makeTDPReceiveHandler(context.Background(),
+		emitter, func() int64 { return 0 },
+		id, sid, desktopAddr, &tdp.Conn{})
+	sendHandler := s.makeTDPSendHandler(context.Background(),
+		emitter, func() int64 { return 0 },
+		id, sid, desktopAddr, &tdp.Conn{})
+
+	// SharedDirectoryAnnounce initializes the nameCache.
+	msg := tdp.SharedDirectoryAnnounce{
+		DirectoryID: 2,
+		Name:        testDirName,
+	}
+	recvHandler(msg)
+
+	// Check than an initialized audit cache entry is created
+	// for sessionID upon receipt of a tdp.SharedDirectoryAnnounce.
+	entry, ok := s.auditCache.m[sessionID(sid)]
+	require.True(t, ok)
+	require.NotNil(t, entry.nameCache)
+	require.NotNil(t, entry.readRequestCache)
+	require.NotNil(t, entry.writeRequestCache)
+
+	// Confirm that audit cache entry for sid
+	// is in the expected state.
+	require.Equal(t, 1, entry.totalItems())
+	name, ok := s.auditCache.GetName(sessionID(sid), directoryID(did))
+	require.True(t, ok)
+	require.Equal(t, directoryName(testDirName), name)
+	_, ok = s.auditCache.TakeReadRequestInfo(sessionID(sid), completionID(cid))
+	require.False(t, ok)
+	_, ok = s.auditCache.TakeWriteRequestInfo(sessionID(sid), completionID(cid))
+	require.False(t, ok)
+
+	// A SharedDirectoryReadRequest should add a corresponding entry in the readRequestCache.
+	readReq := tdp.SharedDirectoryReadRequest{
+		CompletionID: cid,
+		DirectoryID:  did,
+		Path:         path,
+		Offset:       offset,
+		Length:       length,
+	}
+	encoded, err := readReq.Encode()
+	require.NoError(t, err)
+	sendHandler(readReq, encoded)
+	require.Equal(t, 2, entry.totalItems())
+
+	// A SharedDirectoryWriteRequest should add a corresponding entry in the writeRequestCache.
+	writeReq := tdp.SharedDirectoryWriteRequest{
+		CompletionID:    cid,
+		DirectoryID:     did,
+		Path:            path,
+		Offset:          offset,
+		WriteDataLength: length,
+	}
+	encoded, err = writeReq.Encode()
+	require.NoError(t, err)
+	sendHandler(writeReq, encoded)
+	require.Equal(t, 3, entry.totalItems())
+
+	// Check that the readRequestCache was properly filled out.
+	require.Contains(t, entry.readRequestCache, completionID(cid))
+
+	// Check that the writeRequestCache was properly filled out.
+	require.Contains(t, entry.writeRequestCache, completionID(cid))
+
+	// SharedDirectoryReadResponse should cause the entry in the readRequestCache to be cleaned up.
+	readRes := tdp.SharedDirectoryReadResponse{
+		CompletionID:   cid,
+		ErrCode:        tdp.ErrCodeNil,
+		ReadDataLength: length,
+		ReadData:       []byte{}, // irrelevant in this context
+	}
+	recvHandler(readRes)
+	require.Equal(t, 2, entry.totalItems())
+
+	// SharedDirectoryWriteResponse should cause the entry in the writeRequestCache to be cleaned up.
+	writeRes := tdp.SharedDirectoryWriteResponse{
+		CompletionID: cid,
+		ErrCode:      tdp.ErrCodeNil,
+		BytesWritten: length,
+	}
+	recvHandler(writeRes)
+	require.Equal(t, 1, entry.totalItems())
+
+	// Check that the readRequestCache was properly cleaned up.
+	require.NotContains(t, entry.readRequestCache, completionID(cid))
+
+	// Check that the writeRequestCache was properly cleaned up.
+	require.NotContains(t, entry.writeRequestCache, completionID(cid))
+
+	// Simulate a session end event, which should clean up the cache for sessionID(sid) entirely.
+	s.onSessionEnd(
+		context.Background(),
+		s.cfg.Emitter,
+		id,
+		s.cfg.Clock.Now().UTC().Round(time.Millisecond),
+		true,
+		"Administrator",
+		sid,
+		&types.WindowsDesktopV3{},
+	)
+
+	// Confirm that the audit cache at sessionID(sid) was cleaned up.
+	_, ok = s.auditCache.GetName(sessionID(sid), directoryID(did))
+	require.False(t, ok)
+	_, ok = s.auditCache.TakeReadRequestInfo(sessionID(sid), completionID(cid))
+	require.False(t, ok)
+	_, ok = s.auditCache.TakeWriteRequestInfo(sessionID(sid), completionID(cid))
+	require.False(t, ok)
+	require.NotContains(t, s.auditCache.m, sessionID(sid))
 }
