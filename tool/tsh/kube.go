@@ -1104,7 +1104,7 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 	}
 
 	// cf.kubeConfigPath is used in tests to allow Teleport to run tsh login commands
-	// in parallel. If defined, it should take precendence over kubeconfig.PathFromEnv().
+	// in parallel. If defined, it should take precedence over kubeconfig.PathFromEnv().
 	if path == "" && cf.kubeConfigPath != "" {
 		path = cf.kubeConfigPath
 	} else if path == "" {
