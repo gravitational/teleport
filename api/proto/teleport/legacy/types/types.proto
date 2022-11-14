@@ -2989,6 +2989,11 @@ message KubernetesClusterSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "aws,omitempty"
   ];
+  // GCP holds the required GCP information for Teleport to access the cluster.
+  KubeGCP GCP = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "gcp,omitempty"
+  ];
 }
 
 // KubeAzure contains the Azure information about the cluster.
@@ -3010,6 +3015,16 @@ message KubeAWS {
   // AccountID is a AWS Account ID.
   string AccountID = 2 [(gogoproto.jsontag) = "account_id,omitempty"];
   // Name is a AWS EKS cluster name.
+  string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
+}
+
+// KubeGCP contains the GCP information about the cluster.
+message KubeGCP {
+  // Location is a GKE cluster location.
+  string Location = 1 [(gogoproto.jsontag) = "location,omitempty"];
+  // ProjectID is the GKE Project ID.
+  string ProjectID = 2 [(gogoproto.jsontag) = "project_id,omitempty"];
+  // Name is a GCP GKE cluster name.
   string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
 }
 

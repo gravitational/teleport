@@ -382,6 +382,12 @@ type CLIConf struct {
 	kubernetesImpersonationConfig impersonationConfig
 	// kubeNamespace allows to configure the default Kubernetes namespace.
 	kubeNamespace string
+
+	// kubeConfigPath is the location of the Kubeconfig for the current test.
+	// Setting this value allows Teleport tests to run `tsh login` commands in
+	// parallel.
+	// It shouldn't be used outside testing.
+	kubeConfigPath string
 }
 
 // Stdout returns the stdout writer.
