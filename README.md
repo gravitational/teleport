@@ -122,7 +122,7 @@ View latest tags on [Amazon ECR Public | gravitational/teleport](https://gallery
 
 Follow the instructions in the [docker/README](docker/README.md) file.
 
-To run a full test suite locally, see [the test dependecies list](BUILD_macos.md#local-tests-dependencies) 
+To run a full test suite locally, see [the test dependencies list](BUILD_macos.md#local-tests-dependencies) 
 
 ## Building Teleport
 
@@ -337,7 +337,7 @@ We offer a few different options for support. First of all, we try to provide cl
 ## Is Teleport Secure and Production Ready?
 
 Teleport is used by leading companies to enable engineers to quickly access any
-computing resource anywhere. Teleport has completed several security audits from the nationally recognized technology security companies. We make some our audits public, view our latest [audit reports.](https://goteleport.com/resources/audits/).
+computing resource anywhere. Teleport has completed several security audits from the nationally recognized technology security companies. We make some of our audits public, view our latest [audit reports](https://goteleport.com/resources/audits/).
 We are comfortable with the use of Teleport from a security perspective.
 
 You can see the list of companies who use Teleport in production on the Teleport

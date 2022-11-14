@@ -36,7 +36,7 @@ Teleport Cloud requires that plugins connect through the Proxy Service (`mytenan
 
 ### Create a user and role for access
 
-(!docs/pages/includes/plugins/rbac.mdx!)
+(!docs/pages/includes/plugins/rbac-update.mdx!)
 
 ### Export access-plugin certificate
 
@@ -122,15 +122,12 @@ Run `./install` from `teleport-jira` or place the executable in the appropriate 
   ```
 </TabItem>
 <TabItem label="Helm Chart">
-  ```code
-  $ helm repo add teleport https://charts.releases.teleport.dev/
-  ```
+  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 </TabItem>
 </Tabs>
 
 <Details title="Installing via Helm?">
   ```code
-  $ helm repo add teleport https://charts.releases.teleport.dev/
   $ helm install teleport-plugin-jira teleport/teleport-plugin-jira --values teleport-jira-helm.yaml
   ```
 </Details>

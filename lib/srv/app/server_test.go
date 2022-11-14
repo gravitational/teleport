@@ -35,6 +35,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
+	"github.com/gravitational/oxy/forward"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -45,13 +53,8 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	libsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -77,8 +80,9 @@ type Suite struct {
 	clientCertificate     tls.Certificate
 	awsConsoleCertificate tls.Certificate
 
-	user types.User
-	role types.Role
+	user       types.User
+	role       types.Role
+	serverPort string
 }
 
 func (s *Suite) TearDown(t *testing.T) {
@@ -108,6 +112,10 @@ type suiteConfig struct {
 	Apps types.Apps
 	// ServerStreamer is the auth server audit events streamer.
 	ServerStreamer events.Streamer
+	// ValidateRequest is a function that will validate the request received by the application.
+	ValidateRequest func(*Suite, *http.Request)
+	// UseWebsockets will make the application server use a websocket for connection.
+	UseWebsockets bool
 }
 
 func SetUpSuite(t *testing.T) *Suite {
@@ -171,15 +179,35 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s.message = uuid.New().String()
 
 	s.testhttp = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, s.message)
+		if config.UseWebsockets {
+			upgrader := websocket.Upgrader{
+				ReadBufferSize:  1024,
+				WriteBufferSize: 1024,
+			}
+			ws, err := upgrader.Upgrade(w, r, nil)
+			require.NoError(t, err)
+
+			err = ws.WriteMessage(websocket.TextMessage, []byte(s.message))
+			require.NoError(t, err)
+		} else {
+			fmt.Fprintln(w, s.message)
+		}
+
+		if config.ValidateRequest != nil {
+			config.ValidateRequest(s, r)
+		}
 	}))
 	s.testhttp.Config.TLSConfig = &tls.Config{Time: s.clock.Now}
+	if config.UseWebsockets {
+		s.testhttp.EnableHTTP2 = true
+	}
 	s.testhttp.Start()
 
 	// Extract the hostport that the in-memory HTTP server is running on.
 	u, err := url.Parse(s.testhttp.URL)
 	require.NoError(t, err)
 	s.hostport = u.Host
+	s.serverPort = u.Port()
 
 	// Create apps that will be used for each test.
 	appFoo, err := types.NewAppV3(types.Metadata{
@@ -269,6 +297,8 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		apps = config.Apps
 	}
 
+	discard := events.NewDiscardEmitter()
+
 	s.appServer, err = New(s.closeContext, &Config{
 		Clock:            s.clock,
 		DataDir:          s.dataDir,
@@ -285,6 +315,8 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		Cloud:            &testCloud{},
 		ResourceMatchers: config.ResourceMatchers,
 		OnReconcile:      config.OnReconcile,
+		LockWatcher:      lockWatcher,
+		Emitter:          discard,
 	})
 	require.NoError(t, err)
 
@@ -376,14 +408,39 @@ func TestWaitStop(t *testing.T) {
 	require.Equal(t, err, context.Canceled)
 }
 
-// TestHandleConnection verifies that requests with valid certificates are forwarded.
+// TestHandleConnection verifies that requests with valid certificates are forwarded and the
+// request had headers rewritten as expected.
 func TestHandleConnection(t *testing.T) {
-	s := SetUpSuite(t)
+	s := SetUpSuiteWithConfig(t, suiteConfig{
+		ValidateRequest: func(_ *Suite, r *http.Request) {
+			require.Equal(t, "on", r.Header.Get(common.XForwardedSSL))
+			require.Equal(t, "443", r.Header.Get(forward.XForwardedPort))
+		},
+	})
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
 		require.Equal(t, resp.StatusCode, http.StatusOK)
 		buf, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, strings.TrimSpace(string(buf)), s.message)
+	})
+}
+
+// TestHandleConnectionWS verifies that websocket requests with valid certificates are forwarded and the
+// request had headers rewritten as expected.
+func TestHandleConnectionWS(t *testing.T) {
+	s := SetUpSuiteWithConfig(t, suiteConfig{
+		ValidateRequest: func(s *Suite, r *http.Request) {
+			require.Equal(t, "on", r.Header.Get(common.XForwardedSSL))
+			// Websockets will pass on the server port at this level due to the
+			// websocket transport header rewriter delegate.
+			require.Equal(t, s.serverPort, r.Header.Get(forward.XForwardedPort))
+		},
+		UseWebsockets: true,
+	})
+
+	s.checkWSResponse(t, s.clientCertificate, func(messageType int, message string) {
+		require.Equal(t, websocket.TextMessage, messageType)
+		require.Equal(t, s.message, message)
 	})
 }
 
@@ -588,6 +645,62 @@ func (s *Suite) checkHTTPResponse(t *testing.T, clientCert tls.Certificate, chec
 	// Check response.
 	checkResp(resp)
 	require.NoError(t, resp.Body.Close())
+
+	// Close should not trigger an error.
+	require.NoError(t, s.appServer.Close())
+
+	// Wait for the application server to actually stop serving before
+	// closing the test. This will make sure the server removes the listeners
+	wg.Wait()
+}
+
+// checkWSResponse checks expected websocket response.
+func (s *Suite) checkWSResponse(t *testing.T, clientCert tls.Certificate, checkMessage func(messageType int, message string)) {
+	pr, pw := net.Pipe()
+	defer pw.Close()
+	defer pr.Close()
+
+	dialer := websocket.Dialer{
+		NetDial: func(_, _ string) (net.Conn, error) {
+			return pr, nil
+		},
+		TLSClientConfig: &tls.Config{
+			// RootCAs is a pool of host certificates used to verify the identity of
+			// the server this client is connecting to.
+			RootCAs: s.hostCertPool,
+			// Certificates is the user's application specific certificate.
+			Certificates: []tls.Certificate{clientCert},
+			// Time defines the time anchor for certificate validation
+			Time: s.clock.Now,
+		},
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	// Handle the connection in another goroutine.
+	go func() {
+		s.appServer.HandleConnection(pw)
+		wg.Done()
+	}()
+
+	// Issue request.
+	ws, resp, err := dialer.Dial("wss://"+constants.APIDomain, http.Header{})
+	require.NoError(t, err)
+
+	// Check response.
+	require.Equal(t, resp.StatusCode, http.StatusSwitchingProtocols)
+	require.NoError(t, resp.Body.Close())
+
+	// Read websocket message
+	messageType, message, err := ws.ReadMessage()
+	require.NoError(t, err)
+
+	// Check message
+	checkMessage(messageType, string(message))
+
+	// This should not trigger an error.
+	require.NoError(t, ws.Close())
 
 	// Close should not trigger an error.
 	require.NoError(t, s.appServer.Close())

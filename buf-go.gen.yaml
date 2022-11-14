@@ -2,4 +2,5 @@ version: v1
 plugins:
   - name: go
     out: .
-    opt: plugins=grpc
+  - name: go-grpc
+    out: .

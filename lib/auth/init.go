@@ -363,8 +363,12 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 				return nil, trace.Wrap(err)
 			}
 		} else {
-			// Already have a CA. Make sure the keyStore has local keys.
-			if !asrv.keyStore.HasLocalActiveKeys(ca) {
+			// Already have a CA. Make sure the keyStore has usable keys.
+			hasUsableActiveKeys, err := asrv.keyStore.HasUsableActiveKeys(ca)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if !hasUsableActiveKeys {
 				// This could be one of a few cases:
 				// 1. A new auth server with an HSM being added to an HA cluster.
 				// 2. A new auth server with no HSM being added to an HA cluster
@@ -387,7 +391,15 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 					}
 				}
 			}
-			if !asrv.keyStore.HasLocalActiveKeys(ca) && asrv.keyStore.HasLocalAdditionalKeys(ca) {
+			hasUsableActiveKeys, err = asrv.keyStore.HasUsableActiveKeys(ca)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			hasUsableAdditionalKeys, err := asrv.keyStore.HasUsableAdditionalKeys(ca)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if !hasUsableActiveKeys && hasUsableAdditionalKeys {
 				log.Warnf("This auth server has a newly added or removed HSM and will not " +
 					"be able to perform any signing operations. You must rotate all CAs " +
 					"before routing traffic to this auth server. See https://goteleport.com/docs/admin-guide/#certificate-rotation")
@@ -578,7 +590,7 @@ func isFirstStart(ctx context.Context, authServer *Server, cfg InitConfig) (bool
 }
 
 // checkResourceConsistency checks far basic conflicting state issues.
-func checkResourceConsistency(keyStore keystore.KeyStore, clusterName string, resources ...types.Resource) error {
+func checkResourceConsistency(keyStore *keystore.Manager, clusterName string, resources ...types.Resource) error {
 	for _, rsc := range resources {
 		switch r := rsc.(type) {
 		case types.CertAuthority:
@@ -946,7 +958,7 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	}
 	roleString := cert.Permissions.Extensions[utils.CertExtensionRole]
 	if roleString == "" {
-		return nil, trace.BadParameter("misssing cert extension %v", utils.CertExtensionRole)
+		return nil, trace.BadParameter("missing cert extension %v", utils.CertExtensionRole)
 	}
 	roles, err := types.ParseTeleportRoles(roleString)
 	if err != nil {

@@ -21,8 +21,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/service"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/service"
 )
 
 // InstanceListeners represents the listener configuration for a test cluster.

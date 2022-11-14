@@ -500,8 +500,8 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			role:               value{fromSecret: "AWS_ROLE"},
 		},
 		configVolume: volumeRefAwsConfig,
+		name:         "Assume Download AWS Role",
 	})
-	assumeDownloadRoleStep.Name = "Assume Download AWS Role"
 	assumeBuildRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
 		awsRoleSettings: awsRoleSettings{
 			awsAccessKeyID:     value{fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_KEY"},
@@ -509,8 +509,8 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			role:               value{fromSecret: "TELEPORT_BUILD_READ_ONLY_AWS_ROLE"},
 		},
 		configVolume: volumeRefAwsConfig,
+		name:         "Assume Build AWS Role",
 	})
-	assumeBuildRoleStep.Name = "Assume Build AWS Role"
 	assumeUploadRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
 		awsRoleSettings: awsRoleSettings{
 			awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
@@ -518,8 +518,8 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			role:               value{fromSecret: "AWS_ROLE"},
 		},
 		configVolume: volumeRefAwsConfig,
+		name:         "Assume Upload AWS Role",
 	})
-	assumeUploadRoleStep.Name = "Assume Upload AWS Role"
 
 	pipelineName := fmt.Sprintf("%s-%s", dependentPipeline, packageType)
 

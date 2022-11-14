@@ -1,7 +1,7 @@
 Teleport's Access Request plugins authenticate to your Teleport cluster as a
-user with permissions to list, read, and update Access Requests. This way,
-plugins can retrieve Access Requests from the Teleport Auth Service, present
-them to reviewers, and modify them after a review.
+user with permissions to list and read Access Requests. This way,
+plugins can retrieve Access Requests from the Teleport Auth Service and present
+them to reviewers.
 
 Define a user and role called `access-plugin` by adding the following content to
 a file called `access-plugin.yaml`:
@@ -15,7 +15,7 @@ spec:
   allow:
     rules:
       - resources: ['access_request']
-        verbs: ['list', 'read', 'update']
+        verbs: ['list', 'read']
       - resources: ['access_plugin_data']
         verbs: ['update']
 ---

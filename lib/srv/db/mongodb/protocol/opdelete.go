@@ -20,10 +20,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
-
-	"github.com/gravitational/trace"
 )
 
 // MessageOpDelete represents parsed OP_DELETE wire message.

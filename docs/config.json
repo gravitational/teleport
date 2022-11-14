@@ -219,12 +219,18 @@
               "title": "Moderated Sessions",
               "slug": "/access-controls/guides/moderated-sessions/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Hardware Key Support (Preview)",
+              "slug": "/access-controls/guides/hardware-key-support/",
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
         {
           "title": "Single Sign-On (SSO)",
           "slug": "/access-controls/sso/",
+          "forScopes": ["enterprise", "oss", "cloud"],
           "entries": [
             {
               "title": "GitHub SSO",
@@ -304,13 +310,8 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Jira Server",
-              "slug": "/access-controls/access-request-plugins/ssh-approval-jira-server/",
-              "forScopes": ["enterprise", "cloud"]
-            },
-            {
-              "title": "Jira Cloud",
-              "slug": "/access-controls/access-request-plugins/ssh-approval-jira-cloud/",
+              "title": "Jira",
+              "slug": "/access-controls/access-request-plugins/ssh-approval-jira/",
               "forScopes": ["enterprise", "cloud"]
             },
             {
@@ -380,7 +381,7 @@
             {
               "title": "Troubleshooting",
               "slug": "/management/admin/troubleshooting/",
-              "forScopes": ["oss", "enterprise"]
+              "forScopes": ["oss", "enterprise", "cloud"]
             },
             {
               "title": "Upgrading the Teleport Binary",
@@ -482,6 +483,32 @@
             {
               "title": "Using Teleport's CA with GitHub",
               "slug": "/management/guides/ssh-key-extensions/"
+            }
+          ]
+        },
+        {
+          "title": "Diagnostics",
+          "slug": "/management/diagnostics/",
+          "entries": [
+            {
+              "title": "Health Monitoring",
+              "slug": "/management/diagnostics/monitoring/",
+              "forScopes": ["oss", "enterprise", "cloud"]
+            },
+            {
+              "title": "Metrics",
+              "slug": "/management/diagnostics/metrics/",
+              "forScopes": ["oss", "enterprise", "cloud"]
+            },
+            {
+              "title": "Collecting Profiles",
+              "slug": "/management/diagnostics/profiles/",
+              "forScopes": ["oss", "enterprise", "cloud"]
+            },
+            {
+              "title": "Distributed Tracing",
+              "slug": "/management/diagnostics/tracing/",
+              "forScopes": ["oss", "enterprise", "cloud"]
             }
           ]
         }
@@ -610,12 +637,24 @@
               "slug": "/server-access/guides/vscode/"
             },
             {
+              "title": "JetBrains SFTP",
+              "slug": "/server-access/guides/jetbrains-sftp/"
+            },
+            {
               "title": "Host User Creation",
               "slug": "/server-access/guides/host-user-creation/"
             },
             {
-              "title": "EC2 Instance Discovery",
+              "title": "Linux Auditing System",
+              "slug": "/server-access/guides/auditd/"
+            },
+            {
+              "title": "EC2 Instance Discovery (Preview)",
               "slug": "/server-access/guides/ec2-discovery/"
+            },
+            {
+              "title": "Using Teleport with Ansible",
+              "slug": "/server-access/guides/ansible/"
             }
           ]
         }
@@ -658,6 +697,20 @@
         {
           "title": "Access Controls",
           "slug": "/kubernetes-access/controls/"
+        },
+        {
+          "title": "Kubernetes Discovery (Preview)",
+          "slug": "/kubernetes-access/discovery/",
+          "entries": [
+            {
+              "title": "AWS",
+              "slug": "/kubernetes-access/discovery/aws/"
+            },
+            {
+              "title": "Azure",
+              "slug": "/kubernetes-access/discovery/azure/"
+            }
+          ]
         }
       ]
     },
@@ -694,6 +747,10 @@
               "slug": "/database-access/guides/dynamodb/"
             },
             {
+              "title": "AWS Keyspaces (Apache Cassandra)",
+              "slug": "/database-access/guides/aws-cassandra-keyspaces/"
+            },
+            {
               "title": "GCP Cloud SQL PostgreSQL",
               "slug": "/database-access/guides/postgres-cloudsql/"
             },
@@ -706,8 +763,20 @@
               "slug": "/database-access/guides/azure-postgres-mysql/"
             },
             {
+              "title": "Azure Cache for Redis",
+              "slug": "/database-access/guides/azure-redis/"
+            },
+            {
+              "title": "Azure SQL Server (Preview)",
+              "slug": "/database-access/guides/azure-sql-server-ad/"
+            },
+            {
               "title": "MongoDB Atlas",
               "slug": "/database-access/guides/mongodb-atlas/"
+            },
+            {
+              "title": "Self-Hosted Elasticsearch",
+              "slug": "/database-access/guides/elastic/"
             },
             {
               "title": "Self-Hosted PostgreSQL",
@@ -740,6 +809,10 @@
             {
               "title": "Snowflake (Preview)",
               "slug": "/database-access/guides/snowflake/"
+            },
+            {
+              "title": "Self-Hosted Cassandra & ScyllaDB",
+              "slug": "/database-access/guides/cassandra-self-hosted/"
             },
             {
               "title": "Dynamic Registration",
@@ -874,10 +947,6 @@
             {
               "title": "Configuration",
               "slug": "/machine-id/reference/configuration/"
-            },
-            {
-              "title": "CLI",
-              "slug": "/machine-id/reference/cli/"
             }
           ]
         },
@@ -888,6 +957,10 @@
             {
               "title": "Ansible",
               "slug": "/machine-id/guides/ansible/"
+            },
+            {
+              "title": "GitHub Actions",
+              "slug": "/machine-id/guides/github-actions/"
             },
             {
               "title": "Jenkins",
@@ -904,6 +977,10 @@
             {
               "title": "Applications",
               "slug": "/machine-id/guides/applications/"
+            },
+            {
+              "title": "Host Certificates",
+              "slug": "/machine-id/guides/host-certificate/"
             }
           ]
         }
@@ -1109,7 +1186,7 @@
       "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "10.3.1",
+      "version": "10.3.6",
       "major_version": "10",
       "sla": {
         "monthly_percentage": "99.5%",
@@ -1188,7 +1265,7 @@
     },
     {
       "source": "/metrics-logs-reference/",
-      "destination": "/reference/metrics/",
+      "destination": "/management/diagnostics/metrics/",
       "permanent": true
     },
     {
@@ -1493,12 +1570,17 @@
     },
     {
       "source": "/enterprise/workflow/ssh-approval-jira-server/",
-      "destination": "/access-controls/access-request-plugins/ssh-approval-jira-server/",
+      "destination": "/access-controls/access-request-plugins/ssh-approval-jira/",
       "permanent": true
     },
     {
       "source": "/enterprise/workflow/ssh-approval-jira-cloud/",
-      "destination": "/access-controls/access-request-plugins/ssh-approval-jira-cloud/",
+      "destination": "/access-controls/access-request-plugins/ssh-approval-jira/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/workflow/ssh-approval-jira-cloud/",
+      "destination": "/access-controls/access-request-plugins/ssh-approval-jira/",
       "permanent": true
     },
     {

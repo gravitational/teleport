@@ -40,6 +40,11 @@ type Changes struct {
 	Rust       bool
 }
 
+// HasCodeChanges returns true if the changeset includes code changes.
+func (c Changes) HasCodeChanges() bool {
+	return c.Code || c.Helm || c.CI || c.Rust || c.Operator
+}
+
 // Analyze examines the workspace for specific changes using its git history,
 // and then collates and returns a report.
 func Analyze(workspaceDir string, targetBranch string, commitSHA string) (Changes, error) {

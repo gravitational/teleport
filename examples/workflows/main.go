@@ -26,12 +26,12 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/gravitational/trace"
+	"github.com/pelletier/go-toml"
+
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/pelletier/go-toml"
 )
 
 type config struct {

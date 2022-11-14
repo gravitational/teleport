@@ -140,7 +140,7 @@ $COMPUTER_IP = (Resolve-DnsName -Type A $Env:COMPUTERNAME).Address
 $LDAP_ADDR="$COMPUTER_IP" + ":636"
 
 $DESKTOP_ACCESS_CONFIG_YAML=@'
-version v3
+version: v3
 teleport:
   auth_token: {0}
   proxy_server: {1}
@@ -180,9 +180,19 @@ https://goteleport.com/docs/desktop-access/reference/configuration/
 
 '@ -f $DESKTOP_ACCESS_CONFIG_YAML
 
+$WHITESPACE_WARNING=@'
+# WARNING:
+# When copying and pasting the config from below, PowerShell ISE will add whitespace to the start - delete this before you save the config.
+'@
+
+if ($host.name -match 'ISE')
+{
+  Write-Output $WHITESPACE_WARNING
+}
+
 Write-Output $OUTPUT
 
-# cleanup files that were created duing execution of this script
+# cleanup files that were created during execution of this script
 Remove-Item teleport.pem -Recurse
 Remove-Item windows.der -Recurse
 Remove-Item windows.pem -Recurse
