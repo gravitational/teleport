@@ -35,7 +35,7 @@ test('basic rendering', () => {
 
   // test rendering of logo and title
   expect(screen.getByRole('img')).toBeInTheDocument();
-  expect(screen.getByText(/sign into teleport/i)).toBeInTheDocument();
+  expect(screen.getByText(/sign in to teleport/i)).toBeInTheDocument();
 });
 
 test('login with redirect', async () => {
