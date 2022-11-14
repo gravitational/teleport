@@ -133,6 +133,7 @@ func (a *aksFetcher) isRegionSupported(region string) bool {
 func (a *aksFetcher) ResourceType() string {
 	return types.KindKubernetesCluster
 }
+
 func (a *aksFetcher) Cloud() string {
-	return Azure
+	return types.CloudAzure
 }
