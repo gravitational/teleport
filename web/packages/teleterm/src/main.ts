@@ -118,6 +118,9 @@ function initializeApp(): void {
       const url = new URL(details.url);
 
       function isUrlSafe(): boolean {
+        if (url.protocol !== 'https:') {
+          return false;
+        }
         if (url.host === 'goteleport.com') {
           return true;
         }
