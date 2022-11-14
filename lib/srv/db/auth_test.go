@@ -79,7 +79,7 @@ func TestAuthTokens(t *testing.T) {
 			service:  "postgres-rds-incorrect-token",
 			protocol: defaults.ProtocolPostgres,
 			// Make sure we print example RDS IAM policy.
-			err: "arn:aws:rds-db:us-east-1:<account_id>:dbuser:<resource_id>",
+			err: "arn:aws:rds-db:us-east-1:{account_id}:dbuser:{resource_id}",
 		},
 		{
 			desc:     "correct Postgres Redshift IAM auth token",
@@ -113,7 +113,7 @@ func TestAuthTokens(t *testing.T) {
 			service:  "mysql-rds-incorrect-token",
 			protocol: defaults.ProtocolMySQL,
 			// Make sure we print example RDS IAM policy.
-			err: "arn:aws:rds-db:us-east-1:<account_id>:dbuser:<resource_id>",
+			err: "arn:aws:rds-db:us-east-1:{account_id}:dbuser:{resource_id}",
 		},
 		{
 			desc:     "correct MySQL Cloud SQL IAM auth token",
