@@ -1000,6 +1000,12 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 			s.log.WithError(err).Error("Received error waiting for the interactive session to finish")
 		}
 
+		if result != nil {
+			if err := s.registry.broadcastResult(s.id, *result); err != nil {
+				s.log.Warningf("Failed to broadcast session result: %v", err)
+			}
+		}
+
 		// wait for copying from the pty to be complete or a timeout before
 		// broadcasting the result (which will close the pty) if it has not been
 		// closed already.
@@ -1013,14 +1019,10 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 			emitExecAuditEvent(scx, execRequest.GetCommand(), err)
 		}
 
-		if result != nil {
-			if err := s.registry.broadcastResult(s.id, *result); err != nil {
-				s.log.Warningf("Failed to broadcast session result: %v", err)
-			}
-		}
-
 		s.emitSessionEndEvent()
-		s.Close()
+		if err := s.Close(); err != nil {
+			s.log.Warnf("Failed to close session: %v", err)
+		}
 	}()
 
 	return nil
