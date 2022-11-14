@@ -11,7 +11,7 @@ Teleport, and includes links to more detailed documentation at the end.
 
 ### tsh
 
-`tsh` lets you authenticate to Teleport, and list and connect to resoruces. After [downloading](/downloads)
+`tsh` lets you authenticate to Teleport and list and connect to resources. After [downloading](/downloads)
 and installing `tsh`, sign in to your Teleport cluster:
 
 <ScopedBlock scope={["oss"]}>
@@ -121,11 +121,11 @@ user is permitted to access:
 
 ### Web UI
 
-Teleport provides a web interface for users to interact with. This is usually
+Teleport provides a web interface for users to interact with Teleport, e.g., by accessing resources or creating Access Requests. This is usually
 found at the same URL used to connect to Teleport with (e.g.
 <ScopedBlock scope={["oss", "enterprise"]}>`https://teleport.example.com`</ScopedBlock>
 <ScopedBlock scope={["cloud"]}>`https://mytenant.teleport.sh`</ScopedBlock>),
-but can be adjusted by Teleport Administrators. The Web UI provides similar
+but you should confirm the Web UI URL with the team that manages your Teleport deployment. The Web UI provides similar
 access to resources as Telport Connect, and additional access to to Request and
 Activity logs for users with the right permissions.
 
@@ -166,7 +166,7 @@ terminal environment.
 
 From the <Icon name="server" size="sm" inline/> **Servers** menu, the Teleport
 Web UI will list all servers your user has permission to access. The **CONNECT**
-button will open a new tab with a terminal emulator to provide acesss to that server.
+button will open a new tab with a terminal emulator to provide access to that server.
 
 </TabItem>
 </Tabs>
