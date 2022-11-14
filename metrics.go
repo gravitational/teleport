@@ -253,6 +253,14 @@ const (
 	// submit a batch.
 	MetricUsageBatchSubmissionDuration = "usage_batch_submission_duration_seconds"
 
+	// MetricUsageBatchesSubmitted is a count of event batches successfully
+	// submitted.
+	MetricUsageBatchesSubmitted = "usage_batch_submitted_total"
+
+	// MetricUsageBatchesFailed is a count of event batches that failed to
+	// submit.
+	MetricUsageBatchesFailed = "usage_batch_failed_total"
+
 	// MetricUsageEventsDropped is a count of events dropped due to the
 	// submission buffer reaching a length limit.
 	MetricUsageEventsDropped = "usage_events_dropped_total"
