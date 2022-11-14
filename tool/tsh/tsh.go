@@ -2263,11 +2263,14 @@ func serializeDatabases(databases []types.Database, format string, roleSet servi
 	if databases == nil {
 		databases = []types.Database{}
 	}
+
+	if roleSet != nil {
+		return serializeDatabasesWithUsers(databases, format, roleSet)
+	}
+
 	var out []byte
 	var err error
 	switch {
-	case roleSet != nil:
-		out, err = serializeDatabasesWithUsers(databases, format, roleSet)
 	case format == teleport.JSON:
 		out, err = utils.FastMarshalIndent(databases, "", "  ")
 	default:
