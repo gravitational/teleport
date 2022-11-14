@@ -676,10 +676,10 @@ workspace:
 platform:
   os: windows
   arch: amd64
+node:
+  buildbox_version: teleport11
 clone:
   disable: true
-concurrency:
-  limit: 1
 steps:
 - name: Check out Teleport
   commands:
@@ -945,6 +945,8 @@ workspace:
 platform:
   os: windows
   arch: amd64
+node:
+  buildbox_version: teleport11
 clone:
   disable: true
 depends_on:
@@ -18193,6 +18195,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: c805c4e2e9fe7b827500f7e149e85921c9ede5798d41b60019c032142cf74f18
+hmac: 84bece0a4d5fedac22a6c32fb220634559bc3f1934518c10134e1a4a140d50c3
 
 ...

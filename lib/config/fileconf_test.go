@@ -691,6 +691,76 @@ func TestDiscoveryConfig(t *testing.T) {
 			expectedDiscoverySection: Discovery{},
 		},
 		{
+			desc:          "GCP section without project_ids",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types": []string{"gke"},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{},
+		},
+		{
+			desc:          "GCP section is filled with defaults",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":       []string{"gke"},
+						"project_ids": []string{"p1", "p2"},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				GCPMatchers: []GCPMatcher{
+					{
+						Types:     []string{"gke"},
+						Locations: []string{"*"},
+						Tags: map[string]apiutils.Strings{
+							"*": []string{"*"},
+						},
+						ProjectIDs: []string{"p1", "p2"},
+					},
+				},
+			},
+		},
+		{
+			desc:          "GCP section is filled",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":     []string{"gke"},
+						"locations": []string{"eucentral1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"project_ids": []string{"p1", "p2"},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				GCPMatchers: []GCPMatcher{
+					{
+						Types:     []string{"gke"},
+						Locations: []string{"eucentral1"},
+						Tags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
+						ProjectIDs: []string{"p1", "p2"},
+					},
+				},
+			},
+		},
+		{
 			desc:          "Azure section is filled with defaults",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
