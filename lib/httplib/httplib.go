@@ -151,7 +151,6 @@ func ConvertResponse(re *roundtrip.Response, err error) (*roundtrip.Response, er
 	if err != nil {
 		var uErr *url.Error
 		if errors.As(err, &uErr) && uErr.Err != nil {
-			// return nil, trace.ConnectionProblem(uErr.Err, "%s %q: %s", uErr.Op, uErr.URL, uErr.Err)
 			return nil, trace.ConnectionProblem(uErr.Err, "")
 		}
 		var nErr net.Error
