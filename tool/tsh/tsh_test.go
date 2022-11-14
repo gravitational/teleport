@@ -2625,8 +2625,8 @@ func TestSerializeAppConfig(t *testing.T) {
 }
 
 func TestSerializeDatabases(t *testing.T) {
-	expected := `
-	[{
+	expectedFmt := `
+	[{%v
     "kind": "db",
     "version": "v3",
     "metadata": {
@@ -2688,8 +2688,39 @@ func TestSerializeDatabases(t *testing.T) {
 		URI:      "mongodb://example.com",
 	})
 	require.NoError(t, err)
-	testSerialization(t, expected, func(f string) (string, error) {
-		return serializeDatabases([]types.Database{db}, f, nil)
+
+	t.Run("without db users", func(t *testing.T) {
+		t.Parallel()
+		expected := fmt.Sprintf(expectedFmt, "")
+		testSerialization(t, expected, func(f string) (string, error) {
+			return serializeDatabases([]types.Database{db}, f, nil)
+		})
+	})
+
+	t.Run("with db users", func(t *testing.T) {
+		t.Parallel()
+		dbUsersData := `
+    "db_users": {
+      "allowed": [
+        "foo",
+        "bar"
+      ],
+      "denied": [
+        "baz",
+        "qux"
+      ]
+     },`
+		expected := fmt.Sprintf(expectedFmt, dbUsersData)
+		dbsWithUsers := []*databaseWithUsers{{
+			DatabaseV3: db,
+			DBUsers: &dbUsers{
+				Allowed: []string{"foo", "bar"},
+				Denied:  []string{"baz", "qux"},
+			},
+		}}
+		testSerialization(t, expected, func(format string) (string, error) {
+			return serializeDatabasesWithUsers(dbsWithUsers, format)
+		})
 	})
 }
 
@@ -3264,8 +3295,8 @@ func TestListDatabasesWithUsers(t *testing.T) {
 			wantText: "[* dev], except: [superuser]",
 			wantFormatted: []databaseWithUsers{
 				{
-					Database: dbStage,
-					DbUsers: &dbUsers{
+					DatabaseV3: dbStage,
+					DBUsers: &dbUsers{
 						Allowed: []string{"*", "dev"},
 						Denied:  []string{"superuser"},
 					},
@@ -3279,8 +3310,8 @@ func TestListDatabasesWithUsers(t *testing.T) {
 			wantText: "[dev]",
 			wantFormatted: []databaseWithUsers{
 				{
-					Database: dbProd,
-					DbUsers: &dbUsers{
+					DatabaseV3: dbProd,
+					DBUsers: &dbUsers{
 						Allowed: []string{"dev"},
 						Denied:  []string{},
 					},
@@ -3294,8 +3325,8 @@ func TestListDatabasesWithUsers(t *testing.T) {
 			wantText: "[*], except: [superuser]",
 			wantFormatted: []databaseWithUsers{
 				{
-					Database: dbStage,
-					DbUsers: &dbUsers{
+					DatabaseV3: dbStage,
+					DBUsers: &dbUsers{
 						Allowed: []string{"*"},
 						Denied:  []string{"superuser"},
 					},
@@ -3309,8 +3340,8 @@ func TestListDatabasesWithUsers(t *testing.T) {
 			wantText: "(none)",
 			wantFormatted: []databaseWithUsers{
 				{
-					Database: dbProd,
-					DbUsers: &dbUsers{
+					DatabaseV3: dbProd,
+					DBUsers: &dbUsers{
 						Allowed: []string{},
 						Denied:  []string{},
 					},
@@ -3324,8 +3355,8 @@ func TestListDatabasesWithUsers(t *testing.T) {
 			wantText: "(none)",
 			wantFormatted: []databaseWithUsers{
 				{
-					Database: dbStage,
-					DbUsers: &dbUsers{
+					DatabaseV3: dbStage,
+					DBUsers: &dbUsers{
 						Allowed: []string{},
 						Denied:  []string{},
 					},
@@ -3339,8 +3370,8 @@ func TestListDatabasesWithUsers(t *testing.T) {
 			wantText: "[dev]",
 			wantFormatted: []databaseWithUsers{
 				{
-					Database: dbProd,
-					DbUsers: &dbUsers{
+					DatabaseV3: dbProd,
+					DBUsers: &dbUsers{
 						Allowed: []string{"dev"},
 						Denied:  []string{},
 					},
@@ -3378,7 +3409,7 @@ func TestListDatabasesWithUsers(t *testing.T) {
 		testName := fmt.Sprintf("text %s", tt.name)
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
-			got := getUsersForDb(tt.database, tt.roles)
+			got := formatUsersForDB(tt.database, tt.roles)
 			require.Equal(t, tt.wantText, got)
 		})
 	}
