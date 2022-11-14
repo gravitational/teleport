@@ -1787,7 +1787,8 @@ func (h *Handler) trySettingConnectorNameToPasswordless(ctx context.Context, ses
 	// We use the presence of a WebAuthn response, along with the absence of a
 	// password, as a proxy to determine that a passwordless registration took
 	// place, as it is not possible to infer that just from the WebAuthn response.
-	if req.WebauthnCreationResponse == nil && len(req.Password) == 0 {
+	is_passwordless_registration := req.WebauthnCreationResponse != nil && len(req.Password) == 0
+	if !is_passwordless_registration {
 		return nil
 	}
 
