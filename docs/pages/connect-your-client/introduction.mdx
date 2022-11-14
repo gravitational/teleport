@@ -7,6 +7,8 @@ This guide covers the basics of authenticating to Teleport and
 accessing resources. It's written for end-users of resources protected by
 Teleport, and includes links to more detailed documentation at the end.
 
+<VarList/>
+
 ## Client tools
 
 ### tsh
@@ -14,30 +16,11 @@ Teleport, and includes links to more detailed documentation at the end.
 `tsh` lets you authenticate to Teleport and list and connect to resources. After [downloading](/downloads)
 and installing `tsh`, sign in to your Teleport cluster:
 
-<ScopedBlock scope={["oss"]}>
-
-```code
-$ tsh login --proxy=teleport.example.com --user=alice
-Enter password for Teleport user alice:
-Tap any security key
-> Profile URL:        https://teleport.example.com:443
-  Logged in as:       alice
-  Cluster:            example.com
-  Roles:              access
-  Logins:             root, ubuntu, ec2-user
-  Kubernetes:         enabled
-  Valid until:        2022-11-01 22:37:05 -0500 CDT [valid for 12h0m0s]
-  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
-```
-
-</ScopedBlock>
-
-<ScopedBlock scope={["enterprise"]}>
 <Tabs>
 <TabItem label="Local user">
 
 ```code
-$ tsh login --proxy=teleport.example.com --user=alice
+$ tsh login --proxy=<Var name="teleport.example.com" description="Your Teleport Proxy Service address or Teleport Cloud tenant."/> --user=<Var name="user"/>
 Enter password for Teleport user alice:
 Tap any security key
 > Profile URL:        https://teleport.example.com:443
@@ -54,7 +37,7 @@ Tap any security key
 <TabItem label="SAML / OIDC user">
 
 ```code
-$ tsh login --proxy=teleport.example.com --user=alice@example.com --auth=your-idp-connector
+$ tsh login --proxy=<Var name="teleport.example.com"/> --user=<Var name="user"/> --auth=your-idp-connector
 Enter password for Teleport user alice:
 Tap any security key
 > Profile URL:        https://teleport.example.com:443
@@ -67,32 +50,12 @@ Tap any security key
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
 ```
 
+Depending on how Teleport was configured for your network, you may not need
+the additional flags `--auth`. Your administrator should provide the details
+required for your particular use case.
+
 </TabItem>
 </Tabs>
-
-</ScopedBlock>
-
-<ScopedBlock scope={["cloud"]}>
-
-```code
-$ tsh login --proxy=mytenant.teleport.sh --user=alice
-Enter password for Teleport user alice:
-Tap any security key
-> Profile URL:        https://teleport.example.com:443
-  Logged in as:       alice
-  Cluster:            mytennant.teleport.sh
-  Roles:              access
-  Logins:             root, ubuntu, ec2-user
-  Kubernetes:         enabled
-  Valid until:        2022-11-01 22:37:05 -0500 CDT [valid for 12h0m0s]
-  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
-```
-
-Depending on how Teleport was configured for your network, you may need
-additional flags, such as `--auth=a_saml_connector`. Your administrator should
-provide the details required for your particular use case.
-
-</ScopedBlock>
 
 ### Teleport Connect
 
