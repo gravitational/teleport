@@ -155,6 +155,8 @@ func TestAddKey(t *testing.T) {
 func TestLoadKey(t *testing.T) {
 	s := makeSuite(t)
 	keyAgent := s.newKeyAgent(t)
+	err := keyAgent.UnloadKeys()
+	require.NoError(t, err)
 
 	// get all the keys in the teleport and system agent
 	teleportAgentKeys, err := keyAgent.ExtendedAgent.List()
