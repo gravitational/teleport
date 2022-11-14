@@ -676,10 +676,10 @@ workspace:
 platform:
   os: windows
   arch: amd64
+node:
+  buildbox_version: teleport11
 clone:
   disable: true
-concurrency:
-  limit: 1
 steps:
 - name: Check out Teleport
   commands:
@@ -945,6 +945,8 @@ workspace:
 platform:
   os: windows
   arch: amd64
+node:
+  buildbox_version: teleport11
 clone:
   disable: true
 depends_on:
@@ -9325,19 +9327,6 @@ steps:
   commands:
   - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
-- name: Check if tag is prerelease
-  image: golang:1.18-alpine
-  commands:
-  - apk add git
-  - mkdir -pv "/tmp/repo"
-  - cd "/tmp/repo"
-  - git init
-  - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
-  - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
 - name: Wait for docker
   image: docker
   commands:
@@ -9347,7 +9336,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
 - name: Wait for docker registry
   image: alpine
   commands:
@@ -9356,7 +9344,6 @@ steps:
     != "200" ]; do sleep 1; done'
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -9368,7 +9355,6 @@ steps:
   - git checkout -qf "$DRONE_TAG"
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
 - name: Build major, minor, and full semvers
   image: alpine
   commands:
@@ -9383,7 +9369,6 @@ steps:
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
   commands:
@@ -9410,7 +9395,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
 - name: Assume ECR - production AWS Role
   image: amazon/aws-cli
   commands:
@@ -9438,7 +9422,6 @@ steps:
   depends_on:
   - Assume ECR - staging AWS Role
   - Verify build is tagged
-  - Check if tag is prerelease
 - name: Pull teleport:v11-amd64 and push it to Local Registry
   image: docker
   commands:
@@ -9460,7 +9443,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9488,7 +9470,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9516,7 +9497,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9853,7 +9833,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9881,7 +9860,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9909,7 +9887,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -10250,7 +10227,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -10456,7 +10432,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -10485,7 +10460,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -10514,7 +10488,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -18193,6 +18166,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: c805c4e2e9fe7b827500f7e149e85921c9ede5798d41b60019c032142cf74f18
+hmac: 5bb158520950e163e5978eee73f7c8ef1ae3da426602374d3064a7a79b69e340
 
 ...

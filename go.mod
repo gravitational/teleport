@@ -3,8 +3,10 @@ module github.com/gravitational/teleport
 go 1.19
 
 require (
+	cloud.google.com/go/container v1.7.0
 	cloud.google.com/go/firestore v1.6.1
 	cloud.google.com/go/iam v0.7.0
+	cloud.google.com/go/kms v1.6.0
 	cloud.google.com/go/storage v1.28.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.0
@@ -158,6 +160,8 @@ require (
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
 )
 
+require github.com/googleapis/gax-go/v2 v2.6.0
+
 require (
 	cloud.google.com/go v0.105.0 // indirect
 	cloud.google.com/go/compute v1.12.1 // indirect
@@ -243,7 +247,6 @@ require (
 	github.com/google/gnostic v0.6.9 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.0 // indirect
-	github.com/googleapis/gax-go/v2 v2.6.0 // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7 // indirect
@@ -369,7 +372,7 @@ replace (
 	github.com/datastax/go-cassandra-native-protocol => github.com/gravitational/go-cassandra-native-protocol v0.0.0-20221005103706-b9e66c056e90
 	github.com/denisenkom/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20221006130402-25bef12c7ee1
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.5.0-teleport.1
-	github.com/go-redis/redis/v9 => github.com/gravitational/redis/v9 v9.0.0-teleport.1
+	github.com/go-redis/redis/v9 => github.com/gravitational/redis/v9 v9.0.0-teleport.2
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 	github.com/gravitational/teleport/api => ./api
 	github.com/julienschmidt/httprouter => github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5
