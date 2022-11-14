@@ -2265,7 +2265,11 @@ func serializeDatabases(databases []types.Database, format string, roleSet servi
 	}
 
 	if roleSet != nil {
-		return serializeDatabasesWithUsers(databases, format, roleSet)
+		dbsWithUsers, err := getDatabasesWithUsers(databases, roleSet)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return serializeDatabasesWithUsers(dbsWithUsers, format)
 	}
 
 	var out []byte
@@ -2285,39 +2289,67 @@ type dbUsers struct {
 }
 
 type databaseWithUsers struct {
-	Database types.Database `json:"database"`
-	DbUsers  *dbUsers       `json:"db_users"`
+	// *DatabaseV3 is used instead of types.Database because we want the db fields marshaled to JSON inline.
+	// An embedded interface (like types.Database) does not inline when marshaled to JSON.
+	*types.DatabaseV3
+	DBUsers *dbUsers `json:"db_users"`
 }
 
-func serializeDatabasesWithUsers(databases []types.Database, format string, roleSet services.RoleSet) ([]byte, error) {
-	result := []databaseWithUsers{}
+func getDBUsers(db types.Database, roles services.RoleSet) *dbUsers {
+	users := roles.EnumerateDatabaseUsers(db)
+	var denied []string
+	allowed := users.Allowed()
+	if users.WildcardAllowed() {
+		// start the list with *.
+		allowed = append([]string{types.Wildcard}, allowed...)
+		// only include denied users if the wildcard is allowed.
+		denied = append(denied, users.Denied()...)
+	}
+	return &dbUsers{
+		Allowed: allowed,
+		Denied:  denied,
+	}
+}
+
+func newDatabaseWithUsers(db types.Database, roles services.RoleSet) (*databaseWithUsers, error) {
+	dbWithUsers := &databaseWithUsers{
+		DBUsers: getDBUsers(db, roles),
+	}
+	switch db := db.(type) {
+	case *types.DatabaseV3:
+		dbWithUsers.DatabaseV3 = db
+	default:
+		return nil, trace.BadParameter("unrecognized database type %T", db)
+	}
+	return dbWithUsers, nil
+}
+
+func getDatabasesWithUsers(databases types.Databases, roles services.RoleSet) ([]*databaseWithUsers, error) {
+	var dbsWithUsers []*databaseWithUsers
 	for _, db := range databases {
-		users := roleSet.EnumerateDatabaseUsers(db)
-		allowed := append([]string{}, users.Allowed()...)
-		denied := append([]string{}, users.Denied()...)
-		if users.WildcardAllowed() {
-			// start the list with *
-			allowed = append([]string{types.Wildcard}, allowed...)
-		} else {
-			denied = []string{}
+		dbWithUsers, err := newDatabaseWithUsers(db, roles)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		result = append(result, databaseWithUsers{
-			Database: db,
-			DbUsers: &dbUsers{
-				Allowed: allowed,
-				Denied:  denied,
-			},
-		})
+		dbsWithUsers = append(dbsWithUsers, dbWithUsers)
+	}
+	return dbsWithUsers, nil
+}
+
+func serializeDatabasesWithUsers(dbsWithUsers []*databaseWithUsers, format string) (string, error) {
+	// initialize to an empty slice so we don't print `null` in JSON/YAML if the cluster has no databases.
+	if dbsWithUsers == nil {
+		dbsWithUsers = []*databaseWithUsers{}
 	}
 	var out []byte
 	var err error
 	switch format {
 	case teleport.JSON:
-		out, err = utils.FastMarshalIndent(result, "", "  ")
+		out, err = utils.FastMarshalIndent(dbsWithUsers, "", "  ")
 	default:
-		out, err = yaml.Marshal(result)
+		out, err = yaml.Marshal(dbsWithUsers)
 	}
-	return out, trace.Wrap(err)
+	return string(out), trace.Wrap(err)
 }
 
 func serializeDatabasesAllClusters(dbListings []databaseListing, format string) (string, error) {
@@ -2334,29 +2366,21 @@ func serializeDatabasesAllClusters(dbListings []databaseListing, format string) 
 	return string(out), trace.Wrap(err)
 }
 
-func getUsersForDb(database types.Database, roleSet services.RoleSet) string {
+func formatUsersForDB(database types.Database, roleSet services.RoleSet) string {
 	// may happen if fetching the role set failed for any reason.
 	if roleSet == nil {
 		return "(unknown)"
 	}
 
-	dbUsers := roleSet.EnumerateDatabaseUsers(database)
-	allowed := dbUsers.Allowed()
-
-	if dbUsers.WildcardAllowed() {
-		// start the list with *
-		allowed = append([]string{types.Wildcard}, allowed...)
-	}
-
-	if len(allowed) == 0 {
+	dbUsers := getDBUsers(database, roleSet)
+	if len(dbUsers.Allowed) == 0 {
 		return "(none)"
 	}
 
-	denied := dbUsers.Denied()
-	if len(denied) == 0 || !dbUsers.WildcardAllowed() {
-		return fmt.Sprintf("%v", allowed)
+	if len(dbUsers.Denied) == 0 {
+		return fmt.Sprintf("%v", dbUsers.Allowed)
 	}
-	return fmt.Sprintf("%v, except: %v", allowed, denied)
+	return fmt.Sprintf("%v, except: %v", dbUsers.Allowed, dbUsers.Denied)
 }
 
 func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) []string {
@@ -2381,7 +2405,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 			database.GetProtocol(),
 			database.GetType(),
 			database.GetURI(),
-			getUsersForDb(database, roleSet),
+			formatUsersForDB(database, roleSet),
 			database.LabelsString(),
 			connect,
 			database.Expiry().Format(constants.HumanDateFormatSeconds),
@@ -2390,7 +2414,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 		row = append(row,
 			name,
 			database.GetDescription(),
-			getUsersForDb(database, roleSet),
+			formatUsersForDB(database, roleSet),
 			formatDatabaseLabels(database),
 			connect,
 		)
