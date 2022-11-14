@@ -148,6 +148,15 @@ func TestMain(m *testing.M) {
 }
 
 func newWebSuite(t *testing.T) *WebSuite {
+	return newWebSuiteWithConfig(t, webSuiteConfig{})
+}
+
+type webSuiteConfig struct {
+	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
+	authPreferenceSpec *types.AuthPreferenceSpecV2
+}
+
+func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	mockU2F, err := mocku2f.Create()
 	require.NoError(t, err)
 	require.NotNil(t, mockU2F)
@@ -175,6 +184,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 			Dir:                     t.TempDir(),
 			Clock:                   s.clock,
 			ClusterNetworkingConfig: networkingConfig,
+			AuthPreferenceSpec:      cfg.authPreferenceSpec,
 		},
 	})
 	require.NoError(t, err)
@@ -345,7 +355,9 @@ func newWebSuite(t *testing.T) *WebSuite {
 	var sessionLingeringThreshold time.Duration
 	fs, err := NewDebugFileSystem("../../webassets/teleport")
 	require.NoError(t, err)
+
 	handler, err := NewHandler(Config{
+		ClusterFeatures:                 *modules.GetModules().Features().ToProto(), // safe to dereference because ToProto creates a struct and return a pointer to it
 		Proxy:                           revTunServer,
 		AuthServers:                     utils.FromAddr(s.server.TLS.Addr()),
 		DomainName:                      s.server.ClusterName(),
@@ -4202,6 +4214,158 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 	require.Len(t, apiRes.Recovery.Codes, 3)
 	require.NotEmpty(t, apiRes.Recovery.Created)
 	require.True(t, apiRes.PrivateKeyPolicyEnabled)
+}
+
+func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing.T) {
+	tt := []struct {
+		name                 string
+		cloud                bool
+		numberOfUsers        int
+		password             []byte
+		authPreferenceType   string
+		initialConnectorName string
+		resultConnectorName  string
+	}{{
+		name:                 "first cloud sign-in changes connector to `passwordless`",
+		cloud:                true,
+		numberOfUsers:        1,
+		authPreferenceType:   constants.Local,
+		initialConnectorName: "",
+		resultConnectorName:  constants.PasswordlessConnector,
+	}, {
+		name:                 "first non-cloud sign-in doesn't change the connector",
+		cloud:                false,
+		numberOfUsers:        1,
+		authPreferenceType:   constants.Local,
+		initialConnectorName: "",
+		resultConnectorName:  "",
+	}, {
+		name:                 "second cloud sign-in doesn't change the connector",
+		cloud:                true,
+		numberOfUsers:        2,
+		authPreferenceType:   constants.Local,
+		initialConnectorName: "",
+		resultConnectorName:  "",
+	}, {
+		name:                 "first cloud sign-in does not change custom connector",
+		cloud:                true,
+		numberOfUsers:        1,
+		authPreferenceType:   constants.OIDC,
+		initialConnectorName: "custom",
+		resultConnectorName:  "custom",
+	}, {
+		name:                 "first cloud sign-in with password does not change connector",
+		cloud:                true,
+		numberOfUsers:        1,
+		password:             []byte("abc123"),
+		authPreferenceType:   constants.Local,
+		initialConnectorName: "",
+		resultConnectorName:  "",
+	}}
+
+	for _, tc := range tt {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestFeatures: modules.Features{
+				Cloud: tc.cloud,
+			},
+		})
+
+		const RPID = "localhost"
+
+		s := newWebSuiteWithConfig(t, webSuiteConfig{
+			authPreferenceSpec: &types.AuthPreferenceSpecV2{
+				Type:          tc.authPreferenceType,
+				ConnectorName: tc.initialConnectorName,
+				SecondFactor:  constants.SecondFactorOn,
+				Webauthn: &types.Webauthn{
+					RPID: RPID,
+				},
+			},
+		})
+
+		// user and role
+		users := make([]types.User, tc.numberOfUsers)
+
+		for i := 0; i < tc.numberOfUsers; i++ {
+			user, err := types.NewUser(fmt.Sprintf("test_user_%v", i))
+			require.NoError(t, err)
+
+			user.SetCreatedBy(types.CreatedBy{
+				User: types.UserRef{Name: "other_user"},
+			})
+
+			role := services.RoleForUser(user)
+
+			err = s.server.Auth().UpsertRole(s.ctx, role)
+			require.NoError(t, err)
+
+			user.AddRole(role.GetName())
+
+			err = s.server.Auth().CreateUser(s.ctx, user)
+			require.NoError(t, err)
+
+			users[i] = user
+		}
+
+		initialUser := users[0]
+
+		clt := s.client()
+
+		// create register challenge
+		token, err := s.server.Auth().CreateResetPasswordToken(s.ctx, auth.CreateUserTokenRequest{
+			Name: initialUser.GetName(),
+		})
+		require.NoError(t, err)
+
+		res, err := s.server.Auth().CreateRegisterChallenge(s.ctx, &authproto.CreateRegisterChallengeRequest{
+			TokenID:     token.GetName(),
+			DeviceType:  authproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			DeviceUsage: authproto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+		})
+		require.NoError(t, err)
+
+		cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+
+		// use passwordless as auth method
+		device, err := mocku2f.Create()
+		require.NoError(t, err)
+
+		device.SetPasswordless()
+
+		ccr, err := device.SignCredentialCreation("https://"+RPID, cc)
+		require.NoError(t, err)
+
+		// send sign-in response to server
+		body, err := json.Marshal(changeUserAuthenticationRequest{
+			WebauthnCreationResponse: ccr,
+			TokenID:                  token.GetName(),
+			DeviceName:               "passwordless-device",
+			Password:                 tc.password,
+		})
+		require.NoError(t, err)
+
+		req, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(body))
+		require.NoError(t, err)
+
+		csrfToken, err := csrf.GenerateToken()
+		require.NoError(t, err)
+		addCSRFCookieToReq(req, csrfToken)
+		req.Header.Set(csrf.HeaderName, csrfToken)
+		req.Header.Set("Content-Type", "application/json")
+
+		re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
+			return clt.Client.HTTPClient().Do(req)
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, re.Code(), http.StatusOK)
+
+		// check if auth preference connectorName is set
+		authPreference, err := s.server.Auth().GetAuthPreference(s.ctx)
+		require.NoError(t, err)
+
+		require.Equal(t, authPreference.GetConnectorName(), tc.resultConnectorName, "Found unexpected auth connector name")
+	}
 }
 
 func TestParseSSORequestParams(t *testing.T) {
