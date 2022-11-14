@@ -98,7 +98,7 @@ func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeDatabase(database), nil
+	return ui.MakeDatabase(database, nil /* dbUsers */, nil /* dbNames */), nil
 }
 
 // updateDatabaseRequest contains some updatable fields of a database resource.
@@ -150,7 +150,7 @@ func (h *Handler) handleDatabaseUpdate(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeDatabase(database), nil
+	return ui.MakeDatabase(database, nil /* dbUsers */, nil /* dbNames */), nil
 }
 
 // databaseIAMPolicyResponse is the response type for handleDatabaseGetIAMPolicy.

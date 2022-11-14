@@ -33,6 +33,7 @@ import (
 type OIDCConnector interface {
 	// ResourceWithSecrets provides common methods for objects
 	ResourceWithSecrets
+	ResourceWithOrigin
 	// Issuer URL is the endpoint of the provider, e.g. https://accounts.google.com
 	GetIssuerURL() string
 	// ClientID is id for authentication client (in our case it's our Auth server)
@@ -204,6 +205,16 @@ func (o *OIDCConnectorV3) SetDisplay(display string) {
 // GetMetadata returns object metadata
 func (o *OIDCConnectorV3) GetMetadata() Metadata {
 	return o.Metadata
+}
+
+// Origin returns the origin value of the resource.
+func (o *OIDCConnectorV3) Origin() string {
+	return o.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (o *OIDCConnectorV3) SetOrigin(origin string) {
+	o.Metadata.SetOrigin(origin)
 }
 
 // SetExpiry sets expiry time for the object

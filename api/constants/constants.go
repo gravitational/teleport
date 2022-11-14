@@ -339,6 +339,15 @@ const (
 // supported by the Teleport discovery service.
 var SupportedAzureDiscoveryServices = []string{AzureServiceTypeKubernetes, AzureServiceTypeVM}
 
+// Constants for GCP discovery.
+const (
+	GCPServiceTypeKubernetes = "gke"
+)
+
+// SupportedGCPDiscoveryServices is list of GCP services currently
+// supported by the Teleport discovery service.
+var SupportedGCPDiscoveryServices = []string{GCPServiceTypeKubernetes}
+
 const (
 	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh
 	TimeoutGetClusterAlerts = time.Millisecond * 500
