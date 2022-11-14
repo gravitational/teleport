@@ -3,7 +3,7 @@
    <img src="./assets/img/hero-teleport-platform.png" width=750/>
    </a>
    <div align="center" style="padding: 25px">
-      <a href="https://goteleport.com/teleport/download">
+      <a href="https://goteleport.com/download">
       <img src="https://img.shields.io/github/v/release/gravitational/teleport?sort=semver&label=Release&color=651FFF" />
       </a>
       <a href="https://golang.org/">
