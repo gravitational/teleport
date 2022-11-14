@@ -735,9 +735,8 @@ proxy_service:
 
     # Get an automatic certificate from Letsencrypt.org using ACME via
     # TLS_ALPN-01 challenge.
-    # When using ACME, the cluster name must match the 'public_addr' of
-    # Teleport and the 'proxy_service' must be publicly accessible over port
-    # 443.
+    # When using ACME, the 'proxy_service' must be publicly accessible over
+    # port 443.
     # Also set using the CLI command:
     # 'teleport configure --acme --acme-email=email@example.com \
     # --cluster-name=tele.example.com -o file'
@@ -770,12 +769,18 @@ app_service:
       - name: "os"
         command: ["/usr/bin/uname"]
         period: "5s"
-      # Optional simple rewriting of Location header
-      # Rewrite the "Location" header on redirect responses replacing the
-      # host with the public address of this application.
-      # redirect:
-      #   - "localhost"
-      #   - "jenkins.internal.dev"
+      ## Optional list of rewrite rules to apply to requests and responses
+      # rewrite:
+        ## Optional simple rewriting of Location header
+        ## Rewrite the "Location" header on redirect responses replacing the
+        ## host with the public address of this application.
+        # redirect:
+        #   - "localhost"
+        #   - "jenkins.internal.dev"
+        ## Optional list of extra headers to inject in to requests.
+        # headers:
+        #   For example:
+        #   - "Host: jenkins.example.com"
 
 ## This section configures the 'kubernetes service'
 (!docs/pages/includes/kubernetes-access/kubernetes-config.yaml!)
