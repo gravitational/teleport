@@ -24,20 +24,20 @@ import (
 	"time"
 
 	"github.com/bufbuild/connect-go"
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	prehogapi "github.com/gravitational/prehog/gen/proto/prehog/v1alpha"
+	prehogclient "github.com/gravitational/prehog/gen/proto/prehog/v1alpha/prehogv1alphaconnect"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	prehogapi "github.com/gravitational/prehog/gen/proto/prehog/v1alpha"
-	prehogclient "github.com/gravitational/prehog/gen/proto/prehog/v1alpha/prehogv1alphaconnect"
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
