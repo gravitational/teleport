@@ -2265,7 +2265,7 @@ func TestGenerateAppToken(t *testing.T) {
 	}, true)
 	require.NoError(t, err)
 
-	signer, err := tt.server.AuthServer.AuthServer.GetKeyStore().GetJWTSigner(ca)
+	signer, err := tt.server.AuthServer.AuthServer.GetKeyStore().GetJWTSigner(ctx, ca)
 	require.NoError(t, err)
 	key, err := services.GetJWTSigner(signer, ca.GetClusterName(), tt.clock)
 	require.NoError(t, err)
@@ -2416,7 +2416,7 @@ func TestClusterConfigContext(t *testing.T) {
 
 	// try and generate a host cert, this should fail because we are recording
 	// at the nodes not at the proxy
-	_, err = proxy.GenerateHostCert(pub,
+	_, err = proxy.GenerateHostCert(ctx, pub,
 		"a", "b", nil,
 		"localhost", types.RoleProxy, 0)
 	require.True(t, trace.IsAccessDenied(err))
@@ -2431,7 +2431,7 @@ func TestClusterConfigContext(t *testing.T) {
 
 	// try and generate a host cert, now the proxy should be able to generate a
 	// host cert because it's in recording mode.
-	_, err = proxy.GenerateHostCert(pub,
+	_, err = proxy.GenerateHostCert(ctx, pub,
 		"a", "b", nil,
 		"localhost", types.RoleProxy, 0)
 	require.NoError(t, err)

@@ -652,8 +652,9 @@ func TestTCPCertExpiration(t *testing.T) {
 	resp = strings.TrimSpace(string(buf[:n]))
 	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
 
-	// Let the cert expire.
-	clock.Advance(30 * time.Second)
+	// Let the cert expire. We'll choose 24 hours to make sure we go above
+	// any cert durations that could be chosen here.
+	clock.Advance(24 * time.Hour)
 	// Wait for the channel closure signal
 	select {
 	case <-mCloseChannel:
