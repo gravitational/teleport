@@ -4221,6 +4221,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 		name                 string
 		cloud                bool
 		numberOfUsers        int
+		password             []byte
 		authPreferenceType   string
 		initialConnectorName string
 		resultConnectorName  string
@@ -4252,6 +4253,14 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 		authPreferenceType:   constants.OIDC,
 		initialConnectorName: "custom",
 		resultConnectorName:  "custom",
+	}, {
+		name:                 "first cloud sign-in with password does not change connector",
+		cloud:                true,
+		numberOfUsers:        1,
+		password:             []byte("abc123"),
+		authPreferenceType:   constants.Local,
+		initialConnectorName: "",
+		resultConnectorName:  "",
 	}}
 
 	for _, tc := range tt {
@@ -4331,6 +4340,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 			WebauthnCreationResponse: ccr,
 			TokenID:                  token.GetName(),
 			DeviceName:               "passwordless-device",
+			Password:                 tc.password,
 		})
 		require.NoError(t, err)
 
