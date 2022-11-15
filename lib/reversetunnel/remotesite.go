@@ -253,11 +253,11 @@ func (s *remoteSite) removeInvalidConns() {
 		if !s.connections[i].isInvalid() {
 			conns = append(conns, s.connections[i])
 		} else {
-			go func() {
-				if err := s.connections[i].Close(); err != nil {
+			go func(conn *remoteConn) {
+				if err := conn.Close(); err != nil {
 					s.logger.WithError(err).Warn("Failed to close invalid connection")
 				}
-			}()
+			}(s.connections[i])
 		}
 	}
 	s.connections = conns
