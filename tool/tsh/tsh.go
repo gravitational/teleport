@@ -2289,7 +2289,7 @@ type databaseWithUsers struct {
 	// *DatabaseV3 is used instead of types.Database because we want the db fields marshaled to JSON inline.
 	// An embedded interface (like types.Database) does not inline when marshaled to JSON.
 	*types.DatabaseV3
-	DBUsers *dbUsers `json:"db_users"`
+	DBUsers *dbUsers `json:"users"`
 }
 
 func getDBUsers(db types.Database, roles services.RoleSet) *dbUsers {
