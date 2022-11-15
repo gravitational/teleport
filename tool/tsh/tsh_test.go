@@ -2690,7 +2690,7 @@ func TestSerializeAppConfig(t *testing.T) {
 
 func TestSerializeDatabases(t *testing.T) {
 	expectedFmt := `
-	[{%v
+	[{
     "kind": "db",
     "version": "v3",
     "metadata": {
@@ -2740,7 +2740,7 @@ func TestSerializeDatabases(t *testing.T) {
       "azure": {
 	    "redis": {}
 	  }
-    }
+    }%v
   }]
 	`
 	db, err := types.NewDatabaseV3(types.Metadata{
@@ -2763,8 +2763,8 @@ func TestSerializeDatabases(t *testing.T) {
 		},
 		{
 			name: "with wildcard in allowed db users",
-			dbUsersData: `
-    "db_users": {
+			dbUsersData: `,
+    "users": {
       "allowed": [
         "*",
         "bar",
@@ -2774,7 +2774,7 @@ func TestSerializeDatabases(t *testing.T) {
         "baz",
         "qux"
       ]
-     },`,
+     }`,
 			roles: services.RoleSet{
 				&types.RoleV5{
 					Metadata: types.Metadata{Name: "role1", Namespace: apidefaults.Namespace},
@@ -2794,13 +2794,13 @@ func TestSerializeDatabases(t *testing.T) {
 		},
 		{
 			name: "without wildcard in allowed db users",
-			dbUsersData: `
-    "db_users": {
+			dbUsersData: `,
+    "users": {
       "allowed": [
         "bar",
         "foo"
       ]
-     },`,
+     }`,
 			roles: services.RoleSet{
 				&types.RoleV5{
 					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
@@ -2820,14 +2820,14 @@ func TestSerializeDatabases(t *testing.T) {
 		},
 		{
 			name: "with no denied db users",
-			dbUsersData: `
-    "db_users": {
+			dbUsersData: `,
+    "users": {
       "allowed": [
         "*",
         "bar",
         "foo"
       ]
-     },`,
+     }`,
 			roles: services.RoleSet{
 				&types.RoleV5{
 					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
@@ -2847,8 +2847,8 @@ func TestSerializeDatabases(t *testing.T) {
 		},
 		{
 			name: "with no allowed db users",
-			dbUsersData: `
-    "db_users": {},`,
+			dbUsersData: `,
+    "users": {}`,
 			roles: services.RoleSet{
 				&types.RoleV5{
 					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
