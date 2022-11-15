@@ -46,6 +46,63 @@ import (
 // ErrGithubNoTeams results from a github user not belonging to any teams.
 var ErrGithubNoTeams = trace.BadParameter("user does not belong to any teams configured in connector; the configuration may have typos.")
 
+// githubConverter is a thin wrapper around the ClientI interface that
+// ensures GitHub auth connectors use the registered implementation.
+type githubConverter struct {
+	ClientI
+}
+
+// WithGithubConnectorConversions takes a ClientI and returns one that
+// ensures returned or passed [types.GithubConnector] interfaces
+// use the registered implementation for the following methods:
+//
+//   - ClientI.GetGithubConnector
+//   - ClientI.GetGithubConnectors
+//   - ClientI.UpsertGithubConnector
+//
+// This is function is necessary so that the
+// [github.com/gravitational/teleport/api] module does not import
+// [github.com/gravitational/teleport/lib/services].
+func WithGithubConnectorConversions(c ClientI) ClientI {
+	return &githubConverter{
+		ClientI: c,
+	}
+}
+
+func (g *githubConverter) GetGithubConnector(ctx context.Context, name string, withSecrets bool) (types.GithubConnector, error) {
+	connector, err := g.ClientI.GetGithubConnector(ctx, name, withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connector, err = services.InitGithubConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return connector, nil
+}
+
+func (g *githubConverter) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
+	connectors, err := g.ClientI.GetGithubConnectors(ctx, withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for i, connector := range connectors {
+		connectors[i], err = services.InitGithubConnector(connector)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return connectors, nil
+}
+
+func (g *githubConverter) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
+	convertedConnector, err := services.ConvertGithubConnector(connector)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return g.ClientI.UpsertGithubConnector(ctx, convertedConnector)
+}
+
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
 	_, client, err := a.getGithubConnectorAndClient(ctx, req)
