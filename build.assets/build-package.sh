@@ -212,9 +212,9 @@ else
     if [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
         PACKAGE_ARCH="${RPM_PACKAGE_ARCH}"
         OUTPUT_FILENAME="${TAR_PATH}-${TELEPORT_VERSION}-1${OPTIONAL_RUNTIME_SECTION}.${RPM_OUTPUT_ARCH}.rpm"
-        FILE_PERMISSIONS_STANZA="--rpm-user root --rpm-group root --rpm-use-file-permissions "
+        FILE_PERMISSIONS_STANZA="--rpm-user root --rpm-group root --rpm-use-file-permissions --after-install /rpm/artifacts/posttrans.sh "
         # the rpm/rpmmacros file suppresses the creation of .build-id files (see https://github.com/gravitational/teleport/issues/7040)
-        EXTRA_DOCKER_OPTIONS="-v $(pwd)/rpm/rpmmacros:/root/.rpmmacros"
+        EXTRA_DOCKER_OPTIONS="-v $(pwd)/rpm/rpmmacros:/root/.rpmmacros -v $(pwd)/rpm/posttrans.sh:/rpm/artifacts/posttrans.sh "
         # if we set this environment variable, don't sign RPMs (can be useful for building test RPMs
         # without having the signing keys)
         if [ "${UNSIGNED_RPM}" == "true" ]; then
@@ -224,7 +224,7 @@ else
             # with pubring.kbx and trustdb.gpg files, plus a private-keys-v1.d directory with signing keys
             # it needs to contain the "Gravitational, Inc" private key and signing key.
             # we also use the rpm-sign/rpmmacros file instead which contains extra directives used for signing.
-            EXTRA_DOCKER_OPTIONS="-v $(pwd)/rpm-sign/rpmmacros:/root/.rpmmacros -v $(pwd)/rpm-sign/popt-override:/etc/popt.d/rpmsign-override -v ${GNUPG_DIR}:/root/.gnupg"
+            EXTRA_DOCKER_OPTIONS="-v $(pwd)/rpm/posttrans.sh:/rpm/artifacts/posttrans.sh -v $(pwd)/rpm-sign/rpmmacros:/root/.rpmmacros -v $(pwd)/rpm-sign/popt-override:/etc/popt.d/rpmsign-override -v ${GNUPG_DIR}:/root/.gnupg"
             RPM_SIGN_STANZA="--rpm-sign"
         fi
     elif [[ "${PACKAGE_TYPE}" == "deb" ]]; then
