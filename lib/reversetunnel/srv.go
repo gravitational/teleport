@@ -54,7 +54,7 @@ var (
 	remoteClustersStats = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: teleport.MetricRemoteClusters,
-			Help: "Number inbound connections from remote clusters and clusters stats",
+			Help: "Number of inbound connections from remote clusters",
 		},
 		[]string{"cluster"},
 	)
@@ -62,9 +62,9 @@ var (
 	trustedClustersStats = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: teleport.MetricTrustedClusters,
-			Help: "Number of tunnels per state",
+			Help: "Number of outbound connections to remote clusters",
 		},
-		[]string{"cluster", "state"},
+		[]string{"cluster"},
 	)
 
 	prometheusCollectors = []prometheus.Collector{remoteClustersStats, trustedClustersStats}
