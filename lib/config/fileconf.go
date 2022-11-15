@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/pam"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -1195,7 +1194,7 @@ func (b *BPF) Parse() *bpf.Config {
 
 // RestrictedSession is a configuration for limiting access to kernel objects
 type RestrictedSession struct {
-	// Enabled enables or disables enforcemant for this node.
+	// Enabled enables or disables enforcement for this node.
 	Enabled string `yaml:"enabled"`
 
 	// EventsBufferSize is the size in bytes of the channel to report events
@@ -1204,13 +1203,13 @@ type RestrictedSession struct {
 }
 
 // Parse will parse the enhanced session recording configuration.
-func (r *RestrictedSession) Parse() (*restricted.Config, error) {
+func (r *RestrictedSession) Parse() (*bpf.RestrictedSessConfig, error) {
 	enabled, err := apiutils.ParseBool(r.Enabled)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &restricted.Config{
+	return &bpf.RestrictedSessConfig{
 		Enabled:          enabled,
 		EventsBufferSize: r.EventsBufferSize,
 	}, nil

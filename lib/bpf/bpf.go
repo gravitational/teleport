@@ -115,7 +115,7 @@ type Service struct {
 }
 
 // New creates a BPF service.
-func New(config *Config) (BPF, error) {
+func New(config *Config, restrictedSession *RestrictedSessConfig) (BPF, error) {
 	err := config.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -173,19 +173,30 @@ func New(config *Config) (BPF, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.conn, err = startConn(*config.NetworkBufferSize)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	log.Debugf("Started enhanced session recording with buffer sizes (command=%v, "+
-		"disk=%v, network=%v) and cgroup mount path: %v. Took %v.",
-		*s.CommandBufferSize, *s.DiskBufferSize, *s.NetworkBufferSize, s.CgroupPath,
-		time.Since(start))
+	if restrictedSession.Enabled {
+		// Load network BPF modules only when required.
+		s.conn, err = startConn(*config.NetworkBufferSize)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		log.Debugf("Started enhanced session recording with buffer sizes (command=%v, "+
+			"disk=%v, network=%v) and cgroup mount path: %v. Took %v.",
+			*s.CommandBufferSize, *s.DiskBufferSize, *s.NetworkBufferSize, s.CgroupPath,
+			time.Since(start))
+
+		go s.processNetworkEvents()
+	} else {
+		log.Debugf("Started enhanced session recording with buffer sizes (command=%v, "+
+			"disk=%v) and cgroup mount path: %v. Took %v.",
+			*s.CommandBufferSize, *s.DiskBufferSize, s.CgroupPath,
+			time.Since(start))
+	}
 
 	// Start pulling events off the perf buffers and emitting them to the
 	// Audit Log.
-	go s.loop()
+	go s.processAccessEvents()
 
 	return s, nil
 }
@@ -197,12 +208,16 @@ func (s *Service) Close() error {
 	// Unload the BPF programs.
 	s.exec.close()
 	s.open.close()
-	s.conn.close()
+	if s.conn != nil {
+		s.conn.close()
+	}
 
 	// Close cgroup service.
-	s.cgroup.Close()
+	if err := s.cgroup.Close(); err != nil {
+		log.Warnf("Failed to close cgroup: %v", err)
+	}
 
-	// Signal to the loop pulling events off the perf buffer to shutdown.
+	// Signal to the processAccessEvents pulling events off the perf buffer to shutdown.
 	s.closeFunc()
 
 	return nil
@@ -254,9 +269,9 @@ func (s *Service) CloseSession(ctx *SessionContext) error {
 	return nil
 }
 
-// loop pulls events off the perf ring buffer, parses them, and emits them to
+// processAccessEvents pulls events off the perf ring buffer, parses them, and emits them to
 // the audit log.
-func (s *Service) loop() {
+func (s *Service) processAccessEvents() {
 	for {
 		select {
 		// Program execution.
@@ -265,10 +280,21 @@ func (s *Service) loop() {
 		// Disk access.
 		case event := <-s.open.events():
 			s.emitDiskEvent(event)
+		case <-s.closeContext.Done():
+			return
+		}
+	}
+}
+
+// processAccessEvents pulls networks events of the ring buffer and emmit them to
+// the audit log.
+func (s *Service) processNetworkEvents() {
+	for {
+		select {
 		// Network access (IPv4).
 		case event := <-s.conn.v4Events():
 			s.emit4NetworkEvent(event)
-		// Network access (IPv4).
+		// Network access (IPv6).
 		case event := <-s.conn.v6Events():
 			s.emit6NetworkEvent(event)
 		case <-s.closeContext.Done():

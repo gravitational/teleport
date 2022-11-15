@@ -75,7 +75,7 @@ func (s *Suite) TestWatch(c *check.C) {
 	service, err := New(&Config{
 		Enabled:    true,
 		CgroupPath: dir,
-	})
+	}, &RestrictedSessConfig{})
 	defer service.Close()
 
 	// Create a fake audit log that can be used to capture the events emitted.
@@ -353,7 +353,7 @@ func (s *Suite) TestPrograms(c *check.C) {
 
 		// Start two goroutines. The first will wait for the BPF program event to
 		// arrive, and once it has, signal over the context that it's complete. The
-		// second will continue to execute or a HTTP GET in a in a loop attempting to
+		// second will continue to execute or a HTTP GET in a in a processAccessEvents attempting to
 		// trigger an event.
 		go waitForEvent(doneContext, doneFunc, tt.inEventCh)
 		if tt.inHTTP {

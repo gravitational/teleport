@@ -193,11 +193,11 @@ func (s *Suite) SetUpSuite(c *check.C) {
 	s.cgroupDir, err = os.MkdirTemp("", "cgroup-test")
 	c.Assert(err, check.IsNil)
 
-	// Create BPF service since we piggy-back on it
+	// Create BPF service since we piggyback on it
 	s.enhancedRecorder, err = bpf.New(&bpf.Config{
 		Enabled:    true,
 		CgroupPath: s.cgroupDir,
-	})
+	}, &bpf.RestrictedSessConfig{Enabled: true}) //TODO probably call default on it
 	c.Assert(err, check.IsNil)
 
 	// Create the SessionContext used by both enhanced recording and us (restricted session)
@@ -233,7 +233,7 @@ func (s *Suite) SetUpSuite(c *check.C) {
 	restrictions.SetAllow(allow)
 	restrictions.SetDeny(deny)
 
-	config := &Config{
+	config := &bpf.RestrictedSessConfig{
 		Enabled: true,
 	}
 
