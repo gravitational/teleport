@@ -46,6 +46,17 @@ func (f *failingTrackerService) UpdateSessionTracker(ctx context.Context, req *p
 	return <-f.updateError
 }
 
+func waitForUpdate(t *testing.T, svc *failingTrackerService, done chan error) {
+	t.Helper()
+	select {
+	case <-svc.updated:
+	case err := <-done:
+		t.Fatal("Update loop terminated early", err.Error())
+	case <-time.After(10 * time.Second):
+		t.Fatal("Timed out waiting for session tracker update")
+	}
+}
+
 func TestSessionTracker_UpdateRetry(t *testing.T) {
 	t.Parallel()
 
@@ -91,11 +102,7 @@ func TestSessionTracker_UpdateRetry(t *testing.T) {
 		clock.Advance(sessionTrackerExpirationUpdateInterval)
 
 		// wait for update to be called
-		select {
-		case <-svc.updated:
-		case err := <-done:
-			t.Fatal("Update loop terminated early", err.Error())
-		}
+		waitForUpdate(t, svc, done)
 
 		// send back an error on even iterations
 		if i%2 == 0 {
@@ -108,11 +115,7 @@ func TestSessionTracker_UpdateRetry(t *testing.T) {
 			clock.Advance(45 * time.Second)
 
 			// wait for the update to be called again
-			select {
-			case <-svc.updated:
-			case err := <-done:
-				t.Fatal("Update loop terminated early", err.Error())
-			}
+			waitForUpdate(t, svc, done)
 		}
 
 		svc.updateError <- nil
@@ -124,27 +127,18 @@ func TestSessionTracker_UpdateRetry(t *testing.T) {
 
 	// wait for update to be called and return an error to
 	// get in the retry path
-	select {
-	case <-svc.updated:
-		svc.updateError <- updateError
-	case err := <-done:
-		t.Fatal("Update loop terminated early", err.Error())
-	}
+	waitForUpdate(t, svc, done)
+	svc.updateError <- updateError
 
 	// advance far enough for the retry to fire
 	clock.BlockUntil(1)
 	clock.Advance(45 * time.Second)
 
 	// wait for update to be called from the retry loop and return an error
-	select {
-	case <-svc.updated:
-		// advance the clock again to make the tracker be stale
-		// enough to abort the retry loop
-		clock.Advance(10 * time.Hour)
-		svc.updateError <- updateError
-	case err := <-done:
-		t.Fatal("Update loop terminated early", err.Error())
-	}
+	waitForUpdate(t, svc, done)
+	// update the clock to make the tracker stale and abort the retry loop
+	clock.Advance(10 * time.Hour)
+	svc.updateError <- updateError
 
 	// ensure the update loop ends
 	select {
