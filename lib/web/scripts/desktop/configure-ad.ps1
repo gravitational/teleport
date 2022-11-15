@@ -1,5 +1,30 @@
 $ErrorActionPreference = "Stop"
 
+# Test that we can create and remove the required files 
+# If the directory prevents writing and removing files the script can fail.
+Try
+{
+ $file_array = @('teleport.pem','windows.der','windows.pem')
+ for($i = 0; $i -lt $file_array.length; $i++){ 
+ Write-Output ""| Out-File -FilePath $file_array[$i]
+ Remove-Item $file_array[$i] -Recurse
+ }
+}
+Catch 
+{
+$FILE_ERROR=@'
+
+Teleport Active Directory Script requires create and delete permission for files in the execution directory.
+Check that you aren't running the script in a directory that denies creating and deleting files.
+'@
+
+Write-Output $FILE_ERROR
+# Exit running script throwing the error
+throw $_
+
+} 
+
+
 $TELEPORT_CA_CERT_PEM = "{{.caCertPEM}}"
 $TELEPORT_CA_CERT_SHA1 = "{{.caCertSHA1}}"
 $TELEPORT_CA_CERT_BLOB_BASE64 = "{{.caCertBase64}}"
@@ -21,7 +46,14 @@ do {
 } until ($PASSWORD -match '\d')
 $SECURE_STRING_PASSWORD=ConvertTo-SecureString $PASSWORD -AsPlainText -Force
 
+#Skipping Teleport Service Account if already exists
+$User = Get-ADUser -LDAPFilter "(sAMAccountName=$SAM_ACCOUNT_NAME)"
+If ($User -eq $Null) {
 New-ADUser -Name $AD_USER_NAME -SamAccountName $SAM_ACCOUNT_NAME -AccountPassword $SECURE_STRING_PASSWORD -Enabled $true
+}
+else{
+"Teleport Service Account already exists: skipping creation"
+}
 
 
 # Create the CDP/Teleport container.
