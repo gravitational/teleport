@@ -242,9 +242,8 @@ func (p *Pack) initWebSession(t *testing.T) {
 // credentials.
 func (p *Pack) initTeleportClient(t *testing.T, opts AppTestOptions) {
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
-		Process:        p.rootCluster.Process,
-		Username:       p.user.GetName(),
-		CertificateTTL: opts.CertificateTTL,
+		Process:  p.rootCluster.Process,
+		Username: p.user.GetName(),
 	})
 	require.NoError(t, err)
 
