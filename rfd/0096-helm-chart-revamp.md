@@ -7,7 +7,7 @@ state: draft
 
 ## Required approvers
 
-* Engineering: @r0mant && @tiago && ( @gus || @programmerq )
+* Engineering: @r0mant && @tigrato && ( @gus || @programmerq )
 * Product: @klizhentas || @xinding33
 * Security: @reedloden
 
@@ -21,6 +21,7 @@ achieve the following goals:
 - always support the latest Teleport features by default (reduce time-to-market)
 - reduce the cost of chart maintenance
 - ensure seamless updates between Teleport versions
+- ensure out of the box configuration supports large scale deployments
 
 ## Why
 
@@ -54,7 +55,7 @@ The second part is dedicated to the chart values, configuration format, and
 backward compatibility. The third part addresses new update strategy
 constraints between major Teleport versions.
 
-### Chart structure
+### Chart structure and deployed resources
 
 The resources in the chart would be split in two subdirectories,
 `templates/auth/` and `templates/proxy/` to clearly identify which resource is
@@ -80,6 +81,45 @@ one for the proxies and one for the auths.
 The main LB service should send traffic to the proxies, two additional services
 for in-cluster communication should be created: one for the proxies and one for
 the auth.
+
+#### Labels and selectors
+
+Deploying different pod sets requires a way to discriminate them. The only
+label set currently is `app: {{.Release.Name }}`. We should follow [Helm
+label recommendations](https://helm.sh/docs/chart_best_practices/labels/):
+
+| Label                        | Value                                 | Purpose   |
+|------------------------------|---------------------------------------|-----------|
+| app.kubernetes.io/name       | `{{- default .Chart.Name .Values.nameOverride \| trunc 63 \| trimSuffix "-" }}` | Identify the application. |
+| helm.sh/chart                | `{{ .Chart.Name }}-{{ .Chart.Version \| replace "+" "_" }}` | This should be the chart name and version. |
+| app.kubernetes.io/managed-by | `{{ .Release.Service }}`              | It is for finding all things managed by Helm. |
+| app.kubernetes.io/instance   | `{{ .Release.Name }}`                 | It aids in differentiating between different instances of the same application. |
+| app.kubernetes.io/version    | `{{ .Chart.AppVersion }}`             | The version of the app. |
+| app.kubernetes.io/component  | `auth` or `proxy`                     | This is a common label for marking the different roles that pieces may play in an application. |
+
+Those labels should be applied to all deployed resources when applicable.
+This includes but does not limit to Pods, Deployments, StatefulSets,
+ConfigMaps, Secrets and Services.
+
+The `app: {{.Release.Name}}` label should stay on the auth pods for
+compatibility reasons.
+
+#### Monitoring
+
+A single optional
+[`ServiceMonitor`](https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#servicemonitor)
+should be deployed per Helm release, selecting all release services based
+on `app.kubernetes.io/name`.
+
+#### Custom Resources
+
+The chart should support deploying teleport Custom Resources when
+the operator is enabled. Currently supported OSS resources are `TeleportUsers`,
+`TeleportRoles`, `TeleportGithubConnector`. Enterprise users can also
+deploy `TeleportOIDCConnector` and `TeleportSAMLConnector`.
+
+The [Custom Resources configuration values]() section covers how
+the CR configuration is passed through values.
 
 ### Values and Teleport configuration
 
@@ -303,6 +343,59 @@ specific values should take precedence over the ones at the root.
 - `teleportVersionOverride`
 - `resources`
 
+#### CustomResources configuration values
+
+Those values control which Teleport Custom Resources are deployed
+by the chart. Those values can be used only when the operator is
+enabled, to reflect this, they should be nested under the `operator`
+field.
+
+Manually maintaining a 1-1 mapping for every CR field adds little
+value and will create additional maintenance and drift risks.
+Each supported CR spec should be exposed under its own field.
+Specifying the API version in the field name will help managing
+version updates with breaking changes. In extreme cases the chart
+could implement translation from previous versions to the new one,
+but this likely should be the operator's responsibility.
+
+The chart should dynamically set the metadata (name, namespace, labels)
+and pass as-is the spec from the value. For example, a valuefile
+creating two users, one role and setting up the github connector
+would look like:
+
+```yaml
+operator:
+  CRs:
+    userV2:
+      alice:
+        roles:
+          - auditor
+      bob:
+        roles:
+          - team-lead
+    roleV5:
+      team-lead:
+        allow:
+          logins: ["root"]
+          kubernetes_groups: ["system:masters"]
+    githubV2:
+      dev-team:
+        client_id: XXXX
+        client_secret: XXXX
+        display: github-dev-team
+        redirect_url: XXXX
+        teams_to_role:
+          - organization: octocats
+            team: dev
+            roles:
+              - access
+          - organization: octocats
+            team: admin
+            roles:
+              - access
+              - team-lead
+```
+
 ### Update strategy between major versions
 
 Auth pods have to be updated before proxies.  Helm does not support applying
@@ -328,6 +421,10 @@ pods are running which version:
   IP is returned
 - the initContainer exits, the proxy starts
 - this unlocks the proxy deployment rollout
+
+Headless services selecting auth pods with a specific version should contain 
+on-ready endpoints to ensure the rollout happens only when all pods are
+completely terminated. The means setting `spec.publishNotReadyAddresses: true`.
 
 Note: Teleport does not officially support multiple auth nodes running under
 different major versions. The recommended update approach is to scale down to
