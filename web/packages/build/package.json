@@ -42,6 +42,7 @@
     "@typescript-eslint/eslint-plugin": "^5.4.0",
     "@typescript-eslint/parser": "^5.4.0",
     "babel-loader": "^8.2.5",
+    "babel-plugin-lodash": "^3.3.4",
     "clean-webpack-plugin": "4.0.0",
     "core-js": "^3",
     "cross-env": "5.0.5",
@@ -62,6 +63,7 @@
     "html-webpack-plugin": "^5.5.0",
     "jest": "^27.3.1",
     "jest-styled-components": "^7.0.8",
+    "lodash-webpack-plugin": "^0.11.6",
     "msw": "^0.47.4",
     "optimist": "^0.6.1",
     "prettier": "^2.5.0",
@@ -76,7 +78,7 @@
     "ts-loader": "^9.3.1",
     "typescript": "^4.7.4",
     "webpack": "^5.73.0",
-    "webpack-bundle-analyzer": "^4.5.0",
+    "webpack-bundle-analyzer": "^4.6.1",
     "webpack-cli": "^4.10.0",
     "webpack-dev-server": "^4.9.3"
   }

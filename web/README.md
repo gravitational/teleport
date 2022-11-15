@@ -158,6 +158,16 @@ Going to `dumper.go.teleport`, comparing the `Host` header (`dumper.go.teleport`
 
 Note: this only works for local Teleport instances, and won't work for Cloud.
 
+#### Analyzing Webpack's bundle output
+
+To see what is being included in each bundle via [webpack-bundle-analyzer](https://github.com/webpack-contrib/webpack-bundle-analyzer), you can set `WEBPACK_ANALYZE_BUNDLE` to `true` to have it running at `localhost:8888`.
+
+```
+$ WEBPACK_ANALYZE_BUNDLE=true yarn start-teleport --target=https://example.com:3080/web
+```
+
+And then go to http://localhost:8888.
+
 ### Unit-Tests
 
 We use [jest](https://jestjs.io/) as our testing framework.

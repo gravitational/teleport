@@ -16,7 +16,9 @@ limitations under the License.
 
 const path = require('path');
 
+const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
 const HtmlWebPackPlugin = require('html-webpack-plugin');
+const LodashModuleReplacementPlugin = require('lodash-webpack-plugin');
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
 const ReactRefreshPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
 
@@ -49,6 +51,12 @@ const configFactory = {
         ...options,
       });
     },
+    lodash() {
+      return new LodashModuleReplacementPlugin();
+    },
+    bundleAnalyzer(options) {
+      return new BundleAnalyzerPlugin({ analyzerHost: '0.0.0.0', ...options });
+    },
   },
   rules: {
     raw() {
@@ -63,11 +71,6 @@ const configFactory = {
         type: 'asset',
         generator: {
           filename: 'assets/fonts/[name][ext]',
-        },
-        parser: {
-          dataUrlCondition: {
-            maxSize: 102400, // 100kb
-          },
         },
       };
     },
@@ -122,31 +125,6 @@ const configFactory = {
 /** @return {import('webpack').webpack.Configuration} */
 function createDefaultConfig() {
   return {
-    optimization: {
-      splitChunks: {
-        cacheGroups: {
-          // Vendor chunk creates a chunk file that contains files coming from import statements
-          // from node_modules. The 'initial' flag directs this group to add modules to this chunk
-          //  that were imported inside only from sync chunks.
-          defaultVendors: {
-            chunks: 'initial',
-            name: 'vendor',
-            test: /([\\/]node_modules[\\/])/,
-            // Priority states that if a module falls under many cacheGroups, then
-            // the module will be part of a chunk with a higher priority.
-          },
-          // Common chunk creates a chunk file that contains modules that were shared between
-          // at least 2 (or more) async chunks. The 'async' flag directs this group to add modules
-          // to this chunk that were specifically imported inside async chunks (dynamic imports).
-          common: {
-            chunks: 'async',
-            minChunks: 2,
-            test: /([\\/]node_modules[\\/])/,
-          },
-        },
-      },
-    },
-
     entry: {
       app: ['./src/boot'],
     },

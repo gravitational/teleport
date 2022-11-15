@@ -14,27 +14,60 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import React from 'react';
+
 import * as Icons from 'design/Icon';
 
 import Ctx from 'teleport/teleportContext';
 import cfg from 'teleport/config';
 
 import { Feature } from './types';
-import Audit from './Audit';
-import Nodes from './Nodes';
-import Sessions from './Sessions';
-import Account from './Account';
-import Applications from './Apps';
-import Kubes from './Kubes';
-import Support from './Support';
-import Clusters from './Clusters';
-import Trust from './TrustedClusters';
-import Users from './Users';
-import Roles from './Roles';
-import Recordings from './Recordings';
-import AuthConnectors from './AuthConnectors';
-import Databases from './Databases';
-import Desktops from './Desktops';
+
+const Audit = React.lazy(
+  () => import(/* webpackChunkName: "audit" */ './Audit')
+);
+const Nodes = React.lazy(
+  () => import(/* webpackChunkName: "nodes" */ './Nodes')
+);
+const Sessions = React.lazy(
+  () => import(/* webpackChunkName: "sessions" */ './Sessions')
+);
+const Account = React.lazy(
+  () => import(/* webpackChunkName: "account" */ './Account')
+);
+const Applications = React.lazy(
+  () => import(/* webpackChunkName: "apps" */ './Apps')
+);
+const Kubes = React.lazy(
+  () => import(/* webpackChunkName: "kubes" */ './Kubes')
+);
+const Support = React.lazy(
+  () => import(/* webpackChunkName: "support" */ './Support')
+);
+const Clusters = React.lazy(
+  () => import(/* webpackChunkName: "clusters" */ './Clusters')
+);
+const Trust = React.lazy(
+  () => import(/* webpackChunkName: "trusted-clusters" */ './TrustedClusters')
+);
+const Users = React.lazy(
+  () => import(/* webpackChunkName: "users" */ './Users')
+);
+const Roles = React.lazy(
+  () => import(/* webpackChunkName: "roles" */ './Roles')
+);
+const Recordings = React.lazy(
+  () => import(/* webpackChunkName: "recordings" */ './Recordings')
+);
+const AuthConnectors = React.lazy(
+  () => import(/* webpackChunkName: "auth-connectors" */ './AuthConnectors')
+);
+const Databases = React.lazy(
+  () => import(/* webpackChunkName: "databases" */ './Databases')
+);
+const Desktops = React.lazy(
+  () => import(/* webpackChunkName: "desktop" */ './Desktops')
+);
 
 export class FeatureClusters extends Feature {
   topNavTitle = 'Clusters';

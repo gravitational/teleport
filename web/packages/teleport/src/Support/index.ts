@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import Support from './Support';
 
-const Support = React.lazy(() => import('./Support'));
-
+// export as default for use with React.lazy
 export default Support;

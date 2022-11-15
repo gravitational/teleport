@@ -53,6 +53,13 @@ module.exports = {
         ['babel-plugin-styled-components', { displayName: true, ssr: false }],
       ],
     },
+    production: {
+      plugins: [
+        ...plugins,
+        ['babel-plugin-styled-components', { displayName: false, ssr: false }],
+        'babel-plugin-lodash',
+      ],
+    },
   },
   presets: makePresets(),
   plugins: [
