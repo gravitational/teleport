@@ -4431,10 +4431,6 @@ func (process *TeleportProcess) initApps() {
 
 		proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
-		asyncEmitter, err := process.newAsyncEmitter(conn.Client)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 		defer func() {
 			if !shouldSkipCleanup {
 				warnOnErr(asyncEmitter.Close(), log)
@@ -4445,7 +4441,6 @@ func (process *TeleportProcess) initApps() {
 			Clock:                process.Config.Clock,
 			DataDir:              process.Config.DataDir,
 			AuthClient:           conn.Client,
-			Emitter:              asyncEmitter,
 			AccessPoint:          accessPoint,
 			Authorizer:           authorizer,
 			TLSConfig:            tlsConfig,
