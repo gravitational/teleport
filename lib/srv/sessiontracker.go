@@ -74,16 +74,52 @@ func (s *SessionTracker) Close(ctx context.Context) error {
 
 const sessionTrackerExpirationUpdateInterval = apidefaults.SessionTrackerTTL / 3
 
-// UpdateExpirationLoop extends the session tracker expiration by 1 hour every 10 minutes
+// UpdateExpirationLoop extends the session tracker expiration by 30 minutes every 10 minutes
 // until the SessionTracker or ctx is closed. If there is a failure to write the updated
-// SessionTracker to the backend an exponential backoff retry is attempted until the it
-// has exceeded the original expiration.
+// SessionTracker to the backend, the write is retried with exponential backoff up until the original
+// SessionTracker expiry.
 func (s *SessionTracker) UpdateExpirationLoop(ctx context.Context, clock clockwork.Clock) error {
-	return trace.Wrap(s.updateExpirationLoop(ctx, clock))
+	ticker := clock.NewTicker(sessionTrackerExpirationUpdateInterval)
+	defer func() {
+		// ensure the correct ticker is stopped due to reassignment below
+		ticker.Stop()
+	}()
+
+	for {
+		select {
+		case t := <-ticker.Chan():
+			expiry := t.Add(apidefaults.SessionTrackerTTL)
+			if err := s.UpdateExpiration(ctx, expiry); err != nil {
+				// If the tracker doesn't exist in the backend then
+				// the update loop will never succeed.
+				if trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+
+				// Stop the ticker so that it doesn't
+				// keep accumulating ticks while we are retrying.
+				ticker.Stop()
+
+				if err := s.retryUpdate(ctx, clock); err != nil {
+					return trace.Wrap(err)
+				}
+
+				// Tracker was updated, create a new ticker and proceed with the update
+				// loop.
+				// Note: clockwork.Ticker doesn't support Reset, if and when it does
+				// we should use that instead of creating a new ticker.
+				ticker = clock.NewTicker(sessionTrackerExpirationUpdateInterval)
+			}
+		case <-ctx.Done():
+			return nil
+		case <-s.closeC:
+			return nil
+		}
+	}
 }
 
-// updateExpirationLoop is used in tests
-func (s *SessionTracker) updateExpirationLoop(ctx context.Context, clock clockwork.Clock) error {
+// retryUpdate attempts to periodically retry updating the session tracker
+func (s *SessionTracker) retryUpdate(ctx context.Context, clock clockwork.Clock) error {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Clock:  clock,
 		Max:    3 * time.Minute,
@@ -94,42 +130,6 @@ func (s *SessionTracker) updateExpirationLoop(ctx context.Context, clock clockwo
 		return trace.Wrap(err)
 	}
 
-	ticker := clock.NewTicker(sessionTrackerExpirationUpdateInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case t := <-ticker.Chan():
-			expiry := t.Add(apidefaults.SessionTrackerTTL)
-			if err := s.UpdateExpiration(ctx, expiry); err != nil {
-				// if the tracker doesn't exist in the backend then
-				// the update loop will never succeed.
-				if trace.IsNotFound(err) {
-					return trace.Wrap(err)
-				}
-
-				// stop and reset the ticker so that it doesn't
-				// keep accumulating ticks while we are retrying
-				ticker.Stop()
-
-				if err := s.retryUpdate(ctx, clock, retry); err != nil {
-					return trace.Wrap(err)
-				}
-
-				// tracker was updated, create a new ticker and reset the retry
-				ticker = clock.NewTicker(sessionTrackerExpirationUpdateInterval)
-				retry.Reset()
-			}
-		case <-ctx.Done():
-			return nil
-		case <-s.closeC:
-			return nil
-		}
-	}
-}
-
-// retryUpdate attempts to periodically retry updating the session tracker when c
-func (s *SessionTracker) retryUpdate(ctx context.Context, clock clockwork.Clock, retry retryutils.Retry) error {
 	originalExpiry := s.tracker.Expiry()
 	for {
 		select {
