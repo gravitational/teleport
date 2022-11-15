@@ -2753,39 +2753,131 @@ func TestSerializeDatabases(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Run("without db users", func(t *testing.T) {
-		t.Parallel()
-		expected := fmt.Sprintf(expectedFmt, "")
-		testSerialization(t, expected, func(f string) (string, error) {
-			return serializeDatabases([]types.Database{db}, f, nil)
-		})
-	})
-
-	t.Run("with db users", func(t *testing.T) {
-		t.Parallel()
-		dbUsersData := `
+	tests := []struct {
+		name        string
+		dbUsersData string
+		roles       services.RoleSet
+	}{
+		{
+			name: "without db users",
+		},
+		{
+			name: "with wildcard in allowed db users",
+			dbUsersData: `
     "db_users": {
       "allowed": [
-        "foo",
-        "bar"
+        "*",
+        "bar",
+        "foo"
       ],
       "denied": [
         "baz",
         "qux"
       ]
-     },`
-		expected := fmt.Sprintf(expectedFmt, dbUsersData)
-		dbsWithUsers := []*databaseWithUsers{{
-			DatabaseV3: db,
-			DBUsers: &dbUsers{
-				Allowed: []string{"foo", "bar"},
-				Denied:  []string{"baz", "qux"},
+     },`,
+			roles: services.RoleSet{
+				&types.RoleV5{
+					Metadata: types.Metadata{Name: "role1", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							Namespaces:     []string{apidefaults.Namespace},
+							DatabaseLabels: types.Labels{"*": []string{"*"}},
+							DatabaseUsers:  []string{"foo", "bar", "*"},
+						},
+						Deny: types.RoleConditions{
+							Namespaces:    []string{apidefaults.Namespace},
+							DatabaseUsers: []string{"baz", "qux"},
+						},
+					},
+				},
 			},
-		}}
-		testSerialization(t, expected, func(format string) (string, error) {
-			return serializeDatabasesWithUsers(dbsWithUsers, format)
+		},
+		{
+			name: "without wildcard in allowed db users",
+			dbUsersData: `
+    "db_users": {
+      "allowed": [
+        "bar",
+        "foo"
+      ]
+     },`,
+			roles: services.RoleSet{
+				&types.RoleV5{
+					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							Namespaces:     []string{apidefaults.Namespace},
+							DatabaseLabels: types.Labels{"*": []string{"*"}},
+							DatabaseUsers:  []string{"foo", "bar"},
+						},
+						Deny: types.RoleConditions{
+							Namespaces:    []string{apidefaults.Namespace},
+							DatabaseUsers: []string{"baz", "qux"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "with no denied db users",
+			dbUsersData: `
+    "db_users": {
+      "allowed": [
+        "*",
+        "bar",
+        "foo"
+      ]
+     },`,
+			roles: services.RoleSet{
+				&types.RoleV5{
+					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							Namespaces:     []string{apidefaults.Namespace},
+							DatabaseLabels: types.Labels{"*": []string{"*"}},
+							DatabaseUsers:  []string{"*", "foo", "bar"},
+						},
+						Deny: types.RoleConditions{
+							Namespaces:    []string{apidefaults.Namespace},
+							DatabaseUsers: []string{},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "with no allowed db users",
+			dbUsersData: `
+    "db_users": {},`,
+			roles: services.RoleSet{
+				&types.RoleV5{
+					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							Namespaces:     []string{apidefaults.Namespace},
+							DatabaseLabels: types.Labels{"*": []string{"*"}},
+							DatabaseUsers:  []string{},
+						},
+						Deny: types.RoleConditions{
+							Namespaces:    []string{apidefaults.Namespace},
+							DatabaseUsers: []string{"baz", "qux"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			expected := fmt.Sprintf(expectedFmt, tt.dbUsersData)
+			testSerialization(t, expected, func(f string) (string, error) {
+				return serializeDatabases([]types.Database{db}, f, tt.roles)
+			})
 		})
-	})
+	}
 }
 
 func TestSerializeDatabasesEmpty(t *testing.T) {
