@@ -920,7 +920,7 @@ func (s *server) upsertRemoteCluster(conn net.Conn, sshConn *ssh.ServerConn) (*r
 		}
 		s.remoteSites = append(s.remoteSites, site)
 	}
-	site.Infof("Connection <- %v, clusters: %d.", conn.RemoteAddr(), len(s.remoteSites))
+	site.logger.Infof("Connection <- %v, clusters: %d.", conn.RemoteAddr(), len(s.remoteSites))
 	// treat first connection as a registered heartbeat,
 	// otherwise the connection information will appear after initial
 	// heartbeat delay
@@ -1071,16 +1071,17 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		srv:        srv,
 		domainName: domainName,
 		connInfo:   connInfo,
-		Entry: log.WithFields(log.Fields{
+		logger: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentReverseTunnelServer,
 			trace.ComponentFields: log.Fields{
 				"cluster": domainName,
 			},
 		}),
-		ctx:              closeContext,
-		cancel:           cancel,
-		clock:            srv.Clock,
-		offlineThreshold: srv.offlineThreshold,
+		ctx:               closeContext,
+		cancel:            cancel,
+		clock:             srv.Clock,
+		offlineThreshold:  srv.offlineThreshold,
+		proxySyncInterval: proxySyncInterval,
 	}
 
 	// configure access to the full Auth Server API and the cached subset for
