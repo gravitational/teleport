@@ -2289,7 +2289,7 @@ type databaseWithUsers struct {
 	// *DatabaseV3 is used instead of types.Database because we want the db fields marshaled to JSON inline.
 	// An embedded interface (like types.Database) does not inline when marshaled to JSON.
 	*types.DatabaseV3
-	DBUsers *dbUsers `json:"users"`
+	Users *dbUsers `json:"users"`
 }
 
 func getDBUsers(db types.Database, roles services.RoleSet) *dbUsers {
@@ -2310,7 +2310,7 @@ func getDBUsers(db types.Database, roles services.RoleSet) *dbUsers {
 
 func newDatabaseWithUsers(db types.Database, roles services.RoleSet) (*databaseWithUsers, error) {
 	dbWithUsers := &databaseWithUsers{
-		DBUsers: getDBUsers(db, roles),
+		Users: getDBUsers(db, roles),
 	}
 	switch db := db.(type) {
 	case *types.DatabaseV3:
