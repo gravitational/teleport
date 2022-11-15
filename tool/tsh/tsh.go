@@ -2264,23 +2264,30 @@ func serializeDatabases(databases []types.Database, format string, roleSet servi
 		databases = []types.Database{}
 	}
 
-	if roleSet != nil {
-		dbsWithUsers, err := getDatabasesWithUsers(databases, roleSet)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		return serializeDatabasesWithUsers(dbsWithUsers, format)
+	printObj, err := getDatabasePrintObject(databases, roleSet)
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
 
 	var out []byte
-	var err error
 	switch {
 	case format == teleport.JSON:
-		out, err = utils.FastMarshalIndent(databases, "", "  ")
+		out, err = utils.FastMarshalIndent(printObj, "", "  ")
 	default:
-		out, err = yaml.Marshal(databases)
+		out, err = yaml.Marshal(printObj)
 	}
 	return string(out), trace.Wrap(err)
+}
+
+func getDatabasePrintObject(databases []types.Database, roleSet services.RoleSet) (any, error) {
+	if roleSet == nil || len(databases) == 0 {
+		return databases, nil
+	}
+	dbsWithUsers, err := getDatabasesWithUsers(databases, roleSet)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return dbsWithUsers, nil
 }
 
 type dbUsers struct {
@@ -2334,22 +2341,6 @@ func getDatabasesWithUsers(databases types.Databases, roles services.RoleSet) ([
 		dbsWithUsers = append(dbsWithUsers, dbWithUsers)
 	}
 	return dbsWithUsers, nil
-}
-
-func serializeDatabasesWithUsers(dbsWithUsers []*databaseWithUsers, format string) (string, error) {
-	// initialize to an empty slice so we don't print `null` in JSON/YAML if the cluster has no databases.
-	if dbsWithUsers == nil {
-		dbsWithUsers = []*databaseWithUsers{}
-	}
-	var out []byte
-	var err error
-	switch format {
-	case teleport.JSON:
-		out, err = utils.FastMarshalIndent(dbsWithUsers, "", "  ")
-	default:
-		out, err = yaml.Marshal(dbsWithUsers)
-	}
-	return string(out), trace.Wrap(err)
 }
 
 func serializeDatabasesAllClusters(dbListings []databaseListing, format string) (string, error) {
