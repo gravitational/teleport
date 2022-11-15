@@ -5,7 +5,11 @@ state: draft
 
 # RFD 95 - Teleport Key Agent Extension
 
-## Required Approvers (TBD)
+## Required approvers
+
+* Engineering: @jakule && @r0mant
+* Product: @klizhentas
+* Security: @reedloden
 
 ## What
 
@@ -39,9 +43,7 @@ An Extension response can be any custom message, but failures should result in `
 
 **Teleport Identity Extension:**
 
-This extension requests a partial Teleport Identity from the agent matching the provided public key and Teleport identifiers. Clients should provide the public key part of a Teleport agent key, since a matching TLS certificate should be available in the local agent's key store. The Teleport cluster, proxy, and user can also be found in the Teleport agent key.
-
-For session requests that require per-session MFA, clients can provide the `require_mfa` flag to issue a single time use mfa-verified certificate.
+This extension requests a partial Teleport Identity from the agent matching the provided public key and Teleport identifiers. Clients should provide the public key part of a Teleport agent key, since a `tsh` profile should be available in the local file key store. The Teleport cluster, proxy, and user can also be found in the Teleport agent key comment.
 
         byte            SSH_AGENTC_EXTENSION
         string          identity@goteleport.com
@@ -49,64 +51,64 @@ For session requests that require per-session MFA, clients can provide the `requ
         string          proxy
         string          cluster
         string          user
-        bool            require_mfa
 
-The returned x509 certificate can be used to perform a TLS handshake.
+The returned identity data can be used in place of the standard filesystem identity (~/.tsh) for `tsh` operations, including connecting to a Teleport Proxy or connecting to a Teleport Node.
 
         byte            SSH_AGENT_SUCCESS
         string          TLS certificate
-        string[]        trusted CA certificate
-        string[]        known hosts contents
+        byte[]          TLS CA certs
+        byte[]          SSH CA certs
 
-#### SSH Agent Key Constraint Extensions
+Combined with the information stored in the user's SSH agent (Crypto signer, SSH certificate, Teleport Proxy:ClusterName:UserName), `tsh` will have enough information to carry out standard operations.
 
-For Per-session MFA SSH certificates, we *could* include the SSH certificate in the extension response above, but we'd be missing a great opportunity. Instead, we can add a new [key constraint extension](https://datatracker.ietf.org/doc/html/draft-miller-ssh-agent#section-4.2.6.3) to add per-session MFA functionality into the Teleport Key Agent in a way that would work with `ssh` as well. This would extend per-session MFA functionality to OpenSSH integrations, including [OpenSSH Proxy Jump](https://github.com/gravitational/teleport/issues/17190).
+**Add MFA Key Extension:**
 
-This constraint will not be supported by the standard SSH Agent, so this extension's impact will be limited. In this implementation, this key constraint will only be utilized in remote connections initiated with `tsh ssh --forward-agent=local`. In order for users to utilize this key locally - e.g. `tsh login && ssh node-with-per-session-mfa` - we would need to introduce a `tsh agent` to replace the user's standard SSH agent on their local machine. I will leave this topic for a future RFD, if desired.
+This extension can be used to issue an MFA verified agent key to connect to a specific Teleport Node. The local agent will prompt the user for MFA touch to reissue MFA certificates, and then it will add the certificate as an agent key to the local agent with the [key lifetime constraint](https://datatracker.ietf.org/doc/html/draft-miller-ssh-agent#section-4.2.6.1) so that it will automatically expire from the agent after 1 minute.
 
-**Extension Structure:**
+        byte            SSH_AGENTC_EXTENSION
+        string          add-mfa-key@goteleport.com
+        string          Teleport Node name
 
-Key constraints can be used to limit when and how a key can be used. They can be included when adding any of the existing key types.
+If the extension returns `SSH_AGENT_SUCCESS`, then the MFA agent key was successfully added to the local agent and can be accessed through the forwarded agent.
 
-Key constraint extensions consist of:
+        byte            SSH_AGENT_SUCCESS
 
-        byte            SSH_AGENT_CONSTRAIN_EXTENSION
-        string          extension name (name@domain)
-        byte[]          extension-specific details
-
-If an unsupported constraint extension is provided, the add key request will return an `SSH_AGENT_FAILURE`.
-
-**Per-session MFA Key Constraint Extension:**
-
-This key constraint extension can be used to add a per-session MFA key.
-
-        byte            SSH_AGENT_CONSTRAIN_EXTENSION
-        string          per-session-mfa@goteleport.com
-
-The private key part of this key will be used for signing operations, but the certificate part, if any, will be ignored. Instead, the Teleport Key Agent will issue a new `IssueUserCertsWithMFA` request and use the returned certificates directly. The `tsh` process running the Teleport Key Agent will thus prompt the user for touch during the reissue request.
-
-To avoid using this key when a non per-session MFA key is suitable, these keys will always be returned last by the [list keys operation](https://datatracker.ietf.org/doc/html/draft-miller-ssh-agent#section-4.4).
-
-### UX
-
-Users will need to forward the Teleport Key Agent, rather than the System Key Agent forwarded by `tsh ssh -A`. As described in [RFD 22](https://github.com/gravitational/teleport/blob/master/rfd/0022-ssh-agent-forwarding.md), this can be done with `tsh ssh -o "ForwardAgent local"`.
-
-To improve UX, we can add an option via an env variable - `TELEPORT_FORWARD_AGENT`, and a [tsh config file](https://goteleport.com/docs/reference/cli/#tsh-configuration-files) value - `AgentForward`. This way, `tsh ssh -A` could check these values before defaulting to the System Key Agent.
+Note: this extension can also be used to extend Per-session MFA support to some OpenSSH integrations, including [OpenSSH Proxy Jump](https://github.com/gravitational/teleport/issues/17190). In this use case, `tsh proxy ssh` would call the extension to prompt the user for MFA tap and add the agent key to the user's system agent. The parent `ssh` call which calls this ProxyCommand would then have access to this key when forming a proxied ssh connection.
 
 ### Security
 
-#### SSH Agent Forwarding Risks and Constraints
+#### SSH Agent Forwarding Risks
 
-SSH Agent forwarding introduces an inherent risk. When a user does `ssh -A` or `tsh ssh -A`, their forwarded keys could be used by a user on the remote machine with root permissions over the remote user. However, it should not be possible to export any sensitive data from a user's forwarded Key Agent. This criteria prohibits some potential options, such as providing the user's raw private key via the `identity@goteleport.com` extension.
+SSH Agent forwarding introduces an inherent risk. When a user does `ssh -A` or `tsh ssh -A`, their forwarded keys could be used by a user on the remote machine with root permissions over the remote user. It should not be possible to export any sensitive data from a user's forwarded Key Agent. This criteria constrains some potential options, such as providing the user's raw private key via the `identity@goteleport.com` extension.
 
-#### Per-session MFA
+However, even with these new extensions contrained in this way, a user can abuse the forwarded agent to reissue certificates with new private keys held on the remote host. This raises a major security concern that is not present in standard ssh agent forwarding, since the user's login session can essentially be exported to the remote host via a reissue command, rather than being contingent on the forwarding agent session providing access to a private key on the local host.
 
-The per-session MFA certificate returned in the `identity@goteleport.com` extension introduces a slight vulnerability in per-session MFA. Currently, per-session MFA certificates are only held in memory and are never exportable. The new extension makes it possible for a user to run the extension and export the certificate. This certificate would still be limited to a 1 minute TTL, but could in theory be used for unintended purposes outside of ["establishing a single session"](https://github.com/gravitational/teleport/blob/master/rfd/0014-session-2FA.md#constraints). This factor also contributed to the choice to use a key constraint extension for the mfa-verified SSH certificate instead.
+For this reason, we may want to consider limiting certificate reissue commands to using the same public key as the active identity, or at least limit the TTL of non-matching certificates to 1 minute. Alternatively, we can just convey this risk by adding a new option like `ForwardAgent local-insecure` to enable this feature.
+
+### UX
+
+Users will need to forward the Teleport Key Agent, rather than the System Key Agent forwarded by `tsh ssh -A`. As described in [RFD 22](https://github.com/gravitational/teleport/blob/master/rfd/0022-ssh-agent-forwarding.md), this can be done with `tsh ssh -o "ForwardAgent local"`. Due to the security concerns described above, we can instead use the new option `local-insecure`.
+
+To improve UX, we can add an option via an env variable - `TELEPORT_FORWARD_AGENT`, and a [tsh config file](https://goteleport.com/docs/reference/cli/#tsh-configuration-files) value - `AgentForward`. This way, `tsh ssh -A` could check these values before defaulting to the System Key Agent.
 
 ### Additional Considerations
 
-#### Incompatibilities
+#### Kubernetes
 
-The majority of `tsh` calls will work, but features which require a raw private key will not.
+Kubernetes access requires the ability to load a TLS certificate and raw private key pair provided to a kubeconfig file through the `tsh kube credentials` exec plugin. Since we do not want to provide the user's raw private key through the forwarded agent, `tsh kube credentials` will need a different way to aquire a valid TLS certificate and private key.
 
-TODO: investigate which features won't work, experiment with getting Kubernetes Access to work.
+As explained in the security section above, it is currently possible to reissue certificates over the forwarded agent with new private keys. By utilizing this feature, we can enable kuberenetes access on remote hosts without introducing any new systems. We will just need to update `tsh kube credentials` to make a reissue request with a new raw private key if the available private key is not exportable.
+
+If we decide to disable reissue requests with non-matching public keys, then we will need to get a bit more creative. One option would be to create a generalized forward proxy ssh channel that could be used by the remote host to form connections to Teleport services by proxying through the local host. This approach would warrant a separate RFD.
+
+#### Per-session MFA support for non SSH services
+
+We can add a new `reissue-mfa-cert` command to issue MFA verified TLS certificates usable for Kubernetes, DB, App, and Desktop access. I'm leaving this out of the RFD for brevity and since it isn't currently planned, but it would be similar to the extensions laid out above.
+
+#### Key Constraint Extensions
+
+The ssh agent protocol also provides the ability to create custom [key constraint extension](https://datatracker.ietf.org/doc/html/draft-miller-ssh-agent#section-4.2.6.3), which seemed like a promising option for adding Per-session MFA keys into the user's SSH agent. The idea would be that when the key is used for an ssh connection, it would prompt the user for MFA tap on demand.
+
+Unfortunately, in my testing this ended up not working as expected. The SSH agent will always be called first through it's `List` command, which looks at every key's public key together. Each key is then check for public key authentication, and passing keys will continue on to an SSH handshake. Since Per-session MFA is currently enforced by public key (SSH certificate) rather than key signature, the initial public key from the `List` command would need to have an MFA verified certificate already. This means that *every* ssh connection would prompt for MFA, including non-Teleport connections.
+
+The utilization of key constraint extensions might still be promising in the future. For example, SSH's own fido keys use a similar key constraint extension approach. However, with our current Per-session MFA system, this approach and all of the workaround necessary to make it work would do more harm than good.
