@@ -8,8 +8,8 @@ This guide will show you how to set up your Teleport Cluster to use the Google
 Cloud Key Management Service (KMS) to store and handle the CA private key
 material used to sign all certificates issued by your Teleport cluster.
 
-Teleport generates User, Host, JWT, and Database Certificate Authorities (CAs) during
-the first Auth Server's initial startup.
+Teleport generates User, Host, JWT, and Database Certificate Authorities (CAs)
+during the first Auth Server's initial startup.
 These CAs are used to sign all certificates issued to clients and hosts in the
 Teleport cluster.
 When configured to use Google KMS, all private key material for these CAs will
@@ -40,6 +40,8 @@ This guide is intended for self-hosted Teleport Enterprise users.
 
 - A Google Cloud account.
 
+<VarList/>
+
 ## Step 1/5. Create a key ring in GCP
 
 Each Teleport Auth Server will need to be configured to use a GCP key ring
@@ -55,10 +57,10 @@ separate it from any other keys in your cloud account.
 You can create a key ring from the Google Cloud Console or from the `gcloud` CLI
 tool. Follow
 [this guide](https://cloud.google.com/kms/docs/creating-asymmetric-keys#create_a_key_ring)
-or run the following command if you have the `gcloud` CLI configured.
+or run the following command if you have the `gcloud` CLI configured:
 
 ```code
-$ gcloud kms keyrings create "teleport-keyring" --location global
+$ gcloud kms keyrings create "<Var name="teleport-keyring" description="The name for your teleport-specific keyring"/>" --location <Var name="global" description="The location for your Teleport keyring"/>
 ```
 
 The rest of the guide will assume you have a key ring in the `global` location
@@ -87,7 +89,7 @@ includedPermissions:
 
 ```code
 $ gcloud iam roles create teleport_kms_role \
-    --project <your GCP project ID> \
+    --project <Var name="GCP-Project-ID" description="Your GCP project ID"/> \
     --file teleport_kms_role.yaml \
     --format yaml
 ```
@@ -95,7 +97,7 @@ $ gcloud iam roles create teleport_kms_role \
 Note the `name` field in the output which is the fully qualified name for the
 custom role and must be used in later steps.
 
-```
+```code
 $ export IAM_ROLE=<role name output from above>
 ```
 
@@ -103,7 +105,7 @@ If you don't already have a GCP service account for your Teleport Auth Server
 you can create one with the following command, otherwise use your existing
 service account.
 
-```
+```code
 $ gcloud iam service-accounts create teleport-auth-server \
     --description="Service account for Teleport Auth Server" \
     --display-name="Teleport Auth Server" \
@@ -112,6 +114,7 @@ $ gcloud iam service-accounts create teleport-auth-server \
 
 Note the `email` field in the output, this must be used as the identifier for
 the service account.
+
 ```code
 $ export SERVICE_ACCOUNT=<email output from above command>
 ```
@@ -144,7 +147,7 @@ To make sure the credentials have been configured correctly, you can run the
 commands you could use to debug are listed here:
 
 ```code
-$ export KEYRING="teleport-keyring"
+$ export KEYRING="<Var name="teleport-keyring"/>"
 $ gcloud kms keys list --location global --keyring "${KEYRING}"
 $ gcloud kms keys create --keyring "${KEYRING}" --location global "test-key" \
     --purpose asymmetric-signing \
@@ -166,11 +169,32 @@ Find the fully qualified name of the KMS key ring you created in
 in the GCP Console or by running:
 
 ```code
-$ gcloud kms keyrings list --location global
+$ gcloud kms keyrings list --location <Var name="global"/>
 ```
 
-Read on to [choosing a protection level](#choosing-a-protection-level) to decide if software or HSM keys are
-right for your cluster.
+<Details title="Choosing a protection level">
+
+Supported KMS protection levels are `SOFTWARE` and `HSM`.
+If you choose `SOFTWARE`, GCP KMS will performs all cryptographic operations in
+software (Teleport performs no cryptographic operations).
+If you choose `HSM`, GCP KMS will perform all cryptographic operations in a
+Hardware Security Module.
+
+Both protection levels are considered secure by Google and Teleport, you should
+evaluate your own organization's requirements and security policies when making
+your decision.
+
+One relevant difference is the usage quotas available to keys of each protection
+level.
+At the time of writing, software keys have a project-wide quota of 60k
+cryptographic operations per minute, while asymmetric HSM keys have a quota of
+3k operations per minute.
+See the [KMS docs](https://cloud.google.com/kms/quotas) for updated numbers.
+If your cluster will have many thousands of hosts or active users, the higher
+quota software keys have may help to avoid any potential throttling, especially
+during CA rotations where many new certificates must be signed.
+
+</Details>
 
 Include the following `ca_key_params` configuration in the `auth_service` section.
 
@@ -197,7 +221,7 @@ confirm that Teleport has generated keys in your keyring in the GCP Console or
 by running
 
 ```code
-$ gcloud kms keys list --keyring "${KEYRING}" --location global
+$ gcloud kms keys list --keyring "<Var name="teleport-keyring"/>" --location <Var name="global"/>
 ```
 
 Try logging in to the cluster with a Teleport user to make sure that new
@@ -244,25 +268,3 @@ instead:
    temporary Auth Server.
 5. Perform one more full CA rotation to evict all now-unused software keys from the
    CA backend state so that hosts will no longer trust them.
-
-## Choosing a protection level
-
-Supported KMS protection levels are `SOFTWARE` and `HSM`.
-If you choose `SOFTWARE`, GCP KMS will performs all cryptographic operations in
-software (Teleport performs no cryptographic operations).
-If you choose `HSM`, GCP KMS will perform all cryptographic operations in a
-Hardware Security Module.
-
-Both protection levels are considered secure by Google and Teleport, you should
-evaluate your own organization's requirements and security policies when making
-your decision.
-
-One relevant difference is the usage quotas available to keys of each protection
-level.
-At the time of writing, software keys have a project-wide quota of 60k
-cryptographic operations per minute, while asymmetric HSM keys have a quota of
-3k operations per minute.
-See the [KMS docs](https://cloud.google.com/kms/quotas) for updated numbers.
-If your cluster will have many thousands of hosts or active users, the higher
-quota software keys have may help to avoid any potential throttling, especially
-during CA rotations where many new certificates must be signed.
