@@ -1,6 +1,6 @@
 ---
 authors: Tobiasz Heller (tobiasz.heller@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0088 - Passwordless for windows CLI

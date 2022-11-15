@@ -17,14 +17,14 @@ limitations under the License.
 package events
 
 import (
+	"encoding/json"
+
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"encoding/json"
 )
 
 // FromEventFields converts from the typed dynamic representation
@@ -261,6 +261,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.KubernetesClusterUpdate{}
 	case KubernetesClusterDeleteEvent:
 		e = &events.KubernetesClusterDelete{}
+	case DesktopSharedDirectoryStartEvent:
+		e = &events.DesktopSharedDirectoryStart{}
+	case DesktopSharedDirectoryReadEvent:
+		e = &events.DesktopSharedDirectoryRead{}
+	case DesktopSharedDirectoryWriteEvent:
+		e = &events.DesktopSharedDirectoryWrite{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 

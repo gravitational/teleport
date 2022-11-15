@@ -73,7 +73,7 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Success, we're proxying data now.
 	p.Lock()
-	p.count = p.count + 1
+	p.count++
 	p.Unlock()
 
 	// Copy from src to dst and dst to src.
@@ -92,7 +92,7 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Count returns the number of connections that have been proxied.
+// Count returns the number of requests that have been proxied.
 func (p *ProxyHandler) Count() int {
 	p.Lock()
 	defer p.Unlock()
@@ -100,60 +100,91 @@ func (p *ProxyHandler) Count() int {
 }
 
 type ProxyAuthorizer struct {
-	next http.Handler
-	sync.Mutex
-	lastError error
-	authDB    map[string]string
+	next     http.Handler
+	authUser string
+	authPass string
+	authMu   sync.Mutex
+	waitersC chan chan error
 }
 
-func NewProxyAuthorizer(handler http.Handler, authDB map[string]string) *ProxyAuthorizer {
-	return &ProxyAuthorizer{next: handler, authDB: authDB}
+func NewProxyAuthorizer(handler http.Handler, user, pass string) *ProxyAuthorizer {
+	return &ProxyAuthorizer{
+		next:     handler,
+		authUser: user,
+		authPass: pass,
+		waitersC: make(chan chan error),
+	}
 }
 
 func (p *ProxyAuthorizer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var err error
+	// we detect if someone is waiting for a new request to come in.
+	select {
+	case waiter := <-p.waitersC:
+		defer func() {
+			waiter <- err
+		}()
+	default:
+	}
+	defer func() {
+		if err != nil {
+			trace.WriteError(w, err)
+		}
+	}()
 	auth := r.Header.Get("Proxy-Authorization")
 	if auth == "" {
-		err := trace.AccessDenied("missing Proxy-Authorization header")
-		p.SetError(err)
-		trace.WriteError(w, err)
+		err = trace.AccessDenied("missing Proxy-Authorization header")
 		return
 	}
 	user, password, ok := parseProxyAuth(auth)
 	if !ok {
-		err := trace.AccessDenied("bad Proxy-Authorization header")
-		p.SetError(err)
-		trace.WriteError(w, err)
+		err = trace.AccessDenied("bad Proxy-Authorization header")
 		return
 	}
 
-	if p.isAuthorized(user, password) {
-		p.SetError(nil)
-		p.next.ServeHTTP(w, r)
+	if !p.isAuthorized(user, password) {
+		err = trace.AccessDenied("bad credentials")
 		return
 	}
 
-	err := trace.AccessDenied("bad credentials")
-	p.SetError(err)
-	trace.WriteError(w, err)
+	// request is authorized, send it to the next handler
+	p.next.ServeHTTP(w, r)
 }
 
-func (p *ProxyAuthorizer) SetError(err error) {
-	p.Lock()
-	defer p.Unlock()
-	p.lastError = err
+// WaitForRequest waits (with a configured timeout) for a new request to be handled and returns the handler's error.
+// This function makes no guarantees about which request error will be returned, except that the request
+// error will have occurred after this function was called.
+func (p *ProxyAuthorizer) WaitForRequest(timeout time.Duration) error {
+	timeoutC := time.After(timeout)
+
+	errC := make(chan error, 1)
+	// wait for a new request to come in.
+	select {
+	case <-timeoutC:
+		return trace.BadParameter("timed out waiting for request to proxy authorizer")
+	case p.waitersC <- errC:
+	}
+
+	// get some error that occurred after the new request came in.
+	select {
+	case <-timeoutC:
+		return trace.BadParameter("timed out waiting for proxy authorizer request error")
+	case err := <-errC:
+		return err
+	}
 }
 
-func (p *ProxyAuthorizer) LastError() error {
-	p.Lock()
-	defer p.Unlock()
-	return p.lastError
+func (p *ProxyAuthorizer) SetCredentials(user, pass string) {
+	p.authMu.Lock()
+	defer p.authMu.Unlock()
+	p.authUser = user
+	p.authPass = pass
 }
 
 func (p *ProxyAuthorizer) isAuthorized(user, pass string) bool {
-	p.Lock()
-	defer p.Unlock()
-	expectedPass, ok := p.authDB[user]
-	return ok && pass == expectedPass
+	p.authMu.Lock()
+	defer p.authMu.Unlock()
+	return p.authUser == user && p.authPass == pass
 }
 
 // parse "Proxy-Authorization" header by leveraging the stdlib basic auth parsing for "Authorization" header

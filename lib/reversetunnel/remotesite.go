@@ -376,9 +376,7 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 			return
 		case proxies := <-conn.newProxiesC:
 			req := discoveryRequest{
-				ClusterName: s.srv.ClusterName,
-				Type:        conn.tunnelType,
-				Proxies:     proxies,
+				Proxies: proxies,
 			}
 			if err := conn.sendDiscoveryRequest(req); err != nil {
 				s.Debugf("Marking connection invalid on error: %v.", err)
@@ -764,7 +762,7 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	}
 
 	// Get a host certificate for the forwarding node from the cache.
-	hostCertificate, err := s.certificateCache.getHostCertificate(params.Address, params.Principals)
+	hostCertificate, err := s.certificateCache.getHostCertificate(s.ctx, params.Address, params.Principals)
 	if err != nil {
 		userAgent.Close()
 		return nil, trace.Wrap(err)

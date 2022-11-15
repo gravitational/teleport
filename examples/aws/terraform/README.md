@@ -36,3 +36,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 ## Public Teleport AMI IDs
 
 Please [see the AMIS.md file](AMIS.md) for a list of public Teleport AMI IDs that you can use.
+
+## This is not the Teleport Terraform Provider
+
+If you are looking for Teleport's [Terraform Provider](https://goteleport.com/docs/setup/guides/terraform-provider/) which can be used to provision users, roles, auth connectors and other resources inside an existing Teleport cluster, its source code can be found in the `teleport-plugins` repo here: https://github.com/gravitational/teleport-plugins/tree/master/terraform

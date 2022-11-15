@@ -20,11 +20,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // CertAuthority is a host or user certificate authority that
@@ -71,8 +71,8 @@ type CertAuthority interface {
 	GetRotation() Rotation
 	// SetRotation sets rotation state.
 	SetRotation(Rotation)
-	// AllKeyTypesMatch returns true if all keys in the CA are of the same type.
-	AllKeyTypesMatch() bool
+	// AllKeyTypes returns the set of all different key types in the CA.
+	AllKeyTypes() []string
 	// Clone returns a copy of the cert authority object.
 	Clone() CertAuthority
 }
@@ -350,8 +350,8 @@ func (ca *CertAuthorityV2) CheckAndSetDefaults() error {
 	return nil
 }
 
-// AllKeyTypesMatch returns true if all private keys in the given CA are of the same type.
-func (ca *CertAuthorityV2) AllKeyTypesMatch() bool {
+// AllKeyTypes returns the set of all different key types in the CA.
+func (ca *CertAuthorityV2) AllKeyTypes() []string {
 	keyTypes := make(map[PrivateKeyType]struct{})
 	for _, keySet := range []CAKeySet{ca.Spec.ActiveKeys, ca.Spec.AdditionalTrustedKeys} {
 		for _, keyPair := range keySet.SSH {
@@ -364,7 +364,11 @@ func (ca *CertAuthorityV2) AllKeyTypesMatch() bool {
 			keyTypes[keyPair.PrivateKeyType] = struct{}{}
 		}
 	}
-	return len(keyTypes) == 1
+	var strs []string
+	for k := range keyTypes {
+		strs = append(strs, k.String())
+	}
+	return strs
 }
 
 const (
@@ -416,6 +420,16 @@ var RotatePhases = []string{
 // all fields to be the same.
 func (r *Rotation) Matches(rotation Rotation) bool {
 	return r.CurrentID == rotation.CurrentID && r.State == rotation.State && r.Phase == rotation.Phase
+}
+
+// IsZero checks if this is the zero value of Rotation. Works on nil and non-nil rotation
+// values.
+func (r *Rotation) IsZero() bool {
+	if r == nil {
+		return true
+	}
+
+	return r.Matches(Rotation{})
 }
 
 // LastRotatedDescription returns human friendly description.

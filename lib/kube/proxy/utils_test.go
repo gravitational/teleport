@@ -155,7 +155,6 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 			KubeconfigPath:    kubeConfigLocation,
 			KubeServiceType:   KubeService,
 			Component:         teleport.ComponentKube,
-			DynamicLabels:     nil,
 			LockWatcher:       proxyLockWatcher,
 			// skip Impersonation validation
 			CheckImpersonationPermissions: func(ctx context.Context, clusterName string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
@@ -163,8 +162,9 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 			},
 			Clock: clockwork.NewRealClock(),
 		},
-		TLS:         tlsConfig,
-		AccessPoint: testCtx.authClient,
+		DynamicLabels: nil,
+		TLS:           tlsConfig,
+		AccessPoint:   testCtx.authClient,
 		LimiterConfig: limiter.Config{
 			MaxConnections:   1000,
 			MaxNumberOfUsers: 1000,
@@ -287,13 +287,13 @@ func (c *testContext) genTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 
 	ttl := roles.AdjustSessionTTL(10 * time.Minute)
 
-	ca, err := authServer.GetCertAuthority(context.Background(), types.CertAuthID{
+	ca, err := authServer.GetCertAuthority(c.ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	require.NoError(t, err)
 
-	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(ca)
+	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(c.ctx, ca)
 	require.NoError(t, err)
 
 	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)

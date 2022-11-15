@@ -45,12 +45,11 @@ $ TOKEN=$(kubectl exec -ti "${POD?}" -- tctl nodes add --roles=kube --ttl=10000h
 $ echo $TOKEN
 ```
 
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+
 Switch `kubectl` to the Kubernetes cluster `cookie` and run:
 
 ```code
-# Add Teleport chart repository
-$ helm repo add teleport https://charts.releases.teleport.dev
-
 # Deploy a Kubernetes agent. It dials back to the Teleport cluster tele.example.com.
 $ CLUSTER='cookie'
 $ PROXY='tele.example.com:443'
@@ -95,12 +94,11 @@ $ TOKEN=$(tctl nodes add --roles=kube --ttl=10000h --format=json | jq -r '.[0]')
 $ echo $TOKEN
 ```
 
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+
 Switch `kubectl` to the Kubernetes cluster `cookie` and run:
 
 ```code
-# Add Teleport chart repository
-$ helm repo add teleport https://charts.releases.teleport.dev
-
 # Deploy a Kubernetes agent. It dials back to the Teleport cluster mytenant.teleport.sh.
 $ CLUSTER='cookie'
 $ PROXY='mytenant.teleport.sh'

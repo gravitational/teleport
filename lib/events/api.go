@@ -23,12 +23,12 @@ import (
 	"math"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -559,6 +559,13 @@ const (
 	// DesktopClipboardSendEvent is emitted when local clipboard data
 	// is sent to Teleport.
 	DesktopClipboardSendEvent = "desktop.clipboard.send"
+	// DesktopSharedDirectoryStartEvent is emitted when when Teleport
+	// successfully begins sharing a new directory to a remote desktop.
+	DesktopSharedDirectoryStartEvent = "desktop.directory.share"
+	// DesktopSharedDirectoryReadEvent is emitted when data is read from a shared directory.
+	DesktopSharedDirectoryReadEvent = "desktop.directory.read"
+	// DesktopSharedDirectoryWriteEvent is emitted when data is written to a shared directory.
+	DesktopSharedDirectoryWriteEvent = "desktop.directory.write"
 	// UpgradeWindowStartUpdateEvent is emitted when the upgrade window start time
 	// is updated. Used only for teleport cloud.
 	UpgradeWindowStartUpdateEvent = "upgradewindowstart.update"
@@ -569,6 +576,9 @@ const (
 	// SSMRunEvent is emitted when a run of an install script
 	// completes on a discovered EC2 node
 	SSMRunEvent = "ssm.run"
+
+	// DeviceEvent is the catch-all event for Device Trust events.
+	DeviceEvent = "device"
 
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
@@ -748,10 +758,7 @@ type IAuditLog interface {
 	// Returns all events that happen during a session sorted by time
 	// (oldest first).
 	//
-	// after tells to use only return events after a specified cursor Id
-	//
-	// This function is usually used in conjunction with GetSessionReader to
-	// replay recorded session streams.
+	// after is used to return events after a specified cursor ID
 	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error)
 
 	// SearchEvents is a flexible way to find events.

@@ -22,16 +22,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"github.com/vulcand/predicate"
+	"github.com/vulcand/predicate/builder"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/session"
-
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"github.com/vulcand/predicate"
-	"github.com/vulcand/predicate/builder"
 )
 
 // RuleContext specifies context passed to the

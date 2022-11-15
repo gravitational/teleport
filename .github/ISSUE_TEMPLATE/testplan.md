@@ -44,21 +44,34 @@ as well as an upgrade of the previous version of Teleport.
     With every user combination, try to login and signup with invalid second
     factor, invalid password to see how the system reacts.
 
-    WebAuthn in the release `tsh` binary is implemented using libfido2. Ask for
-    a statically built pre-release binary for realistic tests. (`tsh fido2 diag`
-    should work in our binary.)
+    WebAuthn in the release `tsh` binary is implemented using libfido2 for
+    linux/macOS. Ask for a statically built pre-release binary for realistic
+    tests. (`tsh fido2 diag` should work in our binary.) Webauthn in Windows
+    build is implemented using `webauthn.dll`. (`tsh webauthn diag` with
+    security key selected in dialog should work.)
 
     Touch ID requires a signed `tsh`, ask for a signed pre-release binary so you
     may run the tests.
 
+    Windows Webauthn requires Windows 10 19H1 and device capable of Windows
+    Hello.
+
   - [ ] Adding Users Password Only
   - [ ] Adding Users OTP
   - [ ] Adding Users WebAuthn
-  - [ ] Adding Users Touch ID
+    - [ ] macOS/Linux
+    - [ ] Windows
+  - [ ] Adding Users via platform authenticator
+    - [ ] Touch ID
+    - [ ] Windows Hello
   - [ ] Managing MFA devices
     - [ ] Add an OTP device with `tsh mfa add`
     - [ ] Add a WebAuthn device with `tsh mfa add`
-    - [ ] Add a Touch ID device with `tsh mfa add`
+      - [ ] macOS/Linux
+      - [ ] Windows
+    - [ ] Add platform authenticator device with `tsh mfa add`
+      - [ ] Touch ID
+      - [ ] Windows Hello
     - [ ] List MFA devices with `tsh mfa ls`
     - [ ] Remove an OTP device with `tsh mfa rm`
     - [ ] Remove a WebAuthn device with `tsh mfa rm`
@@ -67,10 +80,14 @@ as well as an upgrade of the previous version of Teleport.
       - [ ] with `second_factor: optional` in `auth_service`, should succeed
   - [ ] Login Password Only
   - [ ] Login with MFA
-    - [ ] Add an OTP, a WebAuthn and a Touch ID device with `tsh mfa add`
+    - [ ] Add an OTP, a WebAuthn and a Touch ID/Windows Hello device with `tsh mfa add`
     - [ ] Login via OTP
     - [ ] Login via WebAuthn
-    - [ ] Login via Touch ID
+      - [ ] macOS/Linux
+      - [ ] Windows
+    - [ ] Login via platform authenticator
+      - [ ] Touch ID
+      - [ ] Windows Hello
     - [ ] Login via WebAuthn using an U2F device
 
     U2F devices must be registered in a previous version of Teleport.
@@ -95,9 +112,11 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Session recording can be disabled
   - [ ] Sessions can be recorded at the node
     - [ ] Sessions in remote clusters are recorded in remote clusters
-  - [ ] Sessions can be recorded at the proxy
+  - [ ] [Sessions can be recorded at the proxy](https://goteleport.com/docs/server-access/guides/recording-proxy-mode/)
     - [ ] Sessions on remote clusters are recorded in the local cluster
-    - [ ] Enable/disable host key checking.
+    - [ ] With an OpenSSH server without a Teleport CA signed host certificate:
+      - [ ] Host key checking enabled rejects connection
+      - [ ] Host key checking disabled allows connection
 
 - [ ] Audit Log
   - [ ] Failed login attempts are recorded
@@ -244,6 +263,29 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
   * [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
   * [ ] Verify searching for `name` or `labels` in the search bar works
   * [ ] Verify you can sort by `name` colum
+* [ ] Test Kubernetes exec via WebSockets - [client](https://github.com/kubernetes-client/javascript/blob/45b68c98e62b6cc4152189b9fd4a27ad32781bc4/examples/typescript/exec/exec-example.ts)
+
+### Kubernetes auto-discovery
+
+* [ ] Test Kubernetes auto-discovery:
+  * [ ] Verify that Azure AKS clusters are discovered and enrolled for different Azure Auth configs:
+    * [ ] Local Accounts only
+    * [ ] Azure AD
+    * [ ] Azure RBAC
+  * [ ] Verify that AWS EKS clusters are discovered and enrolled
+* [ ] Verify dynamic registration.
+  * [ ] Can register a new Kubernetes cluster using `tctl create`.
+  * [ ] Can update registered Kubernetes cluster using `tctl create -f`.
+  * [ ] Can delete registered Kubernetes cluster using `tctl rm`.
+
+### Kubernetes Secret Storage
+
+* [ ] Kubernetes Secret storage for Agent's Identity
+    * [ ] Install Teleport agent with a short-lived token  
+      * [ ] Validate if the Teleport is installed as a Kubernetes `Statefulset`
+      * [ ] Restart the agent after token TTL expires to see if it reuses the same identity.
+    * [ ] Force cluster CA rotation
+
 
 ### Teleport with FIPS mode
 
@@ -369,33 +411,46 @@ instance has label `azure/foo=bar`.
 
 ### Passwordless
 
-Passwordless requires `tsh` compiled with libfido2 for most operations (apart
-from Touch ID). Ask for a statically-built `tsh` binary for realistic tests.
+This feature has additional build requirements, so it should be tested with a pre-release build from Drone (eg: `https://get.gravitational.com/teleport-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
-Touch ID requires a properly built and signed `tsh` binary. Ask for a
-pre-release binary, so you may run the tests.
-
-This sections complements "Users -> Managing MFA devices". Ideally both macOS
-and Linux `tsh` binaries are tested for FIDO2 items.
+This sections complements "Users -> Managing MFA devices". `tsh` binaries for
+each operating system (Linux, macOS and Windows) must be tested separately for
+FIDO2 items.
 
 - [ ] Diagnostics
 
-    Both commands should pass all tests.
+    Commands should pass all tests.
 
-  - [ ] `tsh fido2 diag`
-  - [ ] `tsh touchid diag`
+  - [ ] `tsh fido2 diag` (macOS/Linux)
+  - [ ] `tsh touchid diag` (macOS only)
+  - [ ] `tsh webauthnwin diag` (Windows only)
 
 - [ ] Registration
   - [ ] Register a passworldess FIDO2 key (`tsh mfa add`, choose WEBAUTHN and
         passwordless)
-  - [ ] Register a Touch ID credential (`tsh mfa add`, choose TOUCHID)
+    - [ ] macOS/Linux
+    - [ ] Windows
+  - [ ] Register a platform authenticator
+    - [ ] Touch ID credential (`tsh mfa add`, choose TOUCHID)
+    - [ ] Windows hello credential (`tsh mfa add`, choose WEBAUTHN and
+          passwordless)
 
 - [ ] Login
   - [ ] Passwordless login using FIDO2 (`tsh login --auth=passwordless`)
-  - [ ] Passwordless login using Touch ID (`tsh login --auth=passwordless`)
+    - [ ] macOS/Linux
+    - [ ] Windows
+  - [ ] Passwordless login using platform authenticator (`tsh login --auth=passwordless`)
+    - [ ] Touch ID
+    - [ ] Windows Hello
   - [ ] `tsh login --auth=passwordless --mfa-mode=cross-platform` uses FIDO2
-  - [ ] `tsh login --auth=passwordless --mfa-mode=platform` uses Touch ID
-  - [ ] `tsh login --auth=passwordless --mfa-mode=auto` prefers Touch ID
+    - [ ] macOS/Linux
+    - [ ] Windows
+  - [ ] `tsh login --auth=passwordless --mfa-mode=platform` uses platform authenticator
+    - [ ] Touch ID
+    - [ ] Windows Hello
+  - [ ] `tsh login --auth=passwordless --mfa-mode=auto` prefers platform authenticator
+    - [ ] Touch ID
+    - [ ] Windows Hello
   - [ ] Passwordless disable switch works
         (`auth_service.authentication.passwordless = false`)
   - [ ] Cluster in passwordless mode defaults to passwordless
@@ -406,6 +461,50 @@ and Linux `tsh` binaries are tested for FIDO2 items.
 - [ ] Touch ID support commands
   - [ ] `tsh touchid ls` works
   - [ ] `tsh touchid rm` works (careful, may lock you out!)
+
+### Hardware Key Support
+
+Hardware Key Support is an Enterprise feature and is not available for OSS.
+
+You will need a YubiKey 4.3+ to test this feature.
+
+This feature has additional build requirements, so it should be tested with a pre-release build from Drone (eg: `https://get.gravitational.com/teleport-ent-v11.0.0-alpha.2-linux-amd64-bin.tar.gz`).
+
+#### Server Access
+
+These tests should be carried out sequentially. `tsh` tests should be carried out on Linux, MacOS, and Windows.
+
+1. [ ] `tsh login` as user with [Webauthn](https://goteleport.com/docs/access-controls/guides/webauthn/) login and no hardware key requirement.
+2. [ ] Request a role with `role.role_options.require_session_mfa: hardware_key` - `tsh login --request-roles=hardware_key_required`
+  - [ ] Assuming the role should force automatic re-login with yubikey
+  - [ ] `tsh ssh`
+    - [ ] Requires yubikey to be connected for re-login
+    - [ ] Prompts for per-session MFA
+3. [ ] Request a role with `role.role_options.require_session_mfa: hardware_key_touch` - `tsh login --request-roles=hardware_key_touch_required`
+  - [ ] Assuming the role should force automatic re-login with yubikey
+    - [ ] Prompts for touch if not cached (last touch within 15 seconds)
+  - [ ] `tsh ssh`
+    - [ ] Requires yubikey to be connected for re-login
+    - [ ] Prompts for touch if not cached
+4. [ ] `tsh logout` and `tsh login` as the user with no hardware key requirement.
+5. [ ] Upgrade auth settings to `auth_service.authentication.require_session_mfa: hardware_key`
+  - [ ] Using the existing login session (`tsh ls`) should force automatic re-login with yubikey
+  - [ ] `tsh ssh`
+    - [ ] Requires yubikey to be connected for re-login
+    - [ ] Prompts for per-session MFA
+6. [ ] Upgrade auth settings to `auth_service.authentication.require_session_mfa: hardware_key_touch`
+  - [ ] Using the existing login session (`tsh ls`) should force automatic re-login with yubikey
+    - [ ] Prompts for touch if not cached
+  - [ ] `tsh ssh`
+    - [ ] Requires yubikey to be connected for re-login
+    - [ ] Prompts for touch if not cached
+
+#### Other
+
+Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in your cluster auth settings.
+
+- [ ] Database Acces: `tsh proxy db`
+- [ ] Application Access: `tsh login app && tsh proxy app`
 
 ## WEB UI
 
@@ -677,7 +776,7 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 
 ## Terminal
 - [ ] Verify that top nav has a user menu (Main and Logout)
-- [ ] Verify that switching between tabs works on alt+[1...9]
+- [ ] Verify that switching between tabs works with `ctrl+[1...9]` (alt on linux/windows)
 
 #### Node List Tab
 - [ ] Verify that Cluster selector works (URL should change too)
@@ -1162,16 +1261,14 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] RBAC denies access to a Windows desktop with the wrong OS-login.
 - Clipboard Support
   - When a user has a role with clipboard sharing enabled and is using a chromium based browser
-    - [ ] Going to a desktop when clipboard permissions are in "Ask" mode (aka "prompt") causes the browser to show a prompt while the UI shows a spinner
-    - [ ] X-ing out of the prompt (causing the clipboard permission to remain in "Ask" mode) causes the prompt to show up again
-    - [ ] Denying clipboard permissions brings up a relevant error alert (with "Clipboard Sharing Disabled" in the top bar)
-    - [ ] Allowing clipboard permissions allows you to see the desktop session, with "Clipboard Sharing Enabled" highlighted in the top bar
-    - [ ] Copy text from local workstation, paste into remote desktop
-    - [ ] Copy text from remote desktop, paste into local workstation
+    - [ ] Going to a desktop when clipboard permissions are in "Ask" mode (aka "prompt") causes the browser to show a prompt when you first click or press a key
+    - [ ] The clipboard icon is highlighted in the top bar
+    - [ ] After allowing clipboard permission, copy text from local workstation, paste into remote desktop
+    - [ ] After allowing clipboard permission, copy text from remote desktop, paste into local workstation
   - When a user has a role with clipboard sharing enabled and is *not* using a chromium based browser
-    - [ ] The UI shows a relevant alert and "Clipboard Sharing Disabled" is highlighted in the top bar
+    - [ ] The clipboard icon is not highlighted in the top bar and copy/paste does not work
   - When a user has a role with clipboard sharing *disabled* and is using a chromium and non-chromium based browser (confirm both)
-    - [ ] The live session should show disabled in the top bar and copy/paste should not work between your workstation and the remote desktop.
+    - [ ] The clipboard icon is not highlighted in the top bar and copy/paste does not work
 - Directory Sharing
   - On supported, non-chromium based browsers (Firefox/Safari)
     - [ ] Attempting to share directory shows a dismissible "Unsupported Action" dialog
@@ -1450,6 +1547,20 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] Application access through curl with `tsh app login`
   - [ ] `kubectl get po` after `tsh kube login`
   - [ ] Database access (no configuration change should be necessary if the database CA isn't rotated, other Teleport functionality should not be affected if only the database CA is rotated)
+
+## EC2 Discovery
+
+[EC2 Discovery docs](https://goteleport.com/docs/ver/11.0/server-access/guides/ec2-discovery/)
+
+- Verify EC2 instance discovery
+  - [ ]  Only EC2 instances matching given AWS tags have the installer executed on them
+  - [ ]  Only the IAM permissions mentioned in the discovery docs are required for operation
+  - [ ]  Custom scripts specified in different matchers are executed
+  - [ ] Custom SSM documents specified in different matchers are executed
+  - [ ] New EC2 instances with matching AWS tags are discovered and added to the teleport cluster
+    - [ ] Large numbers of EC2 instances (51+) are all successfully added to the cluster
+  - [ ] Nodes that have been discovered do not have the install script run on the node multiple times
+
 
 ## Resources
 

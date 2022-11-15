@@ -24,6 +24,9 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/vulcand/predicate"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -31,10 +34,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/vulcand/predicate"
 )
 
 const maxAccessRequestReasonSize = 4096
@@ -1460,7 +1459,9 @@ func roleAllowsResource(
 	return true, nil
 }
 
-func GetResourcesByResourceIDs(ctx context.Context, lister ResourceLister, resourceIDs []types.ResourceID) ([]types.ResourceWithLabels, error) {
+type ListResourcesRequestOption func(*proto.ListResourcesRequest)
+
+func GetResourcesByResourceIDs(ctx context.Context, lister ResourceLister, resourceIDs []types.ResourceID, opts ...ListResourcesRequestOption) ([]types.ResourceWithLabels, error) {
 	resourceNamesByKind := make(map[string][]string)
 	for _, resourceID := range resourceIDs {
 		resourceNamesByKind[resourceID.Kind] = append(resourceNamesByKind[resourceID.Kind], resourceID.Name)
@@ -1471,6 +1472,9 @@ func GetResourcesByResourceIDs(ctx context.Context, lister ResourceLister, resou
 			ResourceType:        MapResourceKindToListResourcesType(kind),
 			PredicateExpression: anyNameMatcher(resourceNames),
 			Limit:               int32(len(resourceNames)),
+		}
+		for _, opt := range opts {
+			opt(&req)
 		}
 		resp, err := lister.ListResources(ctx, req)
 		if err != nil {

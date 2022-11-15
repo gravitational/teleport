@@ -14,7 +14,8 @@ Desktop Access and log into a Windows desktop from that domain.
 This guide requires you to have:
 
 - An Active Directory domain, configured for LDAPS (Teleport requires an
-  encrypted LDAP connection)
+  encrypted LDAP connection). Typically this means installing
+  [AD CS](https://learn.microsoft.com/en-us/windows-server/identity/ad-cs/)
 
 - Access to a Domain Controller
 
@@ -444,17 +445,41 @@ the filepath to the `der_ca_file` configuration variable.
   order to resolve this.
 </Admonition>
 
+Install Teleport on the host where you will run the Teleport Desktop Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
 In order to enable Desktop Access in Teleport, add the following section in
-`teleport.yaml` on your Linux server. For a detailed description of these
+`/etc/teleport.yaml` on your Linux server. For a detailed description of these
 configuration fields, see the
 [configuration reference](./reference/configuration.mdx) page.
 
-<Details title="Desktop Service Configuration" min="8.0" scopeOnly={true} scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
+The Teleport Windows Desktop Service will establish a reverse tunnel to
+the Proxy Service. This requires setting `proxy_server` to your Proxy Service address and
+providing a join token.
+
+First, generate a join token with the following command:
+
+```code
+$ tctl tokens add --type=windowsdesktop
+```
+
+Copy the join token to a file on the instance where you will run the Windows Desktop
+Service, and then use the following configuration:
+
 ```yaml
+version: v3
+teleport:
+  auth_token: /path/to/token
+  proxy_server: teleport.example.com # replace with your proxy address
 windows_desktop_service:
   enabled: yes
-  listen_addr: "0.0.0.0:3028"
   ldap:
+    # Port must be included for the addr.
+    # LDAPS port is 636 by default,
+    # e.g. example.com:636
     addr: "$LDAP_SERVER_ADDRESS"
     domain: "$LDAP_DOMAIN_NAME"
     username: '$LDAP_USERNAME'
@@ -462,9 +487,15 @@ windows_desktop_service:
     der_ca_file: /path/to/cert
   discovery:
     base_dn: "*"
+auth_service:
+  enabled: no
+proxy_service:
+  enabled: no
+ssh_service:
+  enabled: no    
 ```
-</Details>
-<Details title="Desktop Service Configuration" min="8.0" scopeOnly={true} scope={"cloud"}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Cloud">
 For Teleport Cloud, Windows Desktop Service should establish a reverse tunnel to
 the hosted proxy. This requires setting `proxy_server` to your cloud tenant and
 providing a join token.
@@ -486,17 +517,31 @@ teleport:
 windows_desktop_service:
   enabled: yes
   ldap:
+    # Port must be included for the addr.
+    # LDAPS port is 636 by default,
+    # e.g. example.com:636
     addr: "$LDAP_SERVER_ADDRESS"
     domain: "$LDAP_DOMAIN_NAME"
     username: '$LDAP_USERNAME'
-    # This should be the path to the certificate exported in Step 4.
+    # This should be the path to the certificate exported in Step 5.
     der_ca_file: /path/to/cert
   discovery:
     base_dn: "*"
+auth_service:
+  enabled: no
+proxy_service:
+  enabled: no
+ssh_service:
+  enabled: no    
 ```
-</Details>
+</TabItem>
+</Tabs>
 
-After updating `teleport.yaml`, start Teleport as usual using `teleport start`.
+Start Teleport after updating `/etc/teleport.yaml`:
+
+```code
+sudo teleport start -c /etc/teleport.yaml
+```
 
 ## Step 7/7. Log in using Teleport
 
@@ -516,12 +561,14 @@ spec:
   allow:
     windows_desktop_labels:
       "*": "*"
-    windows_desktop_logins: ["Administrator"]
+    windows_desktop_logins: ["jsmith"]
 ```
 
 <Admonition type="warning" title="RBAC Configuration">
 Ensure that each Teleport user is only assigned Windows logins that they should
 be allowed to access.
+
+Usernames shared between domain and local users will create login conflicts.
 </Admonition>
 
 See the [RBAC page](./rbac.mdx) for more information about setting up

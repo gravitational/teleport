@@ -1,5 +1,5 @@
 ---
-title: Configure Teleport to Automatically Enroll EC2 instances
+title: Configure Teleport to Automatically Enroll EC2 instances (Preview)
 description: How to configure Teleport to automatically enroll EC2 instances.
 ---
 
@@ -26,7 +26,6 @@ authenticating joining Nodes.
 Create a file called `token.yaml`:
 ```yaml
 # token.yaml
----
 kind: token
 version: v2
 metadata:
@@ -78,7 +77,7 @@ mainSteps:
     sourceType: "HTTP"
     destinationPath: "/tmp/installTeleport.sh"
     sourceInfo:
-      url: "https://teleport.example.com/webapi/scripts/{{ scriptName }}"
+      url: "https://teleport.example.com/webapi/scripts/installer/{{ scriptName }}"
 - action: aws:runShellScript
   name: runShellScript
   inputs:
@@ -129,6 +128,7 @@ execute Systems Manager commands and retrieve EC2 instances:
     "Version": "2012-10-17",
     "Statement": [
         {
+            "Effect": "Allow",
             "Action": [
                 "ssm:SendCommand",
                 "ec2:DescribeInstances",
@@ -228,7 +228,7 @@ discovery_service:
   enabled: "yes"
   aws:
    - types: ["ec2"]
-     regions: ["eu-central-1"]
+     regions: ["us-east-1","us-west-1"]
      tags:
        "env": "prod" # Match EC2 instances where tag:env=prod
 ```
@@ -288,7 +288,7 @@ spec:
     echo Teleport-{{ .MajorVersion }}
 version: v1
 ```
-Which, when retreived by the Systems Manager document will evaluate to a script with the following contents:
+Which, when retrieved by the Systems Manager document will evaluate to a script with the following contents:
 ```sh
 echo teleport.example.com
 echo Teleport-(=teleport.version=)
@@ -299,6 +299,10 @@ The default installer will take the following actions:
 - Install Teleport via `apt` or `yum`.
 - Generate the Teleport config file and write it to `/etc/teleport.yaml`.
 - Enable and start the Teleport service.
+
+## Troubleshooting
+
+If Installs are showing failed or instances are failing to appear check the Command history in AWS System Manager -> Node Management -> Run Command.  Select the instance-id of the Target to review Errors.  
 
 ## Next Steps
 

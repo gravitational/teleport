@@ -28,6 +28,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
@@ -43,10 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 const (
@@ -864,9 +864,9 @@ func (c *Client) DeleteWebSession(ctx context.Context, user string, sid string) 
 // plain text format, signs it using Host Certificate Authority private key and returns the
 // resulting certificate.
 func (c *Client) GenerateHostCert(
-	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
+	ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
 ) ([]byte, error) {
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("ca", "host", "certs"),
+	out, err := c.PostJSON(ctx, c.Endpoint("ca", "host", "certs"),
 		generateHostCertReq{
 			Key:         key,
 			HostID:      hostID,
@@ -1023,9 +1023,6 @@ func (c *Client) GetSessionChunk(namespace string, sid session.ID, offsetBytes, 
 //
 // afterN allows to filter by "newer than N" value where N is the cursor ID
 // of previously returned bunch (good for polling for latest)
-//
-// This function is usually used in conjunction with GetSessionReader to
-// replay recorded session streams.
 func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) (retval []events.EventFields, err error) {
 	if namespace == "" {
 		return nil, trace.BadParameter(MissingNamespaceError)
@@ -1480,7 +1477,7 @@ type IdentityService interface {
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
 	// plain text format, signs it using Host Certificate Authority private key and returns the
 	// resulting certificate.
-	GenerateHostCert(key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error)
+	GenerateHostCert(ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error)
 
 	// GenerateUserCerts takes the public key in the OpenSSH `authorized_keys` plain
 	// text format, signs it using User Certificate Authority signing key and

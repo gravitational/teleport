@@ -29,7 +29,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -45,12 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/testing/protocmp"
 )
 
 type testConfigFiles struct {
@@ -361,6 +360,27 @@ func TestConfigReading(t *testing.T) {
 						ScriptName: "default-installer",
 					},
 					SSM: AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
+				},
+			},
+			AzureMatchers: []AzureMatcher{
+				{
+					Types:   []string{"aks"},
+					Regions: []string{"uswest1"},
+					ResourceTags: map[string]apiutils.Strings{
+						"a": {"b"},
+					},
+					ResourceGroups: []string{"group1"},
+					Subscriptions:  []string{"sub1"},
+				},
+			},
+			GCPMatchers: []GCPMatcher{
+				{
+					Types:     []string{"gke"},
+					Locations: []string{"uswest1"},
+					Tags: map[string]apiutils.Strings{
+						"a": {"b"},
+					},
+					ProjectIDs: []string{"p1", "p2"},
 				},
 			},
 		},
@@ -821,10 +841,10 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 		},
 	}, protocmp.Transform()))
 
-	require.Equal(t, pkcs11LibPath, cfg.Auth.KeyStore.Path)
-	require.Equal(t, "example_token", cfg.Auth.KeyStore.TokenLabel)
-	require.Equal(t, 1, *cfg.Auth.KeyStore.SlotNumber)
-	require.Equal(t, "example_pin", cfg.Auth.KeyStore.Pin)
+	require.Equal(t, pkcs11LibPath, cfg.Auth.KeyStore.PKCS11.Path)
+	require.Equal(t, "example_token", cfg.Auth.KeyStore.PKCS11.TokenLabel)
+	require.Equal(t, 1, *cfg.Auth.KeyStore.PKCS11.SlotNumber)
+	require.Equal(t, "example_pin", cfg.Auth.KeyStore.PKCS11.Pin)
 	require.ElementsMatch(t, []string{"ca-pin-from-string", "ca-pin-from-file1", "ca-pin-from-file2"}, cfg.CAPins)
 
 	require.True(t, cfg.Databases.Enabled)
@@ -1265,7 +1285,7 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 		PublicAddr: apiutils.Strings{"luna3:22"},
 	}, cmp.AllowUnexported(Service{})))
 
-	require.Empty(t, cmp.Diff(conf.Discovery, Discovery{AWSMatchers: []AWSMatcher{}}, cmp.AllowUnexported(Service{})))
+	require.Empty(t, cmp.Diff(conf.Discovery, Discovery{AWSMatchers: nil}, cmp.AllowUnexported(Service{})))
 
 	require.True(t, conf.Auth.Configured())
 	require.True(t, conf.Auth.Enabled())
@@ -1376,6 +1396,29 @@ func makeConfigFixture() string {
 			Types:   []string{"ec2"},
 			Regions: []string{"us-west-1", "us-east-1"},
 			Tags:    map[string]apiutils.Strings{"a": {"b"}},
+		},
+	}
+
+	conf.Discovery.AzureMatchers = []AzureMatcher{
+		{
+			Types:   []string{"aks"},
+			Regions: []string{"uswest1"},
+			ResourceTags: map[string]apiutils.Strings{
+				"a": {"b"},
+			},
+			ResourceGroups: []string{"group1"},
+			Subscriptions:  []string{"sub1"},
+		},
+	}
+
+	conf.Discovery.GCPMatchers = []GCPMatcher{
+		{
+			Types:     []string{"gke"},
+			Locations: []string{"uswest1"},
+			Tags: map[string]apiutils.Strings{
+				"a": {"b"},
+			},
+			ProjectIDs: []string{"p1", "p2"},
 		},
 	}
 
@@ -1562,6 +1605,74 @@ ssh_service:
 		err := Configure(&clf, cfg)
 		require.NoError(t, err, comment)
 		require.Equal(t, tt.outPermitUserEnvironment, cfg.SSH.PermitUserEnvironment, comment)
+	}
+}
+
+func TestSetDefaultListenerAddresses(t *testing.T) {
+	tests := []struct {
+		desc string
+		fc   FileConfig
+		want service.ProxyConfig
+	}{
+		{
+			desc: "v1 config should set default proxy listen addresses",
+			fc: FileConfig{
+				Version: defaults.TeleportConfigVersionV1,
+				Proxy: Proxy{
+					Service: Service{
+						defaultEnabled: true,
+					},
+				},
+			},
+			want: service.ProxyConfig{
+				WebAddr:                 *utils.MustParseAddr("0.0.0.0:3080"),
+				ReverseTunnelListenAddr: *utils.MustParseAddr("0.0.0.0:3024"),
+				SSHAddr:                 *utils.MustParseAddr("0.0.0.0:3023"),
+				Enabled:                 true,
+				EnableProxyProtocol:     true,
+				Kube: service.KubeProxyConfig{
+					Enabled: false,
+				},
+				Limiter: limiter.Config{
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
+				},
+			},
+		},
+		{
+			desc: "v2 config should not set any default listen addresses",
+			fc: FileConfig{
+				Version: defaults.TeleportConfigVersionV2,
+				Proxy: Proxy{
+					Service: Service{
+						defaultEnabled: true,
+					},
+					WebAddr: "0.0.0.0:9999",
+				},
+			},
+			want: service.ProxyConfig{
+				WebAddr:             *utils.MustParseAddr("0.0.0.0:9999"),
+				Enabled:             true,
+				EnableProxyProtocol: true,
+				Kube: service.KubeProxyConfig{
+					Enabled: true,
+				},
+				Limiter: limiter.Config{
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			cfg := service.MakeDefaultConfig()
+
+			require.NoError(t, ApplyFileConfig(&tt.fc, cfg))
+			require.NoError(t, Configure(&CommandLineFlags{}, cfg))
+
+			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, cmpopts.EquateEmpty()))
+		})
 	}
 }
 
@@ -1873,32 +1984,6 @@ func TestProxyConfigurationVersion(t *testing.T) {
 					MaxConnections:   defaults.LimiterMaxConnections,
 					MaxNumberOfUsers: 250,
 				},
-			},
-			checkErr: require.NoError,
-		},
-		{
-			desc: "v1 config should generate default listener addresses",
-			fc: FileConfig{
-				Version: defaults.TeleportConfigVersionV1,
-				Proxy: Proxy{
-					Service: Service{
-						defaultEnabled: true,
-					},
-				},
-			},
-			want: service.ProxyConfig{
-				Enabled:             true,
-				EnableProxyProtocol: true,
-				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
-				},
-				WebAddr: *defaults.ProxyWebListenAddr(),
-				Kube: service.KubeProxyConfig{
-					Enabled: false,
-				},
-				ReverseTunnelListenAddr: *defaults.ReverseTunnelListenAddr(),
-				SSHAddr:                 *defaults.ProxyListenAddr(),
 			},
 			checkErr: require.NoError,
 		},
@@ -2419,6 +2504,32 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				DynamicLabels: services.CommandLabels{},
 			},
 		},
+		{
+			desc: "AWS Keyspaces",
+			inFlags: CommandLineFlags{
+				DatabaseName:         "keyspace",
+				DatabaseProtocol:     defaults.ProtocolCassandra,
+				DatabaseURI:          "cassandra.us-east-1.amazonaws.com:9142",
+				DatabaseAWSAccountID: "123456789012",
+				DatabaseAWSRegion:    "us-east-1",
+			},
+			outDatabase: service.Database{
+				Name:     "keyspace",
+				Protocol: defaults.ProtocolCassandra,
+				URI:      "cassandra.us-east-1.amazonaws.com:9142",
+				AWS: service.DatabaseAWS{
+					Region:    "us-east-1",
+					AccountID: "123456789012",
+				},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile,
+				},
+				DynamicLabels: services.CommandLabels{},
+				TLS: service.DatabaseTLS{
+					Mode: service.VerifyFull,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2600,7 +2711,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			name: "correct config",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
+					PKCS11: &PKCS11{
 						ModulePath: securePKCS11LibPath,
 						TokenLabel: "foo",
 						SlotNumber: &slotNumber,
@@ -2609,17 +2720,19 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 				},
 			},
 			want: keystore.Config{
-				TokenLabel: "foo",
-				SlotNumber: &slotNumber,
-				Pin:        "pin",
-				Path:       securePKCS11LibPath,
+				PKCS11: keystore.PKCS11Config{
+					TokenLabel: "foo",
+					SlotNumber: &slotNumber,
+					Pin:        "pin",
+					Path:       securePKCS11LibPath,
+				},
 			},
 		},
 		{
 			name: "correct config with pin file",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
+					PKCS11: &PKCS11{
 						ModulePath: securePKCS11LibPath,
 						TokenLabel: "foo",
 						SlotNumber: &slotNumber,
@@ -2628,17 +2741,19 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 				},
 			},
 			want: keystore.Config{
-				TokenLabel: "foo",
-				SlotNumber: &slotNumber,
-				Pin:        "secure-pin-file",
-				Path:       securePKCS11LibPath,
+				PKCS11: keystore.PKCS11Config{
+					TokenLabel: "foo",
+					SlotNumber: &slotNumber,
+					Pin:        "secure-pin-file",
+					Path:       securePKCS11LibPath,
+				},
 			},
 		},
 		{
 			name: "err when pin and pin path configured",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
+					PKCS11: &PKCS11{
 						Pin:     "oops",
 						PinPath: securePinFilePath,
 					},
@@ -2650,7 +2765,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			name: "err when pkcs11 world writable",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
+					PKCS11: &PKCS11{
 						ModulePath: worldWritablePKCS11LibPath,
 					},
 				},
@@ -2664,7 +2779,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			name: "err when pin file world-readable",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
+					PKCS11: &PKCS11{
 						PinPath: worldReadablePinFilePath,
 					},
 				},
@@ -2673,6 +2788,45 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 				"HSM pin file (%s) must not be world-readable",
 				worldReadablePinFilePath,
 			),
+		},
+		{
+			name: "correct gcp config",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					GoogleCloudKMS: &GoogleCloudKMS{
+						KeyRing:         "/projects/my-project/locations/global/keyRings/my-keyring",
+						ProtectionLevel: "HSM",
+					},
+				},
+			},
+			want: keystore.Config{
+				GCPKMS: keystore.GCPKMSConfig{
+					KeyRing:         "/projects/my-project/locations/global/keyRings/my-keyring",
+					ProtectionLevel: "HSM",
+				},
+			},
+		},
+		{
+			name: "gcp config no protection level",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					GoogleCloudKMS: &GoogleCloudKMS{
+						KeyRing: "/projects/my-project/locations/global/keyRings/my-keyring",
+					},
+				},
+			},
+			errMessage: "must set protection_level in ca_key_params.gcp_kms",
+		},
+		{
+			name: "gcp config no keyring",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					GoogleCloudKMS: &GoogleCloudKMS{
+						ProtectionLevel: "HSM",
+					},
+				},
+			},
+			errMessage: "must set keyring in ca_key_params.gcp_kms",
 		},
 	}
 

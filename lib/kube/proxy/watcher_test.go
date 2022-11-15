@@ -22,15 +22,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
-	"github.com/gravitational/teleport/lib/services"
-	"k8s.io/client-go/tools/clientcmd"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
+	"github.com/gravitational/teleport/api/types"
+	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestWatcher verifies that kubernetes agent properly detects and applies
@@ -152,7 +152,7 @@ func TestWatcher(t *testing.T) {
 			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		))
 		// make sure credentials were updated as well.
-		require.Equal(t, "api.cluster.com:443", testCtx.kubeServer.fwd.clusterDetails["kube2"].kubeCreds.targetAddr)
+		require.Equal(t, "api.cluster.com:443", testCtx.kubeServer.fwd.clusterDetails["kube2"].kubeCreds.getTargetAddr())
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
 	}

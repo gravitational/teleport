@@ -22,17 +22,16 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
-
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 	authzapi "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/transport"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestCheckImpersonationPermissions(t *testing.T) {
@@ -187,7 +186,7 @@ current-context: foo
 			impersonationCheck: alwaysSucceeds,
 			want: map[string]*kubeDetails{
 				"foo": {
-					kubeCreds: &kubeCreds{
+					kubeCreds: &staticKubeCreds{
 						targetAddr:      "example.com:3026",
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
@@ -195,7 +194,7 @@ current-context: foo
 					kubeCluster: mustCreateKubernetesClusterV3(t, "foo"),
 				},
 				"bar": {
-					kubeCreds: &kubeCreds{
+					kubeCreds: &staticKubeCreds{
 						targetAddr:      "example.com:3026",
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
@@ -203,7 +202,7 @@ current-context: foo
 					kubeCluster: mustCreateKubernetesClusterV3(t, "bar"),
 				},
 				"baz": {
-					kubeCreds: &kubeCreds{
+					kubeCreds: &staticKubeCreds{
 						targetAddr:      "example.com:3026",
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
@@ -226,7 +225,7 @@ current-context: foo
 			impersonationCheck: alwaysSucceeds,
 			want: map[string]*kubeDetails{
 				teleClusterName: {
-					kubeCreds: &kubeCreds{
+					kubeCreds: &staticKubeCreds{
 						targetAddr:      "example.com:3026",
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
@@ -242,7 +241,7 @@ current-context: foo
 			impersonationCheck: failsForCluster("bar"),
 			want: map[string]*kubeDetails{
 				"foo": {
-					kubeCreds: &kubeCreds{
+					kubeCreds: &staticKubeCreds{
 						targetAddr:      "example.com:3026",
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
@@ -250,7 +249,7 @@ current-context: foo
 					kubeCluster: mustCreateKubernetesClusterV3(t, "foo"),
 				},
 				"bar": {
-					kubeCreds: &kubeCreds{
+					kubeCreds: &staticKubeCreds{
 						targetAddr:      "example.com:3026",
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
@@ -258,7 +257,7 @@ current-context: foo
 					kubeCluster: mustCreateKubernetesClusterV3(t, "bar"),
 				},
 				"baz": {
-					kubeCreds: &kubeCreds{
+					kubeCreds: &staticKubeCreds{
 						targetAddr:      "example.com:3026",
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
@@ -277,7 +276,7 @@ current-context: foo
 				return
 			}
 			require.Empty(t, cmp.Diff(got, tt.want,
-				cmp.AllowUnexported(kubeCreds{}),
+				cmp.AllowUnexported(staticKubeCreds{}),
 				cmp.AllowUnexported(kubeDetails{}),
 				cmp.Comparer(func(a, b *transport.Config) bool { return (a == nil) == (b == nil) }),
 				cmp.Comparer(func(a, b *kubernetes.Clientset) bool { return (a == nil) == (b == nil) }),

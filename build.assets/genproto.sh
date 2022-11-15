@@ -12,7 +12,16 @@ main() {
   # the correct relative path.
   trap 'rm -fr github.com' EXIT   # don't leave github.com/ behind
   rm -fr api/gen/proto gen/proto  # cleanup gen/proto folders
-  buf generate
+
+  # Generate Gogo protos (default).
+  buf generate --template=buf-gogo.gen.yaml
+
+  # Generate protoc-gen-go protos (preferred).
+  # Add your protos to the list if you can.
+  buf generate --template=buf-go.gen.yaml \
+    --path=api/proto/teleport/devicetrust/ \
+    --path=proto/teleport/lib/multiplexer/
+
   cp -r github.com/gravitational/teleport/* .
 }
 

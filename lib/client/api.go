@@ -39,6 +39,15 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -55,6 +64,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/touchid"
+	"github.com/gravitational/teleport/lib/auth/webauthncli"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -73,15 +84,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/lib/utils/proxy"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/otel/attribute"
-	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -1135,6 +1137,10 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.KeysDir = profileDir
 	c.AuthConnector = cp.AuthConnector
 	c.LoadAllCAs = cp.LoadAllCAs
+	c.AuthenticatorAttachment, err = parseMFAMode(cp.MFAMode)
+	if err != nil {
+		return trace.BadParameter("unable to parse mfa mode in user profile: %v.", err)
+	}
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
@@ -1170,6 +1176,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.SiteName = c.SiteName
 	cp.TLSRoutingEnabled = c.TLSRoutingEnabled
 	cp.AuthConnector = c.AuthConnector
+	cp.MFAMode = c.AuthenticatorAttachment.String()
 	cp.LoadAllCAs = c.LoadAllCAs
 
 	if err := cp.SaveToDir(dir, makeCurrent); err != nil {
@@ -1378,10 +1385,10 @@ func GetKubeTLSServerName(k8host string) string {
 		// If proxy is configured without public_addr set the ServerName to the 'kube.teleport.cluster.local' value.
 		// The k8s server name needs to be a valid hostname but when public_addr is missing from proxy settings
 		// the web_listen_addr is used thus webHost will contain local proxy IP address like: 0.0.0.0 or 127.0.0.1
-		// TODO(smallinsky) UPGRADE IN 10.0. Switch to KubeTeleportProxyALPNPrefix instead.
+		// TODO(smallinsky) UPGRADE IN 12.0. Switch to KubeTeleportProxyALPNPrefix instead.
 		return addSubdomainPrefix(constants.APIDomain, constants.KubeSNIPrefix)
 	}
-	// TODO(smallinsky) UPGRADE IN 10.0. Switch to KubeTeleportProxyALPNPrefix instead.
+	// TODO(smallinsky) UPGRADE IN 12.0. Switch to KubeTeleportProxyALPNPrefix instead.
 	return addSubdomainPrefix(k8host, constants.KubeSNIPrefix)
 }
 
@@ -3446,6 +3453,12 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 			return nil, trace.BadParameter("passwordless disallowed by cluster settings")
 		}
 		return tc.pwdlessLogin, nil
+	case authType == constants.Local && tc.canDefaultToPasswordless(pr):
+		log.Debug("Trying passwordless login because credentials were found")
+		// if passwordless is enabled and there are passwordless credentials
+		// registered, we can try to go with passwordless login even though
+		// auth=local was selected.
+		return tc.pwdlessLogin, nil
 	case authType == constants.Local:
 		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
 			return tc.localLogin(ctx, priv, pr.Auth.SecondFactor)
@@ -3465,6 +3478,30 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 	default:
 		return nil, trace.BadParameter("unsupported authentication type: %q", pr.Auth.Type)
 	}
+}
+
+// hasTouchIDCredentials provides indirection for tests.
+var hasTouchIDCredentials = touchid.HasCredentials
+
+// canDefaultToPasswordless checks without user interaction
+// if there is any registered passwordless login.
+func (tc *TeleportClient) canDefaultToPasswordless(pr *webclient.PingResponse) bool {
+	if !pr.Auth.AllowPasswordless {
+		return false
+	}
+	if tc.Config.AuthenticatorAttachment == wancli.AttachmentCrossPlatform {
+		return false
+	}
+	if pr.Auth.Webauthn == nil {
+		return false
+	}
+	// Only pass on the user if explicitly set, otherwise let the credential
+	// picker kick in.
+	user := ""
+	if tc.ExplicitUsername {
+		user = tc.Username
+	}
+	return hasTouchIDCredentials(pr.Auth.Webauthn.RPID, user)
 }
 
 // SSHLoginFunc is a function which carries out authn with an auth server and returns an auth response.
@@ -3491,7 +3528,7 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 				return nil, trace.Wrap(err)
 			}
 
-			fmt.Fprintf(tc.Stderr, "Re-initiaiting login with YubiKey generated private key.\n")
+			fmt.Fprintf(tc.Stderr, "Re-intiaiting login with YubiKey generated private key.\n")
 			response, err = sshLoginFunc(ctx, priv)
 		}
 	}
@@ -3547,9 +3584,9 @@ func (tc *TeleportClient) GetNewLoginKey(ctx context.Context, keyPolicy keys.Pri
 
 	switch keyPolicy {
 	case keys.PrivateKeyPolicyHardwareKey, keys.PrivateKeyPolicyHardwareKeyTouch:
-		log.Debugf("Attempting to login with YubiKey generated private key.")
+		log.Debugf("Attempting to login with YubiKey private key.")
 
-		priv, err := keys.GetOrGenerateYubiKeyPrivateKey(ctx, keyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch)
+		priv, err := keys.GetOrGenerateYubiKeyPrivateKey(keyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3860,29 +3897,6 @@ func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
 		}
 	}
 
-	return nil
-}
-
-// UpdateKnownHosts updates ~/.tsh/known_hosts with trusted host certificate
-// authorities for the specified proxy and cluster.
-func (tc *TeleportClient) UpdateKnownHosts(ctx context.Context, proxyHost, clusterName string) error {
-	trustedCAs, err := tc.GetTrustedCA(ctx, clusterName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, ca := range auth.AuthoritiesToTrustedCerts(trustedCAs) {
-		if ca.ClusterName != clusterName {
-			continue
-		}
-		hostCerts, err := ca.SSHCertPublicKeys()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		err = tc.localAgent.keyStore.AddKnownHostKeys(clusterName, proxyHost, hostCerts)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
 	return nil
 }
 
@@ -4267,13 +4281,23 @@ func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
 		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", tc.Username)
 	}
 
-	rootCluster, err := tlsKey.RootClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	clusters := []string{rootCluster}
-	if tc.SiteName != "" && rootCluster != tc.SiteName {
-		clusters = append(clusters, tc.SiteName)
+	var clusters []string
+	if tc.LoadAllCAs {
+		clusters, err = tc.localAgent.GetClusterNames()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		rootCluster, err := tlsKey.RootClusterName()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		clusters = []string{rootCluster}
+		if tc.SiteName != "" && rootCluster != tc.SiteName {
+			// In case of establishing connection to leaf cluster the client validate
+			// ssh cert against root cluster proxy cert and leaf cluster cert.
+			clusters = append(clusters, tc.SiteName)
+		}
 	}
 
 	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, clusters)
@@ -4614,4 +4638,17 @@ func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC, toUT
 		return nil, trace.Wrap(err)
 	}
 	return sessions, nil
+}
+
+func parseMFAMode(in string) (webauthncli.AuthenticatorAttachment, error) {
+	switch in {
+	case "auto", "":
+		return webauthncli.AttachmentAuto, nil
+	case "platform":
+		return webauthncli.AttachmentPlatform, nil
+	case "cross-platform":
+		return webauthncli.AttachmentCrossPlatform, nil
+	default:
+		return 0, trace.BadParameter("unsupported mfa mode %q", in)
+	}
 }

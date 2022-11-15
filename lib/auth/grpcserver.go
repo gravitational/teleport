@@ -1438,7 +1438,7 @@ func (g *GRPCServer) DeleteUserAppSessions(ctx context.Context, req *proto.Delet
 }
 
 // GenerateAppToken creates a JWT token with application access.
-func (g GRPCServer) GenerateAppToken(ctx context.Context, req *proto.GenerateAppTokenRequest) (*proto.GenerateAppTokenResponse, error) {
+func (g *GRPCServer) GenerateAppToken(ctx context.Context, req *proto.GenerateAppTokenRequest) (*proto.GenerateAppTokenResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2528,9 +2528,6 @@ func (g *GRPCServer) GetSAMLConnectors(ctx context.Context, req *types.Resources
 func (g *GRPCServer) UpsertSAMLConnector(ctx context.Context, samlConnector *types.SAMLConnectorV2) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = services.ValidateSAMLConnector(samlConnector, auth); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err = auth.ServerWithRoles.UpsertSAMLConnector(ctx, samlConnector); err != nil {
@@ -3909,6 +3906,11 @@ func (g *GRPCServer) CreateSessionTracker(ctx context.Context, req *proto.Create
 		return nil, trace.Wrap(err)
 	}
 
+	if req.SessionTracker == nil {
+		g.Errorf("Missing SessionTracker in CreateSessionTrackerRequest. This can be caused by an outdated Teleport node running against your cluster.")
+		return nil, trace.BadParameter("missing SessionTracker from CreateSessionTrackerRequest")
+	}
+
 	tracker, err := auth.ServerWithRoles.CreateSessionTracker(ctx, req.SessionTracker)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3949,6 +3951,33 @@ func (g *GRPCServer) GetActiveSessionTrackers(_ *emptypb.Empty, stream proto.Aut
 		return trace.Wrap(err)
 	}
 	sessions, err := auth.ServerWithRoles.GetActiveSessionTrackers(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, session := range sessions {
+		defined, ok := session.(*types.SessionTrackerV1)
+		if !ok {
+			return trace.BadParameter("unexpected session type %T", session)
+		}
+
+		err := stream.Send(defined)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// GetActiveSessionTrackersWithFilter returns a list of active sessions filtered by a filter.
+func (g *GRPCServer) GetActiveSessionTrackersWithFilter(filter *types.SessionTrackerFilter, stream proto.AuthService_GetActiveSessionTrackersWithFilterServer) error {
+	ctx := stream.Context()
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sessions, err := auth.ServerWithRoles.GetActiveSessionTrackersWithFilter(ctx, filter)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4208,7 +4237,10 @@ func (g *GRPCServer) CreateKubernetesCluster(ctx context.Context, cluster *types
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cluster.SetOrigin(types.OriginDynamic)
+	// if origin is not set, force it to be dynamic.
+	if len(cluster.Origin()) == 0 {
+		cluster.SetOrigin(types.OriginDynamic)
+	}
 	if err := auth.CreateKubernetesCluster(ctx, cluster); err != nil {
 		return nil, trace.Wrap(err)
 	}

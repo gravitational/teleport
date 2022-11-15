@@ -27,6 +27,8 @@ import (
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/go-mysql-org/go-mysql/packet"
 	"github.com/go-mysql-org/go-mysql/server"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -37,9 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 func init() {
@@ -188,7 +187,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 	var dialer client.Dialer
 	var password string
 	switch {
-	case sessionCtx.Database.IsRDS():
+	case sessionCtx.Database.IsRDS(), sessionCtx.Database.IsRDSProxy():
 		password, err = e.Auth.GetRDSAuthToken(sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)

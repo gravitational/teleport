@@ -135,7 +135,7 @@ teleport:
     # Teleport provides HTTP endpoints for monitoring purposes. They are
     # disabled by default but you can enable them using the diagnosis address.
     # See the Teleport metrics reference:
-    # https://goteleport.com/docs/setup/reference/metrics/
+    # https://goteleport.com/docs/setup/diagnostics/metrics
     diag_addr: "127.0.0.1:3000"
 
 
@@ -565,7 +565,7 @@ ssh_service:
 
     # Disables automatic creation of host users on this SSH node.
     # Set to false by default.
-    disable_create_host_users: true
+    disable_create_host_user: true
 
     # Enhanced Session Recording
     # see https://goteleport.com/docs/features/enhanced-session-recording/
@@ -640,8 +640,8 @@ proxy_service:
     #
     # If not set, behavior depends on the config file version:
     #
-    # "v2": listener is not created, SSH is multiplexed on web_listen_addr
-    # "v1": defaults to 0.0.0.0:3023
+    # v2 and above: listener is not created, SSH is multiplexed on web_listen_addr
+    # v1: defaults to 0.0.0.0:3023
     listen_addr: 0.0.0.0:3023
 
     # Reverse tunnel listening address. An auth server (CA) can establish an
@@ -651,8 +651,8 @@ proxy_service:
     #
     # If not set, behavior depends on the config file version:
     #
-    # "v2": listener is not created, reverse tunnel traffic is multiplexed on web_listen_addr
-    # "v1": defaults to 0.0.0.0:3024
+    # v2 and above: listener is not created, reverse tunnel traffic is multiplexed on web_listen_addr
+    # v1: defaults to 0.0.0.0:3024
     tunnel_listen_addr: 0.0.0.0:3024
 
     # Proxy Peering listening address. Teleport Proxy Services will advertise this address
@@ -700,8 +700,8 @@ proxy_service:
     #
     # If not set, behavior depends on the config file version:
     #
-    # "v2": listener is not created, Kubernetes traffic is multiplexed on web_listen_addr
-    # "v1": defaults to 0.0.0.0:3026
+    # v2 and above: listener is not created, Kubernetes traffic is multiplexed on web_listen_addr
+    # v1: defaults to 0.0.0.0:3026
     kube_listen_addr: 0.0.0.0:3026
     # optional: set a different public address for kubernetes access
     kube_public_addr: kube.example.com:3026
@@ -710,9 +710,8 @@ proxy_service:
     #
     # If not set, behavior depends on the config file version:
     #
-    # "v2": listener is not created, MySQL traffic is multiplexed on
-    #       web_listen_addr
-    # "v1": defaults to 0.0.0.0:3036
+    # v2 and above: listener is not created, MySQL traffic is multiplexed on web_listen_addr
+    # v1: defaults to 0.0.0.0:3036
     mysql_listen_addr: "0.0.0.0:3036"
 
     # Postgres Proxy listener address. If provided, proxy will use a separate
@@ -736,9 +735,8 @@ proxy_service:
 
     # Get an automatic certificate from Letsencrypt.org using ACME via
     # TLS_ALPN-01 challenge.
-    # When using ACME, the cluster name must match the 'public_addr' of
-    # Teleport and the 'proxy_service' must be publicly accessible over port
-    # 443.
+    # When using ACME, the 'proxy_service' must be publicly accessible over
+    # port 443.
     # Also set using the CLI command:
     # 'teleport configure --acme --acme-email=email@example.com \
     # --cluster-name=tele.example.com -o file'
@@ -771,81 +769,24 @@ app_service:
       - name: "os"
         command: ["/usr/bin/uname"]
         period: "5s"
-      # Optional simple rewriting of Location header
-      # Rewrite the "Location" header on redirect responses replacing the
-      # host with the public address of this application.
-      # redirect:
-      #   - "localhost"
-      #   - "jenkins.internal.dev"
+      ## Optional list of rewrite rules to apply to requests and responses
+      # rewrite:
+        ## Optional simple rewriting of Location header
+        ## Rewrite the "Location" header on redirect responses replacing the
+        ## host with the public address of this application.
+        # redirect:
+        #   - "localhost"
+        #   - "jenkins.internal.dev"
+        ## Optional list of extra headers to inject in to requests.
+        # headers:
+        #   For example:
+        #   - "Host: jenkins.example.com"
 
 ## This section configures the 'kubernetes service'
-kubernetes_service:
-    enabled: yes
-    # Optional Public & Listen Addr: Set these if you are connecting to
-    # Teleport running inside a Kubernetes cluster instead of using a
-    # reverse tunnel.
-    #
-    # Optional Public Addr
-    public_addr: [k8s.example.com:3026]
-    # Optional Listen Addr
-    listen_addr: 0.0.0.0:3026
-    # Optional kubeconfig_file and kube_cluster_name. Exactly one of these must
-    # be set.
-    #
-    # When running teleport outside of the kubernetes cluster, use
-    # kubeconfig_file to provide teleport with cluster credentials.
-    #
-    # When running teleport inside of the kubernetes cluster pod, use
-    # kube_cluster_name to provide a user-visible name. Teleport uses the pod
-    # service account credentials to authenticate to its local kubernetes API.
-    kubeconfig_file: /secrets/kubeconfig
-    kube_cluster_name:
-    # Optional labels: These can be used in combination with RBAC rules
-    # to limit access to applications.
-    # When using kubeconfig_file above, these labels apply to all kubernetes
-    # clusters specified in the kubeconfig.
-    labels:
-      env: "prod"
-    # Optional Dynamic Labels
-    commands:
-    - name: "os"
-       command: ["/usr/bin/uname"]
-       period: "5s"
-    # Get cluster name on GKE.
-    - name: cluster-name
-      command: ['curl', 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name', '-H', 'Metadata-Flavor: Google']
-      period: 1m0s
+(!docs/pages/includes/kubernetes-access/kubernetes-config.yaml!)
 
 # This section configures the 'discovery service'
-discovery_service:
-    enabled: yes
-    aws:
-       # AWS resource types. Valid options are:
-       # ec2 - discovers and registers AWS EC2 instances
-     - types: ["ec2"]
-       # AWS regions to register EC2 instances from
-       regions: ["eu-central-1"]
-       # AWS resource tags to match when registering EC2 instances
-       # Optional section: Defaults to "*":"*"
-       tags:
-         "*": "*"
-       # Optional section: install is used to provide parameters to the AWS SSM document. 
-       # If the install section isn't provided, the below defaults are used.
-       install:
-         join_params:
-           # token_name is the name of the Teleport invite token to use.
-           # Optional, defaults to: "aws-discovery-iam-token".
-           token_name:  "aws-discovery-iam-token"
-         # script_name is the name of the Teleport install script to use.
-         # Optional, defaults to: "default-installer".
-         script_name: "default-installer"
-       # Optional section: ssm is used to configure which AWS SSM document to use
-       # If the ssm section isnt provided the below defaults are used.
-       ssm:
-         # document_name is the name of the SSM document that should be
-         # executed when installing teleport on matching nodes
-         # Optional, defaults to: "TeleportDiscoveryInstaller".
-         document_name: "TeleportDiscoveryInstaller"
+(!docs/pages/includes/discovery/discovery-config.yaml!)
 
 # This section configures the 'database service'.
 (!docs/pages/includes/database-access/database-config.yaml!)
@@ -853,17 +794,3 @@ discovery_service:
 # This section configures the windows desktop service
 (!docs/pages/includes/desktop-access/desktop-config.yaml!)
 ```
-
-## Changelog
-
-### v3
-
-**Introduced in Teleport v11**
-
-Replaced `teleport.auth_servers` with either `teleport.auth_server` or `teleport.proxy_server`.
-
-### v2
-
-**Introduced in Teleport v8**
-
-Added support for multiplexing via `auth_service.proxy_listener_mode`.

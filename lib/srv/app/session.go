@@ -23,6 +23,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/oxy/forward"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -34,15 +40,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/oxy/forward"
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
-
-	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 )
 
 // sessionChunkCloseTimeout is the default timeout used for sessionChunk.closeTimeout
@@ -106,7 +106,7 @@ func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, 
 
 	// Create a session tracker so that other services, such as the
 	// session upload completer, can track the session chunk's lifetime.
-	if err := s.createTracker(sess, identity); err != nil {
+	if err := s.createTracker(sess, identity, app.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -172,12 +172,14 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 		return trace.Wrap(err)
 	}
 
+	delegate := forward.NewHeaderRewriter()
 	sess.fwd, err = forward.New(
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
 		forward.Logger(logrus.StandardLogger()),
-		forward.WebsocketRewriter(transport.ws),
+		forward.WebsocketRewriter(common.NewHeaderRewriter(transport.ws, delegate)),
 		forward.WebsocketDial(transport.ws.dialer),
+		forward.Rewriter(common.NewHeaderRewriter(delegate)),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -339,13 +341,12 @@ func (s *Server) newStreamer(ctx context.Context, chunkID string, recConfig type
 }
 
 // createTracker creates a new session tracker for the session chunk.
-func (s *Server) createTracker(sess *sessionChunk, identity *tlsca.Identity) error {
+func (s *Server) createTracker(sess *sessionChunk, identity *tlsca.Identity, appName string) error {
 	trackerSpec := types.SessionTrackerSpecV1{
 		SessionID:   sess.id,
 		Kind:        string(types.AppSessionKind),
 		State:       types.SessionState_SessionStateRunning,
 		Hostname:    s.c.HostID,
-		AppName:     identity.RouteToApp.Name,
 		ClusterName: identity.RouteToApp.ClusterName,
 		Login:       identity.GetUserMetadata().Login,
 		Participants: []types.Participant{{
@@ -353,6 +354,7 @@ func (s *Server) createTracker(sess *sessionChunk, identity *tlsca.Identity) err
 		}},
 		HostUser:     identity.Username,
 		Created:      s.c.Clock.Now(),
+		AppName:      appName, // app name is only present in RouteToApp for CLI sessions
 		AppSessionID: identity.RouteToApp.SessionID,
 	}
 
