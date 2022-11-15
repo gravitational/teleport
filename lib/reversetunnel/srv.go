@@ -352,7 +352,7 @@ func NewServer(cfg Config) (Server, error) {
 }
 
 func remoteClustersMap(rc []types.RemoteCluster) map[string]types.RemoteCluster {
-	out := make(map[string]types.RemoteCluster)
+	out := make(map[string]types.RemoteCluster, len(rc))
 	for i := range rc {
 		out[rc[i].GetName()] = rc[i]
 	}
@@ -362,23 +362,16 @@ func remoteClustersMap(rc []types.RemoteCluster) map[string]types.RemoteCluster 
 // disconnectClusters disconnects reverse tunnel connections from remote clusters
 // that were deleted from the local cluster side and cleans up in memory objects.
 // In this case all local trust has been deleted, so all the tunnel connections have to be dropped.
-func (s *server) disconnectClusters() error {
-	connectedRemoteClusters := s.getRemoteClusters()
-	if len(connectedRemoteClusters) == 0 {
-		return nil
-	}
-	remoteClusters, err := s.localAuthClient.GetRemoteClusters()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	remoteMap := remoteClustersMap(remoteClusters)
+func (s *server) disconnectClusters(connectedRemoteClusters []*remoteSite, remoteMap map[string]types.RemoteCluster) error {
 	for _, cluster := range connectedRemoteClusters {
 		if _, ok := remoteMap[cluster.GetName()]; !ok {
 			s.log.Infof("Remote cluster %q has been deleted. Disconnecting it from the proxy.", cluster.GetName())
 			if err := s.onSiteTunnelClose(&alwaysClose{RemoteSite: cluster}); err != nil {
 				s.log.Debugf("Failure closing cluster %q: %v.", cluster.GetName(), err)
 			}
+			remoteClustersStats.DeleteLabelValues(cluster.GetName())
 		}
+
 	}
 	return nil
 }
@@ -399,16 +392,24 @@ func (s *server) periodicFunctions() {
 		case proxies := <-s.proxyWatcher.ProxiesC:
 			s.fanOutProxies(proxies)
 		case <-ticker.C:
-			err := s.fetchClusterPeers()
-			if err != nil {
-				s.log.Warningf("Failed to fetch cluster peers: %v.", err)
+			if err := s.fetchClusterPeers(); err != nil {
+				s.log.WithError(err).Warn("Failed to fetch cluster peers")
 			}
-			err = s.disconnectClusters()
+
+			connectedRemoteClusters := s.getRemoteClusters()
+
+			remoteClusters, err := s.localAuthClient.GetRemoteClusters()
 			if err != nil {
+				s.log.WithError(err).Warn("Failed to get remote clusters")
+			}
+
+			remoteMap := remoteClustersMap(remoteClusters)
+
+			if err := s.disconnectClusters(connectedRemoteClusters, remoteMap); err != nil {
 				s.log.Warningf("Failed to disconnect clusters: %v.", err)
 			}
-			err = s.reportClusterStats()
-			if err != nil {
+
+			if err := s.reportClusterStats(connectedRemoteClusters, remoteMap); err != nil {
 				s.log.Warningf("Failed to report cluster stats: %v.", err)
 			}
 		}
@@ -419,7 +420,7 @@ func (s *server) periodicFunctions() {
 // (created a services.TunnelConnection) in the backend and compares them to
 // what was found in the previous iteration and updates the in-memory cluster
 // peer map. This map is used later by GetSite(s) to return either local or
-// remote site, or if non match, a cluster peer.
+// remote site, or if no match, a cluster peer.
 func (s *server) fetchClusterPeers() error {
 	conns, err := s.LocalAccessPoint.GetAllTunnelConnections()
 	if err != nil {
@@ -451,22 +452,40 @@ func (s *server) fetchClusterPeers() error {
 	return s.addClusterPeers(connsToAdd)
 }
 
-func (s *server) reportClusterStats() error {
-	clusters, err := s.GetSites()
-	if err != nil {
-		return trace.Wrap(err)
+func (s *server) reportClusterStats(connectedRemoteClusters []*remoteSite, remoteMap map[string]types.RemoteCluster) error {
+	// zero out counters for remote clusters that have a
+	// resource in the backend but no associated remoteSite
+	for cluster := range remoteMap {
+		var exists bool
+		for _, site := range connectedRemoteClusters {
+			if site.GetName() == cluster {
+				exists = true
+				break
+			}
+		}
+
+		if !exists {
+			remoteClustersStats.WithLabelValues(cluster).Set(0)
+		}
 	}
-	for _, cluster := range clusters {
-		if _, ok := cluster.(*localSite); ok {
-			// Don't count local cluster tunnels.
+
+	// update the counters for any remote clusters that have
+	// both a resource in the backend AND an associated remote
+	// site with connections
+	for _, cluster := range connectedRemoteClusters {
+		rc, ok := remoteMap[cluster.GetName()]
+		if !ok {
+			remoteClustersStats.WithLabelValues(cluster.GetName()).Set(0)
 			continue
 		}
-		gauge, err := remoteClustersStats.GetMetricWithLabelValues(cluster.GetName())
-		if err != nil {
-			return trace.Wrap(err)
+
+		if rc.GetConnectionStatus() == teleport.RemoteClusterStatusOnline && cluster.GetStatus() == teleport.RemoteClusterStatusOnline {
+			remoteClustersStats.WithLabelValues(cluster.GetName()).Set(float64(cluster.GetTunnelsCount()))
+		} else {
+			remoteClustersStats.WithLabelValues(cluster.GetName()).Set(0)
 		}
-		gauge.Set(float64(cluster.GetTunnelsCount()))
 	}
+
 	return nil
 }
 
