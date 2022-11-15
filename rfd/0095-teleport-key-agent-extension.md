@@ -43,7 +43,7 @@ An Extension response can be any custom message, but failures should result in `
 
 **Teleport Identity Extension:**
 
-This extension requests a partial Teleport Identity from the agent matching the provided public key and Teleport identifiers. Clients should provide the public key part of a Teleport agent key, since a `tsh` profile should be available in the local file key store. The Teleport cluster, proxy, and user can also be found in the Teleport agent key comment.
+This extension requests a partial Teleport Identity from the agent matching the provided public key and Teleport identifiers. Clients should provide the public key part of a Teleport agent key, since an associated `tsh` profile should be available in the local file key store. The Teleport cluster, proxy, and user can also be found in the Teleport agent key comment.
 
         byte            SSH_AGENTC_EXTENSION
         string          identity@goteleport.com
@@ -52,14 +52,14 @@ This extension requests a partial Teleport Identity from the agent matching the 
         string          cluster
         string          user
 
-The returned identity data can be used in place of the standard filesystem identity (~/.tsh) for `tsh` operations, including connecting to a Teleport Proxy or connecting to a Teleport Node.
+The returned identity data can be used in remote `tsh` operations in place of a `tsh` profile, such as connecting to a Teleport Proxy or to a Teleport Node.
 
         byte            SSH_AGENT_SUCCESS
         string          TLS certificate
         byte[]          TLS CA certs
         byte[]          SSH CA certs
 
-Combined with the information stored in the user's SSH agent (Crypto signer, SSH certificate, Teleport Proxy:ClusterName:UserName), `tsh` will have enough information to carry out standard operations.
+Combined with the information stored in the user's SSH agent (crypto signer, SSH certificate, Teleport proxy:clusterName:userName), `tsh` will have enough information to carry out standard operations.
 
 **Add MFA Key Extension:**
 
@@ -79,11 +79,11 @@ Note: this extension can also be used to extend Per-session MFA support to some 
 
 #### SSH Agent Forwarding Risks
 
-SSH Agent forwarding introduces an inherent risk. When a user does `ssh -A` or `tsh ssh -A`, their forwarded keys could be used by a user on the remote machine with root permissions over the remote user. It should not be possible to export any sensitive data from a user's forwarded Key Agent. This criteria constrains some potential options, such as providing the user's raw private key via the `identity@goteleport.com` extension.
+SSH Agent forwarding introduces an inherent risk. When a user does `ssh -A` or `tsh ssh -A`, their forwarded keys could be used by a user on the remote machine with OS permissions eqaul to or above the remote user. Still, these forwarded keys can only be used as long as the user maintains the agent forwarding sessions, since agent forwarding does not allow keys to be exported (only certificates). This security principle constrains some potential options, such as providing the user's raw private key via the `identity@goteleport.com` extension.
 
-However, even with these new extensions contrained in this way, a user can abuse the forwarded agent to reissue certificates with new private keys held on the remote host. This raises a major security concern that is not present in standard ssh agent forwarding, since the user's login session can essentially be exported to the remote host via a reissue command, rather than being contingent on the forwarding agent session providing access to a private key on the local host.
+However, even with the new extensions contrained in this way, a user can abuse the forwarded agent to reissue certificates with new private keys held on the remote host. This raises a major security concern that is not present in standard ssh agent forwarding, since the user's login session can essentially be exported to the remote host via a reissue command, rather than being contingent on the forwarding agent session providing access to a private key on the local host.
 
-For this reason, we may want to consider limiting certificate reissue commands to using the same public key as the active identity, or at least limit the TTL of non-matching certificates to 1 minute. Alternatively, we can just convey this risk by adding a new option like `ForwardAgent local-insecure` to enable this feature.
+For this reason, we may want to consider limiting certificate reissue commands to using the same public key as the active identity, or at least limit the TTL of non-matching certificates to just 1 minute. Alternatively, we can just convey this risk by adding a new option like `ForwardAgent local-insecure` to enable this feature.
 
 ### UX
 
@@ -97,7 +97,7 @@ To improve UX, we can add an option via an env variable - `TELEPORT_FORWARD_AGEN
 
 Kubernetes access requires the ability to load a TLS certificate and raw private key pair provided to a kubeconfig file through the `tsh kube credentials` exec plugin. Since we do not want to provide the user's raw private key through the forwarded agent, `tsh kube credentials` will need a different way to aquire a valid TLS certificate and private key.
 
-As explained in the security section above, it is currently possible to reissue certificates over the forwarded agent with new private keys. By utilizing this feature, we can enable kuberenetes access on remote hosts without introducing any new systems. We will just need to update `tsh kube credentials` to make a reissue request with a new raw private key if the available private key is not exportable.
+As explained in the security section above, it is currently possible to reissue certificates over the forwarded agent with new private keys. By utilizing this feature, we can enable kuberenetes access on remote hosts without introducing any new systems. We will just need to update `tsh kube credentials` to make a reissue request with a new raw private key if the available private key is a forwarded agent key.
 
 If we decide to disable reissue requests with non-matching public keys, then we will need to get a bit more creative. One option would be to create a generalized forward proxy ssh channel that could be used by the remote host to form connections to Teleport services by proxying through the local host. This approach would warrant a separate RFD.
 
