@@ -363,12 +363,17 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			}
 		}
 
+		var kubeCluster []string
+		if len(cfg.KubeClusterName) > 0 {
+			kubeCluster = []string{cfg.KubeClusterName}
+		}
+
 		if err := kubeconfig.Update(cfg.OutputPath, kubeconfig.Values{
 			TeleportClusterName: cfg.Key.ClusterName,
 			ClusterAddr:         cfg.KubeProxyAddr,
 			Credentials:         cfg.Key,
 			TLSServerName:       cfg.KubeTLSServerName,
-			KubeClusters:        []string{cfg.KubeClusterName},
+			KubeClusters:        kubeCluster,
 		}, cfg.KubeStoreAllCAs); err != nil {
 			return nil, trace.Wrap(err)
 		}
