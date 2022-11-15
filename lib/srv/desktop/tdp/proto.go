@@ -171,9 +171,9 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 	case TypeSharedDirectoryReadRequest:
 		return decodeSharedDirectoryReadRequest(in)
 	case TypeSharedDirectoryReadResponse:
-		return decodeSharedDirectoryReadResponse(in)
+		return decodeSharedDirectoryReadResponse(in, tdpMaxFileReadWriteLength)
 	case TypeSharedDirectoryWriteRequest:
-		return decodeSharedDirectoryWriteRequest(in)
+		return decodeSharedDirectoryWriteRequest(in, tdpMaxFileReadWriteLength)
 	case TypeSharedDirectoryWriteResponse:
 		return decodeSharedDirectoryWriteResponse(in)
 	case TypeSharedDirectoryMoveRequest:
@@ -451,10 +451,6 @@ func decodeClientUsername(in io.Reader) (ClientUsername, error) {
 type Error struct {
 	Message string
 }
-
-// tdpMaxErrorMessageLength is somewhat arbitrary, as it is only sent *to*
-// the browser (Teleport never receives this message, so won't be decoding it)
-const tdpMaxErrorMessageLength = 10240
 
 func (m Error) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
@@ -837,8 +833,6 @@ func decodeSharedDirectoryInfoResponse(in byteReader) (SharedDirectoryInfoRespon
 	}, nil
 }
 
-const tdpMaxPathLength = tdpMaxErrorMessageLength
-
 type FileSystemObject struct {
 	LastModified uint64
 	Size         uint64
@@ -1218,7 +1212,7 @@ func (s SharedDirectoryReadResponse) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeSharedDirectoryReadResponse(in io.Reader) (SharedDirectoryReadResponse, error) {
+func decodeSharedDirectoryReadResponse(in io.Reader, maxLen uint32) (SharedDirectoryReadResponse, error) {
 	var completionID, errorCode, readDataLength uint32
 
 	err := binary.Read(in, binary.BigEndian, &completionID)
@@ -1234,6 +1228,10 @@ func decodeSharedDirectoryReadResponse(in io.Reader) (SharedDirectoryReadRespons
 	err = binary.Read(in, binary.BigEndian, &readDataLength)
 	if err != nil {
 		return SharedDirectoryReadResponse{}, trace.Wrap(err)
+	}
+
+	if readDataLength > maxLen {
+		return SharedDirectoryReadResponse{}, trace.LimitExceeded("TDP read response exceeds allowable limit")
 	}
 
 	readData := make([]byte, int(readDataLength))
@@ -1275,7 +1273,7 @@ func (s SharedDirectoryWriteRequest) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeSharedDirectoryWriteRequest(in byteReader) (SharedDirectoryWriteRequest, error) {
+func decodeSharedDirectoryWriteRequest(in byteReader, maxLen uint32) (SharedDirectoryWriteRequest, error) {
 	var completionID, directoryID, writeDataLength uint32
 	var offset uint64
 
@@ -1302,6 +1300,10 @@ func decodeSharedDirectoryWriteRequest(in byteReader) (SharedDirectoryWriteReque
 	err = binary.Read(in, binary.BigEndian, &writeDataLength)
 	if err != nil {
 		return SharedDirectoryWriteRequest{}, trace.Wrap(err)
+	}
+
+	if writeDataLength > maxLen {
+		return SharedDirectoryWriteRequest{}, trace.LimitExceeded("TDP write request exceeds allowable limit")
 	}
 
 	writeData := make([]byte, int(writeDataLength))
@@ -1431,7 +1433,7 @@ func decodeString(r io.Reader, maxLen uint32) (string, error) {
 	}
 
 	if length > maxLen {
-		return "", trace.BadParameter("TDP string length exceeds allowable limit")
+		return "", trace.LimitExceeded("TDP string length exceeds allowable limit")
 	}
 
 	s := make([]byte, int(length))
@@ -1460,3 +1462,17 @@ func writeUint64(b *bytes.Buffer, v uint64) {
 	b.WriteByte(byte(v >> 8))
 	b.WriteByte(byte(v))
 }
+
+// These correspond to TdpErrCode enum in the rust RDP client.
+const (
+	ErrCodeNil           uint32 = 0
+	ErrCodeFailed        uint32 = 1
+	ErrCodeDoesNotExist  uint32 = 2
+	ErrCodeAlreadyExists uint32 = 3
+)
+
+// tdpMaxErrorMessageLength is somewhat arbitrary, as it is only sent *to*
+// the browser (Teleport never receives this message, so won't be decoding it)
+const tdpMaxErrorMessageLength = 10240
+const tdpMaxPathLength = tdpMaxErrorMessageLength
+const tdpMaxFileReadWriteLength = 1024 * 1024 // 1MB

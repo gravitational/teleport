@@ -19,7 +19,6 @@ package tdp
 import (
 	"bufio"
 	"bytes"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -79,16 +78,44 @@ func TestBadDecode(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestRejectsLongUsername(t *testing.T) {
-	const lengthTooLong = 4096
+func TestRejectsSizeLimitExceeded(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		msg  Message
+	}{
+		{
+			name: "rejects long ClientUsername",
+			msg: ClientUsername{
+				Username: string(bytes.Repeat([]byte("a"), windowsMaxUsernameLength+1)),
+			},
+		},
+		{
+			name: "rejects long Error",
+			msg: Error{
+				Message: string(bytes.Repeat([]byte("a"), tdpMaxErrorMessageLength+1)),
+			},
+		},
+		{
+			name: "rejects long SharedDirectoryReadResponse",
+			msg: SharedDirectoryReadResponse{
+				ReadDataLength: tdpMaxFileReadWriteLength + 1,
+			},
+		},
+		{
+			name: "rejects long SharedDirectoryWriteRequest",
+			msg: SharedDirectoryWriteRequest{
+				WriteDataLength: tdpMaxFileReadWriteLength + 1,
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			bytes, err := test.msg.Encode()
+			require.NoError(t, err)
+			_, err = Decode(bytes)
+			require.True(t, trace.IsLimitExceeded(err))
+		})
+	}
 
-	b := &bytes.Buffer{}
-	b.WriteByte(byte(TypeClientUsername))
-	binary.Write(b, binary.BigEndian, uint32(lengthTooLong))
-	b.Write(bytes.Repeat([]byte("a"), lengthTooLong))
-
-	_, err := Decode(b.Bytes())
-	require.True(t, trace.IsBadParameter(err))
 }
 
 var encodedFrame []byte
