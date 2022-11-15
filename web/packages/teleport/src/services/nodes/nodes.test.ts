@@ -31,7 +31,7 @@ test('correct formatting of nodes fetch response', async () => {
         labels: [{ name: 'env', value: 'dev' }],
         addr: '192.168.86.132:3022',
         tunnel: false,
-        sshLogins: [],
+        sshLogins: ['root'],
       },
     ],
     startKey: mockResponse.startKey,
@@ -52,12 +52,15 @@ test('null response from nodes fetch', async () => {
   });
 });
 
-test('null labels field in nodes fetch response', async () => {
+test('null fields in nodes fetch response', async () => {
   const nodesService = new NodesService();
-  jest.spyOn(api, 'get').mockResolvedValue({ items: [{ labels: null }] });
+  jest.spyOn(api, 'get').mockResolvedValue({
+    items: [{ tags: null, sshLogins: null }],
+  });
   const response = await nodesService.fetchNodes('does-not-matter');
 
   expect(response.agents[0].labels).toEqual([]);
+  expect(response.agents[0].sshLogins).toEqual([]);
 });
 
 const mockResponse = {
@@ -69,6 +72,7 @@ const mockResponse = {
       siteId: 'im-a-cluster-name',
       tags: [{ name: 'env', value: 'dev' }],
       tunnel: false,
+      sshLogins: ['root'],
     },
   ],
   startKey: 'mockKey',
