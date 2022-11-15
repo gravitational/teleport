@@ -437,22 +437,22 @@ auth_service:
     # (https://goteleport.com/docs/architecture/proxy/#recording-proxy-mode).
     proxy_checks_host_keys: yes
 
-    # Determines if SSH sessions to cluster nodes are forcefully terminated
-    # after no activity from a client (idle client).
+    # Determines if Server and Database sessions to cluster nodes are forcefully
+    # terminated after no activity from a client (idle client).
     # Examples: "30m", "1h" or "1h30m"
     client_idle_timeout: never
 
     # Send a custom message to the client when they are disconnected due to
     # inactivity. The empty string indicates that no message will be sent.
-    # (Currently only supported for SSH connections)
+    # (Currently only supported for Server and Database connections)
     client_idle_timeout_message: ""
 
     # Sets an idle timeout for the Web UI. The default is 10m.
     web_idle_timeout: 10m
 
     # Determines if the clients will be forcefully disconnected when their
-    # certificates expire in the middle of an active SSH session. (default is
-    # 'no')
+    # certificates expire in the middle of an active Server or Database Access
+    # session. (default is 'no')
     disconnect_expired_cert: no
 
     # Determines the interval at which Teleport will send keep-alive messages.
