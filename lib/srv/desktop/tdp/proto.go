@@ -462,7 +462,7 @@ func (m Error) Encode() ([]byte, error) {
 }
 
 func decodeError(in io.Reader) (Error, error) {
-	message, err := decodeString(in, tdpMaxErrorMessageLength)
+	message, err := decodeString(in, tdpMaxNotificationMessageLength)
 	if err != nil {
 		return Error{}, trace.Wrap(err)
 	}
@@ -493,7 +493,7 @@ func (m Notification) Encode() ([]byte, error) {
 }
 
 func decodeNotification(in byteReader) (Notification, error) {
-	message, err := decodeString(in, tdpMaxErrorMessageLength)
+	message, err := decodeString(in, tdpMaxNotificationMessageLength)
 	if err != nil {
 		return Notification{}, trace.Wrap(err)
 	}
@@ -533,8 +533,6 @@ func decodeMouseWheel(in io.Reader) (MouseWheel, error) {
 	err := binary.Read(in, binary.BigEndian, &w)
 	return w, trace.Wrap(err)
 }
-
-const maxClipboardDataLength = 1024 * 1024
 
 // ClipboardData represents shared clipboard data.
 type ClipboardData []byte
@@ -617,6 +615,8 @@ func (m MFA) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+const mfaDataMaxLenError = "mfa challenge data exceeds maximum length"
+
 func DecodeMFA(in byteReader) (*MFA, error) {
 	mt, err := in.ReadByte()
 	if err != nil {
@@ -636,7 +636,8 @@ func DecodeMFA(in byteReader) (*MFA, error) {
 	}
 
 	if length > maxMFADataLength {
-		return nil, trace.BadParameter("mfa challenge data exceeds maximum length")
+		io.CopyN(io.Discard, in, int64(length))
+		return nil, trace.LimitExceeded(mfaDataMaxLenError)
 	}
 
 	b := make([]byte, int(length))
@@ -1212,6 +1213,8 @@ func (s SharedDirectoryReadResponse) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+const fileReadWriteMaxLenError = "TDP file read or write message exceeds maximum size limit"
+
 func decodeSharedDirectoryReadResponse(in io.Reader, maxLen uint32) (SharedDirectoryReadResponse, error) {
 	var completionID, errorCode, readDataLength uint32
 
@@ -1231,7 +1234,8 @@ func decodeSharedDirectoryReadResponse(in io.Reader, maxLen uint32) (SharedDirec
 	}
 
 	if readDataLength > maxLen {
-		return SharedDirectoryReadResponse{}, trace.LimitExceeded("TDP read response exceeds allowable limit")
+		io.CopyN(io.Discard, in, int64(readDataLength))
+		return SharedDirectoryReadResponse{}, trace.LimitExceeded(fileReadWriteMaxLenError)
 	}
 
 	readData := make([]byte, int(readDataLength))
@@ -1303,7 +1307,8 @@ func decodeSharedDirectoryWriteRequest(in byteReader, maxLen uint32) (SharedDire
 	}
 
 	if writeDataLength > maxLen {
-		return SharedDirectoryWriteRequest{}, trace.LimitExceeded("TDP write request exceeds allowable limit")
+		io.CopyN(io.Discard, in, int64(writeDataLength))
+		return SharedDirectoryWriteRequest{}, trace.LimitExceeded(fileReadWriteMaxLenError)
 	}
 
 	writeData := make([]byte, int(writeDataLength))
@@ -1378,11 +1383,11 @@ func decodeSharedDirectoryMoveRequest(in io.Reader) (SharedDirectoryMoveRequest,
 	if err != nil {
 		return SharedDirectoryMoveRequest{}, trace.Wrap(err)
 	}
-	originalPath, err := decodeString(in, windowsMaxUsernameLength)
+	originalPath, err := decodeString(in, tdpMaxPathLength)
 	if err != nil {
 		return SharedDirectoryMoveRequest{}, trace.Wrap(err)
 	}
-	newPath, err := decodeString(in, windowsMaxUsernameLength)
+	newPath, err := decodeString(in, tdpMaxPathLength)
 	if err != nil {
 		return SharedDirectoryMoveRequest{}, trace.Wrap(err)
 	}
@@ -1426,6 +1431,8 @@ func encodeString(w io.Writer, s string) error {
 	return nil
 }
 
+const stringMaxLenError = "TDP string length exceeds allowable limit"
+
 func decodeString(r io.Reader, maxLen uint32) (string, error) {
 	var length uint32
 	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
@@ -1433,7 +1440,8 @@ func decodeString(r io.Reader, maxLen uint32) (string, error) {
 	}
 
 	if length > maxLen {
-		return "", trace.LimitExceeded("TDP string length exceeds allowable limit")
+		io.CopyN(io.Discard, r, int64(length))
+		return "", trace.LimitExceeded(stringMaxLenError)
 	}
 
 	s := make([]byte, int(length))
@@ -1463,16 +1471,9 @@ func writeUint64(b *bytes.Buffer, v uint64) {
 	b.WriteByte(byte(v))
 }
 
-// These correspond to TdpErrCode enum in the rust RDP client.
-const (
-	ErrCodeNil           uint32 = 0
-	ErrCodeFailed        uint32 = 1
-	ErrCodeDoesNotExist  uint32 = 2
-	ErrCodeAlreadyExists uint32 = 3
-)
-
-// tdpMaxErrorMessageLength is somewhat arbitrary, as it is only sent *to*
+// tdpMaxNotificationMessageLength is somewhat arbitrary, as it is only sent *to*
 // the browser (Teleport never receives this message, so won't be decoding it)
-const tdpMaxErrorMessageLength = 10240
-const tdpMaxPathLength = tdpMaxErrorMessageLength
+const tdpMaxNotificationMessageLength = 10240
+const tdpMaxPathLength = 10240
+const maxClipboardDataLength = 1024 * 1024    // 1MB
 const tdpMaxFileReadWriteLength = 1024 * 1024 // 1MB
