@@ -553,14 +553,14 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 
 	// Get the Github organizations the user is a member of so we don't
 	// make unnecessary API requests
-	endpointUrl, err := url.Parse(connector.GetEndpointURL())
+	endpointURL, err := url.Parse(connector.GetEndpointURL())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	ghClient := &githubAPIClient{
 		token:            token.AccessToken,
 		authServer:       a,
-		endpointHostname: endpointUrl.Host,
+		endpointHostname: endpointURL.Host,
 	}
 	userResp, err := ghClient.getUser()
 	if err != nil {
