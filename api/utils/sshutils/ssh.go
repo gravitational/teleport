@@ -212,7 +212,7 @@ func KeysEqual(ak, bk ssh.PublicKey) bool {
 var sshCertTypeRegex = regexp.MustCompile(`^[a-z0-9\-]+-cert-v[0-9]{2}@openssh\.com$`)
 
 // IsSSHCertType checks if the given string looks like an ssh cert type.
-// e.g. rsa-sha2-256-cert-v01@openssh.com.
+// e.g. ssh-rsa-cert-v01@openssh.com.
 func IsSSHCertType(val string) bool {
 	return sshCertTypeRegex.MatchString(val)
 }
