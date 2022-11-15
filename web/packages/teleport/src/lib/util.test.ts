@@ -63,6 +63,8 @@ test('no port and access request id', () => {
 });
 
 test('arrayStrDiff returns the correct diff', () => {
+  expect(arrayStrDiff(null, null)).toStrictEqual([]);
+
   const arrayA = ['a', 'b', 'c', 'd', 'e'];
   const arrayB = ['b', 'e', 'f', 'g'];
 
