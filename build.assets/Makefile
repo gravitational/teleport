@@ -219,6 +219,21 @@ buildbox-arm-centos7: buildbox-centos7
 # ARM buildboxes use a regular Teleport buildbox as a base which already has a user
 # with the correct UID and GID created, so those arguments are not needed here.
 #
+PHONY:buildbox-arm-centos7-fips
+buildbox-arm-centos7-fips: buildbox-centos7-fips
+	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM_CENTOS7_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM_CENTOS7_FIPS) || true; fi;
+	DOCKER_BUILDKIT=1 docker build \
+		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--cache-from $(BUILDBOX_CENTOS7_FIPS) \
+		--cache-from $(BUILDBOX_ARM_CENTOS7_FIPS) \
+		--tag $(BUILDBOX_ARM_CENTOS7_FIPS) -f Dockerfile-arm-centos7-fips .
+
+
+#
+# Builds a Docker buildbox for ARMv7/ARM64 FIPS builds
+# ARM buildboxes use a regular Teleport buildbox as a base which already has a user
+# with the correct UID and GID created, so those arguments are not needed here.
+#
 .PHONY:buildbox-arm-fips
 buildbox-arm-fips: buildbox-fips
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM_FIPS) || true; fi;
