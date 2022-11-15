@@ -98,6 +98,11 @@
               "forScopes": ["enterprise"]
             },
             {
+              "title": "Google KMS",
+              "slug": "/deploy-a-cluster/teleport-enterprise/gcp-kms/",
+              "forScopes": ["enterprise"]
+            },
+            {
               "title": "Enterprise License File",
               "slug": "/deploy-a-cluster/teleport-enterprise/license/",
               "forScopes": ["enterprise"]
