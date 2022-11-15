@@ -2046,6 +2046,7 @@ func TestKubeConfigUpdate(t *testing.T) {
 				ClusterAddr:         "https://a.example.com:3026",
 				TeleportClusterName: "a.example.com",
 				Exec:                nil,
+				SelectCluster:       "dev",
 			},
 		},
 	}
