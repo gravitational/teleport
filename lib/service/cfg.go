@@ -1044,6 +1044,10 @@ type AppsConfig struct {
 
 	// ResourceMatchers match cluster database resources.
 	ResourceMatchers []services.ResourceMatcher
+
+	// MonitorCloseChannel will be signaled when a monitor closes a connection.
+	// Used only for testing. Optional.
+	MonitorCloseChannel chan struct{}
 }
 
 // App is the specific application that will be proxied by the application
@@ -1325,6 +1329,14 @@ type DiscoveryConfig struct {
 	AWSMatchers []services.AWSMatcher
 	// AzureMatchers are used to match resources for auto enrollment.
 	AzureMatchers []services.AzureMatcher
+	// GCPMatchers are used to match GCP resources for auto discovery.
+	GCPMatchers []services.GCPMatcher
+}
+
+// IsEmpty validates if the Discovery Service config has no cloud matchers.
+func (d DiscoveryConfig) IsEmpty() bool {
+	return len(d.AWSMatchers) == 0 &&
+		len(d.AzureMatchers) == 0 && len(d.GCPMatchers) == 0
 }
 
 // ParseHeader parses the provided string as a http header.
