@@ -2200,7 +2200,7 @@ func (process *TeleportProcess) initSSH() error {
 		// Start BPF programs. This is blocking and if the BPF programs fail to
 		// load, the node will not start. If BPF is not enabled, this will simply
 		// return a NOP struct that can be used to discard BPF data.
-		ebpf, err := bpf.New(cfg.SSH.BPF)
+		ebpf, err := bpf.New(cfg.SSH.BPF, cfg.SSH.RestrictedSession)
 		if err != nil {
 			return trace.Wrap(err)
 		}

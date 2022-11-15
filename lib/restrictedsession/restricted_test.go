@@ -161,11 +161,11 @@ func setupBPFContext(t *testing.T) *bpfContext {
 	// Create temporary directory where cgroup2 hierarchy will be mounted.
 	tt.cgroupDir = t.TempDir()
 
-	// Create BPF service since we piggy-back on it
+	// Create BPF service since we piggyback on it
 	tt.enhancedRecorder, err = bpf.New(&bpf.Config{
 		Enabled:    true,
 		CgroupPath: tt.cgroupDir,
-	})
+	}, &bpf.RestrictedSessConfig{Enabled: true}) //TODO probably call default on it
 	require.NoError(t, err)
 
 	// Create the SessionContext used by both enhanced recording and us (restricted session)
@@ -201,7 +201,7 @@ func setupBPFContext(t *testing.T) *bpfContext {
 	restrictions.SetAllow(allow)
 	restrictions.SetDeny(deny)
 
-	config := &Config{
+	config := &bpf.RestrictedSessConfig{
 		Enabled: true,
 	}
 
