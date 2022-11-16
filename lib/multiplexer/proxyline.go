@@ -98,16 +98,16 @@ func (p *ProxyLine) Bytes() ([]byte, error) {
 			SourcePort:      uint16(p.Source.Port),
 			DestinationPort: uint16(p.Destination.Port),
 		}
-		ipv4 := p.Source.IP.To4()
-		if ipv4 == nil {
-			return nil, trace.BadParameter("could not get IPv4 address representation from %q", p.Source.IP.String())
+		sourceIPv4 := p.Source.IP.To4()
+		if sourceIPv4 == nil {
+			return nil, trace.BadParameter("could not get source IPv4 address representation from %q", p.Source.IP.String())
 		}
-		copy(addr4.Source[:], ipv4)
-		ipv4 = p.Destination.IP.To4()
-		if ipv4 == nil {
-			return nil, trace.BadParameter("could not get IPv4 address representation from %q", p.Destination.IP.String())
+		copy(addr4.Source[:], sourceIPv4)
+		destIPv4 := p.Destination.IP.To4()
+		if destIPv4 == nil {
+			return nil, trace.BadParameter("could not get destination IPv4 address representation from %q", p.Destination.IP.String())
 		}
-		copy(addr4.Destination[:], ipv4)
+		copy(addr4.Destination[:], destIPv4)
 		addr = addr4
 	case TCP6:
 		header.Protocol = ProtocolTCP6
@@ -115,16 +115,16 @@ func (p *ProxyLine) Bytes() ([]byte, error) {
 			SourcePort:      uint16(p.Source.Port),
 			DestinationPort: uint16(p.Destination.Port),
 		}
-		ipv6 := p.Source.IP.To16()
-		if ipv6 == nil {
-			return nil, trace.BadParameter("could not get IPv6 address representation from %q", p.Source.IP.String())
+		sourceIPv6 := p.Source.IP.To16()
+		if sourceIPv6 == nil {
+			return nil, trace.BadParameter("could not get source IPv6 address representation from %q", p.Source.IP.String())
 		}
-		copy(addr6.Source[:], ipv6)
-		ipv6 = p.Destination.IP.To16()
-		if ipv6 == nil {
-			return nil, trace.BadParameter("could not get IPv6 address representation from %q", p.Destination.IP.String())
+		copy(addr6.Source[:], sourceIPv6)
+		destIPv6 := p.Destination.IP.To16()
+		if destIPv6 == nil {
+			return nil, trace.BadParameter("could not get destination IPv6 address representation from %q", p.Destination.IP.String())
 		}
-		copy(addr6.Destination[:], ipv6)
+		copy(addr6.Destination[:], destIPv6)
 		addr = addr6
 	}
 	tlvsBytes, err := MarshalTLVs(p.TLVs)
