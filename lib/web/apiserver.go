@@ -489,7 +489,7 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createWebSession))
 
 	// Forwards traces to the configured upstream collector
-	h.POST("/webapi/traces", httplib.MakeHandler(h.traces))
+	h.POST("/webapi/traces", h.WithAuth(h.traces))
 
 	// Web sessions
 	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.createWebSession))
@@ -923,7 +923,7 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 
 // traces forwards spans from the web ui to the upstream collector configured for the proxy. If tracing is
 // disabled then the forwarding is a noop.
-func (h *Handler) traces(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
+func (h *Handler) traces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *SessionContext) (interface{}, error) {
 	var data tracepb.TracesData
 	b, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -976,7 +976,7 @@ func (h *Handler) traces(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	}
 
 	if err := h.cfg.TraceClient.UploadTraces(r.Context(), data.ResourceSpans); err != nil {
-		h.log.WithError(err).Errorf("Failed to upload traces")
+		h.log.WithError(err).Error("Failed to upload traces")
 		return nil, trace.Wrap(err)
 	}
 

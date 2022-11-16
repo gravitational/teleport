@@ -30,6 +30,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
 )
 
@@ -255,7 +256,7 @@ func TestMakeTracingHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := MakeTracingHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				tt.headerAssertion(t, r)
-			}), "test")
+			}), teleport.ComponentProxy)
 
 			handler.ServeHTTP(httptest.NewRecorder(), tt.req(t))
 		})
