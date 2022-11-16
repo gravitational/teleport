@@ -152,21 +152,7 @@ func CalculateAccessCapabilities(ctx context.Context, clt RequestValidatorGetter
 	}
 
 	if len(req.ResourceIDs) != 0 {
-		// First collect all possible search_as_roles.
-		var rolesToRequest []string
-		for _, roleName := range v.Roles.AllowSearch {
-			if !v.CanSearchAsRole(roleName) {
-				continue
-			}
-			rolesToRequest = append(rolesToRequest, roleName)
-		}
-		if len(rolesToRequest) == 0 {
-			return nil, trace.BadParameter(`user attempted to fetch necessary roles for a resource request but does not have any "search_as_roles"`)
-		}
-
-		// Prune the list of roles to request to only those which may be necessary
-		// to access the requested resources.
-		caps.NecessaryRolesForResources, err = v.PruneResourceRequestRoles(ctx, req.ResourceIDs, "", rolesToRequest)
+		caps.ApplicableRolesForResources, err = v.applicableSearchAsRoles(ctx, req.ResourceIDs, "")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -178,10 +164,38 @@ func CalculateAccessCapabilities(ctx context.Context, clt RequestValidatorGetter
 			return nil, trace.Wrap(err)
 		}
 	}
+
 	if req.SuggestedReviewers {
 		caps.SuggestedReviewers = v.SuggestedReviewers
 	}
+
 	return &caps, nil
+}
+
+// applicableSearchAsRoles prunes the search_as_roles and only returns those
+// application for the given list of resourceIDs.
+func (m *RequestValidator) applicableSearchAsRoles(ctx context.Context, resourceIDs []types.ResourceID, loginHint string) ([]string, error) {
+	// First collect all possible search_as_roles.
+	var rolesToRequest []string
+	for _, roleName := range m.Roles.AllowSearch {
+		if !m.CanSearchAsRole(roleName) {
+			continue
+		}
+		rolesToRequest = append(rolesToRequest, roleName)
+	}
+	if len(rolesToRequest) == 0 {
+		return nil, trace.BadParameter(`user attempted a resource request but does not have any "search_as_roles"`)
+	}
+
+	// Prune the list of roles to request to only those which may be necessary
+	// to access the requested resources.
+	var err error
+	rolesToRequest, err = m.pruneResourceRequestRoles(ctx, resourceIDs, loginHint, rolesToRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rolesToRequest, nil
 }
 
 // DynamicAccessExt is an extended dynamic access interface
@@ -1104,22 +1118,7 @@ func (m *RequestValidator) setRolesForResourceRequest(ctx context.Context, req t
 		return nil
 	}
 
-	// First collect all possible search_as_roles.
-	var rolesToRequest []string
-	for _, roleName := range m.Roles.AllowSearch {
-		if !m.CanSearchAsRole(roleName) {
-			continue
-		}
-		rolesToRequest = append(rolesToRequest, roleName)
-	}
-	if len(rolesToRequest) == 0 {
-		return trace.BadParameter(`user attempted a resource request but does not have any "search_as_roles"`)
-	}
-
-	// Prune the list of roles to request to only those which may be necessary
-	// to access the requested resources.
-	var err error
-	rolesToRequest, err = m.PruneResourceRequestRoles(ctx, req.GetRequestedResourceIDs(), req.GetLoginHint(), rolesToRequest)
+	rolesToRequest, err := m.applicableSearchAsRoles(ctx, req.GetRequestedResourceIDs(), req.GetLoginHint())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1339,7 +1338,7 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 	}
 }
 
-// PruneResourceRequestRoles takes an access request and does one of two things:
+// pruneResourceRequestRoles takes an access request and does one of two things:
 //  1. If it is a role request, returns it unchanged.
 //  2. If it is a resource request, all available `search_as_roles` for the user
 //     should have been populated on the request by `ValidateAccessReqeustForUser`.
@@ -1350,7 +1349,7 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 //     should be satisfied by exactly 1 role. The first such role will be
 //     requested, all others will be pruned unless they are necessary to access
 //     a different resource in the set.
-func (m *RequestValidator) PruneResourceRequestRoles(
+func (m *RequestValidator) pruneResourceRequestRoles(
 	ctx context.Context,
 	resourceIDs []types.ResourceID,
 	loginHint string,
