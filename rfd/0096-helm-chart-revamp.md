@@ -64,10 +64,11 @@ used by which teleport node. Common resources should be put in `templates/`.
 The chart would deploy two StatefulSets (instead of the previous deployment):
 one for the proxies and one for the auths.
 
-- the `teleport-proxy` StatefulSet: Those pods are stateless by default and can
-  be upscaled even in standalone mode. They are deployed using a StatefulSet
-  because if the user changes the default `sessionRecordingMode` to `proxy` or
-  `proxy-sync`, we need to be able to mount a volume on each pod. Teleport nodes
+- the `teleport-proxy` Deployment: Those pods are stateless by default and can
+  be upscaled even in standalone mode. Deploying those nodes using a Deployment
+  means we cannot mount peristent storage on them. As Teleport does not support
+  graveful shutdown with record shipping, users might loose active sessions
+  recordings during a rollout if using the `proxy` mode. Teleport nodes
   are relying on `kube` ProvisionTokens to join the auth nodes on startup ([see
   RFD-0094](https://github.com/gravitational/teleport/blob/rfd/0096-helm-chart-revamp/rfd/0096-helm-chart-revamp.md)).
 - the `teleport-auth` StatefulSet: Those pods are stateful by default as they
