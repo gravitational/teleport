@@ -208,7 +208,7 @@ func (r *UsageReporter) runSubmit() {
 				usageBatchesSubmitted.Inc()
 			}
 
-			usageBatchSubmissionDuration.Observe(float64(time.Since(t0).Seconds()))
+			usageBatchSubmissionDuration.Observe(time.Since(t0).Seconds())
 		}
 
 		// Always sleep a bit to avoid spamming the server.
@@ -342,6 +342,62 @@ func (r *UsageReporter) convertEvent(event services.UsageAnonymizable) (*prehoga
 			Timestamp:   time,
 			Event: &prehogapi.SubmitEventRequest_ResourceCreate{
 				ResourceCreate: (*prehogapi.ResourceCreateEvent)(e),
+			},
+		}, nil
+	case *services.UsageUIBannerClick:
+		return &prehogapi.SubmitEventRequest{
+			ClusterName: clusterName,
+			Timestamp:   time,
+			Event: &prehogapi.SubmitEventRequest_UiBannerClick{
+				UiBannerClick: (*prehogapi.UIBannerClickEvent)(e),
+			},
+		}, nil
+	case *services.UsageUIOnboardDomainNameTCSubmitEvent:
+		return &prehogapi.SubmitEventRequest{
+			ClusterName: clusterName,
+			Timestamp:   time,
+			Event: &prehogapi.SubmitEventRequest_UiOnboardDomainNameTcSubmit{
+				UiOnboardDomainNameTcSubmit: (*prehogapi.UIOnboardDomainNameTCSubmitEvent)(e),
+			},
+		}, nil
+	case *services.UsageUIOnboardGoToDashboardClickEvent:
+		return &prehogapi.SubmitEventRequest{
+			ClusterName: clusterName,
+			Timestamp:   time,
+			Event: &prehogapi.SubmitEventRequest_UiOnboardGoToDashboardClick{
+				UiOnboardGoToDashboardClick: (*prehogapi.UIOnboardGoToDashboardClickEvent)(e),
+			},
+		}, nil
+	case *services.UsageUIOnboardGetStartedClickEvent:
+		return &prehogapi.SubmitEventRequest{
+			ClusterName: clusterName,
+			Timestamp:   time,
+			Event: &prehogapi.SubmitEventRequest_UiOnboardGetStartedClick{
+				UiOnboardGetStartedClick: (*prehogapi.UIOnboardGetStartedClickEvent)(e),
+			},
+		}, nil
+	case *services.UsageUIOnboardCompleteGoToDashboardClickEvent:
+		return &prehogapi.SubmitEventRequest{
+			ClusterName: clusterName,
+			Timestamp:   time,
+			Event: &prehogapi.SubmitEventRequest_UiOnboardCompleteGoToDashboardClick{
+				UiOnboardCompleteGoToDashboardClick: (*prehogapi.UIOnboardCompleteGoToDashboardClickEvent)(e),
+			},
+		}, nil
+	case *services.UsageUIOnboardAddFirstResourceClickEvent:
+		return &prehogapi.SubmitEventRequest{
+			ClusterName: clusterName,
+			Timestamp:   time,
+			Event: &prehogapi.SubmitEventRequest_UiOnboardAddFirstResourceClick{
+				UiOnboardAddFirstResourceClick: (*prehogapi.UIOnboardAddFirstResourceClickEvent)(e),
+			},
+		}, nil
+	case *services.UsageUIOnboardAddFirstResourceLaterClickEvent:
+		return &prehogapi.SubmitEventRequest{
+			ClusterName: clusterName,
+			Timestamp:   time,
+			Event: &prehogapi.SubmitEventRequest_UiOnboardAddFirstResourceLaterClick{
+				UiOnboardAddFirstResourceLaterClick: (*prehogapi.UIOnboardAddFirstResourceLaterClickEvent)(e),
 			},
 		}, nil
 	default:

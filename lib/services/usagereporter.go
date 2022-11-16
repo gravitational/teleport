@@ -78,14 +78,92 @@ func (u *UsageResourceCreate) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 	}
 }
 
+// UsageUIBannerClick is a UI event sent when a banner is clicked.
+type UsageUIBannerClick prehogv1.UIBannerClickEvent
+
+func (u *UsageUIBannerClick) Anonymize(a utils.Anonymizer) UsageAnonymizable {
+	return &UsageUIBannerClick{
+		UserName: a.Anonymize([]byte(u.UserName)),
+		Alert:    u.Alert,
+	}
+}
+
+type UsageUIOnboardDomainNameTCSubmitEvent prehogv1.UIOnboardDomainNameTCSubmitEvent
+
+func (u *UsageUIOnboardDomainNameTCSubmitEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
+	// Empty event.
+	return &UsageUIOnboardDomainNameTCSubmitEvent{}
+}
+
+type UsageUIOnboardGoToDashboardClickEvent prehogv1.UIOnboardGoToDashboardClickEvent
+
+func (u *UsageUIOnboardGoToDashboardClickEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
+	// Empty event.
+	return &UsageUIOnboardGoToDashboardClickEvent{}
+}
+
+type UsageUIOnboardGetStartedClickEvent prehogv1.UIOnboardGetStartedClickEvent
+
+func (u *UsageUIOnboardGetStartedClickEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
+	return &UsageUIOnboardGetStartedClickEvent{
+		UserName: a.Anonymize([]byte(u.UserName)),
+	}
+}
+
+type UsageUIOnboardCompleteGoToDashboardClickEvent prehogv1.UIOnboardCompleteGoToDashboardClickEvent
+
+func (u *UsageUIOnboardCompleteGoToDashboardClickEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
+	return &UsageUIOnboardCompleteGoToDashboardClickEvent{
+		UserName: a.Anonymize([]byte(u.UserName)),
+	}
+}
+
+type UsageUIOnboardAddFirstResourceClickEvent prehogv1.UIOnboardAddFirstResourceClickEvent
+
+func (u *UsageUIOnboardAddFirstResourceClickEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
+	return &UsageUIOnboardAddFirstResourceClickEvent{
+		UserName: a.Anonymize([]byte(u.UserName)),
+	}
+}
+
+type UsageUIOnboardAddFirstResourceLaterClickEvent prehogv1.UIOnboardAddFirstResourceLaterClickEvent
+
+func (u *UsageUIOnboardAddFirstResourceLaterClickEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
+	return &UsageUIOnboardAddFirstResourceLaterClickEvent{
+		UserName: a.Anonymize([]byte(u.UserName)),
+	}
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
 func ConvertUsageEvent(event *usageevents.UsageEventOneOf) (UsageAnonymizable, error) {
-	switch event.GetEvent().(type) {
-	// TODO: No external events defined yet.
-	// case *usageevents.UsageEventOneOf_UpgradeBannerClick:
-	// 	return &UsageUpgradeBannerClick{}, nil
+	switch e := event.GetEvent().(type) {
+	case *usageevents.UsageEventOneOf_UiBannerClick:
+		return &UsageUIBannerClick{
+			UserName: e.UiBannerClick.UserName,
+			Alert:    e.UiBannerClick.Alert,
+		}, nil
+	case *usageevents.UsageEventOneOf_UiOnboardDomainNameTcSubmit:
+		return &UsageUIOnboardDomainNameTCSubmitEvent{}, nil
+	case *usageevents.UsageEventOneOf_UiOnboardGoToDashboardClick:
+		return &UsageUIOnboardCompleteGoToDashboardClickEvent{}, nil
+	case *usageevents.UsageEventOneOf_UiOnboardGetStartedClick:
+		return &UsageUIOnboardGetStartedClickEvent{
+			UserName: e.UiOnboardGetStartedClick.UserName,
+		}, nil
+	case *usageevents.UsageEventOneOf_UiOnboardCompleteGoToDashboardClick:
+		return &UsageUIOnboardCompleteGoToDashboardClickEvent{
+			UserName: e.UiOnboardCompleteGoToDashboardClick.UserName,
+		}, nil
+	case *usageevents.UsageEventOneOf_UiOnboardAddFirstResourceClick:
+		return &UsageUIOnboardAddFirstResourceClickEvent{
+			UserName: e.UiOnboardAddFirstResourceClick.UserName,
+		}, nil
+	case *usageevents.UsageEventOneOf_UiOnboardAddFirstResourceLaterClick:
+		return &UsageUIOnboardAddFirstResourceLaterClickEvent{
+			UserName: e.UiOnboardAddFirstResourceLaterClick.UserName,
+		}, nil
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
 	}

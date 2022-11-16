@@ -18,14 +18,53 @@ package teleport.usageevents.v1;
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1";
 
-// ExampleEvent is a usage event sent by the UI when the upgrade
+// UIBannerClickEvent is a usage event sent by the UI when the upgrade
 // banner is clicked.
-message ExampleEvent {}
+message UIBannerClickEvent {
+  // The name of the user that generated the event. It will be anonymized on the
+  // local Teleport auth server before sending.
+  string user_name = 1;
+
+  // The cluster alert name.
+  string alert = 2;
+}
+
+// UIOnboardDomainNameTCSubmitEvent
+message UIOnboardDomainNameTCSubmitEvent {}
+
+// UIOnboardGoToDashboardClickEvent
+message UIOnboardGoToDashboardClickEvent {}
+
+// UIOnboardGetStartedClickEvent
+message UIOnboardGetStartedClickEvent {
+  string user_name = 1;
+}
+
+// UIOnboardCompleteGoToDashboardClickEvent
+message UIOnboardCompleteGoToDashboardClickEvent {
+  string user_name = 1;
+}
+
+// UIOnboardAddFirstResourceClickEvent
+message UIOnboardAddFirstResourceClickEvent {
+  string user_name = 1;
+}
+
+// UIOnboardAddFirstResourceLaterClickEvent
+message UIOnboardAddFirstResourceLaterClickEvent {
+  string user_name = 1;
+}
 
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
 message UsageEventOneOf {
   oneof event {
-    ExampleEvent example_event = 1;
+    UIBannerClickEvent ui_banner_click = 1;
+    UIOnboardDomainNameTCSubmitEvent ui_onboard_domain_name_tc_submit = 2;
+    UIOnboardGoToDashboardClickEvent ui_onboard_go_to_dashboard_click = 3;
+    UIOnboardGetStartedClickEvent ui_onboard_get_started_click = 4;
+    UIOnboardCompleteGoToDashboardClickEvent ui_onboard_complete_go_to_dashboard_click = 5;
+    UIOnboardAddFirstResourceClickEvent ui_onboard_add_first_resource_click = 6;
+    UIOnboardAddFirstResourceLaterClickEvent ui_onboard_add_first_resource_later_click = 7;
   }
 }
