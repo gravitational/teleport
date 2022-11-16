@@ -4464,9 +4464,15 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
+		asyncEmitter, err := process.newAsyncEmitter(conn.Client)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
 		appServer, err := app.New(process.ExitContext(), &app.Config{
+			Clock:                process.Config.Clock,
 			DataDir:              process.Config.DataDir,
 			AuthClient:           conn.Client,
 			AccessPoint:          accessPoint,
@@ -4481,6 +4487,9 @@ func (process *TeleportProcess) initApps() {
 			ResourceMatchers:     process.Config.Apps.ResourceMatchers,
 			OnHeartbeat:          process.onHeartbeat(teleport.ComponentApp),
 			ConnectedProxyGetter: proxyGetter,
+			LockWatcher:          lockWatcher,
+			Emitter:              asyncEmitter,
+			MonitorCloseChannel:  process.Config.Apps.MonitorCloseChannel,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -4533,6 +4542,7 @@ func (process *TeleportProcess) initApps() {
 			log.Infof("Shutting down.")
 			warnOnErr(appServer.Close(), log)
 			agentPool.Stop()
+			warnOnErr(asyncEmitter.Close(), log)
 			warnOnErr(conn.Close(), log)
 			log.Infof("Exited.")
 		})
