@@ -295,7 +295,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Emitter:                as.emitter,
 		AssertionReplayService: as.Unstable.AssertionReplayService,
 	})
-	as.RegisterSAMLService(sas)
+	as.SetSAMLService(sas)
 
 	return &as, nil
 }
@@ -489,11 +489,11 @@ type Server struct {
 	loadAllCAs bool
 }
 
-// RegisterSAMLService registers ss as the SAMLService that provides the SAML
+// SetSAMLService registers ss as the SAMLService that provides the SAML
 // connector implementation. If a SAMLService has already been registered, this
 // will override the previous registration.
-func (a *Server) RegisterSAMLService(ss SAMLService) {
-	a.samlAuthService = ss
+func (a *Server) SetSAMLService(svc SAMLService) {
+	a.samlAuthService = svc
 }
 
 func (a *Server) CloseContext() context.Context {
