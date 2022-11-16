@@ -6,14 +6,12 @@ import Teleport, {
   Props,
 } from 'teleport/Teleport';
 
+import ossConfig from 'teleport/config';
+
 import cfg from 'e-teleport/config';
 import WaitingRoom from 'e-teleport/WaitingRoom';
 
 import { getEnterpriseFeatures } from 'e-teleport/features';
-
-import Login from './Login';
-import Recovery from './Recovery';
-import Main from './Main';
 
 const TeleportE: React.FC<Props> = ({ history, ctx }) => {
   return (
@@ -21,14 +19,22 @@ const TeleportE: React.FC<Props> = ({ history, ctx }) => {
       history={history}
       features={getEnterpriseFeatures()}
       ctx={ctx}
-      renderPublicRoutes={publicRoutes}
-      renderPrivateRoutes={privateRoutes}
+      renderPublicRoutes={publicERoutes}
+      renderPrivateRoutes={privateERoutes}
     />
   );
 };
 
-function publicRoutes() {
-  return [
+const Login = React.lazy(
+  () => import(/* webpackChunkName: "e-welcome" */ './Login')
+);
+
+const Recovery = React.lazy(
+  () => import(/* webpackChunkName: "e-recovery" */ './Recovery')
+);
+
+function publicERoutes() {
+  return renderPublicRoutes(
     <Route
       key="ent-1"
       title="Login"
@@ -40,15 +46,23 @@ function publicRoutes() {
       title="Recovery"
       path={cfg.routes.recovery}
       component={Recovery}
-    />,
-    ...renderPublicRoutes(),
-  ];
+    />
+  );
 }
+
+const Main = React.lazy(
+  () => import(/* webpackChunkName: "e-main" */ './Main')
+);
 
 const Discover = React.lazy(() => import('e-teleport/Discover'));
 
-function privateRoutes() {
-  return <WaitingRoom>{renderPrivateRoutes(Main, Discover)}</WaitingRoom>;
+function privateERoutes() {
+  return renderPrivateRoutes(
+    <WaitingRoom key="waiting room">
+      <Route path={ossConfig.routes.discover} component={Discover} />
+      <Route path={ossConfig.routes.root} component={Main} />
+    </WaitingRoom>
+  );
 }
 
 export default TeleportE;
