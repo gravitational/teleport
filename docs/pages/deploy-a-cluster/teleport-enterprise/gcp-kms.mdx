@@ -1,5 +1,5 @@
 ---
-title: Google KMS
+title: Google Cloud KMS
 description: Configure Teleport to store CA private keys in the Google Cloud Key Management Service
 h1: Store Teleport Private Keys in Google Cloud KMS
 ---
@@ -51,7 +51,7 @@ every Auth Server can be configured to use the same key ring, or if desired each
 can be configured to use a unique key ring in a different region (for redundancy
 or to decrease latency).
 
-It is recommended to create a unique key ring for use by Teleport to logically
+It is recommended to create a dedicated key ring for use by Teleport to logically
 separate it from any other keys in your cloud account.
 
 You can create a key ring from the Google Cloud Console or from the `gcloud` CLI

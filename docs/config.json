@@ -98,7 +98,7 @@
               "forScopes": ["enterprise"]
             },
             {
-              "title": "Google KMS",
+              "title": "Google Cloud KMS",
               "slug": "/deploy-a-cluster/teleport-enterprise/gcp-kms/",
               "forScopes": ["enterprise"]
             },
