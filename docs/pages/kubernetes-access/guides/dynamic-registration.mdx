@@ -86,8 +86,10 @@ assigning `PROXY_SERVICE` to the host and port of your Teleport Proxy Service or
 Teleport Cloud tenant and `TOKEN` to the join token we created earlier:
 
 ```code
-$ PROXY_SERVICE=teleport.example.com:443;
-$ TOKEN=(=presets.tokens.first=);
+# e.g., teleport.example.com:443
+$ PROXY_SERVICE=<Var name="proxy-addr"/>
+# e.g., (=presets.tokens.first=);
+$ TOKEN=<Var name="join-token"/>;
 $ sudo teleport configure \
 --proxy=${PROXY_SERVICE?} \
 --roles=kube \
@@ -109,7 +111,7 @@ This configuration enables your Kubernetes Service instance to connect to any
 Kubernetes clusters you register with your Teleport cluster. This is because the
 `resources[0].labels` field includes the wildcard pattern (`"*": "*"`), which
 allows this Kubernetes Service instance to connect to Kubernetes cluster
-resources with any label key and any label value.
+resources with any label key or value.
 
 <Details title="Selectively watching Kubernetes clusters">
 
@@ -148,9 +150,9 @@ will watch for them.
 
 ### Run the Teleport Kubernetes Service
 
-On the host where you will run the Kubernetes Service, execute the following
-command, depending on whether you installed Teleport using a package manager or
-via a TAR archive:
+On the host where you will run the Teleport Kubernetes Service, execute the
+following command, depending on whether you installed Teleport using a package
+manager or via a TAR archive:
 
 <Tabs>
 <TabItem label="Package Manager">
@@ -227,7 +229,8 @@ version: v5
 Retrieve your user:
 
 ```code
-$ TELEPORT_USER=myuser
+# e.g., myuser
+$ TELEPORT_USER=<Var name="teleport-user"/>
 $ tctl get user/${TELEPORT_USER?} > user.yaml
 ```
 
@@ -237,6 +240,7 @@ Add `kube-manager` to your Teleport user's list of roles:
    roles:
    - access
    - auditor
+   - kube-user
 +  - kube-manager
 ```
 
@@ -292,7 +296,7 @@ deploys, though you can choose a different name by assigning the
 After creating resources, `get-kubeconfig.sh` writes a new kubeconfig to a file
 called `kubeconfig` in the directory where you run the script.
 
-Execute the following command:
+Run the `get-kubeconfig.sh` script:
 
 ```code
 $ bash get-kubeconfig.sh
