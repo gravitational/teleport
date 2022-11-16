@@ -392,7 +392,7 @@ func TestRootNetwork(t *testing.T) {
 	actualAuditEvents := tt.emitter.Events()
 	require.Empty(t, gocmp.Diff(actualAuditEvents, tt.expectedAuditEvents))
 
-	// Clear out the expected and actual evens
+	// Clear out the expected and actual events
 	tt.expectedAuditEvents = nil
 	tt.emitter.Reset()
 
