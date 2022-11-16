@@ -927,14 +927,14 @@ func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 
 // ValidateSAMLResponse validates response returned by SAML identity provider
 func (c *Client) ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error) {
-	out, err := c.PostJSON(ctx, c.Endpoint("saml", "requests", "validate"), validateSAMLResponseReq{
+	out, err := c.PostJSON(ctx, c.Endpoint("saml", "requests", "validate"), ValidateSAMLResponseReq{
 		Response:    re,
 		ConnectorID: connectorID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var rawResponse *samlAuthRawResponse
+	var rawResponse *SAMLAuthRawResponse
 	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}
