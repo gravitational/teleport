@@ -8,15 +8,15 @@ This guide will show you how to set up your Teleport Cluster to use the Google
 Cloud Key Management Service (KMS) to store and handle the CA private key
 material used to sign all certificates issued by your Teleport cluster.
 
-Teleport generates User, Host, JWT, and Database Certificate Authorities (CAs)
-during the first Auth Server's initial startup.
+Teleport generates private key material for its internal Certificate Authorities
+(CAs) during the first Auth Server's initial startup.
 These CAs are used to sign all certificates issued to clients and hosts in the
 Teleport cluster.
-When configured to use Google KMS, all private key material for these CAs will
-be generated, stored, and used for signing inside of Google KMS.
-In short, private key material will never leave Google KMS.
+When configured to use Google Cloud KMS, all private key material for these CAs
+will be generated, stored, and used for signing inside of Google Cloud KMS.
 Instead of the actual private key, Teleport will only store the ID of the KMS
 key.
+In short, private key material will never leave Google Cloud KMS.
 
 If launching a new Teleport cluster this will all be handled during initial
 startup with no specific interventions required after configuration.
