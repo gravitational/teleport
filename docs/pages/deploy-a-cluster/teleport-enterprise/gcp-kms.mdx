@@ -53,6 +53,9 @@ or to decrease latency).
 
 It is recommended to create a dedicated key ring for use by Teleport to logically
 separate it from any other keys in your cloud account.
+Choose a supported
+[KMS location](https://cloud.google.com/kms/docs/locations)
+for the key ring which is geographically near to your Teleport Auth Servers.
 
 You can create a key ring from the Google Cloud Console or from the `gcloud` CLI
 tool. Follow
@@ -60,13 +63,8 @@ tool. Follow
 or run the following command if you have the `gcloud` CLI configured:
 
 ```code
-$ gcloud kms keyrings create "<Var name="teleport-keyring" description="The name for your teleport-specific keyring"/>" --location <Var name="global" description="The location for your Teleport keyring"/>
+$ gcloud kms keyrings create "<Var name="teleport-keyring" description="The name for your teleport-specific keyring"/>" --location <Var name="location" description="The GCP location for your Teleport keyring"/>
 ```
-
-The rest of the guide will assume you have a key ring in the `global` location
-called `teleport-keyring`, replace this with your desired location and keyring
-name as necessary. The example will use the `global` location but you can use
-any location you desire.
 
 ## Step 2/5. Create a GCP service account
 
@@ -123,8 +121,8 @@ Create the IAM policy binding to grant the role to the service account for this
 keyring.
 
 ```code
-$ gcloud kms keyrings add-iam-policy-binding "teleport-keyring" \
-    --location "global" \
+$ gcloud kms keyrings add-iam-policy-binding <Var name="teleport-keyring"/> \
+    --location <Var name="location"/> \
     --member "serviceAccount:${SERVICE_ACCOUNT}" \
     --role "${IAM_ROLE}"
 ```
@@ -142,22 +140,30 @@ See the GCP docs for
 [Application Default Credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc)
 to learn how to provide them for your preferred environment.
 
+<Details title="Manually checking permissions">
+
 To make sure the credentials have been configured correctly, you can run the
 `gcloud` CLI tool from your Teleport Auth Server's environment. Some example
 commands you could use to debug are listed here:
 
 ```code
-$ export KEYRING="<Var name="teleport-keyring"/>"
-$ gcloud kms keys list --location global --keyring "${KEYRING}"
-$ gcloud kms keys create --keyring "${KEYRING}" --location global "test-key" \
+$ gcloud kms keys list --location <Var name="location"/> --keyring "<Var name="teleport-keyring"/>"
+Listed 0 items.
+$ gcloud kms keys create --location <Var name="location"/> --keyring "<Var name="teleport-keyring"/>" \
     --purpose asymmetric-signing \
-    --default-algorithm rsa-sign-pkcs1-4096-sha512
+    --default-algorithm rsa-sign-pkcs1-4096-sha512 \
+    test-key
+$ gcloud kms keys list --location <Var name="location"/> --keyring "<Var name="teleport-keyring"/>"
+NAME                                                                                   PURPOSE          ALGORITHM                   PROTECTION_LEVEL
+projects/my-gcp-account/locations/global/keyRings/teleport-keyring/cryptoKeys/test-key ASYMMETRIC_SIGN  RSA_SIGN_PKCS1_4096_SHA512  SOFTWARE
 $ echo hello > /tmp/hello.txt
-$ gcloud kms asymmetric-sign --keyring "${KEYRING}" --location global \
+$ gcloud kms asymmetric-sign --keyring "<Var name="teleport-keyring"/>" --location <Var name="location"/> \
     --key "test-key" --version 1 \
     --input-file /tmp/hello.txt --signature-file /tmp/hello.sig
-$ gcloud kms keys versions destroy --keyring "${KEYRING}" --location global --key "test-key" 1
+$ gcloud kms keys versions destroy --keyring "<Var name="teleport-keyring"/>" --location <Var name="location"/> --key "test-key" 1
 ```
+
+</Details>
 
 ## Step 4/5. Configure your Auth Server to use KMS keys
 
@@ -169,7 +175,7 @@ Find the fully qualified name of the KMS key ring you created in
 in the GCP Console or by running:
 
 ```code
-$ gcloud kms keyrings list --location <Var name="global"/>
+$ gcloud kms keyrings list --location <Var name="location"/>
 ```
 
 <Details title="Choosing a protection level">
@@ -204,7 +210,7 @@ auth_service:
   # ...
   ca_key_params:
     gcp_kms:
-      keyring: "projects/<your-gcp-project>/locations/<location>/keyRing/teleport-keyring"
+      keyring: "projects/<your-gcp-project>/locations/<location>/keyRing/<your-teleport-keyring>"
       protection_level: "SOFTWARE"
 ```
 
@@ -221,7 +227,7 @@ confirm that Teleport has generated keys in your keyring in the GCP Console or
 by running
 
 ```code
-$ gcloud kms keys list --keyring "<Var name="teleport-keyring"/>" --location <Var name="global"/>
+$ gcloud kms keys list --keyring "<Var name="teleport-keyring"/>" --location <Var name="location"/>
 ```
 
 Try logging in to the cluster with a Teleport user to make sure that new
