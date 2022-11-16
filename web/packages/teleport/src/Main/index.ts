@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 export {
-  Main,
+  Main as default,
   ContentMinWidth,
   HorizontalSplit,
   StyledIndicator,
