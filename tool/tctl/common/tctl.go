@@ -338,7 +338,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 			// The "admin" identity is not present? This means the tctl is running
 			// NOT on the auth server
 			if trace.IsNotFound(err) {
-				return nil, trace.AccessDenied("No Teleport user session or auth service found. tctl must connect to a Teleport Cluster via a user session(tsh login --proxy=...), on the auth server directly or with the identity file via --identity flag")
+				return nil, trace.AccessDenied("no Teleport user certificates or auth service found. tctl must connect to a Teleport Cluster via user certificates (retrieve from tsh login --proxy=...), on the auth server directly or with a identity file via --identity flag")
 			}
 			return nil, trace.Wrap(err)
 		}
