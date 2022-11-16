@@ -317,14 +317,14 @@ func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 		Method: events.LoginMethodOIDC,
 	}
 
-	diagCtx := a.newSSODiagContext(types.KindOIDC)
+	diagCtx := NewSSODiagContext(types.KindOIDC, a)
 
 	auth, err := a.validateOIDCAuthCallback(ctx, diagCtx, q)
-	diagCtx.info.Error = trace.UserMessage(err)
+	diagCtx.Info.Error = trace.UserMessage(err)
 
-	diagCtx.writeToBackend(ctx)
+	diagCtx.WriteToBackend(ctx)
 
-	claims := diagCtx.info.OIDCClaims
+	claims := diagCtx.Info.OIDCClaims
 	if claims != nil {
 		attributes, err := apievents.EncodeMap(claims)
 		if err != nil {
@@ -337,7 +337,7 @@ func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 
 	if err != nil {
 		event.Code = events.UserSSOLoginFailureCode
-		if diagCtx.info.TestFlow {
+		if diagCtx.Info.TestFlow {
 			event.Code = events.UserSSOTestFlowLoginFailureCode
 		}
 		event.Status.Success = false
@@ -352,7 +352,7 @@ func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 	}
 
 	event.Code = events.UserSSOLoginCode
-	if diagCtx.info.TestFlow {
+	if diagCtx.Info.TestFlow {
 		event.Code = events.UserSSOTestFlowLoginCode
 	}
 	event.User = auth.Username
@@ -398,15 +398,15 @@ func checkEmailVerifiedClaim(claims jose.Claims) error {
 	return nil
 }
 
-func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*OIDCAuthResponse, error) {
+func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*OIDCAuthResponse, error) {
 	if errParam := q.Get("error"); errParam != "" {
 		// try to find request so the error gets logged against it.
 		state := q.Get("state")
 		if state != "" {
-			diagCtx.requestID = state
+			diagCtx.RequestID = state
 			req, err := a.GetOIDCAuthRequest(ctx, state)
 			if err == nil {
-				diagCtx.info.TestFlow = req.SSOTestFlow
+				diagCtx.Info.TestFlow = req.SSOTestFlow
 			}
 		}
 
@@ -426,13 +426,13 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 		return nil, trace.OAuth2(
 			oauth2.ErrorInvalidRequest, "missing state query param", q).AddUserMessage("Invalid parameters received from OIDC provider.")
 	}
-	diagCtx.requestID = stateToken
+	diagCtx.RequestID = stateToken
 
 	req, err := a.GetOIDCAuthRequest(ctx, stateToken)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to get OIDC Auth Request.")
 	}
-	diagCtx.info.TestFlow = req.SSOTestFlow
+	diagCtx.Info.TestFlow = req.SSOTestFlow
 
 	// ensure prompt removal of OIDC client in test flows. does nothing in regular flows.
 	ctxC, cancel := context.WithCancel(ctx)
@@ -453,7 +453,7 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 
 		return nil, trace.Wrap(err, "Failed to extract OIDC claims. This may indicate need to set 'provider' flag in connector definition. See: https://goteleport.com/docs/enterprise/sso/#provider-specific-workarounds")
 	}
-	diagCtx.info.OIDCClaims = types.OIDCClaims(claims)
+	diagCtx.Info.OIDCClaims = types.OIDCClaims(claims)
 
 	log.Debugf("OIDC claims: %v.", claims)
 	if !connector.GetAllowUnverifiedEmail() {
@@ -477,7 +477,7 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 		return nil, trace.OAuth2(
 			oauth2.ErrorUnsupportedResponseType, "unable to convert claims to identity", q)
 	}
-	diagCtx.info.OIDCIdentity = &types.OIDCIdentity{
+	diagCtx.Info.OIDCIdentity = &types.OIDCIdentity{
 		ID:        ident.ID,
 		Name:      ident.Name,
 		Email:     ident.Email,
@@ -490,7 +490,7 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 			AddUserMessage("Claims-to-roles mapping is empty, SSO user will never have any roles.")
 	}
 	log.Debugf("Applying %v OIDC claims to roles mappings.", len(connector.GetClaimsToRoles()))
-	diagCtx.info.OIDCClaimsToRoles = connector.GetClaimsToRoles()
+	diagCtx.Info.OIDCClaimsToRoles = connector.GetClaimsToRoles()
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
@@ -499,14 +499,14 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
 	}
 
-	diagCtx.info.CreateUserParams = &types.CreateUserParams{
-		ConnectorName: params.connectorName,
-		Username:      params.username,
-		KubeGroups:    params.kubeGroups,
-		KubeUsers:     params.kubeUsers,
-		Roles:         params.roles,
-		Traits:        params.traits,
-		SessionTTL:    types.Duration(params.sessionTTL),
+	diagCtx.Info.CreateUserParams = &types.CreateUserParams{
+		ConnectorName: params.ConnectorName,
+		Username:      params.Username,
+		KubeGroups:    params.KubeGroups,
+		KubeUsers:     params.KubeUsers,
+		Roles:         params.Roles,
+		Traits:        params.Traits,
+		SessionTTL:    types.Duration(params.SessionTTL),
 	}
 
 	user, err := a.createOIDCUser(params, req.SSOTestFlow)
@@ -518,15 +518,15 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 	auth := &OIDCAuthResponse{
 		Req: OIDCAuthRequestFromProto(req),
 		Identity: types.ExternalIdentity{
-			ConnectorID: params.connectorName,
-			Username:    params.username,
+			ConnectorID: params.ConnectorName,
+			Username:    params.Username,
 		},
 		Username: user.GetName(),
 	}
 
 	// In test flow skip signing and creating web sessions.
 	if req.SSOTestFlow {
-		diagCtx.info.Success = true
+		diagCtx.Info.Success = true
 		return auth, nil
 	}
 
@@ -536,11 +536,11 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
-		session, err := a.createWebSession(ctx, types.NewWebSessionRequest{
+		session, err := a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
 			User:       user.GetName(),
 			Roles:      user.GetRoles(),
 			Traits:     user.GetTraits(),
-			SessionTTL: params.sessionTTL,
+			SessionTTL: params.SessionTTL,
 			LoginTime:  a.clock.Now().UTC(),
 		})
 		if err != nil {
@@ -551,7 +551,7 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 
 	// If a public key was provided, sign it and return a certificate.
 	if len(req.PublicKey) != 0 {
-		sshCert, tlsCert, err := a.createSessionCert(user, params.sessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster,
+		sshCert, tlsCert, err := a.CreateSessionCert(user, params.SessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster,
 			req.KubernetesCluster, keys.AttestationStatementFromProto(req.AttestationStatement))
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")
@@ -627,7 +627,7 @@ func OIDCAuthRequestFromProto(req *types.OIDCAuthRequest) OIDCAuthRequest {
 	}
 }
 
-func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *types.OIDCAuthRequest) (*createUserParams, error) {
+func (a *Server) calculateOIDCUser(diagCtx *SSODiagContext, connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *types.OIDCAuthRequest) (*CreateUserParams, error) {
 	var err error
 
 	username, err := usernameFromClaims(connector, claims, ident)
@@ -635,28 +635,28 @@ func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDC
 		return nil, err
 	}
 
-	p := createUserParams{
-		connectorName: connector.GetName(),
-		username:      username,
+	p := CreateUserParams{
+		ConnectorName: connector.GetName(),
+		Username:      username,
 	}
 
-	p.traits = services.OIDCClaimsToTraits(claims)
+	p.Traits = services.OIDCClaimsToTraits(claims)
 
-	diagCtx.info.OIDCTraitsFromClaims = p.traits
-	diagCtx.info.OIDCConnectorTraitMapping = connector.GetTraitMappings()
+	diagCtx.Info.OIDCTraitsFromClaims = p.Traits
+	diagCtx.Info.OIDCConnectorTraitMapping = connector.GetTraitMappings()
 
 	var warnings []string
-	warnings, p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
-	if len(p.roles) == 0 {
+	warnings, p.Roles = services.TraitsToRoles(connector.GetTraitMappings(), p.Traits)
+	if len(p.Roles) == 0 {
 		if len(warnings) != 0 {
 			log.WithField("connector", connector).Warnf("No roles mapped from claims. Warnings: %q", warnings)
-			diagCtx.info.OIDCClaimsToRolesWarnings = &types.SSOWarnings{
+			diagCtx.Info.OIDCClaimsToRolesWarnings = &types.SSOWarnings{
 				Message:  "No roles mapped for the user",
 				Warnings: warnings,
 			}
 		} else {
 			log.WithField("connector", connector).Warnf("No roles mapped from claims.")
-			diagCtx.info.OIDCClaimsToRolesWarnings = &types.SSOWarnings{
+			diagCtx.Info.OIDCClaimsToRolesWarnings = &types.SSOWarnings{
 				Message: "No roles mapped for the user. The mappings may contain typos.",
 			}
 		}
@@ -664,35 +664,35 @@ func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDC
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
-	roles, err := services.FetchRoles(p.roles, a, p.traits)
+	roles, err := services.FetchRoles(p.Roles, a, p.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	roleTTL := roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
-	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
+	p.SessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
 
 	return &p, nil
 }
 
-func (a *Server) createOIDCUser(p *createUserParams, dryRun bool) (types.User, error) {
-	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
+func (a *Server) createOIDCUser(p *CreateUserParams, dryRun bool) (types.User, error) {
+	expires := a.GetClock().Now().UTC().Add(p.SessionTTL)
 
-	log.Debugf("Generating dynamic OIDC identity %v/%v with roles: %v. Dry run: %v.", p.connectorName, p.username, p.roles, dryRun)
+	log.Debugf("Generating dynamic OIDC identity %v/%v with roles: %v. Dry run: %v.", p.ConnectorName, p.Username, p.Roles, dryRun)
 	user := &types.UserV2{
 		Kind:    types.KindUser,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      p.username,
+			Name:      p.Username,
 			Namespace: apidefaults.Namespace,
 			Expires:   &expires,
 		},
 		Spec: types.UserSpecV2{
-			Roles:  p.roles,
-			Traits: p.traits,
+			Roles:  p.Roles,
+			Traits: p.Traits,
 			OIDCIdentities: []types.ExternalIdentity{
 				{
-					ConnectorID: p.connectorName,
-					Username:    p.username,
+					ConnectorID: p.ConnectorName,
+					Username:    p.Username,
 				},
 			},
 			CreatedBy: types.CreatedBy{
@@ -700,8 +700,8 @@ func (a *Server) createOIDCUser(p *createUserParams, dryRun bool) (types.User, e
 				Time: a.clock.Now().UTC(),
 				Connector: &types.ConnectorRef{
 					Type:     constants.OIDC,
-					ID:       p.connectorName,
-					Identity: p.username,
+					ID:       p.ConnectorName,
+					Identity: p.Username,
 				},
 			},
 		},
@@ -712,7 +712,7 @@ func (a *Server) createOIDCUser(p *createUserParams, dryRun bool) (types.User, e
 	}
 
 	// Get the user to check if it already exists or not.
-	existingUser, err := a.Services.GetUser(p.username, false)
+	existingUser, err := a.Services.GetUser(p.Username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
