@@ -225,9 +225,9 @@ Service reads these parameters to configure its interactions with S3:
 `s3://bucket/path?region=us-east-1&endpoint=mys3.example.com&insecure=false&disablesse=false&acl=private&use_fips_endpoint=true`
 
 - `region=us-east-1` - set the Amazon region to use.
-- `endpoint=mys3.example.com` - connect to a custom S3 endpoint.
-- `insecure=true` - set to `true` or `false`. If `true`, TLS will be disabled.
-- `disablesse=true` - set to `true` or `false`. If `true`, S3 server-side encryption will be disabled. If `false`, aws:kms (Key Management Service) will be used for server-side encryption. Other SSE types are not supported at this time.
+- `endpoint=mys3.example.com` - connect to a custom S3 endpoint. Optional.
+- `insecure=true` - set to `true` or `false`. If `true`, TLS will be disabled. Default value is `false`.
+- `disablesse=true` - set to `true` or `false`. If `true`, S3 server-side encryption will be disabled. If `false`, aws:kms (Key Management Service) will be used for server-side encryption. Other SSE types are not supported at this time. Setting `insecure=true` implicitly sets `disablesse=true`.
 - `sse_kms_key=kms_key_id` - If set to a valid AWS KMS CMK key ID all objects uploaded to S3 will be encrypted with this key. Details can be found below.
 - `acl=private` - set the [canned ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl) to use. Must be one of the predefined ACL values.
 - `use_fips_endpoint=true` -  [Configure S3 FIPS endpoints](#configuring-aws-fips-endpoints)

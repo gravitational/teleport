@@ -297,6 +297,8 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		apps = config.Apps
 	}
 
+	discard := events.NewDiscardEmitter()
+
 	s.appServer, err = New(s.closeContext, &Config{
 		Clock:            s.clock,
 		DataDir:          s.dataDir,
@@ -313,6 +315,8 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		Cloud:            &testCloud{},
 		ResourceMatchers: config.ResourceMatchers,
 		OnReconcile:      config.OnReconcile,
+		LockWatcher:      lockWatcher,
+		Emitter:          discard,
 	})
 	require.NoError(t, err)
 
@@ -525,16 +529,41 @@ func TestRequestAuditEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	var requestEventsReceived atomic.Uint64
+	var chunkEventsReceived atomic.Uint64
 	serverStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
 		Inner: events.NewDiscardEmitter(),
 		OnEmitAuditEvent: func(_ context.Context, _ libsession.ID, event apievents.AuditEvent) error {
-			if event.GetType() == events.AppSessionRequestEvent {
+			switch event.GetType() {
+			case events.AppSessionChunkEvent:
+				chunkEventsReceived.Add(1)
+				expectedEvent := &apievents.AppSessionChunk{
+					Metadata: apievents.Metadata{
+						Type:        events.AppSessionChunkEvent,
+						Code:        events.AppSessionChunkCode,
+						ClusterName: "root.example.com",
+						Index:       0,
+					},
+					AppMetadata: apievents.AppMetadata{
+						AppURI:        app.Spec.URI,
+						AppPublicAddr: app.Spec.PublicAddr,
+						AppName:       app.Metadata.Name,
+					},
+				}
+				require.Empty(t, cmp.Diff(
+					expectedEvent,
+					event,
+					cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
+					cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName", "Time"),
+					cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
+				))
+			case events.AppSessionRequestEvent:
 				requestEventsReceived.Add(1)
-
 				expectedEvent := &apievents.AppSessionRequest{
 					Metadata: apievents.Metadata{
-						Type: events.AppSessionRequestEvent,
-						Code: events.AppSessionRequestCode,
+						Type:        events.AppSessionRequestEvent,
+						Code:        events.AppSessionRequestCode,
+						ClusterName: "root.example.com",
+						Index:       1,
 					},
 					AppMetadata: apievents.AppMetadata{
 						AppURI:        app.Spec.URI,
@@ -566,10 +595,14 @@ func TestRequestAuditEvents(t *testing.T) {
 
 	// make a request to generate events.
 	s.checkHTTPResponse(t, s.clientCertificate, func(_ *http.Response) {
+		// wait until chunk events are generated before closing the server.
+		require.Eventually(t, func() bool {
+			return chunkEventsReceived.Load() == 1
+		}, 500*time.Millisecond, 50*time.Millisecond, "app.session.chunk event not generated")
 		// wait until request events are generated before closing the server.
 		require.Eventually(t, func() bool {
 			return requestEventsReceived.Load() == 1
-		}, 500*time.Millisecond, 50*time.Millisecond, "app.request event not generated")
+		}, 500*time.Millisecond, 50*time.Millisecond, "app.session.request event not generated")
 	})
 
 	searchEvents, _, err := s.authServer.AuditLog.SearchEvents(time.Time{}, time.Now().Add(time.Minute), "", []string{events.AppSessionChunkEvent}, 10, types.EventOrderDescending, "")

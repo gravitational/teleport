@@ -378,6 +378,16 @@ type CLIConf struct {
 	// cmdRunner is a custom function to execute provided exec.Cmd. Mainly used
 	// in testing.
 	cmdRunner func(*exec.Cmd) error
+	// kubernetesImpersonationConfig allows to configure custom kubernetes impersonation values.
+	kubernetesImpersonationConfig impersonationConfig
+	// kubeNamespace allows to configure the default Kubernetes namespace.
+	kubeNamespace string
+
+	// kubeConfigPath is the location of the Kubeconfig for the current test.
+	// Setting this value allows Teleport tests to run `tsh login` commands in
+	// parallel.
+	// It shouldn't be used outside testing.
+	kubeConfigPath string
 }
 
 // Stdout returns the stdout writer.

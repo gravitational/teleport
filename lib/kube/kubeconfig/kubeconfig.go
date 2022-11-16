@@ -59,6 +59,22 @@ type Values struct {
 
 	// TLSServerName is SNI host value passed to the server.
 	TLSServerName string
+
+	// Impersonate allows to define the default impersonated user.
+	// Must be a subset of kubernetes_users or the Teleport username
+	// otherwise Teleport will deny the request.
+	Impersonate string
+	// ImpersonateGroups allows to define the default values for impersonated groups.
+	// Must be a subset of kubernetes_groups otherwise Teleport will deny
+	// the request.
+	ImpersonateGroups []string
+	// Namespace allows to define the default namespace value.
+	Namespace string
+	// KubeClusters is a list of kubernetes clusters to generate contexts for.
+	KubeClusters []string
+	// SelectCluster is the name of the kubernetes cluster to set in
+	// current-context.
+	SelectCluster string
 }
 
 // ExecValues contain values for configuring tsh as an exec auth plugin in
@@ -66,11 +82,6 @@ type Values struct {
 type ExecValues struct {
 	// TshBinaryPath is a path to the tsh binary for use as exec plugin.
 	TshBinaryPath string
-	// KubeClusters is a list of kubernetes clusters to generate contexts for.
-	KubeClusters []string
-	// SelectCluster is the name of the kubernetes cluster to set in
-	// current-context.
-	SelectCluster string
 	// TshBinaryInsecure defines whether to set the --insecure flag in the tsh
 	// exec plugin arguments. This is used when the proxy doesn't have a
 	// trusted TLS cert during login.
@@ -119,10 +130,11 @@ func Update(path string, v Values, storeAllCAs bool) error {
 			}
 		}
 
-		for _, c := range v.Exec.KubeClusters {
+		for _, c := range v.KubeClusters {
 			contextName := ContextName(v.TeleportClusterName, c)
 			authName := contextName
-			execArgs := []string{"kube", "credentials",
+			execArgs := []string{
+				"kube", "credentials",
 				fmt.Sprintf("--kube-cluster=%s", c),
 				fmt.Sprintf("--teleport-cluster=%s", v.TeleportClusterName),
 			}
@@ -130,6 +142,8 @@ func Update(path string, v Values, storeAllCAs bool) error {
 				execArgs = append(execArgs, fmt.Sprintf("--proxy=%s", v.ProxyAddr))
 			}
 			authInfo := &clientcmdapi.AuthInfo{
+				Impersonate:       v.Impersonate,
+				ImpersonateGroups: v.ImpersonateGroups,
 				Exec: &clientcmdapi.ExecConfig{
 					APIVersion: "client.authentication.k8s.io/v1beta1",
 					Command:    v.Exec.TshBinaryPath,
@@ -144,16 +158,32 @@ func Update(path string, v Values, storeAllCAs bool) error {
 			}
 			config.AuthInfos[authName] = authInfo
 
-			setContext(config.Contexts, contextName, clusterName, authName)
+			setContext(config.Contexts, contextName, clusterName, authName, v.Namespace)
 		}
-		if v.Exec.SelectCluster != "" {
-			contextName := ContextName(v.TeleportClusterName, v.Exec.SelectCluster)
+		if v.SelectCluster != "" {
+			contextName := ContextName(v.TeleportClusterName, v.SelectCluster)
 			if _, ok := config.Contexts[contextName]; !ok {
-				return trace.BadParameter("can't switch kubeconfig context to cluster %q, run 'tsh kube ls' to see available clusters", v.Exec.SelectCluster)
+				return trace.BadParameter("can't switch kubeconfig context to cluster %q, run 'tsh kube ls' to see available clusters", v.SelectCluster)
 			}
 			config.CurrentContext = contextName
 		}
 	} else {
+		// When using credentials, we only support specifying a single Kubernetes
+		// cluster.
+		// It is a limitation because the certificate embeds the cluster name, and
+		// Teleport relies on it to forward requests to the correct cluster.
+		if len(v.KubeClusters) > 1 {
+			return trace.BadParameter("Multi-cluster mode not supported when using Credentials")
+		}
+
+		clusterName := v.TeleportClusterName
+		contextName := clusterName
+
+		if len(v.KubeClusters) == 1 {
+			kubeClusterName := v.KubeClusters[0]
+			contextName = ContextName(clusterName, kubeClusterName)
+		}
+
 		// Called when generating an identity file, use plaintext credentials.
 		//
 		// Validate the provided credentials, to avoid partially-populated
@@ -167,13 +197,12 @@ func Update(path string, v Values, storeAllCAs bool) error {
 				return trace.BadParameter("TLS certificate missing in provided credentials")
 			}
 
-			config.AuthInfos[v.TeleportClusterName] = &clientcmdapi.AuthInfo{
+			config.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
 				ClientCertificateData: v.Credentials.TLSCert,
 				ClientKeyData:         rsaKeyPEM,
 			}
-
-			setContext(config.Contexts, v.TeleportClusterName, v.TeleportClusterName, v.TeleportClusterName)
-			config.CurrentContext = v.TeleportClusterName
+			setContext(config.Contexts, contextName, clusterName, contextName, v.Namespace)
+			config.CurrentContext = contextName
 		} else if !trace.IsBadParameter(err) {
 			return trace.Wrap(err)
 		}
@@ -183,7 +212,7 @@ func Update(path string, v Values, storeAllCAs bool) error {
 	return Save(path, *config)
 }
 
-func setContext(contexts map[string]*clientcmdapi.Context, name, cluster, auth string) {
+func setContext(contexts map[string]*clientcmdapi.Context, name, cluster, auth string, namespace string) {
 	lastContext := contexts[name]
 	newContext := &clientcmdapi.Context{
 		Cluster:  cluster,
@@ -193,6 +222,13 @@ func setContext(contexts map[string]*clientcmdapi.Context, name, cluster, auth s
 		newContext.Namespace = lastContext.Namespace
 		newContext.Extensions = lastContext.Extensions
 	}
+
+	// If a user specifies the default namespace we should override it.
+	// Otherwise we should carry the namespace previously defined for the context.
+	if len(namespace) > 0 {
+		newContext.Namespace = namespace
+	}
+
 	contexts[name] = newContext
 }
 
