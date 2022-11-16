@@ -1980,7 +1980,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, proxyClient *ProxyC
 		return nodeClient, nil
 	case nodeDetails.MFACheck != nil: // per-session mfa ceremony was already performed, return the results
 		return nodeClient, trace.Wrap(connectErr)
-	case nodeDetails.MFACheck == nil && connectErr != nil && !trace.IsAccessDenied(connectErr): // catastrophic error, return it
+	case connectErr != nil && !trace.IsAccessDenied(connectErr): // catastrophic error, return it
 		return nil, trace.Wrap(connectErr)
 	}
 
@@ -2112,7 +2112,7 @@ func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, 
 	}
 
 	// Issue "shell" request to the first matching node.
-	fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %v\n", nodeAddrs[0])
+	fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %q\n", nodeAddrs[0])
 	nodeClient, err := tc.ConnectToNode(
 		ctx,
 		proxyClient,
