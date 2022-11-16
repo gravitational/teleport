@@ -21,6 +21,9 @@ import { Clipboard, FolderShared } from 'design/Icon';
 import { colors } from 'teleport/Console/colors';
 
 import ActionMenu from './ActionMenu';
+import { WarningDropdown } from './WarningDropdown';
+
+import type { NotificationItem } from 'shared/components/Notification';
 
 export default function TopBar(props: Props) {
   const {
@@ -30,6 +33,8 @@ export default function TopBar(props: Props) {
     canShareDirectory,
     isSharingDirectory,
     onShareDirectory,
+    warnings,
+    onRemoveWarning,
   } = props;
   const theme = useTheme();
 
@@ -71,6 +76,10 @@ export default function TopBar(props: Props) {
                 : 'Clipboard Sharing Disabled'
             }
           />
+          <WarningDropdown
+            warnings={warnings}
+            onRemoveWarning={onRemoveWarning}
+          />
         </Flex>
         <ActionMenu
           onDisconnect={onDisconnect}
@@ -103,4 +112,6 @@ type Props = {
   isSharingDirectory: boolean;
   onDisconnect: VoidFunction;
   onShareDirectory: VoidFunction;
+  warnings: NotificationItem[];
+  onRemoveWarning(id: string): void;
 };

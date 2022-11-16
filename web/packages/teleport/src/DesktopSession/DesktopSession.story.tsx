@@ -14,7 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { useState } from 'react';
+import { ButtonPrimary } from 'design/Button';
+import { NotificationItem } from 'shared/components/Notification';
 
 import { TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
 
@@ -53,11 +55,12 @@ const props: State = {
   directorySharingState: {
     canShare: true,
     isSharing: false,
-    browserError: false,
   },
   setDirectorySharingState: () => {},
+  onShareDirectory: () => {},
   onPngFrame: () => {},
   onTdpError: () => {},
+  onTdpWarning: () => {},
   onKeyDown: () => {},
   onKeyUp: () => {},
   onMouseMove: () => {},
@@ -76,6 +79,8 @@ const props: State = {
   isUsingChrome: true,
   showAnotherSessionActiveDialog: false,
   setShowAnotherSessionActiveDialog: () => {},
+  warnings: [],
+  onRemoveWarning: () => {},
 };
 
 export const Processing = () => (
@@ -151,7 +156,6 @@ export const ConnectedSettingsTrue = () => {
       directorySharingState={{
         canShare: true,
         isSharing: true,
-        browserError: false,
       }}
       onPngFrame={(ctx: CanvasRenderingContext2D) => {
         fillGray(ctx.canvas);
@@ -193,16 +197,6 @@ export const ConnectionError = () => (
   />
 );
 
-export const DismissibleError = () => (
-  <DesktopSession
-    {...props}
-    fetchAttempt={{ status: 'success' }}
-    tdpConnection={{ status: '', statusText: 'dismissible error' }}
-    wsConnection={'open'}
-    disconnected={false}
-  />
-);
-
 export const UnintendedDisconnect = () => (
   <DesktopSession
     {...props}
@@ -233,3 +227,54 @@ export const WebAuthnPrompt = () => (
 export const AnotherSessionActive = () => (
   <DesktopSession {...props} showAnotherSessionActiveDialog={true} />
 );
+
+export const Warnings = () => {
+  const client = fakeClient();
+  client.init = () => {
+    client.emit(TdpClientEvent.TDP_PNG_FRAME);
+  };
+
+  const [warnings, setWarnings] = useState<NotificationItem[]>([]);
+
+  const addWarning = () => {
+    setWarnings(prevItems => [
+      ...prevItems,
+      {
+        id: crypto.randomUUID(),
+        severity: 'warn',
+        content:
+          "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s.",
+      },
+    ]);
+  };
+
+  const removeWarning = (id: string) => {
+    setWarnings(prevState => prevState.filter(warning => warning.id !== id));
+  };
+
+  return (
+    <>
+      <ButtonPrimary onClick={addWarning} mb={1}>
+        Add Warning
+      </ButtonPrimary>
+      <DesktopSession
+        {...props}
+        tdpClient={client}
+        fetchAttempt={{ status: 'success' }}
+        tdpConnection={{ status: 'success' }}
+        wsConnection={'open'}
+        disconnected={false}
+        clipboardSharingEnabled={true}
+        directorySharingState={{
+          canShare: true,
+          isSharing: true,
+        }}
+        onPngFrame={(ctx: CanvasRenderingContext2D) => {
+          fillGray(ctx.canvas);
+        }}
+        warnings={warnings}
+        onRemoveWarning={removeWarning}
+      />
+    </>
+  );
+};

@@ -16,14 +16,17 @@ limitations under the License.
 
 import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'react-router';
+
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import useWebAuthn from 'teleport/lib/useWebAuthn';
-import { UrlDesktopParams } from 'teleport/config';
 import desktopService from 'teleport/services/desktops';
 import userService from 'teleport/services/user';
 
 import useTdpClientCanvas from './useTdpClientCanvas';
+
+import type { UrlDesktopParams } from 'teleport/config';
+import type { NotificationItem } from 'shared/components/Notification';
 
 export default function useDesktopSession() {
   const { attempt: fetchAttempt, run } = useAttempt('processing');
@@ -32,7 +35,6 @@ export default function useDesktopSession() {
   // - 'processing' at first
   // - 'success' once the first TdpClientEvent.IMAGE_FRAGMENT is seen
   // - 'failed' if a fatal error is encountered
-  // - '' if a non-fatal error is encountered
   const { attempt: tdpConnection, setAttempt: setTdpConnection } =
     useAttempt('processing');
 
@@ -47,7 +49,6 @@ export default function useDesktopSession() {
   const [directorySharingState, setDirectorySharingState] = useState({
     canShare: false,
     isSharing: false,
-    browserError: false,
   });
 
   const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
@@ -64,7 +65,7 @@ export default function useDesktopSession() {
 
   document.title = useMemo(
     () => `${clusterId} • ${username}@${hostname}`,
-    [hostname]
+    [clusterId, hostname, username]
   );
 
   useEffect(() => {
@@ -89,7 +90,12 @@ export default function useDesktopSession() {
           }),
       ])
     );
-  }, [clusterId, desktopName]);
+  }, [clusterId, desktopName, isUsingChrome, run]);
+
+  const [warnings, setWarnings] = useState<NotificationItem[]>([]);
+  const onRemoveWarning = (id: string) => {
+    setWarnings(prevState => prevState.filter(warning => warning.id !== id));
+  };
 
   const clientCanvasProps = useTdpClientCanvas({
     username,
@@ -100,9 +106,64 @@ export default function useDesktopSession() {
     setClipboardSharingEnabled,
     setDirectorySharingState,
     clipboardSharingEnabled,
+    setWarnings,
   });
+  const tdpClient = clientCanvasProps.tdpClient;
 
-  const webauthn = useWebAuthn(clientCanvasProps.tdpClient);
+  const webauthn = useWebAuthn(tdpClient);
+
+  const onShareDirectory = () => {
+    try {
+      window
+        .showDirectoryPicker()
+        .then(sharedDirHandle => {
+          setDirectorySharingState(prevState => ({
+            ...prevState,
+            isSharing: true,
+          }));
+          tdpClient.addSharedDirectory(sharedDirHandle);
+          tdpClient.sendSharedDirectoryAnnounce();
+        })
+        .catch(e => {
+          setDirectorySharingState(prevState => ({
+            ...prevState,
+            isSharing: false,
+          }));
+          setWarnings(prevState => [
+            ...prevState,
+            {
+              id: crypto.randomUUID(),
+              severity: 'warn',
+              content: 'Failed to open the directory picker: ' + e.message,
+            },
+          ]);
+        });
+    } catch (e) {
+      setDirectorySharingState(prevState => ({
+        ...prevState,
+        isSharing: false,
+      }));
+      setWarnings(prevState => [
+        ...prevState,
+        {
+          id: crypto.randomUUID(),
+          severity: 'warn',
+          // This is a gross error message, but should be infrequent enough that its worth just telling
+          // the user the likely problem, while also displaying the error message just in case that's not it.
+          // In a perfect world, we could check for which error message this is and display
+          // context appropriate directions.
+          content:
+            'Encountered an error while attempting to share a directory: ' +
+            e.message +
+            '. \n\nYour user role supports directory sharing over desktop access, \
+          however this feature is only available by default on some Chromium \
+          based browsers like Google Chrome or Microsoft Edge. Brave users can \
+          use the feature by navigating to brave://flags/#file-system-access-api \
+          and selecting "Enable". If you\'re not already, please switch to a supported browser.',
+        },
+      ]);
+    }
+  };
 
   return {
     hostname,
@@ -121,6 +182,9 @@ export default function useDesktopSession() {
     setTdpConnection,
     showAnotherSessionActiveDialog,
     setShowAnotherSessionActiveDialog,
+    onShareDirectory,
+    warnings,
+    onRemoveWarning,
     ...clientCanvasProps,
   };
 }

@@ -13,14 +13,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-import React, { useEffect, useRef, CSSProperties } from 'react';
+import React, { useEffect, useRef } from 'react';
 
-import { TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
-import {
+import { TdpClientEvent } from 'teleport/lib/tdp';
+
+import type { CSSProperties } from 'react';
+import type {
   PngFrame,
   ClientScreenSpec,
   ClipboardData,
 } from 'teleport/lib/tdp/codec';
+import type { TdpClient } from 'teleport/lib/tdp';
 
 export default function TdpClientCanvas(props: Props) {
   const {
@@ -29,6 +32,7 @@ export default function TdpClientCanvas(props: Props) {
     tdpCliOnPngFrame,
     tdpCliOnClipboardData,
     tdpCliOnTdpError,
+    tdpCliOnTdpWarning,
     tdpCliOnWsClose,
     tdpCliOnWsOpen,
     tdpCliOnClientScreenSpec,
@@ -129,6 +133,21 @@ export default function TdpClientCanvas(props: Props) {
   }, [tdpCli, tdpCliOnTdpError]);
 
   useEffect(() => {
+    if (tdpCli && tdpCliOnTdpWarning) {
+      tdpCli.on(TdpClientEvent.TDP_WARNING, tdpCliOnTdpWarning);
+      tdpCli.on(TdpClientEvent.CLIENT_WARNING, tdpCliOnTdpWarning);
+
+      return () => {
+        tdpCli.removeListener(TdpClientEvent.TDP_WARNING, tdpCliOnTdpWarning);
+        tdpCli.removeListener(
+          TdpClientEvent.CLIENT_WARNING,
+          tdpCliOnTdpWarning
+        );
+      };
+    }
+  }, [tdpCli, tdpCliOnTdpWarning]);
+
+  useEffect(() => {
     if (tdpCli && tdpCliOnWsClose) {
       tdpCli.on(TdpClientEvent.WS_CLOSE, tdpCliOnWsClose);
 
@@ -173,7 +192,7 @@ export default function TdpClientCanvas(props: Props) {
     return () => {
       if (onMouseMove) canvas.removeEventListener('mousemove', _onmousemove);
     };
-  }, [onMouseMove]);
+  }, [tdpCli, onMouseMove]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -187,7 +206,7 @@ export default function TdpClientCanvas(props: Props) {
     return () => {
       if (onMouseDown) canvas.removeEventListener('mousedown', _onmousedown);
     };
-  }, [onMouseDown]);
+  }, [tdpCli, onMouseDown]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -201,7 +220,7 @@ export default function TdpClientCanvas(props: Props) {
     return () => {
       if (onMouseUp) canvas.removeEventListener('mouseup', _onmouseup);
     };
-  }, [onMouseUp]);
+  }, [tdpCli, onMouseUp]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -215,7 +234,7 @@ export default function TdpClientCanvas(props: Props) {
     return () => {
       if (onMouseWheelScroll) canvas.removeEventListener('wheel', _onwheel);
     };
-  }, [onMouseWheelScroll]);
+  }, [tdpCli, onMouseWheelScroll]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -229,7 +248,7 @@ export default function TdpClientCanvas(props: Props) {
     return () => {
       if (onKeyDown) canvas.removeEventListener('keydown', _onkeydown);
     };
-  }, [onKeyDown]);
+  }, [tdpCli, onKeyDown]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -243,7 +262,7 @@ export default function TdpClientCanvas(props: Props) {
     return () => {
       if (onKeyUp) canvas.removeEventListener('keyup', _onkeyup);
     };
-  }, [onKeyUp]);
+  }, [tdpCli, onKeyUp]);
 
   // Call init after all listeners have been registered
   useEffect(() => {
@@ -266,7 +285,8 @@ export type Props = {
     pngFrame: PngFrame
   ) => void;
   tdpCliOnClipboardData?: (clipboardData: ClipboardData) => void;
-  tdpCliOnTdpError?: (error: { err: Error; isFatal: boolean }) => void;
+  tdpCliOnTdpError?: (error: Error) => void;
+  tdpCliOnTdpWarning?: (warning: string) => void;
   tdpCliOnWsClose?: () => void;
   tdpCliOnWsOpen?: () => void;
   tdpCliOnClientScreenSpec?: (

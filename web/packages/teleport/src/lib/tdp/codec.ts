@@ -54,6 +54,7 @@ export enum MessageType {
   SHARED_DIRECTORY_LIST_REQUEST = 25,
   SHARED_DIRECTORY_LIST_RESPONSE = 26,
   PNG2_FRAME = 27,
+  NOTIFICATION = 28,
   __LAST, // utility value
 }
 
@@ -93,6 +94,33 @@ export type ClipboardData = {
   // TODO(isaiah): store this as a byte array
   // https://github.com/gravitational/webapps/issues/610
   data: string;
+};
+
+export enum Severity {
+  Info = 0,
+  Warning = 1,
+  Error = 2,
+}
+
+/**
+ * @throws {Error} if an invalid severity is passed
+ */
+export function toSeverity(severity: number): Severity {
+  if (severity === Severity.Info) {
+    return Severity.Info;
+  } else if (severity === Severity.Warning) {
+    return Severity.Warning;
+  } else if (severity === Severity.Error) {
+    return Severity.Error;
+  }
+
+  throw new Error(`received invalid severity level: ${severity}`);
+}
+
+// | message type (28) | message_length uint32 | message []byte | severity byte
+export type Notification = {
+  message: string;
+  severity: Severity;
 };
 
 // | message type (10) | mfa_type byte | message_length uint32 | json []byte
@@ -474,7 +502,7 @@ export default class Codec {
   // encodeKeyboardInput encodes a keyboard action.
   // Returns null if an unsupported code is passed.
   // | message type (5) | key_code uint32 | state byte |
-  encodeKeyboardInput(code: string, state: ButtonState): Message {
+  encodeKeyboardInput(code: string, state: ButtonState): Message | null {
     const scanCode = this._keyScancodes[code];
     if (!scanCode) {
       return null;
@@ -774,9 +802,11 @@ export default class Codec {
     };
   }
 
-  // decodeMessageType decodes the MessageType from a raw tdp message
-  // passed in as an ArrayBuffer (this typically would come from a websocket).
-  // Throws an error on an invalid or unexpected MessageType value.
+  /**
+   * decodeMessageType decodes the MessageType from a raw tdp message
+   * passed in as an ArrayBuffer (this typically would come from a websocket).
+   * @throws {Error} on an invalid or unexpected MessageType value
+   */
   decodeMessageType(buffer: ArrayBuffer): MessageType {
     const messageType = new DataView(buffer).getUint8(0);
     if (!(messageType in MessageType) || messageType === MessageType.__LAST) {
@@ -785,10 +815,30 @@ export default class Codec {
     return messageType;
   }
 
-  // decodeError decodes a raw tdp ERROR message and returns it as a string
+  // decodeErrorMessage decodes a raw tdp Error message and returns it as a string
   // | message type (9) | message_length uint32 | message []byte
   decodeErrorMessage(buffer: ArrayBuffer): string {
     return this.decodeStringMessage(buffer);
+  }
+
+  /**
+   * decodeNotification decodes a raw tdp Notification message
+   * | message type (28) | message_length uint32 | message []byte | severity byte
+   * @throws {Error} if an invalid severity is passed
+   */
+  decodeNotification(buffer: ArrayBuffer): Notification {
+    const dv = new DataView(buffer);
+    let offset = 0;
+    offset += byteLength; // eat message type
+    const messageLength = dv.getUint32(offset);
+    offset += uint32Length; // eat messageLength
+    const message = this.decodeStringMessage(buffer);
+    offset += messageLength; // eat message
+    const severity = dv.getUint8(offset);
+    return {
+      message,
+      severity: toSeverity(severity),
+    };
   }
 
   // decodeMfaChallenge decodes a raw tdp MFA challenge message and returns it as a string (of a json).
@@ -812,8 +862,7 @@ export default class Codec {
   // decodeStringMessage decodes a tdp message of the form
   // | message type (N) | message_length uint32 | message []byte
   private decodeStringMessage(buffer: ArrayBuffer): string {
-    // slice(5) ensures we skip the message type and message_length
-    const offset = 0 + byteLength + uint32Length; // eat message type and message_length
+    const offset = byteLength + uint32Length; // eat message type and message_length
     return this.decoder.decode(new Uint8Array(buffer.slice(offset)));
   }
 

@@ -1,51 +1,50 @@
+/*
+Copyright 2022 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 import React, { useEffect, useRef, useState } from 'react';
 import styled, { css, useTheme } from 'styled-components';
 import { ButtonIcon, Flex, Text } from 'design';
-import { Close, Info, Warning } from 'design/Icon';
+import { Close } from 'design/Icon';
 
-import { NotificationItem, NotificationItemContent } from './types';
+import type { propTypes } from 'design/system';
+
+import type { NotificationItem, NotificationItemContent } from './types';
 
 interface NotificationProps {
   item: NotificationItem;
-
   onRemove(): void;
+  Icon: React.ElementType;
+  getColor(theme): string;
+  isAutoRemovable: boolean;
+  autoRemoveDurationMs?: number;
 }
 
-const notificationConfig: Record<
-  NotificationItem['severity'],
-  { Icon: React.ElementType; getColor(theme): string; isAutoRemovable: boolean }
-> = {
-  error: {
-    Icon: Warning,
-    getColor: theme => theme.colors.danger,
-    isAutoRemovable: false,
-  },
-  warn: {
-    Icon: Warning,
-    getColor: theme => theme.colors.warning,
-    isAutoRemovable: true,
-  },
-  info: {
-    Icon: Info,
-    getColor: theme => theme.colors.info,
-    isAutoRemovable: true,
-  },
-};
+const defaultAutoRemoveDurationMs = 10_000; // 10s
 
-const autoRemoveDurationMs = 10_000; // 10s
-
-export function Notification(props: NotificationProps) {
+export function Notification(props: NotificationProps & propTypes) {
   const [isHovered, setIsHovered] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const timeoutHandler = useRef<number>();
-  const config = notificationConfig[props.item.severity];
   const theme = useTheme();
 
   useEffect(() => {
-    if (!isHovered && config.isAutoRemovable) {
+    if (!isHovered && props.isAutoRemovable) {
       timeoutHandler.current = setTimeout(
         props.onRemove,
-        autoRemoveDurationMs
+        props.autoRemoveDurationMs || defaultAutoRemoveDurationMs
       ) as unknown as number;
     }
 
@@ -66,13 +65,12 @@ export function Notification(props: NotificationProps) {
       ml={1}
       mr={-1}
       style={{ visibility: isHovered ? 'visible' : 'hidden' }}
+      onClick={e => {
+        e.stopPropagation();
+        props.onRemove();
+      }}
     >
-      <Close
-        onClick={e => {
-          e.stopPropagation();
-          props.onRemove();
-        }}
-      />
+      <Close />
     </ButtonIcon>
   );
 
@@ -92,11 +90,10 @@ export function Notification(props: NotificationProps) {
         }
       }}
       onClick={toggleIsExpanded}
+      {...props}
     >
       <Flex alignItems="center" mr={1} minWidth="0" width="100%">
-        {config && (
-          <config.Icon color={config.getColor(theme)} mr={3} fontSize={16} />
-        )}
+        <props.Icon color={props.getColor(theme)} mr={3} fontSize={16} />
         {getRenderedContent(props.item.content, isExpanded, removeIcon)}
       </Flex>
     </Container>
@@ -186,7 +183,6 @@ const Container = styled(Flex)`
   background: ${props => props.theme.colors.primary.light};
   min-height: 40px;
   width: 320px;
-  margin-bottom: 12px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
   color: ${props => props.theme.colors.text.primary};
   border-radius: 4px;

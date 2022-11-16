@@ -271,7 +271,7 @@ const Example = () => (
   </Box>
 );
 
-const sample = `Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500.`;
+const sample = `Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s.`;
 const tableCss = `
   vertical-align: top;
   width: 100%;

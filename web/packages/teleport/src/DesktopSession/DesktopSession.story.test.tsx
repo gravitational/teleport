@@ -13,7 +13,6 @@ import {
   ConnectionError,
   UnintendedDisconnect,
   WebAuthnPrompt,
-  DismissibleError,
   AnotherSessionActive,
 } from './DesktopSession.story';
 
@@ -59,11 +58,6 @@ test('connection error', () => {
 
 test('unintended disconnect', () => {
   render(<UnintendedDisconnect />);
-  expect(screen.getByTestId('Modal')).toMatchSnapshot();
-});
-
-test('dismissible error', () => {
-  render(<DismissibleError />);
   expect(screen.getByTestId('Modal')).toMatchSnapshot();
 });
 

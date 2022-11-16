@@ -15,18 +15,26 @@ import Logger from 'shared/libs/logger';
 
 import { TermEventEnum } from 'teleport/lib/term/enums.js';
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
-import { WebauthnAssertionResponse } from 'teleport/services/auth';
 
 import Codec, {
   MessageType,
+  FileType,
+  SharedDirectoryErrCode,
+  Severity,
+} from './codec';
+import {
+  PathDoesNotExistError,
+  SharedDirectoryManager,
+} from './sharedDirectoryManager';
+
+import type { FileOrDirInfo } from './sharedDirectoryManager';
+import type {
   MouseButton,
   ButtonState,
   ScrollAxis,
   ClientScreenSpec,
   PngFrame,
   ClipboardData,
-  FileType,
-  SharedDirectoryErrCode,
   SharedDirectoryInfoResponse,
   SharedDirectoryListResponse,
   SharedDirectoryMoveResponse,
@@ -36,20 +44,20 @@ import Codec, {
   SharedDirectoryDeleteResponse,
   FileSystemObject,
 } from './codec';
-import {
-  PathDoesNotExistError,
-  SharedDirectoryManager,
-  FileOrDirInfo,
-} from './sharedDirectoryManager';
+import type { WebauthnAssertionResponse } from 'teleport/services/auth';
 
 export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
   TDP_PNG_FRAME = 'tdp png frame',
   TDP_CLIPBOARD_DATA = 'tdp clipboard data',
-  // TDP_ERROR corresponds with https://github.com/gravitational/teleport/blob/86e824fc7879538e4de400eb1518e4f88930c109/rfd/0037-desktop-access-protocol.md?plain=1#L200-L206
+  // TDP_ERROR corresponds with the TDP error message
   TDP_ERROR = 'tdp error',
   // CLIENT_ERROR represents an error event in the client that isn't a TDP_ERROR
   CLIENT_ERROR = 'client error',
+  // TDP_WARNING corresponds the TDP warning message
+  TDP_WARNING = 'tdp warning',
+  // CLIENT_WARNING represents a warning event that isn't a TDP_WARNING
+  CLIENT_WARNING = 'client warning',
   WS_OPEN = 'ws open',
   WS_CLOSE = 'ws close',
 }
@@ -134,6 +142,9 @@ export default class Client extends EventEmitterWebAuthnSender {
             TdpClientEvent.TDP_ERROR
           );
           break;
+        case MessageType.NOTIFICATION:
+          this.handleTdpNotification(buffer);
+          break;
         case MessageType.MFA_JSON:
           this.handleMfaChallenge(buffer);
           break;
@@ -203,6 +214,18 @@ export default class Client extends EventEmitterWebAuthnSender {
       TdpClientEvent.TDP_CLIPBOARD_DATA,
       this.codec.decodeClipboardData(buffer)
     );
+  }
+
+  handleTdpNotification(buffer: ArrayBuffer) {
+    const notification = this.codec.decodeNotification(buffer);
+    if (notification.severity === Severity.Error) {
+      this.handleError(
+        new Error(notification.message),
+        TdpClientEvent.TDP_ERROR
+      );
+    } else if (notification.severity === Severity.Warning) {
+      this.handleWarning(notification.message, TdpClientEvent.TDP_WARNING);
+    }
   }
 
   // Assuming we have a message of type PNG_FRAME, extract its
@@ -320,7 +343,7 @@ export default class Client extends EventEmitterWebAuthnSender {
           path: req.path,
         },
       });
-      this.handleError(e, TdpClientEvent.CLIENT_ERROR, false);
+      this.handleWarning(e.message, TdpClientEvent.CLIENT_WARNING);
     }
   }
 
@@ -338,7 +361,7 @@ export default class Client extends EventEmitterWebAuthnSender {
         completionId: req.completionId,
         errCode: SharedDirectoryErrCode.Failed,
       });
-      this.handleError(e, TdpClientEvent.CLIENT_ERROR, false);
+      this.handleWarning(e.message, TdpClientEvent.CLIENT_WARNING);
     }
   }
 
@@ -387,13 +410,10 @@ export default class Client extends EventEmitterWebAuthnSender {
       completionId: req.completionId,
       errCode: SharedDirectoryErrCode.Failed,
     });
-    this.handleError(
-      new Error(
-        'Moving files and directories within a shared \
-        directory is not supported.'
-      ),
-      TdpClientEvent.CLIENT_ERROR,
-      false
+    this.handleWarning(
+      'Moving files and directories within a shared \
+        directory is not supported.',
+      TdpClientEvent.CLIENT_WARNING
     );
   }
 
@@ -540,12 +560,20 @@ export default class Client extends EventEmitterWebAuthnSender {
   // Emits an errType event, closing the socket if the error was fatal.
   private handleError(
     err: Error,
-    errType: TdpClientEvent.TDP_ERROR | TdpClientEvent.CLIENT_ERROR,
-    isFatal = true
+    errType: TdpClientEvent.TDP_ERROR | TdpClientEvent.CLIENT_ERROR
   ) {
     this.logger.error(err);
-    this.emit(errType, { err, isFatal });
-    if (isFatal) this.socket?.close();
+    this.emit(errType, err);
+    this.socket?.close();
+  }
+
+  // Emits an warnType event
+  private handleWarning(
+    warning: string,
+    warnType: TdpClientEvent.TDP_WARNING | TdpClientEvent.CLIENT_WARNING
+  ) {
+    this.logger.warn(warning);
+    this.emit(warnType, warning);
   }
 
   // Ensures full cleanup of this object.

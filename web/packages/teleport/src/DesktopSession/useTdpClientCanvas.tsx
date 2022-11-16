@@ -16,6 +16,7 @@ limitations under the License.
 
 import { useState, useEffect, useRef, Dispatch, SetStateAction } from 'react';
 import { Attempt } from 'shared/hooks/useAttemptNext';
+import { NotificationItem } from 'shared/components/Notification';
 
 import { getPlatform } from 'design/theme/utils';
 
@@ -43,6 +44,7 @@ export default function useTdpClientCanvas(props: Props) {
     setClipboardSharingEnabled,
     setDirectorySharingState,
     clipboardSharingEnabled,
+    setWarnings,
   } = props;
   const [tdpClient, setTdpClient] = useState<TdpClient | null>(null);
   const initialTdpConnectionSucceeded = useRef(false);
@@ -92,16 +94,29 @@ export default function useTdpClientCanvas(props: Props) {
   };
 
   // Default TdpClientEvent.TDP_ERROR and TdpClientEvent.CLIENT_ERROR handler
-  const onTdpError = (error: { err: Error; isFatal: boolean }) => {
-    const { err, isFatal } = error;
+  const onTdpError = (error: Error) => {
     setDirectorySharingState(prevState => ({
       ...prevState,
       isSharing: false,
     }));
     setClipboardSharingEnabled(false);
     setTdpConnection({
-      status: isFatal ? 'failed' : '',
-      statusText: err.message,
+      status: 'failed',
+      statusText: error.message,
+    });
+  };
+
+  // Default TdpClientEvent.TDP_WARNING and TdpClientEvent.CLIENT_WARNING handler
+  const onTdpWarning = (warning: string) => {
+    setWarnings(prevState => {
+      return [
+        ...prevState,
+        {
+          content: warning,
+          severity: 'warn',
+          id: crypto.randomUUID(),
+        },
+      ];
     });
   };
 
@@ -239,6 +254,7 @@ export default function useTdpClientCanvas(props: Props) {
     onMouseUp,
     onMouseWheelScroll,
     onContextMenu,
+    onTdpWarning,
   };
 }
 
@@ -263,8 +279,8 @@ type Props = {
     SetStateAction<{
       canShare: boolean;
       isSharing: boolean;
-      browserError: boolean;
     }>
   >;
   clipboardSharingEnabled: boolean;
+  setWarnings: Dispatch<SetStateAction<NotificationItem[]>>;
 };
