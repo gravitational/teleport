@@ -256,6 +256,7 @@ func (h *APIHandler) Close() error {
 // NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
+	cfg.ProxyClient = auth.WithGithubConnectorConversions(cfg.ProxyClient)
 	h := &Handler{
 		cfg:             cfg,
 		log:             newPackageLogger(),
@@ -502,8 +503,8 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.DELETE("/webapi/users/:username", h.WithAuth(h.deleteUserHandle))
 
 	// We have an overlap route here, please see godoc of handleGetUserOrResetToken
-	//h.GET("/webapi/users/:username", h.WithAuth(h.getUserHandle))
-	//h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
+	// h.GET("/webapi/users/:username", h.WithAuth(h.getUserHandle))
+	// h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
 	h.GET("/webapi/users/*wildcard", h.handleGetUserOrResetToken)
 
 	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changeUserAuthentication))
@@ -2315,7 +2316,6 @@ func (h *Handler) clusterLoginAlertsGet(w http.ResponseWriter, r *http.Request, 
 			types.AlertOnLogin: "yes",
 		},
 	})
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

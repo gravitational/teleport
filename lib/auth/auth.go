@@ -104,7 +104,7 @@ const (
 	githubCacheTimeout = time.Hour
 )
 
-var ErrRequiresEnterprise = trace.AccessDenied("this feature requires Teleport Enterprise")
+var ErrRequiresEnterprise = services.ErrRequiresEnterprise
 
 // ServerOption allows setting options as functional arguments to Server
 type ServerOption func(*Server) error
@@ -584,9 +584,11 @@ func (a *Server) runPeriodicOperations() {
 	}
 }
 
-const releaseAlertID = "upgrade-suggestion"
-const secAlertID = "security-patch-available"
-const verInUseLabel = "teleport.internal/ver-in-use"
+const (
+	releaseAlertID = "upgrade-suggestion"
+	secAlertID     = "security-patch-available"
+	verInUseLabel  = "teleport.internal/ver-in-use"
+)
 
 // syncReleaseAlerts calculates alerts related to new teleport releases. When checkRemote
 // is true it pulls the latest release info from github.  Otherwise, it loads the versions used
