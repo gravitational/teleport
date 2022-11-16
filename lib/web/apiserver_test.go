@@ -2832,8 +2832,9 @@ func TestClusterDesktopsGet(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make the call.
+	query := url.Values{"sort": []string{"name"}}
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "desktops")
-	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	re, err := pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 
 	// Test correct response.
@@ -2846,11 +2847,13 @@ func TestClusterDesktopsGet(t *testing.T) {
 		Name:   "desktop1",
 		Addr:   "addr",
 		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
+		HostID: "host",
 	}, {
 		OS:     constants.WindowsOS,
 		Name:   "desktop2",
 		Addr:   "addr",
 		Labels: []ui.Label{{Name: "test-field", Value: "test-value2"}},
+		HostID: "host",
 	}})
 }
 
@@ -2893,10 +2896,21 @@ func TestClusterAppsGet(t *testing.T) {
 		}})
 	require.NoError(t, err)
 
+	// Test URI's with tcp is filtered out of result.
+	resource3, err := types.NewAppServerV3(types.Metadata{Name: "server3"}, types.AppServerSpecV3{
+		HostID: "hostid",
+		App: &types.AppV3{
+			Metadata: types.Metadata{Name: "app3"},
+			Spec:     types.AppSpecV3{URI: "tcp://something", PublicAddr: "publicaddrs"},
+		}})
+	require.NoError(t, err)
+
 	// Register apps.
 	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource)
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource2)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource3)
 	require.NoError(t, err)
 
 	// Make the call.

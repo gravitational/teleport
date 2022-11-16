@@ -501,7 +501,7 @@ func TestHandleClusterNodesGetFallback(t *testing.T) {
 	m.mockListResources = func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 		return nil, trace.NotImplemented("not implemented")
 	}
-	m.mockGetNodes = func(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+	m.mockGetNodes = func(ctx context.Context, namespace string) ([]types.Server, error) {
 		return []types.Server{server1, server2}, nil
 	}
 	m.mockPing = func(ctx context.Context) (proto.PingResponse, error) {
@@ -557,12 +557,19 @@ func TestHandleClusterAppsGetFallback(t *testing.T) {
 			Spec:     types.AppSpecV3{URI: "uri"},
 		}})
 	require.NoError(t, err)
+	serverWithTCP, err := types.NewAppServerV3(types.Metadata{Name: "server4"}, types.AppServerSpecV3{
+		HostID: "hostid",
+		App: &types.AppV3{
+			Metadata: types.Metadata{Name: "app3"},
+			Spec:     types.AppSpecV3{URI: "tcp://something"},
+		}})
+	require.NoError(t, err)
 
 	m.mockListResources = func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 		return nil, trace.NotImplemented("not implemented")
 	}
 	m.mockGetApplicationServers = func(context.Context, string) ([]types.AppServer, error) {
-		return []types.AppServer{server1, server2, serverDup}, nil
+		return []types.AppServer{server1, server2, serverDup, serverWithTCP}, nil
 	}
 	m.mockPing = func(ctx context.Context) (proto.PingResponse, error) {
 		return proto.PingResponse{ServerVersion: "9.1"}, nil
@@ -690,12 +697,14 @@ func TestHandleClusterWindowsGetFallback(t *testing.T) {
 			Name:   "desktop1",
 			Addr:   "addr",
 			Labels: []ui.Label{},
+			HostID: "test-hostID",
 		},
 		{
 			OS:     constants.WindowsOS,
 			Name:   "desktop2",
 			Addr:   "addr",
 			Labels: []ui.Label{},
+			HostID: "test-hostID",
 		}})
 }
 
@@ -732,7 +741,11 @@ func TestHandleClusterKubesGetFallback(t *testing.T) {
 	mockHTTPReq, err := http.NewRequest("", "", nil)
 	require.NoError(t, err)
 
-	res, err := handleClusterKubesGet(m, mockHTTPReq)
+	teleUser, err := types.NewUser("foo")
+	require.NoError(t, err)
+	mockUserRoles := []types.Role{defaultRoleForNewUser(teleUser, "llama")}
+
+	res, err := handleClusterKubesGet(m, mockHTTPReq, mockUserRoles)
 	require.NoError(t, err)
 	require.Nil(t, res.StartKey)
 	require.Nil(t, res.TotalCount)
@@ -769,7 +782,7 @@ type mockedResourceAPIGetter struct {
 	mockGetDatabaseServers    func(context.Context, string, ...services.MarshalOption) ([]types.DatabaseServer, error)
 	mockGetWindowsDesktops    func(context.Context, types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
 	mockGetKubeServices       func(context.Context) ([]types.Server, error)
-	mockGetNodes              func(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+	mockGetNodes              func(ctx context.Context, namespace string) ([]types.Server, error)
 	mockPing                  func(ctx context.Context) (proto.PingResponse, error)
 }
 
@@ -867,7 +880,7 @@ func (m *mockedResourceAPIGetter) ListResources(ctx context.Context, req proto.L
 	return nil, trace.NotImplemented("mockListResources not implemented")
 }
 
-func (m *mockedResourceAPIGetter) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+func (m *mockedResourceAPIGetter) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	if m.mockGetNodes != nil {
 		return m.mockGetNodes(ctx, namespace)
 	}

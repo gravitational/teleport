@@ -483,17 +483,14 @@ func handleClusterAppsGet(clt resourcesAPIGetter, r *http.Request, cfg ui.MakeAp
 			return nil, trace.Wrap(err)
 		}
 
-		var apps types.Apps
-		for _, server := range appServers {
-			apps = append(apps, server.GetApp())
-		}
-
+		apps, numExcludedApps := extractAppsWithoutTCPEndpoint(appServers)
 		cfg.Apps = apps
+		totalCount := resp.TotalCount - numExcludedApps
 
 		return &listResourcesGetResponse{
 			Items:      ui.MakeApps(cfg),
 			StartKey:   &resp.NextKey,
-			TotalCount: &resp.TotalCount,
+			TotalCount: &totalCount,
 		}, nil
 	}
 
@@ -507,11 +504,7 @@ func handleClusterAppsGet(clt resourcesAPIGetter, r *http.Request, cfg ui.MakeAp
 		return nil, trace.Wrap(err)
 	}
 
-	var apps types.Apps
-	for _, server := range appServers {
-		apps = append(apps, server.GetApp())
-	}
-
+	apps, _ := extractAppsWithoutTCPEndpoint(appServers)
 	cfg.Apps = types.DeduplicateApps(apps)
 
 	return &listResourcesGetResponse{
@@ -550,7 +543,7 @@ func handleClusterDesktopsGet(clt resourcesAPIGetter, r *http.Request) (*listRes
 	}, nil
 }
 
-func handleClusterKubesGet(clt resourcesAPIGetter, r *http.Request) (*listResourcesGetResponse, error) {
+func handleClusterKubesGet(clt resourcesAPIGetter, r *http.Request, userRoles services.RoleSet) (*listResourcesGetResponse, error) {
 	resp, err := attemptListResources(clt, r, types.KindKubernetesCluster)
 	if err == nil {
 		clusters, err := types.ResourcesWithLabels(resp.Resources).AsKubeClusters()
@@ -559,7 +552,7 @@ func handleClusterKubesGet(clt resourcesAPIGetter, r *http.Request) (*listResour
 		}
 
 		return &listResourcesGetResponse{
-			Items:      ui.MakeKubeClusters(clusters),
+			Items:      ui.MakeKubeClusters(clusters, userRoles),
 			StartKey:   &resp.NextKey,
 			TotalCount: &resp.TotalCount,
 		}, nil
@@ -628,6 +621,6 @@ type resourcesAPIGetter interface {
 	GetDatabaseServers(context.Context, string, ...services.MarshalOption) ([]types.DatabaseServer, error)
 	GetWindowsDesktops(context.Context, types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
 	GetKubeServices(context.Context) ([]types.Server, error)
-	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 	Ping(ctx context.Context) (proto.PingResponse, error)
 }

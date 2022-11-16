@@ -72,7 +72,6 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 	return res, nil
-
 }
 
 // clusterDesktopServicesGet returns a list of desktop services in a form the UI can present.
@@ -96,8 +95,8 @@ func (h *Handler) clusterDesktopServicesGet(w http.ResponseWriter, r *http.Reque
 
 	return listResourcesGetResponse{
 		Items:      ui.MakeDesktopServices(desktopServices),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		StartKey:   &resp.NextKey,
+		TotalCount: &resp.TotalCount,
 	}, nil
 }
 
