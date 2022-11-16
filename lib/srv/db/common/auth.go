@@ -571,14 +571,10 @@ func shouldUseSystemCertPool(sessionCtx *Session) bool {
 	case types.DatabaseTypeAzure:
 		return true
 
-		// TODO
+	case types.DatabaseTypeRDSProxy:
 		// AWS RDS Proxy uses Amazon Root CAs.
 		//
 		// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.howitworks.html#rds-proxy-security.tls
-	case types.DatabaseTypeElastiCache,
-		types.DatabaseTypeMemoryDB,
-		types.DatabaseTypeRDSProxy,
-		types.DatabaseTypeRedshiftServerless:
 		return true
 	}
 	return false

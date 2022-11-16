@@ -404,7 +404,7 @@ func (d *DatabaseV3) getAWSType() (string, bool) {
 	if aws.Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift, true
 	}
-	if aws.RedshiftServerless.WorkgroupName != "" || aws.RedshiftServerless.EndpointName != "" {
+	if aws.RedshiftServerless.WorkgroupName != "" {
 		return DatabaseTypeRedshiftServerless, true
 	}
 	if aws.ElastiCache.ReplicationGroupID != "" {

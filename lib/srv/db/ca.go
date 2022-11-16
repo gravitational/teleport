@@ -137,14 +137,16 @@ func (s *Server) getCACertPaths(database types.Database) ([]string, error) {
 
 	// All Redshift instances share the same root CA which can be downloaded
 	// from a well-known URL.
-	case types.DatabaseTypeRedshift:
+	//
+	// https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-ssl-support.html
+	case types.DatabaseTypeRedshift,
+		types.DatabaseTypeRedshiftServerless:
 		return []string{filepath.Join(s.cfg.DataDir, filepath.Base(redshiftCAURLForDatabase(database)))}, nil
 
 	// Databases with Amazon Root CA.
 	case types.DatabaseTypeElastiCache,
 		types.DatabaseTypeMemoryDB,
-		types.DatabaseTypeRDSProxy,
-		types.DatabaseTypeRedshiftServerless:
+		types.DatabaseTypeRDSProxy:
 		return []string{filepath.Join(s.cfg.DataDir, filepath.Base(amazonRootCA1URL))}, nil
 
 	// Each Cloud SQL instance has its own CA.
@@ -183,7 +185,8 @@ func (d *realDownloader) Download(ctx context.Context, database types.Database, 
 	switch database.GetType() {
 	case types.DatabaseTypeRDS:
 		return d.downloadFromURL(rdsCAURLForDatabase(database))
-	case types.DatabaseTypeRedshift:
+	case types.DatabaseTypeRedshift,
+		types.DatabaseTypeRedshiftServerless:
 		return d.downloadFromURL(redshiftCAURLForDatabase(database))
 	case types.DatabaseTypeElastiCache,
 		types.DatabaseTypeMemoryDB:

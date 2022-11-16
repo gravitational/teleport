@@ -325,6 +325,18 @@ func TestWatcher(t *testing.T) {
 			expectedDatabases: types.Databases{redshiftDatabaseUse1Prod, redshiftDatabaseUnknownStatus},
 		},
 		{
+			name: "Redshift Serverless",
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types:   []string{services.AWSMatcherRedshiftServerless},
+					Regions: []string{"us-east-1"},
+					Tags:    types.Labels{"env": []string{"prod"}},
+				},
+			},
+			clients:           &clients.TestCloudClients{},
+			expectedDatabases: types.Databases{},
+		},
+		{
 			name: "ElastiCache",
 			awsMatchers: []services.AWSMatcher{
 				{

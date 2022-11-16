@@ -17,6 +17,7 @@ package watchers
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/memorydb"
@@ -133,6 +134,12 @@ func (f *memoryDBFetcher) Get(ctx context.Context) (types.Databases, error) {
 		}
 	}
 	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
+}
+
+// String returns the fetcher's string description.
+func (f *memoryDBFetcher) String() string {
+	return fmt.Sprintf("memorydbFetcher(Region=%v, Labels=%v)",
+		f.cfg.Region, f.cfg.Labels)
 }
 
 // getMemoryDBClusters fetches all MemoryDB clusters.

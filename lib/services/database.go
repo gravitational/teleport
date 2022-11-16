@@ -30,6 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -525,6 +526,26 @@ func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[s
 		})
 }
 
+// NewDatabaseFromRedshiftServerlessVPCEndpoint creates a database resource from
+// a Redshift Serverless VPC endpoint.
+func NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.EndpointAccess, extraLabels map[string]string) (types.Database, error) {
+	metadata, err := MetadataFromRedshiftServerlessVPCEndpoint(endpoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return types.NewDatabaseV3(
+		setDBName(types.Metadata{
+			Description: fmt.Sprintf("Redshift Serverless VPC endpoint in %v", metadata.Region),
+			Labels:      nil, //labelsFromRedshiftServerlessVPCEndpoint(endpoint, metadata, extraLabels),
+		}, metadata.RedshiftServerless.WorkgroupName, metadata.RedshiftServerless.EndpointName),
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
+			AWS:      *metadata,
+		})
+}
+
 // MetadataFromRDSInstance creates AWS metadata from the provided RDS instance.
 func MetadataFromRDSInstance(rdsInstance *rds.DBInstance) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(rdsInstance.DBInstanceArn))
@@ -654,6 +675,24 @@ func MetadataFromMemoryDBCluster(cluster *memorydb.Cluster, endpointType string)
 			ACLName:      aws.StringValue(cluster.ACLName),
 			TLSEnabled:   aws.BoolValue(cluster.TLSEnabled),
 			EndpointType: endpointType,
+		},
+	}, nil
+}
+
+// MetadataFromRedshiftServerlessVPCEndpoint creates AWS metadata for the
+// providec Redshift Serverless VPC endpoint.
+func MetadataFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.EndpointAccess) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.StringValue(endpoint.EndpointArn))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &types.AWS{
+		Region:    parsedARN.Region,
+		AccountID: parsedARN.AccountID,
+		RedshiftServerless: types.RedshiftServerless{
+			WorkgroupName: aws.StringValue(endpoint.WorkgroupName),
+			EndpointName:  aws.StringValue(endpoint.EndpointName),
 		},
 	}, nil
 }
@@ -853,27 +892,41 @@ func labelsFromRedshiftCluster(cluster *redshift.Cluster, meta *types.AWS) map[s
 	return labels
 }
 
+func labelsFromCloud() map[string]string {
+	labels := make(map[string]string)
+	labels[types.OriginLabel] = types.OriginCloud
+	return labels
+}
+
+// labelsFromAWSMetadata returns labels from provided AWS metadata.
+func labelsFromAWSMetadata(meta *types.AWS) map[string]string {
+	labels := labelsFromCloud()
+	if meta != nil {
+		labels[labelAccountID] = meta.AccountID
+		labels[labelRegion] = meta.Region
+	}
+	return labels
+}
+
 // labelsFromMetaAndEndpointType creates database labels from provided AWS meta and endpoint type.
 func labelsFromMetaAndEndpointType(meta *types.AWS, endpointType string, extraLabels map[string]string) map[string]string {
-	labels := make(map[string]string)
-	for key, value := range extraLabels {
-		labels[key] = value
-	}
-	labels[types.OriginLabel] = types.OriginCloud
-	labels[labelAccountID] = meta.AccountID
-	labels[labelRegion] = meta.Region
+	labels := labelsFromAWSMetadata(meta)
 	labels[labelEndpointType] = endpointType
-	return labels
+	return addLabels(labels, extraLabels)
 }
 
 // azureTagsToLabels converts Azure tags to a labels map.
 func azureTagsToLabels(tags map[string]string) map[string]string {
 	labels := make(map[string]string)
-	for key, val := range tags {
+	return addLabels(labels, tags)
+}
+
+func addLabels(labels map[string]string, extraLabels map[string]string) map[string]string {
+	for key, value := range extraLabels {
 		if types.IsValidLabelKey(key) {
-			labels[key] = val
+			labels[key] = value
 		} else {
-			log.Debugf("Skipping Azure tag %q, not a valid label key.", key)
+			log.Debugf("Skipping %q, not a valid label key.", key)
 		}
 	}
 	return labels
@@ -1176,6 +1229,10 @@ const (
 	labelEndpointType = "endpoint-type"
 	// labelVPCID is the label key containing the VPC ID.
 	labelVPCID = "vpc-id"
+	// labelNamespace is the label key for namespace name.
+	labelNamespace = "namespace"
+	// labelWorkgroup is the label key for workgroup name.
+	labelWorkgroup = "workgroup"
 	// labelTeleportDBName is the label key containing the database name override.
 	labelTeleportDBName = types.TeleportNamespace + "/database_name"
 	// labelTeleportDBNameAzure is the label key containing the database name
