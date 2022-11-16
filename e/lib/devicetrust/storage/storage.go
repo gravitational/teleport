@@ -155,10 +155,11 @@ func (s *S) createDevice(ctx context.Context, dev *devicepb.Device) (*devicepb.D
 	// Marshal device to start, just in the extremely unlikely case that it fails.
 	now := s.nowUTC()
 	stored := &storedDevice{
-		OSType:     int(dev.OsType),
-		AssetTag:   dev.AssetTag,
-		CreateTime: now,
-		UpdateTime: now,
+		OSType:       int(dev.OsType),
+		AssetTag:     dev.AssetTag,
+		CreateTime:   now,
+		UpdateTime:   now,
+		EnrollStatus: int(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED),
 	}
 	storedJSON, err := json.Marshal(stored)
 	if err != nil {
@@ -174,7 +175,7 @@ func (s *S) createDevice(ctx context.Context, dev *devicepb.Device) (*devicepb.D
 		OSType:   stored.OSType,
 	}
 	if err := s.updateAssetTagIndex(ctx, stored.AssetTag, ref); err != nil {
-		return nil, trace.Wrap(err, "update asset tag index")
+		return nil, trace.Wrap(err)
 	}
 
 	// Write device.
@@ -311,6 +312,7 @@ func (s *S) DeleteDevice(ctx context.Context, deviceID string) error {
 		return trace.Wrap(err)
 	}
 
+	// Remove asset tag mapping.
 	if err := s.removeFromAssetTagIndex(ctx, deviceID, dev.AssetTag); err != nil {
 		s.logger.
 			WithError(err).
@@ -319,6 +321,18 @@ func (s *S) DeleteDevice(ctx context.Context, deviceID string) error {
 				"AssetTag": dev.AssetTag,
 			}).
 			Warn("Failed to remove asset tag mapping for device")
+		// err swallowed on purpose.
+	}
+
+	// Remove enroll token, if present.
+	if err := s.backend().Delete(ctx, deviceTokenKey(deviceID)); err != nil && !trace.IsNotFound(err) {
+		s.logger.
+			WithError(err).
+			WithFields(log.Fields{
+				"DeviceID": deviceID,
+				"AssetTag": dev.AssetTag,
+			}).
+			Warn("Failed to remove enroll token for device")
 		// err swallowed on purpose.
 	}
 
@@ -700,17 +714,12 @@ func storedToDevice(deviceID string, sd *storedDevice) *devicepb.Device {
 	return storedToDeviceView(deviceID, sd, devicepb.DeviceView_DEVICE_VIEW_RESOURCE)
 }
 
-// deviceKeyChild creates a key under "devices/id/<ID>/".
-func deviceKeyChild(deviceID string, child ...string) []byte {
-	return backend.Key(append([]string{"devices", "id", deviceID}, child...)...)
-}
-
 func deviceKeyStart() []byte {
 	return backend.Key("devices", "id")
 }
 
 func deviceKey(deviceID string) []byte {
-	return deviceKeyChild(deviceID)
+	return backend.Key("devices", "id", deviceID)
 }
 
 func devicesByAssetTagKey(assetTag string) []byte {
@@ -718,5 +727,5 @@ func devicesByAssetTagKey(assetTag string) []byte {
 }
 
 func deviceTokenKey(deviceID string) []byte {
-	return deviceKeyChild(deviceID, "enroll_token")
+	return backend.Key("devices", "enroll_token", deviceID)
 }

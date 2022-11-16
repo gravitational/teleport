@@ -237,6 +237,7 @@ func TestService_CreateDevice(t *testing.T) {
 			want.CreateTime = got.CreateTime
 			want.UpdateTime = got.UpdateTime
 			want.EnrollToken = got.EnrollToken
+			want.EnrollStatus = got.EnrollStatus
 			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 				t.Fatalf("CreateDevice mismatch (-want +got):\n%s", diff)
 			}

@@ -167,7 +167,7 @@ func TestS_CreateDevice(t *testing.T) {
 				AssetTag:     test.dev.AssetTag,
 				CreateTime:   got.CreateTime,
 				UpdateTime:   got.UpdateTime,
-				EnrollStatus: got.EnrollStatus,
+				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
 			}
 			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 				t.Errorf("CreateDevice: mismatch (-want +got):\n%s", diff)
@@ -613,6 +613,14 @@ func TestS_ListDevices(t *testing.T) {
 			t.Fatalf("CreateDevice(%q) failed: %v", assetTag, err)
 		}
 		fullDevs = append(fullDevs, dev)
+	}
+
+	// Create a couple of enrollment tokens, so we can make sure they don't
+	// pollute the results.
+	for _, deviceID := range []string{fullDevs[0].Id, fullDevs[1].Id} {
+		if _, err := s.CreateDeviceEnrollToken(ctx, deviceID); err != nil {
+			t.Fatalf("CreateDeviceEnrollToken failed: %v", err)
+		}
 	}
 
 	// Transform "fullDevs" into its "list" view equivalent.
