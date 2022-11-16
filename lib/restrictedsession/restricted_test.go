@@ -30,6 +30,10 @@ import (
 	"testing"
 	"time"
 
+	gocmp "github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	api "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -64,7 +68,7 @@ const (
 
 var (
 	testRanges = []blockedRange{
-		blockedRange{
+		{
 			ver:   4,
 			allow: "39.156.69.70/28",
 			deny:  "39.156.69.71",
@@ -77,7 +81,7 @@ var (
 				"72.156.69.80": denied,
 			},
 		},
-		blockedRange{
+		{
 			ver:   4,
 			allow: "77.88.55.88",
 			probe: map[string]blockAction{
@@ -87,7 +91,7 @@ var (
 				"67.88.55.86": denied,
 			},
 		},
-		blockedRange{
+		{
 			ver:   6,
 			allow: "39.156.68.48/28",
 			deny:  "39.156.68.48/31",
@@ -101,7 +105,7 @@ var (
 				"::ffff:72.156.68.80": denied,
 			},
 		},
-		blockedRange{
+		{
 			ver:   6,
 			allow: "fc80::/64",
 			deny:  "fc80::10/124",
@@ -114,7 +118,7 @@ var (
 				"fc60:0:0:1::": denied,
 			},
 		},
-		blockedRange{
+		{
 			ver:   6,
 			allow: "2607:f8b0:4005:80a::200e",
 			probe: map[string]blockAction{
@@ -141,9 +145,6 @@ type bpfContext struct {
 }
 
 func setupBPFContext(t *testing.T) *bpfContext {
-	tt := bpfContext{}
-	t.Cleanup(func() { tt.Close(t) })
-
 	utils.InitLoggerForTests()
 
 	// This test must be run as root and the host has to be capable of running
@@ -152,20 +153,32 @@ func setupBPFContext(t *testing.T) *bpfContext {
 		t.Skip("Tests for package restrictedsession can only be run as root.")
 	}
 
+	// Create temporary directory where cgroup2 hierarchy will be mounted.
+	// DO NOT MOVE THIS LINE.
+	// t.TempDir() creates t.Cleanup() action. If this hook is called before
+	// we mount cgroup in Close() this test will fail.
+	cgroupDir := t.TempDir()
+
+	tt := bpfContext{
+		cgroupDir: cgroupDir,
+	}
+	t.Cleanup(func() { tt.Close(t) })
+
 	tt.srcAddrs = map[int]string{
 		4: "0.0.0.0",
 		6: "::",
 	}
 
-	var err error
-	// Create temporary directory where cgroup2 hierarchy will be mounted.
-	tt.cgroupDir = t.TempDir()
+	config := &bpf.RestrictedSessConfig{
+		Enabled: true,
+	}
 
+	var err error
 	// Create BPF service since we piggyback on it
 	tt.enhancedRecorder, err = bpf.New(&bpf.Config{
 		Enabled:    true,
 		CgroupPath: tt.cgroupDir,
-	}, &bpf.RestrictedSessConfig{Enabled: true}) //TODO probably call default on it
+	}, config)
 	require.NoError(t, err)
 
 	// Create the SessionContext used by both enhanced recording and us (restricted session)
@@ -180,7 +193,7 @@ func setupBPFContext(t *testing.T) *bpfContext {
 		Events:    map[string]bool{},
 	}
 
-	// Create enhanced recording session to piggy-back on.
+	// Create enhanced recording session to piggyback on.
 	tt.cgroupID, err = tt.enhancedRecorder.OpenSession(tt.ctx)
 	require.NoError(t, err)
 	require.Equal(t, tt.cgroupID > 0, true)
@@ -200,10 +213,6 @@ func setupBPFContext(t *testing.T) *bpfContext {
 	restrictions := api.NewNetworkRestrictions()
 	restrictions.SetAllow(allow)
 	restrictions.SetDeny(deny)
-
-	config := &bpf.RestrictedSessConfig{
-		Enabled: true,
-	}
 
 	client := &mockClient{
 		restrictions: restrictions,
@@ -231,6 +240,8 @@ func (tt *bpfContext) Close(t *testing.T) {
 
 	if tt.enhancedRecorder != nil && tt.ctx != nil {
 		err := tt.enhancedRecorder.CloseSession(tt.ctx)
+		require.NoError(t, err)
+		err = tt.enhancedRecorder.Close()
 		require.NoError(t, err)
 	}
 
@@ -379,9 +390,9 @@ func TestRootNetwork(t *testing.T) {
 
 	// Check that the emitted audit events are correct
 	actualAuditEvents := tt.emitter.Events()
-	require.Empty(t, go_cmp.Diff(actualAuditEvents, tt.expectedAuditEvents))
+	require.Empty(t, gocmp.Diff(actualAuditEvents, tt.expectedAuditEvents))
 
-	// Clear out the expected and actual evetns
+	// Clear out the expected and actual evens
 	tt.expectedAuditEvents = nil
 	tt.emitter.Reset()
 
@@ -394,14 +405,6 @@ func TestRootNetwork(t *testing.T) {
 	// Nothing should be reported to the audit log
 	time.Sleep(100 * time.Millisecond)
 	require.Empty(t, tt.emitter.Events())
-}
-
-func mustParseIPSpec(cidr string) *net.IPNet {
-	ipnet, err := ParseIPSpec(cidr)
-	if err != nil {
-		panic(err)
-	}
-	return ipnet
 }
 
 type mockClient struct {
