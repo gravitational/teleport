@@ -62,6 +62,21 @@ func TestService_authz(t *testing.T) {
 			assertErr: trace.IsBadParameter,
 		},
 		{
+			name: "CreateDeviceEnrollToken",
+			checker: &fakeChecker{
+				wantRule: types.KindDevice,
+				// TODO(codingllama): Use verb constants from OSS.
+				wantVerb: "create_enroll_token",
+			},
+			rpc: func() error {
+				_, err := devices.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
+					DeviceId: "unknown",
+				})
+				return err
+			},
+			assertErr: trace.IsNotFound,
+		},
+		{
 			name: "DeleteDevice",
 			checker: &fakeChecker{
 				wantRule: types.KindDevice,
@@ -669,21 +684,95 @@ func TestService_BulkCreateDevices(t *testing.T) {
 	wantEvents := []wantEvent{
 		// llama
 		{
-			Type: types.KindDevice,
+			Type: events.DeviceEvent,
 			Code: events.DeviceCreateCode,
 		},
 		// alpaca
 		{
-			Type: types.KindDevice,
+			Type: events.DeviceEvent,
 			Code: events.DeviceCreateCode,
 		},
 		// camel
 		{
-			Type: types.KindDevice,
+			Type: events.DeviceEvent,
 			Code: events.DeviceCreateCode,
 		},
 	}
 	assertEvents(t, emitter.Events(), wantEvents)
+}
+
+func TestService_CreateDeviceEnrollToken(t *testing.T) {
+	emitter := &eventstest.MockEmitter{}
+	env := testenv.MustNew(testenv.WithEmitter(emitter))
+	defer env.Close()
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+		Device: &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "llama",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		deviceID  string
+		assertErr func(err error) bool
+	}{
+		{
+			name:      "ok",
+			deviceID:  dev.Id,
+			assertErr: func(err error) bool { return err == nil },
+		},
+		{
+			name:      "override ok",
+			deviceID:  dev.Id,
+			assertErr: func(err error) bool { return err == nil },
+		},
+		{
+			name:      "empty device ID fails",
+			deviceID:  "",
+			assertErr: trace.IsBadParameter,
+		},
+		{
+			name:      "unknown device fails",
+			deviceID:  "unknown",
+			assertErr: trace.IsNotFound,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			emitter.Reset()
+
+			token, err := devices.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
+				DeviceId: test.deviceID,
+			})
+			if !test.assertErr(err) {
+				t.Fatalf("CreateDeviceEnrollToken: assertErr failed, err=%v", err)
+			}
+			if err != nil {
+				return
+			}
+
+			// Verify that the token is not empty.
+			if token.GetToken() == "" {
+				t.Error("CreateDeviceEnrollToken returned a nil or empty token")
+			}
+
+			// Verify audit log.
+			assertEvents(t, emitter.Events(), []wantEvent{
+				{
+					Type: events.DeviceEvent,
+					Code: events.DeviceEnrollTokenCreateCode,
+				},
+			})
+		})
+	}
 }
 
 type wantEvent struct {

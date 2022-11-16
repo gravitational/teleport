@@ -244,6 +244,33 @@ func (s *Service) BulkCreateDevices(ctx context.Context, req *devicepb.BulkCreat
 	}, nil
 }
 
+func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.CreateDeviceEnrollTokenRequest) (*devicepb.DeviceEnrollToken, error) {
+	// TODO(codingllama): Use verb constants from OSS.
+	if err := s.authorizeVerb(ctx, types.KindDevice, "create_enroll_token"); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := s.storage.CreateDeviceEnrollToken(ctx, req.DeviceId)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s.emitAuditEvent(ctx, &apievents.DeviceEvent{
+		Metadata: apievents.Metadata{
+			Type: events.DeviceEvent,
+			Code: events.DeviceEnrollTokenCreateCode,
+		},
+		Status: &apievents.Status{
+			Success: err == nil,
+		},
+		Device: &apievents.DeviceMetadata{
+			DeviceId: req.DeviceId,
+		},
+		User: getUserMetadata(ctx),
+	})
+
+	return token, nil
+}
+
 func (s *Service) authorizeVerb(ctx context.Context, rule, verb string) error {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
