@@ -75,7 +75,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 
 	// change state
 	if existingCluster != nil && !cmp.Equal(existingCluster.GetRoleMap(), trustedCluster.GetRoleMap()) {
-		if err := a.updateUserCARoleMap(ctx, existingCluster, trustedCluster); err != nil {
+		if err := a.UpdateUserCARoleMap(ctx, existingCluster, trustedCluster); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -335,37 +335,6 @@ func (a *Server) addCertAuthorities(trustedCluster types.TrustedCluster, remoteC
 		}
 	}
 
-	return nil
-}
-
-func (a *Server) updateUserCARoleMap(ctx context.Context, existingCluster, trustedCluster types.TrustedCluster) error {
-	certAuthority, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
-		DomainName: existingCluster.GetName(),
-	}, false)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		// CA may be deactivated.
-		if err := a.activateCertAuthority(trustedCluster); err != nil {
-			return trace.Wrap(err)
-		}
-		certAuthority, err = a.GetCertAuthority(ctx, types.CertAuthID{
-			Type:       types.UserCA,
-			DomainName: existingCluster.GetName(),
-		}, false)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := a.deactivateCertAuthority(trustedCluster); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	certAuthority.SetRoleMap(trustedCluster.GetRoleMap())
-	if err := a.UpsertCertAuthority(certAuthority); err != nil {
-		return trace.Wrap(err)
-	}
 	return nil
 }
 
