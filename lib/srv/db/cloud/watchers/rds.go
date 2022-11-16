@@ -308,8 +308,14 @@ func auroraFilters() []*rds.Filter {
 	}}
 }
 
+// rdsFilterFn is a function that takes RDS filters and performs some operation with them, returning any error encountered.
 type rdsFilterFn func([]*rds.Filter) error
 
+// retryWithIndividualFilters is a helper error handling function for AWS RDS unrecognized engine name filter errors,
+// that will call the provided RDS querying function with filters, check the returned error,
+// and if the error is an AWS unrecognized engine name error then it will retry once by calling the function with one filter
+// at a time. If any error other than an AWS unrecognized engine name error occurs, this function will return that error
+// without retrying, or skip retrying subsequent filters if it has already started to retry.
 func retryWithIndividualFilters(log logrus.FieldLogger, filters []*rds.Filter, fn rdsFilterFn) error {
 	err := fn(filters)
 	if err == nil {
