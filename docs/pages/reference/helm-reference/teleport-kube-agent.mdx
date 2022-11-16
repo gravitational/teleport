@@ -4,8 +4,8 @@ description: Values that can be set using the teleport-kube-agent Helm chart
 ---
 
 The `teleport-kube-agent` Helm chart is used to configure a Teleport agent that
-runs in a remote Kubernetes cluster and joins to a Teleport cluster to provide
-access to resources in your infrastructure. 
+runs in a remote Kubernetes cluster to provide access to resources in your
+infrastructure. 
 
 You can [browse the source on
 GitHub](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-kube-agent).
@@ -165,7 +165,7 @@ release.
 ## `serviceAccountName`
 
 This field is deprecated and will be removed in a future version. Use
-`serviceAccount.name` instead.
+[`serviceAccount.name`](#serviceaccountname-1) instead.
 
 ## `authToken`
 
