@@ -112,7 +112,7 @@ func TestSessionTracker_UpdateRetry(t *testing.T) {
 			clock.BlockUntil(1)
 
 			// advance far enough for the retry to fire
-			clock.Advance(45 * time.Second)
+			clock.Advance(65 * time.Second)
 
 			// wait for the update to be called again
 			waitForUpdate(t, svc, done)
@@ -132,7 +132,7 @@ func TestSessionTracker_UpdateRetry(t *testing.T) {
 
 	// advance far enough for the retry to fire
 	clock.BlockUntil(1)
-	clock.Advance(45 * time.Second)
+	clock.Advance(65 * time.Second)
 
 	// wait for update to be called from the retry loop and return an error
 	waitForUpdate(t, svc, done)
