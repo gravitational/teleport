@@ -16,6 +16,8 @@ state: draft
 Allow Teleport users to request access to specific applications and groups and access
 Okta applications from within Teleport.
 
+Note: This is an enterprise only feature.
+
 ## Why
 
 Today, Teleport supports [single sign-on with Okta](https://goteleport.com/docs/access-controls/sso/okta/).
@@ -90,15 +92,14 @@ flowchart LR
 
 An Okta service should be introduced that synchronizes Okta applications, users, and groups with
 Teleport equivalents and new objects.  The Okta service should have its own unique top level
-configuration. The following config fields will be available in the Teleport config YAML, along
-with associated environment variables:
+configuration. The following config fields will be available in the Teleport config YAML::
 
-| Name | Environment Variable | Required | Description |
+| Name | Required | Description |
 |------|----------------------|----------|-------------|
-| `api_url` | `TELEPORT_OKTA_API_URL` | :heavy_check_mark: | The API URL so that Teleport knows which Okta endpoint to hit.
+| `api_url` | :heavy_check_mark: | The API URL so that Teleport knows which Okta endpoint to hit.
+| `api_token_file` | :heavy_check_mark: | A file containing the Okta API token.
 
-The Okta API token must be configured using an environment variable or command line
-argument to prevent the possibility of users accidentally checking in this key.
+Note that environment variables are not supported here.
 
 #### YAML example
 
@@ -106,15 +107,7 @@ argument to prevent the possibility of users accidentally checking in this key.
 okta_service:
   enabled: true
   api_url: https://my-okta-endpoint.okta.com
-```
-
-#### CLI examples (API token)
-```bash
-# Command line argument example
-teleport start --okta-api-token 12345678
-
-# Environment variable example
-TELEPORT_OKTA_API_TOKEN="12345678" teleport start
+  api_token_file: /path/to/token
 ```
 
 ### Okta user traits
@@ -247,7 +240,7 @@ group. When the approval is rescinded, the user will be removed from the group.
 #### Application approval
 
 When an approval request has been accepted for an application, the Okta service will assign the user
-to the application. When the approval is rescinded, the user will be removed from teh application.
+to the application. When the approval is rescinded, the user will be removed from the application.
 
 #### What groups and applications can users request?
 
