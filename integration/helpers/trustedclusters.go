@@ -18,6 +18,7 @@ import (
 	"context"
 	"testing"
 	"time"
+	"bytes"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -140,4 +141,76 @@ func WaitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, c
 		time.Second,
 		"Active tunnel connections did not reach %v in the expected time frame %v", expectedCount, 30*time.Second,
 	)
+}
+
+// TrustedClusterSetup is a grouping of configuration options describing the current trusted
+// clusters being tested used for passing info about the clusters to be tested to helper functions.
+type TrustedClusterSetup struct {
+	Ctx context.Context
+	Aux *TeleInstance
+	Main *TeleInstance
+	Username string
+	ClusterAux string
+	UseJumpHost bool
+}
+
+// CheckTrustedClustersCanConnect check the cluster setup described in tcSetup can connect to each other.
+func CheckTrustedClustersCanConnect(t *testing.T, tcSetup TrustedClusterSetup) {
+	ctx := tcSetup.Ctx
+	aux := tcSetup.Aux
+	main := tcSetup.Main
+	username := tcSetup.Username
+	clusterAux := tcSetup.ClusterAux
+	useJumpHost := tcSetup.UseJumpHost
+
+	// ensure cluster that was enabled from disabled still works
+	sshPort, _, _ := aux.StartNodeAndProxy(t, "aux-node")
+
+	// Wait for both cluster to see each other via reverse tunnels.
+	require.Eventually(t, WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+	require.Eventually(t, WaitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+
+	cmd := []string{"echo", "hello world"}
+
+	// Try and connect to a node in the Aux cluster from the Main cluster using
+	// direct dialing.
+	creds, err := GenerateUserCreds(UserCredsRequest{
+		Process:        main.Process,
+		Username:       username,
+		RouteToCluster: clusterAux,
+	})
+	require.NoError(t, err)
+
+	tc, err := main.NewClientWithCreds(ClientConfig{
+		Login:    username,
+		Cluster:  clusterAux,
+		Host:     Loopback,
+		Port:     sshPort,
+		JumpHost: useJumpHost,
+	}, *creds)
+	require.NoError(t, err)
+
+	// tell the client to trust aux cluster CAs (from secrets). this is the
+	// equivalent of 'known hosts' in openssh
+	auxCAS, err := aux.Secrets.GetCAs()
+	require.NoError(t, err)
+	for _, auxCA := range auxCAS {
+		err = tc.AddTrustedCA(ctx, auxCA)
+		require.NoError(t, err)
+	}
+
+	output := &bytes.Buffer{}
+	tc.Stdout = output
+	require.NoError(t, err)
+	for i := 0; i < 10; i++ {
+		time.Sleep(time.Millisecond * 50)
+		err = tc.SSH(ctx, cmd, false)
+		if err == nil {
+			break
+		}
+	}
+	require.NoError(t, err)
+	require.Equal(t, "hello world\n", output.String())
 }
