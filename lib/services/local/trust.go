@@ -293,6 +293,50 @@ func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, 
 	return cas, nil
 }
 
+// UpdateUserCARoleMap updates the role map of the userCA of the specified existing cluster.
+func (s *CA) UpdateUserCARoleMap(ctx context.Context, existingCluster, trustedCluster types.TrustedCluster) error {
+	certAuthority, err := s.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: existingCluster.GetName(),
+	}, false)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		// CA may be deactivated.
+		item, err := s.Get(context.TODO(), backend.Key(authoritiesPrefix, deactivatedPrefix,
+			string(types.UserCA), existingCluster.GetName()))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		certAuthority, err := services.UnmarshalCertAuthority(
+			item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		certAuthority.SetRoleMap(trustedCluster.GetRoleMap())
+		value, err := services.MarshalCertAuthority(certAuthority)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		item = &backend.Item{
+			Key:     backend.Key(authoritiesPrefix, deactivatedPrefix, string(types.UserCA), existingCluster.GetName()),
+			Value:   value,
+			Expires: certAuthority.Expiry(),
+			ID:      certAuthority.GetResourceID(),
+		}
+
+		_, err = s.Put(context.TODO(), *item)
+		return trace.Wrap(err)
+	}
+	certAuthority.SetRoleMap(trustedCluster.GetRoleMap())
+	if err := s.UpsertCertAuthority(certAuthority); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 const (
 	authoritiesPrefix = "authorities"
 	deactivatedPrefix = "deactivated"
