@@ -131,6 +131,7 @@ func TestProxyWatcher(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
 
+	require.NoError(t, w.WaitInitialization())
 	// Add a proxy server.
 	proxy := newProxyServer(t, "proxy1", "127.0.0.1:2023")
 	require.NoError(t, presence.UpsertProxy(proxy))
@@ -168,6 +169,19 @@ func TestProxyWatcher(t *testing.T) {
 	case changeset := <-w.ProxiesC:
 		require.Len(t, changeset, 1)
 		require.Empty(t, resourceDiff(changeset[0], proxy2))
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the update event.")
+	}
+
+	// Delete the second proxy.
+	require.NoError(t, presence.DeleteProxy(proxy2.GetName()))
+
+	// Watcher should detect the proxy list change.
+	select {
+	case changeset := <-w.ProxiesC:
+		require.Empty(t, changeset)
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
