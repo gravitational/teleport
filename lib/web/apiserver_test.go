@@ -5951,13 +5951,17 @@ type proxy struct {
 
 // authPack returns new authenticated package consisting of created valid
 // user, otp token, created web session and authenticated client.
-func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPack {
+func (r *proxy) authPack(t *testing.T, teleportUser string, roles []types.Role) *authPack {
 	ctx := context.Background()
 	const (
-		loginUser = "user"
 		pass      = "abc123"
 		rawSecret = "def456"
 	)
+
+	u, err := user.Current()
+	require.NoError(t, err)
+	loginUser := u.Username
+
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -5969,7 +5973,7 @@ func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPac
 	err = r.auth.Auth().SetAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
-	r.createUser(context.Background(), t, user, loginUser, pass, otpSecret, roles)
+	r.createUser(context.Background(), t, teleportUser, loginUser, pass, otpSecret, roles)
 
 	// create a valid otp token
 	validToken, err := totp.GenerateCode(otpSecret, r.clock.Now())
@@ -5977,7 +5981,7 @@ func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPac
 
 	clt := r.newClient(t)
 	req := CreateSessionReq{
-		User:              user,
+		User:              teleportUser,
 		Pass:              pass,
 		SecondFactorToken: validToken,
 	}
@@ -5999,7 +6003,7 @@ func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPac
 
 	return &authPack{
 		otpSecret: otpSecret,
-		user:      user,
+		user:      teleportUser,
 		login:     loginUser,
 		session:   session,
 		clt:       clt,
@@ -6187,13 +6191,15 @@ func login(t *testing.T, clt *client.WebClient, cookieToken, reqToken string, re
 }
 
 func validateTerminalStream(t *testing.T, conn *websocket.Conn) {
+	t.Helper()
 	termHandler := newTerminalHandler()
 	stream := termHandler.asTerminalStream(conn)
-	_, err := io.WriteString(stream, "echo foo\r\n")
-	require.NoError(t, err)
 
-	err = waitForOutput(stream, "foo")
+	// here we intentionally run a command where the output we're looking
+	// for is not present in the command itself
+	_, err := io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
 	require.NoError(t, err)
+	require.NoError(t, waitForOutput(stream, "teleport"))
 }
 
 type mockProxySettings struct{}
