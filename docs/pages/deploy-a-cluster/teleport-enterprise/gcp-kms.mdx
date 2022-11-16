@@ -19,10 +19,12 @@ Instead of the actual private key, Teleport will only store the ID of the KMS
 key.
 
 If launching a new Teleport cluster this will all be handled during initial
-startup with no specific interventions required after configuration. If
-configuring an existing Teleport cluster to switch to KMS keys after it has
-already started with software keys a CA rotation must be performed, read on to
-[migrating an existing cluster](#migrating-an-existing-cluster) to learn more.
+startup with no specific interventions required after configuration.
+For existing Teleport clusters that already have private key material on disk,
+a CA rotation must be performed. This ensures that the private key material
+only ever exists in KMS when this feature is enabled.
+Read on to [migrating an existing cluster](#migrating-an-existing-cluster) to
+learn more.
 
 <ScopedBlock scope={["oss", "cloud"]}>
 
