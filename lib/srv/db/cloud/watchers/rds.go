@@ -89,7 +89,7 @@ func (f *rdsDBInstancesFetcher) Get(ctx context.Context) (types.Databases, error
 
 // getRDSDatabases returns a list of database resources representing RDS instances.
 func (f *rdsDBInstancesFetcher) getRDSDatabases(ctx context.Context) (types.Databases, error) {
-	instances, err := getAllDBInstances(ctx, f.cfg.RDS, common.MaxPages)
+	instances, err := getAllDBInstances(ctx, f.cfg.RDS, common.MaxPages, f.log)
 	if err != nil {
 		return nil, common.ConvertError(err)
 	}
@@ -123,16 +123,24 @@ func (f *rdsDBInstancesFetcher) getRDSDatabases(ctx context.Context) (types.Data
 
 // getAllDBInstances fetches all RDS instances using the provided client, up
 // to the specified max number of pages.
-func getAllDBInstances(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int) (instances []*rds.DBInstance, err error) {
-	var pageNum int
-	err = rdsClient.DescribeDBInstancesPagesWithContext(ctx, &rds.DescribeDBInstancesInput{
-		Filters: rdsFilters(),
-	}, func(ddo *rds.DescribeDBInstancesOutput, lastPage bool) bool {
-		pageNum++
-		instances = append(instances, ddo.DBInstances...)
-		return pageNum <= maxPages
+func getAllDBInstances(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int, log logrus.FieldLogger) ([]*rds.DBInstance, error) {
+	var instances []*rds.DBInstance
+	err := retryWithIndividualFilters(log, rdsFilters(), func(filters []*rds.Filter) error {
+		var pageNum int
+		err := rdsClient.DescribeDBInstancesPagesWithContext(ctx, &rds.DescribeDBInstancesInput{
+			Filters: filters,
+		}, func(ddo *rds.DescribeDBInstancesOutput, lastPage bool) bool {
+			pageNum++
+			instances = append(instances, ddo.DBInstances...)
+			return pageNum <= maxPages
+		})
+		if err != nil {
+			// clear instances before the retry, just in case.
+			instances = nil
+		}
+		return trace.Wrap(err)
 	})
-	return instances, common.ConvertError(err)
+	return instances, trace.Wrap(err)
 }
 
 // String returns the fetcher's string description.
@@ -174,7 +182,7 @@ func (f *rdsAuroraClustersFetcher) Get(ctx context.Context) (types.Databases, er
 
 // getAuroraDatabases returns a list of database resources representing RDS clusters.
 func (f *rdsAuroraClustersFetcher) getAuroraDatabases(ctx context.Context) (types.Databases, error) {
-	clusters, err := getAllDBClusters(ctx, f.cfg.RDS, common.MaxPages)
+	clusters, err := getAllDBClusters(ctx, f.cfg.RDS, common.MaxPages, f.log)
 	if err != nil {
 		return nil, common.ConvertError(err)
 	}
@@ -249,16 +257,25 @@ func (f *rdsAuroraClustersFetcher) getAuroraDatabases(ctx context.Context) (type
 
 // getAllDBClusters fetches all RDS clusters using the provided client, up to
 // the specified max number of pages.
-func getAllDBClusters(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int) (clusters []*rds.DBCluster, err error) {
-	var pageNum int
-	err = rdsClient.DescribeDBClustersPagesWithContext(ctx, &rds.DescribeDBClustersInput{
-		Filters: auroraFilters(),
-	}, func(ddo *rds.DescribeDBClustersOutput, lastPage bool) bool {
-		pageNum++
-		clusters = append(clusters, ddo.DBClusters...)
-		return pageNum <= maxPages
+func getAllDBClusters(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int, log logrus.FieldLogger) ([]*rds.DBCluster, error) {
+	var clusters []*rds.DBCluster
+	err := retryWithIndividualFilters(log, auroraFilters(), func(filters []*rds.Filter) error {
+		var pageNum int
+		var clusters []*rds.DBCluster
+		err := rdsClient.DescribeDBClustersPagesWithContext(ctx, &rds.DescribeDBClustersInput{
+			Filters: filters,
+		}, func(ddo *rds.DescribeDBClustersOutput, lastPage bool) bool {
+			pageNum++
+			clusters = append(clusters, ddo.DBClusters...)
+			return pageNum <= maxPages
+		})
+		if err != nil {
+			// clear out clusters before the retry, just in case.
+			clusters = nil
+		}
+		return trace.Wrap(err)
 	})
-	return clusters, common.ConvertError(err)
+	return clusters, trace.Wrap(err)
 }
 
 // String returns the fetcher's string description.
@@ -289,4 +306,28 @@ func auroraFilters() []*rds.Filter {
 			services.RDSEngineAuroraMySQL,
 			services.RDSEngineAuroraPostgres}),
 	}}
+}
+
+type rdsFilterFn func([]*rds.Filter) error
+
+func retryWithIndividualFilters(log logrus.FieldLogger, filters []*rds.Filter, fn rdsFilterFn) error {
+	err := fn(filters)
+	if err == nil {
+		return nil
+	}
+	if !common.IsUnrecognizedAWSEngineNameError(err) {
+		return trace.Wrap(err)
+	}
+	log.WithError(err).Warn("Teleport supports an engine which is unrecognized in this AWS region. Querying engines individually.")
+	for _, filter := range filters {
+		err := fn([]*rds.Filter{filter})
+		if err == nil {
+			continue
+		}
+		if !common.IsUnrecognizedAWSEngineNameError(err) {
+			return trace.Wrap(err)
+		}
+		// skip logging unrecognized engine name error here, we already logged it in the initial attempt.
+	}
+	return nil
 }
