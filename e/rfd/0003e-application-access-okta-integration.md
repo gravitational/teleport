@@ -253,8 +253,9 @@ metadata:
   name: example
 spec:
   allow:
-    okta_apps: ["app1", "app2"]
-    okta_groups: ["group1", "group2"]
+    request:
+      okta_apps: ["app1", "app2"]
+      okta_groups: ["group1", "group2"]
 ```
 
 This will not affect things if users already have access to these through the Okta, but if they don't,
@@ -385,10 +386,7 @@ able to have access to Okta applications from the Teleport UI and listed in `tsh
 
 #### Application request
 
-The application request workflow will be implemented hereApplication access synchronization
-
-Okta applications will be synchronized with the application access service so that users will be
-able to have access to Okta applications from the Teleport UI and listed in `tsh app ls`.
+The application request workflow will be implemented here.
 
 #### `OktaApplication` approval request.
 
