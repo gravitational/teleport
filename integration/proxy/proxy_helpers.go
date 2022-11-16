@@ -599,6 +599,6 @@ func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server
 	},
 		30*time.Second,
 		time.Second,
-		"Peer proxy connections did not reach %v in the expected time frame", expectedCount,
+		"Peer proxy connections did not reach %v in the expected time frame", expectedCount, 30*time.Second,
 	)
 }

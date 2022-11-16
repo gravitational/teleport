@@ -564,7 +564,7 @@ func (p *proxyTunnelStrategy) waitForResource(t *testing.T, role string, check f
 	},
 		30*time.Second,
 		time.Second,
-		"Resource %s was not available %v in the expected time frame", role,
+		"Resource %s was not available %v in the expected time frame", role, 30*time.Second,
 	)
 }
 
