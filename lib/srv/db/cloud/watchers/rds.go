@@ -125,8 +125,9 @@ func (f *rdsDBInstancesFetcher) getRDSDatabases(ctx context.Context) (types.Data
 // to the specified max number of pages.
 func getAllDBInstances(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int, log logrus.FieldLogger) ([]*rds.DBInstance, error) {
 	var instances []*rds.DBInstance
-	err := retryWithIndividualFilters(log, rdsFilters(), func(filters []*rds.Filter) error {
+	err := retryWithIndividualEngineFilters(log, rdsInstanceEngines(), func(filters []*rds.Filter) error {
 		var pageNum int
+		var out []*rds.DBInstance
 		err := rdsClient.DescribeDBInstancesPagesWithContext(ctx, &rds.DescribeDBInstancesInput{
 			Filters: filters,
 		}, func(ddo *rds.DescribeDBInstancesOutput, lastPage bool) bool {
@@ -134,9 +135,9 @@ func getAllDBInstances(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages 
 			instances = append(instances, ddo.DBInstances...)
 			return pageNum <= maxPages
 		})
-		if err != nil {
-			// clear instances before the retry, just in case.
-			instances = nil
+		if err == nil {
+			// only append to instances on nil error, just in case we have to retry.
+			instances = append(instances, out...)
 		}
 		return trace.Wrap(err)
 	})
@@ -259,19 +260,19 @@ func (f *rdsAuroraClustersFetcher) getAuroraDatabases(ctx context.Context) (type
 // the specified max number of pages.
 func getAllDBClusters(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int, log logrus.FieldLogger) ([]*rds.DBCluster, error) {
 	var clusters []*rds.DBCluster
-	err := retryWithIndividualFilters(log, auroraFilters(), func(filters []*rds.Filter) error {
+	err := retryWithIndividualEngineFilters(log, auroraEngines(), func(filters []*rds.Filter) error {
 		var pageNum int
-		var clusters []*rds.DBCluster
+		var out []*rds.DBCluster
 		err := rdsClient.DescribeDBClustersPagesWithContext(ctx, &rds.DescribeDBClustersInput{
 			Filters: filters,
 		}, func(ddo *rds.DescribeDBClustersOutput, lastPage bool) bool {
 			pageNum++
-			clusters = append(clusters, ddo.DBClusters...)
+			out = append(out, ddo.DBClusters...)
 			return pageNum <= maxPages
 		})
-		if err != nil {
-			// clear out clusters before the retry, just in case.
-			clusters = nil
+		if err == nil {
+			// only append to clusters on nil error, just in case we have to retry.
+			clusters = append(clusters, out...)
 		}
 		return trace.Wrap(err)
 	})
@@ -284,40 +285,44 @@ func (f *rdsAuroraClustersFetcher) String() string {
 		f.cfg.Region, f.cfg.Labels)
 }
 
-// rdsFilters returns filters to make sure DescribeDBInstances call returns
+// rdsInstanceEngines returns engines to make sure DescribeDBInstances call returns
 // only databases with engines Teleport supports.
-func rdsFilters() []*rds.Filter {
-	return []*rds.Filter{{
-		Name: aws.String("engine"),
-		Values: aws.StringSlice([]string{
-			services.RDSEnginePostgres,
-			services.RDSEngineMySQL,
-			services.RDSEngineMariaDB}),
-	}}
+func rdsInstanceEngines() []string {
+	return []string{
+		services.RDSEnginePostgres,
+		services.RDSEngineMySQL,
+		services.RDSEngineMariaDB,
+	}
 }
 
-// auroraFilters returns filters to make sure DescribeDBClusters call returns
+// auroraEngines returns engines to make sure DescribeDBClusters call returns
 // only databases with engines Teleport supports.
-func auroraFilters() []*rds.Filter {
+func auroraEngines() []string {
+	return []string{
+		services.RDSEngineAurora,
+		services.RDSEngineAuroraMySQL,
+		services.RDSEngineAuroraPostgres,
+	}
+}
+
+// rdsEngineFilter is a helper func to construct an RDS filter for engine names.
+func rdsEngineFilter(engines []string) []*rds.Filter {
 	return []*rds.Filter{{
-		Name: aws.String("engine"),
-		Values: aws.StringSlice([]string{
-			services.RDSEngineAurora,
-			services.RDSEngineAuroraMySQL,
-			services.RDSEngineAuroraPostgres}),
+		Name:   aws.String("engine"),
+		Values: aws.StringSlice(engines),
 	}}
 }
 
 // rdsFilterFn is a function that takes RDS filters and performs some operation with them, returning any error encountered.
 type rdsFilterFn func([]*rds.Filter) error
 
-// retryWithIndividualFilters is a helper error handling function for AWS RDS unrecognized engine name filter errors,
+// retryWithIndividualEngineFilters is a helper error handling function for AWS RDS unrecognized engine name filter errors,
 // that will call the provided RDS querying function with filters, check the returned error,
 // and if the error is an AWS unrecognized engine name error then it will retry once by calling the function with one filter
 // at a time. If any error other than an AWS unrecognized engine name error occurs, this function will return that error
 // without retrying, or skip retrying subsequent filters if it has already started to retry.
-func retryWithIndividualFilters(log logrus.FieldLogger, filters []*rds.Filter, fn rdsFilterFn) error {
-	err := fn(filters)
+func retryWithIndividualEngineFilters(log logrus.FieldLogger, engines []string, fn rdsFilterFn) error {
+	err := fn(rdsEngineFilter(engines))
 	if err == nil {
 		return nil
 	}
@@ -325,8 +330,8 @@ func retryWithIndividualFilters(log logrus.FieldLogger, filters []*rds.Filter, f
 		return trace.Wrap(err)
 	}
 	log.WithError(err).Warn("Teleport supports an engine which is unrecognized in this AWS region. Querying engines individually.")
-	for _, filter := range filters {
-		err := fn([]*rds.Filter{filter})
+	for _, engine := range engines {
+		err := fn(rdsEngineFilter([]string{engine}))
 		if err == nil {
 			continue
 		}
