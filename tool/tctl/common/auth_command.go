@@ -727,6 +727,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		Key:                  key,
 		Format:               a.outputFormat,
 		KubeProxyAddr:        a.proxyAddr,
+		KubeClusterName:      a.kubeCluster,
 		KubeTLSServerName:    kubeTLSServerName,
 		OverwriteDestination: a.signOverwrite,
 	})
@@ -871,7 +872,7 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 // base64-encoded key, comment.
 // For example:
 //
-//    cert-authority AAA... type=user&clustername=cluster-a
+//	cert-authority AAA... type=user&clustername=cluster-a
 //
 // URL encoding is used to pass the CA type and cluster name into the comment field.
 func userCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
@@ -883,7 +884,7 @@ func userCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
 // authorized_hosts format, a space-separated list of: marker, hosts, key, and comment.
 // For example:
 //
-//    @cert-authority *.cluster-a ssh-rsa AAA... type=host
+//	@cert-authority *.cluster-a ssh-rsa AAA... type=host
 //
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
 func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client auth.ClientI) (string, error) {
