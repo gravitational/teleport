@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package prehog.v1alpha;
+
+message IdentifyAccountRequest {
+  string account_id = 1;
+  string marketing_id = 2;
+  string license_name = 3;
+  bool is_cloud = 4;
+  bool is_trial = 5;
+}
+message IdentifyAccountResponse {}
+
+message UpdateAccountRequest {
+  string account_id = 1;
+  string old_account_id = 2;
+  string license_name = 3;
+  bool is_cloud = 4;
+  bool is_trial = 5;
+}
+message UpdateAccountResponse {}
+
+service SalesReportingService {
+  rpc IdentifyAccount(IdentifyAccountRequest) returns (IdentifyAccountResponse) {}
+  rpc UpdateAccount(UpdateAccountRequest) returns (UpdateAccountResponse) {}
+}

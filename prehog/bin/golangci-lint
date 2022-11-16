@@ -1,0 +1,3 @@
+#!/bin/sh
+
+exec go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1 "$@"

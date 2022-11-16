@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package prehog.v1alpha;
+
+import "google/protobuf/timestamp.proto";
+
+message UserLoginEvent {
+  // anonymized
+  string user_name = 1;
+  // empty for local or github/saml/oidc
+  string connector_type = 2;
+
+  // TODO(espadolini): should passwordless be a flag?
+}
+
+message SSOCreateEvent {
+  // github/saml/oidc
+  string connector_type = 1;
+}
+
+message ResourceCreateEvent {
+  // TODO(espadolini): is a resource the teleport process or the
+  // databases/desktops/kube clusters accessed through it?
+  string resource_type = 1;
+
+  // TODO(espadolini): flags for Discover, autodiscovery, join scripts?
+}
+
+message SessionStartEvent {
+  // anonymized
+  string user_name = 1;
+  // ssh/kube/desktop, maybe db?
+  string session_type = 2;
+}
+
+message UIBannerClickEvent {
+  // anonymized
+  string user_name = 1;
+  // cluster alert name
+  string alert = 2;
+}
+
+message UIOnboardDomainNameTCSubmitEvent {}
+message UIOnboardGoToDashboardClickEvent {}
+message UIOnboardGetStartedClickEvent {
+  // anonymized
+  string user_name = 1;
+}
+message UIOnboardCompleteGoToDashboardClickEvent {
+  // anonymized
+  string user_name = 1;
+}
+message UIOnboardAddFirstResourceClickEvent {
+  // anonymized
+  string user_name = 1;
+}
+message UIOnboardAddFirstResourceLaterClickEvent {
+  // anonymized
+  string user_name = 1;
+}
+
+
+message SubmitEventRequest {
+  // anonymized
+  string cluster_name = 1;
+
+  // optional, will default to the ingest time if unset
+  google.protobuf.Timestamp timestamp = 2;
+
+  oneof event {
+    UserLoginEvent user_login = 3;
+    SSOCreateEvent sso_create = 4;
+    ResourceCreateEvent resource_create = 5;
+    SessionStartEvent session_start = 6;
+
+    UIBannerClickEvent ui_banner_click = 7;
+    UIOnboardDomainNameTCSubmitEvent ui_onboard_domain_name_tc_submit = 8;
+    UIOnboardGoToDashboardClickEvent ui_onboard_go_to_dashboard_click = 9;
+    UIOnboardGetStartedClickEvent ui_onboard_get_started_click = 10;
+    UIOnboardCompleteGoToDashboardClickEvent ui_onboard_complete_go_to_dashboard_click = 11;
+    UIOnboardAddFirstResourceClickEvent ui_onboard_add_first_resource_click = 12;
+    UIOnboardAddFirstResourceLaterClickEvent ui_onboard_add_first_resource_later_click = 13;
+  }
+}
+message SubmitEventResponse {}
+
+service TeleportReportingService {
+  rpc SubmitEvent(SubmitEventRequest) returns (SubmitEventResponse) {}
+}

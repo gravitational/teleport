@@ -1,0 +1,19 @@
+name: test
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-go@v3
+        with:
+          go-version-file: "go.mod"
+      - uses: robherley/go-test-action@v0.1.0
+        with:
+          testArguments: -count 1 -race ./...
+          omitUntestedPackages: true
+          omitPie: true

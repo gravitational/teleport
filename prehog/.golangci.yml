@@ -1,0 +1,25 @@
+linters:
+  disable-all: true
+  enable:
+    - depguard
+    - errcheck
+    - gci
+    - gofumpt
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - typecheck
+    - unused
+
+linters-settings:
+  depguard:
+    include-go-root: true
+    packages-with-error-message:
+      - log: use github.com/rs/zerolog/log instead
+  gci:
+    sections:
+      - standard
+      - default
+      - prefix(github.com/gravitational/prehog)

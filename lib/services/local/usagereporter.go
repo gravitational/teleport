@@ -206,6 +206,8 @@ func (r *UsageReporter) runSubmit() {
 				r.resubmitEvents(batch)
 			} else {
 				usageBatchesSubmitted.Inc()
+
+				r.Infof("usage reporter successfully submitted batch of %d events", len(batch))
 			}
 
 			usageBatchSubmissionDuration.Observe(time.Since(t0).Seconds())
@@ -244,6 +246,8 @@ func (r *UsageReporter) enqueueBatch() {
 		r.buf = remaining
 
 		usageBatchesTotal.Inc()
+
+		r.Debugf("usage reporter has enqueued batch of %d events", len(events))
 	default:
 		// The queue is full, we'll try again later. Leave the existing buf in
 		// place.
@@ -260,6 +264,8 @@ func (r *UsageReporter) Run() {
 	// Mark as ready for testing: `clock.Advance()` has no effect if `timer`
 	// hasn't been initialized.
 	close(r.ready)
+
+	r.Debug("usage reporter is ready")
 
 	for {
 		select {
