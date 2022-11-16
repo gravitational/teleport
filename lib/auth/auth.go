@@ -102,7 +102,7 @@ const (
 	githubCacheTimeout = time.Hour
 )
 
-var ErrRequiresEnterprise = trace.AccessDenied("this feature requires Teleport Enterprise")
+var ErrRequiresEnterprise = services.ErrRequiresEnterprise
 
 // ServerOption allows setting options as functional arguments to Server
 type ServerOption func(*Server) error
@@ -604,9 +604,11 @@ func (a *Server) runPeriodicOperations() {
 	}
 }
 
-const releaseAlertID = "upgrade-suggestion"
-const secAlertID = "security-patch-available"
-const verInUseLabel = "teleport.internal/ver-in-use"
+const (
+	releaseAlertID = "upgrade-suggestion"
+	secAlertID     = "security-patch-available"
+	verInUseLabel  = "teleport.internal/ver-in-use"
+)
 
 // syncReleaseAlerts calculates alerts related to new teleport releases. When checkRemote
 // is true it pulls the latest release info from github.  Otherwise, it loads the versions used
@@ -1288,7 +1290,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		}
 	}
 
-	var attestedKeyPolicy = keys.PrivateKeyPolicyNone
+	attestedKeyPolicy := keys.PrivateKeyPolicyNone
 	if !req.skipAttestation {
 		// verify that the required private key policy for the requesting identity
 		// is met by the provided attestation statement.
