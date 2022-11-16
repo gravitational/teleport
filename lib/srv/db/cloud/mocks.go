@@ -668,7 +668,7 @@ func checkEngineFilters(filters []*rds.Filter, engineVersions []*rds.DBEngineVer
 
 // applyInstanceFilters filters RDS DBInstances using the provided RDS filters.
 func applyInstanceFilters(in []*rds.DBInstance, filters []*rds.Filter) ([]*rds.DBInstance, error) {
-	out := []*rds.DBInstance{}
+	var out  []*rds.DBInstance
 	efs := engineFilterSet(filters)
 	for _, instance := range in {
 		if instanceEngineMatches(instance, efs) {
