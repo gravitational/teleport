@@ -1,0 +1,56 @@
+name: Build Teleport for ARM devices
+on: 
+  push:
+    branches:
+      - tcsc/gha-arm-builds
+
+jobs:
+  build-arm-binaries:
+    strategy:
+      matrix: 
+        arm-arch: ['arm', 'arm64']
+    runs-on: ubuntu-latest
+    env:
+      GOMODCACHE: /tmp/gomodcache
+      GOCACHE: /tmp/gocache
+    steps:
+      - name: Checkout primary code
+        uses: actions/checkout@v3
+
+      - name: Determine webassets commit
+        id: webassets
+        run: echo WEBASSETS_COMMIT=$(git rev-parse @:webassets) >> $GITHUB_ENV
+
+      - name: Checkout webassets code
+        uses: actions/checkout@v3
+        with:
+          repository: gravitational/webassets
+          path: webassets
+          ref: ${{ env.WEBASSETS_COMMIT }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+        with:
+          platforms: linux/${{ matrix.arm-arch }}
+          
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Buildbox
+        uses: docker/build-push-action@v3
+        with:
+          push: false
+          load: true
+          context: build.assets
+          file: build.assets/Dockerfile-buildbox-gha
+          platforms: linux/${{ matrix.arm-arch }}
+          tags: teleport-buildbox-${{ matrix.arm-arch }}:latest
+          build-args: |
+            RUST_VERSION=1.64.0
+            GOLANG_VERSION=go1.19.2
+
+      - name: Populate Module Cache
+        run: go mod download
+
+      - name: Build Release 
+        run: make -C build.assets release-${{ matrix.arm-arch }} RESOLVED_BUILDBOX_NAME=teleport-buildbox-${{ matrix.arm-arch }}:latest

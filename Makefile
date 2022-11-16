@@ -235,12 +235,12 @@ CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic -
 CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS_TSH) -Wl,-Bdynamic -Wl,--as-needed"
 else ifeq ("$(ARCH)","arm")
 # ARM builds need to specify the correct C compiler
-CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
+CGOFLAG = CGO_ENABLED=1 CC=gcc
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2'
 else ifeq ("$(ARCH)","arm64")
 # ARM64 builds need to specify the correct C compiler
-CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
+CGOFLAG = CGO_ENABLED=1 CC=gcc
 endif
 endif
 

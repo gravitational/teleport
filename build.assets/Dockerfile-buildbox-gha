@@ -1,0 +1,79 @@
+# This dockerfile describes an image that can be used to create a minimnal build of 
+# Teleport on any supported platform, with the fewest features.
+
+FROM centos:7 AS base
+
+# Autiomatically supplied by the Docker buildkit
+ARG TARGETARCH
+
+# #############################################################################
+# Platform-specific customisation.
+# #############################################################################
+
+FROM base AS platform-setup-arm
+ARG GOLANG_ARCH=armv6l
+ARG YUM_UPDATE_FLAGS=""
+RUN echo "armhfp" > /etc/yum/vars/basearch && \
+    echo "armv7hl" > /etc/yum/vars/arch && \
+    echo "armv7hl-redhat-linux-gnu" > /etc/rpm/platform 
+
+FROM base AS platform-setup-arm64
+ARG GOLANG_ARCH=arm64
+
+# Installing the kerenel packages causes the update to hang on aarch64, so we
+# skip upgrading them.
+ARG YUM_UPDATE_FLAGS="--exclude 'kernel-*'"
+RUN echo "aarch64-redhat-linux-gnu" > /etc/rpm/platform 
+
+# #############################################################################
+# The minimal buildbox contains the resources required to build a minimal 
+# version of Teleport, with no optional features (e.g. BPF)
+# #############################################################################
+
+FROM platform-setup-$TARGETARCH AS minimal-buildbox
+ARG GOLANG_VERSION
+ARG RUST_VERSION
+
+ENV LANGUAGE=en_US.UTF-8 \
+    LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8 \
+    LC_CTYPE=en_US.UTF-8
+
+RUN yum groupinstall -y 'Development Tools' && \
+    yum update -y $YUM_UPDATE_FLAGS         && \
+    yum install -y      \
+         pam-devel      \
+         perl-IPC-Cmd   \
+         tree           \
+         which          \
+         zip            \
+         zlib-static && \
+    yum clean all
+
+RUN localedef -c -i en_US -f UTF-8 en_US.UTF-8
+
+# Install Go.
+RUN mkdir -p /opt && \
+    mkdir -p /go  && \
+    curl https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-$GOLANG_ARCH.tar.gz | tar xz -C /opt && \
+    chmod a+w /go && \
+    chmod a+w /var/lib && \
+    /opt/go/bin/go version
+ENV GOPATH="/go" \
+    GOROOT="/opt/go" \
+    PATH="$PATH:/opt/go/bin:/go/bin"
+
+# Install Rust.
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH \
+    RUST_VERSION=$RUST_VERSION
+
+RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
+    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+    rustup --version && \
+    cargo --version && \
+    rustc --version && \
+    rustup component add rustfmt clippy

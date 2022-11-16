@@ -7,7 +7,7 @@ endif
 HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
 GOMODCACHE ?= /tmp/gomodcache
-DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE)
+DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE) -e GOCACHE=/tmp/gocache
 
 # delete after webapps migration to teleport
 WEBAPPSSRCDIR=/go/src/github.com/gravitational/webapps
@@ -50,8 +50,8 @@ include images.mk
 # These variables are used to dynamically change the name of the buildbox Docker image used by the 'release'
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
 # make it harder to run `make -C build.assets release` locally as the buildbox would not automatically be built.
-BUILDBOX_NAME=$(BUILDBOX)
-BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
+BUILDBOX_NAME ?= $(BUILDBOX)
+BUILDBOX_FIPS_NAME ?= $(BUILDBOX_FIPS)
 
 DOCSBOX=public.ecr.aws/gravitational/docs
 
@@ -403,20 +403,30 @@ release-386:
 	$(MAKE) release ARCH=386
 
 .PHONY: release-arm
+release-arm: RESOLVED_BUILDBOX_NAME ?= $(BUILDBOX_ARM)
 release-arm: buildbox-arm
-	$(MAKE) release ARCH=arm BUILDBOX_NAME=$(BUILDBOX_ARM)
+	docker run --platform linux/arm $(DOCKERFLAGS) -i $(NOROOT) $(RESOLVED_BUILDBOX_NAME) \
+		make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
 .PHONY: release-arm64
-release-arm64: buildbox-arm
-	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM)
+release-arm64: RESOLVED_BUILDBOX_NAME ?= $(BUILDBOX_ARM)
+release-arm64: #buildbox-arm
+	docker run --platform linux/arm64 $(DOCKERFLAGS) -i $(NOROOT) $(RESOLVED_BUILDBOX_NAME) \
+		make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
 .PHONY: release-amd64-centos7
-release-amd64-centos7: buildbox-centos7
+release-amd64-centos7: BUILDBOX ?= BUILDBOX_ARM
+release-amd64-centos7:
 	$(MAKE) release-centos7 ARCH=amd64 FIDO2=yes PIV=yes
 
 .PHONY: release-amd64-centos7-fips
 release-amd64-centos7-fips: buildbox-centos7-fips
 	$(MAKE) release-centos7-fips ARCH=amd64 FIPS=yes
+
+.PHONY:release-arm-centos7
+release-arm-centos7: 
+	docker run --platform linux/arm/v7 $(DOCKERFLAGS) -i $(NOROOT)  \
+		make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
 #
 # Create a Teleport FIPS package using the build container.
