@@ -47,7 +47,7 @@
     "cross-env": "5.0.5",
     "cross-spawn": "6.0.5",
     "css-loader": "^6.7.1",
-    "electron-builder": "23.3.3",
+    "electron-builder": "24.0.0-alpha.3",
     "eslint": "^8.3.0",
     "eslint-import-resolver-webpack": "^0.13.2",
     "eslint-plugin-babel": "^5.3.1",
