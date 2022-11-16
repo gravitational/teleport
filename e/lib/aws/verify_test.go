@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
+	"golang.org/x/exp/slices"
 	check "gopkg.in/check.v1"
 
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/lib/fixtures"
 )
 
@@ -26,7 +26,7 @@ func (s *AWSSuite) TestVerifyOK(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 	c.Assert(meta.AccountID, check.Equals, "126027368216")
-	isProductLicensed := apiutils.SliceContainsStr(meta.MarketplaceProductCodes, "9x4pv56fe6h1gj8hejc5r6a3z")
+	isProductLicensed := slices.Contains(meta.MarketplaceProductCodes, "9x4pv56fe6h1gj8hejc5r6a3z")
 	c.Assert(isProductLicensed, check.Equals, true)
 }
 
