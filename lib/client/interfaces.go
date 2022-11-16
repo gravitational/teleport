@@ -447,7 +447,7 @@ func parseTeleportAgentKeyComment(comment string) (KeyIndex, bool) {
 }
 
 // isTeleportAgentKey returns whether the given agent key was added
-// by teleport by checking the key's comment.
+// by Teleport by checking the key's comment.
 func isTeleportAgentKey(key *agent.Key) bool {
 	return strings.HasPrefix(key.Comment, agentKeyCommentPrefix+agentKeyCommentSeparator)
 }

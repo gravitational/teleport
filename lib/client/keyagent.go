@@ -261,7 +261,7 @@ func (a *LocalKeyAgent) LoadKey(key Key) error {
 		for _, agentKey := range agentKeys {
 			err = agent.Add(agentKey)
 			if err != nil {
-				errs = append(errs, trace.Wrap(err, "Failed to add key to agent"))
+				errs = append(errs, trace.Wrap(err, "failed to add key to agent"))
 			}
 		}
 	}
