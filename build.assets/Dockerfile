@@ -88,8 +88,12 @@ ARG BUILDARCH
 
 # Install packages.
 # Java JRE is required by gcloud firestore emulator.
+# Latest git 2.18+ is required for GitHub actions
 # NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
-RUN apt-get update -y --fix-missing && \
+RUN apt-get -y update && \
+    apt-get -y install software-properties-common && \
+    add-apt-repository -y ppa:git-core/ppa && \
+    apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -q -y --no-install-recommends \
         apt-utils \
