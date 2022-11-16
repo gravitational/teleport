@@ -3,12 +3,16 @@ package devices
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sort"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/service"
 )
 
@@ -90,17 +94,94 @@ type addCommand struct {
 }
 
 func (c *addCommand) Run(ctx context.Context, authClient auth.ClientI) error {
-	if _, ok := osTypeToEnum[c.os]; !ok {
+	osType, ok := osTypeToEnum[c.os]
+	if !ok {
 		return trace.BadParameter("invalid --os: %v", c.os)
 	}
 
-	return errors.New("not implemented")
+	created, err := authClient.DevicesClient().CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+		Device: &devicepb.Device{
+			OsType:   osType,
+			AssetTag: c.assetTag,
+		},
+		CreateEnrollToken: c.enroll,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf(
+		"Device %v/%v added to the inventory\n",
+		created.AssetTag,
+		devicetrust.FriendlyOSType(created.OsType))
+	if token := created.EnrollToken.GetToken(); token != "" {
+		printEnrollMessage(created.AssetTag, token)
+	}
+
+	return nil
+}
+
+func printEnrollMessage(name, token string) {
+	fmt.Printf(""+
+		"Run the command below on device %q to enroll it:\n"+
+		"tsh device enroll --token=%v\n",
+		name, token,
+	)
 }
 
 type lsCommand struct{}
 
 func (c *lsCommand) Run(ctx context.Context, authClient auth.ClientI) error {
-	return errors.New("not implemented")
+	devices := authClient.DevicesClient()
+
+	// List all devices.
+	req := &devicepb.ListDevicesRequest{
+		View: devicepb.DeviceView_DEVICE_VIEW_LIST,
+	}
+	var devs []*devicepb.Device
+	for {
+		resp, err := devices.ListDevices(ctx, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		devs = append(devs, resp.Devices...)
+
+		if resp.NextPageToken == "" {
+			break
+		}
+		req.PageToken = resp.NextPageToken
+	}
+	if len(devs) == 0 {
+		fmt.Println("No devices found")
+		return nil
+	}
+
+	// Sort by {AssetTag, OsType}.
+	sort.Slice(devs, func(i, j int) bool {
+		d1 := devs[i]
+		d2 := devs[j]
+
+		if d1.AssetTag == d2.AssetTag {
+			return d1.OsType < d2.OsType
+		}
+
+		return d1.AssetTag < d2.AssetTag
+	})
+
+	// Print devices.
+	table := asciitable.MakeTable([]string{"Asset Tag", "OS", "Enroll Status", "Device ID"})
+	for _, dev := range devs {
+		table.AddRow([]string{
+			dev.AssetTag,
+			devicetrust.FriendlyOSType(dev.OsType),
+			devicetrust.FriendlyDeviceEnrollStatus(dev.EnrollStatus),
+			dev.Id,
+		})
+	}
+	fmt.Println(table.AsBuffer().String())
+
+	return nil
 }
 
 type rmCommand struct {
@@ -115,7 +196,22 @@ func (c *rmCommand) Run(ctx context.Context, authClient auth.ClientI) error {
 		return trace.BadParameter("only one of --device-id or --asset-tag must be set")
 	}
 
-	return errors.New("not implemented")
+	devices := authClient.DevicesClient()
+
+	// Find the specified device, if necessary.
+	deviceID, name, err := findDeviceID(ctx, devices, c.deviceID, c.assetTag)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := devices.DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{
+		DeviceId: deviceID,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("Device %q removed\n", name)
+	return nil
 }
 
 type enrollCommand struct {
@@ -130,7 +226,23 @@ func (c *enrollCommand) Run(ctx context.Context, authClient auth.ClientI) error 
 		return trace.BadParameter("only one of --device-id or --asset-tag must be set")
 	}
 
-	return errors.New("not implemented")
+	devices := authClient.DevicesClient()
+
+	// Find the specified device, if necessary.
+	deviceID, name, err := findDeviceID(ctx, devices, c.deviceID, c.assetTag)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	token, err := devices.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
+		DeviceId: deviceID,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	printEnrollMessage(name, token.Token)
+	return nil
 }
 
 type lockCommand struct {
@@ -146,4 +258,26 @@ func (c *lockCommand) Run(context.Context, auth.ClientI) error {
 	}
 
 	return errors.New("not implemented")
+}
+
+func findDeviceID(ctx context.Context, devices devicepb.DeviceTrustServiceClient, deviceID, assetTag string) (id, name string, err error) {
+	if deviceID != "" {
+		// No need to query.
+		return deviceID, deviceID, nil
+	}
+
+	resp, err := devices.FindDevices(ctx, &devicepb.FindDevicesRequest{
+		IdOrTag: assetTag,
+	})
+	switch l := len(resp.Devices); {
+	case err != nil:
+		return "", "", trace.Wrap(err)
+	case l == 0:
+		return "", "", trace.NotFound("device %q not found", assetTag)
+	case l > 1:
+		return "", "", trace.BadParameter(
+			"found multiple devices for asset tag %q, please retry using the device ID instead", assetTag)
+	default:
+		return resp.Devices[0].Id, assetTag, nil
+	}
 }

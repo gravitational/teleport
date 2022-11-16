@@ -8,10 +8,14 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
+	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
+	dtstorage "github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/httplib"
 )
 
@@ -23,6 +27,11 @@ const (
 type Config struct {
 	// Log is the logger
 	Log logrus.FieldLogger
+
+	// GetBackend fetches the backend for the running Teleport process.
+	// A func is used, instead of a plain field, so the Plugin may be created
+	// before the actual Teleport process.
+	GetBackend func() backend.Backend
 }
 
 // CheckAndSetDefaults checks and sets the defaults
@@ -85,19 +94,33 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	if !ok {
 		return trace.BadParameter("unsupported auth server type %T", server)
 	}
+	p.authorizer = authServer.Authorizer
+	p.emitter = authServer.Emitter
 
-	protoServer, err := authServer.GetServer()
+	gRPCServer, err := authServer.GetServer()
 	if err != nil {
 		return trace.BadParameter("missing proto server")
 	}
 
-	// register cloud APIs
-	cloudapi.RegisterTenantsServiceServer(protoServer, &cloudWithRoles{
+	// Register Cloud APIs.
+	cloudapi.RegisterTenantsServiceServer(gRPCServer, &cloudWithRoles{
 		plugin: p,
 	})
 
-	p.authorizer = authServer.Authorizer
-	p.emitter = authServer.Emitter
+	// Register Device Trust.
+	deviceStorage, err := dtstorage.New(p.GetBackend)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	deviceService, err := devicetrustv1.New(devicetrustv1.ServiceParams{
+		Authorizer: p.authorizer,
+		Emitter:    p.emitter,
+		Storage:    deviceStorage,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	devicepb.RegisterDeviceTrustServiceServer(gRPCServer, deviceService)
 
 	return nil
 }
