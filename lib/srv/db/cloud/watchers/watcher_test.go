@@ -185,6 +185,36 @@ func TestWatcher(t *testing.T) {
 			expectedDatabases: append(types.Databases{rdsDatabase1, auroraDatabase1}, auroraDatabases2...),
 		},
 		{
+			name: "RDS unrecognized engines are skipped",
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types:   []string{services.AWSMatcherRDS},
+					Regions: []string{"us-east-1"},
+					Tags:    types.Labels{"env": []string{"prod"}},
+				},
+				{
+					Types:   []string{services.AWSMatcherRDS},
+					Regions: []string{"us-east-2"},
+					Tags:    types.Labels{"env": []string{"dev"}},
+				},
+			},
+			clients: &clients.TestCloudClients{
+				RDSPerRegion: map[string]rdsiface.RDSAPI{
+					"us-east-1": &cloud.RDSMock{
+						DBInstances:      []*rds.DBInstance{rdsInstance1, rdsInstance3},
+						DBClusters:       []*rds.DBCluster{auroraCluster1},
+						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine},
+					},
+					"us-east-2": &cloud.RDSMock{
+						DBInstances:      []*rds.DBInstance{rdsInstance5},
+						DBClusters:       []*rds.DBCluster{auroraCluster2, auroraCluster3},
+						DBEngineVersions: []*rds.DBEngineVersion{postgresEngine},
+					},
+				},
+			},
+			expectedDatabases: types.Databases{auroraDatabase1, rdsDatabase5},
+		},
+		{
 			name: "RDS unsupported databases are skipped",
 			awsMatchers: []services.AWSMatcher{{
 				Types:   []string{services.AWSMatcherRDS},
