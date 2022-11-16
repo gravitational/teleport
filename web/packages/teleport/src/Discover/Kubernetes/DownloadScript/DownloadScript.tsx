@@ -22,7 +22,7 @@ import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
-import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy/TextSelectCopyMulti';
 import { CatchError } from 'teleport/components/CatchError';
 import {
   useJoinToken,
