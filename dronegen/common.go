@@ -302,13 +302,6 @@ func waitForDockerRegistryStep() step {
 	}
 }
 
-func verifyValidPromoteRunSteps() []step {
-	tagStep := verifyTaggedStep()
-	verifyStep := verifyNotPrereleaseStep()
-
-	return []step{tagStep, verifyStep}
-}
-
 func verifyTaggedStep() step {
 	return step{
 		Name:  "Verify build is tagged",
@@ -344,4 +337,17 @@ func verifyNotPrereleaseStep() step {
 		Image:    fmt.Sprintf("golang:%s-alpine", GoVersion),
 		Commands: commands,
 	}
+}
+
+func sliceSelect[T, V any](slice []T, selector func(T) V) []V {
+	selectedValues := make([]V, len(slice))
+	for i, entry := range slice {
+		selectedValues[i] = selector(entry)
+	}
+
+	return selectedValues
+}
+
+func getStepNames(steps []step) []string {
+	return sliceSelect(steps, func(s step) string { return s.Name })
 }

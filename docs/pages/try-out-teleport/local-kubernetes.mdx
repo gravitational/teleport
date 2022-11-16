@@ -59,12 +59,7 @@ Start minikube with the Docker driver:
 $ minikube start --driver=docker
 ```
 
-Add the Teleport Helm repository. Our Helm charts make it easier to deploy
-Teleport on your local Kubernetes cluster:
-
-```code
-$ helm repo add teleport https://charts.releases.teleport.dev
-```
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
 ### Install the Teleport Auth Service and Proxy Service
 
