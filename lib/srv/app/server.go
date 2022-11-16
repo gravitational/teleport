@@ -947,6 +947,8 @@ func (s *Server) getApp(ctx context.Context, publicAddr string) (types.Applicati
 	return nil, trace.NotFound("no application at %v found", publicAddr)
 }
 
+// appWithUpdatedLabels will inject updated dynamic and cloud labels into an application
+// object. The caller must invoke an RLock on `s.mu` before calling this function.
 func (s *Server) appWithUpdatedLabels(app types.Application) *types.AppV3 {
 	// Create a copy of the application to modify
 	copy := app.Copy()
