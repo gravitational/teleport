@@ -121,7 +121,6 @@ require (
 	go.opentelemetry.io/otel/sdk v1.11.1
 	go.opentelemetry.io/otel/trace v1.11.1
 	go.opentelemetry.io/proto/otlp v0.19.0
-	golang.org/x/crypto v0.2.0
 	golang.org/x/exp v0.0.0-20221114191408-850992195362
 	golang.org/x/mod v0.7.0
 	golang.org/x/net v0.2.0
@@ -153,6 +152,12 @@ require (
 	sigs.k8s.io/controller-tools v0.10.0
 	sigs.k8s.io/yaml v1.3.0
 )
+
+// DO NOT UPDATE crypto beyond v0.2.0, the commit below breaks compatibility
+// with OpenSSH <= 7.6.
+// We are working on landing a patch upstream.
+// https://github.com/golang/crypto/commit/6fad3dfc18918c2ac9c112e46b32473bd2e5e2f9
+require golang.org/x/crypto v0.2.0 // DO NOT UPDATE
 
 // Indirect mailgun dependencies.
 // Updating causes breaking changes.
