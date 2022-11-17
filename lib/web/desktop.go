@@ -29,7 +29,6 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -40,6 +39,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -118,11 +118,11 @@ func (h *Handler) createDesktopConnection(
 	if username == "" {
 		return sendTDPError(ws, trace.BadParameter("missing username"))
 	}
-	width, err := strconv.Atoi(q.Get("width"))
+	width, err := apiutils.StrToUInt32(q.Get("width"))
 	if err != nil {
 		return sendTDPError(ws, trace.BadParameter("width missing or invalid"))
 	}
-	height, err := strconv.Atoi(q.Get("height"))
+	height, err := apiutils.StrToUInt32(q.Get("height"))
 	if err != nil {
 		return sendTDPError(ws, trace.BadParameter("height missing or invalid"))
 	}
@@ -200,7 +200,7 @@ func (h *Handler) createDesktopConnection(
 	if err != nil {
 		return sendTDPError(ws, err)
 	}
-	err = tdpConn.WriteMessage(tdp.ClientScreenSpec{Width: uint32(width), Height: uint32(height)})
+	err = tdpConn.WriteMessage(tdp.ClientScreenSpec{Width: width, Height: height})
 	if err != nil {
 		return sendTDPError(ws, err)
 	}

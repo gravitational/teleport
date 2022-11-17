@@ -1967,12 +1967,16 @@ func (c *Client) StreamSessionEvents(ctx context.Context, sessionID string, star
 
 // SearchEvents allows searching for events with a full pagination support.
 func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error) {
+	i32Limit, err := utils.IntToInt32(limit)
+	if err != nil {
+		return nil, "", err
+	}
 	request := &proto.GetEventsRequest{
 		Namespace:  namespace,
 		StartDate:  fromUTC,
 		EndDate:    toUTC,
 		EventTypes: eventTypes,
-		Limit:      int32(limit),
+		Limit:      i32Limit,
 		StartKey:   startKey,
 		Order:      proto.Order(order),
 	}
@@ -1996,10 +2000,14 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 
 // SearchSessionEvents allows searching for session events with a full pagination support.
 func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error) {
+	i32Limit, err := utils.IntToInt32(limit)
+	if err != nil {
+		return nil, "", err
+	}
 	request := &proto.GetSessionEventsRequest{
 		StartDate: fromUTC,
 		EndDate:   toUTC,
-		Limit:     int32(limit),
+		Limit:     i32Limit,
 		StartKey:  startKey,
 		Order:     proto.Order(order),
 	}

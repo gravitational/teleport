@@ -36,6 +36,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/shell"
@@ -875,11 +876,11 @@ func newParker(ctx context.Context, credential syscall.Credential) error {
 // getCmdCredentials parses the uid, gid, and groups of the
 // given user into a credential object for a command to use.
 func getCmdCredential(localUser *user.User) (*syscall.Credential, error) {
-	uid, err := strconv.Atoi(localUser.Uid)
+	uid, err := apiutils.StrToUInt32(localUser.Uid)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	gid, err := strconv.Atoi(localUser.Gid)
+	gid, err := apiutils.StrToUInt32(localUser.Gid)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -891,20 +892,20 @@ func getCmdCredential(localUser *user.User) (*syscall.Credential, error) {
 	}
 	groups := make([]uint32, 0)
 	for _, sgid := range userGroups {
-		igid, err := strconv.Atoi(sgid)
+		igid, err := apiutils.StrToUInt32(sgid)
 		if err != nil {
 			log.Warnf("Cannot interpret user group: '%v'", sgid)
 		} else {
-			groups = append(groups, uint32(igid))
+			groups = append(groups, igid)
 		}
 	}
 	if len(groups) == 0 {
-		groups = append(groups, uint32(gid))
+		groups = append(groups, gid)
 	}
 
 	return &syscall.Credential{
-		Uid:    uint32(uid),
-		Gid:    uint32(gid),
+		Uid:    uid,
+		Gid:    gid,
 		Groups: groups,
 	}, nil
 }

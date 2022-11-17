@@ -22,7 +22,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -695,7 +694,7 @@ func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, di
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	originPortI, err := strconv.Atoi(originPort)
+	originPortI, err := apiutils.StrToUInt16(originPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
