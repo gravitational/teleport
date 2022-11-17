@@ -24,6 +24,9 @@ provide secure, passwordless access to Windows desktops.
 - One or more hosts to run the Teleport Auth and Proxy services on.
 </ScopedBlock>
 - A server or virtual machine running a Windows Server operating system.
+  In this guide, we'll install Active Directory on this server in order
+  to support passwordless logins with Teleport to the Windows desktops
+  in the Active Directory domain.
 - A Linux host where you will run the Teleport Desktop Service.
   <ScopedBlock scope={["oss", "enterprise"]}> This guide assumes that you will
   run Teleport's Windows Desktop Service on a dedicated host. To install Desktop
