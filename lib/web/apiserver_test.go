@@ -1231,7 +1231,7 @@ t1ready:
 	select {
 	case e := <-ws2Messages:
 		if isResizeEventEnvelope(e) {
-			require.FailNow(t, "terminal 2 chould not have received a resize event")
+			require.FailNow(t, "terminal 2 should not have received a resize event")
 		}
 	case err := <-errs:
 		require.NoError(t, err)

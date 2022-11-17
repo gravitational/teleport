@@ -259,7 +259,7 @@ func (c *aksClient) ClusterCredentials(ctx context.Context, cfg ClusterCredentia
 		// the access credentials are static and are only changed if there is a change in the cluster CA, however to prevent this we will refresh the credentials
 		return cfg, time.Now().Add(1 * time.Hour), trace.Wrap(err)
 	default:
-		return nil, time.Time{}, trace.BadParameter("unsuported AKS authentication mode %v", clusterDetails.Properties.AccessConfig)
+		return nil, time.Time{}, trace.BadParameter("unsupported AKS authentication mode %v", clusterDetails.Properties.AccessConfig)
 	}
 
 }
