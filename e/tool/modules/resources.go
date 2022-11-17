@@ -4,6 +4,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -49,5 +50,54 @@ func init() {
 			return nil, trace.Wrap(err)
 		}
 		return rsc, nil
+	})
+
+	// Register functions to create enterprise GitHub auth connectors.
+	services.RegisterGithubAuthCreator(auth.NewGithubConnectorE)
+	// Register function to convert OSS GitHub auth connectors to
+	// enterprise connectors so endpoint_url will be respected.
+	services.RegisterGithubAuthInitializer(func(c types.GithubConnector) (types.GithubConnector, error) {
+		switch connector := c.(type) {
+		case *auth.GithubConnectorE:
+			return connector, nil
+		case *types.GithubConnectorV3:
+			return &auth.GithubConnectorE{
+				GithubConnectorV3: connector,
+			}, nil
+		default:
+			return nil, trace.BadParameter("unrecognized github connector version %T", c)
+		}
+	})
+	// Register function to convert enterprise GitHub auth connectors to
+	// OSS connectors so they can be sent over gRPC.
+	services.RegisterGithubAuthConverter(func(c types.GithubConnector) (*types.GithubConnectorV3, error) {
+		switch connector := c.(type) {
+		case *auth.GithubConnectorE:
+			return connector.GithubConnectorV3, nil
+		case *types.GithubConnectorV3:
+			return connector, nil
+		default:
+			return nil, trace.BadParameter("unrecognized github connector version %T", c)
+		}
+	})
+	// Register marshaler for enterprise GitHub auth connector.
+	services.RegisterResourceMarshaler(types.KindGithubConnector, func(resource types.Resource, opts ...services.MarshalOption) ([]byte, error) {
+		githubConnector, ok := resource.(types.GithubConnector)
+		if !ok {
+			return nil, trace.BadParameter("expected GithubConnector, got %T", resource)
+		}
+		bytes, err := auth.MarshalGithubConnectorE(githubConnector, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return bytes, nil
+	})
+	// Register unmarshaler for enterprise GitHub auth connector.
+	services.RegisterResourceUnmarshaler(types.KindGithubConnector, func(bytes []byte, opts ...services.MarshalOption) (types.Resource, error) {
+		githubConnector, err := auth.UnmarshalGithubConnectorE(bytes) // XXX: Does not support marshal options.
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return githubConnector, nil
 	})
 }
