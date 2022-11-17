@@ -23,6 +23,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -30,11 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/jonboulle/clockwork"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
 
 // TestAuthTokens verifies that proper IAM auth tokens are used when connecting
@@ -79,7 +79,7 @@ func TestAuthTokens(t *testing.T) {
 			service:  "postgres-rds-incorrect-token",
 			protocol: defaults.ProtocolPostgres,
 			// Make sure we print example RDS IAM policy.
-			err: "arn:aws:rds-db:us-east-1:<account_id>:dbuser:<resource_id>",
+			err: "arn:aws:rds-db:us-east-1:{account_id}:dbuser:{resource_id}",
 		},
 		{
 			desc:     "correct Postgres Redshift IAM auth token",
@@ -113,7 +113,7 @@ func TestAuthTokens(t *testing.T) {
 			service:  "mysql-rds-incorrect-token",
 			protocol: defaults.ProtocolMySQL,
 			// Make sure we print example RDS IAM policy.
-			err: "arn:aws:rds-db:us-east-1:<account_id>:dbuser:<resource_id>",
+			err: "arn:aws:rds-db:us-east-1:{account_id}:dbuser:{resource_id}",
 		},
 		{
 			desc:     "correct MySQL Cloud SQL IAM auth token",

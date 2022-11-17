@@ -32,6 +32,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -41,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 // TestDatabaseUnmarshal verifies a database resource can be unmarshaled.
@@ -645,6 +645,97 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 		}
 		_, err := NewDatabasesFromRDSClusterCustomEndpoints(&badCluster)
 		require.Error(t, err)
+	})
+}
+
+func TestDatabaseFromRDSProxy(t *testing.T) {
+	var port int64 = 9999
+	dbProxy := &rds.DBProxy{
+		DBProxyArn:   aws.String("arn:aws:rds:ca-central-1:123456:db-proxy:prx-abcdef"),
+		DBProxyName:  aws.String("testproxy"),
+		EngineFamily: aws.String(rds.EngineFamilyMysql),
+		Endpoint:     aws.String("proxy.rds.test"),
+		VpcId:        aws.String("test-vpc-id"),
+	}
+
+	dbProxyEndpoint := &rds.DBProxyEndpoint{
+		Endpoint:            aws.String("custom.proxy.rds.test"),
+		DBProxyEndpointName: aws.String("custom"),
+		DBProxyName:         aws.String("testproxy"),
+		DBProxyEndpointArn:  aws.String("arn:aws:rds:ca-central-1:123456:db-proxy-endpoint:prx-endpoint-abcdef"),
+		TargetRole:          aws.String(rds.DBProxyEndpointTargetRoleReadOnly),
+	}
+
+	tags := []*rds.Tag{{
+		Key:   aws.String("key"),
+		Value: aws.String("val"),
+	}}
+
+	t.Run("default endpoint", func(t *testing.T) {
+		expected, err := types.NewDatabaseV3(types.Metadata{
+			Name:        "testproxy",
+			Description: "RDS Proxy in ca-central-1",
+			Labels: map[string]string{
+				"key":             "val",
+				types.OriginLabel: types.OriginCloud,
+				labelAccountID:    "123456",
+				labelRegion:       "ca-central-1",
+				labelEngine:       "MYSQL",
+				labelVPCID:        "test-vpc-id",
+			},
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolMySQL,
+			URI:      "proxy.rds.test:9999",
+			AWS: types.AWS{
+				Region:    "ca-central-1",
+				AccountID: "123456",
+				RDSProxy: types.RDSProxy{
+					ResourceID: "prx-abcdef",
+					Name:       "testproxy",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		actual, err := NewDatabaseFromRDSProxy(dbProxy, port, tags)
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+	})
+
+	t.Run("custom endpoint", func(t *testing.T) {
+		expected, err := types.NewDatabaseV3(types.Metadata{
+			Name:        "testproxy-custom",
+			Description: "RDS Proxy endpoint in ca-central-1",
+			Labels: map[string]string{
+				"key":             "val",
+				types.OriginLabel: types.OriginCloud,
+				labelAccountID:    "123456",
+				labelRegion:       "ca-central-1",
+				labelEngine:       "MYSQL",
+				labelVPCID:        "test-vpc-id",
+				labelEndpointType: "READ_ONLY",
+			},
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolMySQL,
+			URI:      "custom.proxy.rds.test:9999",
+			AWS: types.AWS{
+				Region:    "ca-central-1",
+				AccountID: "123456",
+				RDSProxy: types.RDSProxy{
+					ResourceID:         "prx-abcdef",
+					Name:               "testproxy",
+					CustomEndpointName: "custom",
+				},
+			},
+			TLS: types.DatabaseTLS{
+				ServerName: "proxy.rds.test",
+			},
+		})
+		require.NoError(t, err)
+
+		actual, err := NewDatabaseFromRDSProxyCustomEndpoint(dbProxy, dbProxyEndpoint, port, tags)
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
 	})
 }
 

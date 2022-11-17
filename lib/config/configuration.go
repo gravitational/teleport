@@ -134,6 +134,8 @@ type CommandLineFlags struct {
 	DatabaseCACertFile string
 	// DatabaseAWSRegion is an optional database cloud region e.g. when using AWS RDS.
 	DatabaseAWSRegion string
+	// DatabaseAWSAccountID is an optional AWS account ID e.g. when using Keyspaces.
+	DatabaseAWSAccountID string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
 	DatabaseAWSRedshiftClusterID string
 	// DatabaseAWSRDSInstanceID is RDS instance identifier.
@@ -706,9 +708,21 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Auth.CAKeyParams == nil {
 		return nil
 	}
+	if fc.Auth.CAKeyParams.PKCS11 != nil {
+		if fc.Auth.CAKeyParams.GoogleCloudKMS != nil {
+			return trace.BadParameter("cannot set both pkcs11 and gcp_kms in file config")
+		}
+		return trace.Wrap(applyPKCS11Config(fc.Auth.CAKeyParams.PKCS11, cfg))
+	}
+	if fc.Auth.CAKeyParams.GoogleCloudKMS != nil {
+		return trace.Wrap(applyGoogleCloudKMSConfig(fc.Auth.CAKeyParams.GoogleCloudKMS, cfg))
+	}
+	return nil
+}
 
-	if fc.Auth.CAKeyParams.PKCS11.ModulePath != "" {
-		fi, err := utils.StatFile(fc.Auth.CAKeyParams.PKCS11.ModulePath)
+func applyPKCS11Config(pkcs11Config *PKCS11, cfg *service.Config) error {
+	if pkcs11Config.ModulePath != "" {
+		fi, err := utils.StatFile(pkcs11Config.ModulePath)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -717,23 +731,23 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
 		if fi.Mode().Perm()&worldWritableBits != 0 {
 			return trace.Errorf(
 				"PKCS11 library (%s) must not be world-writable",
-				fc.Auth.CAKeyParams.PKCS11.ModulePath,
+				pkcs11Config.ModulePath,
 			)
 		}
 
-		cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
+		cfg.Auth.KeyStore.PKCS11.Path = pkcs11Config.ModulePath
 	}
 
-	cfg.Auth.KeyStore.TokenLabel = fc.Auth.CAKeyParams.PKCS11.TokenLabel
-	cfg.Auth.KeyStore.SlotNumber = fc.Auth.CAKeyParams.PKCS11.SlotNumber
+	cfg.Auth.KeyStore.PKCS11.TokenLabel = pkcs11Config.TokenLabel
+	cfg.Auth.KeyStore.PKCS11.SlotNumber = pkcs11Config.SlotNumber
 
-	cfg.Auth.KeyStore.Pin = fc.Auth.CAKeyParams.PKCS11.Pin
-	if fc.Auth.CAKeyParams.PKCS11.PinPath != "" {
-		if fc.Auth.CAKeyParams.PKCS11.Pin != "" {
+	cfg.Auth.KeyStore.PKCS11.Pin = pkcs11Config.Pin
+	if pkcs11Config.PinPath != "" {
+		if pkcs11Config.Pin != "" {
 			return trace.BadParameter("can not set both pin and pin_path")
 		}
 
-		fi, err := utils.StatFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
+		fi, err := utils.StatFile(pkcs11Config.PinPath)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -742,17 +756,29 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
 		if fi.Mode().Perm()&worldReadableBits != 0 {
 			return trace.Errorf(
 				"HSM pin file (%s) must not be world-readable",
-				fc.Auth.CAKeyParams.PKCS11.PinPath,
+				pkcs11Config.PinPath,
 			)
 		}
 
-		pinBytes, err := os.ReadFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
+		pinBytes, err := os.ReadFile(pkcs11Config.PinPath)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		pin := strings.TrimRight(string(pinBytes), "\r\n")
-		cfg.Auth.KeyStore.Pin = pin
+		cfg.Auth.KeyStore.PKCS11.Pin = pin
 	}
+	return nil
+}
+
+func applyGoogleCloudKMSConfig(kmsConfig *GoogleCloudKMS, cfg *service.Config) error {
+	if kmsConfig.KeyRing == "" {
+		return trace.BadParameter("must set keyring in ca_key_params.gcp_kms")
+	}
+	cfg.Auth.KeyStore.GCPKMS.KeyRing = kmsConfig.KeyRing
+	if kmsConfig.ProtectionLevel == "" {
+		return trace.BadParameter("must set protection_level in ca_key_params.gcp_kms")
+	}
+	cfg.Auth.KeyStore.GCPKMS.ProtectionLevel = kmsConfig.ProtectionLevel
 	return nil
 }
 
@@ -1136,6 +1162,18 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) {
 				Types:          matcher.Types,
 				Regions:        matcher.Regions,
 				ResourceTags:   matcher.ResourceTags,
+			},
+		)
+	}
+
+	for _, matcher := range fc.Discovery.GCPMatchers {
+		cfg.Discovery.GCPMatchers = append(
+			cfg.Discovery.GCPMatchers,
+			services.GCPMatcher{
+				Types:      matcher.Types,
+				Locations:  matcher.Locations,
+				Tags:       matcher.Tags,
+				ProjectIDs: matcher.ProjectIDs,
 			},
 		)
 	}
@@ -1929,7 +1967,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 				CACert: caBytes,
 			},
 			AWS: service.DatabaseAWS{
-				Region: clf.DatabaseAWSRegion,
+				Region:    clf.DatabaseAWSRegion,
+				AccountID: clf.DatabaseAWSAccountID,
 				Redshift: service.DatabaseAWSRedshift{
 					ClusterID: clf.DatabaseAWSRedshiftClusterID,
 				},

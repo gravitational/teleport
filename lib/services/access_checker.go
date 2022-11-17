@@ -144,10 +144,11 @@ type AccessChecker interface {
 	// CertificateExtensions returns the list of extensions for each role in the RoleSet
 	CertificateExtensions() []*types.CertExtension
 
-	// GetSearchAsRoles returns the list of roles which the checker should be able to
-	// "assume" while searching for resources, and should be able to request with a
-	// search-based access request.
-	GetSearchAsRoles() []string
+	// GetAllowedSearchAsRoles returns all of the allowed SearchAsRoles.
+	GetAllowedSearchAsRoles() []string
+
+	// GetAllowedPreviewAsRoles returns all of the allowed PreviewAsRoles.
+	GetAllowedPreviewAsRoles() []string
 
 	// MaxConnections returns the maximum number of concurrent ssh connections
 	// allowed.  If MaxConnections is zero then no maximum was defined and the
@@ -299,18 +300,6 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matc
 // there are no resource-specific restrictions.
 func (a *accessChecker) GetAllowedResourceIDs() []types.ResourceID {
 	return a.info.AllowedResourceIDs
-}
-
-// GetSearchAsRoles returns the list of roles which the AccessChecker should be
-// able to "assume" while searching for resources, and should be able to request
-// with a search-based access request.
-func (a *accessChecker) GetSearchAsRoles() []string {
-	if len(a.info.AllowedResourceIDs) > 0 {
-		// cannot search with extended roles while already logged in the
-		// search-based access request.
-		return nil
-	}
-	return a.RoleSet.GetSearchAsRoles()
 }
 
 // AccessInfoFromLocalCertificate returns a new AccessInfo populated from the

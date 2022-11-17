@@ -1373,6 +1373,9 @@ message ChangeUserAuthenticationResponse {
   //  - cloud feature is enabled
   //  - username is in valid email format
   RecoveryCodes Recovery = 2 [(gogoproto.jsontag) = "recovery,omitempty"];
+  // PrivateKeyPolicyEnabled is a flag that when true means one of the private key policy was
+  // set in either through cluster config or through a user's assigned role.
+  bool PrivateKeyPolicyEnabled = 3 [(gogoproto.jsontag) = "private_key_policy_enabled,omitempty"];
 }
 
 // StartAccountRecoveryRequest defines a request to create a recovery start token for a user who is
@@ -1595,6 +1598,9 @@ message ListResourcesRequest {
   // UseSearchAsRoles indicates that the response should include all resources
   // the caller is able to request access to using search_as_roles
   bool UseSearchAsRoles = 11 [(gogoproto.jsontag) = "use_search_as_roles,omitempty"];
+  // UsePreviewAsRoles indicates that the response should include all resources
+  // the caller would be able to access with their preview_as_roles
+  bool UsePreviewAsRoles = 12 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
 }
 
 // ListResourceResponse response of ListResources.
@@ -1818,9 +1824,9 @@ message UpstreamInventoryHello {
   // active.
   repeated string Services = 3 [(gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"];
 
-// TODO(fspmarshall): look into what other info can safely be stated here once, instead of
-// being repeatedly announced (e.g. addrs, static labels, etc). may be able to achieve a
-// non-trivial reduction in network usage by doing this.
+  // TODO(fspmarshall): look into what other info can safely be stated here once, instead of
+  // being repeatedly announced (e.g. addrs, static labels, etc). may be able to achieve a
+  // non-trivial reduction in network usage by doing this.
 }
 
 // DownstreamInventoryHello is the hello message sent down the inventory control stream.
@@ -1922,6 +1928,9 @@ service AuthService {
 
   // GetActiveSessionTrackers returns a list of active sessions.
   rpc GetActiveSessionTrackers(google.protobuf.Empty) returns (stream types.SessionTrackerV1);
+
+  // GetActiveSessionTrackersWithFilter returns a list of active sessions filtered by a filter.
+  rpc GetActiveSessionTrackersWithFilter(types.SessionTrackerFilter) returns (stream types.SessionTrackerV1);
 
   // RemoveSessionTracker removes a session tracker resource.
   rpc RemoveSessionTracker(RemoveSessionTrackerRequest) returns (google.protobuf.Empty);

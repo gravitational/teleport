@@ -19,8 +19,9 @@ package types
 import (
 	"time"
 
-	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types/wrappers"
 )
 
 // GenerateAppTokenRequest are the parameters used to generate an application token.

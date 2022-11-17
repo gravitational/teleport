@@ -21,12 +21,12 @@ import (
 	"net"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
-
-	"github.com/gravitational/trace"
 )
 
 type hostPolicyCheckerConfig struct {

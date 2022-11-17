@@ -26,12 +26,12 @@ import (
 	"strings"
 	"sync"
 
-	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
+
+	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // IsConnectRequest returns true if the request is a HTTP CONNECT tunnel

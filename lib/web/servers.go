@@ -19,12 +19,12 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/ui"
-
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 )
 
 // clusterKubesGet returns a list of kube clusters in a form the UI can present.
@@ -43,9 +43,13 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	accessChecker, err := ctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeKubeClusters(clusters),
+		Items:      ui.MakeKubeClusters(clusters, accessChecker.Roles()),
 		StartKey:   resp.NextKey,
 		TotalCount: resp.TotalCount,
 	}, nil
@@ -75,10 +79,50 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeDatabases(h.auth.clusterName, databases),
+		Items:      ui.MakeDatabases(databases),
 		StartKey:   resp.NextKey,
 		TotalCount: resp.TotalCount,
 	}, nil
+}
+
+// clusterDatabaseGet returns a list of db servers in a form the UI can present.
+func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	databaseName := p.ByName("database")
+	if databaseName == "" {
+		return nil, trace.BadParameter("database name is required")
+	}
+
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	database, err := fetchDatabaseWithName(r.Context(), clt, r, databaseName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessChecker, err := ctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dbNames, dbUsers, err := accessChecker.CheckDatabaseNamesAndUsers(0, true /* force ttl override*/)
+	if err != nil {
+		// if NotFound error:
+		// This user cannot request database access, has no assigned database names or users
+		//
+		// Every other error should be reported upstream.
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+
+		// We proceed with an empty list of DBUsers and DBNames
+		dbUsers = []string{}
+		dbNames = []string{}
+	}
+
+	return ui.MakeDatabase(database, dbUsers, dbNames), nil
 }
 
 // clusterDesktopsGet returns a list of desktops in a form the UI can present.
@@ -152,4 +196,56 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 	// if multiple Windows Desktop Services are in use. We only need
 	// to see the desktop once in the UI, so just take the first one.
 	return ui.MakeDesktop(windowsDesktops[0]), nil
+}
+
+// desktopIsActive checks if a desktop has an active session and returns a desktopIsActive.
+//
+// GET /v1/webapi/sites/:site/desktops/:desktopName/active
+//
+// Response body:
+//
+// {"active": bool}
+func (h *Handler) desktopIsActive(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	desktopName := p.ByName("desktopName")
+	trackers, err := h.auth.proxyClient.GetActiveSessionTrackersWithFilter(r.Context(), &types.SessionTrackerFilter{
+		Kind: string(types.WindowsDesktopSessionKind),
+		State: &types.NullableSessionState{
+			State: types.SessionState_SessionStateRunning,
+		},
+		DesktopName: desktopName,
+	})
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, tracker := range trackers {
+		// clt is an auth.ClientI with the role of the user, so
+		// clt.GetWindowsDesktops() can be used to confirm that
+		// the user has access to the requested desktop.
+		desktops, err := clt.GetWindowsDesktops(r.Context(),
+			types.WindowsDesktopFilter{Name: tracker.GetDesktopName()})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if len(desktops) == 0 {
+			// There are no active sessions for this desktop
+			// or the user doesn't have access to it
+			break
+		} else {
+			return desktopIsActive{true}, nil
+		}
+	}
+
+	return desktopIsActive{false}, nil
+}
+
+type desktopIsActive struct {
+	Active bool `json:"active"`
 }

@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auditd"
@@ -42,8 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // FileFD is a file descriptor passed down from a parent process when
@@ -305,13 +304,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
-	defer func() {
-		for _, f := range cmd.ExtraFiles {
-			if err := f.Close(); err != nil {
-				log.WithError(err).Warn("Error closing extra file.")
-			}
-		}
-	}()
 
 	// Wait until the continue signal is received from Teleport signaling that
 	// the child process has been placed in a cgroup.

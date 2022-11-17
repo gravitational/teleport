@@ -586,7 +586,7 @@ $ tsh logout
 ## Copying files
 
 To securely copy files to and from cluster Nodes, use the `tsh scp` command. It
-is designed to mimic traditional `scp` as much as possible:
+is designed to mimic OpenSSH's `scp` command as much as possible:
 
 ```code
 $ tsh scp example.txt root@node:/path/to/dest
@@ -598,6 +598,10 @@ scp"` and use the familiar syntax:
 ```code
 $ scp -P 61122 -r files root@node:/path/to/dest
 ```
+
+Starting from Teleport 9 the SCP and SFTP protocols are both supported by Server
+Access. OpenSSH `scp` or `sftp` commands can both be used in place of `tsh scp`
+if desired. 
 
 ## Sharing sessions
 
@@ -791,10 +795,10 @@ In either of those files you can add define an alias such as:
 
 ```yaml
 aliases:
-    "l": "tsh login --auth=okta --username=alice"
+    "l": "tsh login --auth=okta --user=alice"
 ```
 
-From now on, `tsh l` will resolve to `tsh login --auth=okta --username=bob`.
+From now on, `tsh l` will resolve to `tsh login --auth=okta --user=alice`.
 
 You can also change the defaults for regular `tsh` commands:
 

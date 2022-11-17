@@ -17,15 +17,14 @@ limitations under the License.
 package services
 
 import (
-	"github.com/gravitational/teleport"
+	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	utils "github.com/gravitational/teleport/api/utils"
-
-	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
 )
 
 // NewPresetEditorRole returns a new pre-defined role for cluster
@@ -73,6 +72,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindConnectionDiagnostic, RW()),
 					types.NewRule(types.KindDatabaseCertificate, RW()),
 					types.NewRule(types.KindInstaller, RW()),
+					types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
