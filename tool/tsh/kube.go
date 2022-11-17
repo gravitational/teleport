@@ -1030,6 +1030,8 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 		Impersonate:         cf.kubernetesImpersonationConfig.kubernetesUser,
 		ImpersonateGroups:   cf.kubernetesImpersonationConfig.kubernetesGroups,
 		Namespace:           cf.kubeNamespace,
+		// Only switch the current context if kube-cluster is explicitly set on the command line.
+		SelectCluster: cf.KubernetesCluster,
 	}
 
 	if cf.executablePath == "" {
@@ -1056,13 +1058,11 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 		clusterNames = []string{cf.KubernetesCluster}
 	}
 
+	v.KubeClusters = clusterNames
 	v.Exec = &kubeconfig.ExecValues{
 		TshBinaryPath:     cf.executablePath,
 		TshBinaryInsecure: cf.InsecureSkipVerify,
-		KubeClusters:      clusterNames,
 		Env:               make(map[string]string),
-		// Only switch the current context if kube-cluster is explicitly set on the command line.
-		SelectCluster: cf.KubernetesCluster,
 	}
 
 	if cf.HomePath != "" {
@@ -1121,7 +1121,7 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 		if !strings.Contains(path, cf.KubernetesCluster) {
 			return trace.BadParameter("profile specific kubeconfig is in use, run 'eval $(tsh env --unset)' to switch contexts to another kube cluster")
 		}
-		values.Exec.KubeClusters = []string{cf.KubernetesCluster}
+		values.KubeClusters = []string{cf.KubernetesCluster}
 	}
 
 	return trace.Wrap(kubeconfig.Update(path, *values, tc.LoadAllCAs))
