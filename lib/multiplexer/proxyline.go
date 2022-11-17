@@ -312,27 +312,31 @@ func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 // UnmarshalTLVs parses provided bytes slice into slice of TLVs
 func UnmarshalTLVs(rawBytes []byte) ([]TLV, error) {
 	var tlvs []TLV
-	for i := 0; i < len(rawBytes); {
-		tlv := TLV{
-			Type: PP2Type(rawBytes[i]), // First byte is TLV type
-		}
-		if len(rawBytes)-i <= 2 {
+	for len(rawBytes) > 0 {
+		if len(rawBytes) < 3 {
 			return nil, ErrTruncatedTLV
 		}
+
+		tlv := TLV{
+			Type: PP2Type(rawBytes[0]), // First byte is TLV type
+		}
+
 		// Next two bytes are TLV's value length
-		lenStart := i + 1
+		lenStart := 1
 		lenEnd := lenStart + 2
 		tlvLen := int(binary.BigEndian.Uint16(rawBytes[lenStart:lenEnd]))
-		i += 3 // Move pointer by 3 bytes to skip TLV header
-		if i+tlvLen > len(rawBytes) {
+		rawBytes = rawBytes[3:] // Move by 3 bytes to skip TLV header
+		if tlvLen > len(rawBytes) {
 			return nil, ErrTruncatedTLV
 		}
+
 		// Ignore no-op padding
 		if tlv.Type != PP2TypeNOOP {
 			tlv.Value = make([]byte, tlvLen)
-			copy(tlv.Value, rawBytes[i:i+tlvLen])
+			copy(tlv.Value, rawBytes[:tlvLen])
 		}
-		i += tlvLen
+
+		rawBytes = rawBytes[tlvLen:]
 		tlvs = append(tlvs, tlv)
 	}
 	return tlvs, nil
