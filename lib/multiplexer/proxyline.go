@@ -314,12 +314,15 @@ func UnmarshalTLVs(rawBytes []byte) ([]TLV, error) {
 	var tlvs []TLV
 	for i := 0; i < len(rawBytes); {
 		tlv := TLV{
-			Type: PP2Type(rawBytes[i]),
+			Type: PP2Type(rawBytes[i]), // First byte is TLV type
 		}
 		if len(rawBytes)-i <= 2 {
 			return nil, ErrTruncatedTLV
 		}
-		tlvLen := int(binary.BigEndian.Uint16(rawBytes[i+1 : i+3]))
+		// Next two bytes are TLV's value length
+		lenStart := i + 1
+		lenEnd := lenStart + 2
+		tlvLen := int(binary.BigEndian.Uint16(rawBytes[lenStart:lenEnd]))
 		i += 3 // Move pointer by 3 bytes to skip TLV header
 		if i+tlvLen > len(rawBytes) {
 			return nil, ErrTruncatedTLV
