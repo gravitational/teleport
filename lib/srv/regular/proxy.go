@@ -327,7 +327,7 @@ func (t *proxySubsys) proxyToHost(
 	//
 	var (
 		strategy    types.RoutingStrategy
-		nodeWatcher *services.NodeWatcher
+		nodeWatcher NodesGetter
 		err         error
 	)
 	localCluster, _ := t.srv.proxyAccessPoint.GetClusterName()
