@@ -17,6 +17,7 @@ package utils
 import (
 	"testing"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,4 +37,30 @@ func TestSlice(t *testing.T) {
 		copy(slice, []byte("just something to fill with"))
 		pool.Put(slice)
 	}
+}
+
+func TestFindFirstInSlice(t *testing.T) {
+	t.Parallel()
+
+	s := []*semver.Version{
+		semver.New("1.1.1"),
+		semver.New("1.2.3"),
+		semver.New("2.2.2"),
+	}
+
+	t.Run("found", func(t *testing.T) {
+		v, found := FindFirstInSlice(s, func(v *semver.Version) bool {
+			return v.Minor == int64(2)
+		})
+		require.True(t, found)
+		require.Equal(t, "1.2.3", v.String())
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		v, found := FindFirstInSlice(s, func(v *semver.Version) bool {
+			return v.PreRelease != ""
+		})
+		require.False(t, found)
+		require.Nil(t, v)
+	})
 }

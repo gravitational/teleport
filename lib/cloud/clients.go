@@ -30,6 +30,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
+	"github.com/aws/aws-sdk-go/aws/session"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
@@ -86,12 +88,16 @@ type Clients interface {
 type AWSClients interface {
 	// GetAWSSession returns AWS session for the specified region.
 	GetAWSSession(region string) (*awssession.Session, error)
+	// GetAWSSessionForRole returns AWS session for the specified role ARN.
+	GetAWSSessionForRole(region, roleARN string) (*awssession.Session, error)
 	// GetAWSRDSClient returns AWS RDS client for the specified region.
 	GetAWSRDSClient(region string) (rdsiface.RDSAPI, error)
 	// GetAWSRedshiftClient returns AWS Redshift client for the specified region.
 	GetAWSRedshiftClient(region string) (redshiftiface.RedshiftAPI, error)
 	// GetAWSRedshiftServerlessClient returns AWS Redshift Serverless client for the specified region.
 	GetAWSRedshiftServerlessClient(region string) (redshiftserverlessiface.RedshiftServerlessAPI, error)
+	// GetAWSRedshiftServerlessClientForRole returns AWS Redshift Serverless client for the specified region and role ARN.
+	GetAWSRedshiftServerlessClientForRole(region, roleARN string) (redshiftserverlessiface.RedshiftServerlessAPI, error)
 	// GetAWSElastiCacheClient returns AWS ElastiCache client for the specified region.
 	GetAWSElastiCacheClient(region string) (elasticacheiface.ElastiCacheAPI, error)
 	// GetAWSMemoryDBClient returns AWS MemoryDB client for the specified region.
@@ -196,6 +202,24 @@ func (c *cloudClients) GetAWSSession(region string) (*awssession.Session, error)
 	return c.initAWSSession(region)
 }
 
+// GetAWSSessionForRole returns AWS session for the specified role ARN.
+func (c *cloudClients) GetAWSSessionForRole(region, roleARN string) (*awssession.Session, error) {
+	defaultSession, err := c.GetAWSSession(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cred := stscreds.NewCredentials(defaultSession, roleARN)
+	config := aws.NewConfig().WithCredentials(cred).WithRegion(region)
+	roleSession, err := session.NewSession(config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Do not cache sessions for other roles.
+	return roleSession, nil
+}
+
 // GetAWSRDSClient returns AWS RDS client for the specified region.
 func (c *cloudClients) GetAWSRDSClient(region string) (rdsiface.RDSAPI, error) {
 	session, err := c.GetAWSSession(region)
@@ -217,6 +241,15 @@ func (c *cloudClients) GetAWSRedshiftClient(region string) (redshiftiface.Redshi
 // GetAWSRedshiftServerlessClient returns AWS Redshift Serverless client for the specified region.
 func (c *cloudClients) GetAWSRedshiftServerlessClient(region string) (redshiftserverlessiface.RedshiftServerlessAPI, error) {
 	session, err := c.GetAWSSession(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return redshiftserverless.New(session), nil
+}
+
+// GetAWSRedshiftServerlessClientForRole returns AWS Redshift Serverless client for the specified region and role ARN.
+func (c *cloudClients) GetAWSRedshiftServerlessClientForRole(region, roleARN string) (redshiftserverlessiface.RedshiftServerlessAPI, error) {
+	session, err := c.GetAWSSessionForRole(region, roleARN)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -655,6 +688,11 @@ func (c *TestCloudClients) GetAWSSession(region string) (*awssession.Session, er
 	return nil, trace.NotImplemented("not implemented")
 }
 
+// GetAWSSessionForRole returns AWS session for the specified role ARN.
+func (c *TestCloudClients) GetAWSSessionForRole(region, roleARN string) (*awssession.Session, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
+
 // GetAWSRDSClient returns AWS RDS client for the specified region.
 func (c *TestCloudClients) GetAWSRDSClient(region string) (rdsiface.RDSAPI, error) {
 	if len(c.RDSPerRegion) != 0 {
@@ -670,6 +708,11 @@ func (c *TestCloudClients) GetAWSRedshiftClient(region string) (redshiftiface.Re
 
 // GetAWSRedshiftServerlessClient returns AWS Redshift Serverless client for the specified region.
 func (c *TestCloudClients) GetAWSRedshiftServerlessClient(region string) (redshiftserverlessiface.RedshiftServerlessAPI, error) {
+	return c.RedshiftServerless, nil
+}
+
+// GetAWSRedshiftServerlessClientForRole returns AWS Redshift Serverless client for the specified region and role ARN.
+func (c *TestCloudClients) GetAWSRedshiftServerlessClientForRole(region, roleARN string) (redshiftserverlessiface.RedshiftServerlessAPI, error) {
 	return c.RedshiftServerless, nil
 }
 

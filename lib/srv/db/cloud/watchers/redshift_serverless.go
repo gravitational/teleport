@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless/redshiftserverlessiface"
 	"github.com/gravitational/trace"
@@ -29,6 +30,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // redshiftServerlessFetcherConfig is the Redshift Serverless databases fetcher
@@ -80,50 +83,46 @@ func newRedshiftServerlessFetcher(config redshiftServerlessFetcherConfig) (Fetch
 
 // Get returns Redshift Serverless databases matching the watcher's selectors.
 func (f *redshiftServerlessFetcher) Get(ctx context.Context) (types.Databases, error) {
-	workgroupDatabases, workgroups, err := f.getDatabasesFromWorkgroups(ctx)
+	databases, workgroups, err := f.getDatabasesFromWorkgroups(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	vpcEndpointDatabases, err := f.getDatabasesFromVPCEndpoints(ctx, workgroups)
-	if err != nil {
-		if trace.IsAccessDenied(err) {
-			f.log.Debugf("No permission to get Redshift Serverless VPC endpoints: %v.", err)
-		} else {
-			f.log.Warnf("Failed to get Redshift Serverless VPC endpoints: %v.", err)
+	if len(workgroups) > 0 {
+		vpcEndpointDatabases, err := f.getDatabasesFromVPCEndpoints(ctx, workgroups)
+		if err != nil {
+			if trace.IsAccessDenied(err) {
+				f.log.Debugf("No permission to get Redshift Serverless VPC endpoints: %v.", err)
+			} else {
+				f.log.Warnf("Failed to get Redshift Serverless VPC endpoints: %v.", err)
+			}
 		}
-	}
 
-	databases := append(workgroupDatabases, vpcEndpointDatabases...)
+		databases = append(databases, vpcEndpointDatabases...)
+	}
 	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
 }
 
 // String returns the fetcher's string description.
 func (f *redshiftServerlessFetcher) String() string {
-	return fmt.Sprintf("redshiftServerlessFetcher(Region=%v, Labels=%v)",
-		f.cfg.Region, f.cfg.Labels)
+	return fmt.Sprintf("redshiftServerlessFetcher(Region=%v, Labels=%v)", f.cfg.Region, f.cfg.Labels)
 }
 
 func (f *redshiftServerlessFetcher) getDatabasesFromWorkgroups(ctx context.Context) (types.Databases, []*redshiftserverless.Workgroup, error) {
-	pages, err := getAWSPages(ctx, f.cfg.Client.ListWorkgroupsPagesWithContext, nil)
+	pages, err := getAWSPages(ctx, f.cfg.Client.ListWorkgroupsPagesWithContext, &redshiftserverless.ListWorkgroupsInput{})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	workgroups := pagesToItems(pages, pageToRedshiftWorkgroups)
 	var databases types.Databases
-	for _, apiWorkgroup := range workgroups {
-		workgroup := services.NewRedshiftServerlessWorkgroup(apiWorkgroup)
-		if !workgroup.IsSupported() {
-			f.log.Debugf("%q is not supported. Skipping.", workgroup)
-			continue
-		}
-		if !workgroup.IsAvailable() {
-			f.log.Debugf("The current status of %q is %v. Skipping.", workgroup, aws.StringValue(workgroup.GetStatus()))
+	for _, workgroup := range workgroups {
+		if !services.IsAWSResourceAvailable(workgroup, workgroup.Status) {
+			f.log.Debugf("The current status of %v is %v. Skipping.", services.ReadableAWSResourceName(workgroup), aws.StringValue(workgroup.Status))
 			continue
 		}
 
-		tags, err := f.getResourceTags(ctx, workgroup.GetARN())
+		tags, err := f.getResourceTags(ctx, workgroup.WorkgroupArn)
 		if err != nil {
 			if trace.IsAccessDenied(err) {
 				f.log.WithError(err).Debugf("No Permission to get tags for %v.", workgroup)
@@ -132,43 +131,38 @@ func (f *redshiftServerlessFetcher) getDatabasesFromWorkgroups(ctx context.Conte
 			}
 		}
 
-		database, err := workgroup.ToDatabase(tags)
+		database, err := services.NewDatabaseFromRedshiftServerlessWorkgroup(workgroup, tags)
 		if err != nil {
 			f.log.WithError(err).Infof("Could not convert %q to database resource.", workgroup)
-		} else {
-			databases = append(databases, database)
+			continue
 		}
+		databases = append(databases, database)
 	}
 	return databases, workgroups, nil
 }
 
 func (f *redshiftServerlessFetcher) getDatabasesFromVPCEndpoints(ctx context.Context, workgroups []*redshiftserverless.Workgroup) (types.Databases, error) {
-	pages, err := getAWSPages(ctx, f.cfg.Client.ListEndpointAccessPagesWithContext, nil)
+	pages, err := getAWSPages(ctx, f.cfg.Client.ListEndpointAccessPagesWithContext, &redshiftserverless.ListEndpointAccessInput{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var databases types.Databases
-	for _, apiEndpoint := range pagesToItems(pages, pageToRedshiftEndpointAccess) {
-		workgroup, found := findInSlice(workgroups, func(workgroup *redshiftserverless.Workgroup) bool {
-			return aws.StringValue(workgroup.WorkgroupName) == aws.StringValue(apiEndpoint.WorkgroupName)
+	for _, endpoint := range pagesToItems(pages, pageToRedshiftEndpoints) {
+		workgroup, found := utils.FindFirstInSlice(workgroups, func(workgroup *redshiftserverless.Workgroup) bool {
+			return aws.StringValue(workgroup.WorkgroupName) == aws.StringValue(endpoint.WorkgroupName)
 		})
 		if !found {
-			f.log.Debugf("Could not find workgroup for endpoint %v. Skipping.", aws.StringValue(apiEndpoint.EndpointName))
+			f.log.Debugf("Could not find workgroup for %v. Skipping.", services.ReadableAWSResourceName(endpoint))
 			continue
 		}
 
-		endpoint := services.NewRedshiftServerlessEndpointAccess(apiEndpoint, workgroup)
-		if !endpoint.IsSupported() {
-			f.log.Debugf("%q is not supported. Skipping.", endpoint)
-			continue
-		}
-		if !endpoint.IsAvailable() {
-			f.log.Debugf("The current status of %q is %v. Skipping.", endpoint, aws.StringValue(endpoint.GetStatus()))
+		if !services.IsAWSResourceAvailable(endpoint, endpoint.EndpointStatus) {
+			f.log.Debugf("The current status of %v is %v. Skipping.", services.ReadableAWSResourceName(endpoint), aws.StringValue(endpoint.EndpointStatus))
 			continue
 		}
 
-		tags, err := f.getResourceTags(ctx, endpoint.GetARN())
+		tags, err := f.getResourceTags(ctx, endpoint.EndpointArn)
 		if err != nil {
 			if trace.IsAccessDenied(err) {
 				f.log.WithError(err).Debugf("No Permission to get tags for %v.", endpoint)
@@ -177,47 +171,50 @@ func (f *redshiftServerlessFetcher) getDatabasesFromVPCEndpoints(ctx context.Con
 			}
 		}
 
-		database, err := endpoint.ToDatabase(tags)
+		database, err := services.NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint, workgroup, tags)
 		if err != nil {
 			f.log.WithError(err).Infof("Could not convert %q to database resource.", endpoint)
-		} else {
-			databases = append(databases, database)
+			continue
 		}
+		databases = append(databases, database)
 	}
 	return databases, nil
 }
 
-func (f *redshiftServerlessFetcher) getResourceTags(ctx context.Context, arn *string) (map[string]string, error) {
+func (f *redshiftServerlessFetcher) getResourceTags(ctx context.Context, arn *string) ([]*redshiftserverless.Tag, error) {
 	output, err := f.cfg.Client.ListTagsForResourceWithContext(ctx, &redshiftserverless.ListTagsForResourceInput{
 		ResourceArn: arn,
 	})
 	if err != nil {
 		return nil, awslib.ConvertRequestFailureError(err)
 	}
-
-	tags := make(map[string]string)
-	for _, tag := range output.Tags {
-		tags[aws.StringValue(tag.Key)] = aws.StringValue(tag.Value)
-	}
-	return tags, nil
+	return output.Tags, nil
 }
 
 func pageToRedshiftWorkgroups(page *redshiftserverless.ListWorkgroupsOutput) (workgroups []*redshiftserverless.Workgroup) {
 	return page.Workgroups
 }
 
-func pageToRedshiftEndpointAccess(page *redshiftserverless.ListEndpointAccessOutput) (endpoints []*redshiftserverless.EndpointAccess) {
+func pageToRedshiftEndpoints(page *redshiftserverless.ListEndpointAccessOutput) (endpoints []*redshiftserverless.EndpointAccess) {
 	return page.Endpoints
 }
 
-// findInSlice finds the first item in the slice that meets the provided
-// check function.
-func findInSlice[T any](s []T, check func(t T) bool) (T, bool) {
-	for _, t := range s {
-		if check(t) {
-			return t, true
-		}
+type awsPagesAPI[Input, Page any] func(aws.Context, *Input, func(*Page, bool) bool, ...request.Option) error
+
+func getAWSPages[Input, Page any](ctx context.Context, api awsPagesAPI[Input, Page], input *Input) ([]*Page, error) {
+	var pageNum int
+	var pages []*Page
+	err := api(ctx, input, func(page *Page, _ bool) bool {
+		pageNum++
+		pages = append(pages, page)
+		return pageNum <= common.MaxPages
+	})
+	return pages, awslib.ConvertRequestFailureError(err)
+}
+
+func pagesToItems[Page, Item any](pages []*Page, pageToItems func(*Page) []Item) (items []Item) {
+	for _, page := range pages {
+		items = append(items, pageToItems(page)...)
 	}
-	var empty T
-	return empty, false
+	return items
 }

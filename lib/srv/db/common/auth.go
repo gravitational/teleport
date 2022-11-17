@@ -48,7 +48,6 @@ import (
 	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/cloud"
-	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	libazure "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -230,16 +229,16 @@ propagate):
 // GetRedshiftServerlessAuthToken generates Redshift Serverless auth token.
 func (a *dbAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error) {
 	awsMetadata := sessionCtx.Database.GetAWS()
-	session, err := libcloudaws.GetSessionForRole(UsernameToAWSRoleARN(sessionCtx.DatabaseUser, awsMetadata))
+	roleARN := UsernameToAWSRoleARN(sessionCtx.Database, sessionCtx.DatabaseUser)
+	client, err := a.cfg.Clients.GetAWSRedshiftServerlessClientForRole(awsMetadata.Region, roleARN)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
 
 	a.cfg.Log.Debugf("Generating Redshift Serverless auth token for %s.", sessionCtx)
-	client := redshiftserverless.New(session, aws.NewConfig().WithRegion(awsMetadata.Region))
 	resp, err := client.GetCredentialsWithContext(ctx, &redshiftserverless.GetCredentialsInput{
 		WorkgroupName: aws.String(awsMetadata.RedshiftServerless.WorkgroupName),
-		DbName:        stringPtrOrNilIfEmpty(sessionCtx.DatabaseName),
+		DbName:        aws.String(sessionCtx.DatabaseName),
 	})
 	if err != nil {
 		return "", "", trace.Wrap(err)
@@ -788,7 +787,7 @@ func matchAzureResourceName(resourceID, name string) bool {
 }
 
 // UsernameToAWSRoleARN converts a database username to AWS role ARN.
-func UsernameToAWSRoleARN(username string, aws types.AWS) string {
+func UsernameToAWSRoleARN(database types.Database, username string) string {
 	if arn.IsARN(username) {
 		return username
 	}
@@ -797,18 +796,11 @@ func UsernameToAWSRoleARN(username string, aws types.AWS) string {
 		resource = fmt.Sprintf("role/%s", username)
 	}
 
+	aws := database.GetAWS()
 	return arn.ARN{
 		Partition: awsutils.GetPartitionFromRegion(aws.Region),
 		Service:   iam.ServiceName,
 		AccountID: aws.AccountID,
 		Resource:  resource,
 	}.String()
-}
-
-// TODO
-func stringPtrOrNilIfEmpty(s string) *string {
-	if len(s) == 0 {
-		return nil
-	}
-	return &s
 }

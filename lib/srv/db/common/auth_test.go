@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	libcloudazure "github.com/gravitational/teleport/lib/cloud/azure"
+	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -96,6 +97,29 @@ func TestAuthGetAzureCacheForRedisToken(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAuthGetRedshiftServerlessAuthToken(t *testing.T) {
+	t.Parallel()
+
+	auth, err := NewAuth(AuthConfig{
+		AuthClient: new(authClientMock),
+		Clients: &cloud.TestCloudClients{
+			RedshiftServerless: &cloudtest.RedshiftServerlessMock{
+				GetCredentialsOutput: cloudtest.RedshiftServerlessGetCredentialsOutput("IAM:some-user", "some-password"),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	dbUser, dbPassword, err := auth.GetRedshiftServerlessAuthToken(context.TODO(), &Session{
+		DatabaseUser: "some-user",
+		DatabaseName: "some-database",
+		Database:     newRedshiftServerlessDatabase(t),
+	})
+	require.NoError(t, err)
+	require.Equal(t, dbUser, "IAM:some-user")
+	require.Equal(t, dbPassword, "some-password")
 }
 
 func TestAuthGetTLSConfig(t *testing.T) {
@@ -358,6 +382,34 @@ func TestGetAzureIdentityResourceIDCache(t *testing.T) {
 	require.Equal(t, identityResourceID(t, "identity"), resourceID)
 }
 
+func TestUsernameToAWSRoleARN(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		inputUsername string
+		expectRoleARN string
+	}{
+		{
+			inputUsername: "arn:aws:iam::1234567890:role/rolename",
+			expectRoleARN: "arn:aws:iam::1234567890:role/rolename",
+		},
+		{
+			inputUsername: "role/rolename",
+			expectRoleARN: "arn:aws:iam::1234567890:role/rolename",
+		},
+		{
+			inputUsername: "rolename",
+			expectRoleARN: "arn:aws:iam::1234567890:role/rolename",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.inputUsername, func(t *testing.T) {
+			require.Equal(t, test.expectRoleARN, UsernameToAWSRoleARN(newRedshiftServerlessDatabase(t), test.inputUsername))
+		})
+	}
+}
+
 func newAzureRedisDatabase(t *testing.T, resourceID string) types.Database {
 	database, err := types.NewDatabaseV3(types.Metadata{
 		Name: "test-database",
@@ -421,6 +473,17 @@ func newRedshiftDatabase(t *testing.T, ca string) types.Database {
 		TLS: types.DatabaseTLS{
 			CACert: ca,
 		},
+	})
+	require.NoError(t, err)
+	return database
+}
+
+func newRedshiftServerlessDatabase(t *testing.T) types.Database {
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-database",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "my-workgroup.1234567890.eu-west-2.redshift-serverless.amazonaws.com:5439",
 	})
 	require.NoError(t, err)
 	return database

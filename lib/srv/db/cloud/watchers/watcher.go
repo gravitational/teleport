@@ -187,7 +187,6 @@ func makeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (res
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
-					logrus.Errorf("--> fetcher: %v", fetcher)
 					result = append(result, fetcher)
 				}
 			}
