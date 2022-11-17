@@ -127,6 +127,8 @@ func (p *ProxyLine) Bytes() ([]byte, error) {
 		}
 		copy(addr6.Destination[:], destIPv6)
 		addr = addr6
+	default:
+		return nil, trace.BadParameter("unsupported protocol %q", p.Protocol)
 	}
 	tlvsBytes, err := MarshalTLVs(p.TLVs)
 	if err != nil {
