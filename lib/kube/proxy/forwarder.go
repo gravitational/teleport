@@ -863,7 +863,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		go func() {
 			<-stream.Done()
 			if err := session.leave(party.ID); err != nil {
-				f.log.Warnf("Participant %q was unable to leave session %s: %v", party.ID, session.id)
+				f.log.Debugf("Participant %q was unable to leave session %s: %v", party.ID, session.id)
 			}
 		}()
 
@@ -1279,7 +1279,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	<-party.closeC
 
 	if err := session.leave(party.ID); err != nil {
-		f.log.Warnf("Participant %q was unable to leave session %s: %v", party.ID, session.id)
+		f.log.Debugf("Participant %q was unable to leave session %s: %v", party.ID, session.id)
 	}
 
 	return nil, nil
