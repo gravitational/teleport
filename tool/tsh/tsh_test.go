@@ -1743,7 +1743,7 @@ func TestKubeConfigUpdate(t *testing.T) {
 				Credentials:         creds,
 				ClusterAddr:         "https://a.example.com:3026",
 				TeleportClusterName: "a.example.com",
-				KubeClusters:        []string{"dev"},
+				KubeClusters:        []string{"dev", "prod"},
 				SelectCluster:       "dev",
 				Exec: &kubeconfig.ExecValues{
 					TshBinaryPath: "/bin/tsh",
@@ -1852,7 +1852,6 @@ func TestKubeConfigUpdate(t *testing.T) {
 				ClusterAddr:         "https://a.example.com:3026",
 				TeleportClusterName: "a.example.com",
 				Exec:                nil,
-				SelectCluster:       "dev",
 			},
 		},
 	}
