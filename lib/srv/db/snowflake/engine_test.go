@@ -23,6 +23,8 @@ import (
 	"net/http"
 	"testing"
 
+	// Register Snowflake database driver.
+	_ "github.com/snowflakedb/gosnowflake"
 	"github.com/stretchr/testify/require"
 )
 

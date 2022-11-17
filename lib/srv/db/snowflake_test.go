@@ -32,6 +32,8 @@ import (
 	"strconv"
 	"testing"
 
+	// Register Snowflake database driver.
+	_ "github.com/snowflakedb/gosnowflake"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
