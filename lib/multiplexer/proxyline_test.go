@@ -39,9 +39,11 @@ var (
 	// {0x21, 0x11, 0x00, 0x0C} - 4 bits version, 4 bits command, 4 bits address family, 4 bits protocol, 16 bits length
 	sampleProxyV2Line = bytes.Join([][]byte{proxyV2Prefix, {0x21, 0x11, 0x00, 0x0C}, sampleIPv4Addresses}, nil)
 	// Proxy line with LOCAL command
-	sampleProxyV2LineLocal = bytes.Join([][]byte{proxyV2Prefix, {0x20, 0x11, 0x00, 0x00}}, nil)
-	sampleTLV              = []byte{byte(PP2TypeTeleport), 0x00, 0x03, 0x01, 0x02, 0x03}
-	sampleProxyV2LineTLV   = bytes.Join([][]byte{proxyV2Prefix, {0x21, 0x11, 0x00, 0x12}, sampleIPv4Addresses, sampleTLV}, nil)
+	sampleProxyV2LineLocal    = bytes.Join([][]byte{proxyV2Prefix, {0x20, 0x11, 0x00, 0x00}}, nil)
+	sampleTLV                 = []byte{byte(PP2TypeTeleport), 0x00, 0x03, 0x01, 0x02, 0x03}
+	sampleEmptyTLV            = []byte{byte(PP2TypeTeleport), 0x00, 0x00}
+	sampleProxyV2LineTLV      = bytes.Join([][]byte{proxyV2Prefix, {0x21, 0x11, 0x00, 0x12}, sampleIPv4Addresses, sampleTLV}, nil)
+	sampleProxyV2LineEmptyTLV = bytes.Join([][]byte{proxyV2Prefix, {0x21, 0x11, 0x00, 0x0F}, sampleIPv4Addresses, sampleEmptyTLV}, nil)
 )
 
 func TestReadProxyLine(t *testing.T) {
@@ -114,6 +116,22 @@ func TestReadProxyLineV2(t *testing.T) {
 		b, err := pl.Bytes()
 		require.NoError(t, err)
 		require.Equal(t, sampleProxyV2LineTLV, b)
+	})
+	t.Run("successfully read proxy v2 line with TLV that has empty value", func(t *testing.T) {
+		pl, err := ReadProxyLineV2(bufio.NewReader(bytes.NewReader(sampleProxyV2LineEmptyTLV)))
+		require.NoError(t, err)
+
+		require.Equal(t, TCP4, pl.Protocol)
+		require.Equal(t, "127.0.0.1:12345", pl.Source.String())
+		require.Equal(t, "127.0.0.2:42", pl.Destination.String())
+		require.NotNil(t, pl.TLVs)
+		require.Equal(t, 1, len(pl.TLVs))
+		require.Equal(t, PP2TypeTeleport, pl.TLVs[0].Type)
+		require.Equal(t, []byte{}, pl.TLVs[0].Value)
+
+		b, err := pl.Bytes()
+		require.NoError(t, err)
+		require.Equal(t, sampleProxyV2LineEmptyTLV, b)
 	})
 	t.Run("LOCAL command", func(t *testing.T) {
 		pl, err := ReadProxyLineV2(bufio.NewReader(bytes.NewReader(sampleProxyV2LineLocal)))
@@ -228,4 +246,91 @@ func TestProxyLine_Bytes(t *testing.T) {
 			require.Equal(t, tt.proxyLine.TLVs, pl.TLVs)
 		}
 	})
+}
+
+func TestUnmarshalTLVs(t *testing.T) {
+	testCases := []struct {
+		desc         string
+		input        []byte
+		expectedErr  error
+		expectedTLVs []TLV
+	}{
+		{
+			desc:         "empty input",
+			input:        []byte{},
+			expectedErr:  nil,
+			expectedTLVs: nil,
+		},
+		{
+			desc:         "too short input",
+			input:        []byte{byte(PP2TypeTeleport)},
+			expectedErr:  ErrTruncatedTLV,
+			expectedTLVs: nil,
+		},
+		{
+			desc:         "too short input #2",
+			input:        []byte{byte(PP2TypeTeleport), 0x00},
+			expectedErr:  ErrTruncatedTLV,
+			expectedTLVs: nil,
+		},
+		{
+			desc:         "specified length is larger than TLV value",
+			input:        []byte{byte(PP2TypeTeleport), 0x00, 0x04, 0x01, 0x02, 0x03},
+			expectedErr:  ErrTruncatedTLV,
+			expectedTLVs: nil,
+		},
+		{
+			desc:         "specified length is smaller than TLV value",
+			input:        []byte{byte(PP2TypeTeleport), 0x00, 0x02, 0x01, 0x02, 0x03},
+			expectedErr:  ErrTruncatedTLV,
+			expectedTLVs: nil,
+		},
+		{
+			desc:        "successful TLV with value",
+			input:       sampleTLV,
+			expectedErr: nil,
+			expectedTLVs: []TLV{
+				{
+					Type:  PP2TypeTeleport,
+					Value: []byte{0x01, 0x02, 0x03},
+				},
+			},
+		},
+		{
+			desc:        "successful empty TLV",
+			input:       sampleEmptyTLV,
+			expectedErr: nil,
+			expectedTLVs: []TLV{
+				{
+					Type:  PP2TypeTeleport,
+					Value: []byte{},
+				},
+			},
+		},
+		{
+			desc:        "successful 2 TLVs",
+			input:       append(sampleEmptyTLV, sampleTLV...),
+			expectedErr: nil,
+			expectedTLVs: []TLV{
+				{
+					Type:  PP2TypeTeleport,
+					Value: []byte{},
+				},
+				{
+					Type:  PP2TypeTeleport,
+					Value: []byte{0x01, 0x02, 0x03},
+				},
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		tlvs, err := UnmarshalTLVs(tt.input)
+		if tt.expectedErr != nil {
+			require.ErrorIs(t, err, tt.expectedErr)
+		} else {
+			require.NoError(t, err)
+		}
+		require.Equal(t, tt.expectedTLVs, tlvs)
+	}
 }
