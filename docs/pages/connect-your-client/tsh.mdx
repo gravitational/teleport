@@ -795,10 +795,10 @@ In either of those files you can add define an alias such as:
 
 ```yaml
 aliases:
-    "l": "tsh login --auth=okta --username=alice"
+    "l": "tsh login --auth=okta --user=alice"
 ```
 
-From now on, `tsh l` will resolve to `tsh login --auth=okta --username=bob`.
+From now on, `tsh l` will resolve to `tsh login --auth=okta --user=alice`.
 
 You can also change the defaults for regular `tsh` commands:
 

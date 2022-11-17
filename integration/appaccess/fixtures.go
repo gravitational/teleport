@@ -43,7 +43,6 @@ type AppTestOptions struct {
 	ExtraLeafApps        []service.App
 	RootClusterListeners helpers.InstanceListenerSetupFunc
 	LeafClusterListeners helpers.InstanceListenerSetupFunc
-	CertificateTTL       time.Duration
 	Clock                clockwork.FakeClock
 	MonitorCloseChannel  chan struct{}
 
