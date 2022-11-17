@@ -98,6 +98,11 @@
               "forScopes": ["enterprise"]
             },
             {
+              "title": "Google Cloud KMS",
+              "slug": "/deploy-a-cluster/teleport-enterprise/gcp-kms/",
+              "forScopes": ["enterprise"]
+            },
+            {
               "title": "Enterprise License File",
               "slug": "/deploy-a-cluster/teleport-enterprise/license/",
               "forScopes": ["enterprise"]
@@ -1190,7 +1195,7 @@
       "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "10.3.6",
+      "version": "10.3.8",
       "major_version": "10",
       "sla": {
         "monthly_percentage": "99.5%",
