@@ -148,6 +148,15 @@ func TestMain(m *testing.M) {
 }
 
 func newWebSuite(t *testing.T) *WebSuite {
+	return newWebSuiteWithConfig(t, webSuiteConfig{})
+}
+
+type webSuiteConfig struct {
+	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
+	authPreferenceSpec *types.AuthPreferenceSpecV2
+}
+
+func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	mockU2F, err := mocku2f.Create()
 	require.NoError(t, err)
 	require.NotNil(t, mockU2F)
@@ -175,6 +184,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 			Dir:                     t.TempDir(),
 			Clock:                   s.clock,
 			ClusterNetworkingConfig: networkingConfig,
+			AuthPreferenceSpec:      cfg.authPreferenceSpec,
 		},
 	})
 	require.NoError(t, err)
@@ -345,7 +355,9 @@ func newWebSuite(t *testing.T) *WebSuite {
 	var sessionLingeringThreshold time.Duration
 	fs, err := NewDebugFileSystem("../../webassets/teleport")
 	require.NoError(t, err)
+
 	handler, err := NewHandler(Config{
+		ClusterFeatures:                 *modules.GetModules().Features().ToProto(), // safe to dereference because ToProto creates a struct and return a pointer to it
 		Proxy:                           revTunServer,
 		AuthServers:                     utils.FromAddr(s.server.TLS.Addr()),
 		DomainName:                      s.server.ClusterName(),
@@ -1004,44 +1016,92 @@ func TestResizeTerminal(t *testing.T) {
 	s := newWebSuite(t)
 	sid := session.NewID()
 
-	// Create a new user "foo", open a terminal to a new session, and wait for
-	// it to be ready.
+	errs := make(chan error, 2)
+	readLoop := func(ctx context.Context, ws *websocket.Conn, ch chan<- *Envelope) {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			typ, b, err := ws.ReadMessage()
+			if err != nil {
+				errs <- err
+				return
+			}
+			if typ != websocket.BinaryMessage {
+				errs <- trace.BadParameter("expected binary message, got %v", typ)
+				return
+			}
+			var envelope Envelope
+			if err := proto.Unmarshal(b, &envelope); err != nil {
+				errs <- trace.Wrap(err)
+				return
+			}
+			ch <- &envelope
+		}
+	}
+
+	// Create a new user "foo", open a terminal to a new session
 	pack1 := s.authPack(t, "foo")
 	ws1, err := s.makeTerminal(t, pack1, withSessionID(sid))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws1.Close()) })
-	err = s.waitForRawEvent(ws1, 5*time.Second)
-	require.NoError(t, err)
 
-	// Create a new user "bar", open a terminal to the session created above,
-	// and wait for it to be ready.
+	// Create a new user "bar", open a terminal to the session created above
 	pack2 := s.authPack(t, "bar")
 	ws2, err := s.makeTerminal(t, pack2, withSessionID(sid))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws2.Close()) })
-	err = s.waitForRawEvent(ws2, 5*time.Second)
-	require.NoError(t, err)
 
-	// Look at the audit events for the first terminal. It should have two
-	// resize events from the second terminal (80x25 default then 100x100). Only
-	// the second terminal will get these because resize events are not sent
-	// back to the originator.
-	err = s.waitForResizeEvent(ws1, 5*time.Second)
-	require.NoError(t, err)
-	err = s.waitForResizeEvent(ws1, 5*time.Second)
-	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	ws1Messages := make(chan *Envelope)
+	ws2Messages := make(chan *Envelope)
+	go readLoop(ctx, ws1, ws1Messages)
+	go readLoop(ctx, ws2, ws2Messages)
 
-	// Look at the stream events for the second terminal. We don't expect to see
-	// any resize events yet. It will timeout.
-	ws2Event := s.listenForResizeEvent(ws2)
-	select {
-	case <-ws2Event:
-		t.Fatal("unexpected resize event")
-	case <-time.After(time.Second):
+	// consume events from the first terminal
+	// we exect to see at least one raw event with PTY data (indicating terminal ready)
+	// and 2 resize events from the second user joining the session (one for the default
+	// size, and one for the manual resize request)
+	done := time.After(10 * time.Second)
+	t1ResizeEvents, t1RawEvents := 0, 0
+t1ready:
+	for {
+		select {
+		case <-done:
+			require.FailNow(t, "expected to receive 2 resize events (got %d) and at least 1 raw event (got %d)", t1ResizeEvents, t1RawEvents)
+		case err := <-errs:
+			require.NoError(t, err)
+		case e := <-ws1Messages:
+			if isResizeEventEnvelope(e) {
+				t1ResizeEvents++
+			}
+			if e.GetType() == defaults.WebsocketRaw {
+				t1RawEvents++
+			}
+			if t1ResizeEvents == 2 && t1RawEvents > 0 {
+				break t1ready
+			}
+		}
 	}
 
-	// Resize the second terminal. This should be reflected on the first terminal
-	// because resize events are not sent back to the originator.
+	// we should not expect to see a resize event on terminal 2,
+	// since they are not broadcasted back to the originator
+	select {
+	case e := <-ws2Messages:
+		if isResizeEventEnvelope(e) {
+			require.FailNow(t, "terminal 2 should not have received a resize event")
+		}
+	case err := <-errs:
+		require.NoError(t, err)
+	case <-time.After(1 * time.Second):
+	}
+
+	// Resize the second terminal. This should be reflected only on the first terminal
+	// because resize events are sent to participants but not the originator..
 	params, err := session.NewTerminalParamsFromInt(300, 120)
 	require.NoError(t, err)
 	data, err := json.Marshal(events.EventFields{
@@ -1061,16 +1121,31 @@ func TestResizeTerminal(t *testing.T) {
 	err = ws2.WriteMessage(websocket.BinaryMessage, envelopeBytes)
 	require.NoError(t, err)
 
-	// This time the first terminal will see the resize event.
-	err = s.waitForResizeEvent(ws1, 5*time.Second)
-	require.NoError(t, err)
-
-	// The second terminal will not see any resize event. It will timeout.
-	select {
-	case <-ws2Event:
-		t.Fatal("unexpected resize event")
-	case <-time.After(time.Second):
+	// the first terminal should see the resize event
+	done = time.After(5 * time.Second)
+	for {
+		select {
+		case <-done:
+			require.FailNow(t, "expected to receive a final resize event")
+		case err := <-errs:
+			require.NoError(t, err)
+		case e := <-ws1Messages:
+			if isResizeEventEnvelope(e) {
+				return
+			}
+		}
 	}
+}
+
+func isResizeEventEnvelope(e *Envelope) bool {
+	if e.GetType() != defaults.WebsocketAudit {
+		return false
+	}
+	var ef events.EventFields
+	if err := json.Unmarshal([]byte(e.GetPayload()), &ef); err != nil {
+		return false
+	}
+	return ef.GetType() == events.ResizeEvent
 }
 
 // TestTerminalPing tests that the server sends continuous ping control messages.
@@ -4141,6 +4216,158 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 	require.True(t, apiRes.PrivateKeyPolicyEnabled)
 }
 
+func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing.T) {
+	tt := []struct {
+		name                 string
+		cloud                bool
+		numberOfUsers        int
+		password             []byte
+		authPreferenceType   string
+		initialConnectorName string
+		resultConnectorName  string
+	}{{
+		name:                 "first cloud sign-in changes connector to `passwordless`",
+		cloud:                true,
+		numberOfUsers:        1,
+		authPreferenceType:   constants.Local,
+		initialConnectorName: "",
+		resultConnectorName:  constants.PasswordlessConnector,
+	}, {
+		name:                 "first non-cloud sign-in doesn't change the connector",
+		cloud:                false,
+		numberOfUsers:        1,
+		authPreferenceType:   constants.Local,
+		initialConnectorName: "",
+		resultConnectorName:  "",
+	}, {
+		name:                 "second cloud sign-in doesn't change the connector",
+		cloud:                true,
+		numberOfUsers:        2,
+		authPreferenceType:   constants.Local,
+		initialConnectorName: "",
+		resultConnectorName:  "",
+	}, {
+		name:                 "first cloud sign-in does not change custom connector",
+		cloud:                true,
+		numberOfUsers:        1,
+		authPreferenceType:   constants.OIDC,
+		initialConnectorName: "custom",
+		resultConnectorName:  "custom",
+	}, {
+		name:                 "first cloud sign-in with password does not change connector",
+		cloud:                true,
+		numberOfUsers:        1,
+		password:             []byte("abc123"),
+		authPreferenceType:   constants.Local,
+		initialConnectorName: "",
+		resultConnectorName:  "",
+	}}
+
+	for _, tc := range tt {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestFeatures: modules.Features{
+				Cloud: tc.cloud,
+			},
+		})
+
+		const RPID = "localhost"
+
+		s := newWebSuiteWithConfig(t, webSuiteConfig{
+			authPreferenceSpec: &types.AuthPreferenceSpecV2{
+				Type:          tc.authPreferenceType,
+				ConnectorName: tc.initialConnectorName,
+				SecondFactor:  constants.SecondFactorOn,
+				Webauthn: &types.Webauthn{
+					RPID: RPID,
+				},
+			},
+		})
+
+		// user and role
+		users := make([]types.User, tc.numberOfUsers)
+
+		for i := 0; i < tc.numberOfUsers; i++ {
+			user, err := types.NewUser(fmt.Sprintf("test_user_%v", i))
+			require.NoError(t, err)
+
+			user.SetCreatedBy(types.CreatedBy{
+				User: types.UserRef{Name: "other_user"},
+			})
+
+			role := services.RoleForUser(user)
+
+			err = s.server.Auth().UpsertRole(s.ctx, role)
+			require.NoError(t, err)
+
+			user.AddRole(role.GetName())
+
+			err = s.server.Auth().CreateUser(s.ctx, user)
+			require.NoError(t, err)
+
+			users[i] = user
+		}
+
+		initialUser := users[0]
+
+		clt := s.client()
+
+		// create register challenge
+		token, err := s.server.Auth().CreateResetPasswordToken(s.ctx, auth.CreateUserTokenRequest{
+			Name: initialUser.GetName(),
+		})
+		require.NoError(t, err)
+
+		res, err := s.server.Auth().CreateRegisterChallenge(s.ctx, &authproto.CreateRegisterChallengeRequest{
+			TokenID:     token.GetName(),
+			DeviceType:  authproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			DeviceUsage: authproto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+		})
+		require.NoError(t, err)
+
+		cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+
+		// use passwordless as auth method
+		device, err := mocku2f.Create()
+		require.NoError(t, err)
+
+		device.SetPasswordless()
+
+		ccr, err := device.SignCredentialCreation("https://"+RPID, cc)
+		require.NoError(t, err)
+
+		// send sign-in response to server
+		body, err := json.Marshal(changeUserAuthenticationRequest{
+			WebauthnCreationResponse: ccr,
+			TokenID:                  token.GetName(),
+			DeviceName:               "passwordless-device",
+			Password:                 tc.password,
+		})
+		require.NoError(t, err)
+
+		req, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(body))
+		require.NoError(t, err)
+
+		csrfToken, err := csrf.GenerateToken()
+		require.NoError(t, err)
+		addCSRFCookieToReq(req, csrfToken)
+		req.Header.Set(csrf.HeaderName, csrfToken)
+		req.Header.Set("Content-Type", "application/json")
+
+		re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
+			return clt.Client.HTTPClient().Do(req)
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, re.Code(), http.StatusOK)
+
+		// check if auth preference connectorName is set
+		authPreference, err := s.server.Auth().GetAuthPreference(s.ctx)
+		require.NoError(t, err)
+
+		require.Equal(t, authPreference.GetConnectorName(), tc.resultConnectorName, "Found unexpected auth connector name")
+	}
+}
+
 func TestParseSSORequestParams(t *testing.T) {
 	t.Parallel()
 
@@ -5357,147 +5584,6 @@ func waitForOutput(stream *terminalStream, substr string) error {
 	}
 }
 
-func (s *WebSuite) waitForRawEvent(ws *websocket.Conn, timeout time.Duration) error {
-	timeoutContext, timeoutCancel := context.WithTimeout(s.ctx, timeout)
-	defer timeoutCancel()
-
-	done := make(chan error, 1)
-
-	go func() {
-		for {
-			ty, raw, err := ws.ReadMessage()
-			if err != nil {
-				done <- trace.Wrap(err)
-				return
-			}
-
-			if ty != websocket.BinaryMessage {
-				done <- trace.BadParameter("expected binary message, got %v", ty)
-				return
-			}
-
-			var envelope Envelope
-			err = proto.Unmarshal(raw, &envelope)
-			if err != nil {
-				done <- trace.Wrap(err)
-				return
-			}
-
-			if envelope.GetType() == defaults.WebsocketRaw {
-				done <- nil
-				return
-			}
-		}
-	}()
-
-	for {
-		select {
-		case <-timeoutContext.Done():
-			return trace.BadParameter("timeout waiting for raw event")
-		case err := <-done:
-			return trace.Wrap(err)
-		}
-	}
-}
-
-func (s *WebSuite) waitForResizeEvent(ws *websocket.Conn, timeout time.Duration) error {
-	timeoutContext, timeoutCancel := context.WithTimeout(s.ctx, timeout)
-	defer timeoutCancel()
-
-	done := make(chan error, 1)
-
-	go func() {
-		for {
-			ty, raw, err := ws.ReadMessage()
-			if err != nil {
-				done <- trace.Wrap(err)
-				return
-			}
-
-			if ty != websocket.BinaryMessage {
-				done <- trace.BadParameter("expected binary message, got %v", ty)
-				return
-			}
-
-			var envelope Envelope
-			err = proto.Unmarshal(raw, &envelope)
-			if err != nil {
-				done <- trace.Wrap(err)
-				return
-			}
-
-			if envelope.GetType() != defaults.WebsocketAudit {
-				continue
-			}
-
-			var e events.EventFields
-			err = json.Unmarshal([]byte(envelope.GetPayload()), &e)
-			if err != nil {
-				done <- trace.Wrap(err)
-				return
-			}
-
-			if e.GetType() == events.ResizeEvent {
-				done <- nil
-				return
-			}
-		}
-	}()
-
-	for {
-		select {
-		case <-timeoutContext.Done():
-			return trace.BadParameter("timeout waiting for resize event")
-		case err := <-done:
-			return trace.Wrap(err)
-		}
-	}
-}
-
-func (s *WebSuite) listenForResizeEvent(ws *websocket.Conn) chan struct{} {
-	ch := make(chan struct{})
-
-	go func() {
-		for {
-			ty, raw, err := ws.ReadMessage()
-			if err != nil {
-				close(ch)
-				return
-			}
-
-			if ty != websocket.BinaryMessage {
-				close(ch)
-				return
-			}
-
-			var envelope Envelope
-			err = proto.Unmarshal(raw, &envelope)
-			if err != nil {
-				close(ch)
-				return
-			}
-
-			if envelope.GetType() != defaults.WebsocketAudit {
-				continue
-			}
-
-			var e events.EventFields
-			err = json.Unmarshal([]byte(envelope.GetPayload()), &e)
-			if err != nil {
-				close(ch)
-				return
-			}
-
-			if e.GetType() == events.ResizeEvent {
-				ch <- struct{}{}
-				return
-			}
-		}
-	}()
-
-	return ch
-}
-
 func (s *WebSuite) client(opts ...roundtrip.ClientParam) *client.WebClient {
 	opts = append(opts, roundtrip.HTTPClient(client.NewInsecureWebClient()))
 	wc, err := client.NewWebClient(s.url().String(), opts...)
@@ -5865,13 +5951,17 @@ type proxy struct {
 
 // authPack returns new authenticated package consisting of created valid
 // user, otp token, created web session and authenticated client.
-func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPack {
+func (r *proxy) authPack(t *testing.T, teleportUser string, roles []types.Role) *authPack {
 	ctx := context.Background()
 	const (
-		loginUser = "user"
 		pass      = "abc123"
 		rawSecret = "def456"
 	)
+
+	u, err := user.Current()
+	require.NoError(t, err)
+	loginUser := u.Username
+
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -5883,7 +5973,7 @@ func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPac
 	err = r.auth.Auth().SetAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
-	r.createUser(context.Background(), t, user, loginUser, pass, otpSecret, roles)
+	r.createUser(context.Background(), t, teleportUser, loginUser, pass, otpSecret, roles)
 
 	// create a valid otp token
 	validToken, err := totp.GenerateCode(otpSecret, r.clock.Now())
@@ -5891,7 +5981,7 @@ func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPac
 
 	clt := r.newClient(t)
 	req := CreateSessionReq{
-		User:              user,
+		User:              teleportUser,
 		Pass:              pass,
 		SecondFactorToken: validToken,
 	}
@@ -5913,7 +6003,7 @@ func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPac
 
 	return &authPack{
 		otpSecret: otpSecret,
-		user:      user,
+		user:      teleportUser,
 		login:     loginUser,
 		session:   session,
 		clt:       clt,
@@ -6101,13 +6191,15 @@ func login(t *testing.T, clt *client.WebClient, cookieToken, reqToken string, re
 }
 
 func validateTerminalStream(t *testing.T, conn *websocket.Conn) {
+	t.Helper()
 	termHandler := newTerminalHandler()
 	stream := termHandler.asTerminalStream(conn)
-	_, err := io.WriteString(stream, "echo foo\r\n")
-	require.NoError(t, err)
 
-	err = waitForOutput(stream, "foo")
+	// here we intentionally run a command where the output we're looking
+	// for is not present in the command itself
+	_, err := io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
 	require.NoError(t, err)
+	require.NoError(t, waitForOutput(stream, "teleport"))
 }
 
 type mockProxySettings struct{}

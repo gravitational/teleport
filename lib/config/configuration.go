@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -1166,6 +1167,18 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) {
 		)
 	}
 
+	for _, matcher := range fc.Discovery.GCPMatchers {
+		cfg.Discovery.GCPMatchers = append(
+			cfg.Discovery.GCPMatchers,
+			services.GCPMatcher{
+				Types:      matcher.Types,
+				Locations:  matcher.Locations,
+				Tags:       matcher.Tags,
+				ProjectIDs: matcher.ProjectIDs,
+			},
+		)
+	}
+
 }
 
 // applyKubeConfig applies file configuration for the "kubernetes_service" section.
@@ -1456,11 +1469,11 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Metrics.MTLS = true
 
 	if len(fc.Metrics.KeyPairs) == 0 {
-		return trace.BadParameter("at least one keypair shoud be provided when mtls is enabled in the metrics config")
+		return trace.BadParameter("at least one keypair should be provided when mtls is enabled in the metrics config")
 	}
 
 	if len(fc.Metrics.CACerts) == 0 {
-		return trace.BadParameter("at least one CA cert shoud be provided when mtls is enabled in the metrics config")
+		return trace.BadParameter("at least one CA cert should be provided when mtls is enabled in the metrics config")
 	}
 
 	for _, p := range fc.Metrics.KeyPairs {
@@ -1897,7 +1910,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// If this process is trying to join a cluster as an application service,
 	// make sure application name and URI are provided.
-	if apiutils.SliceContainsStr(splitRoles(clf.Roles), defaults.RoleApp) &&
+	if slices.Contains(splitRoles(clf.Roles), defaults.RoleApp) &&
 		(clf.AppName == "" || clf.AppURI == "") {
 		return trace.BadParameter("application name (--app-name) and URI (--app-uri) flags are both required to join application proxy to the cluster")
 	}

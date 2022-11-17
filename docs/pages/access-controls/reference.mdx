@@ -26,7 +26,7 @@ allow:
 ```
 
 If this rule was declared in the `deny` section of a role definition, it
-would prohibit users from getting a list of trusted clusters and
+would prohibit users from getting a list of Trusted Clusters and
 sessions. You can see all of the available resources and verbs under the `allow`
 section in the example role configuration below.
 
@@ -239,13 +239,16 @@ allow:
         - node
       verbs: [list, create, read, update, delete]
     - resources:
-        - app_server
+        - app
       verbs: [list, create, read, update, delete]
     - resources:
         - kube_service
       verbs: [list, create, read, update, delete]
     - resources:
-        - db_server
+        - kube_cluster
+      verbs: [list, create, read, update, delete]
+    - resources:
+        - db
       verbs: [list, create, read, update, delete]
     - resources:
         - windows_desktop

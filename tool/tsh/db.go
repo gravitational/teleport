@@ -78,12 +78,9 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	var roleSet services.RoleSet
-	if isRoleSetRequiredForShowDatabases(cf) {
-		roleSet, err = fetchRoleSetForCluster(cf.Context, profile, proxy, tc.SiteName)
-		if err != nil {
-			log.Debugf("Failed to fetch user roles: %v.", err)
-		}
+	roleSet, err := fetchRoleSetForCluster(cf.Context, profile, proxy, tc.SiteName)
+	if err != nil {
+		log.Debugf("Failed to fetch user roles: %v.", err)
 	}
 
 	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
@@ -93,10 +90,6 @@ func onListDatabases(cf *CLIConf) error {
 
 	sort.Sort(types.Databases(databases))
 	return trace.Wrap(showDatabases(cf.Stdout(), cf.SiteName, databases, activeDatabases, roleSet, cf.Format, cf.Verbose))
-}
-
-func isRoleSetRequiredForShowDatabases(cf *CLIConf) bool {
-	return cf.Format == "" || teleport.Text == strings.ToLower(cf.Format)
 }
 
 func fetchRoleSetForCluster(ctx context.Context, profile *client.ProfileStatus, proxy *client.ProxyClient, clusterName string) (services.RoleSet, error) {
@@ -181,12 +174,9 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 					return trace.Wrap(err)
 				}
 
-				var roleSet services.RoleSet
-				if isRoleSetRequiredForShowDatabases(cf) {
-					roleSet, err = fetchRoleSetForCluster(groupCtx, profile, proxy, site.Name)
-					if err != nil {
-						log.Debugf("Failed to fetch user roles: %v.", err)
-					}
+				roleSet, err := fetchRoleSetForCluster(groupCtx, profile, proxy, site.Name)
+				if err != nil {
+					log.Debugf("Failed to fetch user roles: %v.", err)
 				}
 
 				for _, database := range databases {

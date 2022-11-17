@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
@@ -38,23 +39,13 @@ import (
 // testing.
 var usernamesToTry = []string{"nobody", "ci", "root"}
 
-func contains(entries []string, entry string) bool {
-	for _, e := range entries {
-		if e == entry {
-			return true
-		}
-	}
-
-	return false
-}
-
 // filterUsers returns the input list of usernames except for those in the
 // exclude list.
 func filterUsers(usernames, exclude []string) []string {
 	ret := []string{}
 
 	for _, username := range usernames {
-		if !contains(exclude, username) {
+		if !slices.Contains(exclude, username) {
 			ret = append(ret, username)
 		}
 	}

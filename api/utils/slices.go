@@ -20,51 +20,6 @@ import (
 	"strings"
 )
 
-// CopyByteSlice returns a copy of the byte slice.
-func CopyByteSlice(in []byte) []byte {
-	if in == nil {
-		return nil
-	}
-	out := make([]byte, len(in))
-	copy(out, in)
-	return out
-}
-
-// CopyByteSlices returns a copy of the byte slices.
-func CopyByteSlices(in [][]byte) [][]byte {
-	if in == nil {
-		return nil
-	}
-	out := make([][]byte, len(in))
-	for i := range in {
-		out[i] = CopyByteSlice(in[i])
-	}
-	return out
-}
-
-// StringSlicesEqual returns true if string slices equal
-func StringSlicesEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
-// SliceContainsStr returns 'true' if the slice contains the given value
-func SliceContainsStr[T ~string](slice []T, value T) bool {
-	for i := range slice {
-		if slice[i] == value {
-			return true
-		}
-	}
-	return false
-}
-
 // JoinStrings returns a string that is all the elements in the slice `T[]` joined by `sep`
 // This being generic allows for the usage of custom string times, without having to convert
 // the elements to a string to be passed into `strings.Join`.

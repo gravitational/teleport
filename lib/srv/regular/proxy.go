@@ -32,12 +32,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -509,7 +509,7 @@ func (t *proxySubsys) getMatchingServer(watcher NodesGetter, strategy types.Rout
 			t.log.Errorf("Failed to parse address %q: %v.", server.GetAddr(), err)
 			return false
 		}
-		if t.host == ip || t.host == server.GetHostname() || apiutils.SliceContainsStr(ips, ip) {
+		if t.host == ip || t.host == server.GetHostname() || slices.Contains(ips, ip) {
 			if !t.SpecifiedPort() || t.port == port {
 				return true
 			}
