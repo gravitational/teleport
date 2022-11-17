@@ -155,6 +155,15 @@ func TestMain(m *testing.M) {
 }
 
 func newWebSuite(t *testing.T) *WebSuite {
+	return newWebSuiteWithConfig(t, webSuiteConfig{})
+}
+
+type webSuiteConfig struct {
+	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
+	authPreferenceSpec *types.AuthPreferenceSpecV2
+}
+
+func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	mockU2F, err := mocku2f.Create()
 	require.NoError(t, err)
 	require.NotNil(t, mockU2F)
@@ -182,6 +191,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 			Dir:                     t.TempDir(),
 			Clock:                   s.clock,
 			ClusterNetworkingConfig: networkingConfig,
+			AuthPreferenceSpec:      cfg.authPreferenceSpec,
 		},
 	})
 	require.NoError(t, err)
@@ -352,7 +362,9 @@ func newWebSuite(t *testing.T) *WebSuite {
 	var sessionLingeringThreshold time.Duration
 	fs, err := NewDebugFileSystem("../../webassets/teleport")
 	require.NoError(t, err)
+
 	handler, err := NewHandler(Config{
+		ClusterFeatures:                 *modules.GetModules().Features().ToProto(), // safe to dereference because ToProto creates a struct and return a pointer to it
 		Proxy:                           revTunServer,
 		AuthServers:                     utils.FromAddr(s.server.TLS.Addr()),
 		DomainName:                      s.server.ClusterName(),
@@ -2901,6 +2913,182 @@ func TestClusterDatabasesGet(t *testing.T) {
 	}, resp.Items[0])
 }
 
+func TestClusterDatabaseGet(t *testing.T) {
+	env := newWebPack(t, 1)
+	ctx := context.Background()
+
+	proxy := env.proxies[0]
+
+	dbNames := []string{"db1", "db2"}
+	dbUsers := []string{"user1", "user2"}
+
+	for _, tt := range []struct {
+		name            string
+		preRegisterDB   bool
+		databaseName    string
+		userRoles       func(*testing.T) []types.Role
+		expectedDBUsers []string
+		expectedDBNames []string
+		requireError    require.ErrorAssertionFunc
+	}{
+		{
+			name:          "valid",
+			preRegisterDB: true,
+			databaseName:  "valid",
+			requireError:  require.NoError,
+		},
+		{
+			name:          "notfound",
+			preRegisterDB: true,
+			databaseName:  "otherdb",
+			requireError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(tt, trace.IsNotFound(err), "expected a not found error, got %v", err)
+			},
+		},
+		{
+			name:          "notauthorized",
+			preRegisterDB: true,
+			databaseName:  "notauthorized",
+			userRoles: func(tt *testing.T) []types.Role {
+				role, err := types.NewRole(
+					"myrole",
+					types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							DatabaseLabels: types.Labels{
+								"env": apiutils.Strings{"staging"},
+							},
+						},
+					},
+				)
+				require.NoError(tt, err)
+				return []types.Role{role}
+			},
+			requireError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(tt, trace.IsNotFound(err), "expected a not found error, got %v", err)
+			},
+		},
+		{
+			name:          "nodb",
+			preRegisterDB: false,
+			databaseName:  "nodb",
+			userRoles: func(tt *testing.T) []types.Role {
+				roleWithDBName, err := types.NewRole(
+					"myroleWithDBName",
+					types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							DatabaseLabels: types.Labels{
+								"env": apiutils.Strings{"prod"},
+							},
+							DatabaseNames: dbNames,
+						},
+					},
+				)
+				require.NoError(tt, err)
+
+				return []types.Role{roleWithDBName}
+			},
+			expectedDBNames: dbNames,
+			expectedDBUsers: dbUsers,
+			requireError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(tt, trace.IsNotFound(err), "expected a not found error, got %v", err)
+			},
+		},
+		{
+			name:          "authorizedDBNamesUsers",
+			preRegisterDB: true,
+			databaseName:  "authorizedDBNamesUsers",
+			userRoles: func(tt *testing.T) []types.Role {
+				roleWithDBName, err := types.NewRole(
+					"myroleWithDBName",
+					types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							DatabaseLabels: types.Labels{
+								"env": apiutils.Strings{"prod"},
+							},
+							DatabaseNames: dbNames,
+						},
+					},
+				)
+				require.NoError(tt, err)
+
+				roleWithDBUser, err := types.NewRole(
+					"myroleWithDBUser",
+					types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							DatabaseLabels: types.Labels{
+								"env": apiutils.Strings{"prod"},
+							},
+							DatabaseUsers: dbUsers,
+						},
+					},
+				)
+				require.NoError(tt, err)
+
+				return []types.Role{roleWithDBUser, roleWithDBName}
+			},
+			expectedDBNames: dbNames,
+			expectedDBUsers: dbUsers,
+			requireError:    require.NoError,
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create default pre-registerDB
+			if tt.preRegisterDB {
+				db, err := types.NewDatabaseV3(types.Metadata{
+					Name: tt.name,
+					Labels: map[string]string{
+						"env": "prod",
+					},
+				}, types.DatabaseSpecV3{
+					Protocol: "test-protocol",
+					URI:      "test-uri",
+				})
+				require.NoError(t, err)
+
+				dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+					Name: tt.name,
+				}, types.DatabaseServerSpecV3{
+					Hostname: tt.name,
+					Protocol: "test-protocol",
+					URI:      "test-uri",
+					HostID:   uuid.NewString(),
+					Database: db,
+				})
+				require.NoError(t, err)
+
+				_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
+				require.NoError(t, err)
+			}
+
+			var roles []types.Role
+			if tt.userRoles != nil {
+				roles = tt.userRoles(t)
+			}
+
+			pack := proxy.authPack(t, tt.name+"_user@example.com", roles)
+
+			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases", tt.databaseName)
+			re, err := pack.clt.Get(ctx, endpoint, nil)
+			tt.requireError(t, err)
+			if err != nil {
+				return
+			}
+
+			resp := ui.Database{}
+			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+
+			require.Equal(t, tt.databaseName, resp.Name, "database name")
+			require.Equal(t, types.DatabaseTypeSelfHosted, resp.Type, "database type")
+			require.EqualValues(t, []ui.Label{{Name: "env", Value: "prod"}}, resp.Labels)
+			require.ElementsMatch(t, tt.expectedDBUsers, resp.DatabaseUsers)
+			require.ElementsMatch(t, tt.expectedDBNames, resp.DatabaseNames)
+		})
+	}
+}
+
 func TestClusterKubesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
@@ -4044,6 +4232,158 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 	require.Len(t, apiRes.Recovery.Codes, 3)
 	require.NotEmpty(t, apiRes.Recovery.Created)
 	require.True(t, apiRes.PrivateKeyPolicyEnabled)
+}
+
+func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing.T) {
+	tt := []struct {
+		name                 string
+		cloud                bool
+		numberOfUsers        int
+		password             []byte
+		authPreferenceType   string
+		initialConnectorName string
+		resultConnectorName  string
+	}{{
+		name:                 "first cloud sign-in changes connector to `passwordless`",
+		cloud:                true,
+		numberOfUsers:        1,
+		authPreferenceType:   constants.Local,
+		initialConnectorName: "",
+		resultConnectorName:  constants.PasswordlessConnector,
+	}, {
+		name:                 "first non-cloud sign-in doesn't change the connector",
+		cloud:                false,
+		numberOfUsers:        1,
+		authPreferenceType:   constants.Local,
+		initialConnectorName: "",
+		resultConnectorName:  "",
+	}, {
+		name:                 "second cloud sign-in doesn't change the connector",
+		cloud:                true,
+		numberOfUsers:        2,
+		authPreferenceType:   constants.Local,
+		initialConnectorName: "",
+		resultConnectorName:  "",
+	}, {
+		name:                 "first cloud sign-in does not change custom connector",
+		cloud:                true,
+		numberOfUsers:        1,
+		authPreferenceType:   constants.OIDC,
+		initialConnectorName: "custom",
+		resultConnectorName:  "custom",
+	}, {
+		name:                 "first cloud sign-in with password does not change connector",
+		cloud:                true,
+		numberOfUsers:        1,
+		password:             []byte("abc123"),
+		authPreferenceType:   constants.Local,
+		initialConnectorName: "",
+		resultConnectorName:  "",
+	}}
+
+	for _, tc := range tt {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestFeatures: modules.Features{
+				Cloud: tc.cloud,
+			},
+		})
+
+		const RPID = "localhost"
+
+		s := newWebSuiteWithConfig(t, webSuiteConfig{
+			authPreferenceSpec: &types.AuthPreferenceSpecV2{
+				Type:          tc.authPreferenceType,
+				ConnectorName: tc.initialConnectorName,
+				SecondFactor:  constants.SecondFactorOn,
+				Webauthn: &types.Webauthn{
+					RPID: RPID,
+				},
+			},
+		})
+
+		// user and role
+		users := make([]types.User, tc.numberOfUsers)
+
+		for i := 0; i < tc.numberOfUsers; i++ {
+			user, err := types.NewUser(fmt.Sprintf("test_user_%v", i))
+			require.NoError(t, err)
+
+			user.SetCreatedBy(types.CreatedBy{
+				User: types.UserRef{Name: "other_user"},
+			})
+
+			role := services.RoleForUser(user)
+
+			err = s.server.Auth().UpsertRole(s.ctx, role)
+			require.NoError(t, err)
+
+			user.AddRole(role.GetName())
+
+			err = s.server.Auth().CreateUser(s.ctx, user)
+			require.NoError(t, err)
+
+			users[i] = user
+		}
+
+		initialUser := users[0]
+
+		clt := s.client()
+
+		// create register challenge
+		token, err := s.server.Auth().CreateResetPasswordToken(s.ctx, auth.CreateUserTokenRequest{
+			Name: initialUser.GetName(),
+		})
+		require.NoError(t, err)
+
+		res, err := s.server.Auth().CreateRegisterChallenge(s.ctx, &authproto.CreateRegisterChallengeRequest{
+			TokenID:     token.GetName(),
+			DeviceType:  authproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			DeviceUsage: authproto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+		})
+		require.NoError(t, err)
+
+		cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+
+		// use passwordless as auth method
+		device, err := mocku2f.Create()
+		require.NoError(t, err)
+
+		device.SetPasswordless()
+
+		ccr, err := device.SignCredentialCreation("https://"+RPID, cc)
+		require.NoError(t, err)
+
+		// send sign-in response to server
+		body, err := json.Marshal(changeUserAuthenticationRequest{
+			WebauthnCreationResponse: ccr,
+			TokenID:                  token.GetName(),
+			DeviceName:               "passwordless-device",
+			Password:                 tc.password,
+		})
+		require.NoError(t, err)
+
+		req, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(body))
+		require.NoError(t, err)
+
+		csrfToken, err := csrf.GenerateToken()
+		require.NoError(t, err)
+		addCSRFCookieToReq(req, csrfToken)
+		req.Header.Set(csrf.HeaderName, csrfToken)
+		req.Header.Set("Content-Type", "application/json")
+
+		re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
+			return clt.Client.HTTPClient().Do(req)
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, re.Code(), http.StatusOK)
+
+		// check if auth preference connectorName is set
+		authPreference, err := s.server.Auth().GetAuthPreference(s.ctx)
+		require.NoError(t, err)
+
+		require.Equal(t, authPreference.GetConnectorName(), tc.resultConnectorName, "Found unexpected auth connector name")
+	}
 }
 
 func TestParseSSORequestParams(t *testing.T) {
