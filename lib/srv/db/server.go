@@ -813,6 +813,23 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 
 	err = engine.HandleConnection(ctx, sessionCtx)
 	if err != nil {
+		connectionDiagnosticID := sessionCtx.Identity.ConnectionDiagnosticID
+		if connectionDiagnosticID != "" && trace.IsAccessDenied(err) {
+			_, diagErr := s.cfg.AuthClient.AppendDiagnosticTrace(ctx,
+				connectionDiagnosticID,
+				&types.ConnectionDiagnosticTrace{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_DATABASE_LOGIN,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: "Access denied when accessing Database. Ensure your role allows you to use the requested Database Name and Database User.",
+					Error:   err.Error(),
+				},
+			)
+
+			if diagErr != nil {
+				return trace.Wrap(diagErr)
+			}
+		}
+
 		return trace.Wrap(err)
 	}
 	return nil
