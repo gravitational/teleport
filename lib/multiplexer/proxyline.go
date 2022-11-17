@@ -72,7 +72,7 @@ type ProxyLine struct {
 	Protocol    string
 	Source      net.TCPAddr
 	Destination net.TCPAddr
-	TLVs        []TLV
+	TLVs        []TLV // PROXY protocol extensions
 }
 
 // TLV (Type-Length-Value) is an extension mechanism in PROXY protocol v2, see end of section 2.2
