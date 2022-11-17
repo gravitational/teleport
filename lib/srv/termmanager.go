@@ -108,7 +108,6 @@ func (g *TermManager) writeToClients(p []byte) {
 			delete(g.writers, key)
 		}
 	}
-
 }
 
 func (g *TermManager) TerminateNotifier() <-chan struct{} {
@@ -221,6 +220,8 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 			if err != nil {
 				log.Warnf("Failed to read from remote terminal: %v", err)
 				g.DeleteReader(name)
+				// close session if any peer disconnects
+				g.Close()
 				return
 			}
 
