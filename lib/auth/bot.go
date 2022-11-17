@@ -272,7 +272,8 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 		case types.JoinMethodToken,
 			types.JoinMethodIAM,
 			types.JoinMethodGitHub,
-			types.JoinMethodCircleCI:
+			types.JoinMethodCircleCI,
+			types.JoinMethodKubernetes:
 		default:
 			return nil, trace.BadParameter(
 				"token %q has join method %q which is not supported for bots. Supported join methods are %v",
@@ -281,6 +282,7 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 					types.JoinMethodIAM,
 					types.JoinMethodGitHub,
 					types.JoinMethodCircleCI,
+					types.JoinMethodKubernetes,
 				})
 		}
 		return provisionToken, nil

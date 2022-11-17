@@ -44,6 +44,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodIAM),
 	string(types.JoinMethodGitHub),
 	string(types.JoinMethodCircleCI),
+	string(types.JoinMethodKubernetes),
 }
 
 var log = logrus.WithFields(logrus.Fields{

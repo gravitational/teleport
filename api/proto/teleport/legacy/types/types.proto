@@ -1018,6 +1018,8 @@ message ProvisionTokenSpecV2 {
     (gogoproto.jsontag) = "suggested_agent_matcher_labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];
+  // Kubernetes allows the configuration of options specific to the "kubernetes" join method.
+  ProvisionTokenSpecV2Kubernetes Kubernetes = 10 [(gogoproto.jsontag) = "kubernetes,omitempty"];
 }
 
 message ProvisionTokenSpecV2GitHub {
@@ -1060,6 +1062,13 @@ message ProvisionTokenSpecV2CircleCI {
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
   string OrganizationID = 2 [(gogoproto.jsontag) = "organization_id,omitempty"];
+}
+
+message ProvisionTokenSpecV2Kubernetes {
+  message Rule {
+    string ServiceAccount = 1 [(gogoproto.jsontag) = "service_account,omitempty"];
+  }
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
