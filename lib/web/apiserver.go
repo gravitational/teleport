@@ -2149,6 +2149,12 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO: When the user clicks the "connect" button in the UI to connect to the
+	// node we already have the UUID to connect to so we do not need to fetch
+	// all nodes only that one. It's still possible for this endpoint to recieve
+	// only a hostname in which case we'll still need to fetch all of the nodes
+	// but we should improve this for the "happy path" as it'll be a considerable
+	// performance improvement for large environments.
 	servers, err := clt.GetNodes(r.Context(), apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2161,18 +2167,18 @@ func (h *Handler) siteNodeConnect(
 		clusterName := p.ByName("site")
 		h.log.Infof("Generating new session for %s\n", clusterName)
 		sessionData, err = h.generateSession(req, servers, clusterName)
-		req.SessionID = sessionData.ID
 		if err != nil {
 			h.log.WithError(err).Debug("Unable to generate new ssh session.")
 			return nil, trace.Wrap(err)
 		}
+		req.SessionID = sessionData.ID
 	} else {
 		// Fetch the session data from the supplied SID.
 		sessionID, err := session.ParseID(req.SessionID.String())
-		h.log.Infof("Connecting to existing session: %s\n", sessionID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		h.log.Infof("Attempting to join existing session: %s\n", sessionID)
 
 		tracker, err := clt.GetSessionTracker(r.Context(), string(*sessionID))
 		if err != nil {
@@ -2180,7 +2186,7 @@ func (h *Handler) siteNodeConnect(
 		}
 
 		if tracker.GetSessionKind() != types.SSHSessionKind || tracker.GetState() == types.SessionState_SessionStateTerminated {
-			return nil, trace.NotFound("session %v not found", sessionID)
+			return nil, trace.NotFound("SSH session %v not found", sessionID)
 		}
 
 		sessionData = trackerToLegacySession(tracker, site.GetName())
@@ -2219,23 +2225,21 @@ func (h *Handler) siteNodeConnect(
 }
 
 func (h *Handler) generateSession(termReq *TerminalRequest, servers []types.Server, clusterName string) (session.Session, error) {
-	var sess session.Session
-	sess.Login = termReq.Login
-	sess.ServerID = termReq.Server
-	sess.ClusterName = clusterName
-
 	hostname, _, err := resolveServerHostPort(termReq.Server, servers)
 	if err != nil {
 		return session.Session{}, trace.Wrap(err)
 	}
-	sess.ServerHostname = hostname
 
-	sess.ID = session.NewID()
-	sess.Created = time.Now().UTC()
-	sess.LastActive = time.Now().UTC()
-	sess.Namespace = apidefaults.Namespace
-
-	return sess, nil
+	return session.Session{
+		Login:          termReq.Login,
+		ServerID:       termReq.Server,
+		ClusterName:    clusterName,
+		ServerHostname: hostname,
+		ID:             session.NewID(),
+		Created:        time.Now().UTC(),
+		LastActive:     time.Now().UTC(),
+		Namespace:      apidefaults.Namespace,
+	}, nil
 }
 
 type siteSessionGenerateReq struct {
