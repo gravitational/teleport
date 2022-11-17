@@ -310,6 +310,8 @@ func TestCheckDBCerts(t *testing.T) {
 		Database:    "db1",
 	}
 	clockValid := clockwork.NewFakeClockAt(time.Now())
+	clockAfterValid := clockwork.NewFakeClockAt(clockValid.Now().Add(time.Hour))
+	clockBeforeValid := clockwork.NewFakeClockAt(clockValid.Now().Add(-time.Hour))
 
 	// we wont actually be listening for connections, but local proxy config needs to be valid to pass checks.
 	lp, err := NewLocalProxy(LocalProxyConfig{
@@ -321,10 +323,6 @@ func TestCheckDBCerts(t *testing.T) {
 		Clock: clockwork.NewFakeClockAt(clockValid.Now()),
 	})
 	require.NoError(t, err)
-	defer lp.Close()
-
-	clockAfterValid := clockwork.NewFakeClockAt(clockValid.Now().Add(time.Hour))
-	clockBeforeValid := clockwork.NewFakeClockAt(clockValid.Now().Add(-time.Hour))
 
 	tests := []struct {
 		name        string
@@ -377,7 +375,6 @@ func TestCheckDBCerts(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			tlsCert := mustGenCertSignedWithCA(t, suite.ca,
 				withIdentity(tlsca.Identity{
 					Username:        "test-user",
