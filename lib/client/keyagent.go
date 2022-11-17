@@ -626,29 +626,50 @@ func (a *LocalKeyAgent) DeleteKeys() error {
 	return nil
 }
 
-// certsForCluster returns a set of ssh.Signers using all certificates
+// Signers returns a set of ssh.Signers using all certificates
 // for the current proxy and user.
-func (a *LocalKeyAgent) signers() ([]ssh.Signer, error) {
-	k, err := a.GetCoreKey()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func (a *LocalKeyAgent) Signers() ([]ssh.Signer, error) {
+	var signers []ssh.Signer
 
-	certs, err := a.keyStore.GetSSHCertificates(a.proxyHost, a.username)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	signers := make([]ssh.Signer, len(certs))
-	for i, cert := range certs {
-		if err := k.checkCert(cert); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		signer, err := sshutils.SSHSigner(cert, k)
+	// If we find a valid key store, load all valid ssh certificates as signers.
+	if k, err := a.GetCoreKey(); err == nil {
+		certs, err := a.keyStore.GetSSHCertificates(a.proxyHost, a.username)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		signers[i] = signer
+
+		for _, cert := range certs {
+			if err := k.checkCert(cert); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			signer, err := sshutils.SSHSigner(cert, k)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			signers = append(signers, signer)
+		}
+	}
+
+	// Load all agent certs, including the ones from a local SSH agent.
+	agentSigners, err := a.ExtendedAgent.Signers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if a.sshAgent != nil {
+		sshAgentSigners, err := a.sshAgent.Signers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		agentSigners = append(signers, sshAgentSigners...)
+	}
+
+	// Filter out non-certificates (like regular public SSH keys stored in the SSH agent).
+	for _, s := range agentSigners {
+		if _, ok := s.PublicKey().(*ssh.Certificate); ok {
+			signers = append(signers, s)
+		} else if k, ok := s.PublicKey().(*agent.Key); ok && sshutils.IsSSHCertType(k.Type()) {
+			signers = append(signers, s)
+		}
 	}
 
 	return signers, nil
