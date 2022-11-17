@@ -72,6 +72,8 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindConnectionDiagnostic, RW()),
 					types.NewRule(types.KindDatabaseCertificate, RW()),
 					types.NewRule(types.KindInstaller, RW()),
+					types.NewRule(types.KindLicense, RO()),
+					types.NewRule(types.KindDownload, RO()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
