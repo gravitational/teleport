@@ -464,7 +464,13 @@ func onStatus() error {
 	hostUUID := os.Getenv(teleport.SSHTeleportHostUUID)
 	sid := os.Getenv(teleport.SSHSessionID)
 
-	if sid == "" || proxyHost == "" {
+	// For node sessions started by `ssh`, the proxyhost is not
+	// set in the session env. Provide a placeholder.
+	if proxyHost == "" {
+		proxyHost = "<proxyhost>"
+	}
+
+	if sid == "" {
 		fmt.Println("You are not inside of a Teleport SSH session")
 		return nil
 	}

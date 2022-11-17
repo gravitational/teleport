@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -335,7 +334,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	}
 	clientConfig.Host = t.hostName
 	clientConfig.HostPort = t.hostPort
-	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)}
+	clientConfig.SessionID = string(t.params.SessionID)
 	clientConfig.ClientAddr = r.RemoteAddr
 
 	if len(t.params.InteractiveCommand) > 0 {

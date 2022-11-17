@@ -924,14 +924,6 @@ func (c *ServerContext) SendSubsystemResult(r SubsystemResult) {
 	}
 }
 
-// ProxyPublicAddress tries to get the public address from the first
-// available proxy. if public_address is not set, fall back to the hostname
-// of the first proxy we get back.
-func (c *ServerContext) ProxyPublicAddress() string {
-	//TODO(tross): Get the proxy address somehow - types.KindProxy is not replicated to Nodes
-	return "<proxyhost>:3080"
-}
-
 func (c *ServerContext) String() string {
 	return fmt.Sprintf("ServerContext(%v->%v, user=%v, id=%v)", c.ServerConn.RemoteAddr(), c.ServerConn.LocalAddr(), c.ServerConn.User(), c.id)
 }
@@ -1098,9 +1090,7 @@ func buildEnvironment(ctx *ServerContext) []string {
 	}
 
 	// Set some Teleport specific environment variables: SSH_TELEPORT_USER,
-	// SSH_SESSION_WEBPROXY_ADDR, SSH_TELEPORT_HOST_UUID, and
-	// SSH_TELEPORT_CLUSTER_NAME.
-	env = append(env, teleport.SSHSessionWebproxyAddr+"="+ctx.ProxyPublicAddress())
+	// SSH_TELEPORT_HOST_UUID, and SSH_TELEPORT_CLUSTER_NAME.
 	env = append(env, teleport.SSHTeleportHostUUID+"="+ctx.srv.ID())
 	env = append(env, teleport.SSHTeleportClusterName+"="+ctx.ClusterName)
 	env = append(env, teleport.SSHTeleportUser+"="+ctx.Identity.TeleportUser)
