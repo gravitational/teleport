@@ -358,12 +358,12 @@ exports[`list of all events 1`] = `
           </strong>
            - 
           <strong>
-            147
+            149
           </strong>
            of
            
           <strong>
-            147
+            149
           </strong>
         </div>
         <button
@@ -645,6 +645,80 @@ exports[`list of all events 1`] = `
           style="min-width: 120px;"
         >
           2022-10-21T22:36:27.314409Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-database c10 c15"
+              color="light"
+              font-size="3"
+            />
+            App Session DynamoDB Request
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice] has made a request to application [dyno2]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-10-19T19:04:07.763Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-database c10 c15"
+              color="light"
+              font-size="3"
+            />
+            App Session DynamoDB Request
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice] has made a request to application [dyno1], target: [DynamoDB_20120810.Scan]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-10-19T19:04:07.763Z
         </td>
         <td
           align="right"
