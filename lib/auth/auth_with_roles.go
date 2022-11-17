@@ -28,6 +28,7 @@ import (
 	"github.com/sirupsen/logrus"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -2322,7 +2323,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 	var finalRequestIDs []string
 	for _, requestList := range [][]string{currentIdentity.ActiveRequests, req.AccessRequests} {
 		for _, reqID := range requestList {
-			if !apiutils.SliceContainsStr(req.DropAccessRequests, reqID) {
+			if !slices.Contains(req.DropAccessRequests, reqID) {
 				finalRequestIDs = append(finalRequestIDs, reqID)
 			}
 		}
@@ -3292,7 +3293,7 @@ func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (types.Role,
 	// Current-user exception: we always allow users to read roles
 	// that they hold.  This requirement is checked first to avoid
 	// misleading denial messages in the logs.
-	if !apiutils.SliceContainsStr(a.context.User.GetRoles(), name) {
+	if !slices.Contains(a.context.User.GetRoles(), name) {
 		if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -31,12 +31,12 @@ import (
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -543,7 +543,7 @@ func expectNextEvent(t *testing.T, eventsC <-chan Event, expectedEvent string, s
 		// wait for watcher to restart
 		select {
 		case event := <-eventsC:
-			if apiutils.SliceContainsStr(skipEvents, event.Type) {
+			if slices.Contains(skipEvents, event.Type) {
 				continue
 			}
 			require.Equal(t, expectedEvent, event.Type)

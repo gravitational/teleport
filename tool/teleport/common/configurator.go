@@ -22,9 +22,9 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/configurators"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
@@ -181,7 +181,7 @@ func (f *configureDatabaseAWSFlags) CheckAndSetDefaults() error {
 
 	f.typesList = strings.Split(f.types, ",")
 	for _, dbType := range f.typesList {
-		if !apiutils.SliceContainsStr(awsDatabaseTypes, dbType) {
+		if !slices.Contains(awsDatabaseTypes, dbType) {
 			return trace.BadParameter("--types %q not supported. supported types are: %s", dbType, strings.Join(awsDatabaseTypes, ", "))
 		}
 	}
