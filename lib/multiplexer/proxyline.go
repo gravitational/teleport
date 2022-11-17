@@ -60,6 +60,7 @@ var (
 	proxyCRLF = "\r\n"
 	proxySep  = " "
 
+	// ErrTruncatedTLV is returned when there's no enough bytes to read full TLV
 	ErrTruncatedTLV = errors.New("TLV value was truncated")
 )
 
@@ -238,6 +239,7 @@ const (
 	ProtocolTCP6 = 0x21
 )
 
+// ReadProxyLineV2 reads PROXY protocol v2 line from the reader
 func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 	var header proxyV2Header
 	var ret ProxyLine
@@ -294,7 +296,7 @@ func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		tlvs, err := UnmarshalTVLs(tlvsBytes.Bytes())
+		tlvs, err := UnmarshalTLVs(tlvsBytes.Bytes())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -305,13 +307,14 @@ func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 	return &ret, nil
 }
 
-func UnmarshalTVLs(rawBytes []byte) ([]TLV, error) {
+// UnmarshalTLVs parses provided bytes slice into slice of TLVs
+func UnmarshalTLVs(rawBytes []byte) ([]TLV, error) {
 	var tlvs []TLV
 	for i := 0; i < len(rawBytes); {
 		tlv := TLV{
 			Type: PP2Type(rawBytes[i]),
 		}
-		if len(rawBytes)-i < 2 {
+		if len(rawBytes)-i <= 2 {
 			return nil, ErrTruncatedTLV
 		}
 		tlvLen := int(binary.BigEndian.Uint16(rawBytes[i+1 : i+3]))
@@ -330,6 +333,7 @@ func UnmarshalTVLs(rawBytes []byte) ([]TLV, error) {
 	return tlvs, nil
 }
 
+// MarshalTLVs marshals provided slice of TLVs into slice of bytes.
 func MarshalTLVs(tlvs []TLV) ([]byte, error) {
 	var raw []byte
 	for _, tlv := range tlvs {
