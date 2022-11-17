@@ -334,3 +334,44 @@ func TestUnmarshalTLVs(t *testing.T) {
 		require.Equal(t, tt.expectedTLVs, tlvs)
 	}
 }
+
+func FuzzReadProxyLineV2(f *testing.F) {
+	f.Add(sampleProxyV2LineTLV)
+	f.Add(sampleProxyV2Line)
+	f.Add(sampleProxyV2LineLocal)
+
+	f.Fuzz(func(t *testing.T, b []byte) {
+		require.NotPanics(t, func() {
+			_, _ = ReadProxyLineV2(bufio.NewReader(bytes.NewReader(b)))
+		})
+	})
+}
+
+func FuzzProxyLine_Bytes(f *testing.F) {
+	f.Add("TCP4", "127.0.0.1", "127.0.0.2", 12345, 42, sampleTLV)
+	f.Add("TCP4", "127.0.0.5", "127.0.0.7", 442, 422, sampleTLV)
+	f.Add("TCP4", "123.43.12.12", "211.54.120.3", 1, 2, sampleTLV)
+	f.Add("TCP4", "123.43.12.12", "211.54.120.3", 1, 2, []byte{})
+	f.Add("TCP6", "fe80::a00:27ff:fe8e:8aa8", "fe80::a00:27ff:fe8e:8aa8", 1, 2, sampleTLV)
+	f.Add("TCP4", "fe80::a00:27ff:fe8e:8aa8", "fe80::a00:27ff:fe8e:8aa8", 1, 2, []byte{})
+
+	f.Fuzz(func(t *testing.T, protocol, source, dest string, sourcePort, destPort int, tlv []byte) {
+		sourceIP := net.ParseIP(source)
+		destIP := net.ParseIP(dest)
+		p := ProxyLine{
+			Protocol:    protocol,
+			Source:      net.TCPAddr{IP: sourceIP, Port: sourcePort, Zone: ""},
+			Destination: net.TCPAddr{IP: destIP, Port: destPort, Zone: ""},
+			TLVs:        nil,
+		}
+
+		b, err := p.Bytes()
+		if err == nil {
+			require.NotNil(t, b)
+
+			p2, err := ReadProxyLineV2(bufio.NewReader(bytes.NewReader(b)))
+			require.NoError(t, err)
+			require.Equal(t, p.Protocol, p2.Protocol)
+		}
+	})
+}
