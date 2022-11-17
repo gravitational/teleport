@@ -45,21 +45,6 @@ type SiteGetter interface {
 	GetSite(clusterName string) (reversetunnel.RemoteSite, error)
 }
 
-// NopSiteGetter is an implementation of SiteGetter that always
-// returns NopSite. Only used when the reverse tunnel server is disabled
-// in tests.
-type NopSiteGetter struct{}
-
-func (n NopSiteGetter) GetSite(string) (reversetunnel.RemoteSite, error) {
-	return NopSite{}, nil
-}
-
-// NopSite is a reversetunnel.RemoteSite that is
-// unimplemented and returned by NopSiteGetter.GetSite
-type NopSite struct {
-	reversetunnel.RemoteSite
-}
-
 // RemoteClusterGetter provides access to remote cluster resources
 type RemoteClusterGetter interface {
 	// GetRemoteCluster returns a remote cluster by name

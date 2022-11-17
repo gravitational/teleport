@@ -3595,20 +3595,19 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		})
 	}
 
-	var siteGetter proxy.SiteGetter = tsrv
-	if process.Config.Proxy.DisableReverseTunnel {
-		siteGetter = proxy.NopSiteGetter{}
-	}
-
-	proxyRouter, err := proxy.NewRouter(proxy.RouterConfig{
-		ClusterName:         clusterName,
-		Log:                 process.log.WithField(trace.Component, "router"),
-		RemoteClusterGetter: accessPoint,
-		SiteGetter:          siteGetter,
-		TracerProvider:      process.TracingProvider,
-	})
-	if err != nil {
-		return trace.Wrap(err)
+	var proxyRouter *proxy.Router
+	if !process.Config.Proxy.DisableReverseTunnel {
+		router, err := proxy.NewRouter(proxy.RouterConfig{
+			ClusterName:         clusterName,
+			Log:                 process.log.WithField(trace.Component, "router"),
+			RemoteClusterGetter: accessPoint,
+			SiteGetter:          tsrv,
+			TracerProvider:      process.TracingProvider,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		proxyRouter = router
 	}
 
 	sshProxy, err := regular.New(cfg.Proxy.SSHAddr,
