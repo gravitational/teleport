@@ -22,8 +22,11 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/trace"
@@ -439,6 +442,9 @@ func TestListResources(t *testing.T) {
 				}
 				return nil, nil
 			}
+			m.mockPing = func(ctx context.Context) (proto.PingResponse, error) {
+				return proto.PingResponse{ServerVersion: "9.1"}, nil
+			}
 
 			_, err = listResources(m, httpReq, types.KindNode)
 			if tc.wantBadParamErr {
@@ -448,6 +454,314 @@ func TestListResources(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAttemptListResources tests for supported and unsupported server versions
+// returned by ping. Unsupported versions should return an error.
+func TestAttemptListResources(t *testing.T) {
+	m := &mockedResourceAPIGetter{}
+
+	m.mockListResources = func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+		return &types.ListResourcesResponse{}, nil
+	}
+
+	// Test supported version ping.
+	m.mockPing = func(ctx context.Context) (proto.PingResponse, error) {
+		return proto.PingResponse{ServerVersion: "9.1.0"}, nil
+	}
+	mockHTTPReq, err := http.NewRequest("", "", nil)
+	require.NoError(t, err)
+	_, err = attemptListResources(m, mockHTTPReq, types.KindNode)
+	require.NoError(t, err)
+
+	// Test unsupported v8 ping.
+	m.mockPing = func(ctx context.Context) (proto.PingResponse, error) {
+		return proto.PingResponse{ServerVersion: "8.3.1"}, nil
+	}
+	_, err = attemptListResources(m, mockHTTPReq, types.KindNode)
+	require.True(t, trace.IsNotImplemented(err), "attemptListResources returned an unexpected error: %v (want not implemented)", err)
+
+	// Test unsupported v9.0 ping.
+	m.mockPing = func(ctx context.Context) (proto.PingResponse, error) {
+		return proto.PingResponse{ServerVersion: "9.0.1"}, nil
+	}
+	_, err = attemptListResources(m, mockHTTPReq, types.KindNode)
+	require.True(t, trace.IsNotImplemented(err), "attemptListResources returned an unexpected error: %v (want not implemented)", err)
+}
+
+func TestHandleClusterNodesGetFallback(t *testing.T) {
+	m := &mockedResourceAPIGetter{}
+
+	// Create mock servers.
+	server1, err := types.NewServer("server1", types.KindNode, types.ServerSpecV2{})
+	require.NoError(t, err)
+	server2, err := types.NewServer("server2", types.KindNode, types.ServerSpecV2{})
+	require.NoError(t, err)
+
+	m.mockListResources = func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+		return nil, trace.NotImplemented("not implemented")
+	}
+	m.mockGetNodes = func(ctx context.Context, namespace string) ([]types.Server, error) {
+		return []types.Server{server1, server2}, nil
+	}
+	m.mockPing = func(ctx context.Context) (proto.PingResponse, error) {
+		return proto.PingResponse{ServerVersion: "9.1"}, nil
+	}
+
+	mockHTTPReq, err := http.NewRequest("", "", nil)
+	require.NoError(t, err)
+
+	teleUser, err := types.NewUser("foo")
+	require.NoError(t, err)
+	mockUserRoles := []types.Role{defaultRoleForNewUser(teleUser, "llama")}
+
+	res, err := handleClusterNodesGet(m, mockHTTPReq, "cluster-name", mockUserRoles)
+	require.NoError(t, err)
+	require.Nil(t, res.StartKey)
+	require.Nil(t, res.TotalCount)
+	require.ElementsMatch(t, res.Items, []ui.Server{
+		{ClusterName: "cluster-name",
+			Labels:    []ui.Label{},
+			Name:      "server1",
+			Tunnel:    false,
+			SSHLogins: []string{"llama"}},
+		{ClusterName: "cluster-name",
+			Labels:    []ui.Label{},
+			Name:      "server2",
+			Tunnel:    false,
+			SSHLogins: []string{"llama"}}})
+}
+
+func TestHandleClusterAppsGetFallback(t *testing.T) {
+	m := &mockedResourceAPIGetter{}
+
+	// Create mocks with duplicates.
+	server1, err := types.NewAppServerV3(types.Metadata{Name: "server1"}, types.AppServerSpecV3{
+		HostID: "hostid",
+		App: &types.AppV3{
+			Metadata: types.Metadata{Name: "app1"},
+			Spec:     types.AppSpecV3{URI: "uri"},
+		}})
+	require.NoError(t, err)
+	server2, err := types.NewAppServerV3(types.Metadata{Name: "server2"}, types.AppServerSpecV3{
+		HostID: "hostid",
+		App: &types.AppV3{
+			Metadata: types.Metadata{Name: "app2"},
+			Spec:     types.AppSpecV3{URI: "uri"},
+		}})
+	require.NoError(t, err)
+	serverDup, err := types.NewAppServerV3(types.Metadata{Name: "server3"}, types.AppServerSpecV3{
+		HostID: "hostid",
+		App: &types.AppV3{
+			Metadata: types.Metadata{Name: "app2"},
+			Spec:     types.AppSpecV3{URI: "uri"},
+		}})
+	require.NoError(t, err)
+	serverWithTCP, err := types.NewAppServerV3(types.Metadata{Name: "server4"}, types.AppServerSpecV3{
+		HostID: "hostid",
+		App: &types.AppV3{
+			Metadata: types.Metadata{Name: "app3"},
+			Spec:     types.AppSpecV3{URI: "tcp://something"},
+		}})
+	require.NoError(t, err)
+
+	m.mockListResources = func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+		return nil, trace.NotImplemented("not implemented")
+	}
+	m.mockGetApplicationServers = func(context.Context, string) ([]types.AppServer, error) {
+		return []types.AppServer{server1, server2, serverDup, serverWithTCP}, nil
+	}
+	m.mockPing = func(ctx context.Context) (proto.PingResponse, error) {
+		return proto.PingResponse{ServerVersion: "9.1"}, nil
+	}
+
+	mockHTTPReq, err := http.NewRequest("", "", nil)
+	require.NoError(t, err)
+
+	res, err := handleClusterAppsGet(m, mockHTTPReq, ui.MakeAppsConfig{
+		LocalClusterName:  "cluster-name",
+		LocalProxyDNSName: "dns-name",
+		AppClusterName:    "cluster-name",
+		Identity: &tlsca.Identity{
+			AWSRoleARNs: []string{"aws"},
+		},
+	})
+	require.NoError(t, err)
+	require.Nil(t, res.StartKey)
+	require.Nil(t, res.TotalCount)
+	require.ElementsMatch(t, res.Items, []ui.App{
+		{
+			Name:       "app1",
+			URI:        "uri",
+			Labels:     []ui.Label{},
+			ClusterID:  "cluster-name",
+			FQDN:       "app1.dns-name",
+			AWSConsole: false,
+		},
+		{
+			Name:       "app2",
+			URI:        "uri",
+			Labels:     []ui.Label{},
+			ClusterID:  "cluster-name",
+			FQDN:       "app2.dns-name",
+			AWSConsole: false,
+		}})
+}
+
+func TestHandleClusterDatabasesGetFallback(t *testing.T) {
+	m := &mockedResourceAPIGetter{}
+
+	// Create mocks with duplicates.
+	server1, err := types.NewDatabaseServerV3(types.Metadata{Name: "db1"}, types.DatabaseServerSpecV3{
+		Hostname: "test-hostname",
+		HostID:   "test-hostID",
+	})
+	require.NoError(t, err)
+	server2, err := types.NewDatabaseServerV3(types.Metadata{Name: "db2"}, types.DatabaseServerSpecV3{
+		Hostname: "test-hostname",
+		HostID:   "test-hostID"})
+	require.NoError(t, err)
+	serverDup, err := types.NewDatabaseServerV3(types.Metadata{Name: "db2"}, types.DatabaseServerSpecV3{
+		Hostname: "test-hostname",
+		HostID:   "test-hostID"})
+	require.NoError(t, err)
+
+	m.mockListResources = func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+		return nil, trace.NotImplemented("not implemented")
+	}
+	m.mockGetDatabaseServers = func(context.Context, string, ...services.MarshalOption) ([]types.DatabaseServer, error) {
+		return []types.DatabaseServer{server1, server2, serverDup}, nil
+	}
+	m.mockPing = func(ctx context.Context) (proto.PingResponse, error) {
+		return proto.PingResponse{ServerVersion: "9.1"}, nil
+	}
+
+	mockHTTPReq, err := http.NewRequest("", "", nil)
+	require.NoError(t, err)
+
+	res, err := handleClusterDatabasesGet(m, mockHTTPReq, "cluster-name")
+	require.NoError(t, err)
+	require.Nil(t, res.StartKey)
+	require.Nil(t, res.TotalCount)
+	require.ElementsMatch(t, res.Items, []ui.Database{
+		{
+			Name:   "db1",
+			Type:   types.DatabaseTypeSelfHosted,
+			Labels: []ui.Label{},
+		},
+		{
+			Name:   "db2",
+			Type:   types.DatabaseTypeSelfHosted,
+			Labels: []ui.Label{},
+		}})
+}
+
+func TestHandleClusterWindowsGetFallback(t *testing.T) {
+	m := &mockedResourceAPIGetter{}
+
+	// Create mocks with duplicates.
+	server1, err := types.NewWindowsDesktopV3("desktop1", nil, types.WindowsDesktopSpecV3{
+		HostID: "test-hostID",
+		Addr:   "addr",
+	})
+	require.NoError(t, err)
+	server2, err := types.NewWindowsDesktopV3("desktop2", nil, types.WindowsDesktopSpecV3{
+		HostID: "test-hostID",
+		Addr:   "addr"})
+	require.NoError(t, err)
+	serverDup, err := types.NewWindowsDesktopV3("desktop2", nil, types.WindowsDesktopSpecV3{
+		HostID: "test-hostID",
+		Addr:   "addr"})
+	require.NoError(t, err)
+
+	m.mockListResources = func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+		return nil, trace.NotImplemented("not implemented")
+	}
+	m.mockGetWindowsDesktops = func(context.Context, types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
+		return []types.WindowsDesktop{server1, server2, serverDup}, nil
+	}
+	m.mockPing = func(ctx context.Context) (proto.PingResponse, error) {
+		return proto.PingResponse{ServerVersion: "9.1"}, nil
+	}
+
+	mockHTTPReq, err := http.NewRequest("", "", nil)
+	require.NoError(t, err)
+
+	res, err := handleClusterDesktopsGet(m, mockHTTPReq)
+	require.NoError(t, err)
+	require.Nil(t, res.StartKey)
+	require.Nil(t, res.TotalCount)
+	require.ElementsMatch(t, res.Items, []ui.Desktop{
+		{
+			OS:     constants.WindowsOS,
+			Name:   "desktop1",
+			Addr:   "addr",
+			Labels: []ui.Label{},
+			HostID: "test-hostID",
+		},
+		{
+			OS:     constants.WindowsOS,
+			Name:   "desktop2",
+			Addr:   "addr",
+			Labels: []ui.Label{},
+			HostID: "test-hostID",
+		}})
+}
+
+func TestHandleClusterKubesGetFallback(t *testing.T) {
+	m := &mockedResourceAPIGetter{}
+
+	// Create mocks with duplicates.
+	server1, err := types.NewServer("ksvc1", types.KindKubeService, types.ServerSpecV2{
+		KubernetesClusters: []*types.KubernetesCluster{
+			{Name: "cluster1"},
+			{Name: "cluster1"},
+			{Name: "cluster2"},
+		},
+	})
+	require.NoError(t, err)
+	server2, err := types.NewServer("ksvc2", types.KindKubeService, types.ServerSpecV2{
+		KubernetesClusters: []*types.KubernetesCluster{
+			{Name: "cluster2"},
+			{Name: "cluster3"},
+		},
+	})
+	require.NoError(t, err)
+
+	m.mockListResources = func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+		return nil, trace.NotImplemented("not implemented")
+	}
+	m.mockGetKubeServices = func(context.Context) ([]types.Server, error) {
+		return []types.Server{server1, server2}, nil
+	}
+	m.mockPing = func(ctx context.Context) (proto.PingResponse, error) {
+		return proto.PingResponse{ServerVersion: "9.1"}, nil
+	}
+
+	mockHTTPReq, err := http.NewRequest("", "", nil)
+	require.NoError(t, err)
+
+	teleUser, err := types.NewUser("foo")
+	require.NoError(t, err)
+	mockUserRoles := []types.Role{defaultRoleForNewUser(teleUser, "llama")}
+
+	res, err := handleClusterKubesGet(m, mockHTTPReq, mockUserRoles)
+	require.NoError(t, err)
+	require.Nil(t, res.StartKey)
+	require.Nil(t, res.TotalCount)
+	require.ElementsMatch(t, res.Items, []ui.KubeCluster{
+		{
+			Name:   "cluster1",
+			Labels: []ui.Label{},
+		},
+		{
+			Name:   "cluster2",
+			Labels: []ui.Label{},
+		},
+		{
+			Name:   "cluster3",
+			Labels: []ui.Label{},
+		}})
 }
 
 type mockedResourceAPIGetter struct {
@@ -463,6 +777,13 @@ type mockedResourceAPIGetter struct {
 	mockGetTrustedClusters    func(ctx context.Context) ([]types.TrustedCluster, error)
 	mockDeleteTrustedCluster  func(ctx context.Context, name string) error
 	mockListResources         func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+
+	mockGetApplicationServers func(context.Context, string) ([]types.AppServer, error)
+	mockGetDatabaseServers    func(context.Context, string, ...services.MarshalOption) ([]types.DatabaseServer, error)
+	mockGetWindowsDesktops    func(context.Context, types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
+	mockGetKubeServices       func(context.Context) ([]types.Server, error)
+	mockGetNodes              func(ctx context.Context, namespace string) ([]types.Server, error)
+	mockPing                  func(ctx context.Context) (proto.PingResponse, error)
 }
 
 func (m *mockedResourceAPIGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
@@ -557,4 +878,52 @@ func (m *mockedResourceAPIGetter) ListResources(ctx context.Context, req proto.L
 	}
 
 	return nil, trace.NotImplemented("mockListResources not implemented")
+}
+
+func (m *mockedResourceAPIGetter) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
+	if m.mockGetNodes != nil {
+		return m.mockGetNodes(ctx, namespace)
+	}
+
+	return nil, trace.NotImplemented("mockGetNodes not implemented")
+}
+
+func (m *mockedResourceAPIGetter) GetKubeServices(ctx context.Context) ([]types.Server, error) {
+	if m.mockGetKubeServices != nil {
+		return m.mockGetKubeServices(ctx)
+	}
+
+	return nil, trace.NotImplemented("mockGetKubeServices not implemented")
+}
+
+func (m *mockedResourceAPIGetter) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
+	if m.mockGetWindowsDesktops != nil {
+		return m.mockGetWindowsDesktops(ctx, filter)
+	}
+
+	return nil, trace.NotImplemented("mockGetWindowsDesktops not implemented")
+}
+
+func (m *mockedResourceAPIGetter) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
+	if m.mockGetDatabaseServers != nil {
+		return m.mockGetDatabaseServers(ctx, namespace)
+	}
+
+	return nil, trace.NotImplemented("mockGetDatabaseServers not implemented")
+}
+
+func (m *mockedResourceAPIGetter) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
+	if m.mockGetApplicationServers != nil {
+		return m.mockGetApplicationServers(ctx, namespace)
+	}
+
+	return nil, trace.NotImplemented("mockGetApplicationServers not implemented")
+}
+
+func (m *mockedResourceAPIGetter) Ping(ctx context.Context) (proto.PingResponse, error) {
+	if m.mockPing != nil {
+		return m.mockPing(ctx)
+	}
+
+	return proto.PingResponse{}, trace.NotImplemented("mockPing not implemented")
 }
