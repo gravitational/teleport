@@ -40,6 +40,7 @@ import (
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	yamlv2 "gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
@@ -51,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -880,7 +880,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			require.NoError(t, err)
 			foundCount := 0
 			for _, node := range nodes {
-				if apiutils.SliceContainsStr(hostIDs, node.GetName()) {
+				if slices.Contains(hostIDs, node.GetName()) {
 					foundCount++
 				}
 			}
@@ -1257,7 +1257,7 @@ func TestSSHAccessRequest(t *testing.T) {
 			require.NoError(t, err)
 			foundCount := 0
 			for _, node := range nodes {
-				if apiutils.SliceContainsStr(hostIDs, node.GetName()) {
+				if slices.Contains(hostIDs, node.GetName()) {
 					foundCount++
 				}
 			}

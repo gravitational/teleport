@@ -45,6 +45,7 @@ import (
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -3838,7 +3839,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []s
 	}
 	// If the certificate already had active requests, add them to our inputs parameters.
 	for _, reqID := range profile.ActiveRequests.AccessRequests {
-		if !apiutils.SliceContainsStr(dropRequests, reqID) {
+		if !slices.Contains(dropRequests, reqID) {
 			params.AccessRequests = append(params.AccessRequests, reqID)
 		}
 	}
