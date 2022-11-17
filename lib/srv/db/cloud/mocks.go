@@ -650,17 +650,20 @@ func (m *MemoryDBMock) UpdateUserWithContext(_ aws.Context, input *memorydb.Upda
 
 // checkEngineFilters checks RDS filters to detect unrecognized engine filters.
 func checkEngineFilters(filters []*rds.Filter, engineVersions []*rds.DBEngineVersion) error {
+	if len(filters) == 0 {
+		return nil
+	}
 	recognizedEngines := make(map[string]struct{})
 	for _, e := range engineVersions {
-		recognizedEngines[*e.Engine] = struct{}{}
+		recognizedEngines[aws.StringValue(e.Engine)] = struct{}{}
 	}
 	for _, f := range filters {
-		if *f.Name != "engine" {
+		if aws.StringValue(f.Name) != "engine" {
 			continue
 		}
 		for _, v := range f.Values {
-			if _, ok := recognizedEngines[*v]; !ok {
-				return trace.Errorf("unrecognized engine name %q", *v)
+			if _, ok := recognizedEngines[aws.StringValue(v)]; !ok {
+				return trace.Errorf("unrecognized engine name %q", aws.StringValue(v))
 			}
 		}
 	}
@@ -669,7 +672,10 @@ func checkEngineFilters(filters []*rds.Filter, engineVersions []*rds.DBEngineVer
 
 // applyInstanceFilters filters RDS DBInstances using the provided RDS filters.
 func applyInstanceFilters(in []*rds.DBInstance, filters []*rds.Filter) ([]*rds.DBInstance, error) {
-	var out  []*rds.DBInstance
+	if len(filters) == 0 {
+		return in, nil
+	}
+	var out []*rds.DBInstance
 	efs := engineFilterSet(filters)
 	for _, instance := range in {
 		if instanceEngineMatches(instance, efs) {
@@ -681,6 +687,9 @@ func applyInstanceFilters(in []*rds.DBInstance, filters []*rds.Filter) ([]*rds.D
 
 // applyClusterFilters filters RDS DBClusters using the provided RDS filters.
 func applyClusterFilters(in []*rds.DBCluster, filters []*rds.Filter) ([]*rds.DBCluster, error) {
+	if len(filters) == 0 {
+		return in, nil
+	}
 	var out []*rds.DBCluster
 	efs := engineFilterSet(filters)
 	for _, cluster := range in {
@@ -707,12 +716,12 @@ func engineFilterSet(filters []*rds.Filter) map[string]struct{} {
 
 // instanceEngineMatches returns whether an RDS DBInstance engine matches any engine name in a filter set.
 func instanceEngineMatches(instance *rds.DBInstance, filterSet map[string]struct{}) bool {
-	_, ok := filterSet[*instance.Engine]
+	_, ok := filterSet[aws.StringValue(instance.Engine)]
 	return ok
 }
 
 // clusterEngineMatches returns whether an RDS DBCluster engine matches any engine name in a filter set.
 func clusterEngineMatches(cluster *rds.DBCluster, filterSet map[string]struct{}) bool {
-	_, ok := filterSet[*cluster.Engine]
+	_, ok := filterSet[aws.StringValue(cluster.Engine)]
 	return ok
 }
