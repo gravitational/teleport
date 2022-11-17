@@ -28,8 +28,15 @@ ADDFLAGS ?=
 PWD ?= `pwd`
 TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' -trimpath
 CGOFLAG ?= CGO_ENABLED=1
+
+# When TELEPORT_DEBUG is true, set flags to produce
+# debugger-friendly builds.
+ifeq ("$(TELEPORT_DEBUG)","true")
+BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
+else
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' -trimpath
+endif
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
