@@ -767,8 +767,21 @@ func TestClusterNodesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
-	clusterName := env.server.ClusterName()
 
+	// Get the node already added by `newWebPack`
+	servers, err := env.server.Auth().GetNodes(context.Background(), apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, servers, 1)
+	server1 := servers[0]
+
+	// Add another node.
+	server2, err := types.NewServerWithLabels("server2", types.KindNode, types.ServerSpecV2{}, map[string]string{"test-field": "test-value"})
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertNode(context.Background(), server2)
+	require.NoError(t, err)
+
+	// Get nodes from endpoint.
+	clusterName := env.server.ClusterName()
 	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "nodes")
 
 	query := url.Values{"sort": []string{"name"}}
@@ -777,19 +790,36 @@ func TestClusterNodesGet(t *testing.T) {
 	re, err := pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 
-	nodes := clusterNodesGetResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes))
-	require.Len(t, nodes.Items, 1)
-	require.Equal(t, 1, nodes.TotalCount)
+	// Test response.
+	res := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Len(t, res.Items, 2)
+	require.Equal(t, 2, res.TotalCount)
+	require.ElementsMatch(t, res.Items, []ui.Server{
+		{
+			ClusterName: clusterName,
+			Name:        server1.GetName(),
+			Hostname:    server1.GetHostname(),
+			Tunnel:      server1.GetUseTunnel(),
+			Addr:        server1.GetAddr(),
+			Labels:      []ui.Label{},
+			SSHLogins:   []string{"user"},
+		},
+		{ClusterName: clusterName,
+			Name:      "server2",
+			Labels:    []ui.Label{{Name: "test-field", Value: "test-value"}},
+			Tunnel:    false,
+			SSHLogins: []string{"user"}},
+	})
 
 	// Get nodes using shortcut.
 	re, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), query)
 	require.NoError(t, err)
 
-	nodes2 := clusterNodesGetResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes2))
-	require.Len(t, nodes.Items, 1)
-	require.Equal(t, nodes, nodes2)
+	res2 := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res2))
+	require.Len(t, res.Items, 2)
+	require.Equal(t, res, res2)
 }
 
 type clusterAlertsGetResponse struct {
@@ -2863,7 +2893,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 0)
 
-	// Register a database.
+	// Register databases.
 	db, err := types.NewDatabaseServerV3(types.Metadata{
 		Name:   "test-db-name",
 		Labels: map[string]string{"test-field": "test-value"},
@@ -2875,8 +2905,17 @@ func TestClusterDatabasesGet(t *testing.T) {
 		HostID:      "test-hostID",
 	})
 	require.NoError(t, err)
+	db2, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "db2",
+	}, types.DatabaseServerSpecV3{
+		Hostname: "test-hostname",
+		HostID:   "test-hostID",
+	})
+	require.NoError(t, err)
 
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db2)
 	require.NoError(t, err)
 
 	re, err = pack.clt.Get(context.Background(), endpoint, query)
@@ -2884,15 +2923,19 @@ func TestClusterDatabasesGet(t *testing.T) {
 
 	resp = testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 1)
-	require.Equal(t, 1, resp.TotalCount)
-	require.EqualValues(t, ui.Database{
+	require.Len(t, resp.Items, 2)
+	require.Equal(t, 2, resp.TotalCount)
+	require.ElementsMatch(t, resp.Items, []ui.Database{{
 		Name:     "test-db-name",
 		Desc:     "test-description",
 		Protocol: "test-protocol",
 		Type:     types.DatabaseTypeSelfHosted,
 		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
-	}, resp.Items[0])
+	}, {
+		Name:   "db2",
+		Type:   types.DatabaseTypeSelfHosted,
+		Labels: []ui.Label{},
+	}})
 }
 
 func TestClusterDatabaseGet(t *testing.T) {
@@ -3091,7 +3134,7 @@ func TestClusterKubesGet(t *testing.T) {
 
 	cluster1, err := types.NewKubernetesClusterV3(
 		types.Metadata{
-			Name:   "test-kube-name",
+			Name:   "test-kube1",
 			Labels: map[string]string{"test-field": "test-value"},
 		},
 		types.KubernetesClusterSpecV3{},
@@ -3111,6 +3154,22 @@ func TestClusterKubesGet(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	cluster2, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: "test-kube2",
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+	server2, err := types.NewKubernetesServerV3FromCluster(
+		cluster2,
+		"test-kube2-hostname",
+		"test-kube2-hostid",
+	)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertKubernetesServer(context.Background(), server2)
+	require.NoError(t, err)
+
 	type testResponse struct {
 		Items      []ui.KubeCluster `json:"items"`
 		TotalCount int              `json:"totalCount"`
@@ -3120,27 +3179,43 @@ func TestClusterKubesGet(t *testing.T) {
 		name             string
 		user             string
 		extraRoles       services.RoleSet
-		expectedResponse ui.KubeCluster
+		expectedResponse []ui.KubeCluster
 	}{
 		{
 			name: "user with no extra roles",
 			user: "test-user@example.com",
-			expectedResponse: ui.KubeCluster{
-				Name:       "test-kube-name",
-				Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
-				KubeUsers:  nil,
-				KubeGroups: nil,
+			expectedResponse: []ui.KubeCluster{
+				{
+					Name:       "test-kube1",
+					Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
+					KubeUsers:  nil,
+					KubeGroups: nil,
+				},
+				{
+					Name:       "test-kube2",
+					Labels:     []ui.Label{},
+					KubeUsers:  nil,
+					KubeGroups: nil,
+				},
 			},
 		},
 		{
 			name:       "user with extra roles",
 			user:       "test-user2@example.com",
 			extraRoles: services.NewRoleSet(extraRole),
-			expectedResponse: ui.KubeCluster{
-				Name:       "test-kube-name",
-				Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
-				KubeUsers:  []string{"user1"},
-				KubeGroups: []string{"group1"},
+			expectedResponse: []ui.KubeCluster{
+				{
+					Name:       "test-kube1",
+					Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
+					KubeUsers:  []string{"user1"},
+					KubeGroups: []string{"group1"},
+				},
+				{
+					Name:       "test-kube2",
+					Labels:     []ui.Label{},
+					KubeUsers:  []string{"user1"},
+					KubeGroups: []string{"group1"},
+				},
 			},
 		},
 	}
@@ -3155,9 +3230,9 @@ func TestClusterKubesGet(t *testing.T) {
 
 		resp := testResponse{}
 		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-		require.Len(t, resp.Items, 1)
-		require.Equal(t, 1, resp.TotalCount)
-		require.EqualValues(t, tc.expectedResponse, resp.Items[0])
+		require.Len(t, resp.Items, 2)
+		require.Equal(t, 2, resp.TotalCount)
+		require.ElementsMatch(t, tc.expectedResponse, resp.Items)
 	}
 }
 
@@ -3192,8 +3267,29 @@ func TestClusterAppsGet(t *testing.T) {
 		},
 	}
 
-	// Register a app service.
-	_, err := env.server.Auth().UpsertApplicationServer(context.Background(), resource)
+	resource2, err := types.NewAppServerV3(types.Metadata{Name: "server2"}, types.AppServerSpecV3{
+		HostID: "hostid",
+		App: &types.AppV3{
+			Metadata: types.Metadata{Name: "app2"},
+			Spec:     types.AppSpecV3{URI: "uri", PublicAddr: "publicaddrs"},
+		}})
+	require.NoError(t, err)
+
+	// Test URI's with tcp is filtered out of result.
+	resource3, err := types.NewAppServerV3(types.Metadata{Name: "server3"}, types.AppServerSpecV3{
+		HostID: "hostid",
+		App: &types.AppV3{
+			Metadata: types.Metadata{Name: "app3"},
+			Spec:     types.AppSpecV3{URI: "tcp://something", PublicAddr: "publicaddrs"},
+		}})
+	require.NoError(t, err)
+
+	// Register apps.
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource2)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource3)
 	require.NoError(t, err)
 
 	// Make the call.
@@ -3204,9 +3300,9 @@ func TestClusterAppsGet(t *testing.T) {
 	// Test correct response.
 	resp := testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 1)
-	require.Equal(t, 1, resp.TotalCount)
-	require.EqualValues(t, ui.App{
+	require.Len(t, resp.Items, 2)
+	require.Equal(t, 2, resp.TotalCount)
+	require.ElementsMatch(t, resp.Items, []ui.App{{
 		Name:        resource.Spec.App.GetName(),
 		Description: resource.Spec.App.GetDescription(),
 		URI:         resource.Spec.App.GetURI(),
@@ -3215,7 +3311,16 @@ func TestClusterAppsGet(t *testing.T) {
 		FQDN:        resource.Spec.App.GetPublicAddr(),
 		ClusterID:   env.server.ClusterName(),
 		AWSConsole:  true,
-	}, resp.Items[0])
+	}, {
+		Name:       "app2",
+		URI:        "uri",
+		Labels:     []ui.Label{},
+		ClusterID:  env.server.ClusterName(),
+		FQDN:       "publicaddrs",
+		PublicAddr: "publicaddrs",
+		AWSConsole: false,
+	}})
+
 }
 
 // TestApplicationAccessDisabled makes sure application access can be disabled
@@ -4434,6 +4539,60 @@ func TestParseSSORequestParams(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestClusterDesktopsGet(t *testing.T) {
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
+
+	type testResponse struct {
+		Items      []ui.Desktop `json:"items"`
+		TotalCount int          `json:"totalCount"`
+	}
+
+	// Add a few desktops.
+	resource, err := types.NewWindowsDesktopV3("desktop1", map[string]string{"test-field": "test-value"}, types.WindowsDesktopSpecV3{
+		Addr:   "addr:3389", // test stripping off rdp port
+		HostID: "host",
+	})
+	require.NoError(t, err)
+	resource2, err := types.NewWindowsDesktopV3("desktop2", map[string]string{"test-field": "test-value2"}, types.WindowsDesktopSpecV3{
+		Addr:   "addr",
+		HostID: "host",
+	})
+	require.NoError(t, err)
+
+	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), resource)
+	require.NoError(t, err)
+	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), resource2)
+	require.NoError(t, err)
+
+	// Make the call.
+	query := url.Values{"sort": []string{"name"}}
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "desktops")
+	re, err := pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+
+	// Test correct response.
+	resp := testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 2)
+	require.Equal(t, 2, resp.TotalCount)
+	require.ElementsMatch(t, resp.Items, []ui.Desktop{{
+		OS:     constants.WindowsOS,
+		Name:   "desktop1",
+		Addr:   "addr",
+		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
+		HostID: "host",
+	}, {
+		OS:     constants.WindowsOS,
+		Name:   "desktop2",
+		Addr:   "addr",
+		Labels: []ui.Label{{Name: "test-field", Value: "test-value2"}},
+		HostID: "host",
+	}})
 }
 
 func TestDesktopActive(t *testing.T) {

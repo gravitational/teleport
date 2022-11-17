@@ -63,13 +63,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	var apps types.Apps
-	for _, server := range appServers {
-		// Skip over TCP apps since they cannot be accessed through web UI.
-		if !server.GetApp().IsTCP() {
-			apps = append(apps, server.GetApp())
-		}
-	}
+	apps, numExcludedApps := extractAppsWithoutTCPEndpoint(appServers)
 
 	return listResourcesGetResponse{
 		Items: ui.MakeApps(ui.MakeAppsConfig{
@@ -80,7 +74,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 			Apps:              apps,
 		}),
 		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		TotalCount: resp.TotalCount - numExcludedApps,
 	}, nil
 }
 
@@ -361,4 +355,21 @@ func (h *Handler) proxyDNSNames() (dnsNames []string) {
 		return []string{h.auth.clusterName}
 	}
 	return dnsNames
+}
+
+// extractAppsWithoutTCPEndpoint iterates over a list of app servers and extracts
+// its application without its URI prefixed with "tcp". It also keeps a
+// counter of how many TCP applications were excluded from the list (e.g. used to
+// subtract it from the TotalCount received from ListResources api).
+func extractAppsWithoutTCPEndpoint(appServers []types.AppServer) (apps types.Apps, numExcluded int) {
+	for _, server := range appServers {
+		// Skip over TCP apps since they cannot be accessed through web UI.
+		if !server.GetApp().IsTCP() {
+			apps = append(apps, server.GetApp())
+		} else {
+			numExcluded++
+		}
+	}
+
+	return apps, numExcluded
 }
