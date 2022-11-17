@@ -9,7 +9,7 @@ Desktop Access and log into a Windows desktop from that domain.
 
 <Admonition type="tip" title="Use The Wizard">
 
-Starting with Teleport 11, you can install Active Directory and configure Teleport Desktop Access through the web UI. See [Getting Started](getting-started.mdx) for more information.
+Starting with Teleport 10.2.6, you can install Active Directory and configure Teleport Desktop Access through the web UI. See [Getting Started](getting-started.mdx) for more information.
 
 Continue with this guide if:
 
@@ -23,7 +23,8 @@ Continue with this guide if:
 This guide requires you to have:
 
 - An Active Directory domain, configured for LDAPS (Teleport requires an
-  encrypted LDAP connection)
+  encrypted LDAP connection). Typically this means installing
+  [AD CS](https://learn.microsoft.com/en-us/windows-server/identity/ad-cs/)
 
 - Access to a Domain Controller
 
@@ -485,6 +486,9 @@ teleport:
 windows_desktop_service:
   enabled: yes
   ldap:
+    # Port must be included for the addr.
+    # LDAPS port is 636 by default,
+    # e.g. example.com:636
     addr: "$LDAP_SERVER_ADDRESS"
     domain: "$LDAP_DOMAIN_NAME"
     username: '$LDAP_USERNAME'
@@ -518,14 +522,17 @@ Service, and then use the following configuration:
 version: v3
 teleport:
   auth_token: /path/to/token
-  auth_server: mytenant.teleport.sh # replace with your cloud tenant
+  proxy_server: mytenant.teleport.sh # replace with your cloud tenant
 windows_desktop_service:
   enabled: yes
   ldap:
+    # Port must be included for the addr.
+    # LDAPS port is 636 by default,
+    # e.g. example.com:636
     addr: "$LDAP_SERVER_ADDRESS"
     domain: "$LDAP_DOMAIN_NAME"
     username: '$LDAP_USERNAME'
-    # This should be the path to the certificate exported in Step 4.
+    # This should be the path to the certificate exported in Step 5.
     der_ca_file: /path/to/cert
   discovery:
     base_dn: "*"
