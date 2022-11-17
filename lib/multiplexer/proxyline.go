@@ -53,7 +53,7 @@ const (
 	PP2TypeAWS   PP2Type = 0xEA // https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-target-groups.html
 	PP2TypeAzure PP2Type = 0xEE // https://learn.microsoft.com/en-us/azure/private-link/private-link-service-overview
 
-	PP2TypeTeleport PP2Type = 0xE4 // Teleport own type for transferring our custom data
+	PP2TypeTeleport PP2Type = 0xE4 // Teleport own type for transferring our custom data such as connection metadata
 )
 
 var (
