@@ -23,6 +23,7 @@ import (
 	"crypto/subtle"
 	"io"
 	"net"
+	"regexp"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -205,4 +206,13 @@ func KeysEqual(ak, bk ssh.PublicKey) bool {
 	a := ak.Marshal()
 	b := bk.Marshal()
 	return subtle.ConstantTimeCompare(a, b) == 1
+}
+
+// OpenSSH cert types look like "<key-type>-cert-v<version>@openssh.com".
+var sshCertTypeRegex = regexp.MustCompile(`^[a-z0-9\-]+-cert-v[0-9]{2}@openssh\.com$`)
+
+// IsSSHCertType checks if the given string looks like an ssh cert type.
+// e.g. ssh-rsa-cert-v01@openssh.com.
+func IsSSHCertType(val string) bool {
+	return sshCertTypeRegex.MatchString(val)
 }
