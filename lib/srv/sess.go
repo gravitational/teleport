@@ -1667,7 +1667,7 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 		defer span.End()
 
 		if err := s.tracker.UpdateExpirationLoop(ctx, s.registry.clock); err != nil {
-			s.log.WithError(err).Debug("Failed to update session tracker expiration")
+			s.log.WithError(err).Warn("Failed to update session tracker expiration")
 		}
 	}()
 
