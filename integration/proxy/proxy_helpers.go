@@ -593,7 +593,7 @@ func mustStartMockALBProxy(t *testing.T, proxyAddr string) *mockAWSALBProxy {
 }
 
 // waitForActivePeerProxyConnections waits for remote cluster to report a minimum number of active proxy peer connections
-func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server, expectedCount int) {
+func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server, expectedCount int) { //nolint:unused
 	require.Eventually(t, func() bool {
 		return tunnel.GetProxyPeerClient().GetConnectionsCount() >= expectedCount
 	},
