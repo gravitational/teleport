@@ -18,10 +18,12 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -29,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
+	"golang.org/x/mod/semver"
 
 	"github.com/gravitational/trace"
 
@@ -330,6 +333,34 @@ func ExtractResourceAndValidate(yaml string) (*services.UnknownResource, error) 
 	return &unknownRes, nil
 }
 
+// attemptListResources first checks that the auth server supports
+// pagination and filtering before attempting to call the new ListResources api.
+func attemptListResources(clt resourcesAPIGetter, r *http.Request, resourceKind string) (*types.ListResourcesResponse, error) {
+	// ListResources for 'pagination' feature was available starting from v8
+	// for DatabaseServers and AppServers, but it wasn't until v9.1 when
+	// 'filtering' feature became available. Also in v8/v9.0, the web UI did not
+	// use this new api, so we will treat v8/v9.0 as not implemented to avoid
+	// false positives (really only applies to DatabaseServers and AppServers).
+	pingRes, err := clt.Ping(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	currVersion := fmt.Sprintf("v%s", pingRes.GetServerVersion())
+	filterSuppotedVersion := "v9.1.0"
+	// If currVersion < filterSuppotedVersion
+	if semver.Compare(currVersion, filterSuppotedVersion) == -1 {
+		return nil, trace.NotImplemented("resource type %s does not support pagination", resourceKind)
+	}
+
+	res, err := listResources(clt, r, resourceKind)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res, nil
+}
+
 // listResources gets a list of resources depending on the type of resource.
 func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string) (*types.ListResourcesResponse, error) {
 	values := r.URL.Query()
@@ -368,14 +399,190 @@ func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string)
 	return clt.ListResources(r.Context(), req)
 }
 
+func handleClusterNodesGet(clt resourcesAPIGetter, r *http.Request, clusterName string, userRoles services.RoleSet) (*listResourcesGetResponse, error) {
+	resp, err := attemptListResources(clt, r, types.KindNode)
+	if err == nil {
+		servers, err := types.ResourcesWithLabels(resp.Resources).AsServers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &listResourcesGetResponse{
+			Items:      ui.MakeServers(clusterName, servers, userRoles),
+			StartKey:   &resp.NextKey,
+			TotalCount: &resp.TotalCount,
+		}, nil
+	}
+
+	if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fallback support.
+	nodes, err := clt.GetNodes(r.Context(), apidefaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &listResourcesGetResponse{
+		Items: ui.MakeServers(clusterName, nodes, userRoles),
+	}, nil
+}
+
+func handleClusterDatabasesGet(clt resourcesAPIGetter, r *http.Request, clusterName string) (*listResourcesGetResponse, error) {
+	resp, err := attemptListResources(clt, r, types.KindDatabaseServer)
+	if err == nil {
+		servers, err := types.ResourcesWithLabels(resp.Resources).AsDatabaseServers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Make a list of all proxied databases.
+		var databases []types.Database
+		for _, server := range servers {
+			databases = append(databases, server.GetDatabase())
+		}
+
+		return &listResourcesGetResponse{
+			Items:      ui.MakeDatabases(clusterName, databases),
+			StartKey:   &resp.NextKey,
+			TotalCount: &resp.TotalCount,
+		}, nil
+	}
+
+	if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fallback support.
+	dbServers, err := clt.GetDatabaseServers(r.Context(), apidefaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var databases []types.Database
+	for _, server := range dbServers {
+		databases = append(databases, server.GetDatabase())
+	}
+
+	return &listResourcesGetResponse{
+		Items: ui.MakeDatabases(clusterName, types.DeduplicateDatabases(databases)),
+	}, nil
+}
+
+func handleClusterAppsGet(clt resourcesAPIGetter, r *http.Request, cfg ui.MakeAppsConfig) (*listResourcesGetResponse, error) {
+	// Check app config is not empty
+	if cfg.Identity == nil || cfg.LocalClusterName == "" || cfg.LocalProxyDNSName == "" || cfg.AppClusterName == "" {
+		return nil, trace.BadParameter("missing MakeAppsConfig required fields")
+	}
+
+	resp, err := attemptListResources(clt, r, types.KindAppServer)
+	if err == nil {
+		appServers, err := types.ResourcesWithLabels(resp.Resources).AsAppServers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		apps, numExcludedApps := extractAppsWithoutTCPEndpoint(appServers)
+		cfg.Apps = apps
+		totalCount := resp.TotalCount - numExcludedApps
+
+		return &listResourcesGetResponse{
+			Items:      ui.MakeApps(cfg),
+			StartKey:   &resp.NextKey,
+			TotalCount: &totalCount,
+		}, nil
+	}
+
+	if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fallback support.
+	appServers, err := clt.GetApplicationServers(r.Context(), apidefaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	apps, _ := extractAppsWithoutTCPEndpoint(appServers)
+	cfg.Apps = types.DeduplicateApps(apps)
+
+	return &listResourcesGetResponse{
+		Items: ui.MakeApps(cfg),
+	}, nil
+}
+
+func handleClusterDesktopsGet(clt resourcesAPIGetter, r *http.Request) (*listResourcesGetResponse, error) {
+	resp, err := attemptListResources(clt, r, types.KindWindowsDesktop)
+	if err == nil {
+		windowsDesktops, err := types.ResourcesWithLabels(resp.Resources).AsWindowsDesktops()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &listResourcesGetResponse{
+			Items:      ui.MakeDesktops(windowsDesktops),
+			StartKey:   &resp.NextKey,
+			TotalCount: &resp.TotalCount,
+		}, nil
+	}
+
+	if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fallback support.
+	windowsDesktops, err := clt.GetWindowsDesktops(r.Context(), types.WindowsDesktopFilter{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	windowsDesktops = types.DeduplicateDesktops(windowsDesktops)
+
+	return &listResourcesGetResponse{
+		Items: ui.MakeDesktops(windowsDesktops),
+	}, nil
+}
+
+func handleClusterKubesGet(clt resourcesAPIGetter, r *http.Request, userRoles services.RoleSet) (*listResourcesGetResponse, error) {
+	resp, err := attemptListResources(clt, r, types.KindKubernetesCluster)
+	if err == nil {
+		clusters, err := types.ResourcesWithLabels(resp.Resources).AsKubeClusters()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &listResourcesGetResponse{
+			Items:      ui.MakeKubeClusters(clusters, userRoles),
+			StartKey:   &resp.NextKey,
+			TotalCount: &resp.TotalCount,
+		}, nil
+	}
+
+	if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fallback support.
+	kubeServices, err := clt.GetKubeServices(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &listResourcesGetResponse{
+		Items: ui.MakeLegacyKubeClusters(kubeServices),
+	}, nil
+}
+
 type listResourcesGetResponse struct {
 	// Items is a list of resources retrieved.
 	Items interface{} `json:"items"`
 	// StartKey is the position to resume search events.
-	StartKey string `json:"startKey"`
+	// 'nil' means that pagination is not supported in the Web UI.
+	StartKey *string `json:"startKey"`
 	// TotalCount is the total count of resources available
 	// after filter.
-	TotalCount int `json:"totalCount"`
+	// 'nil' means that pagination is not supported in the Web UI.
+	TotalCount *int `json:"totalCount"`
 }
 
 type checkAccessToRegisteredResourceResponse struct {
@@ -409,4 +616,11 @@ type resourcesAPIGetter interface {
 	DeleteTrustedCluster(ctx context.Context, name string) error
 	// ListResoures returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+
+	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
+	GetDatabaseServers(context.Context, string, ...services.MarshalOption) ([]types.DatabaseServer, error)
+	GetWindowsDesktops(context.Context, types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
+	GetKubeServices(context.Context) ([]types.Server, error)
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+	Ping(ctx context.Context) (proto.PingResponse, error)
 }

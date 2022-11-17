@@ -1,5 +1,15 @@
 # Changelog
 
+## 10.3.8
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with `tsh aws s3 cp` returning an error. [#18432](https://github.com/gravitational/teleport/pull/18432)
+* Fixed server-side pagination backwards compatibility issue with v9 leaf clusters. [#18532](https://github.com/gravitational/teleport/pull/18532)
+* Updated user locking to terminate in progress TCP app connections. [#18188](https://github.com/gravitational/teleport/pull/18188)
+* Added `arm` and `arm64` container images. [#18272](https://github.com/gravitational/teleport/pull/18272)
+* Added ability to select specific roles when creating a resource access request. [#18538](https://github.com/gravitational/teleport/pull/18538), [webapps#1364](https://github.com/gravitational/webapps/pull/1364)
+
 ## 10.3.7
 
 This release of Teleport contains multiple improvements and bug fixes.

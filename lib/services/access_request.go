@@ -151,16 +151,52 @@ func CalculateAccessCapabilities(ctx context.Context, clt RequestValidatorGetter
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if len(req.ResourceIDs) != 0 {
+		caps.ApplicableRolesForResources, err = v.applicableSearchAsRoles(ctx, req.ResourceIDs, "")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	if req.RequestableRoles {
 		caps.RequestableRoles, err = v.GetRequestableRoles()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
+
 	if req.SuggestedReviewers {
 		caps.SuggestedReviewers = v.SuggestedReviewers
 	}
+
 	return &caps, nil
+}
+
+// applicableSearchAsRoles prunes the search_as_roles and only returns those
+// application for the given list of resourceIDs.
+func (m *RequestValidator) applicableSearchAsRoles(ctx context.Context, resourceIDs []types.ResourceID, loginHint string) ([]string, error) {
+	// First collect all possible search_as_roles.
+	var rolesToRequest []string
+	for _, roleName := range m.Roles.AllowSearch {
+		if !m.CanSearchAsRole(roleName) {
+			continue
+		}
+		rolesToRequest = append(rolesToRequest, roleName)
+	}
+	if len(rolesToRequest) == 0 {
+		return nil, trace.BadParameter(`user attempted a resource request but does not have any "search_as_roles"`)
+	}
+
+	// Prune the list of roles to request to only those which may be necessary
+	// to access the requested resources.
+	var err error
+	rolesToRequest, err = m.pruneResourceRequestRoles(ctx, resourceIDs, loginHint, rolesToRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rolesToRequest, nil
 }
 
 // DynamicAccessExt is an extended dynamic access interface
@@ -1083,22 +1119,7 @@ func (m *RequestValidator) setRolesForResourceRequest(ctx context.Context, req t
 		return nil
 	}
 
-	// First collect all possible search_as_roles.
-	var rolesToRequest []string
-	for _, roleName := range m.Roles.AllowSearch {
-		if !m.CanSearchAsRole(roleName) {
-			continue
-		}
-		rolesToRequest = append(rolesToRequest, roleName)
-	}
-	if len(rolesToRequest) == 0 {
-		return trace.BadParameter(`user attempted a resource request but does not have any "search_as_roles"`)
-	}
-
-	// Prune the list of roles to request to only those which may be necessary
-	// to access the requested resources.
-	var err error
-	rolesToRequest, err = m.pruneResourceRequestRoles(ctx, req.GetRequestedResourceIDs(), req.GetLoginHint(), rolesToRequest)
+	rolesToRequest, err := m.applicableSearchAsRoles(ctx, req.GetRequestedResourceIDs(), req.GetLoginHint())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1391,6 +1412,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			necessaryRoles[role.GetName()] = struct{}{}
 		}
 	}
+
 	if len(necessaryRoles) == 0 {
 		resourcesStr, err := types.ResourceIDsToString(resourceIDs)
 		if err != nil {
