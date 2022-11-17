@@ -3115,7 +3115,7 @@ func TestEventsNodePresence(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatalf("time out sending keep alive")
 	case <-keepAliver.Done():
-		t.Fatalf("unknown problem sending keep ailve")
+		t.Fatalf("unknown problem sending keep alive")
 	}
 
 	// upsert node and keep alives will fail for users with no privileges
