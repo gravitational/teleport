@@ -2129,7 +2129,7 @@ func (h *Handler) siteNodeConnect(
 	w http.ResponseWriter,
 	r *http.Request,
 	p httprouter.Params,
-	ctx *SessionContext,
+	sctx *SessionContext,
 	site reversetunnel.RemoteSite,
 ) (interface{}, error) {
 	q := r.URL.Query()
@@ -2144,16 +2144,12 @@ func (h *Handler) siteNodeConnect(
 
 	// Fetching nodes is quite slow when many nodes exist so fetch it once and
 	// pass the value to the methods that require it.
-	clt, err := ctx.GetUserClient(site)
+	clt, err := sctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	namespace := apidefaults.Namespace
-	if req.Namespace != "" {
-		namespace = req.Namespace
-	}
-	servers, err := clt.GetNodes(r.Context(), namespace)
+	servers, err := clt.GetNodes(r.Context(), apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2190,8 +2186,8 @@ func (h *Handler) siteNodeConnect(
 		sessionData = trackerToLegacySession(tracker, site.GetName())
 	}
 
-	h.log.Debugf("New terminal request for ns=%s, server=%s, login=%s, sid=%s, websid=%s.",
-		req.Namespace, req.Server, req.Login, sessionData.ID, ctx.GetSessionID())
+	h.log.Debugf("New terminal request for server=%s, login=%s, sid=%s, websid=%s.",
+		req.Server, req.Login, sessionData.ID, sctx.GetSessionID())
 
 	authAccessPoint, err := site.CachingAccessPoint()
 	if err != nil {
@@ -2206,11 +2202,10 @@ func (h *Handler) siteNodeConnect(
 	}
 
 	req.KeepAliveInterval = netConfig.GetKeepAliveInterval()
-	req.Namespace = apidefaults.Namespace
 	req.ProxyHostPort = h.ProxyHostPort()
 	req.Cluster = site.GetName()
 
-	term, err := NewTerminal(r.Context(), *req, clt, ctx, servers, sessionData)
+	term, err := NewTerminal(r.Context(), *req, clt, sctx, servers, sessionData)
 	if err != nil {
 		h.log.WithError(err).Error("Unable to create terminal.")
 		return nil, trace.Wrap(err)

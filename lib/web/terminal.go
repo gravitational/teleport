@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -62,9 +63,6 @@ type TerminalRequest struct {
 
 	// SessionID is a Teleport session ID to join as.
 	SessionID session.ID `json:"sid"`
-
-	// Namespace is node namespace.
-	Namespace string `json:"namespace"`
 
 	// ProxyHostPort is the address of the server to connect to.
 	ProxyHostPort string `json:"-"`
@@ -337,7 +335,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	}
 
 	clientConfig.ForwardAgent = client.ForwardAgentLocal
-	clientConfig.Namespace = t.params.Namespace
+	clientConfig.Namespace = apidefaults.Namespace
 	clientConfig.Stdout = stream
 	clientConfig.Stderr = stream
 	clientConfig.Stdin = stream
