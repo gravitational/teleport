@@ -146,7 +146,6 @@ RUN yum groupinstall -y 'Development Tools' && \
     devtoolset-11-* \
     # required by libbpf
     elfutils-libelf-devel-static \
-    git \
     net-tools \
     # required by Teleport PAM support
     pam-devel \
@@ -157,6 +156,7 @@ RUN yum groupinstall -y 'Development Tools' && \
     zip \
     # required by libbpf
     zlib-static && \
+    yum -y install https://packages.endpointdev.com/rhel/7/os/x86_64/endpoint-repo.x86_64.rpm git && \
     yum clean all
 
 # Install etcd.

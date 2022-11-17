@@ -48,6 +48,7 @@ type ProxyConfig struct {
 
 // ProxyClient returns kubernetes client using local teleport proxy
 func ProxyClient(cfg ProxyConfig) (*kubernetes.Clientset, *rest.Config, error) {
+	ctx := context.Background()
 	authServer := cfg.T.Process.GetAuthServer()
 	clusterName, err := authServer.GetClusterName()
 	if err != nil {
@@ -65,14 +66,14 @@ func ProxyClient(cfg ProxyConfig) (*kubernetes.Clientset, *rest.Config, error) {
 	}
 	ttl := roles.AdjustSessionTTL(10 * time.Minute)
 
-	ca, err := authServer.GetCertAuthority(context.Background(), types.CertAuthID{
+	ca, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(ca)
+	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

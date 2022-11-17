@@ -120,11 +120,11 @@ func TestCreateGithubUser(t *testing.T) {
 	tt := setupGithubContext(ctx, t)
 
 	// Dry-run creation of Github user.
-	user, err := tt.a.createGithubUser(context.Background(), &createUserParams{
-		connectorName: "github",
-		username:      "foo@example.com",
-		roles:         []string{"admin"},
-		sessionTTL:    1 * time.Minute,
+	user, err := tt.a.createGithubUser(context.Background(), &CreateUserParams{
+		ConnectorName: "github",
+		Username:      "foo@example.com",
+		Roles:         []string{"admin"},
+		SessionTTL:    1 * time.Minute,
 	}, true)
 	require.NoError(t, err)
 	require.Equal(t, user.GetName(), "foo@example.com")
@@ -134,11 +134,11 @@ func TestCreateGithubUser(t *testing.T) {
 	require.Error(t, err)
 
 	// Create GitHub user with 1 minute expiry.
-	_, err = tt.a.createGithubUser(context.Background(), &createUserParams{
-		connectorName: "github",
-		username:      "foo",
-		roles:         []string{"admin"},
-		sessionTTL:    1 * time.Minute,
+	_, err = tt.a.createGithubUser(context.Background(), &CreateUserParams{
+		ConnectorName: "github",
+		Username:      "foo",
+		Roles:         []string{"admin"},
+		SessionTTL:    1 * time.Minute,
 	}, false)
 	require.NoError(t, err)
 
@@ -193,81 +193,69 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 	}
 
 	ssoDiagInfoCalls := 0
-
-	m := &mockedGithubManager{}
-	m.createSSODiagnosticInfo = func(ctx context.Context, authKind string, authRequestID string, info types.SSODiagnosticInfo) error {
+	createSSODiagnosticInfoStub := func(ctx context.Context, authKind string, authRequestID string, entry types.SSODiagnosticInfo) error {
 		ssoDiagInfoCalls++
 		return nil
 	}
 
-	// TestFlow: false
-	m.testFlow = false
+	ssoDiagContextFixture := func(testFlow bool) *SSODiagContext {
+		diagCtx := NewSSODiagContext(types.KindGithub, SSODiagServiceFunc(createSSODiagnosticInfoStub))
+		diagCtx.RequestID = uuid.New().String()
+		diagCtx.Info.TestFlow = testFlow
+		return diagCtx
+	}
+	m := &mockedGithubManager{}
 
-	// Test success event.
-	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error) {
-		diagCtx.info.GithubClaims = claims
+	// Test success event, non-test-flow.
+	diagCtx := ssoDiagContextFixture(false /* testFlow */)
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
+		diagCtx.Info.GithubClaims = claims
 		return auth, nil
 	}
-	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, nil, tt.a.emitter)
+	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, diagCtx, nil, tt.a.emitter)
 	require.Equal(t, tt.mockEmitter.LastEvent().GetType(), events.UserLoginEvent)
 	require.Equal(t, tt.mockEmitter.LastEvent().GetCode(), events.UserSSOLoginCode)
 	require.Equal(t, ssoDiagInfoCalls, 0)
 	tt.mockEmitter.Reset()
 
-	// Test failure event.
-	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error) {
-		diagCtx.info.GithubClaims = claims
+	// Test failure event, non-test-flow.
+	diagCtx = ssoDiagContextFixture(false /* testFlow */)
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
+		diagCtx.Info.GithubClaims = claims
 		return auth, trace.BadParameter("")
 	}
-	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, nil, tt.a.emitter)
+	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, diagCtx, nil, tt.a.emitter)
 	require.Equal(t, tt.mockEmitter.LastEvent().GetCode(), events.UserSSOLoginFailureCode)
 	require.Equal(t, ssoDiagInfoCalls, 0)
 
-	// TestFlow: true
-	m.testFlow = true
-
-	// Test success event.
-	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error) {
-		diagCtx.info.GithubClaims = claims
+	// Test success event, test-flow.
+	diagCtx = ssoDiagContextFixture(true /* testFlow */)
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
+		diagCtx.Info.GithubClaims = claims
 		return auth, nil
 	}
-	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, nil, tt.a.emitter)
+	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, diagCtx, nil, tt.a.emitter)
 	require.Equal(t, tt.mockEmitter.LastEvent().GetType(), events.UserLoginEvent)
 	require.Equal(t, tt.mockEmitter.LastEvent().GetCode(), events.UserSSOTestFlowLoginCode)
 	require.Equal(t, ssoDiagInfoCalls, 1)
 	tt.mockEmitter.Reset()
 
-	// Test failure event.
-	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error) {
-		diagCtx.info.GithubClaims = claims
+	// Test failure event, test-flow.
+	diagCtx = ssoDiagContextFixture(true /* testFlow */)
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
+		diagCtx.Info.GithubClaims = claims
 		return auth, trace.BadParameter("")
 	}
-	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, nil, tt.a.emitter)
+	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, diagCtx, nil, tt.a.emitter)
 	require.Equal(t, tt.mockEmitter.LastEvent().GetCode(), events.UserSSOTestFlowLoginFailureCode)
 	require.Equal(t, ssoDiagInfoCalls, 2)
 }
 
 type mockedGithubManager struct {
-	mockValidateGithubAuthCallback func(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error)
-	createSSODiagnosticInfo        func(ctx context.Context, authKind string, authRequestID string, info types.SSODiagnosticInfo) error
-
-	testFlow bool
+	mockValidateGithubAuthCallback func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error)
 }
 
-func (m *mockedGithubManager) newSSODiagContext(authKind string) *ssoDiagContext {
-	if m.createSSODiagnosticInfo == nil {
-		panic("mockedGithubManager.createSSODiagnosticInfo is nil, newSSODiagContext cannot succeed.")
-	}
-
-	return &ssoDiagContext{
-		authKind:                authKind,
-		createSSODiagnosticInfo: m.createSSODiagnosticInfo,
-		requestID:               uuid.New().String(),
-		info:                    types.SSODiagnosticInfo{TestFlow: m.testFlow},
-	}
-}
-
-func (m *mockedGithubManager) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error) {
+func (m *mockedGithubManager) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
 	if m.mockValidateGithubAuthCallback != nil {
 		return m.mockValidateGithubAuthCallback(ctx, diagCtx, q)
 	}

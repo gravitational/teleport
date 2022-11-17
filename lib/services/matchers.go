@@ -70,10 +70,22 @@ type AzureMatcher struct {
 	ResourceGroups []string
 	// Types are Azure resource types to match, for example "mysql" or "postgres".
 	Types []string
-	// Regions are Azure regions to query for databases.
+	// Regions are Azure regions to query for resources.
 	Regions []string
 	// ResourceTags are Azure tags to match.
 	ResourceTags types.Labels
+}
+
+// GCPMatcher matches GCP resources.
+type GCPMatcher struct {
+	// Types are GKE resource types to match: "gke".
+	Types []string `yaml:"types,omitempty"`
+	// Locations are GCP locations to search resources for.
+	Locations []string `yaml:"locations,omitempty"`
+	// Tags are GCP labels to match.
+	Tags types.Labels `yaml:"tags,omitempty"`
+	// ProjectIDs are the GCP project IDs where the resources are deployed.
+	ProjectIDs []string `yaml:"project_ids,omitempty"`
 }
 
 // MatchResourceLabels returns true if any of the provided selectors matches the provided database.
