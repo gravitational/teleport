@@ -46,9 +46,11 @@ import (
 
 const sessionRecorderID = "session-recorder"
 
-const PresenceVerifyInterval = time.Second * 15
-const PresenceMaxDifference = time.Minute
-const sessionMaxLifetime = time.Hour * 24
+const (
+	PresenceVerifyInterval = time.Second * 15
+	PresenceMaxDifference  = time.Minute
+	sessionMaxLifetime     = time.Hour * 24
+)
 
 // remoteClient is either a kubectl or websocket client.
 type remoteClient interface {
@@ -300,6 +302,9 @@ type session struct {
 
 	// Set if we should broadcast information about participant requirements to the session.
 	displayParticipantRequirements bool
+
+	// eventsWaiter is used to wait for events to be emitted when a session is closed.
+	eventsWaiter sync.WaitGroup
 }
 
 // newSession creates a new session in pending mode.
@@ -378,7 +383,7 @@ func (s *session) checkPresence() error {
 		if participant.Mode == string(types.SessionModeratorMode) && time.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
 			s.log.Debugf("Participant %v is not active, kicking.", participant.ID)
 			id, _ := uuid.Parse(participant.ID)
-			err := s.leave(id)
+			err := s.unlockedLeave(id)
 			if err != nil {
 				s.log.WithError(err).Warnf("Failed to kick participant %v for inactivity.", participant.ID)
 			}
@@ -420,9 +425,6 @@ func (s *session) launch() error {
 
 	eventPodMeta := request.eventPodMeta(request.context, s.sess.creds)
 	s.io.OnWriteError = func(idString string, err error) {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-
 		if idString == sessionRecorderID {
 			s.log.Error("Failed to write to session recorder, closing session.")
 			s.Close()
@@ -430,11 +432,18 @@ func (s *session) launch() error {
 
 		s.log.Errorf("Encountered error: %v with party %v. Disconnecting them from the session.", err, idString)
 		id, _ := uuid.Parse(idString)
-		if s.parties[id] != nil {
-			err = s.leave(id)
-			if err != nil {
-				s.log.Errorf("Failed to disconnect party %v from the session: %v.", idString, err)
-			}
+
+		if err = s.leave(id); err != nil {
+			s.log.Errorf("Failed to disconnect party %v from the session: %v.", idString, err)
+		}
+	}
+
+	s.io.OnReadError = func(idString string, err error) {
+		s.log.Errorf("Encountered error: %v with party %v. Disconnecting them from the session.", err, idString)
+		id, _ := uuid.Parse(idString)
+
+		if err = s.leave(id); err != nil {
+			s.log.Errorf("Failed to disconnect party %v from the session: %v.", idString, err)
 		}
 	}
 
@@ -442,6 +451,10 @@ func (s *session) launch() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer func() {
+		// catch err by reference so we can access any write into it in the two calls that follow
+		onFinished(err)
+	}()
 
 	termParams := tsession.TerminalParams{
 		W: 100,
@@ -500,18 +513,11 @@ func (s *session) launch() error {
 		}
 	}()
 
-	if err := s.tracker.UpdateState(s.forwarder.ctx, types.SessionState_SessionStateRunning); err != nil {
+	if err = s.tracker.UpdateState(s.forwarder.ctx, types.SessionState_SessionStateRunning); err != nil {
 		s.log.Warn("Failed to set tracker state to running")
 	}
 
-	var (
-		executor remotecommand.Executor
-	)
-
-	defer func() {
-		// catch err by reference so we can access any write into it in the two calls that follow
-		onFinished(err)
-	}()
+	var executor remotecommand.Executor
 
 	executor, err = s.forwarder.getExecutor(s.ctx, s.sess, s.req)
 	if err != nil {
@@ -532,7 +538,6 @@ func (s *session) launch() error {
 		s.log.WithError(err).Warning("Executor failed while streaming.")
 		return trace.Wrap(err)
 	}
-
 	return nil
 }
 
@@ -648,8 +653,15 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			}
 		}()
 	}
+	// If we get here, it means we are going to have a session.end event.
+	// This increments the waiter so that session.Close() guarantees that once called
+	// the events are emitted before closing the emitter/recorder.
+	// It might happen when a user disconnects or when a moderator forces an early
+	// termination.
+	s.eventsWaiter.Add(1)
 	// receive the exec error returned from API call to kube cluster
 	return func(errExec error) {
+		defer s.eventsWaiter.Done()
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
@@ -884,6 +896,15 @@ func (s *session) BroadcastMessage(format string, args ...interface{}) {
 
 // leave removes a party from the session.
 func (s *session) leave(id uuid.UUID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.unlockedLeave(id)
+}
+
+// unlockedLeave removes a party from the session without locking the mutex.
+// In order to call this function, lock the mutex before.
+func (s *session) unlockedLeave(id uuid.UUID) error {
+	var errs []error
 	if s.tracker.GetState() == types.SessionState_SessionStateTerminated {
 		return nil
 	}
@@ -928,24 +949,33 @@ func (s *session) leave(id uuid.UUID) error {
 	s.log.Debugf("No longer tracking participant: %v", party.ID)
 	err := s.tracker.RemoveParticipant(s.forwarder.ctx, party.ID.String())
 	if err != nil {
-		return trace.Wrap(err)
+		errs = append(errs, trace.Wrap(err))
 	}
 
 	err = party.Close()
 	if err != nil {
 		s.log.WithError(err).Error("Error closing party")
-		return trace.Wrap(err)
+		errs = append(errs, trace.Wrap(err))
 	}
 
 	if len(s.parties) == 0 || id == s.initiator {
 		go func() {
+			// Currently, Teleport closes the session when the initiator exits.
+			// So, it is safe to remove it
+			s.forwarder.deleteSession(s.id)
+			// close session
 			err := s.Close()
 			if err != nil {
 				s.log.WithError(err).Errorf("Failed to close session")
 			}
 		}()
+		return trace.NewAggregate(errs...)
+	}
 
-		return nil
+	// We wait until here to return to check if we should terminate the
+	// session.
+	if len(errs) > 0 {
+		return trace.NewAggregate(errs...)
 	}
 
 	canStart, options, err := s.canStart()
@@ -1018,10 +1048,9 @@ func (s *session) canStart() (bool, auth.PolicyOptions, error) {
 
 // Close terminates a session and disconnects all participants.
 func (s *session) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	s.closeOnce.Do(func() {
+		s.mu.Lock()
+
 		s.BroadcastMessage("Closing session...")
 
 		s.io.Close()
@@ -1037,9 +1066,14 @@ func (s *session) Close() error {
 				s.log.WithError(err).Errorf("Failed to disconnect party %v", id.String())
 			}
 		}
+		recorder := s.recorder
+		s.mu.Unlock()
 
-		if s.recorder != nil {
-			s.recorder.Close(s.forwarder.ctx)
+		if recorder != nil {
+			// wait for events to be emitted before closing the recorder/emitter.
+			// If we close it immediately we will lose session.end events.
+			s.eventsWaiter.Wait()
+			recorder.Close(s.forwarder.ctx)
 		}
 	})
 
