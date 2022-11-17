@@ -9,6 +9,8 @@ updates:
       # TODO(xacrimon): Update Firestore and solve deprecations.
       - dependency-name: cloud.google.com/go/firestore
       # Breaks backwards compatibility
+      # TODO(greedy52): Update mongo-driver and fix API changes.
+      - dependency-name: go.mongodb.org/mongo-driver
       - dependency-name: github.com/gravitational/ttlmap
       # Must be kept in-sync with libbpf
       - dependency-name: github.com/aquasecurity/libbpfgo
