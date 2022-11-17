@@ -27,7 +27,127 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 )
+
+type failingTrackerService struct {
+	services.SessionTrackerService
+	updated     chan struct{}
+	updateError chan error
+}
+
+func (f *failingTrackerService) CreateSessionTracker(ctx context.Context, s types.SessionTracker) (types.SessionTracker, error) {
+	return s, nil
+}
+
+func (f *failingTrackerService) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
+	f.updated <- struct{}{}
+
+	return <-f.updateError
+}
+
+func waitForUpdate(t *testing.T, svc *failingTrackerService, done chan error) {
+	t.Helper()
+	select {
+	case <-svc.updated:
+	case err := <-done:
+		t.Fatal("Update loop terminated early", err.Error())
+	case <-time.After(10 * time.Second):
+		t.Fatal("Timed out waiting for session tracker update")
+	}
+}
+
+func TestSessionTracker_UpdateRetry(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	clock := clockwork.NewFakeClock()
+
+	svc := &failingTrackerService{
+		updated:     make(chan struct{}),
+		updateError: make(chan error),
+	}
+	spec := types.SessionTrackerSpecV1{
+		Created:   clock.Now(),
+		SessionID: "session",
+		Expires:   clock.Now().Add(10 * time.Hour),
+	}
+	tracker, err := NewSessionTracker(ctx, spec, svc)
+	require.NoError(t, err)
+	done := make(chan error)
+
+	updateError := trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")
+
+	// start the update loop
+	go func() {
+		done <- tracker.UpdateExpirationLoop(ctx, clock)
+	}()
+
+	// Walk through a few attempts to update the session tracker. Even iterations
+	// will fail and force the retry mechanism to kick in. Odd iterations update
+	// session trackers successfully on first attempt.
+	for i := 0; i < 4; i++ {
+		// Wait for the ticker to be ready. On odd iterations we have to block on 2 instead of 1
+		// because clockwork.fakeTicker.Stop() doesn't result in removal of the ticker from the clockwork.FakeClock
+		// sleepers list. When the ticker is recreated after the retry finishes, the clock ends up with a sleeper
+		// for both the original ticker and the new ticker.
+		if i%2 == 1 {
+			clock.BlockUntil(2)
+		} else {
+			clock.BlockUntil(1)
+		}
+
+		// advance the clock to fire the ticker
+		clock.Advance(sessionTrackerExpirationUpdateInterval)
+
+		// wait for update to be called
+		waitForUpdate(t, svc, done)
+
+		// send back an error on even iterations
+		if i%2 == 0 {
+			svc.updateError <- updateError
+
+			// wait for the retry to be engaged
+			clock.BlockUntil(1)
+
+			// advance far enough for the retry to fire
+			clock.Advance(65 * time.Second)
+
+			// wait for the update to be called again
+			waitForUpdate(t, svc, done)
+		}
+
+		svc.updateError <- nil
+	}
+
+	// advance the clock for one last update attempt
+	clock.BlockUntil(1)
+	clock.Advance(sessionTrackerExpirationUpdateInterval)
+
+	// wait for update to be called and return an error to
+	// get in the retry path
+	waitForUpdate(t, svc, done)
+	svc.updateError <- updateError
+
+	// advance far enough for the retry to fire
+	clock.BlockUntil(1)
+	clock.Advance(65 * time.Second)
+
+	// wait for update to be called from the retry loop and return an error
+	waitForUpdate(t, svc, done)
+	// update the clock to make the tracker stale and abort the retry loop
+	clock.Advance(10 * time.Hour)
+	svc.updateError <- updateError
+
+	// ensure the update loop ends
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, updateError)
+	case <-time.After(10 * time.Second):
+		t.Fatal("Timed out waiting for update loop to terminate")
+	}
+}
 
 func TestSessionTracker(t *testing.T) {
 	t.Parallel()
@@ -53,22 +173,20 @@ func TestSessionTracker(t *testing.T) {
 
 	t.Run("UpdateExpirationLoop", func(t *testing.T) {
 		cancelCtx, cancel := context.WithCancel(ctx)
-		done := make(chan struct{})
-
-		duration := time.Minute
-		ticker := clock.NewTicker(duration)
-		defer ticker.Stop()
+		done := make(chan error)
 
 		// Start update expiration goroutine
 		go func() {
-			tracker.updateExpirationLoop(cancelCtx, ticker)
-			close(done)
+			done <- tracker.UpdateExpirationLoop(cancelCtx, clock)
 		}()
+
+		// wait until the ticker has been created
+		clock.BlockUntil(1)
 
 		// lock expiry and advance clock
 		tracker.trackerCond.L.Lock()
-		clock.Advance(duration)
-		expectedExpiry := tracker.tracker.Expiry().Add(duration)
+		clock.Advance(sessionTrackerExpirationUpdateInterval)
+		expectedExpiry := tracker.tracker.Expiry().Add(sessionTrackerExpirationUpdateInterval)
 
 		// wait for expiration to get updated
 		tracker.trackerCond.Wait()
@@ -78,8 +196,8 @@ func TestSessionTracker(t *testing.T) {
 
 		// canceling the goroutine's ctx should halt the update loop
 		cancel()
-		_, ok := <-done
-		require.False(t, ok)
+		err := <-done
+		require.NoError(t, err)
 	})
 
 	t.Run("State", func(t *testing.T) {

@@ -762,6 +762,8 @@ enum PrivateKeyType {
   RAW = 0;
   // PKCS11 is a private key backed by a PKCS11 device such as HSM.
   PKCS11 = 1;
+  // GCP_KMS is a private key backed by GCP KMS.
+  GCP_KMS = 2;
 }
 
 // SSHKeyPair is an SSH CA key pair.
@@ -1811,6 +1813,8 @@ message AccessCapabilities {
   repeated string RequestableRoles = 1 [(gogoproto.jsontag) = "requestable_roles,omitempty"];
   // SuggestedReviewers is a list of all reviewers which are suggested by the user's roles.
   repeated string SuggestedReviewers = 2 [(gogoproto.jsontag) = "suggested_reviewers,omitempty"];
+  // ApplicableRolesForResources is a list of the roles applicable for access to a given set of resources.
+  repeated string ApplicableRolesForResources = 3 [(gogoproto.jsontag) = "applicable_roles,omitempty"];
 }
 
 // AccessCapabilitiesRequest encodes parameters for the GetAccessCapabilities method.
@@ -1824,6 +1828,12 @@ message AccessCapabilitiesRequest {
   // SuggestedReviewers is a flag indicating that we would like to view the list of all
   // reviewers which are suggested by the user's roles.
   bool SuggestedReviewers = 3 [(gogoproto.jsontag) = "suggested_reviewers,omitempty"];
+  // ResourceIDs is the list of the ResourceIDs of the resources we would like to view
+  // the necessary roles for.
+  repeated ResourceID ResourceIDs = 4 [
+    (gogoproto.jsontag) = "resource_ids,omitempty",
+    (gogoproto.nullable) = false
+  ];
 }
 
 // ResourceID is a unique identifier for a teleport resource.
@@ -2987,6 +2997,11 @@ message KubernetesClusterSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "aws,omitempty"
   ];
+  // GCP holds the required GCP information for Teleport to access the cluster.
+  KubeGCP GCP = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "gcp,omitempty"
+  ];
 }
 
 // KubeAzure contains the Azure information about the cluster.
@@ -3008,6 +3023,16 @@ message KubeAWS {
   // AccountID is a AWS Account ID.
   string AccountID = 2 [(gogoproto.jsontag) = "account_id,omitempty"];
   // Name is a AWS EKS cluster name.
+  string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
+}
+
+// KubeGCP contains the GCP information about the cluster.
+message KubeGCP {
+  // Location is a GKE cluster location.
+  string Location = 1 [(gogoproto.jsontag) = "location,omitempty"];
+  // ProjectID is the GKE Project ID.
+  string ProjectID = 2 [(gogoproto.jsontag) = "project_id,omitempty"];
+  // Name is a GCP GKE cluster name.
   string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
 }
 
@@ -3504,6 +3529,7 @@ message GithubConnectorSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "teams_to_roles"
   ];
+  string EndpointURL = 7 [(gogoproto.jsontag) = "endpoint_url"];
 }
 
 // GithubAuthRequest is the request to start Github OAuth2 flow.

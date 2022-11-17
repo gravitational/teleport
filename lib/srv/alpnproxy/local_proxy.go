@@ -87,7 +87,8 @@ type LocalProxyConfig struct {
 // LocalProxyMiddleware provides callback functions for LocalProxy.
 type LocalProxyMiddleware interface {
 	// OnNewConnection is a callback triggered when a new downstream connection is
-	// accepted by the local proxy.
+	// accepted by the local proxy. If an error is returned, the connection will be closed
+	// by the local proxy.
 	OnNewConnection(ctx context.Context, lp *LocalProxy, conn net.Conn) error
 	// OnStart is a callback triggered when the local proxy starts.
 	OnStart(ctx context.Context, lp *LocalProxy) error
@@ -163,7 +164,10 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 
 		if l.cfg.Middleware != nil {
 			if err := l.cfg.Middleware.OnNewConnection(ctx, l, conn); err != nil {
-				l.cfg.Log.WithError(err).Error("Middleware failed to handle new connection.")
+				l.cfg.Log.WithError(err).Error("Middleware failed to handle client connection.")
+				if err := conn.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+					l.cfg.Log.WithError(err).Debug("Failed to close client connection.")
+				}
 				continue
 			}
 		}

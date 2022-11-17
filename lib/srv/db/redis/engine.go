@@ -24,9 +24,9 @@ import (
 
 	"github.com/go-redis/redis/v9"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -258,7 +258,7 @@ func (e *Engine) createOnClientConnectFunc(sessionCtx *common.Session, username,
 	// database session. Fetching an user's password on each new connection
 	// ensures the correct password is used for each shard connection when
 	// Redis is in cluster mode.
-	case apiutils.SliceContainsStr(sessionCtx.Database.GetManagedUsers(), sessionCtx.DatabaseUser):
+	case slices.Contains(sessionCtx.Database.GetManagedUsers(), sessionCtx.DatabaseUser):
 		return fetchUserPasswordOnConnect(sessionCtx, e.Users, e.Audit)
 
 	default:

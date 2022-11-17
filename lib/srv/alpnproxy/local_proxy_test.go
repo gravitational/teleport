@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -34,6 +35,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -388,6 +390,51 @@ func TestCheckDBCerts(t *testing.T) {
 			tt.errAssertFn(t, lp.CheckDBCerts(tt.dbRoute))
 		})
 	}
+}
+
+type mockMiddlewareConnUnauth struct {
+}
+
+func (m *mockMiddlewareConnUnauth) OnNewConnection(_ context.Context, _ *LocalProxy, _ net.Conn) error {
+	return trace.AccessDenied("access denied.")
+}
+
+func (m *mockMiddlewareConnUnauth) OnStart(_ context.Context, _ *LocalProxy) error {
+	return nil
+}
+
+var _ LocalProxyMiddleware = (*mockMiddlewareConnUnauth)(nil)
+
+func TestLocalProxyClosesConnOnError(t *testing.T) {
+	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
+	lp, err := NewLocalProxy(LocalProxyConfig{
+		Listener:           mustCreateLocalListener(t),
+		RemoteProxyAddr:    hs.Listener.Addr().String(),
+		Protocols:          []common.Protocol{common.ProtocolHTTP},
+		ParentContext:      context.Background(),
+		InsecureSkipVerify: true,
+		Middleware:         &mockMiddlewareConnUnauth{},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := lp.Close()
+		require.NoError(t, err)
+		hs.Close()
+	})
+	go func() {
+		assert.NoError(t, lp.Start(context.Background()))
+	}()
+
+	conn, err := net.Dial("tcp", lp.GetAddr())
+	require.NoError(t, err)
+
+	// set a read deadline so that if the connection is not closed,
+	// this test will fail quickly instead of hanging.
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	buf := make([]byte, 512)
+	_, err = conn.Read(buf)
+	require.Error(t, err)
+	require.ErrorIs(t, err, io.EOF)
 }
 
 func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *LocalProxy {
