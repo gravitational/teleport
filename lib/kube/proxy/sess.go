@@ -1086,7 +1086,7 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 
 	go func() {
 		if err := s.tracker.UpdateExpirationLoop(s.forwarder.ctx, s.forwarder.cfg.Clock); err != nil {
-			s.log.WithError(err).Debug("Failed to update session tracker expiration")
+			s.log.WithError(err).Warn("Failed to update session tracker expiration")
 		}
 	}()
 

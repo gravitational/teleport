@@ -915,7 +915,7 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 
 	go func() {
 		if err := tracker.UpdateExpirationLoop(ctx, s.cfg.Clock); err != nil {
-			s.log.WithError(err).Debugf("Failed to update session tracker expiration for session %v", sessionCtx.ID)
+			s.log.WithError(err).Warnf("Failed to update session tracker expiration for session %v", sessionCtx.ID)
 		}
 	}()
 
