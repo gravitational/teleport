@@ -411,7 +411,7 @@ func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string)
 	nextKey, left := startKey, limit
 
 	for {
-		moreResponse, err := fetchMoreResources(clt, r.Context(), &req, nextKey, left)
+		moreResponse, err := fetchMoreResources(r.Context(), clt, &req, nextKey, left)
 		if err != nil || moreResponse.Response == nil {
 			return response, err
 		}
@@ -442,8 +442,8 @@ type fetchMoreResponse struct {
 }
 
 func fetchMoreResources(
-	clt resourcesAPIGetter,
 	ctx context.Context,
+	clt resourcesAPIGetter,
 	previousReq *proto.ListResourcesRequest,
 	nextKey string,
 	left int32,
