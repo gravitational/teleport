@@ -29,6 +29,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // DestinationDirectory is a Destination that writes to the local filesystem
@@ -228,4 +229,12 @@ func (dd *DestinationDirectory) Read(name string) ([]byte, error) {
 
 func (dd *DestinationDirectory) String() string {
 	return fmt.Sprintf("directory %s", dd.Path)
+}
+
+func (dd *DestinationDirectory) TryLock() (func() error, error) {
+	// TryLock should only be used for bot data directory and not for
+	// destinations until an investigation on how locks will play with
+	// ACLs has been completed.
+	unlock, err := utils.FSTryWriteLock(filepath.Join(dd.Path, "lock"))
+	return unlock, trace.Wrap(err)
 }

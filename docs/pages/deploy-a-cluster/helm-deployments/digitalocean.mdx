@@ -45,11 +45,7 @@ While the Kubernetes cluster is being provisioned, follow the "Getting Started" 
 
 ## Step 2/4. Install Teleport 
 
-Add the Teleport repository to Helm.
-
-```code
-$ helm repo add teleport https://charts.releases.teleport.dev
-```
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
 Install Teleport in your Kubernetes cluster using the `teleport-cluster` Helm chart.
 ```code
@@ -178,10 +174,6 @@ Enter your OTP token:
   Valid until:        2021-10-27 06:37:15 +0000 UTC [valid for 12h0m0s]
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
-
-### Grant Kubernetes cluster access to your user
-
-(!docs/pages/includes/kubernetes-access/rbac.mdx!)
 
 ### Select the Kubernetes cluster
 

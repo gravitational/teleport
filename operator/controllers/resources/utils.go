@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gravitational/trace"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
@@ -48,8 +47,9 @@ func isResourceOriginKubernetes(resource types.Resource) bool {
 }
 
 // checkOwnership takes an existing resource and validates the operator owns it.
-// It returns an ownership condition and an error if the resource is not owned by the operator
-func checkOwnership(existingResource types.Resource) (metav1.Condition, error) {
+// It returns an ownership condition and a boolean representing if the resource is
+// owned by the operator
+func checkOwnership(existingResource types.Resource) (metav1.Condition, bool) {
 	if existingResource == nil {
 		condition := metav1.Condition{
 			Type:    ConditionTypeTeleportResourceOwned,
@@ -57,7 +57,7 @@ func checkOwnership(existingResource types.Resource) (metav1.Condition, error) {
 			Reason:  ConditionReasonNewResource,
 			Message: "No existing Teleport resource found with that name. The created resource is owned by the operator.",
 		}
-		return condition, nil
+		return condition, true
 	}
 	if !isResourceOriginKubernetes(existingResource) {
 		// Existing Teleport resource does not belong to us, bailing out
@@ -68,7 +68,7 @@ func checkOwnership(existingResource types.Resource) (metav1.Condition, error) {
 			Reason:  ConditionReasonOriginLabelNotMatching,
 			Message: "A resource with the same name already exists in Teleport and does not have the Kubernetes origin label. Refusing to reconcile.",
 		}
-		return condition, trace.AlreadyExists("unowned resource '%s' already exists", existingResource)
+		return condition, false
 	}
 
 	condition := metav1.Condition{
@@ -77,7 +77,7 @@ func checkOwnership(existingResource types.Resource) (metav1.Condition, error) {
 		Reason:  ConditionReasonOriginLabelMatching,
 		Message: "Teleport resource has the Kubernetes origin label.",
 	}
-	return condition, nil
+	return condition, true
 }
 
 // getReconciliationConditionFromError takes an error returned by a call to Teleport and returns a

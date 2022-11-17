@@ -596,6 +596,16 @@ $ kubectl config get-contexts
 #          aws-microk8s                                aws                           aws-microk8s
 ```
 
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--all` | false | Boolean | Whether to generate a kubeconfig for every Kubernetes cluster the current Teleport user has access to. If this is false, `tsh` will only generate a kubeconfig for the cluster specified in the `tsh kube login` command.|  
+| `--as` | none | string | The Kubernetes user that the current Teleport user will log in as when they authenticate to the specified Kubernetes cluster. <br/><br/>This uses [Kubernetes impersonation](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation), so the Teleport user's Kubernetes user must have permissions to impersonate the target user. |
+| `--as-groups` | none | string | A Kubernetes group that the current Teleport user will log in as when they authenticate to the specified Kubernetes cluster. <br/><br/>This uses [Kubernetes impersonation](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation), so the Teleport user's Kubernetes user must have permissions to impersonate the target group. <br /><br/>You can include this flag multiple times to enable impersonation of multiple Kubernetes groups. | 
+| `--cluster` | none | string | Name of the Teleport cluster to log into in order to connect to the given Kubernetes cluster. |
+| `-n`, `--kube-namespace` | none | string | The name of the Kubernetes namespace to configure as the default within the cluster the user is logging into. |
+
 ### tsh logout
 
 Deletes the client's cluster certificate:
@@ -794,7 +804,7 @@ Environment variables configure your tsh client and can help you avoid using fla
 
 | Environment Variable | Description | Example Value |
 | - | - | - |
-| TELEPORT_AUTH | Name of a defined local, SAML, OIDC, or Github auth connector | okta |
+| TELEPORT_AUTH | Name of a defined local, SAML, OIDC, or GitHub auth connector | okta |
 | TELEPORT_MFA_MODE | Preferred mode for MFA and Passwordless assertions | otp |
 | TELEPORT_CLUSTER | Name of a Teleport root or leaf cluster | cluster.example.com |
 | TELEPORT_LOGIN | Login name to be used by default on the remote host | root |

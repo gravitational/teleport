@@ -3,16 +3,16 @@ title: Database Access
 description: Teleport Database Access introduction, demo and resources.
 ---
 
-Teleport can provide secure connections to you databases while improving both access
-control and visibility.
+Teleport can provide secure connections to your databases while improving both
+access control and visibility.
 
 Some of the things you can do with Database Access:
 
-- Users can retrieve short-lived database certificates using single sign-on
-  flow thus maintaining their organization-wide identity.
+- Users can retrieve short-lived database certificates using a Single Sign-On
+  flow, thus maintaining their organization-wide identity.
 - Configure role-based access controls for databases and implement custom
   [Access Request](../access-controls/access-requests.mdx) workflows.
-- Capture database access events as well as query activity in the audit log.
+- Capture database activity in the Teleport audit log.
 
 Database Access currently supports the following databases:
 
@@ -24,6 +24,8 @@ Database Access currently supports the following databases:
 - MySQL
 - PostgreSQL
 - Redis
+- Cassandra
+- ScyllaDB
 
 ## Demo
 
@@ -52,20 +54,21 @@ with GitHub, execute a few SQL queries and observe them in the audit log:
 
 ## Getting started
 
-- [Getting started](./getting-started.mdx): Connect Aurora PostgreSQL in a 10 minute guide.
+- [Getting started](./getting-started.mdx): Connect Aurora PostgreSQL in a 10
+  minute guide.
 
 (!docs/pages/includes/database-access/guides.mdx!)
 
 ## Resources
 
 To learn more about configuring role-based access control for Database Access,
-check out [RBAC](./rbac.mdx) section.
+check out the [RBAC](./rbac.mdx) section.
 
-[Architecture](./architecture.mdx) provides a more in-depth
-look at Database Access internals such as networking and security.
+The [Architecture](./architecture.mdx) section provides a more in-depth look at
+Database Access internals such as networking and security.
 
 See [Reference](./reference.mdx) for an overview of
-Database Access related configuration and CLI commands.
+Database Access-related configuration and CLI commands.
 
 If you hit any issues, check out the [Troubleshooting
 documentation](./troubleshooting.mdx) for common problems and solutions.

@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 )
 
 // awsConfig is the config for the client that configures IAM for AWS databases.
@@ -128,23 +129,23 @@ func (r *awsClient) teardownIAM(ctx context.Context) error {
 
 // ensureIAMAuth enables RDS instance IAM auth if it isn't enabled.
 func (r *awsClient) ensureIAMAuth(ctx context.Context) error {
-	if r.cfg.database.IsRedshift() {
-		// Redshift IAM auth is always enabled.
-		return nil
-	}
-	if r.cfg.database.GetAWS().RDS.IAMAuth {
-		r.log.Debug("IAM auth already enabled.")
-		return nil
-	}
-	if err := r.enableIAMAuth(ctx); err != nil {
-		return trace.Wrap(err)
+	// IAM Auth for Redshift and RDS Proxy is always enabled.
+	// Only setting for RDS instances and Aurora clusters.
+	if r.cfg.database.IsRDS() {
+		if r.cfg.database.GetAWS().RDS.IAMAuth {
+			r.log.Debug("IAM auth already enabled.")
+			return nil
+		}
+		if err := r.enableIAMAuthForRDS(ctx); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }
 
-// enableIAMAuth turns on IAM auth setting on the RDS instance.
-func (r *awsClient) enableIAMAuth(ctx context.Context) error {
-	r.log.Debug("Enabling IAM auth.")
+// enableIAMAuthForRDS turns on IAM auth setting on the RDS instance.
+func (r *awsClient) enableIAMAuthForRDS(ctx context.Context) error {
+	r.log.Debug("Enabling IAM auth for RDS.")
 	var err error
 	if r.cfg.database.GetAWS().RDS.ClusterID != "" {
 		_, err = r.rds.ModifyDBClusterWithContext(ctx, &rds.ModifyDBClusterInput{
@@ -167,25 +168,27 @@ func (r *awsClient) enableIAMAuth(ctx context.Context) error {
 
 // ensureIAMPolicy adds database connect permissions to the agent's policy.
 func (r *awsClient) ensureIAMPolicy(ctx context.Context) error {
-	resources := r.cfg.database.GetIAMResources()
-	if len(resources) == 0 {
-		return nil
+	dbIAM, placeholders, err := dbiam.GetAWSPolicyDocument(r.cfg.database)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(placeholders) > 0 {
+		return trace.CompareFailed("expect no placeholders but got %v", placeholders)
 	}
 
 	policy, err := r.getIAMPolicy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	action := r.cfg.database.GetIAMAction()
 	var changed bool
-	for _, resource := range resources {
-		if policy.Ensure(awslib.EffectAllow, action, resource) {
+	dbIAM.ForEach(func(effect, action, resource string) {
+		if policy.Ensure(effect, action, resource) {
 			r.log.Debugf("Permission %q for %q is already part of policy.", action, resource)
 		} else {
 			r.log.Debugf("Adding permission %q for %q to policy.", action, resource)
 			changed = true
 		}
-	}
+	})
 	if !changed {
 		return nil
 	}
@@ -198,19 +201,21 @@ func (r *awsClient) ensureIAMPolicy(ctx context.Context) error {
 
 // deleteIAMPolicy deletes IAM access policy from the identity this agent is running as.
 func (r *awsClient) deleteIAMPolicy(ctx context.Context) error {
-	resources := r.cfg.database.GetIAMResources()
-	if len(resources) == 0 {
-		return nil
+	dbIAM, placeholders, err := dbiam.GetAWSPolicyDocument(r.cfg.database)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(placeholders) > 0 {
+		return trace.CompareFailed("expect no placeholders but got %v", placeholders)
 	}
 
 	policy, err := r.getIAMPolicy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	action := r.cfg.database.GetIAMAction()
-	for _, resource := range resources {
-		policy.Delete(awslib.EffectAllow, action, resource)
-	}
+	dbIAM.ForEach(func(effect, action, resource string) {
+		policy.Delete(effect, action, resource)
+	})
 	// If policy is empty now, delete it as IAM policy can't be empty.
 	if len(policy.Statements) == 0 {
 		return r.detachIAMPolicy(ctx)

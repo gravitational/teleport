@@ -133,7 +133,7 @@ func (c *IAM) Start(ctx context.Context) error {
 
 // Setup sets up cloud IAM policies for the provided database.
 func (c *IAM) Setup(ctx context.Context, database types.Database) error {
-	if database.IsRDS() || database.IsRedshift() {
+	if c.isSetupRequiredForDatabase(database) {
 		return c.addTask(iamTask{
 			isSetup:  true,
 			database: database,
@@ -144,13 +144,24 @@ func (c *IAM) Setup(ctx context.Context, database types.Database) error {
 
 // Teardown tears down cloud IAM policies for the provided database.
 func (c *IAM) Teardown(ctx context.Context, database types.Database) error {
-	if database.IsRDS() || database.IsRedshift() {
+	if c.isSetupRequiredForDatabase(database) {
 		return c.addTask(iamTask{
 			isSetup:  false,
 			database: database,
 		})
 	}
 	return nil
+}
+
+// isSetupRequiredForDatabase returns true if database type is supported.
+func (c *IAM) isSetupRequiredForDatabase(database types.Database) bool {
+	switch database.GetType() {
+	case types.DatabaseTypeRDS, types.DatabaseTypeRDSProxy, types.DatabaseTypeRedshift:
+		return true
+
+	default:
+		return false
+	}
 }
 
 // getAWSConfigurator returns configurator instance for the provided database.

@@ -98,6 +98,15 @@ func TestAWSIAM(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	rdsProxy, err := types.NewDatabaseV3(types.Metadata{
+		Name: "rds-proxy",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost",
+		AWS:      types.AWS{Region: "localhost", AccountID: "1234567890", RDSProxy: types.RDSProxy{Name: "rds-proxy", ResourceID: "rds-proxy-resource-id"}},
+	})
+	require.NoError(t, err)
+
 	redshiftDatabase, err := types.NewDatabaseV3(types.Metadata{
 		Name: "redshift",
 	}, types.DatabaseSpecV3{
@@ -176,6 +185,22 @@ func TestAWSIAM(t *testing.T) {
 		waitForTaskProcessed(t)
 		policy = iamClient.attachedRolePolicies["test-role"][policyName]
 		require.NotContains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
+	})
+
+	t.Run("RDS Proxy", func(t *testing.T) {
+		// Configure RDS Proxy database and make sure IAM was enabled and policy was attached.
+		err = configurator.Setup(ctx, rdsProxy)
+		require.NoError(t, err)
+		waitForTaskProcessed(t)
+		policy := iamClient.attachedRolePolicies["test-role"][policyName]
+		require.Contains(t, policy, rdsProxy.GetAWS().RDSProxy.ResourceID)
+
+		// Deconfigure RDS Proxy database, policy should get detached.
+		err = configurator.Teardown(ctx, rdsProxy)
+		require.NoError(t, err)
+		waitForTaskProcessed(t)
+		policy = iamClient.attachedRolePolicies["test-role"][policyName]
+		require.NotContains(t, policy, rdsProxy.GetAWS().RDSProxy.ResourceID)
 	})
 
 	t.Run("Redshift", func(t *testing.T) {

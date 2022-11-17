@@ -24,7 +24,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -80,10 +79,50 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeDatabases(h.auth.clusterName, databases),
+		Items:      ui.MakeDatabases(databases),
 		StartKey:   resp.NextKey,
 		TotalCount: resp.TotalCount,
 	}, nil
+}
+
+// clusterDatabaseGet returns a list of db servers in a form the UI can present.
+func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	databaseName := p.ByName("database")
+	if databaseName == "" {
+		return nil, trace.BadParameter("database name is required")
+	}
+
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	database, err := fetchDatabaseWithName(r.Context(), clt, r, databaseName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessChecker, err := ctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dbNames, dbUsers, err := accessChecker.CheckDatabaseNamesAndUsers(0, true /* force ttl override*/)
+	if err != nil {
+		// if NotFound error:
+		// This user cannot request database access, has no assigned database names or users
+		//
+		// Every other error should be reported upstream.
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+
+		// We proceed with an empty list of DBUsers and DBNames
+		dbUsers = []string{}
+		dbNames = []string{}
+	}
+
+	return ui.MakeDatabase(database, dbUsers, dbNames), nil
 }
 
 // clusterDesktopsGet returns a list of desktops in a form the UI can present.
@@ -180,33 +219,27 @@ func (h *Handler) desktopIsActive(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	checker, err := ctx.GetUserAccessChecker()
+	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-L:
 	for _, tracker := range trackers {
-		desktops, err := h.auth.accessPoint.GetWindowsDesktops(r.Context(), types.WindowsDesktopFilter{Name: tracker.GetDesktopName()})
+		// clt is an auth.ClientI with the role of the user, so
+		// clt.GetWindowsDesktops() can be used to confirm that
+		// the user has access to the requested desktop.
+		desktops, err := clt.GetWindowsDesktops(r.Context(),
+			types.WindowsDesktopFilter{Name: tracker.GetDesktopName()})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		if len(desktops) == 0 {
+			// There are no active sessions for this desktop
+			// or the user doesn't have access to it
 			break
-		}
-
-		err = checker.CheckAccess(desktops[0], services.AccessMFAParams{})
-		switch {
-		case err == nil:
+		} else {
 			return desktopIsActive{true}, nil
-		case trace.IsAccessDenied(err):
-			// Use default behavior of this function
-			// so that information about desktops user
-			// doesn't have access to isn't leaked
-			break L
-		default:
-			return nil, trace.Wrap(err)
 		}
 	}
 
