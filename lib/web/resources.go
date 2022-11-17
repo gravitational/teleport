@@ -18,7 +18,6 @@ package web
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -412,13 +411,12 @@ func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string)
 	nextKey, left := startKey, limit
 
 	for {
-		fmt.Printf("nextKey: %v \n", nextKey)
-
 		moreResponse, err := fetchMoreResources(clt, r.Context(), &req, nextKey, left)
-		nextKey = moreResponse.Response.NextKey
-		if err != nil {
+		if err != nil || moreResponse.Response == nil {
 			return response, err
 		}
+
+		nextKey = moreResponse.Response.NextKey
 
 		if response != nil {
 			response.Resources = append(response.Resources, moreResponse.Response.Resources...)
@@ -429,17 +427,6 @@ func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string)
 
 		resourceLen := int32(len(response.Resources))
 		left = limit - resourceLen
-
-		fmt.Printf(
-			"len: %v \n moreResponse: %v \n left: %v \n hasMore: %v \n cond1: %v \n cond2: %v \n cond3: %v \n",
-			len(response.Resources),
-			moreResponse.Response,
-			left,
-			moreResponse.HasMore,
-			resourceLen >= limit,
-			!moreResponse.HasMore,
-			nextKey == "",
-		)
 
 		if resourceLen >= limit || !moreResponse.HasMore || nextKey == "" {
 			break
@@ -472,7 +459,7 @@ func fetchMoreResources(
 	}
 
 	response, err := clt.ListResources(ctx, req)
-	if err != nil {
+	if err != nil || response == nil {
 		return fetchMoreResponse{Response: response}, err
 	}
 
