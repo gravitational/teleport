@@ -147,6 +147,9 @@ func TestProxyTunnelStrategyAgentMesh(t *testing.T) {
 
 // TestProxyTunnelStrategyProxyPeering tests the proxy-peer tunnel strategy.
 func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
+	// TODO(jakule): Fix the test.
+	t.Skip("this test is flaky as it very sensitive to our timeouts")
+
 	// This test cannot run in parallel as set module changes the global state.
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
