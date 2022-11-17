@@ -18,6 +18,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -36,7 +37,13 @@ import (
 )
 
 // checkAccessToRegisteredResource checks if calling user has access to at least one registered resource.
-func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) checkAccessToRegisteredResource(
+	w http.ResponseWriter,
+	r *http.Request,
+	p httprouter.Params,
+	c *SessionContext,
+	site reversetunnel.RemoteSite,
+) (interface{}, error) {
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of resources.
 	clt, err := c.GetUserClient(site)
@@ -44,13 +51,18 @@ func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http
 		return nil, trace.Wrap(err)
 	}
 
-	resourceKinds := []string{types.KindNode, types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindWindowsDesktop}
+	resourceKinds := []string{
+		types.KindNode,
+		types.KindDatabaseServer,
+		types.KindAppServer,
+		types.KindKubeService,
+		types.KindWindowsDesktop,
+	}
 	for _, kind := range resourceKinds {
 		res, err := clt.ListResources(r.Context(), proto.ListResourcesRequest{
 			ResourceType: kind,
 			Limit:        1,
 		})
-
 		if err != nil {
 			// Access denied error is returned when user does not have permissions
 			// to read/list a resource kind which can be ignored as this function is not
@@ -73,7 +85,12 @@ func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http
 	}, nil
 }
 
-func (h *Handler) getRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) getRolesHandle(
+	w http.ResponseWriter,
+	r *http.Request,
+	params httprouter.Params,
+	ctx *SessionContext,
+) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -91,7 +108,12 @@ func getRoles(clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
 	return ui.NewRoles(roles)
 }
 
-func (h *Handler) deleteRole(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) deleteRole(
+	w http.ResponseWriter,
+	r *http.Request,
+	params httprouter.Params,
+	ctx *SessionContext,
+) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -105,7 +127,12 @@ func (h *Handler) deleteRole(w http.ResponseWriter, r *http.Request, params http
 	return OK(), nil
 }
 
-func (h *Handler) upsertRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) upsertRoleHandle(
+	w http.ResponseWriter,
+	r *http.Request,
+	params httprouter.Params,
+	ctx *SessionContext,
+) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -146,7 +173,12 @@ func upsertRole(ctx context.Context, clt resourcesAPIGetter, content, httpMethod
 	return ui.NewResourceItem(role)
 }
 
-func (h *Handler) getGithubConnectorsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) getGithubConnectorsHandle(
+	w http.ResponseWriter,
+	r *http.Request,
+	params httprouter.Params,
+	ctx *SessionContext,
+) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -164,7 +196,12 @@ func getGithubConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.Reso
 	return ui.NewGithubConnectors(connectors)
 }
 
-func (h *Handler) deleteGithubConnector(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) deleteGithubConnector(
+	w http.ResponseWriter,
+	r *http.Request,
+	params httprouter.Params,
+	ctx *SessionContext,
+) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -178,7 +215,12 @@ func (h *Handler) deleteGithubConnector(w http.ResponseWriter, r *http.Request, 
 	return OK(), nil
 }
 
-func (h *Handler) upsertGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) upsertGithubConnectorHandle(
+	w http.ResponseWriter,
+	r *http.Request,
+	params httprouter.Params,
+	ctx *SessionContext,
+) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -219,7 +261,12 @@ func upsertGithubConnector(ctx context.Context, clt resourcesAPIGetter, content,
 	return ui.NewResourceItem(connector)
 }
 
-func (h *Handler) getTrustedClustersHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) getTrustedClustersHandle(
+	w http.ResponseWriter,
+	r *http.Request,
+	params httprouter.Params,
+	ctx *SessionContext,
+) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -237,7 +284,12 @@ func getTrustedClusters(ctx context.Context, clt resourcesAPIGetter) ([]ui.Resou
 	return ui.NewTrustedClusters(trustedClusters)
 }
 
-func (h *Handler) deleteTrustedCluster(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) deleteTrustedCluster(
+	w http.ResponseWriter,
+	r *http.Request,
+	params httprouter.Params,
+	ctx *SessionContext,
+) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -251,7 +303,12 @@ func (h *Handler) deleteTrustedCluster(w http.ResponseWriter, r *http.Request, p
 	return OK(), nil
 }
 
-func (h *Handler) upsertTrustedClusterHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) upsertTrustedClusterHandle(
+	w http.ResponseWriter,
+	r *http.Request,
+	params httprouter.Params,
+	ctx *SessionContext,
+) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -351,7 +408,111 @@ func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string)
 		UseSearchAsRoles:    values.Get("searchAsRoles") == "yes",
 	}
 
-	return clt.ListResources(r.Context(), req)
+	var response *types.ListResourcesResponse
+	nextKey, left := startKey, limit
+
+	for {
+		fmt.Printf("nextKey: %v \n", nextKey)
+
+		moreResponse, err := fetchMoreResources(clt, r.Context(), &req, nextKey, left)
+		nextKey = moreResponse.Response.NextKey
+		if err != nil {
+			return response, err
+		}
+
+		if response != nil {
+			response.Resources = append(response.Resources, moreResponse.Response.Resources...)
+			response.NextKey = nextKey
+		} else {
+			response = moreResponse.Response
+		}
+
+		resourceLen := int32(len(response.Resources))
+		left = limit - resourceLen
+
+		fmt.Printf(
+			"len: %v \n moreResponse: %v \n left: %v \n hasMore: %v \n cond1: %v \n cond2: %v \n cond3: %v \n",
+			len(response.Resources),
+			moreResponse.Response,
+			left,
+			moreResponse.HasMore,
+			resourceLen >= limit,
+			!moreResponse.HasMore,
+			nextKey == "",
+		)
+
+		if resourceLen >= limit || !moreResponse.HasMore || nextKey == "" {
+			break
+		}
+	}
+
+	return response, err
+}
+
+type fetchMoreResponse struct {
+	Response *types.ListResourcesResponse
+	HasMore  bool
+}
+
+func fetchMoreResources(
+	clt resourcesAPIGetter,
+	ctx context.Context,
+	previousReq *proto.ListResourcesRequest,
+	nextKey string,
+	left int32,
+) (fetchMoreResponse, error) {
+	req := proto.ListResourcesRequest{
+		ResourceType:        previousReq.ResourceType,
+		Limit:               left,
+		StartKey:            nextKey,
+		SortBy:              previousReq.SortBy,
+		PredicateExpression: previousReq.PredicateExpression,
+		SearchKeywords:      previousReq.SearchKeywords,
+		UseSearchAsRoles:    previousReq.UseSearchAsRoles,
+	}
+
+	response, err := clt.ListResources(ctx, req)
+	if err != nil {
+		return fetchMoreResponse{Response: response}, err
+	}
+
+	hasMore := len(response.Resources) > 0
+	response = removeTeleportInternalResources(response)
+
+	return fetchMoreResponse{Response: response, HasMore: hasMore}, err
+}
+
+func removeTeleportInternalResources(response *types.ListResourcesResponse) *types.ListResourcesResponse {
+	var Resources []types.ResourceWithLabels
+
+	for _, resource := range response.Resources {
+		if hasTeleportInternalLabel(resource) {
+			continue
+		}
+
+		Resources = append(Resources, resource)
+	}
+
+	return &types.ListResourcesResponse{
+		Resources:  Resources,
+		NextKey:    response.NextKey,
+		TotalCount: response.TotalCount,
+	}
+}
+
+func hasTeleportInternalLabel(resource types.ResourceWithLabels) bool {
+	if resource == nil {
+		return false
+	}
+
+	labels := resource.GetAllLabels()
+	for name := range labels {
+		if strings.HasPrefix(name, "teleport.internal") {
+			return true
+		}
+	}
+
+	return false
 }
 
 type listResourcesGetResponse struct {
