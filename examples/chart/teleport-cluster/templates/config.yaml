@@ -99,6 +99,9 @@ data:
   {{- if eq .Values.proxyListenerMode "multiplex" }}
       proxy_listener_mode: multiplex
   {{- end }}
+  {{- if .Values.motd }}
+      message_of_the_day: {{ .Values.motd }}
+  {{- end }}
     kubernetes_service:
       enabled: true
   {{- if eq .Values.proxyListenerMode "multiplex" }}

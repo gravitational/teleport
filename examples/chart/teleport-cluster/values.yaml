@@ -161,6 +161,9 @@ labels: {}
 #     kubectl -n ${TELEPORT_NAMESPACE?} create configmap ${HELM_RELEASE_NAME?} --from-file=teleport.yaml
 chartMode: standalone
 
+#A cluster wide message of the day (motd) that will be shown during the tsh login process, and must be positively acknowledged before the user is allowed to log in to the cluster.
+motd: ""
+
 ######################################################################
 # Persistence settings (only used in "standalone" and "custom" modes)
 # NOTE: Changes in Kubernetes 1.23+ mean that persistent volumes will not automatically be provisioned in AWS EKS clusters
