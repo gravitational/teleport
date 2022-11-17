@@ -233,19 +233,17 @@ func (h *Handler) waitForAppSession(ctx context.Context, sessionID, user string)
 // its application without its URI prefixed with "tcp". It also keeps a
 // counter of how many TCP applications were excluded from the list (e.g. used to
 // subtract it from the TotalCount received from ListResources api).
-func extractAppsWithoutTCPEndpoint(appServers []types.AppServer) (types.Apps, int) {
-	var apps types.Apps
-	numExcludedApps := 0
+func extractAppsWithoutTCPEndpoint(appServers []types.AppServer) (apps types.Apps, numExcluded int) {
 	for _, server := range appServers {
 		// Skip over TCP apps since they cannot be accessed through web UI.
 		if !server.GetApp().IsTCP() {
 			apps = append(apps, server.GetApp())
 		} else {
-			numExcludedApps += 1
+			numExcluded++
 		}
 	}
 
-	return apps, numExcludedApps
+	return apps, numExcluded
 }
 
 type resolveAppParams struct {
