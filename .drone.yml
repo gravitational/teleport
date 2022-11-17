@@ -796,7 +796,7 @@ kind: pipeline
 type: kubernetes
 name: clean-up-previous-build
 environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.76-beta.1
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.76-35e77b7-20221117T1411084
 trigger:
   event:
     include:
@@ -8051,7 +8051,7 @@ kind: pipeline
 type: kubernetes
 name: publish-rlz
 environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.76-beta.1
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.76-35e77b7-20221117T1411084
 trigger:
   event:
     include:
@@ -8164,6 +8164,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 870a01c23a25703dd26267d87f327e973b74e945d7ec73e52ebb0347a3766315
+hmac: 4c0ef708ec8e656536a8a7edd6a084a41714a7689b2cfa2c0cda5a55e2ba9890
 
 ...
