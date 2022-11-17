@@ -76,7 +76,7 @@ func ExportAuthorities(ctx context.Context, client auth.ClientI, req ExportAutho
 }
 
 // ExportAuthoritiesWithSecrets exports the Authority Certificate and its secrets (private keys).
-// It exports the secrets first and then the certificate (separated by an empty line).
+// It exports the secrets first and then the certificate (separated by an a line with 10 dashes - '----------').
 // See ExportAuthorities for more information.
 func ExportAuthoritiesWithSecrets(ctx context.Context, client auth.ClientI, req ExportAuthoritiesRequest) (string, error) {
 	return exportAuth(ctx, client, req, true /* exportSecrets */)
@@ -266,7 +266,7 @@ func exportTLSAuthority(ctx context.Context, client auth.ClientI, req exportTLSA
 		if err := marshalKeyPair(keyPair.Key); err != nil {
 			return "", trace.Wrap(err)
 		}
-		ret.WriteString("\n\n")
+		ret.WriteString("\n----------\n")
 	}
 
 	if err := marshalKeyPair(keyPair.Cert); err != nil {

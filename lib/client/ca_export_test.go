@@ -83,7 +83,7 @@ func TestExportAuthorities(t *testing.T) {
 	}
 
 	validatePrivateKeyDERFunc := func(t *testing.T, s string) {
-		res := strings.Split(s, "\n\n")
+		res := strings.Split(s, "\n----------\n")
 		require.Len(t, res, 2, "expected private key and certificate separated by one empty line")
 
 		privKey, err := x509.ParsePKCS1PrivateKey([]byte(res[0]))
