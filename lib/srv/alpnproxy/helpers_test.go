@@ -182,14 +182,11 @@ type signOptionsFunc func(o *signOptions)
 func mustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, opts ...signOptionsFunc) tls.Certificate {
 	options := signOptions{
 		identity: tlsca.Identity{Username: "test-user"},
+		clock:    clockwork.NewRealClock(),
 	}
 
 	for _, opt := range opts {
 		opt(&options)
-	}
-
-	if options.clock == nil {
-		options.clock = clockwork.NewRealClock()
 	}
 
 	subj, err := options.identity.Subject()
