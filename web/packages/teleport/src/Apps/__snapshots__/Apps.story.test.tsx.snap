@@ -2178,6 +2178,808 @@ exports[`loaded state 1`] = `
 </div>
 `;
 
+exports[`pagination unsupported state 1`] = `
+.c3 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  width: 240px;
+}
+
+.c3:active {
+  opacity: 0.56;
+}
+
+.c3:hover,
+.c3:focus {
+  background: #651FFF;
+}
+
+.c3:active {
+  background: #354AA4;
+}
+
+.c3:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c20 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  width: 88px;
+}
+
+.c20:active {
+  opacity: 0.56;
+}
+
+.c20:hover,
+.c20:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
+}
+
+.c20:active {
+  opacity: 0.24;
+}
+
+.c20:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c14 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 16px;
+}
+
+.c16 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c18 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 22px;
+}
+
+.c21 {
+  display: inline-block;
+  transition: color 0.3s;
+  margin-left: 4px;
+  color: rgba(255,255,255,0.56);
+  font-size: 14px;
+}
+
+.c19 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  background-color: #111B48;
+  color: rgba(255,255,255,0.87);
+  margin-bottom: 4px;
+  margin-right: 4px;
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+  color: #FFFFFF;
+}
+
+.c23 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  font-weight: 600;
+  font-size: 16px;
+  margin: 0px;
+}
+
+.c8 {
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.c9 {
+  box-sizing: border-box;
+  margin-right: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.c11 {
+  box-sizing: border-box;
+  display: flex;
+}
+
+.c24 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 32px;
+  background-color: #0097a7;
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c25 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 32px;
+  background-color: #00796b;
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c22 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 32px;
+  background-color: #e64a19;
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c17 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 32px;
+  background-color: #f57c00;
+  border-radius: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  border-bottom: 1px solid #1C254D;
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  white-space: nowrap;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c15 {
+  background: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 12px;
+  width: 100%;
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.c15 > thead > tr > th,
+.c15 > tbody > tr > th,
+.c15 > tfoot > tr > th,
+.c15 > thead > tr > td,
+.c15 > tbody > tr > td,
+.c15 > tfoot > tr > td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+.c15 > thead > tr > th:first-child,
+.c15 > tbody > tr > th:first-child,
+.c15 > tfoot > tr > th:first-child,
+.c15 > thead > tr > td:first-child,
+.c15 > tbody > tr > td:first-child,
+.c15 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c15 > thead > tr > th:last-child,
+.c15 > tbody > tr > th:last-child,
+.c15 > tfoot > tr > th:last-child,
+.c15 > thead > tr > td:last-child,
+.c15 > tbody > tr > td:last-child,
+.c15 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c15 > tbody > tr > td {
+  vertical-align: baseline;
+}
+
+.c15 > thead > tr > th {
+  background: #111B48;
+  color: #FFFFFF;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
+  text-align: left;
+  opacity: 0.75;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.c15 > thead > tr > th .c13 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
+}
+
+.c15 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
+}
+
+.c15 tbody tr {
+  border-bottom: 1px solid #1C254D;
+}
+
+.c15 tbody tr:hover {
+  background-color: rgb(37,49,98);
+}
+
+.c4 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c12 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c12 .c13 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c12:hover .c13,
+.c12:focus .c13 {
+  opacity: 1;
+}
+
+.c12:disabled {
+  cursor: default;
+}
+
+.c12:disabled .c13 {
+  opacity: 0.1;
+}
+
+.c7 {
+  position: absolute;
+  height: 100%;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #2C3A73;
+  border-radius: 200px;
+}
+
+.c5 {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  border-radius: 200px;
+  height: 32px;
+  background: #111B48;
+}
+
+.c6 {
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  height: 100%;
+  font-size: 12px;
+  width: 100%;
+  transition: all 0.2s;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+  background: #111B48;
+  padding-right: 184px;
+}
+
+.c6:hover,
+.c6:focus,
+.c6:active {
+  background: #1C254D;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  color: rgba(255,255,255,0.87);
+}
+
+.c6::placeholder {
+  color: rgba(255,255,255,0.24);
+  font-size: 12px;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1"
+    >
+      <div
+        class="c2"
+      >
+        Applications
+      </div>
+      <a
+        href="/web/discover"
+        style="text-decoration: none;"
+      >
+        <button
+          class="c3"
+          kind="primary"
+          title=""
+          width="240px"
+        >
+          Add 
+          application
+        </button>
+      </a>
+    </div>
+    <nav
+      class="c4"
+    >
+      <div
+        class="c5"
+      >
+        <input
+          class="c6"
+          placeholder="SEARCH..."
+          value=""
+        />
+        <div
+          class="c7"
+        />
+      </div>
+      <div
+        class="c8"
+        width="100%"
+      >
+        <div
+          class="c9"
+        >
+          <div
+            class="c10"
+            color="primary.contrastText"
+          >
+            SHOWING 
+            <strong>
+              1
+            </strong>
+             - 
+            <strong>
+              4
+            </strong>
+             of
+             
+            <strong>
+              4
+            </strong>
+          </div>
+        </div>
+        <div
+          class="c11"
+        >
+          <button
+            class="c12"
+            disabled=""
+            title="Previous page"
+          >
+            <span
+              class="c13 c14 icon icon-arrow-left-circle "
+              color="light"
+              font-size="3"
+            />
+          </button>
+          <button
+            class="c12"
+            disabled=""
+            title="Next page"
+          >
+            <span
+              class="c13 c14 icon icon-arrow-right-circle "
+              color="light"
+              font-size="3"
+            />
+          </button>
+        </div>
+      </div>
+    </nav>
+    <table
+      class="c15"
+    >
+      <thead>
+        <tr>
+          <th
+            style="cursor: default;"
+          />
+          <th>
+            <a>
+              Name
+              <span
+                class="c13 c16 icon icon-chevron-up "
+                color="light"
+              />
+            </a>
+          </th>
+          <th>
+            <a>
+              Description
+              <span
+                class="c13 c16 icon icon-chevrons-expand-vertical "
+                color="light"
+              />
+            </a>
+          </th>
+          <th
+            style="cursor: default;"
+          >
+            Address
+          </th>
+          <th
+            style="cursor: default;"
+          >
+            Labels
+          </th>
+          <th
+            style="cursor: default;"
+          />
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td
+            style="user-select: none;"
+          >
+            <div
+              class="c17"
+              height="32px"
+              width="32px"
+            >
+              <span
+                class="c13 c18 icon icon-amazonaws "
+                color="light"
+                font-size="6"
+              />
+            </div>
+          </td>
+          <td>
+            aws-console-1
+          </td>
+          <td>
+            This is an AWS Console app
+          </td>
+          <td>
+            https://
+            awsconsole-1.teleport-proxy.com
+          </td>
+          <td>
+            <div
+              class="c19"
+              kind="secondary"
+            >
+              aws_account_id: A1234
+            </div>
+            <div
+              class="c19"
+              kind="secondary"
+            >
+              env: dev
+            </div>
+            <div
+              class="c19"
+              kind="secondary"
+            >
+              cluster: two
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c20"
+              kind="border"
+              width="88px"
+            >
+              LAUNCH
+              <span
+                class="c13 c21 icon icon-caret-down "
+                color="text.secondary"
+                font-size="2"
+              />
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="user-select: none;"
+          >
+            <div
+              class="c22"
+              height="32px"
+              width="32px"
+            >
+              <div
+                class="c23"
+                font-size="3"
+              >
+                G
+              </div>
+            </div>
+          </td>
+          <td>
+            Grafana
+          </td>
+          <td>
+            This is a Grafana app
+          </td>
+          <td>
+            https://
+            grafana.teleport-proxy.com
+          </td>
+          <td>
+            <div
+              class="c19"
+              kind="secondary"
+            >
+              env: dev
+            </div>
+            <div
+              class="c19"
+              kind="secondary"
+            >
+              cluster: one
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <a
+              class="c20"
+              href="/web/launch/grafana.one/one/grafana.teleport-proxy.com"
+              kind="border"
+              rel="noreferrer"
+              target="_blank"
+              width="88px"
+            >
+              LAUNCH
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="user-select: none;"
+          >
+            <div
+              class="c24"
+              height="32px"
+              width="32px"
+            >
+              <div
+                class="c23"
+                font-size="3"
+              >
+                J
+              </div>
+            </div>
+          </td>
+          <td>
+            Jenkins
+          </td>
+          <td>
+            This is a Jenkins app
+          </td>
+          <td>
+            https://
+            jenkins.teleport-proxy.com
+          </td>
+          <td>
+            <div
+              class="c19"
+              kind="secondary"
+            >
+              env: prod
+            </div>
+            <div
+              class="c19"
+              kind="secondary"
+            >
+              cluster: one
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <a
+              class="c20"
+              href="/web/launch/jenkins.one/one/jenkins.teleport-proxy.com"
+              kind="border"
+              rel="noreferrer"
+              target="_blank"
+              width="88px"
+            >
+              LAUNCH
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="user-select: none;"
+          >
+            <div
+              class="c25"
+              height="32px"
+              width="32px"
+            >
+              <div
+                class="c23"
+                font-size="3"
+              >
+                M
+              </div>
+            </div>
+          </td>
+          <td>
+            Mattermost1
+          </td>
+          <td>
+            This is a Mattermost app
+          </td>
+          <td>
+            https://
+            mattermost.teleport-proxy.com
+          </td>
+          <td>
+            <div
+              class="c19"
+              kind="secondary"
+            >
+              env: dev
+            </div>
+            <div
+              class="c19"
+              kind="secondary"
+            >
+              cluster: two
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <a
+              class="c20"
+              href="/web/launch/mattermost.one/one/mattermost.teleport-proxy.com"
+              kind="border"
+              rel="noreferrer"
+              target="_blank"
+              width="88px"
+            >
+              LAUNCH
+            </a>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
 exports[`readonly empty state 1`] = `
 .c3 {
   box-sizing: border-box;

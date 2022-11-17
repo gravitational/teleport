@@ -36,6 +36,7 @@ test('correct formatting of nodes fetch response', async () => {
     ],
     startKey: mockResponse.startKey,
     totalCount: mockResponse.totalCount,
+    paginationUnsupported: false,
   });
 });
 
@@ -49,6 +50,23 @@ test('null response from nodes fetch', async () => {
     agents: [],
     startKey: undefined,
     totalCount: undefined,
+    paginationUnsupported: false,
+  });
+});
+
+test('null fields from nodes fetch', async () => {
+  const nodesService = new NodesService();
+  jest
+    .spyOn(api, 'get')
+    .mockResolvedValue({ startKey: null, totalCount: null });
+
+  const response = await nodesService.fetchNodes('does-not-matter');
+
+  expect(response).toEqual({
+    agents: [],
+    startKey: null,
+    totalCount: null,
+    paginationUnsupported: true,
   });
 });
 

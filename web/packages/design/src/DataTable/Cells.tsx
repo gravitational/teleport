@@ -115,6 +115,23 @@ export const ClickableLabelCell = ({
   return <Cell>{$labels}</Cell>;
 };
 
+export const UnclickableLabelCell = ({
+  labels,
+}: {
+  labels: {
+    name: string;
+    value: string;
+  }[];
+}) => {
+  const $labels = labels.map(label => (
+    <Label key={`${label.name}:${label.value}`} mr="1" mb="1" kind="secondary">
+      {`${label.name}: ${label.value}`}
+    </Label>
+  ));
+
+  return <Cell>{$labels}</Cell>;
+};
+
 type SortHeaderCellProps<T> = {
   column: TableColumn<T>;
   serversideProps: ServersideProps;

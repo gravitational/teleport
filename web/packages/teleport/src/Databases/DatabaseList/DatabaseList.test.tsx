@@ -35,6 +35,7 @@ test('search generates correct url params', () => {
       totalCount={50}
       pathname="test.com/cluster/one/databases"
       replaceHistory={replaceHistory}
+      paginationUnsupported={false}
     />
   );
 

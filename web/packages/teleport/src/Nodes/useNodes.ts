@@ -95,6 +95,7 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
           nodes: res.agents,
           startKey: res.startKey,
           totalCount: res.totalCount,
+          paginationUnsupported: res.paginationUnsupported,
         });
         setFetchStatus(res.startKey ? '' : 'disabled');
         setStartKeys(['', res.startKey]);

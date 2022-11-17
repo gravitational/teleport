@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { AgentLabel } from 'teleport/services/agents';
+import { AgentLabel, AgentQueryMeta } from 'teleport/services/resources';
 
 export interface Database {
   name: string;
@@ -34,8 +34,6 @@ export type DbProtocol =
   | 'sqlserver'
   | 'redis';
 
-export type DatabasesResponse = {
+export type DatabasesResponse = AgentQueryMeta & {
   databases: Database[];
-  startKey?: string;
-  totalCount?: number;
 };

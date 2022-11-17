@@ -44,10 +44,11 @@ test('correct formatting of database fetch response', async () => {
     ],
     startKey: mockResponse.startKey,
     totalCount: mockResponse.totalCount,
+    paginationUnsupported: false,
   });
 });
 
-test('null response from database fetch', async () => {
+test('null (empty) response from database fetch', async () => {
   jest.spyOn(api, 'get').mockResolvedValue(null);
 
   const database = new DatabaseService();
@@ -59,6 +60,25 @@ test('null response from database fetch', async () => {
     agents: [],
     startKey: undefined,
     totalCount: undefined,
+    paginationUnsupported: false,
+  });
+});
+
+test('null fields from database fetch', async () => {
+  jest
+    .spyOn(api, 'get')
+    .mockResolvedValue({ startKey: null, totalCount: null });
+
+  const database = new DatabaseService();
+  const response = await database.fetchDatabases('im-a-cluster', {
+    search: 'does-not-matter',
+  });
+
+  expect(response).toEqual({
+    agents: [],
+    startKey: null,
+    totalCount: null,
+    paginationUnsupported: true,
   });
 });
 

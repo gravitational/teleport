@@ -15,7 +15,11 @@ limitations under the License.
 */
 
 import React from 'react';
-import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
+import Table, {
+  Cell,
+  ClickableLabelCell,
+  UnclickableLabelCell,
+} from 'design/DataTable';
 import { SortType } from 'design/DataTable/types';
 
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
@@ -44,6 +48,7 @@ function DesktopList(props: Props) {
     pathname,
     replaceHistory,
     onLabelClick,
+    paginationUnsupported,
   } = props;
 
   function onDesktopSelect(
@@ -53,6 +58,39 @@ function DesktopList(props: Props) {
   ) {
     e.preventDefault();
     onLoginSelect(username, desktopName);
+  }
+
+  if (paginationUnsupported) {
+    // Return a client paging/searching table.
+    return (
+      <Table
+        data={desktops}
+        emptyText="No Desktops Found"
+        isSearchable
+        pagination={{ pageSize }}
+        columns={[
+          {
+            key: 'addr',
+            headerText: 'Address',
+          },
+          {
+            key: 'name',
+            headerText: 'Name',
+            isSortable: true,
+          },
+          {
+            key: 'labels',
+            headerText: 'Labels',
+            render: ({ labels }) => <UnclickableLabelCell labels={labels} />,
+          },
+          {
+            altKey: 'login-cell',
+            render: desktop =>
+              renderLoginCell(desktop, onLoginMenuOpen, onDesktopSelect),
+          },
+        ]}
+      />
+    );
   }
 
   return (
@@ -170,6 +208,7 @@ type Props = {
   pathname: string;
   replaceHistory: (path: string) => void;
   onLabelClick: (label: AgentLabel) => void;
+  paginationUnsupported: boolean;
 };
 
 export default DesktopList;

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { AgentLabel } from 'teleport/services/agents';
+import { AgentLabel, AgentQueryMeta } from 'teleport/services/resources';
 export interface Kube {
   name: string;
   labels: AgentLabel[];
@@ -22,8 +22,6 @@ export interface Kube {
   groups?: string[];
 }
 
-export type KubesResponse = {
+export type KubesResponse = AgentQueryMeta & {
   kubes: Kube[];
-  startKey?: string;
-  totalCount?: number;
 };

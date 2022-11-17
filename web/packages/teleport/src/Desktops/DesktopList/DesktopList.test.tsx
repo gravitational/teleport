@@ -28,6 +28,7 @@ test('search generates correct url params', () => {
   render(
     <DesktopList
       {...props}
+      paginationUnsupported={false}
       totalCount={50}
       username="joe"
       desktops={desktops}

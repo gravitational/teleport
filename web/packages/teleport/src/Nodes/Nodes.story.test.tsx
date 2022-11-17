@@ -1,10 +1,21 @@
 import React from 'react';
 import { render } from 'design/utils/testing';
 
-import { Loaded, Failed, Empty, EmptyReadOnly } from './Nodes.story';
+import {
+  Loaded,
+  Failed,
+  Empty,
+  EmptyReadOnly,
+  PaginationUnsupported,
+} from './Nodes.story';
 
 test('loaded', () => {
   const { container } = render(<Loaded />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('pagination unsupported', () => {
+  const { container } = render(<PaginationUnsupported />);
   expect(container.firstChild).toMatchSnapshot();
 });
 

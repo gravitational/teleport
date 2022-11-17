@@ -78,6 +78,7 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
           nodes: nodesRes.agents,
           startKey: nodesRes.startKey,
           totalCount: nodesRes.totalCount,
+          paginationUnsupported: nodesRes.paginationUnsupported,
         });
         setFetchStatus(nodesRes.startKey ? '' : 'disabled');
         setStartKeys(['', nodesRes.startKey]);

@@ -15,7 +15,11 @@ limitations under the License.
 */
 
 import React from 'react';
-import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
+import Table, {
+  Cell,
+  ClickableLabelCell,
+  UnclickableLabelCell,
+} from 'design/DataTable';
 import { SortType } from 'design/DataTable/types';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 
@@ -27,6 +31,7 @@ import { ResourceUrlQueryParams } from 'teleport/getUrlQueryParams';
 function NodeList(props: Props) {
   const {
     nodes = [],
+    paginationUnsupported,
     onLoginMenuOpen,
     onLoginSelect,
     pageSize,
@@ -44,6 +49,40 @@ function NodeList(props: Props) {
     replaceHistory,
     onLabelClick,
   } = props;
+
+  if (paginationUnsupported) {
+    // Return a client paging/searching table.
+    return (
+      <Table
+        data={nodes}
+        emptyText="No Nodes Found"
+        isSearchable
+        pagination={{ pageSize }}
+        columns={[
+          {
+            key: 'hostname',
+            headerText: 'Hostname',
+            isSortable: true,
+          },
+          {
+            key: 'addr',
+            headerText: 'Address',
+            render: renderAddressCell,
+          },
+          {
+            key: 'labels',
+            headerText: 'Labels',
+            render: ({ labels }) => <UnclickableLabelCell labels={labels} />,
+          },
+          {
+            altKey: 'connect-btn',
+            render: ({ id }) =>
+              renderLoginCell(id, onLoginSelect, onLoginMenuOpen),
+          },
+        ]}
+      />
+    );
+  }
 
   return (
     <>
@@ -169,6 +208,7 @@ type Props = {
   pathname: string;
   replaceHistory: (path: string) => void;
   onLabelClick: (label: AgentLabel) => void;
+  paginationUnsupported: boolean;
 };
 
 export default NodeList;

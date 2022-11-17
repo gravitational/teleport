@@ -33,6 +33,8 @@ const service = {
         agents: items.map(makeApp),
         startKey: json?.startKey,
         totalCount: json?.totalCount,
+        paginationUnsupported:
+          json?.startKey === null && json?.totalCount === null,
       };
     });
   },

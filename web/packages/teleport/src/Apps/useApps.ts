@@ -77,6 +77,7 @@ export default function useApps(ctx: Ctx) {
           apps: res.agents,
           startKey: res.startKey,
           totalCount: res.totalCount,
+          paginationUnsupported: res.paginationUnsupported,
         });
         setFetchStatus(res.startKey ? '' : 'disabled');
         setStartKeys(['', res.startKey]);

@@ -16,7 +16,11 @@ limitations under the License.
 
 import React, { useState } from 'react';
 import { ButtonBorder } from 'design';
-import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
+import Table, {
+  Cell,
+  ClickableLabelCell,
+  UnclickableLabelCell,
+} from 'design/DataTable';
 import { SortType } from 'design/DataTable/types';
 
 import { Kube } from 'teleport/services/kube';
@@ -48,9 +52,50 @@ function KubeList(props: Props) {
     replaceHistory,
     onLabelClick,
     accessRequestId,
+    paginationUnsupported,
   } = props;
 
   const [kubeConnectName, setKubeConnectName] = useState('');
+
+  if (paginationUnsupported) {
+    // Return a client paging/searching table.
+    return (
+      <>
+        <Table
+          data={kubes}
+          emptyText="No Kubernetes Clusters Found"
+          isSearchable
+          pagination={{ pageSize }}
+          columns={[
+            {
+              key: 'name',
+              headerText: 'Name',
+              isSortable: true,
+            },
+            {
+              key: 'labels',
+              headerText: 'Labels',
+              render: ({ labels }) => <UnclickableLabelCell labels={labels} />,
+            },
+            {
+              altKey: 'connect-btn',
+              render: kube => renderConnectButtonCell(kube, setKubeConnectName),
+            },
+          ]}
+        />
+        {kubeConnectName && (
+          <ConnectDialog
+            onClose={() => setKubeConnectName('')}
+            username={username}
+            authType={authType}
+            kubeConnectName={kubeConnectName}
+            clusterId={clusterId}
+            accessRequestId={accessRequestId}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <>
@@ -146,6 +191,7 @@ type Props = {
   replaceHistory: (path: string) => void;
   onLabelClick: (label: AgentLabel) => void;
   accessRequestId?: string;
+  paginationUnsupported: boolean;
 };
 
 export default KubeList;

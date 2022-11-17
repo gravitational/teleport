@@ -42,10 +42,11 @@ test('correct formatting of apps fetch response', async () => {
     ],
     startKey: mockResponse.startKey,
     totalCount: mockResponse.totalCount,
+    paginationUnsupported: false,
   });
 });
 
-test('null response from apps fetch', async () => {
+test('null (empty) response from apps fetch', async () => {
   jest.spyOn(api, 'get').mockResolvedValue(null);
 
   const response = await apps.fetchApps('does-not-matter', {
@@ -56,6 +57,24 @@ test('null response from apps fetch', async () => {
     agents: [],
     startKey: undefined,
     totalCount: undefined,
+    paginationUnsupported: false,
+  });
+});
+
+test('null fields from apps fetch', async () => {
+  jest
+    .spyOn(api, 'get')
+    .mockResolvedValue({ startKey: null, totalCount: null });
+
+  const response = await apps.fetchApps('does-not-matter', {
+    search: 'does-not-matter',
+  });
+
+  expect(response).toEqual({
+    agents: [],
+    startKey: null,
+    totalCount: null,
+    paginationUnsupported: true,
   });
 });
 

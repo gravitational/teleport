@@ -16,7 +16,11 @@ limitations under the License.
 
 import React, { useState } from 'react';
 import { ButtonBorder } from 'design';
-import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
+import Table, {
+  Cell,
+  ClickableLabelCell,
+  UnclickableLabelCell,
+} from 'design/DataTable';
 import { SortType } from 'design/DataTable/types';
 
 import { AuthType } from 'teleport/services/user';
@@ -47,12 +51,65 @@ function DatabaseList(props: Props) {
     replaceHistory,
     onLabelClick,
     accessRequestId,
+    paginationUnsupported,
   } = props;
 
   const [dbConnectInfo, setDbConnectInfo] = useState<{
     name: string;
     protocol: DbProtocol;
   }>(null);
+
+  if (paginationUnsupported) {
+    // Return a client paging/searching table.
+    return (
+      <>
+        <Table
+          data={databases}
+          emptyText="No Databases Found"
+          isSearchable
+          pagination={{ pageSize }}
+          columns={[
+            {
+              key: 'name',
+              headerText: 'Name',
+              isSortable: true,
+            },
+            {
+              key: 'description',
+              headerText: 'Description',
+              isSortable: true,
+            },
+            {
+              key: 'type',
+              headerText: 'Type',
+              isSortable: true,
+            },
+            {
+              key: 'labels',
+              headerText: 'Labels',
+              render: ({ labels }) => <UnclickableLabelCell labels={labels} />,
+            },
+            {
+              altKey: 'connect-btn',
+              render: database =>
+                renderConnectButton(database, setDbConnectInfo),
+            },
+          ]}
+        />
+        {dbConnectInfo && (
+          <ConnectDialog
+            username={username}
+            clusterId={clusterId}
+            dbName={dbConnectInfo.name}
+            dbProtocol={dbConnectInfo.protocol}
+            onClose={() => setDbConnectInfo(null)}
+            authType={authType}
+            accessRequestId={accessRequestId}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <>
@@ -169,6 +226,7 @@ type Props = {
   replaceHistory: (path: string) => void;
   onLabelClick: (label: AgentLabel) => void;
   accessRequestId?: string;
+  paginationUnsupported: boolean;
 };
 
 export default DatabaseList;

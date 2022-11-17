@@ -17,7 +17,11 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { Flex, Text, ButtonBorder } from 'design';
-import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
+import Table, {
+  Cell,
+  ClickableLabelCell,
+  UnclickableLabelCell,
+} from 'design/DataTable';
 import { SortType } from 'design/DataTable/types';
 import {
   pink,
@@ -57,7 +61,50 @@ export default function AppList(props: Props) {
     pathname,
     replaceHistory,
     onLabelClick,
+    paginationUnsupported,
   } = props;
+
+  if (paginationUnsupported) {
+    // Return a client paging/searching table.
+    return (
+      <Table
+        data={apps}
+        emptyText="No Applications Found"
+        isSearchable
+        pagination={{ pageSize }}
+        columns={[
+          {
+            altKey: 'app-icon',
+            render: renderAppIcon,
+          },
+          {
+            key: 'name',
+            headerText: 'Name',
+            isSortable: true,
+          },
+          {
+            key: 'description',
+            headerText: 'Description',
+            isSortable: true,
+          },
+          {
+            key: 'publicAddr',
+            headerText: 'Address',
+            render: renderAddressCell,
+          },
+          {
+            key: 'labels',
+            headerText: 'Labels',
+            render: ({ labels }) => <UnclickableLabelCell labels={labels} />,
+          },
+          {
+            altKey: 'launch-btn',
+            render: renderLaunchButtonCell,
+          },
+        ]}
+      />
+    );
+  }
 
   return (
     <StyledTable
@@ -220,6 +267,7 @@ type Props = {
   pathname: string;
   replaceHistory: (path: string) => void;
   onLabelClick: (label: AgentLabel) => void;
+  paginationUnsupported: boolean;
 };
 
 const StyledTable = styled(Table)`

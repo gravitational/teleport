@@ -19,6 +19,7 @@ import { Database } from 'teleport/services/databases';
 import { Node } from 'teleport/services/nodes';
 import { Kube } from 'teleport/services/kube';
 import { Desktop, WindowsDesktopService } from 'teleport/services/desktops';
+import { AgentQueryMeta } from 'teleport/services/resources';
 
 export type AgentKind =
   | App
@@ -28,10 +29,8 @@ export type AgentKind =
   | Desktop
   | WindowsDesktopService;
 
-export type AgentResponse<T extends AgentKind> = {
+export type AgentResponse<T extends AgentKind> = AgentQueryMeta & {
   agents: T[];
-  startKey?: string;
-  totalCount?: number;
 };
 
 export type AgentLabel = {
