@@ -886,6 +886,10 @@
           "slug": "/desktop-access/getting-started/"
         },
         {
+          "title": "Manual Setup",
+          "slug": "/desktop-access/manual-setup/"
+        },
+        {
           "title": "Access Controls",
           "slug": "/desktop-access/rbac/"
         },
