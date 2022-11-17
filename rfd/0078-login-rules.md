@@ -308,76 +308,119 @@ provide a set of input traits to test with.
 The command will report any syntax errors, and will print the output traits for
 the given input.
 
-### Protobuf Type Definitions
+### Protobuf Definitions
+
+The `login_rule` resource and associated CRUD RPCs will be added to a new
+package `teleport/loginrule/v1`.
 
 ```
-// login_rules.proto
-package types;
+// loginrule.proto
 ...
 
-// LoginRuleV1 is a login_rule resource to configure rules and logic which should
-// run during Teleport user login.
-message LoginRuleV1 {
-  // kind is a resource kind
-  string kind = 1;
-  // sub_kind is an optional resource sub kind, used in some resources
-  string sub_kind = 2;
-  // version is a resource version
-  string version = 3;
-  // metadata is resource metadata
-  Metadata metadata = 4 [(gogoproto.nullable) = false];
+// LoginRule is a resource to configure rules and logic which should run
+// during Teleport user login.
+message LoginRule {
+    // kind is a resource kind
+    string kind = 1;
+    // sub_kind is an optional resource sub kind, used in some resources
+    string sub_kind = 2;
+    // version is a resource version
+    string version = 3;
+    // metadata is resource metadata
+    types.Metadata metadata = 4;
 
-  // spec is the login rule specification
-  LoginRuleSpecV1 spec = 5 [(gogoproto.nullable) = false];
-}
+    // spec is the login rule specification
+    LoginRuleSpec spec = 5 [(gogoproto.nullable) = false];
+};
 
-// LoginRuleSpecV1 is a login rule specification.
-message LoginRuleSpecV1 {
-  // priority is the priority of the login rule relative to other login rules in
-  // the same cluster. Login rules with a lower priority will be evaluated first.
-  string priority = 1;
+// LoginRuleSpec is a login rule specification.
+message LoginRuleSpec {
+    // priority is the priority of the login rule relative to other login rules in
+    // the same cluster. Login rules with a lower numbered priority will be
+    // evaluated first.
+    string priority = 1;
 
-  // traits is a predicate expression should return the desired traits for the
-  // user upon login.
-  string traits = 2;
-}
-```
-
-### Protobuf Service Definitions
-
-The CRUD endpoints for the `login_rule` resource will be added to the existing
-`AuthService`.
+    // traits is a predicate expression which should return the desired traits for
+    // the user upon login.
+    string traits = 2;
+};
 
 ```
-// authservice.proto
-package proto;
+
+
+```
+// loginrule_service.proto
 ...
 
-message GetLoginRulesRequest {
-};
+// LoginRuleService provides CRUD methods for the LoginRule resource.
+service LoginRuleService {
+	// CreateLoginRule creates a login rule if one with the same name does not
+    // already exist, else it returns an error.
+    // (RFD note) Used for: tctl create rule.yaml
+    rpc CreateLoginRule(CreateLoginRuleRequest) returns (CreateLoginRuleResponse);
 
-message GetLoginRulesResponse {
-  repeated types.LoginRuleV1 login_rules = 1;
-};
-
-service AuthService {
-    ...
+	// UpsertLoginRule creates a login rule if one with the same name does not
+    // already exist, else it replaces the existing login rule.
+    // (RFD note) Used for: tctl create -f rule.yaml
+    rpc UpsertLoginRule(UpsertLoginRuleRequest) returns (UpsertLoginRuleResponse);
 
     // GetLoginRule retrieves a login rule described by the given request.
-    rpc GetLoginRule(types.ResourceRequest) returns (types.LoginRuleV1);
+    rpc GetLoginRule(GetLoginRuleRequest) returns (LoginRule);
 
-    // GetLoginRules retrieves all login rules.
-    rpc GetLoginRules(types.GetLoginRulesRequest) returns (GetLoginRulesResponse);
+    // ListLoginRules lists all login rules.
+    rpc GetLoginRules(ListLoginRulesRequest) returns (ListLoginRulesResponse);
 
-    // CreateLoginRule creates a login rule in a backend if it does not already
-    // exist.
-    rpc CreateLoginRule(types.LoginRuleV1) returns (google.protobuf.Empty);
+    // DeleteLoginRule deletes an existing login rule.
+    rpc DeleteToken(DeleteLoginRuleRequest) returns (google.protobuf.Empty);
+};
 
-    // UpsertLoginRule upserts a login rule in a backend.
-    rpc UpsertLoginRule(types.LoginRuleV1) returns (google.protobuf.Empty);
+// CreateLoginRuleRequest is a request to create a login rule.
+message CreateLoginRuleRequest {
+    // LoginRule is the login rule to be created.
+    LoginRule login_rule = 1;
+};
 
-    // DeleteLoginRule deletes an existing login rule in the backend.
-    rpc DeleteToken(types.ResourceRequest) returns (google.protobuf.Empty);
+// CreateLoginRuleResponse is a response to a CreateLoginRule request.
+message CreateLoginRuleResponse {
+    // LoginRule is the login rule as created.
+    LoginRule login_rule = 1;
+};
+
+// UpsertLoginRuleRequest is a request to upsert a login rule.
+message UpsertLoginRuleRequest {
+    // LoginRule is the login rule to be created.
+    LoginRule login_rule = 1;
+};
+
+// UpsertLoginRuleReponse is a response to an UpsertLoginRule request.
+message UpsertLoginRuleResponse {
+    // LoginRule is the login rule as created.
+    LoginRule login_rule = 1;
+};
+
+// GetLoginRuleRequest is a request to get a single login rule.
+message GetLoginRuleRequest {
+    // Name is the name of the login rule to get.
+    string name = 1;
+};
+
+// ListLoginRulesRequest is a paginated request to list all login rules.
+message ListLoginRulesRequest {
+    // PageSize is The maximum number of login rules to return in a single reponse.
+    int32 page_size = 1;
+
+    // PageToken is the NextPageToken value returned from a previous
+    // ListLoginRules request, if any.
+    string page_token = 1;
+}
+
+message ListLoginRulesResponse {
+    // LoginRules is the list of login rules.
+    repeated LoginRule login_rules = 1;
+
+    // NextPageToken is a token to retrieve the next page of results, or empty
+    // if there are no more results.
+    string next_page_token = 2;
 };
 ```
 
