@@ -4199,7 +4199,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	require.NoError(t, err)
 	checkSSHPrincipals(svc)
 
-	t.Log("Service reloaded. Rotation has completed. Shuttting down service.")
+	t.Log("Service reloaded. Rotation has completed. Shutting down service.")
 
 	// shut down the service
 	cancel()
