@@ -178,7 +178,7 @@ func TestLoadKey(t *testing.T) {
 
 	for i, key := range keys {
 		t.Cleanup(func() {
-			err = keyAgent.UnloadKey(s.key.KeyIndex)
+			err = keyAgent.UnloadKey(key.KeyIndex)
 			require.NoError(t, err)
 		})
 
