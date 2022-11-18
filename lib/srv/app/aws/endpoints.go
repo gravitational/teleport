@@ -124,6 +124,22 @@ func endpointsIDFromSigningName(signingName string) string {
 	return signingName
 }
 
+func isDynamoDBEndpoint(re *endpoints.ResolvedEndpoint) bool {
+	// Some clients may sign some services with upper case letters. We use all
+	// lower cases in our mapping.
+	signingName := strings.ToLower(re.SigningName)
+	_, ok := dynamoDBSigningNames[signingName]
+	return ok
+}
+
+// dynamoDBSigningNames is a set of signing names used for DynamoDB APIs.
+var dynamoDBSigningNames = map[string]struct{}{
+	// signing name for dynamodb and dynamodbstreams API.
+	"dynamodb": {},
+	// signing name for dynamodb accelerator API.
+	"dax": {},
+}
+
 // signingNameToEndpointsID is a map of AWS services' signing names to their
 // endpoints IDs.
 //
