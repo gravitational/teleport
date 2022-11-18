@@ -211,11 +211,14 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	ws.SetReadDeadline(deadlineForInterval(t.params.KeepAliveInterval))
 
-	sessionString, err := json.Marshal(siteSessionGenerateResponse{Session: t.sessionData})
-	if err != nil {
-		errMsg := "unable to marshal session response"
+	emitError := func(errMsg string, err error) {
 		t.log.Errorf("%s: %s", errMsg, err)
 		http.Error(w, errMsg, http.StatusInternalServerError)
+	}
+
+	sessionString, err := json.Marshal(siteSessionGenerateResponse{Session: t.sessionData})
+	if err != nil {
+		emitError("unable to marshal session response", err)
 		return
 	}
 
@@ -227,13 +230,15 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	envelopeBytes, err := proto.Marshal(envelope)
 	if err != nil {
-		errMsg := "unable to process session response"
-		t.log.Errorf("%s: %s", errMsg, err)
-		http.Error(w, errMsg, http.StatusInternalServerError)
+		emitError("unable to marshal session data event for web client", err)
 		return
 	}
 
-	ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
+	err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
+	if err != nil {
+		emitError("unable to write message to socket", err)
+		return
+	}
 
 	t.handler(ws, r)
 }
