@@ -93,12 +93,31 @@ message DiscoverMetadata {
     string id = 1;
 }
 
+// Represents a resource type that is being added.
+enum DiscoverResource {
+  RESOURCE_SERVER = 0;
+  RESOURCE_KUBERNETES = 1;
+  RESOURCE_DATABASE_POSTGRES_SELF_HOSTED = 2;
+  RESOURCE_DATABASE_MYSQL_SELF_HOSTED = 3;
+  RESOURCE_DATABASE_MONGODB_SELF_HOSTED = 4;
+  RESOURCE_DATABASE_POSTGRES_RDS = 5;
+  RESOURCE_DATABASE_MYSQL_RDS = 6;
+  RESOURCE_APPLICATION_HTTP = 7;
+  RESOURCE_APPLICATION_TCP = 8;
+  RESOURCE_WINDOWS_DESKTOP = 9;
+}
+
 // Contains common metadata identifying resource type being added.
 message ResourceMetadata {
-    // Resource type: server, kubernetes, database, app, desktop.
-    string type = 1;
-    // Optional protocol where applicable, e.g. postgres, mysql, sqlserver.
-    string protocol = 2;
+    // Resource type that is being added.
+    DiscoverResource resource = 1;
+}
+
+// Represents a Discover step outcome.
+enum DiscoverStatus {
+  STATUS_SUCCESS = 0;
+  STATUS_ERROR = 1;
+  STATUS_ABORTED = 2;
 }
 
 // Contains fields that track a particular step outcome, for example connection
@@ -107,7 +126,7 @@ message Status {
     // Indicates the step outcome. For example, "success" means user proceeded
     // to the next step, "error" if something failed (e.g. connection test),
     // "aborted" if user exited the wizard.
-    string status = 1;
+    DiscoverStatus status = 1;
     // Contains error details. We have to be careful to not include any
     // identifyable infomation like server addresses here.
     string error = 2 ;
