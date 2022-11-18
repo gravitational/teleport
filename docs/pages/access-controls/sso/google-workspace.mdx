@@ -172,9 +172,19 @@ correct Google Workspace plan.
 
 In the [Create an OAuth client ID](https://console.cloud.google.com/apis/credentials/oauthclient) page of the GCP console, select "Web application" as the Application type, pick a name, then add the following as an authorized redirect URI.
 
-```txt
-https://<address of proxy server>:3080/v1/webapi/oidc/callback
-```
+<Tabs>
+  <TabItem scope={["oss", "enterprise"]} label="Self Hosted">
+    ```txt
+    https://<SELF-HOSTED-CLUSTER-URL>:3080/v1/webapi/oidc/callback
+    ```
+  </TabItem>
+
+  <TabItem scope={["cloud"]} label="Teleport Cloud">
+    ```txt
+    https://<TENANT-ID>.teleport.sh/v1/webapi/oidc/callback
+    ```
+  </TabItem>
+</Tabs>
 
     ![OAuth client ID creation](../../../img/googleoidc/clientid-creation.png)
 
@@ -206,11 +216,11 @@ Configure [domain-wide
   Click "Add new" and add the numeric Unique ID that you've copied earlier.
     ![domain-wide delegation](../../../img/googleoidc/domainwidedelegation.png)
 
-  Add either the
-    `https://www.googleapis.com/auth/cloud-identity.groups.readonly` scope or
-    the `https://www.googleapis.com/auth/admin.directory.group.readonly` scope.
-    The scope granted to the service account will determine if Teleport will
-    fetch both direct and indirect groups or just direct groups, respectively.
+  Add **one** of the following scopes (more info [here](#how-google-workspace-apis-differ-by-service-level)):
+  - Direct and Indirect Groups (*Transitive Group Membership Support*)
+    - `https://www.googleapis.com/auth/cloud-identity.groups.readonly`
+  - Direct Groups Only
+    - `https://www.googleapis.com/auth/admin.directory.group.readonly`
 
 ## Step 3/4. Create an OIDC connector
 
@@ -229,6 +239,13 @@ Create the following OIDC connector [resource spec](../../reference/resources.md
     ```
   </TabItem>
 </Tabs>
+
+<Admonition
+  type="tip"
+  title="Copy/Paste Tip"
+>
+  Be sure to remove < > brackets around tokens in the sample configuration above. For example, replace `<GOOGLE-WORKSPACE-ADMIN-EMAIL>` with `admin@yourdomain.com`.
+</Admonition>
 
 The email that you set for `google_admin_email` **must** be the email address of a user that has permission to list all groups, users, and group membership in your Google Workspace account. This user will generally need super admin or group admin privileges.
 
