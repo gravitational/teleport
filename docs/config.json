@@ -524,6 +524,10 @@
       "title": "Connect your Client",
       "entries": [
         {
+          "title": "Introduction",
+          "slug": "/connect-your-client/introduction/"
+        },
+        {
           "title": "Using tsh",
           "slug": "/connect-your-client/tsh/"
         },
