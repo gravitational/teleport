@@ -49,5 +49,7 @@ func (f *azureSQLServerFetcher) NewDatabaseFromServer(server *armsql.Server, log
 		return nil
 	}
 
+	// The method used to list the SQL servers only return running servers so
+	// there is no need to check the status here.
 	return database
 }
