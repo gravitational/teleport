@@ -384,13 +384,14 @@ func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := cluster.GetRequestableRoles(ctx)
+	response, err := cluster.GetRequestableRoles(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &api.GetRequestableRolesResponse{
-		Roles: response,
+		Roles:           response.RequestableRoles,
+		ApplicableRoles: response.ApplicableRolesForResources,
 	}, nil
 }
 
