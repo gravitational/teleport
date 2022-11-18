@@ -6608,7 +6608,7 @@ func TestForwardingTraces(t *testing.T) {
 			},
 			assertion: func(t *testing.T, spans []*tracepb.ResourceSpans, err error, code int) {
 				require.NoError(t, err)
-				require.Equal(t, http.StatusOK, code)
+				require.Equal(t, http.StatusBadRequest, code)
 				require.Empty(t, spans)
 			},
 		},
@@ -6672,7 +6672,9 @@ func TestForwardingTraces(t *testing.T) {
 	// the test cases from running in parallel
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			clt := &mockTraceClient{}
+			clt := &mockTraceClient{
+				uploadReceived: make(chan struct{}),
+			}
 			p.handler.handler.cfg.TraceClient = clt
 
 			recorder := httptest.NewRecorder()
@@ -6680,14 +6682,32 @@ func TestForwardingTraces(t *testing.T) {
 			// use the handler directly because there is no easy way to pipe in our tracing
 			// data using the pack client in a format that would match the ui.
 			_, err := p.handler.handler.traces(recorder, tt.req(t), nil, nil)
+
+			// if traces weren't uploaded perform the assertion
+			// without waiting for traces to be forwarded
+			if err != nil || recorder.Code != http.StatusOK {
+				tt.assertion(t, clt.spans, err, recorder.Code)
+				return
+			}
+
+			// traces are forwarded in a goroutine, wait for them
+			// to be received by the trace client before doing the
+			// assertion
+			select {
+			case <-clt.uploadReceived:
+			case <-time.After(10 * time.Second):
+				t.Fatal("Timed out waiting for traces to be uploaded")
+			}
+
 			tt.assertion(t, clt.spans, err, recorder.Code)
 		})
 	}
 }
 
 type mockTraceClient struct {
-	uploadError error
-	spans       []*otlp.ResourceSpans
+	uploadError    error
+	uploadReceived chan struct{}
+	spans          []*otlp.ResourceSpans
 }
 
 func (m *mockTraceClient) Start(ctx context.Context) error {
@@ -6700,5 +6720,6 @@ func (m *mockTraceClient) Stop(ctx context.Context) error {
 
 func (m *mockTraceClient) UploadTraces(ctx context.Context, protoSpans []*otlp.ResourceSpans) error {
 	m.spans = append(m.spans, protoSpans...)
+	m.uploadReceived <- struct{}{}
 	return m.uploadError
 }
