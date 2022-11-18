@@ -38,7 +38,9 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
@@ -75,7 +77,11 @@ func makeSuite(t *testing.T) *KeyAgentTestSuite {
 	s.tlsca, s.tlscaCert, err = newSelfSignedCA(pemBytes, "localhost")
 	require.NoError(t, err)
 
-	s.key = s.makeKey(t, s.username, s.hostname)
+	keygen := testauthority.New()
+	priv, err := keygen.GeneratePrivateKey()
+	require.NoError(t, err)
+
+	s.key = s.makeKey(t, s.username, s.hostname, priv)
 
 	return s
 }
@@ -165,8 +171,8 @@ func TestLoadKey(t *testing.T) {
 	// Create 3 separate keys, with overlapping user and cluster names
 	keys := []*Key{
 		s.key,
-		s.makeKey(t, s.key.Username, "other-proxy-host"),
-		s.makeKey(t, "other-user", s.key.ProxyHost),
+		s.genKey(t, s.key.Username, "other-proxy-host"),
+		s.genKey(t, "other-user", s.key.ProxyHost),
 	}
 
 	// We should see two agent keys for each key added
@@ -579,12 +585,9 @@ func TestLocalKeyAgent_AddDatabaseKey(t *testing.T) {
 	})
 }
 
-func (s *KeyAgentTestSuite) makeKey(t *testing.T, username, proxyHost string) *Key {
+func (s *KeyAgentTestSuite) makeKey(t *testing.T, username, proxyHost string, priv *keys.PrivateKey) *Key {
 	keygen := testauthority.New()
 	ttl := time.Minute
-
-	privateKey, err := keygen.GeneratePrivateKey()
-	require.NoError(t, err)
 
 	clock := clockwork.NewRealClock()
 	identity := tlsca.Identity{
@@ -595,7 +598,7 @@ func (s *KeyAgentTestSuite) makeKey(t *testing.T, username, proxyHost string) *K
 	require.NoError(t, err)
 	tlsCert, err := s.tlsca.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
-		PublicKey: privateKey.Public(),
+		PublicKey: priv.Public(),
 		Subject:   subject,
 		NotAfter:  clock.Now().UTC().Add(ttl),
 	})
@@ -610,7 +613,7 @@ func (s *KeyAgentTestSuite) makeKey(t *testing.T, username, proxyHost string) *K
 	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
 		CertificateFormat:     constants.CertificateFormatStandard,
 		CASigner:              caSigner,
-		PublicUserKey:         ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+		PublicUserKey:         ssh.MarshalAuthorizedKey(priv.SSHPublicKey()),
 		Username:              username,
 		AllowedLogins:         []string{username},
 		TTL:                   ttl,
@@ -621,7 +624,7 @@ func (s *KeyAgentTestSuite) makeKey(t *testing.T, username, proxyHost string) *K
 	require.NoError(t, err)
 
 	return &Key{
-		PrivateKey: privateKey,
+		PrivateKey: priv,
 		Cert:       certificate,
 		TLSCert:    tlsCert,
 		KeyIndex: KeyIndex{
@@ -630,6 +633,12 @@ func (s *KeyAgentTestSuite) makeKey(t *testing.T, username, proxyHost string) *K
 			ClusterName: s.clusterName,
 		},
 	}
+}
+
+func (s *KeyAgentTestSuite) genKey(t *testing.T, username, proxyHost string) *Key {
+	priv, err := native.GeneratePrivateKey()
+	require.NoError(t, err)
+	return s.makeKey(t, username, proxyHost, priv)
 }
 
 func startDebugAgent(t *testing.T) error {
