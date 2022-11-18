@@ -154,6 +154,17 @@ func lowerIdent(node *goast.Ident) (astNode, error) {
 	}
 }
 
-func lowerCall(node goast.Node) (astNode, error) {
-	return nil, trace.NotImplemented("call expressions are not implemented")
+func lowerCall(node *goast.CallExpr) (astNode, error) {
+	fn := ""
+	switch target := node.Fun.(type) {
+	case *goast.Ident:
+		fn = target.Name
+	default:
+		return nil, trace.BadParameter("unsupported call target %T", node.Fun)
+	}
+
+	switch fn {
+	default:
+		return nil, trace.NotImplemented("unsupported function %q", fn)
+	}
 }

@@ -105,3 +105,70 @@ type eqIdent struct {
 }
 
 func (*eqIdent) predicateGuard() {}
+
+type eqConcat struct {
+	left  astNode
+	right astNode
+}
+
+type eqSplit struct {
+	inner astNode
+	sep   astNode
+}
+
+type eqArray struct {
+	values []astNode
+}
+
+type eqUpper struct {
+	inner astNode
+}
+
+type eqLower struct {
+	inner astNode
+}
+
+type eqAppend struct {
+	list  astNode
+	value astNode
+}
+
+type eqContains struct {
+	within astNode
+	sub    astNode
+}
+
+type eqReplace struct {
+	inner astNode
+	from  astNode
+	to    astNode
+}
+
+type eqRegex struct {
+	inner astNode
+}
+
+type eqMatches struct {
+	target astNode
+	regex  astNode
+}
+
+type eqLen struct {
+	inner astNode
+}
+
+type eqGetOrEmpty struct {
+	inner astNode
+	index astNode
+}
+
+type eqMapInsert struct {
+	ma    astNode
+	key   astNode
+	value astNode
+}
+
+type eqMapRemove struct {
+	ma  astNode
+	key astNode
+}
