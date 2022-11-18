@@ -941,13 +941,13 @@ func TestClusterNodesGet(t *testing.T) {
 			Tunnel:      server1.GetUseTunnel(),
 			Addr:        server1.GetAddr(),
 			Labels:      []ui.Label{},
-			SSHLogins:   []string{"user"},
+			SSHLogins:   []string{pack.login},
 		},
 		{ClusterName: clusterName,
 			Name:      "server2",
 			Labels:    []ui.Label{{Name: "test-field", Value: "test-value"}},
 			Tunnel:    false,
-			SSHLogins: []string{"user"}},
+			SSHLogins: []string{pack.login}},
 	})
 
 	// Get nodes using shortcut.
@@ -3293,7 +3293,7 @@ func TestClusterAppsGet(t *testing.T) {
 		}})
 	require.NoError(t, err)
 
-	// Test URI's with tcp is filtered out of result.
+	// Test URIs with tcp is filtered out of result.
 	resource3, err := types.NewAppServerV3(types.Metadata{Name: "server3"}, types.AppServerSpecV3{
 		HostID: "hostid",
 		App: &types.AppV3{
@@ -4560,6 +4560,7 @@ func TestParseSSORequestParams(t *testing.T) {
 }
 
 func TestClusterDesktopsGet(t *testing.T) {
+	t.Parallel()
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
