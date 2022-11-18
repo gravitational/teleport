@@ -35,10 +35,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // STSMock mocks AWS STS API.
@@ -56,9 +57,9 @@ func (m *STSMock) GetCallerIdentityWithContext(aws.Context, *sts.GetCallerIdenti
 // RDSMock mocks AWS RDS API.
 type RDSMock struct {
 	rdsiface.RDSAPI
-	DBInstances       []*rds.DBInstance
-	DBClusters        []*rds.DBCluster
-	DBEngineVersions  []*rds.DBEngineVersion
+	DBInstances      []*rds.DBInstance
+	DBClusters       []*rds.DBCluster
+	DBEngineVersions []*rds.DBEngineVersion
 }
 
 func (m *RDSMock) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, options ...request.Option) (*rds.DescribeDBInstancesOutput, error) {
