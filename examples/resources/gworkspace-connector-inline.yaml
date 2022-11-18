@@ -18,7 +18,7 @@ spec:
   google_service_account: |
     {
      "type": "service_account",
-     "project_id": "<PRODUCT-ID>",
+     "project_id": "<PROJECT-ID>",
      "private_key_id": "<PRIVATE-KEY-ID>",
      "private_key": "-----BEGIN PRIVATE KEY-----\n<PRIVATE-KEY-CONTENTS>\n-----END PRIVATE KEY-----\n",
      "client_email": "<TELEPORT-SERVICE-ACCOUNT-EMAIL>",
