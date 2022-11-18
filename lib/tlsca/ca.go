@@ -153,7 +153,7 @@ type Identity struct {
 	// MFAVerified is the UUID of an MFA device when this Identity was
 	// confirmed immediately after an MFA check.
 	MFAVerified string
-	// MFAVerified is the the hard deadline of a session when this Identity was
+	// MFAVerifiedSessionExpires is the the hard deadline of a session when this Identity was
 	// confirmed immediately after an MFA check.
 	MFAVerifiedSessionExpires time.Time
 	// ClientIP is an observed IP of the client that this Identity represents.
@@ -261,28 +261,29 @@ func (id *Identity) GetEventIdentity() events.Identity {
 	}
 
 	return events.Identity{
-		User:               id.Username,
-		Impersonator:       id.Impersonator,
-		Roles:              id.Groups,
-		Usage:              id.Usage,
-		Logins:             id.Principals,
-		KubernetesGroups:   id.KubernetesGroups,
-		KubernetesUsers:    id.KubernetesUsers,
-		Expires:            id.Expires,
-		RouteToCluster:     id.RouteToCluster,
-		KubernetesCluster:  id.KubernetesCluster,
-		Traits:             id.Traits,
-		RouteToApp:         routeToApp,
-		TeleportCluster:    id.TeleportCluster,
-		RouteToDatabase:    routeToDatabase,
-		DatabaseNames:      id.DatabaseNames,
-		DatabaseUsers:      id.DatabaseUsers,
-		MFADeviceUUID:      id.MFAVerified,
-		ClientIP:           id.ClientIP,
-		AWSRoleARNs:        id.AWSRoleARNs,
-		AccessRequests:     id.ActiveRequests,
-		DisallowReissue:    id.DisallowReissue,
-		AllowedResourceIDs: events.ResourceIDs(id.AllowedResourceIDs),
+		User:                      id.Username,
+		Impersonator:              id.Impersonator,
+		Roles:                     id.Groups,
+		Usage:                     id.Usage,
+		Logins:                    id.Principals,
+		KubernetesGroups:          id.KubernetesGroups,
+		KubernetesUsers:           id.KubernetesUsers,
+		Expires:                   id.Expires,
+		RouteToCluster:            id.RouteToCluster,
+		KubernetesCluster:         id.KubernetesCluster,
+		Traits:                    id.Traits,
+		RouteToApp:                routeToApp,
+		TeleportCluster:           id.TeleportCluster,
+		RouteToDatabase:           routeToDatabase,
+		DatabaseNames:             id.DatabaseNames,
+		DatabaseUsers:             id.DatabaseUsers,
+		MFADeviceUUID:             id.MFAVerified,
+		MFAVerifiedSessionExpires: id.MFAVerifiedSessionExpires,
+		ClientIP:                  id.ClientIP,
+		AWSRoleARNs:               id.AWSRoleARNs,
+		AccessRequests:            id.ActiveRequests,
+		DisallowReissue:           id.DisallowReissue,
+		AllowedResourceIDs:        events.ResourceIDs(id.AllowedResourceIDs),
 	}
 }
 
@@ -539,7 +540,7 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
 				Type:  MFAVerifiedSessionExpiresASN1ExtensionOID,
-				Value: id.MFAVerifiedSessionExpires,
+				Value: id.MFAVerifiedSessionExpires.Format(time.RFC3339),
 			})
 	}
 	if id.ClientIP != "" {
@@ -744,11 +745,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			}
 		case attr.Type.Equal(MFAVerifiedSessionExpiresASN1ExtensionOID):
 			val, ok := attr.Value.(string)
-			asTime, err := time.Parse(time.RFC3339, val)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 			if ok {
+				asTime, err := time.Parse(time.RFC3339, val)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
 				id.MFAVerifiedSessionExpires = asTime
 			}
 		case attr.Type.Equal(ClientIPASN1ExtensionOID):
