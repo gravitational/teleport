@@ -745,6 +745,8 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 	clock := srv.Clock()
+	userCertTTL := 12 * time.Hour
+	userCertExpires := clock.Now().Add(userCertTTL)
 
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
@@ -807,7 +809,9 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	role.SetOptions(roleOpt)
 	err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
-	cl, err := srv.NewClient(TestUser(user.GetName()))
+	testUser := TestUser(user.GetName())
+	testUser.TTL = userCertTTL
+	cl, err := srv.NewClient(testUser)
 	require.NoError(t, err)
 
 	// Register MFA devices for the fake user.
@@ -851,9 +855,10 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					cert, err := sshutils.ParseCertificate(crt)
 					require.NoError(t, err)
 
-					require.Equal(t, cert.Extensions[teleport.CertExtensionMFAVerified], webDevID)
+					require.Equal(t, webDevID, cert.Extensions[teleport.CertExtensionMFAVerified])
+					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionMFAVerifiedSessionExpires])
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
-					require.Equal(t, cert.ValidBefore, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()))
+					require.Equal(t, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()), cert.ValidBefore)
 				},
 			},
 		},
@@ -879,9 +884,10 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					cert, err := sshutils.ParseCertificate(crt)
 					require.NoError(t, err)
 
-					require.Equal(t, cert.Extensions[teleport.CertExtensionMFAVerified], webDevID)
+					require.Equal(t, webDevID, cert.Extensions[teleport.CertExtensionMFAVerified])
+					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionMFAVerifiedSessionExpires])
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
-					require.Equal(t, cert.ValidBefore, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()))
+					require.Equal(t, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()), cert.ValidBefore)
 				},
 			},
 		},
@@ -908,10 +914,11 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 					require.NoError(t, err)
-					require.Equal(t, identity.MFAVerified, webDevID)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.MFAVerifiedSessionExpires)
 					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())
-					require.Equal(t, identity.Usage, []string{teleport.UsageKubeOnly})
-					require.Equal(t, identity.KubernetesCluster, "kube-a")
+					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
+					require.Equal(t, "kube-a", identity.KubernetesCluster)
 				},
 			},
 		},
@@ -940,9 +947,10 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 					require.NoError(t, err)
-					require.Equal(t, identity.MFAVerified, webDevID)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.MFAVerifiedSessionExpires)
 					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())
-					require.Equal(t, identity.Usage, []string{teleport.UsageDatabaseOnly})
+					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
 					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
 				},
 			},
