@@ -844,23 +844,12 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		return trace.Wrap(err)
 	}
 
-	var disconnectCertExpired time.Time
-	if authCtx.Checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
-		if !identity.MFAVerifiedSessionExpires.IsZero() {
-			// Cause MFA verified sessions to disconnect on issuing certs expiry
-			// (see https://github.com/gravitational/teleport/issues/18544).
-			disconnectCertExpired = identity.MFAVerifiedSessionExpires
-		} else if !identity.Expires.IsZero() {
-			disconnectCertExpired = identity.Expires
-		}
-	}
-
 	monitorCfg := srv.MonitorConfig{
 		Context:               ctx,
 		Conn:                  tdpConn,
 		Clock:                 s.cfg.Clock,
 		ClientIdleTimeout:     authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
-		DisconnectExpiredCert: disconnectCertExpired,
+		DisconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(authCtx.Checker, authPref, identity),
 		Entry:                 log,
 		Emitter:               s.cfg.Emitter,
 		LockWatcher:           s.cfg.LockWatcher,
