@@ -70,21 +70,18 @@ func (h *Handler) createUserEventHandle(w http.ResponseWriter, r *http.Request, 
 		typedEvent.Event = &v1.UsageEventOneOf_UiOnboardGetStartedClick{
 			UiOnboardGetStartedClick: &v1.UIOnboardGetStartedClickEvent{},
 		}
-
-	// todo mberg need the updated events from prehog in the timothyb89/usage-reporting branch
-	//case setPasswordSubmitEvent:
-	//			typedEvent.Event = &v1.UI {
-	//		UiBannerClick: &v1.UIBannerClickEvent{},
-	//	}
-	//case registerChallengeSubmitEvent:
-	//			typedEvent.Event = &v1.UIOnboard {
-	//		UiBannerClick: &v1.UIBannerClickEvent{},
-	//	}
-	//case recoveryCodesContinueClickEvent:
-	//			typedEvent.Event = &v1.UIon {
-	//		UiBannerClick: &v1.UIBannerClickEvent{},
-	//	}
-
+	case setCredentialSubmitEvent:
+		typedEvent.Event = &v1.UsageEventOneOf_UiOnboardSetCredentialSubmit{
+			UiOnboardSetCredentialSubmit: &v1.UIOnboardSetCredentialSubmitEvent{},
+		}
+	case registerChallengeSubmitEvent:
+		typedEvent.Event = &v1.UsageEventOneOf_UiOnboardRegisterChallengeSubmit{
+			UiOnboardRegisterChallengeSubmit: &v1.UIOnboardRegisterChallengeSubmitEvent{},
+		}
+	case recoveryCodesContinueClickEvent:
+		typedEvent.Event = &v1.UsageEventOneOf_UiOnboardRecoveryCodesContinueClick{
+			UiOnboardRecoveryCodesContinueClick: &v1.UIOnboardRecoveryCodesContinueClickEvent{},
+		}
 	case addFirstResourceClickEvent:
 		typedEvent.Event = &v1.UsageEventOneOf_UiOnboardAddFirstResourceClick{
 			UiOnboardAddFirstResourceClick: &v1.UIOnboardAddFirstResourceClickEvent{},
