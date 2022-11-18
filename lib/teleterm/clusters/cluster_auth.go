@@ -91,6 +91,8 @@ func (c *Cluster) LocalLogin(ctx context.Context, user, password, otpToken strin
 		return trace.Wrap(err)
 	}
 
+	c.clusterClient.AuthConnector = constants.LocalConnector
+
 	var sshLoginFunc client.SSHLoginFunc
 	switch pingResp.Auth.SecondFactor {
 	case constants.SecondFactorOff, constants.SecondFactorOTP:
@@ -129,6 +131,8 @@ func (c *Cluster) SSOLogin(ctx context.Context, providerType, providerName strin
 		return trace.Wrap(err)
 	}
 
+	c.clusterClient.AuthConnector = providerName
+
 	if err := c.login(ctx, c.ssoLogin(providerType, providerName)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -141,6 +145,8 @@ func (c *Cluster) PasswordlessLogin(ctx context.Context, stream api.TerminalServ
 	if _, err := c.updateClientFromPingResponse(ctx); err != nil {
 		return trace.Wrap(err)
 	}
+
+	c.clusterClient.AuthConnector = constants.PasswordlessConnector
 
 	if err := c.login(ctx, c.passwordlessLogin(stream)); err != nil {
 		return trace.Wrap(err)
