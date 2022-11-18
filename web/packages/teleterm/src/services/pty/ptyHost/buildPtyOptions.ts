@@ -111,7 +111,12 @@ function getPtyProcessOptions(
 
       return {
         path: settings.tshd.binaryPath,
-        args: [`--proxy=${cmd.rootClusterId}`, 'ssh', loginHost],
+        args: [
+          `--proxy=${cmd.rootClusterId}`,
+          'ssh',
+          '--forward-agent',
+          loginHost,
+        ],
         env,
       };
     default:
