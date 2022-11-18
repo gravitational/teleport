@@ -1142,6 +1142,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		CanJoinSessions:     canJoinSessions,
 		IsCloud:             h.ClusterFeatures.GetCloud(),
 		TunnelPublicAddress: tunnelPublicAddr,
+		RecoveryCodesEnabled: h.ClusterFeatures.GetRecoveryCodes(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
