@@ -36,6 +36,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/shell"
@@ -317,18 +318,9 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	// again, to avoid it getting deleted under our nose.
 	parkerCtx, parkerCancel := context.WithCancel(context.Background())
 	defer parkerCancel()
-	if cmd.SysProcAttr.Credential != nil {
-		if err := newParker(parkerCtx, *cmd.SysProcAttr.Credential); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
 
-		localUserCheck, err := user.Lookup(c.Login)
-		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-		if localUser.Uid != localUserCheck.Uid || localUser.Gid != localUserCheck.Gid {
-			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("user %q has been changed", c.Login)
-		}
+	if err := startNewParker(parkerCtx, cmd, c.Login, localUser); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	if c.X11Config.XServerUnixSocket != "" {
@@ -418,6 +410,49 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	}
 
 	return io.Discard, exitCode(err), trace.Wrap(err)
+}
+
+// startNewParker starts a new parker process only if the requested user has been created
+// by Teleport. Otherwise, does nothing.
+func startNewParker(parkerCtx context.Context, cmd *exec.Cmd, login string, localUser *user.User) error {
+	if cmd.SysProcAttr.Credential != nil {
+		// Empty credential, no reason to start the parker.
+		return nil
+	}
+
+	group, err := user.LookupGroup(types.TeleportServiceGroup)
+	if errors.Is(err, user.UnknownGroupError(types.TeleportServiceGroup)) {
+		// The service group doesn't exist. Auto-provision is disabled, do nothing.
+		return nil
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	guid, err := strconv.Atoi(group.Gid)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if cmd.SysProcAttr.Credential.Gid != uint32(guid) {
+		// Check if the new user guid matches the TeleportServiceGroup. If not
+		// this user hasn't been created by Teleport, and we don't need the parker.
+		return nil
+	}
+
+	if err := newParker(parkerCtx, *cmd.SysProcAttr.Credential); err != nil {
+		return trace.Wrap(err)
+	}
+
+	localUserCheck, err := user.Lookup(login)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if localUser.Uid != localUserCheck.Uid || localUser.Gid != localUserCheck.Gid {
+		return trace.BadParameter("user %q has been changed", login)
+	}
+
+	return nil
 }
 
 // RunForward reads in the command to run from the parent process (over a
