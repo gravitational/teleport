@@ -192,7 +192,7 @@ func (u *Users) setupAllDatabasesAndRotatePassowrds(ctx context.Context, allData
 			delete(u.usersByID, userID)
 
 			if err := user.Teardown(ctx); err != nil {
-				u.cfg.Log.WithError(err).Errorf("Failed to tear down user %v.", user)
+				u.cfg.Log.WithError(err).Errorf("Failed to tear down user %v.", user.GetID())
 			}
 		}
 	}
@@ -235,7 +235,7 @@ func (u *Users) setupDatabasesAndRotatePasswords(ctx context.Context, databases 
 		var users []User
 		for _, fetchedUser := range fetchedUsers {
 			if user, err := u.setupUser(ctx, fetchedUser); err != nil {
-				u.cfg.Log.WithError(err).Errorf("Failed to setup user %v for database %v.", fetchedUser, database)
+				u.cfg.Log.WithError(err).Errorf("Failed to setup user %s for database %v.", fetchedUser.GetID(), database)
 			} else {
 				users = append(users, user)
 			}
@@ -244,7 +244,7 @@ func (u *Users) setupDatabasesAndRotatePasswords(ctx context.Context, databases 
 		// Rotate passwords.
 		for _, user := range users {
 			if err = user.RotatePassword(ctx); err != nil {
-				u.cfg.Log.WithError(err).Errorf("Failed to rotate password for user %v", user)
+				u.cfg.Log.WithError(err).Errorf("Failed to rotate password for user %s", user.GetID())
 			}
 		}
 
