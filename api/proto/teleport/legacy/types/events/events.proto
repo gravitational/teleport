@@ -3213,6 +3213,13 @@ message Identity {
     (gogoproto.jsontag) = "allowed_resource_ids,omitempty",
     (gogoproto.nullable) = false
   ];
+  // MFAVerifiedSessionExpires is the the hard deadline of a session when this Identity was
+  // confirmed immediately after an MFA check.
+  google.protobuf.Timestamp MFAVerifiedSessionExpires = 23 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "mfa_verified_session_expires"
+  ];
 }
 
 // RouteToApp contains parameters for application access certificate requests.
