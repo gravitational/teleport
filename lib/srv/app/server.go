@@ -118,6 +118,10 @@ type Config struct {
 
 	// Emitter is an event emitter.
 	Emitter events.Emitter
+
+	// MonitorCloseChannel will be signaled when the monitor closes a connection.
+	// Used only for testing. Optional.
+	MonitorCloseChannel chan struct{}
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
@@ -282,7 +286,11 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	s.httpServer = s.newHTTPServer()
 
 	// TCP server will handle TCP applications.
-	s.tcpServer = s.newTCPServer()
+	tcpServer, err := s.newTCPServer()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s.tcpServer = tcpServer
 
 	// Create a new session cache, this holds sessions that can be used to
 	// forward requests.
@@ -723,6 +731,7 @@ func (s *Server) monitorConn(ctx context.Context, tc *srv.TrackingReadConn, auth
 		TeleportUser:          identity.Username,
 		Emitter:               s.c.Emitter,
 		Entry:                 s.log,
+		MonitorCloseChannel:   s.c.MonitorCloseChannel,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -790,7 +799,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	identity := authCtx.Identity.GetIdentity()
 	switch {
 	case app.IsAWSConsole():
-		//  Requests from AWS applications are singed by AWS Signature Version
+		//  Requests from AWS applications are signed by AWS Signature Version
 		//  4 algorithm. AWS CLI and AWS SDKs automatically use SigV4 for all
 		//  services that support it (All services expect Amazon SimpleDB but
 		//  this AWS service has been deprecated)
@@ -837,15 +846,8 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request, identity *
 	}
 	defer session.release()
 
-	// Create session context.
-	sessionCtx := &common.SessionContext{
-		Identity: identity,
-		App:      app,
-		Emitter:  session.streamWriter,
-	}
-
 	// Forward request to the target application.
-	session.fwd.ServeHTTP(w, common.WithSessionContext(r, sessionCtx))
+	session.fwd.ServeHTTP(w, common.WithSessionContext(r, session.sessionCtx))
 	return nil
 }
 
@@ -982,12 +984,18 @@ func (s *Server) newHTTPServer() *http.Server {
 }
 
 // newTCPServer creates a server that proxies TCP applications.
-func (s *Server) newTCPServer() *tcpServer {
-	return &tcpServer{
-		authClient: s.c.AuthClient,
-		hostID:     s.c.HostID,
-		log:        s.log,
+func (s *Server) newTCPServer() (*tcpServer, error) {
+	audit, err := common.NewAudit(common.AuditConfig{
+		Emitter: s.c.Emitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	return &tcpServer{
+		audit:  audit,
+		hostID: s.c.HostID,
+		log:    s.log,
+	}, nil
 }
 
 // getProxyPort tries to figure out the address the proxy is running at.

@@ -98,6 +98,11 @@
               "forScopes": ["enterprise"]
             },
             {
+              "title": "Google Cloud KMS",
+              "slug": "/deploy-a-cluster/teleport-enterprise/gcp-kms/",
+              "forScopes": ["enterprise"]
+            },
+            {
               "title": "Enterprise License File",
               "slug": "/deploy-a-cluster/teleport-enterprise/license/",
               "forScopes": ["enterprise"]
@@ -645,6 +650,10 @@
               "slug": "/server-access/guides/host-user-creation/"
             },
             {
+              "title": "Linux Auditing System",
+              "slug": "/server-access/guides/auditd/"
+            },
+            {
               "title": "EC2 Instance Discovery (Preview)",
               "slug": "/server-access/guides/ec2-discovery/"
             },
@@ -687,6 +696,10 @@
             {
               "title": "Standalone",
               "slug": "/kubernetes-access/guides/standalone-teleport/"
+            },
+            {
+              "title": "Dynamic Registration",
+              "slug": "/kubernetes-access/guides/dynamic-registration/"
             }
           ]
         },
@@ -871,6 +884,10 @@
         {
           "title": "Getting Started",
           "slug": "/desktop-access/getting-started/"
+        },
+        {
+          "title": "Manual Setup",
+          "slug": "/desktop-access/manual-setup/"
         },
         {
           "title": "Access Controls",
@@ -1182,7 +1199,7 @@
       "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "10.3.6",
+      "version": "10.3.8",
       "major_version": "10",
       "sla": {
         "monthly_percentage": "99.5%",
