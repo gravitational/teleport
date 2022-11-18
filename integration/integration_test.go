@@ -1721,21 +1721,25 @@ func testInvalidLogins(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	teleport := suite.newTeleport(t, nil, true)
-	defer teleport.StopAll()
+	instance := suite.newTeleport(t, nil, true)
+	defer func() {
+		require.NoError(t, instance.StopAll())
+	}()
 
 	cmd := []string{"echo", "success"}
 
 	// try the wrong site:
-	tc, err := teleport.NewClient(helpers.ClientConfig{
+	tc, err := instance.NewClient(helpers.ClientConfig{
 		Login:   suite.Me.Username,
 		Cluster: "wrong-site",
 		Host:    Host,
-		Port:    helpers.Port(t, teleport.SSH),
+		Port:    helpers.Port(t, instance.SSH),
 	})
 	require.NoError(t, err)
-	err = tc.SSH(context.TODO(), cmd, false)
-	require.Contains(t, err.Error(), `unknown cluster \"wrong-site\"`)
+
+	err = tc.SSH(context.Background(), cmd, false)
+	require.True(t, trace.IsConnectionProblem(err))
+	require.Contains(t, err.Error(), `unknown cluster "wrong-site"`)
 }
 
 // TestTwoClustersTunnel creates two teleport clusters: "a" and "b" and creates a
@@ -2580,9 +2584,9 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.Len(t, remoteClusters, 1)
 	require.Equal(t, clusterAux, remoteClusters[0].GetName())
 
-	// after removing the remote cluster, the connection will start failing
-	err = main.Process.GetAuthServer().DeleteRemoteCluster(clusterAux)
-	require.NoError(t, err)
+	// after removing the remote cluster and trusted cluster, the connection will start failing
+	require.NoError(t, main.Process.GetAuthServer().DeleteRemoteCluster(clusterAux))
+	require.NoError(t, aux.Process.GetAuthServer().DeleteTrustedCluster(ctx, trustedCluster.GetName()))
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 50)
 		err = tc.SSH(ctx, cmd, false)
@@ -2592,10 +2596,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	}
 	require.Error(t, err, "expected tunnel to close and SSH client to start failing")
 
-	// remove trusted cluster from aux cluster side, and recreate right after
-	// this should re-establish connection
-	err = aux.Process.GetAuthServer().DeleteTrustedCluster(ctx, trustedCluster.GetName())
-	require.NoError(t, err)
+	// recreating the trusted cluster should re-establish connection
 	_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
 	require.NoError(t, err)
 
