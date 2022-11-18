@@ -113,14 +113,6 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		return nil, trace.BadParameter("term: bad term dimensions")
 	}
 
-	// If a session ID is provided in the terminal request then we're trying to
-	// join an existing session. The session ID is required in the request struct.
-	join := true
-	if req.SessionID.IsZero() {
-		join = false
-		req.SessionID = sessionData.ID
-	}
-
 	return &TerminalHandler{
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentWebsocket,
@@ -134,7 +126,6 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		encoder:      unicode.UTF8.NewEncoder(),
 		decoder:      unicode.UTF8.NewDecoder(),
 		wsLock:       &sync.Mutex{},
-		join:         join,
 		sessionData:  sessionData,
 	}, nil
 }
@@ -185,9 +176,6 @@ type TerminalHandler struct {
 	closeOnce sync.Once
 
 	wsLock *sync.Mutex
-
-	// join is set if we're joining an existing session
-	join bool
 
 	// The server data for the active session.
 	sessionData session.Session
@@ -278,7 +266,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	// the terminal.
 	tc, err := t.makeClient(ws, r)
 	if err != nil {
-		t.log.WithError(err).Infof("Failed creating a client for session %v.", t.params.SessionID)
+		t.log.WithError(err).Infof("Failed creating a client for session %v.", t.sessionData.ID)
 		writeErr := t.writeError(err, ws)
 		if writeErr != nil {
 			t.log.WithError(writeErr).Warnf("Unable to send error to terminal.")
@@ -286,7 +274,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 		return
 	}
 
-	t.log.Debugf("Creating websocket stream for %v.", t.params.SessionID)
+	t.log.Debugf("Creating websocket stream for %v.", t.sessionData.ID)
 
 	// Update the read deadline upon receiving a pong message.
 	ws.SetPongHandler(func(_ string) error {
@@ -303,7 +291,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 
 	// Block until the terminal session is complete.
 	<-t.terminalContext.Done()
-	t.log.Debugf("Closing websocket stream for %v.", t.params.SessionID)
+	t.log.Debugf("Closing websocket stream for %v.", t.sessionData.ID)
 }
 
 // makeClient builds a *client.TeleportClient for the connection.
@@ -317,7 +305,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	// communicate over the websocket.
 	stream := t.asTerminalStream(ws)
 
-	if t.join {
+	if !t.params.SessionID.IsZero() {
 		clientConfig.HostLogin = teleport.SSHSessionJoinPrincipal
 	} else {
 		clientConfig.HostLogin = t.params.Login
@@ -334,7 +322,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	}
 	clientConfig.Host = t.hostName
 	clientConfig.HostPort = t.hostPort
-	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)}
+	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: string(t.sessionData.ID)}
 	clientConfig.ClientAddr = r.RemoteAddr
 
 	if len(t.params.InteractiveCommand) > 0 {
