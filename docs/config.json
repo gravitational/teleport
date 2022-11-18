@@ -98,6 +98,11 @@
               "forScopes": ["enterprise"]
             },
             {
+              "title": "Google Cloud KMS",
+              "slug": "/deploy-a-cluster/teleport-enterprise/gcp-kms/",
+              "forScopes": ["enterprise"]
+            },
+            {
               "title": "Enterprise License File",
               "slug": "/deploy-a-cluster/teleport-enterprise/license/",
               "forScopes": ["enterprise"]
@@ -519,6 +524,10 @@
       "title": "Connect your Client",
       "entries": [
         {
+          "title": "Introduction",
+          "slug": "/connect-your-client/introduction/"
+        },
+        {
           "title": "Using tsh",
           "slug": "/connect-your-client/tsh/"
         },
@@ -691,6 +700,10 @@
             {
               "title": "Standalone",
               "slug": "/kubernetes-access/guides/standalone-teleport/"
+            },
+            {
+              "title": "Dynamic Registration",
+              "slug": "/kubernetes-access/guides/dynamic-registration/"
             }
           ]
         },
@@ -875,6 +888,10 @@
         {
           "title": "Getting Started",
           "slug": "/desktop-access/getting-started/"
+        },
+        {
+          "title": "Manual Setup",
+          "slug": "/desktop-access/manual-setup/"
         },
         {
           "title": "Access Controls",
@@ -1186,7 +1203,7 @@
       "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "10.3.6",
+      "version": "10.3.8",
       "major_version": "10",
       "sla": {
         "monthly_percentage": "99.5%",

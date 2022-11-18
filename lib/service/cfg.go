@@ -38,13 +38,13 @@ import (
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	"golang.org/x/net/http/httpguts"
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -956,7 +956,7 @@ func (d *Database) CheckAndSetDefaults() error {
 	if errs := validation.IsDNS1035Label(d.Name); len(errs) > 0 {
 		return trace.BadParameter("invalid database %q name: %v", d.Name, errs)
 	}
-	if !apiutils.SliceContainsStr(defaults.DatabaseProtocols, d.Protocol) {
+	if !slices.Contains(defaults.DatabaseProtocols, d.Protocol) {
 		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v",
 			d.Name, d.Protocol, defaults.DatabaseProtocols)
 	}
