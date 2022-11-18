@@ -358,22 +358,6 @@ func (r *UsageReporter) convertEvent(event services.UsageAnonymizable) (*prehoga
 				UiBannerClick: (*prehogapi.UIBannerClickEvent)(e),
 			},
 		}, nil
-	case *services.UsageUIOnboardDomainNameTCSubmitEvent:
-		return &prehogapi.SubmitEventRequest{
-			ClusterName: clusterName,
-			Timestamp:   time,
-			Event: &prehogapi.SubmitEventRequest_UiOnboardDomainNameTcSubmit{
-				UiOnboardDomainNameTcSubmit: (*prehogapi.UIOnboardDomainNameTCSubmitEvent)(e),
-			},
-		}, nil
-	case *services.UsageUIOnboardGoToDashboardClickEvent:
-		return &prehogapi.SubmitEventRequest{
-			ClusterName: clusterName,
-			Timestamp:   time,
-			Event: &prehogapi.SubmitEventRequest_UiOnboardGoToDashboardClick{
-				UiOnboardGoToDashboardClick: (*prehogapi.UIOnboardGoToDashboardClickEvent)(e),
-			},
-		}, nil
 	case *services.UsageUIOnboardGetStartedClickEvent:
 		return &prehogapi.SubmitEventRequest{
 			ClusterName: clusterName,
@@ -404,6 +388,30 @@ func (r *UsageReporter) convertEvent(event services.UsageAnonymizable) (*prehoga
 			Timestamp:   time,
 			Event: &prehogapi.SubmitEventRequest_UiOnboardAddFirstResourceLaterClick{
 				UiOnboardAddFirstResourceLaterClick: (*prehogapi.UIOnboardAddFirstResourceLaterClickEvent)(e),
+			},
+		}, nil
+	case *services.UsageUIOnboardSetCredentialSubmit:
+		return &prehogapi.SubmitEventRequest{
+			ClusterName: clusterName,
+			Timestamp:   time,
+			Event: &prehogapi.SubmitEventRequest_UiOnboardSetCredentialSubmit{
+				UiOnboardSetCredentialSubmit: (*prehogapi.UIOnboardSetCredentialSubmitEvent)(e),
+			},
+		}, nil
+	case *services.UsageUIOnboardRegisterChallengeSubmit:
+		return &prehogapi.SubmitEventRequest{
+			ClusterName: clusterName,
+			Timestamp:   time,
+			Event: &prehogapi.SubmitEventRequest_UiOnboardRegisterChallengeSubmit{
+				UiOnboardRegisterChallengeSubmit: (*prehogapi.UIOnboardRegisterChallengeSubmitEvent)(e),
+			},
+		}, nil
+	case *services.UsageUIOnboardRecoveryCodesContinueClick:
+		return &prehogapi.SubmitEventRequest{
+			ClusterName: clusterName,
+			Timestamp:   time,
+			Event: &prehogapi.SubmitEventRequest_UiOnboardRecoveryCodesContinueClick{
+				UiOnboardRecoveryCodesContinueClick: (*prehogapi.UIOnboardRecoveryCodesContinueClickEvent)(e),
 			},
 		}, nil
 	default:

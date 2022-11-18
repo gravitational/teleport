@@ -21,50 +21,42 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/usageeve
 // UIBannerClickEvent is a usage event sent by the UI when the upgrade
 // banner is clicked.
 message UIBannerClickEvent {
-  // The name of the user that generated the event. It will be anonymized on the
-  // local Teleport auth server before sending.
-  string user_name = 1;
-
   // The cluster alert name.
   string alert = 2;
 }
 
-// UIOnboardDomainNameTCSubmitEvent
-message UIOnboardDomainNameTCSubmitEvent {}
-
-// UIOnboardGoToDashboardClickEvent
-message UIOnboardGoToDashboardClickEvent {}
-
 // UIOnboardGetStartedClickEvent
-message UIOnboardGetStartedClickEvent {
-  string user_name = 1;
-}
+message UIOnboardGetStartedClickEvent {}
 
 // UIOnboardCompleteGoToDashboardClickEvent
-message UIOnboardCompleteGoToDashboardClickEvent {
-  string user_name = 1;
-}
+message UIOnboardCompleteGoToDashboardClickEvent {}
 
 // UIOnboardAddFirstResourceClickEvent
-message UIOnboardAddFirstResourceClickEvent {
-  string user_name = 1;
-}
+message UIOnboardAddFirstResourceClickEvent {}
 
 // UIOnboardAddFirstResourceLaterClickEvent
-message UIOnboardAddFirstResourceLaterClickEvent {
-  string user_name = 1;
-}
+message UIOnboardAddFirstResourceLaterClickEvent {}
+
+// UIOnboardSetCredentialSubmitEvent
+message UIOnboardSetCredentialSubmitEvent {}
+
+// UIOnboardRegisterChallengeSubmitEvent
+message UIOnboardRegisterChallengeSubmitEvent {}
+
+// UIOnboardRecoveryCodesContinueClickEvent
+message UIOnboardRecoveryCodesContinueClickEvent {}
 
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
 message UsageEventOneOf {
   oneof event {
     UIBannerClickEvent ui_banner_click = 1;
-    UIOnboardDomainNameTCSubmitEvent ui_onboard_domain_name_tc_submit = 2;
-    UIOnboardGoToDashboardClickEvent ui_onboard_go_to_dashboard_click = 3;
-    UIOnboardGetStartedClickEvent ui_onboard_get_started_click = 4;
-    UIOnboardCompleteGoToDashboardClickEvent ui_onboard_complete_go_to_dashboard_click = 5;
-    UIOnboardAddFirstResourceClickEvent ui_onboard_add_first_resource_click = 6;
-    UIOnboardAddFirstResourceLaterClickEvent ui_onboard_add_first_resource_later_click = 7;
+    UIOnboardGetStartedClickEvent ui_onboard_get_started_click = 2;
+    UIOnboardCompleteGoToDashboardClickEvent ui_onboard_complete_go_to_dashboard_click = 3;
+    UIOnboardAddFirstResourceClickEvent ui_onboard_add_first_resource_click = 4;
+    UIOnboardAddFirstResourceLaterClickEvent ui_onboard_add_first_resource_later_click = 5;
+    UIOnboardSetCredentialSubmitEvent ui_onboard_set_credential_submit = 6;
+    UIOnboardRegisterChallengeSubmitEvent ui_onboard_register_challenge_submit = 7;
+    UIOnboardRecoveryCodesContinueClickEvent ui_onboard_recovery_codes_continue_click = 8;
   }
 }

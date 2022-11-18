@@ -25,9 +25,6 @@ const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 // UIBannerClickEvent is a usage event sent by the UI when the upgrade
 // banner is clicked.
 type UIBannerClickEvent struct {
-	// The name of the user that generated the event. It will be anonymized on the
-	// local Teleport auth server before sending.
-	UserName string `protobuf:"bytes,1,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
 	// The cluster alert name.
 	Alert                string   `protobuf:"bytes,2,opt,name=alert,proto3" json:"alert,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -68,13 +65,6 @@ func (m *UIBannerClickEvent) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_UIBannerClickEvent proto.InternalMessageInfo
 
-func (m *UIBannerClickEvent) GetUserName() string {
-	if m != nil {
-		return m.UserName
-	}
-	return ""
-}
-
 func (m *UIBannerClickEvent) GetAlert() string {
 	if m != nil {
 		return m.Alert
@@ -82,89 +72,8 @@ func (m *UIBannerClickEvent) GetAlert() string {
 	return ""
 }
 
-// UIOnboardDomainNameTCSubmitEvent
-type UIOnboardDomainNameTCSubmitEvent struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *UIOnboardDomainNameTCSubmitEvent) Reset()         { *m = UIOnboardDomainNameTCSubmitEvent{} }
-func (m *UIOnboardDomainNameTCSubmitEvent) String() string { return proto.CompactTextString(m) }
-func (*UIOnboardDomainNameTCSubmitEvent) ProtoMessage()    {}
-func (*UIOnboardDomainNameTCSubmitEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{1}
-}
-func (m *UIOnboardDomainNameTCSubmitEvent) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *UIOnboardDomainNameTCSubmitEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_UIOnboardDomainNameTCSubmitEvent.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *UIOnboardDomainNameTCSubmitEvent) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UIOnboardDomainNameTCSubmitEvent.Merge(m, src)
-}
-func (m *UIOnboardDomainNameTCSubmitEvent) XXX_Size() int {
-	return m.Size()
-}
-func (m *UIOnboardDomainNameTCSubmitEvent) XXX_DiscardUnknown() {
-	xxx_messageInfo_UIOnboardDomainNameTCSubmitEvent.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_UIOnboardDomainNameTCSubmitEvent proto.InternalMessageInfo
-
-// UIOnboardGoToDashboardClickEvent
-type UIOnboardGoToDashboardClickEvent struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *UIOnboardGoToDashboardClickEvent) Reset()         { *m = UIOnboardGoToDashboardClickEvent{} }
-func (m *UIOnboardGoToDashboardClickEvent) String() string { return proto.CompactTextString(m) }
-func (*UIOnboardGoToDashboardClickEvent) ProtoMessage()    {}
-func (*UIOnboardGoToDashboardClickEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{2}
-}
-func (m *UIOnboardGoToDashboardClickEvent) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *UIOnboardGoToDashboardClickEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_UIOnboardGoToDashboardClickEvent.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *UIOnboardGoToDashboardClickEvent) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UIOnboardGoToDashboardClickEvent.Merge(m, src)
-}
-func (m *UIOnboardGoToDashboardClickEvent) XXX_Size() int {
-	return m.Size()
-}
-func (m *UIOnboardGoToDashboardClickEvent) XXX_DiscardUnknown() {
-	xxx_messageInfo_UIOnboardGoToDashboardClickEvent.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_UIOnboardGoToDashboardClickEvent proto.InternalMessageInfo
-
 // UIOnboardGetStartedClickEvent
 type UIOnboardGetStartedClickEvent struct {
-	UserName             string   `protobuf:"bytes,1,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -174,7 +83,7 @@ func (m *UIOnboardGetStartedClickEvent) Reset()         { *m = UIOnboardGetStart
 func (m *UIOnboardGetStartedClickEvent) String() string { return proto.CompactTextString(m) }
 func (*UIOnboardGetStartedClickEvent) ProtoMessage()    {}
 func (*UIOnboardGetStartedClickEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{3}
+	return fileDescriptor_94cf2ca1c69fd564, []int{1}
 }
 func (m *UIOnboardGetStartedClickEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -203,16 +112,8 @@ func (m *UIOnboardGetStartedClickEvent) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_UIOnboardGetStartedClickEvent proto.InternalMessageInfo
 
-func (m *UIOnboardGetStartedClickEvent) GetUserName() string {
-	if m != nil {
-		return m.UserName
-	}
-	return ""
-}
-
 // UIOnboardCompleteGoToDashboardClickEvent
 type UIOnboardCompleteGoToDashboardClickEvent struct {
-	UserName             string   `protobuf:"bytes,1,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -224,7 +125,7 @@ func (m *UIOnboardCompleteGoToDashboardClickEvent) Reset() {
 func (m *UIOnboardCompleteGoToDashboardClickEvent) String() string { return proto.CompactTextString(m) }
 func (*UIOnboardCompleteGoToDashboardClickEvent) ProtoMessage()    {}
 func (*UIOnboardCompleteGoToDashboardClickEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{4}
+	return fileDescriptor_94cf2ca1c69fd564, []int{2}
 }
 func (m *UIOnboardCompleteGoToDashboardClickEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -253,16 +154,8 @@ func (m *UIOnboardCompleteGoToDashboardClickEvent) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_UIOnboardCompleteGoToDashboardClickEvent proto.InternalMessageInfo
 
-func (m *UIOnboardCompleteGoToDashboardClickEvent) GetUserName() string {
-	if m != nil {
-		return m.UserName
-	}
-	return ""
-}
-
 // UIOnboardAddFirstResourceClickEvent
 type UIOnboardAddFirstResourceClickEvent struct {
-	UserName             string   `protobuf:"bytes,1,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -272,7 +165,7 @@ func (m *UIOnboardAddFirstResourceClickEvent) Reset()         { *m = UIOnboardAd
 func (m *UIOnboardAddFirstResourceClickEvent) String() string { return proto.CompactTextString(m) }
 func (*UIOnboardAddFirstResourceClickEvent) ProtoMessage()    {}
 func (*UIOnboardAddFirstResourceClickEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{5}
+	return fileDescriptor_94cf2ca1c69fd564, []int{3}
 }
 func (m *UIOnboardAddFirstResourceClickEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -301,16 +194,8 @@ func (m *UIOnboardAddFirstResourceClickEvent) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_UIOnboardAddFirstResourceClickEvent proto.InternalMessageInfo
 
-func (m *UIOnboardAddFirstResourceClickEvent) GetUserName() string {
-	if m != nil {
-		return m.UserName
-	}
-	return ""
-}
-
 // UIOnboardAddFirstResourceLaterClickEvent
 type UIOnboardAddFirstResourceLaterClickEvent struct {
-	UserName             string   `protobuf:"bytes,1,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -322,7 +207,7 @@ func (m *UIOnboardAddFirstResourceLaterClickEvent) Reset() {
 func (m *UIOnboardAddFirstResourceLaterClickEvent) String() string { return proto.CompactTextString(m) }
 func (*UIOnboardAddFirstResourceLaterClickEvent) ProtoMessage()    {}
 func (*UIOnboardAddFirstResourceLaterClickEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{6}
+	return fileDescriptor_94cf2ca1c69fd564, []int{4}
 }
 func (m *UIOnboardAddFirstResourceLaterClickEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -351,12 +236,127 @@ func (m *UIOnboardAddFirstResourceLaterClickEvent) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_UIOnboardAddFirstResourceLaterClickEvent proto.InternalMessageInfo
 
-func (m *UIOnboardAddFirstResourceLaterClickEvent) GetUserName() string {
-	if m != nil {
-		return m.UserName
-	}
-	return ""
+// UIOnboardSetCredentialSubmitEvent
+type UIOnboardSetCredentialSubmitEvent struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
+
+func (m *UIOnboardSetCredentialSubmitEvent) Reset()         { *m = UIOnboardSetCredentialSubmitEvent{} }
+func (m *UIOnboardSetCredentialSubmitEvent) String() string { return proto.CompactTextString(m) }
+func (*UIOnboardSetCredentialSubmitEvent) ProtoMessage()    {}
+func (*UIOnboardSetCredentialSubmitEvent) Descriptor() ([]byte, []int) {
+	return fileDescriptor_94cf2ca1c69fd564, []int{5}
+}
+func (m *UIOnboardSetCredentialSubmitEvent) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UIOnboardSetCredentialSubmitEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UIOnboardSetCredentialSubmitEvent.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UIOnboardSetCredentialSubmitEvent) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UIOnboardSetCredentialSubmitEvent.Merge(m, src)
+}
+func (m *UIOnboardSetCredentialSubmitEvent) XXX_Size() int {
+	return m.Size()
+}
+func (m *UIOnboardSetCredentialSubmitEvent) XXX_DiscardUnknown() {
+	xxx_messageInfo_UIOnboardSetCredentialSubmitEvent.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UIOnboardSetCredentialSubmitEvent proto.InternalMessageInfo
+
+// UIOnboardRegisterChallengeSubmitEvent
+type UIOnboardRegisterChallengeSubmitEvent struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UIOnboardRegisterChallengeSubmitEvent) Reset()         { *m = UIOnboardRegisterChallengeSubmitEvent{} }
+func (m *UIOnboardRegisterChallengeSubmitEvent) String() string { return proto.CompactTextString(m) }
+func (*UIOnboardRegisterChallengeSubmitEvent) ProtoMessage()    {}
+func (*UIOnboardRegisterChallengeSubmitEvent) Descriptor() ([]byte, []int) {
+	return fileDescriptor_94cf2ca1c69fd564, []int{6}
+}
+func (m *UIOnboardRegisterChallengeSubmitEvent) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UIOnboardRegisterChallengeSubmitEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UIOnboardRegisterChallengeSubmitEvent.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UIOnboardRegisterChallengeSubmitEvent) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UIOnboardRegisterChallengeSubmitEvent.Merge(m, src)
+}
+func (m *UIOnboardRegisterChallengeSubmitEvent) XXX_Size() int {
+	return m.Size()
+}
+func (m *UIOnboardRegisterChallengeSubmitEvent) XXX_DiscardUnknown() {
+	xxx_messageInfo_UIOnboardRegisterChallengeSubmitEvent.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UIOnboardRegisterChallengeSubmitEvent proto.InternalMessageInfo
+
+// UIOnboardRecoveryCodesContinueClickEvent
+type UIOnboardRecoveryCodesContinueClickEvent struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UIOnboardRecoveryCodesContinueClickEvent) Reset() {
+	*m = UIOnboardRecoveryCodesContinueClickEvent{}
+}
+func (m *UIOnboardRecoveryCodesContinueClickEvent) String() string { return proto.CompactTextString(m) }
+func (*UIOnboardRecoveryCodesContinueClickEvent) ProtoMessage()    {}
+func (*UIOnboardRecoveryCodesContinueClickEvent) Descriptor() ([]byte, []int) {
+	return fileDescriptor_94cf2ca1c69fd564, []int{7}
+}
+func (m *UIOnboardRecoveryCodesContinueClickEvent) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UIOnboardRecoveryCodesContinueClickEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UIOnboardRecoveryCodesContinueClickEvent.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UIOnboardRecoveryCodesContinueClickEvent) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UIOnboardRecoveryCodesContinueClickEvent.Merge(m, src)
+}
+func (m *UIOnboardRecoveryCodesContinueClickEvent) XXX_Size() int {
+	return m.Size()
+}
+func (m *UIOnboardRecoveryCodesContinueClickEvent) XXX_DiscardUnknown() {
+	xxx_messageInfo_UIOnboardRecoveryCodesContinueClickEvent.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UIOnboardRecoveryCodesContinueClickEvent proto.InternalMessageInfo
 
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
@@ -364,12 +364,13 @@ type UsageEventOneOf struct {
 	// Types that are valid to be assigned to Event:
 	//
 	//	*UsageEventOneOf_UiBannerClick
-	//	*UsageEventOneOf_UiOnboardDomainNameTcSubmit
-	//	*UsageEventOneOf_UiOnboardGoToDashboardClick
 	//	*UsageEventOneOf_UiOnboardGetStartedClick
 	//	*UsageEventOneOf_UiOnboardCompleteGoToDashboardClick
 	//	*UsageEventOneOf_UiOnboardAddFirstResourceClick
 	//	*UsageEventOneOf_UiOnboardAddFirstResourceLaterClick
+	//	*UsageEventOneOf_UiOnboardSetCredentialSubmit
+	//	*UsageEventOneOf_UiOnboardRegisterChallengeSubmit
+	//	*UsageEventOneOf_UiOnboardRecoveryCodesContinueClick
 	Event                isUsageEventOneOf_Event `protobuf_oneof:"event"`
 	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
 	XXX_unrecognized     []byte                  `json:"-"`
@@ -380,7 +381,7 @@ func (m *UsageEventOneOf) Reset()         { *m = UsageEventOneOf{} }
 func (m *UsageEventOneOf) String() string { return proto.CompactTextString(m) }
 func (*UsageEventOneOf) ProtoMessage()    {}
 func (*UsageEventOneOf) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{7}
+	return fileDescriptor_94cf2ca1c69fd564, []int{8}
 }
 func (m *UsageEventOneOf) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -418,32 +419,36 @@ type isUsageEventOneOf_Event interface {
 type UsageEventOneOf_UiBannerClick struct {
 	UiBannerClick *UIBannerClickEvent `protobuf:"bytes,1,opt,name=ui_banner_click,json=uiBannerClick,proto3,oneof" json:"ui_banner_click,omitempty"`
 }
-type UsageEventOneOf_UiOnboardDomainNameTcSubmit struct {
-	UiOnboardDomainNameTcSubmit *UIOnboardDomainNameTCSubmitEvent `protobuf:"bytes,2,opt,name=ui_onboard_domain_name_tc_submit,json=uiOnboardDomainNameTcSubmit,proto3,oneof" json:"ui_onboard_domain_name_tc_submit,omitempty"`
-}
-type UsageEventOneOf_UiOnboardGoToDashboardClick struct {
-	UiOnboardGoToDashboardClick *UIOnboardGoToDashboardClickEvent `protobuf:"bytes,3,opt,name=ui_onboard_go_to_dashboard_click,json=uiOnboardGoToDashboardClick,proto3,oneof" json:"ui_onboard_go_to_dashboard_click,omitempty"`
-}
 type UsageEventOneOf_UiOnboardGetStartedClick struct {
-	UiOnboardGetStartedClick *UIOnboardGetStartedClickEvent `protobuf:"bytes,4,opt,name=ui_onboard_get_started_click,json=uiOnboardGetStartedClick,proto3,oneof" json:"ui_onboard_get_started_click,omitempty"`
+	UiOnboardGetStartedClick *UIOnboardGetStartedClickEvent `protobuf:"bytes,2,opt,name=ui_onboard_get_started_click,json=uiOnboardGetStartedClick,proto3,oneof" json:"ui_onboard_get_started_click,omitempty"`
 }
 type UsageEventOneOf_UiOnboardCompleteGoToDashboardClick struct {
-	UiOnboardCompleteGoToDashboardClick *UIOnboardCompleteGoToDashboardClickEvent `protobuf:"bytes,5,opt,name=ui_onboard_complete_go_to_dashboard_click,json=uiOnboardCompleteGoToDashboardClick,proto3,oneof" json:"ui_onboard_complete_go_to_dashboard_click,omitempty"`
+	UiOnboardCompleteGoToDashboardClick *UIOnboardCompleteGoToDashboardClickEvent `protobuf:"bytes,3,opt,name=ui_onboard_complete_go_to_dashboard_click,json=uiOnboardCompleteGoToDashboardClick,proto3,oneof" json:"ui_onboard_complete_go_to_dashboard_click,omitempty"`
 }
 type UsageEventOneOf_UiOnboardAddFirstResourceClick struct {
-	UiOnboardAddFirstResourceClick *UIOnboardAddFirstResourceClickEvent `protobuf:"bytes,6,opt,name=ui_onboard_add_first_resource_click,json=uiOnboardAddFirstResourceClick,proto3,oneof" json:"ui_onboard_add_first_resource_click,omitempty"`
+	UiOnboardAddFirstResourceClick *UIOnboardAddFirstResourceClickEvent `protobuf:"bytes,4,opt,name=ui_onboard_add_first_resource_click,json=uiOnboardAddFirstResourceClick,proto3,oneof" json:"ui_onboard_add_first_resource_click,omitempty"`
 }
 type UsageEventOneOf_UiOnboardAddFirstResourceLaterClick struct {
-	UiOnboardAddFirstResourceLaterClick *UIOnboardAddFirstResourceLaterClickEvent `protobuf:"bytes,7,opt,name=ui_onboard_add_first_resource_later_click,json=uiOnboardAddFirstResourceLaterClick,proto3,oneof" json:"ui_onboard_add_first_resource_later_click,omitempty"`
+	UiOnboardAddFirstResourceLaterClick *UIOnboardAddFirstResourceLaterClickEvent `protobuf:"bytes,5,opt,name=ui_onboard_add_first_resource_later_click,json=uiOnboardAddFirstResourceLaterClick,proto3,oneof" json:"ui_onboard_add_first_resource_later_click,omitempty"`
+}
+type UsageEventOneOf_UiOnboardSetCredentialSubmit struct {
+	UiOnboardSetCredentialSubmit *UIOnboardSetCredentialSubmitEvent `protobuf:"bytes,6,opt,name=ui_onboard_set_credential_submit,json=uiOnboardSetCredentialSubmit,proto3,oneof" json:"ui_onboard_set_credential_submit,omitempty"`
+}
+type UsageEventOneOf_UiOnboardRegisterChallengeSubmit struct {
+	UiOnboardRegisterChallengeSubmit *UIOnboardRegisterChallengeSubmitEvent `protobuf:"bytes,7,opt,name=ui_onboard_register_challenge_submit,json=uiOnboardRegisterChallengeSubmit,proto3,oneof" json:"ui_onboard_register_challenge_submit,omitempty"`
+}
+type UsageEventOneOf_UiOnboardRecoveryCodesContinueClick struct {
+	UiOnboardRecoveryCodesContinueClick *UIOnboardRecoveryCodesContinueClickEvent `protobuf:"bytes,8,opt,name=ui_onboard_recovery_codes_continue_click,json=uiOnboardRecoveryCodesContinueClick,proto3,oneof" json:"ui_onboard_recovery_codes_continue_click,omitempty"`
 }
 
 func (*UsageEventOneOf_UiBannerClick) isUsageEventOneOf_Event()                       {}
-func (*UsageEventOneOf_UiOnboardDomainNameTcSubmit) isUsageEventOneOf_Event()         {}
-func (*UsageEventOneOf_UiOnboardGoToDashboardClick) isUsageEventOneOf_Event()         {}
 func (*UsageEventOneOf_UiOnboardGetStartedClick) isUsageEventOneOf_Event()            {}
 func (*UsageEventOneOf_UiOnboardCompleteGoToDashboardClick) isUsageEventOneOf_Event() {}
 func (*UsageEventOneOf_UiOnboardAddFirstResourceClick) isUsageEventOneOf_Event()      {}
 func (*UsageEventOneOf_UiOnboardAddFirstResourceLaterClick) isUsageEventOneOf_Event() {}
+func (*UsageEventOneOf_UiOnboardSetCredentialSubmit) isUsageEventOneOf_Event()        {}
+func (*UsageEventOneOf_UiOnboardRegisterChallengeSubmit) isUsageEventOneOf_Event()    {}
+func (*UsageEventOneOf_UiOnboardRecoveryCodesContinueClick) isUsageEventOneOf_Event() {}
 
 func (m *UsageEventOneOf) GetEvent() isUsageEventOneOf_Event {
 	if m != nil {
@@ -455,20 +460,6 @@ func (m *UsageEventOneOf) GetEvent() isUsageEventOneOf_Event {
 func (m *UsageEventOneOf) GetUiBannerClick() *UIBannerClickEvent {
 	if x, ok := m.GetEvent().(*UsageEventOneOf_UiBannerClick); ok {
 		return x.UiBannerClick
-	}
-	return nil
-}
-
-func (m *UsageEventOneOf) GetUiOnboardDomainNameTcSubmit() *UIOnboardDomainNameTCSubmitEvent {
-	if x, ok := m.GetEvent().(*UsageEventOneOf_UiOnboardDomainNameTcSubmit); ok {
-		return x.UiOnboardDomainNameTcSubmit
-	}
-	return nil
-}
-
-func (m *UsageEventOneOf) GetUiOnboardGoToDashboardClick() *UIOnboardGoToDashboardClickEvent {
-	if x, ok := m.GetEvent().(*UsageEventOneOf_UiOnboardGoToDashboardClick); ok {
-		return x.UiOnboardGoToDashboardClick
 	}
 	return nil
 }
@@ -501,27 +492,50 @@ func (m *UsageEventOneOf) GetUiOnboardAddFirstResourceLaterClick() *UIOnboardAdd
 	return nil
 }
 
+func (m *UsageEventOneOf) GetUiOnboardSetCredentialSubmit() *UIOnboardSetCredentialSubmitEvent {
+	if x, ok := m.GetEvent().(*UsageEventOneOf_UiOnboardSetCredentialSubmit); ok {
+		return x.UiOnboardSetCredentialSubmit
+	}
+	return nil
+}
+
+func (m *UsageEventOneOf) GetUiOnboardRegisterChallengeSubmit() *UIOnboardRegisterChallengeSubmitEvent {
+	if x, ok := m.GetEvent().(*UsageEventOneOf_UiOnboardRegisterChallengeSubmit); ok {
+		return x.UiOnboardRegisterChallengeSubmit
+	}
+	return nil
+}
+
+func (m *UsageEventOneOf) GetUiOnboardRecoveryCodesContinueClick() *UIOnboardRecoveryCodesContinueClickEvent {
+	if x, ok := m.GetEvent().(*UsageEventOneOf_UiOnboardRecoveryCodesContinueClick); ok {
+		return x.UiOnboardRecoveryCodesContinueClick
+	}
+	return nil
+}
+
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*UsageEventOneOf) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
 		(*UsageEventOneOf_UiBannerClick)(nil),
-		(*UsageEventOneOf_UiOnboardDomainNameTcSubmit)(nil),
-		(*UsageEventOneOf_UiOnboardGoToDashboardClick)(nil),
 		(*UsageEventOneOf_UiOnboardGetStartedClick)(nil),
 		(*UsageEventOneOf_UiOnboardCompleteGoToDashboardClick)(nil),
 		(*UsageEventOneOf_UiOnboardAddFirstResourceClick)(nil),
 		(*UsageEventOneOf_UiOnboardAddFirstResourceLaterClick)(nil),
+		(*UsageEventOneOf_UiOnboardSetCredentialSubmit)(nil),
+		(*UsageEventOneOf_UiOnboardRegisterChallengeSubmit)(nil),
+		(*UsageEventOneOf_UiOnboardRecoveryCodesContinueClick)(nil),
 	}
 }
 
 func init() {
 	proto.RegisterType((*UIBannerClickEvent)(nil), "teleport.usageevents.v1.UIBannerClickEvent")
-	proto.RegisterType((*UIOnboardDomainNameTCSubmitEvent)(nil), "teleport.usageevents.v1.UIOnboardDomainNameTCSubmitEvent")
-	proto.RegisterType((*UIOnboardGoToDashboardClickEvent)(nil), "teleport.usageevents.v1.UIOnboardGoToDashboardClickEvent")
 	proto.RegisterType((*UIOnboardGetStartedClickEvent)(nil), "teleport.usageevents.v1.UIOnboardGetStartedClickEvent")
 	proto.RegisterType((*UIOnboardCompleteGoToDashboardClickEvent)(nil), "teleport.usageevents.v1.UIOnboardCompleteGoToDashboardClickEvent")
 	proto.RegisterType((*UIOnboardAddFirstResourceClickEvent)(nil), "teleport.usageevents.v1.UIOnboardAddFirstResourceClickEvent")
 	proto.RegisterType((*UIOnboardAddFirstResourceLaterClickEvent)(nil), "teleport.usageevents.v1.UIOnboardAddFirstResourceLaterClickEvent")
+	proto.RegisterType((*UIOnboardSetCredentialSubmitEvent)(nil), "teleport.usageevents.v1.UIOnboardSetCredentialSubmitEvent")
+	proto.RegisterType((*UIOnboardRegisterChallengeSubmitEvent)(nil), "teleport.usageevents.v1.UIOnboardRegisterChallengeSubmitEvent")
+	proto.RegisterType((*UIOnboardRecoveryCodesContinueClickEvent)(nil), "teleport.usageevents.v1.UIOnboardRecoveryCodesContinueClickEvent")
 	proto.RegisterType((*UsageEventOneOf)(nil), "teleport.usageevents.v1.UsageEventOneOf")
 }
 
@@ -530,41 +544,44 @@ func init() {
 }
 
 var fileDescriptor_94cf2ca1c69fd564 = []byte{
-	// 532 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x94, 0xcf, 0x6a, 0xdb, 0x40,
-	0x10, 0xc6, 0xad, 0xb6, 0x8e, 0x9b, 0x0d, 0x25, 0x20, 0x0a, 0x35, 0xa4, 0x35, 0x46, 0xbe, 0x24,
-	0x14, 0x24, 0x92, 0x42, 0xa1, 0x90, 0x8b, 0xed, 0xb4, 0x56, 0xa0, 0xd4, 0xa0, 0xc4, 0x97, 0x5e,
-	0x96, 0x95, 0x34, 0x51, 0x96, 0x4a, 0x5a, 0xb3, 0x1a, 0x99, 0x9e, 0x7b, 0xed, 0x23, 0xf4, 0x61,
-	0x7a, 0xed, 0xb1, 0x8f, 0x50, 0xfc, 0x24, 0x45, 0x6b, 0x45, 0x96, 0xff, 0xc8, 0x16, 0x39, 0xae,
-	0xf6, 0xdb, 0xf9, 0x7e, 0x9a, 0x6f, 0x76, 0xc9, 0x19, 0x42, 0x08, 0x53, 0x21, 0xd1, 0x4a, 0x13,
-	0x16, 0x00, 0xcc, 0x20, 0xc6, 0xc4, 0x9a, 0x9d, 0x97, 0x97, 0xe6, 0x54, 0x0a, 0x14, 0xfa, 0xab,
-	0x07, 0xa9, 0x59, 0xde, 0x9b, 0x9d, 0x1b, 0x23, 0xa2, 0x4f, 0xae, 0x07, 0x2c, 0x8e, 0x41, 0x0e,
-	0x43, 0xee, 0x7d, 0xfb, 0x98, 0xed, 0xe8, 0x27, 0xe4, 0x30, 0x4d, 0x40, 0xd2, 0x98, 0x45, 0xd0,
-	0xd6, 0xba, 0xda, 0xe9, 0xa1, 0xf3, 0x3c, 0xfb, 0xf0, 0x85, 0x45, 0xa0, 0xbf, 0x24, 0x4d, 0x16,
-	0x82, 0xc4, 0xf6, 0x13, 0xb5, 0xb1, 0x58, 0x18, 0x06, 0xe9, 0x4e, 0xae, 0xc7, 0xb1, 0x2b, 0x98,
-	0xf4, 0xaf, 0x44, 0xc4, 0x78, 0x9c, 0x89, 0x6f, 0x87, 0x37, 0xa9, 0x1b, 0x71, 0x54, 0x65, 0x57,
-	0x34, 0x23, 0x71, 0x2b, 0xae, 0x58, 0x72, 0xaf, 0x16, 0x4b, 0x6b, 0xe3, 0x92, 0xbc, 0x59, 0x6a,
-	0x00, 0x6f, 0x90, 0x49, 0x04, 0xbf, 0x26, 0x9b, 0x31, 0x22, 0xa7, 0xc5, 0xe9, 0xa1, 0x88, 0xa6,
-	0x21, 0x20, 0x54, 0x38, 0xed, 0x2e, 0x34, 0x20, 0xbd, 0xa2, 0x50, 0xdf, 0xf7, 0x3f, 0x71, 0x99,
-	0xa0, 0x03, 0x89, 0x48, 0xa5, 0x07, 0x8f, 0x81, 0x59, 0xaf, 0xf1, 0x99, 0x61, 0xed, 0x8e, 0x1b,
-	0xbf, 0x5b, 0xe4, 0x78, 0x92, 0xe5, 0xa6, 0xb4, 0xe3, 0x18, 0xc6, 0x77, 0xfa, 0x84, 0x1c, 0xa7,
-	0x9c, 0xba, 0x2a, 0x39, 0xea, 0x65, 0x85, 0xd4, 0xb1, 0xa3, 0x8b, 0xb7, 0x66, 0x45, 0xd6, 0xe6,
-	0x66, 0xd0, 0x76, 0xc3, 0x79, 0x91, 0xf2, 0xd2, 0x57, 0xfd, 0x87, 0x46, 0xba, 0x29, 0xa7, 0x62,
-	0x41, 0x4d, 0x7d, 0x95, 0xa4, 0xa2, 0xa2, 0xe8, 0xd1, 0x44, 0x85, 0xa9, 0x82, 0x3f, 0xba, 0xf8,
-	0xb0, 0xc3, 0x68, 0xf7, 0x20, 0xd8, 0x0d, 0xe7, 0x24, 0xe5, 0x9b, 0x1a, 0x6f, 0xa1, 0x59, 0x87,
-	0x08, 0x04, 0x45, 0x41, 0xfd, 0x87, 0x08, 0xf3, 0xbf, 0x7d, 0x5a, 0x17, 0xa2, 0x22, 0xff, 0x15,
-	0x88, 0x4d, 0x8d, 0xfe, 0x9d, 0xbc, 0x2e, 0x33, 0x00, 0xd2, 0x64, 0x31, 0x8b, 0xb9, 0xff, 0x33,
-	0xe5, 0xff, 0xbe, 0x86, 0xff, 0x96, 0x29, 0xb6, 0x1b, 0x4e, 0x7b, 0x69, 0xbe, 0x2a, 0xd0, 0x7f,
-	0x69, 0xe4, 0xac, 0x64, 0xed, 0xe5, 0x73, 0x5c, 0xd1, 0x87, 0xa6, 0xe2, 0xe8, 0xef, 0xe7, 0xd8,
-	0x73, 0x1f, 0xec, 0x86, 0xd3, 0x2b, 0x90, 0xaa, 0xb5, 0xfa, 0x4f, 0x8d, 0xf4, 0x4a, 0x74, 0xcc,
-	0xf7, 0xe9, 0x5d, 0x36, 0xd9, 0x54, 0xe6, 0xa3, 0x9d, 0x73, 0x1d, 0x28, 0xae, 0xcb, 0xfd, 0x5c,
-	0xd5, 0xd7, 0xcb, 0x6e, 0x38, 0x9d, 0x02, 0x69, 0xab, 0x6c, 0xbd, 0x57, 0x5b, 0x68, 0xc2, 0xec,
-	0xa6, 0xe5, 0x4c, 0xad, 0xba, 0xbd, 0xda, 0x73, 0x5d, 0x57, 0x7a, 0x55, 0xad, 0x1d, 0xb4, 0x48,
-	0x53, 0x15, 0x1f, 0x8c, 0xff, 0xcc, 0x3b, 0xda, 0xdf, 0x79, 0x47, 0xfb, 0x37, 0xef, 0x68, 0x5f,
-	0xfb, 0x01, 0xc7, 0xfb, 0xd4, 0x35, 0x3d, 0x11, 0x59, 0x81, 0x64, 0x33, 0x8e, 0x0c, 0xb9, 0x88,
-	0x59, 0x68, 0x15, 0x2f, 0x3a, 0x9b, 0x72, 0x2b, 0x80, 0xd8, 0x52, 0xcf, 0xb7, 0x15, 0x88, 0xb5,
-	0x27, 0xde, 0x3d, 0x50, 0x1b, 0xef, 0xfe, 0x07, 0x00, 0x00, 0xff, 0xff, 0x6d, 0x63, 0x76, 0x27,
-	0x04, 0x06, 0x00, 0x00,
+	// 587 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x95, 0x41, 0x6f, 0xd3, 0x3e,
+	0x18, 0xc6, 0xe3, 0xfd, 0xff, 0xdd, 0x86, 0x11, 0x9a, 0x14, 0x21, 0xd1, 0xc3, 0x28, 0xa5, 0x65,
+	0xa2, 0x1b, 0x52, 0xa3, 0x81, 0xc4, 0x01, 0x21, 0xa4, 0xb6, 0xc0, 0x32, 0x09, 0xa9, 0x52, 0x4a,
+	0x2f, 0x5c, 0x2c, 0x37, 0x79, 0x97, 0x5a, 0xa4, 0x76, 0xe5, 0x38, 0x15, 0xdc, 0xb9, 0x71, 0xe1,
+	0x0c, 0x5f, 0x88, 0x23, 0x1f, 0x01, 0xf5, 0xcc, 0x87, 0x40, 0x71, 0xd2, 0xcc, 0x2d, 0x4d, 0xb3,
+	0xa3, 0xed, 0x27, 0x7e, 0x7f, 0x7a, 0x9f, 0xf7, 0x89, 0xf1, 0xa9, 0x82, 0x08, 0xe6, 0x42, 0x2a,
+	0x27, 0x89, 0x69, 0x08, 0xb0, 0x00, 0xae, 0x62, 0x67, 0x71, 0x6e, 0x2e, 0xbb, 0x73, 0x29, 0x94,
+	0xb0, 0xef, 0xad, 0xa4, 0x5d, 0xf3, 0x6c, 0x71, 0xde, 0x3a, 0xc3, 0xf6, 0xf8, 0xb2, 0x4f, 0x39,
+	0x07, 0x39, 0x88, 0x98, 0xff, 0xf1, 0x4d, 0x7a, 0x62, 0xdf, 0xc5, 0x35, 0x1a, 0x81, 0x54, 0xf5,
+	0xbd, 0x26, 0xea, 0xdc, 0xf2, 0xb2, 0x45, 0xeb, 0x01, 0xbe, 0x3f, 0xbe, 0x1c, 0xf2, 0x89, 0xa0,
+	0x32, 0xb8, 0x00, 0x35, 0x52, 0x54, 0x2a, 0x08, 0xae, 0x3f, 0x6b, 0x9d, 0xe1, 0x4e, 0x21, 0x18,
+	0x88, 0xd9, 0x3c, 0x02, 0x05, 0x17, 0xe2, 0xbd, 0x78, 0x4d, 0xe3, 0x69, 0xb6, 0x79, 0xad, 0x3d,
+	0xc1, 0xed, 0x42, 0xdb, 0x0b, 0x82, 0xb7, 0x4c, 0xc6, 0xca, 0x83, 0x58, 0x24, 0xd2, 0x87, 0x92,
+	0x2b, 0x37, 0x65, 0xef, 0xa8, 0x32, 0xa9, 0x5b, 0x6d, 0xfc, 0xb0, 0xd0, 0x8e, 0x40, 0x0d, 0x24,
+	0x04, 0xc0, 0x15, 0xa3, 0xd1, 0x28, 0x99, 0xcc, 0x98, 0xca, 0x44, 0x8f, 0xf1, 0x49, 0x21, 0xf2,
+	0x20, 0x64, 0x71, 0x7a, 0xc7, 0x94, 0x46, 0x11, 0xf0, 0x10, 0x4c, 0xa1, 0x59, 0xd9, 0x03, 0x5f,
+	0x2c, 0x40, 0x7e, 0x1e, 0x88, 0x00, 0xe2, 0x81, 0xe0, 0x8a, 0xf1, 0xc4, 0xa4, 0xfc, 0x73, 0x88,
+	0x8f, 0xc6, 0x69, 0x63, 0xf5, 0x72, 0xc8, 0x61, 0x78, 0x65, 0x8f, 0xf1, 0x51, 0xc2, 0xc8, 0x44,
+	0xb7, 0x96, 0xf8, 0xa9, 0xb6, 0x8e, 0x9a, 0xa8, 0x73, 0xfb, 0xe9, 0x93, 0x6e, 0x89, 0x19, 0xdd,
+	0x7f, 0x9d, 0x70, 0x2d, 0xef, 0x4e, 0xc2, 0x8c, 0x5d, 0xfb, 0x13, 0x3e, 0x4e, 0x18, 0x11, 0x19,
+	0x17, 0x09, 0x41, 0x91, 0x38, 0xf3, 0x21, 0xaf, 0xb1, 0xa7, 0x6b, 0x3c, 0xdf, 0x51, 0x63, 0x87,
+	0x83, 0xae, 0xe5, 0xd5, 0x13, 0xb6, 0x5d, 0x60, 0xff, 0x40, 0xf8, 0xd4, 0x28, 0xed, 0xe7, 0x06,
+	0x93, 0x50, 0x10, 0x25, 0x48, 0xb0, 0xf2, 0x38, 0xe7, 0xf8, 0x4f, 0x73, 0xf4, 0xaa, 0x39, 0x2a,
+	0x06, 0xc5, 0xb5, 0xbc, 0x76, 0x81, 0x54, 0xae, 0xb5, 0xbf, 0x22, 0xdc, 0x36, 0xe8, 0x68, 0x10,
+	0x90, 0xab, 0x74, 0x58, 0x88, 0xcc, 0xa7, 0x25, 0xe7, 0xfa, 0x5f, 0x73, 0xbd, 0xac, 0xe6, 0x2a,
+	0x1f, 0x4a, 0xd7, 0xf2, 0x1a, 0x05, 0xd2, 0x56, 0xd9, 0x66, 0xaf, 0xb6, 0xd0, 0x44, 0xe9, 0xf0,
+	0xe6, 0x4c, 0xb5, 0x9b, 0xf6, 0xaa, 0x22, 0x01, 0x6b, 0xbd, 0x2a, 0xd7, 0xda, 0x5f, 0x10, 0x6e,
+	0x1a, 0x74, 0x31, 0x28, 0xe2, 0x17, 0x61, 0x21, 0xb1, 0x0e, 0x41, 0x7d, 0x5f, 0x43, 0xbd, 0xa8,
+	0x86, 0x2a, 0x8b, 0x9a, 0x6b, 0x79, 0xc7, 0x05, 0xcd, 0x16, 0x91, 0xfd, 0x0d, 0xe1, 0x47, 0x06,
+	0x86, 0xcc, 0xd3, 0x48, 0xfc, 0x55, 0x1c, 0x57, 0x28, 0x07, 0x1a, 0xe5, 0x55, 0x35, 0xca, 0xae,
+	0x40, 0xbb, 0x96, 0xd7, 0x2c, 0x70, 0x4a, 0x84, 0xf6, 0x77, 0x84, 0x3b, 0x6b, 0x48, 0x59, 0xee,
+	0x89, 0x9f, 0x06, 0x9f, 0xf8, 0x79, 0xf2, 0x73, 0xdb, 0x0e, 0x6f, 0x6a, 0x5b, 0xc5, 0xef, 0x63,
+	0xcd, 0xb6, 0x72, 0x6d, 0xff, 0x00, 0xd7, 0xf4, 0xe5, 0xfd, 0xe1, 0xcf, 0x65, 0x03, 0xfd, 0x5a,
+	0x36, 0xd0, 0xef, 0x65, 0x03, 0x7d, 0xe8, 0x85, 0x4c, 0x4d, 0x93, 0x49, 0xd7, 0x17, 0x33, 0x27,
+	0x94, 0x74, 0xc1, 0x14, 0x55, 0x4c, 0x70, 0x1a, 0x39, 0xc5, 0xfb, 0x40, 0xe7, 0xcc, 0x09, 0x81,
+	0x3b, 0xfa, 0x31, 0x70, 0x42, 0xb1, 0xf1, 0x60, 0x4c, 0xf6, 0xf5, 0xc1, 0xb3, 0xbf, 0x01, 0x00,
+	0x00, 0xff, 0xff, 0x71, 0x38, 0x77, 0xd4, 0x52, 0x06, 0x00, 0x00,
 }
 
 func (m *UIBannerClickEvent) Marshal() (dAtA []byte, err error) {
@@ -598,67 +615,6 @@ func (m *UIBannerClickEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x12
 	}
-	if len(m.UserName) > 0 {
-		i -= len(m.UserName)
-		copy(dAtA[i:], m.UserName)
-		i = encodeVarintUsageevents(dAtA, i, uint64(len(m.UserName)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *UIOnboardDomainNameTCSubmitEvent) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *UIOnboardDomainNameTCSubmitEvent) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *UIOnboardDomainNameTCSubmitEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *UIOnboardGoToDashboardClickEvent) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *UIOnboardGoToDashboardClickEvent) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *UIOnboardGoToDashboardClickEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	return len(dAtA) - i, nil
 }
 
@@ -685,13 +641,6 @@ func (m *UIOnboardGetStartedClickEvent) MarshalToSizedBuffer(dAtA []byte) (int, 
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.UserName) > 0 {
-		i -= len(m.UserName)
-		copy(dAtA[i:], m.UserName)
-		i = encodeVarintUsageevents(dAtA, i, uint64(len(m.UserName)))
-		i--
-		dAtA[i] = 0xa
 	}
 	return len(dAtA) - i, nil
 }
@@ -720,13 +669,6 @@ func (m *UIOnboardCompleteGoToDashboardClickEvent) MarshalToSizedBuffer(dAtA []b
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if len(m.UserName) > 0 {
-		i -= len(m.UserName)
-		copy(dAtA[i:], m.UserName)
-		i = encodeVarintUsageevents(dAtA, i, uint64(len(m.UserName)))
-		i--
-		dAtA[i] = 0xa
-	}
 	return len(dAtA) - i, nil
 }
 
@@ -753,13 +695,6 @@ func (m *UIOnboardAddFirstResourceClickEvent) MarshalToSizedBuffer(dAtA []byte) 
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.UserName) > 0 {
-		i -= len(m.UserName)
-		copy(dAtA[i:], m.UserName)
-		i = encodeVarintUsageevents(dAtA, i, uint64(len(m.UserName)))
-		i--
-		dAtA[i] = 0xa
 	}
 	return len(dAtA) - i, nil
 }
@@ -788,12 +723,86 @@ func (m *UIOnboardAddFirstResourceLaterClickEvent) MarshalToSizedBuffer(dAtA []b
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if len(m.UserName) > 0 {
-		i -= len(m.UserName)
-		copy(dAtA[i:], m.UserName)
-		i = encodeVarintUsageevents(dAtA, i, uint64(len(m.UserName)))
-		i--
-		dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *UIOnboardSetCredentialSubmitEvent) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UIOnboardSetCredentialSubmitEvent) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UIOnboardSetCredentialSubmitEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *UIOnboardRegisterChallengeSubmitEvent) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UIOnboardRegisterChallengeSubmitEvent) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UIOnboardRegisterChallengeSubmitEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *UIOnboardRecoveryCodesContinueClickEvent) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UIOnboardRecoveryCodesContinueClickEvent) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UIOnboardRecoveryCodesContinueClickEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	return len(dAtA) - i, nil
 }
@@ -855,48 +864,6 @@ func (m *UsageEventOneOf_UiBannerClick) MarshalToSizedBuffer(dAtA []byte) (int, 
 	}
 	return len(dAtA) - i, nil
 }
-func (m *UsageEventOneOf_UiOnboardDomainNameTcSubmit) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *UsageEventOneOf_UiOnboardDomainNameTcSubmit) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	if m.UiOnboardDomainNameTcSubmit != nil {
-		{
-			size, err := m.UiOnboardDomainNameTcSubmit.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintUsageevents(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x12
-	}
-	return len(dAtA) - i, nil
-}
-func (m *UsageEventOneOf_UiOnboardGoToDashboardClick) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *UsageEventOneOf_UiOnboardGoToDashboardClick) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	if m.UiOnboardGoToDashboardClick != nil {
-		{
-			size, err := m.UiOnboardGoToDashboardClick.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintUsageevents(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x1a
-	}
-	return len(dAtA) - i, nil
-}
 func (m *UsageEventOneOf_UiOnboardGetStartedClick) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
@@ -914,7 +881,7 @@ func (m *UsageEventOneOf_UiOnboardGetStartedClick) MarshalToSizedBuffer(dAtA []b
 			i = encodeVarintUsageevents(dAtA, i, uint64(size))
 		}
 		i--
-		dAtA[i] = 0x22
+		dAtA[i] = 0x12
 	}
 	return len(dAtA) - i, nil
 }
@@ -935,7 +902,7 @@ func (m *UsageEventOneOf_UiOnboardCompleteGoToDashboardClick) MarshalToSizedBuff
 			i = encodeVarintUsageevents(dAtA, i, uint64(size))
 		}
 		i--
-		dAtA[i] = 0x2a
+		dAtA[i] = 0x1a
 	}
 	return len(dAtA) - i, nil
 }
@@ -956,7 +923,7 @@ func (m *UsageEventOneOf_UiOnboardAddFirstResourceClick) MarshalToSizedBuffer(dA
 			i = encodeVarintUsageevents(dAtA, i, uint64(size))
 		}
 		i--
-		dAtA[i] = 0x32
+		dAtA[i] = 0x22
 	}
 	return len(dAtA) - i, nil
 }
@@ -977,7 +944,70 @@ func (m *UsageEventOneOf_UiOnboardAddFirstResourceLaterClick) MarshalToSizedBuff
 			i = encodeVarintUsageevents(dAtA, i, uint64(size))
 		}
 		i--
+		dAtA[i] = 0x2a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *UsageEventOneOf_UiOnboardSetCredentialSubmit) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UsageEventOneOf_UiOnboardSetCredentialSubmit) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.UiOnboardSetCredentialSubmit != nil {
+		{
+			size, err := m.UiOnboardSetCredentialSubmit.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintUsageevents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x32
+	}
+	return len(dAtA) - i, nil
+}
+func (m *UsageEventOneOf_UiOnboardRegisterChallengeSubmit) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UsageEventOneOf_UiOnboardRegisterChallengeSubmit) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.UiOnboardRegisterChallengeSubmit != nil {
+		{
+			size, err := m.UiOnboardRegisterChallengeSubmit.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintUsageevents(dAtA, i, uint64(size))
+		}
+		i--
 		dAtA[i] = 0x3a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *UsageEventOneOf_UiOnboardRecoveryCodesContinueClick) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UsageEventOneOf_UiOnboardRecoveryCodesContinueClick) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.UiOnboardRecoveryCodesContinueClick != nil {
+		{
+			size, err := m.UiOnboardRecoveryCodesContinueClick.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintUsageevents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x42
 	}
 	return len(dAtA) - i, nil
 }
@@ -998,38 +1028,10 @@ func (m *UIBannerClickEvent) Size() (n int) {
 	}
 	var l int
 	_ = l
-	l = len(m.UserName)
-	if l > 0 {
-		n += 1 + l + sovUsageevents(uint64(l))
-	}
 	l = len(m.Alert)
 	if l > 0 {
 		n += 1 + l + sovUsageevents(uint64(l))
 	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *UIOnboardDomainNameTCSubmitEvent) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *UIOnboardGoToDashboardClickEvent) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -1042,10 +1044,6 @@ func (m *UIOnboardGetStartedClickEvent) Size() (n int) {
 	}
 	var l int
 	_ = l
-	l = len(m.UserName)
-	if l > 0 {
-		n += 1 + l + sovUsageevents(uint64(l))
-	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -1058,10 +1056,6 @@ func (m *UIOnboardCompleteGoToDashboardClickEvent) Size() (n int) {
 	}
 	var l int
 	_ = l
-	l = len(m.UserName)
-	if l > 0 {
-		n += 1 + l + sovUsageevents(uint64(l))
-	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -1074,10 +1068,6 @@ func (m *UIOnboardAddFirstResourceClickEvent) Size() (n int) {
 	}
 	var l int
 	_ = l
-	l = len(m.UserName)
-	if l > 0 {
-		n += 1 + l + sovUsageevents(uint64(l))
-	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -1090,10 +1080,42 @@ func (m *UIOnboardAddFirstResourceLaterClickEvent) Size() (n int) {
 	}
 	var l int
 	_ = l
-	l = len(m.UserName)
-	if l > 0 {
-		n += 1 + l + sovUsageevents(uint64(l))
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
 	}
+	return n
+}
+
+func (m *UIOnboardSetCredentialSubmitEvent) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UIOnboardRegisterChallengeSubmitEvent) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UIOnboardRecoveryCodesContinueClickEvent) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -1123,30 +1145,6 @@ func (m *UsageEventOneOf_UiBannerClick) Size() (n int) {
 	_ = l
 	if m.UiBannerClick != nil {
 		l = m.UiBannerClick.Size()
-		n += 1 + l + sovUsageevents(uint64(l))
-	}
-	return n
-}
-func (m *UsageEventOneOf_UiOnboardDomainNameTcSubmit) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.UiOnboardDomainNameTcSubmit != nil {
-		l = m.UiOnboardDomainNameTcSubmit.Size()
-		n += 1 + l + sovUsageevents(uint64(l))
-	}
-	return n
-}
-func (m *UsageEventOneOf_UiOnboardGoToDashboardClick) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.UiOnboardGoToDashboardClick != nil {
-		l = m.UiOnboardGoToDashboardClick.Size()
 		n += 1 + l + sovUsageevents(uint64(l))
 	}
 	return n
@@ -1199,6 +1197,42 @@ func (m *UsageEventOneOf_UiOnboardAddFirstResourceLaterClick) Size() (n int) {
 	}
 	return n
 }
+func (m *UsageEventOneOf_UiOnboardSetCredentialSubmit) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.UiOnboardSetCredentialSubmit != nil {
+		l = m.UiOnboardSetCredentialSubmit.Size()
+		n += 1 + l + sovUsageevents(uint64(l))
+	}
+	return n
+}
+func (m *UsageEventOneOf_UiOnboardRegisterChallengeSubmit) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.UiOnboardRegisterChallengeSubmit != nil {
+		l = m.UiOnboardRegisterChallengeSubmit.Size()
+		n += 1 + l + sovUsageevents(uint64(l))
+	}
+	return n
+}
+func (m *UsageEventOneOf_UiOnboardRecoveryCodesContinueClick) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.UiOnboardRecoveryCodesContinueClick != nil {
+		l = m.UiOnboardRecoveryCodesContinueClick.Size()
+		n += 1 + l + sovUsageevents(uint64(l))
+	}
+	return n
+}
 
 func sovUsageevents(x uint64) (n int) {
 	return (math_bits.Len64(x|1) + 6) / 7
@@ -1235,38 +1269,6 @@ func (m *UIBannerClickEvent) Unmarshal(dAtA []byte) error {
 			return fmt.Errorf("proto: UIBannerClickEvent: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field UserName", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowUsageevents
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthUsageevents
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthUsageevents
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.UserName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Alert", wireType)
@@ -1321,108 +1323,6 @@ func (m *UIBannerClickEvent) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *UIOnboardDomainNameTCSubmitEvent) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowUsageevents
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: UIOnboardDomainNameTCSubmitEvent: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: UIOnboardDomainNameTCSubmitEvent: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		default:
-			iNdEx = preIndex
-			skippy, err := skipUsageevents(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthUsageevents
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *UIOnboardGoToDashboardClickEvent) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowUsageevents
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: UIOnboardGoToDashboardClickEvent: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: UIOnboardGoToDashboardClickEvent: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		default:
-			iNdEx = preIndex
-			skippy, err := skipUsageevents(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthUsageevents
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
 func (m *UIOnboardGetStartedClickEvent) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -1452,38 +1352,6 @@ func (m *UIOnboardGetStartedClickEvent) Unmarshal(dAtA []byte) error {
 			return fmt.Errorf("proto: UIOnboardGetStartedClickEvent: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field UserName", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowUsageevents
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthUsageevents
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthUsageevents
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.UserName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipUsageevents(dAtA[iNdEx:])
@@ -1535,38 +1403,6 @@ func (m *UIOnboardCompleteGoToDashboardClickEvent) Unmarshal(dAtA []byte) error 
 			return fmt.Errorf("proto: UIOnboardCompleteGoToDashboardClickEvent: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field UserName", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowUsageevents
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthUsageevents
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthUsageevents
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.UserName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipUsageevents(dAtA[iNdEx:])
@@ -1618,38 +1454,6 @@ func (m *UIOnboardAddFirstResourceClickEvent) Unmarshal(dAtA []byte) error {
 			return fmt.Errorf("proto: UIOnboardAddFirstResourceClickEvent: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field UserName", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowUsageevents
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthUsageevents
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthUsageevents
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.UserName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipUsageevents(dAtA[iNdEx:])
@@ -1701,38 +1505,159 @@ func (m *UIOnboardAddFirstResourceLaterClickEvent) Unmarshal(dAtA []byte) error 
 			return fmt.Errorf("proto: UIOnboardAddFirstResourceLaterClickEvent: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field UserName", wireType)
+		default:
+			iNdEx = preIndex
+			skippy, err := skipUsageevents(dAtA[iNdEx:])
+			if err != nil {
+				return err
 			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowUsageevents
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthUsageevents
 			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthUsageevents
-			}
-			if postIndex > l {
+			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.UserName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UIOnboardSetCredentialSubmitEvent) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowUsageevents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UIOnboardSetCredentialSubmitEvent: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UIOnboardSetCredentialSubmitEvent: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipUsageevents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UIOnboardRegisterChallengeSubmitEvent) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowUsageevents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UIOnboardRegisterChallengeSubmitEvent: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UIOnboardRegisterChallengeSubmitEvent: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipUsageevents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UIOnboardRecoveryCodesContinueClickEvent) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowUsageevents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UIOnboardRecoveryCodesContinueClickEvent: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UIOnboardRecoveryCodesContinueClickEvent: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
 		default:
 			iNdEx = preIndex
 			skippy, err := skipUsageevents(dAtA[iNdEx:])
@@ -1821,76 +1746,6 @@ func (m *UsageEventOneOf) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field UiOnboardDomainNameTcSubmit", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowUsageevents
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthUsageevents
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthUsageevents
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &UIOnboardDomainNameTCSubmitEvent{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Event = &UsageEventOneOf_UiOnboardDomainNameTcSubmit{v}
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field UiOnboardGoToDashboardClick", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowUsageevents
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthUsageevents
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthUsageevents
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &UIOnboardGoToDashboardClickEvent{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Event = &UsageEventOneOf_UiOnboardGoToDashboardClick{v}
-			iNdEx = postIndex
-		case 4:
-			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field UiOnboardGetStartedClick", wireType)
 			}
 			var msglen int
@@ -1924,7 +1779,7 @@ func (m *UsageEventOneOf) Unmarshal(dAtA []byte) error {
 			}
 			m.Event = &UsageEventOneOf_UiOnboardGetStartedClick{v}
 			iNdEx = postIndex
-		case 5:
+		case 3:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field UiOnboardCompleteGoToDashboardClick", wireType)
 			}
@@ -1959,7 +1814,7 @@ func (m *UsageEventOneOf) Unmarshal(dAtA []byte) error {
 			}
 			m.Event = &UsageEventOneOf_UiOnboardCompleteGoToDashboardClick{v}
 			iNdEx = postIndex
-		case 6:
+		case 4:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field UiOnboardAddFirstResourceClick", wireType)
 			}
@@ -1994,7 +1849,7 @@ func (m *UsageEventOneOf) Unmarshal(dAtA []byte) error {
 			}
 			m.Event = &UsageEventOneOf_UiOnboardAddFirstResourceClick{v}
 			iNdEx = postIndex
-		case 7:
+		case 5:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field UiOnboardAddFirstResourceLaterClick", wireType)
 			}
@@ -2028,6 +1883,111 @@ func (m *UsageEventOneOf) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			m.Event = &UsageEventOneOf_UiOnboardAddFirstResourceLaterClick{v}
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UiOnboardSetCredentialSubmit", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &UIOnboardSetCredentialSubmitEvent{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &UsageEventOneOf_UiOnboardSetCredentialSubmit{v}
+			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UiOnboardRegisterChallengeSubmit", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &UIOnboardRegisterChallengeSubmitEvent{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &UsageEventOneOf_UiOnboardRegisterChallengeSubmit{v}
+			iNdEx = postIndex
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UiOnboardRecoveryCodesContinueClick", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &UIOnboardRecoveryCodesContinueClickEvent{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &UsageEventOneOf_UiOnboardRecoveryCodesContinueClick{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

@@ -3411,7 +3411,12 @@ func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error
 
 // SubmitUsageEvent submits an external usage event.
 func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
-	event, err := services.ConvertUsageEvent(req.GetEvent())
+	username, err := GetClientUsername(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	event, err := services.ConvertUsageEvent(req.GetEvent(), username)
 	if err != nil {
 		return trace.Wrap(err)
 	}

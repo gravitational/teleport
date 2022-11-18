@@ -88,20 +88,6 @@ func (u *UsageUIBannerClick) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 	}
 }
 
-type UsageUIOnboardDomainNameTCSubmitEvent prehogv1.UIOnboardDomainNameTCSubmitEvent
-
-func (u *UsageUIOnboardDomainNameTCSubmitEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
-	// Empty event.
-	return &UsageUIOnboardDomainNameTCSubmitEvent{}
-}
-
-type UsageUIOnboardGoToDashboardClickEvent prehogv1.UIOnboardGoToDashboardClickEvent
-
-func (u *UsageUIOnboardGoToDashboardClickEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
-	// Empty event.
-	return &UsageUIOnboardGoToDashboardClickEvent{}
-}
-
 type UsageUIOnboardGetStartedClickEvent prehogv1.UIOnboardGetStartedClickEvent
 
 func (u *UsageUIOnboardGetStartedClickEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
@@ -134,35 +120,67 @@ func (u *UsageUIOnboardAddFirstResourceLaterClickEvent) Anonymize(a utils.Anonym
 	}
 }
 
+type UsageUIOnboardSetCredentialSubmit prehogv1.UIOnboardSetCredentialSubmitEvent
+
+func (u *UsageUIOnboardSetCredentialSubmit) Anonymize(a utils.Anonymizer) UsageAnonymizable {
+	return &UsageUIOnboardSetCredentialSubmit{
+		UserName: a.Anonymize([]byte(u.UserName)),
+	}
+}
+
+type UsageUIOnboardRegisterChallengeSubmit prehogv1.UIOnboardRegisterChallengeSubmitEvent
+
+func (u *UsageUIOnboardRegisterChallengeSubmit) Anonymize(a utils.Anonymizer) UsageAnonymizable {
+	return &UsageUIOnboardRegisterChallengeSubmit{
+		UserName: a.Anonymize([]byte(u.UserName)),
+	}
+}
+
+type UsageUIOnboardRecoveryCodesContinueClick prehogv1.UIOnboardRecoveryCodesContinueClickEvent
+
+func (u *UsageUIOnboardRecoveryCodesContinueClick) Anonymize(a utils.Anonymizer) UsageAnonymizable {
+	return &UsageUIOnboardRecoveryCodesContinueClick{
+		UserName: a.Anonymize([]byte(u.UserName)),
+	}
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
-func ConvertUsageEvent(event *usageevents.UsageEventOneOf) (UsageAnonymizable, error) {
+func ConvertUsageEvent(event *usageevents.UsageEventOneOf, username string) (UsageAnonymizable, error) {
 	switch e := event.GetEvent().(type) {
 	case *usageevents.UsageEventOneOf_UiBannerClick:
 		return &UsageUIBannerClick{
-			UserName: e.UiBannerClick.UserName,
+			UserName: username,
 			Alert:    e.UiBannerClick.Alert,
 		}, nil
-	case *usageevents.UsageEventOneOf_UiOnboardDomainNameTcSubmit:
-		return &UsageUIOnboardDomainNameTCSubmitEvent{}, nil
-	case *usageevents.UsageEventOneOf_UiOnboardGoToDashboardClick:
-		return &UsageUIOnboardCompleteGoToDashboardClickEvent{}, nil
 	case *usageevents.UsageEventOneOf_UiOnboardGetStartedClick:
 		return &UsageUIOnboardGetStartedClickEvent{
-			UserName: e.UiOnboardGetStartedClick.UserName,
+			UserName: username,
 		}, nil
 	case *usageevents.UsageEventOneOf_UiOnboardCompleteGoToDashboardClick:
 		return &UsageUIOnboardCompleteGoToDashboardClickEvent{
-			UserName: e.UiOnboardCompleteGoToDashboardClick.UserName,
+			UserName: username,
 		}, nil
 	case *usageevents.UsageEventOneOf_UiOnboardAddFirstResourceClick:
 		return &UsageUIOnboardAddFirstResourceClickEvent{
-			UserName: e.UiOnboardAddFirstResourceClick.UserName,
+			UserName: username,
 		}, nil
 	case *usageevents.UsageEventOneOf_UiOnboardAddFirstResourceLaterClick:
 		return &UsageUIOnboardAddFirstResourceLaterClickEvent{
-			UserName: e.UiOnboardAddFirstResourceLaterClick.UserName,
+			UserName: username,
+		}, nil
+	case *usageevents.UsageEventOneOf_UiOnboardSetCredentialSubmit:
+		return &UsageUIOnboardSetCredentialSubmit{
+			UserName: username,
+		}, nil
+	case *usageevents.UsageEventOneOf_UiOnboardRegisterChallengeSubmit:
+		return &UsageUIOnboardSetCredentialSubmit{
+			UserName: username,
+		}, nil
+	case *usageevents.UsageEventOneOf_UiOnboardRecoveryCodesContinueClick:
+		return &UsageUIOnboardRecoveryCodesContinueClick{
+			UserName: username,
 		}, nil
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
