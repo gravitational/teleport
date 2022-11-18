@@ -61,10 +61,11 @@ export function PingTeleportProvider<T>(props: {
         );
       case ResourceKind.Kubernetes:
         return ctx.kubeService.fetchKubernetes(clusterId, request, signal);
+      case ResourceKind.Database:
+        return ctx.databaseService.fetchDatabases(clusterId, request, signal);
       // TODO (when we start implementing them)
       // the fetch XXX needs a param defined for abort signal
       // case 'app':
-      // case 'db':
     }
   }
 

@@ -24,17 +24,20 @@ import makeDatabase from './makeDatabase';
 class DatabaseService {
   fetchDatabases(
     clusterId: string,
-    params: UrlResourcesParams
+    params: UrlResourcesParams,
+    signal?: AbortSignal
   ): Promise<AgentResponse<Database>> {
-    return api.get(cfg.getDatabasesUrl(clusterId, params)).then(json => {
-      const items = json?.items || [];
+    return api
+      .get(cfg.getDatabasesUrl(clusterId, params), signal)
+      .then(json => {
+        const items = json?.items || [];
 
-      return {
-        agents: items.map(makeDatabase),
-        startKey: json?.startKey,
-        totalCount: json?.totalCount,
-      };
-    });
+        return {
+          agents: items.map(makeDatabase),
+          startKey: json?.startKey,
+          totalCount: json?.totalCount,
+        };
+      });
   }
 }
 

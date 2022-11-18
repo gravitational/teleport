@@ -55,3 +55,18 @@ export type JoinRule = {
   // awsArn is used for the IAM join method.
   awsArn?: string;
 };
+
+export type JoinTokenRequest = {
+  // roles is a list of join roles, since there can be more than
+  // one role associated with a token.
+  roles: JoinRole[];
+  // rules is a list of allow rules associated with the join token
+  // and the node using this token must match one of the rules.
+  rules?: JoinRule[];
+  // agentMatcherLabel is a set of labels to be used by agents to match
+  // on resources. When an agent uses this token, the agent should
+  // monitor resources that match those labels. For databases, this
+  // means adding the labels to `db_service.resources.labels`.
+  agentMatcherLabel?: AgentLabel[];
+  method?: JoinMethod;
+};

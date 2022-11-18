@@ -14,23 +14,4 @@
  * limitations under the License.
  */
 
-import React from 'react';
-
-import { ResourceKind } from 'teleport/Discover/Shared';
-
-import { Finished as Component } from './Finished';
-
-import type { AgentStepProps } from '../../types';
-
-export default {
-  title: 'Teleport/Discover/Shared',
-};
-
-export const Finished = () => <Component {...props} />;
-
-const props: AgentStepProps = {
-  agentMeta: { resourceName: 'some-resource-name' } as any,
-  updateAgentMeta: () => null,
-  nextStep: () => null,
-  selectedResourceKind: ResourceKind.Server,
-};
+export { DownloadScript } from './DownloadScript';

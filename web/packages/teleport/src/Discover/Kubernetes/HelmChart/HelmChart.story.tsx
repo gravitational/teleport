@@ -27,22 +27,31 @@ import {
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 import { userContext } from 'teleport/mocks/contexts';
 
-import DownloadScript from './DownloadScript';
+import HelmChart from './HelmChart';
+
+const { worker, rest } = window.msw;
 
 export default {
-  title: 'Teleport/Discover/Kube/DownloadScripts',
+  title: 'Teleport/Discover/Kube/HelmChart',
   decorators: [
     Story => {
       // Reset request handlers added in individual stories.
-      window.msw.worker.resetHandlers();
+      worker.resetHandlers();
       clearCachedJoinTokenResult();
       return <Story />;
     },
   ],
 };
 
+export const Init = () => {
+  return (
+    <Provider>
+      <HelmChart />
+    </Provider>
+  );
+};
+
 export const Polling = () => {
-  const { worker, rest } = window.msw;
   // Use default fetch token handler defined in mocks/handlers
 
   worker.use(
@@ -51,14 +60,13 @@ export const Polling = () => {
     })
   );
   return (
-    <Provider interval={100000}>
-      <DownloadScript runJoinTokenPromise={true} />
+    <Provider>
+      <HelmChart runJoinTokenPromise={true} />
     </Provider>
   );
 };
 
 export const PollingSuccess = () => {
-  const { worker, rest } = window.msw;
   // Use default fetch token handler defined in mocks/handlers
 
   worker.use(
@@ -67,14 +75,13 @@ export const PollingSuccess = () => {
     })
   );
   return (
-    <Provider>
-      <DownloadScript runJoinTokenPromise={true} />
+    <Provider interval={5}>
+      <HelmChart runJoinTokenPromise={true} />
     </Provider>
   );
 };
 
 export const PollingError = () => {
-  const { worker, rest } = window.msw;
   // Use default fetch token handler defined in mocks/handlers
 
   worker.use(
@@ -83,27 +90,26 @@ export const PollingError = () => {
     })
   );
   return (
-    <Provider timeout={20} interval={100000}>
-      <DownloadScript runJoinTokenPromise={true} />
+    <Provider timeout={20}>
+      <HelmChart runJoinTokenPromise={true} />
     </Provider>
   );
 };
+
 export const Processing = () => {
-  const { worker, rest } = window.msw;
   worker.use(
     rest.post(cfg.api.joinTokenPath, (req, res, ctx) => {
       return res(ctx.delay('infinite'));
     })
   );
   return (
-    <Provider>
-      <DownloadScript runJoinTokenPromise={true} />
+    <Provider interval={5}>
+      <HelmChart runJoinTokenPromise={true} />
     </Provider>
   );
 };
 
 export const Failed = () => {
-  const { worker, rest } = window.msw;
   worker.use(
     rest.post(cfg.api.joinTokenPath, (req, res, ctx) => {
       return res.once(ctx.status(500));
@@ -111,7 +117,7 @@ export const Failed = () => {
   );
   return (
     <Provider>
-      <DownloadScript runJoinTokenPromise={true} />
+      <HelmChart runJoinTokenPromise={true} />
     </Provider>
   );
 };
@@ -125,7 +131,7 @@ const Provider = props => {
         <JoinTokenProvider timeout={props.timeout || 100000}>
           <PingTeleportProvider
             timeout={props.timeout || 100000}
-            interval={props.interval || 5}
+            interval={props.interval || 100000}
             resourceKind={ResourceKind.Kubernetes}
           >
             {props.children}

@@ -7,6 +7,7 @@ import {
   resourceKindToJoinRole,
 } from 'teleport/Discover/Shared/ResourceKind';
 
+import type { AgentLabel } from 'teleport/services/agents';
 import type { JoinToken, JoinMethod } from 'teleport/services/joinToken';
 
 interface JoinTokenContextState {
@@ -79,7 +80,7 @@ export function useJoinTokenValue() {
 
 export function useJoinToken(
   resourceKind: ResourceKind,
-  runNow = true,
+  agentMatcherLabel: AgentLabel[] = [],
   joinMethod: JoinMethod = 'token'
 ): {
   joinToken: JoinToken;
@@ -96,9 +97,11 @@ export function useJoinToken(
     cachedJoinTokenResult = {
       promise: ctx.joinTokenService
         .fetchJoinToken(
-          [resourceKindToJoinRole(resourceKind)],
-          joinMethod,
-          [],
+          {
+            roles: [resourceKindToJoinRole(resourceKind)],
+            method: joinMethod,
+            agentMatcherLabel,
+          },
           abortController.signal
         )
         .then(token => {
@@ -130,14 +133,6 @@ export function useJoinToken(
       clearCachedJoinTokenResult();
     };
   }, []);
-
-  if (!runNow)
-    return {
-      joinToken: null,
-      reloadJoinToken: run,
-      timedOut: false,
-      timeout: 0,
-    };
 
   if (cachedJoinTokenResult) {
     if (cachedJoinTokenResult.error) {

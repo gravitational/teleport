@@ -19,20 +19,20 @@ import { MemoryRouter } from 'react-router';
 
 import { ContextProvider, Context as TeleportContext } from 'teleport';
 import cfg from 'teleport/config';
+import { ResourceKind } from 'teleport/Discover/Shared';
 import {
   clearCachedJoinTokenResult,
   JoinTokenProvider,
 } from 'teleport/Discover/Shared/JoinTokenContext';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { userContext } from 'teleport/Main/fixtures';
-import { ResourceKind } from 'teleport/Discover/Shared';
+import { userContext } from 'teleport/mocks/contexts';
 
 import DownloadScript from './DownloadScript';
 
 const { worker, rest } = window.msw;
 
 export default {
-  title: 'Teleport/Discover/Server/DownloadScripts',
+  title: 'Teleport/Discover/Database/DownloadScript',
   decorators: [
     Story => {
       // Reset request handlers added in individual stories.
@@ -43,17 +43,25 @@ export default {
   ],
 };
 
+export const Init = () => {
+  return (
+    <Provider>
+      <DownloadScript />
+    </Provider>
+  );
+};
+
 export const Polling = () => {
   // Use default fetch token handler defined in mocks/handlers
 
   worker.use(
-    rest.get(cfg.api.nodesPath, (req, res, ctx) => {
+    rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
       return res(ctx.delay('infinite'));
     })
   );
   return (
     <Provider>
-      <DownloadScript />
+      <DownloadScript runJoinTokenPromise={true} />
     </Provider>
   );
 };
@@ -62,13 +70,13 @@ export const PollingSuccess = () => {
   // Use default fetch token handler defined in mocks/handlers
 
   worker.use(
-    rest.get(cfg.api.nodesPath, (req, res, ctx) => {
+    rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
       return res(ctx.json({ items: [{}] }));
     })
   );
   return (
     <Provider interval={5}>
-      <DownloadScript />
+      <DownloadScript runJoinTokenPromise={true} />
     </Provider>
   );
 };
@@ -77,17 +85,16 @@ export const PollingError = () => {
   // Use default fetch token handler defined in mocks/handlers
 
   worker.use(
-    rest.get(cfg.api.nodesPath, (req, res, ctx) => {
+    rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
       return res(ctx.delay('infinite'));
     })
   );
   return (
     <Provider timeout={20}>
-      <DownloadScript />
+      <DownloadScript runJoinTokenPromise={true} />
     </Provider>
   );
 };
-
 export const Processing = () => {
   worker.use(
     rest.post(cfg.api.joinTokenPath, (req, res, ctx) => {
@@ -96,7 +103,7 @@ export const Processing = () => {
   );
   return (
     <Provider interval={5}>
-      <DownloadScript />
+      <DownloadScript runJoinTokenPromise={true} />
     </Provider>
   );
 };
@@ -109,7 +116,7 @@ export const Failed = () => {
   );
   return (
     <Provider>
-      <DownloadScript />
+      <DownloadScript runJoinTokenPromise={true} />
     </Provider>
   );
 };
@@ -124,7 +131,7 @@ const Provider = props => {
           <PingTeleportProvider
             timeout={props.timeout || 100000}
             interval={props.interval || 100000}
-            resourceKind={ResourceKind.Server}
+            resourceKind={ResourceKind.Kubernetes}
           >
             {props.children}
           </PingTeleportProvider>

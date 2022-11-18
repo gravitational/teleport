@@ -28,10 +28,9 @@ import {
   useJoinToken,
   clearCachedJoinTokenResult,
 } from 'teleport/Discover/Shared/JoinTokenContext';
-import { Timeout } from 'teleport/Discover/Shared/Timeout';
 import useTeleport from 'teleport/useTeleport';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
-import { PollBox, PollState } from 'teleport/Discover/Shared/PollState';
+import { CommandWithTimer } from 'teleport/Discover/Shared/CommandWithTimer';
 
 import {
   ActionButtons,
@@ -46,12 +45,14 @@ import type { AgentStepProps } from '../../types';
 import type { JoinToken } from 'teleport/services/joinToken';
 import type { AgentMeta, KubeMeta } from 'teleport/Discover/useDiscover';
 import type { Kube } from 'teleport/services/kube';
+import type { Poll } from 'teleport/Discover/Shared/CommandWithTimer';
 
 export default function Container(
   props: AgentStepProps & { runJoinTokenPromise?: boolean }
 ) {
   const [namespace, setNamespace] = useState('');
   const [clusterName, setClusterName] = useState('');
+  const [showHelmChart, setShowHelmChart] = useState(props.runJoinTokenPromise);
 
   return (
     // This outer CatchError and Suspense handles
@@ -89,91 +90,66 @@ export default function Container(
           </Box>
         }
       >
-        <DownloadScript
-          {...props}
-          namespace={namespace}
-          setNamespace={setNamespace}
-          clusterName={clusterName}
-          setClusterName={setClusterName}
-        />
+        {!showHelmChart && (
+          <Box>
+            <Heading />
+            <StepOne />
+            <StepTwo
+              generateScript={() => setShowHelmChart(true)}
+              namespace={namespace}
+              setNamespace={setNamespace}
+              clusterName={clusterName}
+              setClusterName={setClusterName}
+            />
+            <ActionButtons onProceed={() => null} disableProceed={true} />
+          </Box>
+        )}
+        {showHelmChart && (
+          <HelmChart
+            {...props}
+            namespace={namespace}
+            setNamespace={setNamespace}
+            clusterName={clusterName}
+            setClusterName={setClusterName}
+          />
+        )}
       </Suspense>
     </CatchError>
   );
 }
 
-export function DownloadScript(
+export function HelmChart(
   props: AgentStepProps & {
     namespace: string;
     setNamespace(n: string): void;
     clusterName: string;
     setClusterName(c: string): void;
-    // runJoinTokenPromise is used only for development
-    // (eg. stories) to bypass user input requirement.
-    runJoinTokenPromise?: boolean;
   }
 ) {
-  const { runJoinTokenPromise = false } = props;
-  // runPromise is a flag that when false prevents the `useJoinToken` hook
-  // from running on the first run. If we let this run in the background on first run,
-  // and it returns an error, the error is caught by the CatchError
-  // component which will interrupt the user (rendering the failed state)
-  // without the user clicking on any buttons. After the user fills out required fields
-  // and clicks on `handleSubmit`, this flag will always be true.
-  const [runPromise, setRunPromise] = useState(runJoinTokenPromise);
-  const [showHelmChart, setShowHelmChart] = useState(false);
-  const {
-    joinToken,
-    reloadJoinToken: fetchJoinToken,
-    timeout,
-  } = useJoinToken(ResourceKind.Kubernetes, runPromise);
-
-  function handleSubmit(validator: Validator) {
-    if (!validator.validate()) {
-      return;
-    }
-    setRunPromise(true);
-  }
-
-  function reloadJoinToken(validator: Validator) {
-    if (!validator.validate()) {
-      return;
-    }
-    fetchJoinToken();
-
-    // Hide chart until we finished fetching a new join token.
-    setShowHelmChart(false);
-  }
-
-  React.useEffect(() => {
-    if (joinToken) {
-      setShowHelmChart(true);
-    }
-  }, [joinToken]);
+  const { joinToken, reloadJoinToken, timeout } = useJoinToken(
+    ResourceKind.Kubernetes
+  );
 
   return (
     <Box>
       <Heading />
       <StepOne />
       <StepTwo
-        handleSubmit={v => (joinToken ? reloadJoinToken(v) : handleSubmit(v))}
+        generateScript={reloadJoinToken}
         namespace={props.namespace}
         setNamespace={props.setNamespace}
         clusterName={props.clusterName}
         setClusterName={props.setClusterName}
         hasJoinToken={!!joinToken}
       />
-      {showHelmChart ? (
-        <InstallHelmChart
-          namespace={props.namespace}
-          clusterName={props.clusterName}
-          joinToken={joinToken}
-          pollingTimeout={timeout}
-          nextStep={props.nextStep}
-          updateAgentMeta={props.updateAgentMeta}
-        />
-      ) : (
-        <ActionButtons onProceed={() => null} disableProceed={true} />
-      )}
+      <InstallHelmChart
+        namespace={props.namespace}
+        clusterName={props.clusterName}
+        joinToken={joinToken}
+        pollingTimeout={timeout}
+        nextStep={props.nextStep}
+        updateAgentMeta={props.updateAgentMeta}
+      />
     </Box>
   );
 }
@@ -218,7 +194,6 @@ const StepOne = () => {
 };
 
 const StepTwo = ({
-  handleSubmit,
   namespace,
   setNamespace,
   clusterName,
@@ -226,16 +201,23 @@ const StepTwo = ({
   hasJoinToken,
   error,
   onRetry,
+  generateScript,
 }: {
   error?: Error;
   onRetry?(): void;
-  handleSubmit?(v: Validator): void;
+  generateScript?(): void;
   namespace: string;
   setNamespace(n: string): void;
   clusterName: string;
   setClusterName(c: string): void;
   hasJoinToken?: boolean;
 }) => {
+  function handleSubmit(validator: Validator) {
+    if (!validator.validate()) {
+      return;
+    }
+    generateScript();
+  }
   return (
     <StyledBox mb={5}>
       <Text bold>Step 2</Text>
@@ -273,7 +255,7 @@ const StepTwo = ({
               width="200px"
               type="submit"
               // Let user re-try on error
-              disabled={!error && !handleSubmit}
+              disabled={!error && !generateScript}
               onClick={() => (error ? onRetry() : handleSubmit(validator))}
             >
               {hasJoinToken ? 'Regenerate Command' : 'Generate Command'}
@@ -338,11 +320,26 @@ const InstallHelmChart = ({
   // Starts resource querying interval.
   const { timedOut: pollingTimedOut, result } = usePingTeleport<Kube>();
 
-  let pollState: PollState = 'polling';
+  let poll: Poll = { state: 'polling' };
   if (pollingTimedOut) {
-    pollState = 'error';
+    poll = {
+      state: 'error',
+      error: {
+        reasonContents: [
+          <>
+            The command was not run on the server you were trying to add,
+            regenerate command and try again.
+          </>,
+          <>
+            The Teleport Service could not join this Teleport cluster. Check the
+            logs for errors by running <br />
+            <Mark>kubectl logs -l app=teleport-agent -n {namespace}</Mark>
+          </>,
+        ],
+      },
+    };
   } else if (result) {
-    pollState = 'success';
+    poll = { state: 'success' };
   }
 
   function handleOnProceed() {
@@ -356,85 +353,33 @@ const InstallHelmChart = ({
 
   return (
     <>
-      <PollBox mt={4} p={3} borderRadius={3} pollState={pollState}>
-        <Text bold>Step 3</Text>
-        <Text typography="subtitle1" mb={3}>
-          Run the command below on the server running your Kubernetes cluster.
-          May take up to a minute for the Teleport Service to join after running
-          the command.
-        </Text>
-        <Box mt={2} mb={1}>
-          <TextSelectCopyMulti
-            lines={[
-              {
-                text: generateCmd({
-                  namespace,
-                  clusterName,
-                  proxyAddr: host,
-                  tokenId: joinToken.id,
-                  clusterVersion: version,
-                  resourceId: joinToken.internalResourceId,
-                }),
-              },
-            ]}
-          />
-        </Box>
-        {pollState === 'polling' && (
-          <TextIcon
-            css={`
-              white-space: pre;
-            `}
-          >
-            <Icons.Restore fontSize={4} />
-            <Timeout
-              timeout={pollingTimeout}
-              message="Waiting for Teleport Service  |  "
-            />
-          </TextIcon>
-        )}
-        {pollState === 'success' && (
-          <TextIcon>
-            <Icons.CircleCheck ml={1} color="success" />
-            The Teleport Service successfully join this Teleport cluster
-          </TextIcon>
-        )}
-        {pollState === 'error' && <TimeoutError namespace={namespace} />}
-      </PollBox>
+      <CommandWithTimer
+        command={generateCmd({
+          namespace,
+          clusterName,
+          proxyAddr: host,
+          tokenId: joinToken.id,
+          clusterVersion: version,
+          resourceId: joinToken.internalResourceId,
+        })}
+        poll={poll}
+        pollingTimeout={pollingTimeout}
+        header={
+          <>
+            <Text bold>Step 3</Text>
+            <Text typography="subtitle1" mb={3}>
+              Run the command below on the server running your Kubernetes
+              cluster. May take up to a minute for the Teleport Service to join
+              after running the command.
+            </Text>
+          </>
+        }
+      />
       <ActionButtons
         onProceed={handleOnProceed}
-        disableProceed={pollState !== 'success'}
+        disableProceed={poll.state !== 'success'}
       />
     </>
-  );
-};
-
-const TimeoutError = ({ namespace }: { namespace: string }) => {
-  return (
-    <Box>
-      <TextIcon>
-        <Icons.Warning ml={1} color="danger" />
-        We could not detect the Teleport Service you were trying to add
-      </TextIcon>
-      <Text bold mt={4}>
-        Possible reasons
-      </Text>
-      <ul
-        css={`
-          margin-top: 6px;
-          margin-bottom: 0;
-        `}
-      >
-        <li>
-          The command was not run on the server you were trying to add,
-          regenerate command and try again.
-        </li>
-        <li>
-          The Teleport Service could not join this Teleport cluster. Check the
-          logs for errors by running <br />
-          <Mark>kubectl logs -l app=teleport-agent -n {namespace}</Mark>
-        </li>
-      </ul>
-    </Box>
   );
 };
 

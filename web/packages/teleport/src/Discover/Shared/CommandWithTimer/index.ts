@@ -14,6 +14,6 @@
  * limitations under the License.
  */
 
-import DownloadScript from './DownloadScript';
+export { CommandWithTimer } from './CommandWithTimer';
 
-export { DownloadScript };
+export type { Poll } from './CommandWithTimer';

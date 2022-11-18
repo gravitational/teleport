@@ -154,6 +154,7 @@ const cfg = {
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
 
     joinTokenPath: '/v1/webapi/token',
+    dbScriptPath: '/scripts/:token/install-database.sh',
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
 
@@ -270,6 +271,10 @@ const cfg = {
 
   getNodeScriptUrl(token: string) {
     return cfg.baseUrl + generatePath(cfg.api.nodeScriptPath, { token });
+  },
+
+  getDbScriptUrl(token: string) {
+    return cfg.baseUrl + generatePath(cfg.api.dbScriptPath, { token });
   },
 
   getConfigureADUrl(token: string) {

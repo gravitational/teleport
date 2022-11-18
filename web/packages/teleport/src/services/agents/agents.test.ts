@@ -18,6 +18,7 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
 import { agentService } from './agents';
+import { makeLabelMapOfStrArrs } from './make';
 
 import type { ConnectionDiagnosticRequest } from './types';
 
@@ -59,4 +60,18 @@ test('createConnectionDiagnostic request', () => {
       kubernetes_groups: ['group1', 'group2'],
     },
   });
+});
+
+test('correct makeLabelMapOfStrArrs', () => {
+  // Test empty param.
+  let result = makeLabelMapOfStrArrs();
+  expect(result).toStrictEqual({});
+
+  // Test with param.
+  result = makeLabelMapOfStrArrs([
+    { name: 'os', value: 'mac' },
+    { name: 'os', value: 'linux' },
+    { name: 'env', value: 'prod' },
+  ]);
+  expect(result).toStrictEqual({ os: ['mac', 'linux'], env: ['prod'] });
 });

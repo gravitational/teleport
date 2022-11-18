@@ -31,7 +31,7 @@ export default function useAddDatabase(ctx: TeleportContext) {
 
   function createJoinToken() {
     return run(() =>
-      ctx.joinTokenService.fetchJoinToken(['Db']).then(setToken)
+      ctx.joinTokenService.fetchJoinToken({ roles: ['Db'] }).then(setToken)
     );
   }
 
