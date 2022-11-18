@@ -126,7 +126,7 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 				compilerName = "arm-linux-gnueabihf-gcc"
 			}
 
-			buildboxName += ":teleport11"
+			buildboxName += ":teleport12"
 
 			return []string{
 				fmt.Sprintf("BUILDBOX=%s", buildboxName),
