@@ -26,6 +26,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base32"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
@@ -59,9 +60,15 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
+	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
+	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
+	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	"golang.org/x/text/encoding/unicode"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/testing/protocmp"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -95,7 +102,9 @@ import (
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/pam"
+	libproxy "github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
@@ -329,6 +338,15 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	require.NoError(t, err)
 	s.proxyTunnel = revTunServer
 
+	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+		ClusterName:         s.server.ClusterName(),
+		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		RemoteClusterGetter: s.proxyClient,
+		SiteGetter:          revTunServer,
+		TracerProvider:      tracing.NoopProvider(),
+	})
+	require.NoError(t, err)
+
 	// proxy server:
 	s.proxy, err = regular.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
@@ -340,7 +358,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		utils.NetAddr{},
 		s.proxyClient,
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode("", revTunServer, s.proxyClient),
+		regular.SetProxyMode("", revTunServer, s.proxyClient, router),
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
@@ -767,8 +785,21 @@ func TestClusterNodesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
-	clusterName := env.server.ClusterName()
 
+	// Get the node already added by `newWebPack`
+	servers, err := env.server.Auth().GetNodes(context.Background(), apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, servers, 1)
+	server1 := servers[0]
+
+	// Add another node.
+	server2, err := types.NewServerWithLabels("server2", types.KindNode, types.ServerSpecV2{}, map[string]string{"test-field": "test-value"})
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertNode(context.Background(), server2)
+	require.NoError(t, err)
+
+	// Get nodes from endpoint.
+	clusterName := env.server.ClusterName()
 	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "nodes")
 
 	query := url.Values{"sort": []string{"name"}}
@@ -777,19 +808,36 @@ func TestClusterNodesGet(t *testing.T) {
 	re, err := pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 
-	nodes := clusterNodesGetResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes))
-	require.Len(t, nodes.Items, 1)
-	require.Equal(t, 1, nodes.TotalCount)
+	// Test response.
+	res := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Len(t, res.Items, 2)
+	require.Equal(t, 2, res.TotalCount)
+	require.ElementsMatch(t, res.Items, []ui.Server{
+		{
+			ClusterName: clusterName,
+			Name:        server1.GetName(),
+			Hostname:    server1.GetHostname(),
+			Tunnel:      server1.GetUseTunnel(),
+			Addr:        server1.GetAddr(),
+			Labels:      []ui.Label{},
+			SSHLogins:   []string{pack.login},
+		},
+		{ClusterName: clusterName,
+			Name:      "server2",
+			Labels:    []ui.Label{{Name: "test-field", Value: "test-value"}},
+			Tunnel:    false,
+			SSHLogins: []string{pack.login}},
+	})
 
 	// Get nodes using shortcut.
 	re, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), query)
 	require.NoError(t, err)
 
-	nodes2 := clusterNodesGetResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes2))
-	require.Len(t, nodes.Items, 1)
-	require.Equal(t, nodes, nodes2)
+	res2 := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res2))
+	require.Len(t, res.Items, 2)
+	require.Equal(t, res, res2)
 }
 
 type clusterAlertsGetResponse struct {
@@ -1093,7 +1141,7 @@ t1ready:
 	select {
 	case e := <-ws2Messages:
 		if isResizeEventEnvelope(e) {
-			require.FailNow(t, "terminal 2 chould not have received a resize event")
+			require.FailNow(t, "terminal 2 should not have received a resize event")
 		}
 	case err := <-errs:
 		require.NoError(t, err)
@@ -2863,7 +2911,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 0)
 
-	// Register a database.
+	// Register databases.
 	db, err := types.NewDatabaseServerV3(types.Metadata{
 		Name:   "test-db-name",
 		Labels: map[string]string{"test-field": "test-value"},
@@ -2875,8 +2923,17 @@ func TestClusterDatabasesGet(t *testing.T) {
 		HostID:      "test-hostID",
 	})
 	require.NoError(t, err)
+	db2, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "db2",
+	}, types.DatabaseServerSpecV3{
+		Hostname: "test-hostname",
+		HostID:   "test-hostID",
+	})
+	require.NoError(t, err)
 
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db2)
 	require.NoError(t, err)
 
 	re, err = pack.clt.Get(context.Background(), endpoint, query)
@@ -2884,15 +2941,19 @@ func TestClusterDatabasesGet(t *testing.T) {
 
 	resp = testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 1)
-	require.Equal(t, 1, resp.TotalCount)
-	require.EqualValues(t, ui.Database{
+	require.Len(t, resp.Items, 2)
+	require.Equal(t, 2, resp.TotalCount)
+	require.ElementsMatch(t, resp.Items, []ui.Database{{
 		Name:     "test-db-name",
 		Desc:     "test-description",
 		Protocol: "test-protocol",
 		Type:     types.DatabaseTypeSelfHosted,
 		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
-	}, resp.Items[0])
+	}, {
+		Name:   "db2",
+		Type:   types.DatabaseTypeSelfHosted,
+		Labels: []ui.Label{},
+	}})
 }
 
 func TestClusterDatabaseGet(t *testing.T) {
@@ -3091,7 +3152,7 @@ func TestClusterKubesGet(t *testing.T) {
 
 	cluster1, err := types.NewKubernetesClusterV3(
 		types.Metadata{
-			Name:   "test-kube-name",
+			Name:   "test-kube1",
 			Labels: map[string]string{"test-field": "test-value"},
 		},
 		types.KubernetesClusterSpecV3{},
@@ -3111,6 +3172,22 @@ func TestClusterKubesGet(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	cluster2, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: "test-kube2",
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+	server2, err := types.NewKubernetesServerV3FromCluster(
+		cluster2,
+		"test-kube2-hostname",
+		"test-kube2-hostid",
+	)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertKubernetesServer(context.Background(), server2)
+	require.NoError(t, err)
+
 	type testResponse struct {
 		Items      []ui.KubeCluster `json:"items"`
 		TotalCount int              `json:"totalCount"`
@@ -3120,27 +3197,43 @@ func TestClusterKubesGet(t *testing.T) {
 		name             string
 		user             string
 		extraRoles       services.RoleSet
-		expectedResponse ui.KubeCluster
+		expectedResponse []ui.KubeCluster
 	}{
 		{
 			name: "user with no extra roles",
 			user: "test-user@example.com",
-			expectedResponse: ui.KubeCluster{
-				Name:       "test-kube-name",
-				Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
-				KubeUsers:  nil,
-				KubeGroups: nil,
+			expectedResponse: []ui.KubeCluster{
+				{
+					Name:       "test-kube1",
+					Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
+					KubeUsers:  nil,
+					KubeGroups: nil,
+				},
+				{
+					Name:       "test-kube2",
+					Labels:     []ui.Label{},
+					KubeUsers:  nil,
+					KubeGroups: nil,
+				},
 			},
 		},
 		{
 			name:       "user with extra roles",
 			user:       "test-user2@example.com",
 			extraRoles: services.NewRoleSet(extraRole),
-			expectedResponse: ui.KubeCluster{
-				Name:       "test-kube-name",
-				Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
-				KubeUsers:  []string{"user1"},
-				KubeGroups: []string{"group1"},
+			expectedResponse: []ui.KubeCluster{
+				{
+					Name:       "test-kube1",
+					Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
+					KubeUsers:  []string{"user1"},
+					KubeGroups: []string{"group1"},
+				},
+				{
+					Name:       "test-kube2",
+					Labels:     []ui.Label{},
+					KubeUsers:  []string{"user1"},
+					KubeGroups: []string{"group1"},
+				},
 			},
 		},
 	}
@@ -3155,9 +3248,9 @@ func TestClusterKubesGet(t *testing.T) {
 
 		resp := testResponse{}
 		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-		require.Len(t, resp.Items, 1)
-		require.Equal(t, 1, resp.TotalCount)
-		require.EqualValues(t, tc.expectedResponse, resp.Items[0])
+		require.Len(t, resp.Items, 2)
+		require.Equal(t, 2, resp.TotalCount)
+		require.ElementsMatch(t, tc.expectedResponse, resp.Items)
 	}
 }
 
@@ -3192,8 +3285,29 @@ func TestClusterAppsGet(t *testing.T) {
 		},
 	}
 
-	// Register a app service.
-	_, err := env.server.Auth().UpsertApplicationServer(context.Background(), resource)
+	resource2, err := types.NewAppServerV3(types.Metadata{Name: "server2"}, types.AppServerSpecV3{
+		HostID: "hostid",
+		App: &types.AppV3{
+			Metadata: types.Metadata{Name: "app2"},
+			Spec:     types.AppSpecV3{URI: "uri", PublicAddr: "publicaddrs"},
+		}})
+	require.NoError(t, err)
+
+	// Test URIs with tcp is filtered out of result.
+	resource3, err := types.NewAppServerV3(types.Metadata{Name: "server3"}, types.AppServerSpecV3{
+		HostID: "hostid",
+		App: &types.AppV3{
+			Metadata: types.Metadata{Name: "app3"},
+			Spec:     types.AppSpecV3{URI: "tcp://something", PublicAddr: "publicaddrs"},
+		}})
+	require.NoError(t, err)
+
+	// Register apps.
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource2)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource3)
 	require.NoError(t, err)
 
 	// Make the call.
@@ -3204,9 +3318,9 @@ func TestClusterAppsGet(t *testing.T) {
 	// Test correct response.
 	resp := testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 1)
-	require.Equal(t, 1, resp.TotalCount)
-	require.EqualValues(t, ui.App{
+	require.Len(t, resp.Items, 2)
+	require.Equal(t, 2, resp.TotalCount)
+	require.ElementsMatch(t, resp.Items, []ui.App{{
 		Name:        resource.Spec.App.GetName(),
 		Description: resource.Spec.App.GetDescription(),
 		URI:         resource.Spec.App.GetURI(),
@@ -3215,7 +3329,16 @@ func TestClusterAppsGet(t *testing.T) {
 		FQDN:        resource.Spec.App.GetPublicAddr(),
 		ClusterID:   env.server.ClusterName(),
 		AWSConsole:  true,
-	}, resp.Items[0])
+	}, {
+		Name:       "app2",
+		URI:        "uri",
+		Labels:     []ui.Label{},
+		ClusterID:  env.server.ClusterName(),
+		FQDN:       "publicaddrs",
+		PublicAddr: "publicaddrs",
+		AWSConsole: false,
+	}})
+
 }
 
 // TestApplicationAccessDisabled makes sure application access can be disabled
@@ -4434,6 +4557,61 @@ func TestParseSSORequestParams(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestClusterDesktopsGet(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
+
+	type testResponse struct {
+		Items      []ui.Desktop `json:"items"`
+		TotalCount int          `json:"totalCount"`
+	}
+
+	// Add a few desktops.
+	resource, err := types.NewWindowsDesktopV3("desktop1", map[string]string{"test-field": "test-value"}, types.WindowsDesktopSpecV3{
+		Addr:   "addr:3389", // test stripping off rdp port
+		HostID: "host",
+	})
+	require.NoError(t, err)
+	resource2, err := types.NewWindowsDesktopV3("desktop2", map[string]string{"test-field": "test-value2"}, types.WindowsDesktopSpecV3{
+		Addr:   "addr",
+		HostID: "host",
+	})
+	require.NoError(t, err)
+
+	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), resource)
+	require.NoError(t, err)
+	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), resource2)
+	require.NoError(t, err)
+
+	// Make the call.
+	query := url.Values{"sort": []string{"name"}}
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "desktops")
+	re, err := pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+
+	// Test correct response.
+	resp := testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 2)
+	require.Equal(t, 2, resp.TotalCount)
+	require.ElementsMatch(t, resp.Items, []ui.Desktop{{
+		OS:     constants.WindowsOS,
+		Name:   "desktop1",
+		Addr:   "addr",
+		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
+		HostID: "host",
+	}, {
+		OS:     constants.WindowsOS,
+		Name:   "desktop2",
+		Addr:   "addr",
+		Labels: []ui.Label{{Name: "test-field", Value: "test-value2"}},
+		HostID: "host",
+	}})
 }
 
 func TestDesktopActive(t *testing.T) {
@@ -5847,6 +6025,15 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, revTunServer.Close()) })
 
+	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+		ClusterName:         authServer.ClusterName(),
+		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		RemoteClusterGetter: client,
+		SiteGetter:          revTunServer,
+		TracerProvider:      tracing.NoopProvider(),
+	})
+	require.NoError(t, err)
+
 	proxyServer, err := regular.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		authServer.ClusterName(),
@@ -5857,7 +6044,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "proxy-1.example.com:443"},
 		client,
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode("", revTunServer, client),
+		regular.SetProxyMode("", revTunServer, client, router),
 		regular.SetEmitter(client),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
@@ -5951,13 +6138,17 @@ type proxy struct {
 
 // authPack returns new authenticated package consisting of created valid
 // user, otp token, created web session and authenticated client.
-func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPack {
+func (r *proxy) authPack(t *testing.T, teleportUser string, roles []types.Role) *authPack {
 	ctx := context.Background()
 	const (
-		loginUser = "user"
 		pass      = "abc123"
 		rawSecret = "def456"
 	)
+
+	u, err := user.Current()
+	require.NoError(t, err)
+	loginUser := u.Username
+
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -5969,7 +6160,7 @@ func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPac
 	err = r.auth.Auth().SetAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
-	r.createUser(context.Background(), t, user, loginUser, pass, otpSecret, roles)
+	r.createUser(context.Background(), t, teleportUser, loginUser, pass, otpSecret, roles)
 
 	// create a valid otp token
 	validToken, err := totp.GenerateCode(otpSecret, r.clock.Now())
@@ -5977,7 +6168,7 @@ func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPac
 
 	clt := r.newClient(t)
 	req := CreateSessionReq{
-		User:              user,
+		User:              teleportUser,
 		Pass:              pass,
 		SecondFactorToken: validToken,
 	}
@@ -5999,7 +6190,7 @@ func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPac
 
 	return &authPack{
 		otpSecret: otpSecret,
-		user:      user,
+		user:      teleportUser,
 		login:     loginUser,
 		session:   session,
 		clt:       clt,
@@ -6187,13 +6378,15 @@ func login(t *testing.T, clt *client.WebClient, cookieToken, reqToken string, re
 }
 
 func validateTerminalStream(t *testing.T, conn *websocket.Conn) {
+	t.Helper()
 	termHandler := newTerminalHandler()
 	stream := termHandler.asTerminalStream(conn)
-	_, err := io.WriteString(stream, "echo foo\r\n")
-	require.NoError(t, err)
 
-	err = waitForOutput(stream, "foo")
+	// here we intentionally run a command where the output we're looking
+	// for is not present in the command itself
+	_, err := io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
 	require.NoError(t, err)
+	require.NoError(t, waitForOutput(stream, "teleport"))
 }
 
 type mockProxySettings struct{}
@@ -6481,4 +6674,232 @@ func init() {
 	statusScheme.AddUnversionedTypes(metav1.SchemeGroupVersion,
 		&metav1.Status{},
 	)
+}
+
+// TestForwardingTraces checks that the userContext includes the ID of the
+// access request after it has been consumed and the web session has been renewed.
+func TestForwardingTraces(t *testing.T) {
+	t.Parallel()
+
+	env := newWebPack(t, 1)
+	p := env.proxies[0]
+
+	newRequest := func(t *testing.T) *http.Request {
+		req, err := http.NewRequest(http.MethodGet, "", nil)
+		require.NoError(t, err)
+
+		return req
+	}
+
+	// Span captured from the UI which was marshaled by opentelemetry-js.
+	const rawSpan = `{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"web-ui"}},{"key":"telemetry.sdk.language","value":{"stringValue":"webjs"}},{"key":"telemetry.sdk.name","value":{"stringValue":"opentelemetry"}},{"key":"telemetry.sdk.version","value":{"stringValue":"1.7.0"}},{"key":"service.version","value":{"stringValue":"0.1.0"}}],"droppedAttributesCount":0},"scopeSpans":[{"scope":{"name":"@opentelemetry/instrumentation-fetch","version":"0.33.0"},"spans":[{"traceId":"255c8d876e7dbf3707ee8451ad518652","spanId":"d9edec516e598d8c","name":"HTTP GET","kind":3,"startTimeUnixNano":1668606426497000000,"endTimeUnixNano":1668502943215499800,"attributes":[{"key":"component","value":{"stringValue":"fetch"}},{"key":"http.method","value":{"stringValue":"GET"}},{"key":"http.url","value":{"stringValue":"https://proxy.example.com/v1/webapi/user/status"}},{"key":"http.status_code","value":{"intValue":0}},{"key":"http.status_text","value":{"stringValue":"Failed to fetch"}},{"key":"http.host","value":{"stringValue":"proxy.example.com"}},{"key":"http.scheme","value":{"stringValue":"https"}},{"key":"http.user_agent","value":{"stringValue":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36    "}},{"key":"http.response_content_length","value":{"intValue":0}}],"droppedAttributesCount":0,"events":[{"attributes":[],"name":"fetchStart","timeUnixNano":1668502943210900000,"droppedAttributesCount":0},{"attributes":[],"name":"domainLookupStart","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"domainLookupEnd","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"connectStart","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"secureConnectionStart","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"connectEnd","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"requestStart","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"responseStart","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"responseEnd","timeUnixNano":1668502943215100000,"droppedAttributesCount":0}],"droppedEventsCount":0,"status":{"code":0},"links":[],"droppedLinksCount":0}]}]}]}`
+
+	// dummy span with arbitrary data, needed to be able to protojson.Marshal in tests
+	span := &tracepb.TracesData{
+		ResourceSpans: []*tracepb.ResourceSpans{
+			{
+				Resource: &resourcev1.Resource{
+					Attributes: []*commonv1.KeyValue{
+						{
+							Key: "test",
+							Value: &commonv1.AnyValue{
+								Value: &commonv1.AnyValue_IntValue{
+									IntValue: 0,
+								},
+							},
+						},
+					},
+				},
+				ScopeSpans: []*tracepb.ScopeSpans{
+					{
+						Spans: []*tracepb.Span{
+							{
+								TraceId:           []byte{1, 2, 3, 4},
+								SpanId:            []byte{5, 6, 7, 8},
+								TraceState:        "",
+								ParentSpanId:      []byte{9, 10, 11, 12},
+								Name:              "test",
+								Kind:              tracepb.Span_SPAN_KIND_CLIENT,
+								StartTimeUnixNano: uint64(time.Now().Add(-1 * time.Minute).Unix()),
+								EndTimeUnixNano:   uint64(time.Now().Unix()),
+								Attributes: []*commonv1.KeyValue{
+									{
+										Key: "test",
+										Value: &commonv1.AnyValue{
+											Value: &commonv1.AnyValue_IntValue{
+												IntValue: 11,
+											},
+										},
+									},
+								},
+								Status: &tracepb.Status{
+									Message: "success!",
+									Code:    tracepb.Status_STATUS_CODE_OK,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	cases := []struct {
+		name      string
+		req       func(t *testing.T) *http.Request
+		assertion func(t *testing.T, spans []*otlp.ResourceSpans, err error, code int)
+	}{
+		{
+			name: "no data",
+			req: func(t *testing.T) *http.Request {
+				r := newRequest(t)
+				r.Body = io.NopCloser(&bytes.Buffer{})
+				return r
+			},
+			assertion: func(t *testing.T, spans []*tracepb.ResourceSpans, err error, code int) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusBadRequest, code)
+				require.Empty(t, spans)
+			},
+		},
+		{
+			name: "invalid data",
+			req: func(t *testing.T) *http.Request {
+				r := newRequest(t)
+				r.Body = io.NopCloser(strings.NewReader(`{"test": "abc"}`))
+				return r
+			},
+			assertion: func(t *testing.T, spans []*tracepb.ResourceSpans, err error, code int) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusBadRequest, code)
+				require.Empty(t, spans)
+			},
+		},
+		{
+			name: "no traces",
+			req: func(t *testing.T) *http.Request {
+				r := newRequest(t)
+
+				raw, err := protojson.Marshal(&tracepb.ResourceSpans{})
+				require.NoError(t, err)
+				r.Body = io.NopCloser(bytes.NewBuffer(raw))
+
+				return r
+			},
+			assertion: func(t *testing.T, spans []*tracepb.ResourceSpans, err error, code int) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusBadRequest, code)
+				require.Empty(t, spans)
+			},
+		},
+		{
+			name: "traces with base64 encoded ids",
+			req: func(t *testing.T) *http.Request {
+				r := newRequest(t)
+
+				// Since the id fields of the span are all []byte,
+				// protojson will marshal them into base64
+				raw, err := protojson.Marshal(span)
+				require.NoError(t, err)
+				r.Body = io.NopCloser(bytes.NewBuffer(raw))
+
+				return r
+			},
+			assertion: func(t *testing.T, spans []*tracepb.ResourceSpans, err error, code int) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, code)
+				require.Len(t, spans, 1)
+				require.Empty(t, cmp.Diff(span.ResourceSpans[0], spans[0], protocmp.Transform()))
+			},
+		},
+		{
+			name: "traces with hex encoded ids",
+			req: func(t *testing.T) *http.Request {
+				r := newRequest(t)
+
+				// The id fields are hex encoded instead of base64 encoded
+				// by opentelemetry-js for the rawSpan
+				r.Body = io.NopCloser(strings.NewReader(rawSpan))
+
+				return r
+			},
+			assertion: func(t *testing.T, spans []*otlp.ResourceSpans, err error, code int) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, code)
+				require.Len(t, spans, 1)
+
+				var data tracepb.TracesData
+				require.NoError(t, protojson.Unmarshal([]byte(rawSpan), &data))
+
+				// compare the spans, but ignore the ids since we know that the rawSpan
+				// has hex encoded ids and protojson.Unmarshal will give us an invalid value
+				require.Empty(t, cmp.Diff(data.ResourceSpans[0], spans[0], protocmp.Transform(), protocmp.IgnoreFields(&otlp.Span{}, "span_id", "trace_id")))
+
+				// compare the ids separately
+				sid1 := spans[0].ScopeSpans[0].Spans[0].SpanId
+				tid1 := spans[0].ScopeSpans[0].Spans[0].TraceId
+
+				sid2 := data.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanId
+				tid2 := data.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceId
+
+				require.Equal(t, hex.EncodeToString(sid1), base64.StdEncoding.EncodeToString(sid2))
+				require.Equal(t, hex.EncodeToString(tid1), base64.StdEncoding.EncodeToString(tid2))
+			},
+		},
+	}
+
+	// NOTE: resetting the tracing client prevents
+	// the test cases from running in parallel
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			clt := &mockTraceClient{
+				uploadReceived: make(chan struct{}),
+			}
+			p.handler.handler.cfg.TraceClient = clt
+
+			recorder := httptest.NewRecorder()
+
+			// use the handler directly because there is no easy way to pipe in our tracing
+			// data using the pack client in a format that would match the ui.
+			_, err := p.handler.handler.traces(recorder, tt.req(t), nil, nil)
+
+			// if traces weren't uploaded perform the assertion
+			// without waiting for traces to be forwarded
+			if err != nil || recorder.Code != http.StatusOK {
+				tt.assertion(t, clt.spans, err, recorder.Code)
+				return
+			}
+
+			// traces are forwarded in a goroutine, wait for them
+			// to be received by the trace client before doing the
+			// assertion
+			select {
+			case <-clt.uploadReceived:
+			case <-time.After(10 * time.Second):
+				t.Fatal("Timed out waiting for traces to be uploaded")
+			}
+
+			tt.assertion(t, clt.spans, err, recorder.Code)
+		})
+	}
+}
+
+type mockTraceClient struct {
+	uploadError    error
+	uploadReceived chan struct{}
+	spans          []*otlp.ResourceSpans
+}
+
+func (m *mockTraceClient) Start(ctx context.Context) error {
+	return nil
+}
+
+func (m *mockTraceClient) Stop(ctx context.Context) error {
+	return nil
+}
+
+func (m *mockTraceClient) UploadTraces(ctx context.Context, protoSpans []*otlp.ResourceSpans) error {
+	m.spans = append(m.spans, protoSpans...)
+	m.uploadReceived <- struct{}{}
+	return m.uploadError
 }

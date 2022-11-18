@@ -238,7 +238,7 @@ func (s *Server) generateAppToken(ctx context.Context, username string, roles []
 	return token, nil
 }
 
-func (s *Server) createWebSession(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
+func (s *Server) CreateWebSessionFromReq(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
 	session, err := s.NewWebSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -252,7 +252,7 @@ func (s *Server) createWebSession(ctx context.Context, req types.NewWebSessionRe
 	return session, nil
 }
 
-func (s *Server) createSessionCert(user types.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {
+func (s *Server) CreateSessionCert(user types.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {
 	// It's safe to extract the access info directly from services.User because
 	// this occurs during the initial login before the first certs have been
 	// generated, so there's no possibility of any active access requests.
