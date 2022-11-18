@@ -153,6 +153,9 @@ type Identity struct {
 	// MFAVerified is the UUID of an MFA device when this Identity was
 	// confirmed immediately after an MFA check.
 	MFAVerified string
+	// MFAVerified is the the hard deadline of a session when this Identity was
+	// confirmed immediately after an MFA check.
+	MFAVerifiedSessionExpires time.Time
 	// ClientIP is an observed IP of the client that this Identity represents.
 	ClientIP string
 	// AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
@@ -407,6 +410,11 @@ var (
 	// system role, and use `pkix.Name.Organization` to encode this value. This extension
 	// is specifically used for "multi-role" certs.
 	SystemRolesASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 11}
+
+	// MFAVerifiedSessionExpiresASN1ExtensionOID is the RFC3339 timestamp representing the hard
+	// deadline of the session on a certificates issued after an MFA check.
+	// See https://github.com/gravitational/teleport/issues/18544.
+	MFAVerifiedSessionExpiresASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 12}
 )
 
 // Subject converts identity to X.509 subject name
@@ -525,6 +533,13 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  MFAVerifiedASN1ExtensionOID,
 				Value: id.MFAVerified,
+			})
+	}
+	if !id.MFAVerifiedSessionExpires.IsZero() {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  MFAVerifiedSessionExpiresASN1ExtensionOID,
+				Value: id.MFAVerifiedSessionExpires,
 			})
 	}
 	if id.ClientIP != "" {
@@ -726,6 +741,15 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.MFAVerified = val
+			}
+		case attr.Type.Equal(MFAVerifiedSessionExpiresASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			asTime, err := time.Parse(time.RFC3339, val)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if ok {
+				id.MFAVerifiedSessionExpires = asTime
 			}
 		case attr.Type.Equal(ClientIPASN1ExtensionOID):
 			val, ok := attr.Value.(string)

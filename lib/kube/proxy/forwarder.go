@@ -690,8 +690,14 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	}
 
 	disconnectExpiredCert := roles.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
-	if !certExpires.IsZero() && disconnectExpiredCert {
-		authCtx.disconnectExpiredCert = certExpires
+	if disconnectExpiredCert {
+		if !identity.MFAVerifiedSessionExpires.IsZero() {
+			// Cause MFA verified sessions to disconnect on issuing certs expiry
+			// (see https://github.com/gravitational/teleport/issues/18544).
+			authCtx.disconnectExpiredCert = identity.MFAVerifiedSessionExpires
+		} else if !certExpires.IsZero() {
+			authCtx.disconnectExpiredCert = certExpires
+		}
 	}
 
 	return authCtx, nil

@@ -202,6 +202,14 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		}
 		identity.AllowedResourceIDs = allowedResourceIDs
 	}
+	if mfaVerifiedSessionExpires, ok := certificate.Extensions[teleport.CertExtensionMFAVerifiedSessionExpires]; ok {
+		asTime, err := time.Parse(time.RFC3339, mfaVerifiedSessionExpires)
+		if err != nil {
+			return IdentityContext{}, trace.Wrap(err)
+		}
+		identity.MFAVerifiedSessionExpires = asTime
+	}
+
 	return identity, nil
 }
 

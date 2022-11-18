@@ -232,6 +232,10 @@ type IdentityContext struct {
 	// AllowedResourceIDs lists the resources this identity should be allowed to
 	// access
 	AllowedResourceIDs []types.ResourceID
+
+	// MFAVerified is the the hard deadline of a session when this Identity was
+	// confirmed immediately after an MFA check.
+	MFAVerifiedSessionExpires time.Time
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
@@ -418,10 +422,19 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		childErr := child.Close()
 		return nil, nil, trace.NewAggregate(err, childErr)
 	}
+
 	disconnectExpiredCert := identityContext.AccessChecker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
-	if !identityContext.CertValidBefore.IsZero() && disconnectExpiredCert {
-		child.disconnectExpiredCert = identityContext.CertValidBefore
+	var disconnectCertExpired time.Time
+	if disconnectExpiredCert {
+		if !identityContext.MFAVerifiedSessionExpires.IsZero() {
+			// Cause MFA verified sessions to disconnect on issuing certs expiry
+			// (see https://github.com/gravitational/teleport/issues/18544).
+			disconnectCertExpired = identityContext.MFAVerifiedSessionExpires
+		} else if !identityContext.CertValidBefore.IsZero() {
+			disconnectCertExpired = identityContext.CertValidBefore
+		}
 	}
+	child.disconnectExpiredCert = disconnectCertExpired
 
 	// Update log entry fields.
 	if !child.disconnectExpiredCert.IsZero() {
