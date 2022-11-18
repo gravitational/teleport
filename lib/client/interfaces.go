@@ -18,10 +18,14 @@ package client
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
 	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -64,6 +68,15 @@ func (idx KeyIndex) Check() error {
 		return trace.BadParameter(missingField, "ClusterName")
 	}
 	return nil
+}
+
+// Match compares this key index to the given matchKey index.
+// It will be considered a match if all non-zero elements of
+// the matchKey are matched by this key index.
+func (idx KeyIndex) Match(matchKey KeyIndex) bool {
+	return (matchKey.ProxyHost == "" || matchKey.ProxyHost == idx.ProxyHost) &&
+		(matchKey.ClusterName == "" || matchKey.ClusterName == idx.ClusterName) &&
+		(matchKey.Username == "" || matchKey.Username == idx.Username)
 }
 
 // Key describes a complete (signed) client key
@@ -402,14 +415,69 @@ func (k *Key) CertRoles() ([]string, error) {
 	return roles, nil
 }
 
-// AsAgentKeys converts client.Key struct to a []*agent.AddedKey. All elements
-// of the []*agent.AddedKey slice need to be loaded into the agent!
+const (
+	agentKeyCommentPrefix    = "teleport"
+	agentKeyCommentSeparator = ":"
+)
+
+// teleportAgentKeyComment returns a teleport agent key comment
+// like "teleport:<proxyHost>:<userName>:<clusterName>".
+func teleportAgentKeyComment(k KeyIndex) string {
+	return strings.Join([]string{
+		agentKeyCommentPrefix,
+		k.ProxyHost,
+		k.ClusterName,
+		k.Username,
+	}, agentKeyCommentSeparator)
+}
+
+// parseTeleportAgentKeyComment parses an agent key comment into
+// its associated KeyIndex.
+func parseTeleportAgentKeyComment(comment string) (KeyIndex, bool) {
+	parts := strings.Split(comment, agentKeyCommentSeparator)
+	if len(parts) != 4 || parts[0] != agentKeyCommentPrefix {
+		return KeyIndex{}, false
+	}
+
+	return KeyIndex{
+		ProxyHost:   parts[1],
+		ClusterName: parts[2],
+		Username:    parts[3],
+	}, true
+}
+
+// isTeleportAgentKey returns whether the given agent key was added
+// by Teleport by checking the key's comment.
+func isTeleportAgentKey(key *agent.Key) bool {
+	return strings.HasPrefix(key.Comment, agentKeyCommentPrefix+agentKeyCommentSeparator)
+}
+
+// AsAgentKey converts PrivateKey to a agent.AddedKey. If the given PrivateKey is not
+// supported as an agent key, a trace.NotImplemented error is returned.
 func (k *Key) AsAgentKey() (agent.AddedKey, error) {
 	sshCert, err := k.SSHCert()
 	if err != nil {
 		return agent.AddedKey{}, trace.Wrap(err)
 	}
-	return k.PrivateKey.AsAgentKey(sshCert)
+
+	switch k.Signer.(type) {
+	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
+		return agent.AddedKey{
+			PrivateKey:       k.Signer,
+			Certificate:      sshCert,
+			Comment:          teleportAgentKeyComment(k.KeyIndex),
+			LifetimeSecs:     0,
+			ConfirmBeforeUse: false,
+		}, nil
+	default:
+		// We return a not implemented error because agent.AddedKey only
+		// supports plain RSA, ECDSA, and ED25519 keys. Non-standard private
+		// keys, like hardware-based private keys, will require custom solutions
+		// which may not be included in their initial implementation. This will
+		// only affect functionality related to agent forwarding, so we give the
+		// caller the ability to handle the error gracefully.
+		return agent.AddedKey{}, trace.NotImplemented("cannot create an agent key using private key signer of type %T", k.Signer)
+	}
 }
 
 // TeleportTLSCertificate returns the parsed x509 certificate for
