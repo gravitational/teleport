@@ -26,12 +26,12 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
@@ -47,6 +47,8 @@ type Config struct {
 	AWSMatchers []services.AWSMatcher
 	// AzureMatchers is a list of Azure matchers to discover resources.
 	AzureMatchers []services.AzureMatcher
+	// GCPMatchers is a list of GCP matchers to discover resources.
+	GCPMatchers []services.GCPMatcher
 	// Emitter is events emitter, used to submit discrete events
 	Emitter apievents.Emitter
 	// AccessPoint is a discovery access point
@@ -59,7 +61,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Clients == nil {
 		c.Clients = cloud.NewClients()
 	}
-	if len(c.AWSMatchers) == 0 && len(c.AzureMatchers) == 0 {
+	if len(c.AWSMatchers) == 0 && len(c.AzureMatchers) == 0 && len(c.GCPMatchers) == 0 {
 		return trace.BadParameter("no matchers configured for discovery")
 	}
 	if c.Emitter == nil {
@@ -115,6 +117,10 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	}
 
 	if err := s.initAzureWatchers(ctx, cfg.AzureMatchers); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.initGCPWatchers(ctx, cfg.GCPMatchers); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -208,6 +214,37 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []services.Azur
 						return trace.Wrap(err)
 					}
 					s.kubeFetchers = append(s.kubeFetchers, fetcher)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// initGCPWatchers starts GCP resource watchers based on types provided.
+func (s *Server) initGCPWatchers(ctx context.Context, matchers []services.GCPMatcher) error {
+	kubeClient, err := s.Clients.GetGCPGKEClient(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, matcher := range matchers {
+		for _, projectID := range matcher.ProjectIDs {
+			for _, location := range matcher.Locations {
+				for _, t := range matcher.Types {
+					switch t {
+					case constants.GCPServiceTypeKubernetes:
+						fetcher, err := fetchers.NewGKEFetcher(fetchers.GKEFetcherConfig{
+							Client:       kubeClient,
+							Location:     location,
+							FilterLabels: matcher.Tags,
+							ProjectID:    projectID,
+							Log:          s.Log,
+						})
+						if err != nil {
+							return trace.Wrap(err)
+						}
+						s.kubeFetchers = append(s.kubeFetchers, fetcher)
+					}
 				}
 			}
 		}
@@ -384,7 +421,7 @@ func (s *Server) Wait() error {
 
 func (s *Server) getAzureSubscriptions(ctx context.Context, subs []string) ([]string, error) {
 	subscriptionIds := subs
-	if utils.SliceContainsStr(subs, types.Wildcard) {
+	if slices.Contains(subs, types.Wildcard) {
 		subsClient, err := s.Clients.GetAzureSubscriptionClient()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -411,7 +448,7 @@ func (s *Server) initTeleportNodeWatcher() (err error) {
 // splitAWSMatchers splits the matchers between EC2 matchers and others.
 func splitAWSMatchers(matchers []services.AWSMatcher) (ec2 []services.AWSMatcher, other []services.AWSMatcher) {
 	for _, matcher := range matchers {
-		if utils.SliceContainsStr(matcher.Types, constants.AWSServiceTypeEC2) {
+		if slices.Contains(matcher.Types, constants.AWSServiceTypeEC2) {
 			ec2 = append(ec2,
 				copyAWSMatcherWithNewTypes(matcher, []string{constants.AWSServiceTypeEC2}),
 			)
@@ -428,7 +465,7 @@ func splitAWSMatchers(matchers []services.AWSMatcher) (ec2 []services.AWSMatcher
 // splitAzureMatchers splits the matchers between Azure VM matchers and others.
 func splitAzureMatchers(matchers []services.AzureMatcher) (vm []services.AzureMatcher, other []services.AzureMatcher) {
 	for _, matcher := range matchers {
-		if utils.SliceContainsStr(matcher.Types, constants.AzureServiceTypeVM) {
+		if slices.Contains(matcher.Types, constants.AzureServiceTypeVM) {
 			vm = append(vm,
 				copyAzureMatcherWithNewTypes(matcher, []string{constants.AzureServiceTypeVM}),
 			)
