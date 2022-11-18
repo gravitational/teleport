@@ -37,7 +37,7 @@ Tap any security key
 <TabItem label="SAML / OIDC user">
 
 ```code
-$ tsh login --proxy=<Var name="teleport.example.com"/> --user=<Var name="user"/> --auth=your-idp-connector
+$ tsh login --proxy=<Var name="teleport.example.com"/> --user=<Var name="user"/> --auth=<Var name="your-idp-connector" description="Your Identity Provider connection name, if implemented by your administrators"/>
 Enter password for Teleport user alice:
 Tap any security key
 > Profile URL:        https://teleport.example.com:443
