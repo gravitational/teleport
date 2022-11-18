@@ -227,6 +227,10 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			}
 			eventStream, err = auth.CreateAuditStream(stream.Context(), session.ID(create.SessionID))
 			if err != nil {
+				// Log the reason why audit stream creation failed. This will
+				// surface things like AWS/GCP/MinIO credential/configuration
+				// errors.
+				g.Errorf("Failed to create audit stream: %q.", err)
 				return trace.Wrap(err)
 			}
 			sessionID = session.ID(create.SessionID)
