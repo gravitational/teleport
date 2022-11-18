@@ -661,7 +661,7 @@ db_service:
 			},
 		},
 		{
-			desc: "empty syggestedAgentMatcherLabels",
+			desc: "empty suggestedAgentMatcherLabels",
 			settings: scriptSettings{
 				databaseInstallMode: true,
 				token:               emptySuggestedAgentMatcherLabelsToken,
