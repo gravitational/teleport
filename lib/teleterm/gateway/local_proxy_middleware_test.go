@@ -47,25 +47,50 @@ func TestLocalProxyMiddleware_OnNewConnection(t *testing.T) {
 	clockBeforeCertExpiry := clockwork.NewFakeClockAt(x509cert.NotBefore)
 	clockBeforeCertExpiry.Advance(time.Hour*4 + time.Minute*20)
 
+	validDbRoute := tlsca.RouteToDatabase{
+		Protocol:    defaults.ProtocolPostgres,
+		ServiceName: "foo-database-server",
+	}
+
 	tests := []struct {
 		name        string
 		clock       clockwork.Clock
-		expectation func(t *testing.T, hasCalledOnExpiredCert bool)
+		dbRoute     tlsca.RouteToDatabase
+		expectation func(t *testing.T, onNewConnectionErr error, hasCalledOnExpiredCert bool)
 	}{
 		{
-			name:  "With expired cert",
-			clock: clockAfterCertExpiry,
-			expectation: func(t *testing.T, hasCalledOnExpiredCert bool) {
+			name:    "With expired cert",
+			clock:   clockAfterCertExpiry,
+			dbRoute: validDbRoute,
+			expectation: func(t *testing.T, onNewConnectionErr error, hasCalledOnExpiredCert bool) {
+				require.NoError(t, onNewConnectionErr)
 				require.True(t, hasCalledOnExpiredCert,
-					"The onExpiredCert callback has not been called by the middleware")
+					"Expected the onExpiredCert callback to be called by the middleware")
 			},
 		},
 		{
-			name:  "With valid cert",
+			name:  "With active cert with subject not matching dbRoute",
 			clock: clockBeforeCertExpiry,
-			expectation: func(t *testing.T, hasCalledOnExpiredCert bool) {
+			dbRoute: tlsca.RouteToDatabase{
+				Protocol:    defaults.ProtocolPostgres,
+				ServiceName: "foo-database-server",
+				Username:    "bar",
+				Database:    "quux",
+			},
+			expectation: func(t *testing.T, onNewConnectionErr error, hasCalledOnExpiredCert bool) {
+				require.Error(t, onNewConnectionErr)
 				require.False(t, hasCalledOnExpiredCert,
-					"The onExpiredCert callback has been called by the middleware")
+					"Expected the onExpiredCert callback to not be called by the middleware")
+			},
+		},
+		{
+			name:    "With valid cert",
+			clock:   clockBeforeCertExpiry,
+			dbRoute: validDbRoute,
+			expectation: func(t *testing.T, onNewConnectionErr error, hasCalledOnExpiredCert bool) {
+				require.NoError(t, onNewConnectionErr)
+				require.False(t, hasCalledOnExpiredCert,
+					"Expected the onExpiredCert callback to not be called by the middleware")
 			},
 		},
 	}
@@ -83,11 +108,8 @@ func TestLocalProxyMiddleware_OnNewConnection(t *testing.T) {
 					hasCalledOnExpiredCert = true
 					return nil
 				},
-				log: logrus.WithField(trace.Component, "middleware"),
-				dbRoute: tlsca.RouteToDatabase{
-					Protocol:    defaults.ProtocolPostgres,
-					ServiceName: "foo-database-server",
-				},
+				log:     logrus.WithField(trace.Component, "middleware"),
+				dbRoute: tt.dbRoute,
 			}
 
 			localProxy, err := alpn.NewLocalProxy(alpn.LocalProxyConfig{
@@ -101,9 +123,7 @@ func TestLocalProxyMiddleware_OnNewConnection(t *testing.T) {
 			localProxy.SetCerts([]tls.Certificate{tlsCert})
 
 			err = middleware.OnNewConnection(ctx, localProxy, nil /* net.Conn, not used by middleware */)
-			require.NoError(t, err)
-
-			tt.expectation(t, hasCalledOnExpiredCert)
+			tt.expectation(t, err, hasCalledOnExpiredCert)
 		})
 	}
 }

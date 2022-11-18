@@ -16,6 +16,8 @@ package gateway
 
 import (
 	"context"
+	"crypto/x509"
+	"errors"
 	"net"
 
 	"github.com/gravitational/trace"
@@ -41,13 +43,20 @@ func (m *localProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpn.Loc
 	m.log.Debug("Checking local proxy certs")
 
 	err := lp.CheckDBCerts(m.dbRoute)
-	if err != nil {
-		m.log.WithError(err).Debug("Gateway certificates have expired")
+	if err == nil {
+		return nil
+	}
 
-		onExpiredCertErr := m.onExpiredCert(ctx)
-		if onExpiredCertErr != nil {
-			return trace.NewAggregate(err, onExpiredCertErr)
-		}
+	// Return early and don't fire onExpiredCert if certs are invalid but not due to expiry.
+	if !errors.As(err, &x509.CertificateInvalidError{}) {
+		return trace.Wrap(err)
+	}
+
+	m.log.WithError(err).Debug("Gateway certificates have expired")
+
+	onExpiredCertErr := m.onExpiredCert(ctx)
+	if onExpiredCertErr != nil {
+		return trace.Wrap(onExpiredCertErr)
 	}
 
 	return nil
