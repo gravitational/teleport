@@ -1312,7 +1312,7 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 		return handler, nil
 	default:
 		return nil, trace.BadParameter(
-			"unsupported scheme for audit_sesions_uri: %q, currently supported schemes are: %v",
+			"unsupported scheme for audit_sessions_uri: %q, currently supported schemes are: %v",
 			uri.Scheme, strings.Join([]string{teleport.SchemeS3, teleport.SchemeGCS, teleport.SchemeFile}, ", "))
 	}
 }

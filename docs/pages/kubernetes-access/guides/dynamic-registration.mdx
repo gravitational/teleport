@@ -9,7 +9,7 @@ configuration file of an individual Kubernetes Service instance.
 
 Dynamic Kubernetes cluster registration is useful when you have deployed
 multiple Kubernetes Service instances or need to regularly reconfigure access to
-Kubernetes clusters in your instrastructure.
+Kubernetes clusters in your infrastructure.
 
 In this guide, we will show you how to set up dynamic Kubernetes cluster
 registration, then create, list, update, and delete Kubernetes clusters via
@@ -496,7 +496,7 @@ $ tctl rm kube_clusters/mycluster
 kubernetes cluster "mycluster" has been deleted
 ```
 
-This also unregisters the Kubernetes cluster from Teleport:
+This will unregister the Kubernetes cluster from Teleport:
 
 ```code
 $ tsh kube ls
