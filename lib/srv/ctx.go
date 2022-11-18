@@ -423,18 +423,9 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		return nil, nil, trace.NewAggregate(err, childErr)
 	}
 
-	disconnectExpiredCert := identityContext.AccessChecker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
-	var disconnectCertExpired time.Time
-	if disconnectExpiredCert {
-		if !identityContext.MFAVerifiedSessionExpires.IsZero() {
-			// Cause MFA verified sessions to disconnect on issuing certs expiry
-			// (see https://github.com/gravitational/teleport/issues/18544).
-			disconnectCertExpired = identityContext.MFAVerifiedSessionExpires
-		} else if !identityContext.CertValidBefore.IsZero() {
-			disconnectCertExpired = identityContext.CertValidBefore
-		}
-	}
-	child.disconnectExpiredCert = disconnectCertExpired
+	child.disconnectExpiredCert = getDisconnectExpiredCertFromIdentityContext(
+		identityContext.AccessChecker, authPref, identityContext,
+	)
 
 	// Update log entry fields.
 	if !child.disconnectExpiredCert.IsZero() {

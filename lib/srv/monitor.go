@@ -34,6 +34,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // ActivityTracker is a connection activity tracker,
@@ -423,4 +424,62 @@ func (t *TrackingReadConn) UpdateClientActivity() {
 	t.mtx.Lock()
 	defer t.mtx.Unlock()
 	t.lastActive = t.cfg.Clock.Now().UTC()
+}
+
+// GetDisconnectExpiredCertFromIdentity calculates the proper value for DisconnectExpiredCert
+// based on whether a connection is set to disconnect on cert expiry, and whether
+// the cert is a short lived (<1m) one issued for an MFA verified session.
+func GetDisconnectExpiredCertFromIdentity(
+	checker services.AccessChecker,
+	authPref types.AuthPreference,
+	identity tlsca.Identity,
+) time.Time {
+	// In the case where both disconnect_expired_cert and require_session_mfa are enabled,
+	// the MFAVerifiedSessionExpires value of the certificate will be used, which is the
+	// expiry of the certificate used to issue the short lived MFA verified certificate.
+	//
+	// See https://github.com/gravitational/teleport/issues/18544
+
+	// If the session doesn't need to be disconnected on cert expiry just return the default value.
+	if !checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+		var t time.Time
+		return t
+	}
+
+	if !identity.MFAVerifiedSessionExpires.IsZero() {
+		// If this is a short-lived mfa verified cert, return the certificate extension
+		// that holds its' issuing cert's expiry value.
+		return identity.MFAVerifiedSessionExpires
+	}
+
+	// Otherwise just return the current cert's expiration
+	return identity.Expires
+}
+
+// See GetDisconnectExpiredCertFromIdentity
+func getDisconnectExpiredCertFromIdentityContext(
+	checker services.AccessChecker,
+	authPref types.AuthPreference,
+	identity IdentityContext,
+) time.Time {
+	// In the case where both disconnect_expired_cert and require_session_mfa are enabled,
+	// the MFAVerifiedSessionExpires value of the certificate will be used, which is the
+	// expiry of the certificate used to issue the short lived MFA verified certificate.
+	//
+	// See https://github.com/gravitational/teleport/issues/18544
+
+	// If the session doesn't need to be disconnected on cert expiry just return the default value.
+	if !checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+		var t time.Time
+		return t
+	}
+
+	if !identity.MFAVerifiedSessionExpires.IsZero() {
+		// If this is a short-lived mfa verified cert, return the certificate extension
+		// that holds its' issuing cert's expiry value.
+		return identity.MFAVerifiedSessionExpires
+	}
+
+	// Otherwise just return the current cert's expiration
+	return identity.CertValidBefore
 }
