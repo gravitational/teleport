@@ -6,18 +6,18 @@ spec:
   - claim: groups
     roles:
     - auditor
-    value: <auditor@google-workspace-group-email>
+    value: auditor@google-apps-domain.com
   - claim: groups
     roles:
     - access
     value: teleport-developers@example.com
-  client_id: <GOOGLE_WORKSPACE_CLIENT_ID>.apps.googleusercontent.com
-  client_secret: <OAUTH_CLIENT_SECRET>
+  client_id: <GOOGLE-WORKSPACE-CLIENT-ID>.apps.googleusercontent.com
+  client_secret: <OAUTH-CLIENT-SECRET>
   display: Google
-  google_admin_email: <GOOGLE_WORKSPACE_ADMIN_EMAIL>
+  google_admin_email: <GOOGLE-WORKSPACE-ADMIN-EMAIL>
   google_service_account_uri: file:///var/lib/teleport/gworkspace-creds.json
   issuer_url: https://accounts.google.com
-  redirect_url: https://<cluster-url>:3080/v1/webapi/oidc/callback
+  redirect_url: https://<CLUSTER_URL>:3080/v1/webapi/oidc/callback
   scope:
   - openid
   - email
