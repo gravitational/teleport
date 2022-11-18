@@ -476,7 +476,7 @@ func TestAuthenticationConfig_Parse_nilU2F(t *testing.T) {
 
 	_, u2fErr := cap.GetU2F()
 	require.Error(t, u2fErr, "U2F configuration present")
-	require.True(t, trace.IsNotFound(u2fErr), "uxpected U2F error")
+	require.True(t, trace.IsNotFound(u2fErr), "unexpected U2F error")
 
 	_, webErr := cap.GetWebauthn()
 	require.NoError(t, webErr, "unexpected webauthn error")
