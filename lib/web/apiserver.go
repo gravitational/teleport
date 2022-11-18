@@ -2211,7 +2211,7 @@ func (h *Handler) siteNodeConnect(
 	req.ProxyHostPort = h.ProxyHostPort()
 	req.Cluster = site.GetName()
 
-	term, err := NewTerminal(r.Context(), *req, clt, sctx, servers, sessionData)
+	term, err := NewTerminal(r.Context(), *req, clt, sctx, sessionData)
 	if err != nil {
 		h.log.WithError(err).Error("Unable to create terminal.")
 		return nil, trace.Wrap(err)
@@ -2225,7 +2225,7 @@ func (h *Handler) siteNodeConnect(
 }
 
 func (h *Handler) generateSession(termReq *TerminalRequest, servers []types.Server, clusterName string) (session.Session, error) {
-	hostname, _, err := resolveServerHostPort(termReq.Server, servers)
+	hostname, hostPort, err := resolveServerHostPort(termReq.Server, servers)
 	if err != nil {
 		return session.Session{}, trace.Wrap(err)
 	}
@@ -2235,6 +2235,7 @@ func (h *Handler) generateSession(termReq *TerminalRequest, servers []types.Serv
 		ServerID:       termReq.Server,
 		ClusterName:    clusterName,
 		ServerHostname: hostname,
+		ServerHostPort: hostPort,
 		ID:             session.NewID(),
 		Created:        time.Now().UTC(),
 		LastActive:     time.Now().UTC(),

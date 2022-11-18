@@ -88,7 +88,7 @@ type AuthProvider interface {
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
 // new TerminalHandler.
-func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProvider, sessCtx *SessionContext, servers []types.Server, sessionData session.Session) (*TerminalHandler, error) {
+func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProvider, sessCtx *SessionContext, sessionData session.Session) (*TerminalHandler, error) {
 	// Make sure whatever session is requested is a valid session.
 	_, err := session.ParseID(string(sessionData.ID))
 	if err != nil {
@@ -113,15 +113,6 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		return nil, trace.BadParameter("term: bad term dimensions")
 	}
 
-	// DELETE IN: 5.0
-	//
-	// All proxies will support lookup by uuid, so host/port lookup
-	// and fallback can be dropped entirely.
-	hostName, hostPort, err := resolveServerHostPort(req.Server, servers)
-	if err != nil {
-		return nil, trace.BadParameter("invalid server name %q: %v", req.Server, err)
-	}
-
 	var join bool
 	_, err = authProvider.GetSessionTracker(ctx, string(req.SessionID))
 	switch {
@@ -139,8 +130,8 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		}),
 		params:       req,
 		ctx:          sessCtx,
-		hostName:     hostName,
-		hostPort:     hostPort,
+		hostName:     sessionData.ServerHostname,
+		hostPort:     sessionData.ServerHostPort,
 		hostUUID:     req.Server,
 		authProvider: authProvider,
 		encoder:      unicode.UTF8.NewEncoder(),
