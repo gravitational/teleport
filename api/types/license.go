@@ -72,14 +72,17 @@ type License interface {
 	SetSupportsDesktopAccess(Bool)
 
 	// GetTrial returns the trial flag
+	//  is not applicable to Cloud licenses
 	GetTrial() Bool
 	// SetTrial sets the trial flag
+	//  is not applicable to Cloud licenses
 	SetTrial(Bool)
 
 	// SetLabels sets metadata labels
 	SetLabels(labels map[string]string)
 
 	// GetAccountID returns Account ID
+	//  is not applicable to Cloud licenses
 	GetAccountID() string
 }
 
