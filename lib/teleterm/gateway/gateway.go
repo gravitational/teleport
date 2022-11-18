@@ -65,6 +65,8 @@ func New(cfg Config) (*Gateway, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	cfg.LocalPort = port
+
 	protocol, err := alpncommon.ToALPNProtocol(cfg.Protocol)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -88,10 +90,12 @@ func New(cfg Config) (*Gateway, error) {
 		ParentContext:      closeContext,
 		SNI:                address.Host(),
 		Certs:              []tls.Certificate{tlsCert},
+		Clock:              cfg.Clock,
 	}
 
 	localProxyMiddleware := &localProxyMiddleware{
-		log: cfg.Log,
+		log:     cfg.Log,
+		dbRoute: cfg.RouteToDatabase(),
 	}
 
 	if cfg.OnExpiredCert != nil {
@@ -102,8 +106,6 @@ func New(cfg Config) (*Gateway, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	cfg.LocalPort = port
 
 	gateway := &Gateway{
 		cfg:          &cfg,

@@ -19,17 +19,16 @@ import (
 	"net"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type localProxyMiddleware struct {
 	onExpiredCert func(context.Context) error
 	log           *logrus.Entry
-	clock         clockwork.Clock
+	dbRoute       tlsca.RouteToDatabase
 }
 
 // OnNewConnection calls m.onExpiredCert if the cert used by the local proxy has expired.
@@ -38,20 +37,10 @@ type localProxyMiddleware struct {
 //
 // In the future, DBCertChecker is going to be extended so that it's used by both tsh and Connect
 // and this middleware will be removed.
-func (m *localProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpn.LocalProxy, conn net.Conn) (err error) {
+func (m *localProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpn.LocalProxy, conn net.Conn) error {
 	m.log.Debug("Checking local proxy certs")
 
-	certs := lp.GetCerts()
-	if len(certs) == 0 {
-		return trace.Wrap(trace.NotFound("local proxy has no TLS certificates configured"))
-	}
-
-	cert, err := utils.TLSCertToX509(certs[0])
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = utils.VerifyCertificateExpiry(cert, m.clock)
+	err := lp.CheckDBCerts(m.dbRoute)
 	if err != nil {
 		m.log.WithError(err).Debug("Gateway certificates have expired")
 

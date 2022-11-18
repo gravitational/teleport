@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // Config describes gateway configuration
@@ -65,7 +66,7 @@ type Config struct {
 	// TCPPortAllocator creates listeners on the given ports. This interface lets us avoid occupying
 	// hardcoded ports in tests.
 	TCPPortAllocator TCPPortAllocator
-	// Clock is used by LocalProxyMiddleware to check cert expiration.
+	// Clock is used by Gateway.localProxy to check cert expiration.
 	Clock clockwork.Clock
 	// OnExpiredCert is called when a new downstream connection is accepted by the
 	// gateway but cannot be proxied because the cert used by the gateway has expired.
@@ -128,4 +129,16 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// RouteToDatabase returns tlsca.RouteToDatabase based on the config of the gateway.
+//
+// The tlsca.RouteToDatabase.Database field is skipped, as it's an optional field and gateways can
+// change their Config.TargetSubresourceName at any moment.
+func (c *Config) RouteToDatabase() tlsca.RouteToDatabase {
+	return tlsca.RouteToDatabase{
+		ServiceName: c.TargetName,
+		Protocol:    c.Protocol,
+		Username:    c.TargetUser,
+	}
 }

@@ -27,8 +27,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/defaults"
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -82,14 +84,18 @@ func TestLocalProxyMiddleware_OnNewConnection(t *testing.T) {
 					hasCalledOnExpiredCert = true
 					return nil
 				},
-				log:   logrus.WithField(trace.Component, "middleware"),
-				clock: tt.clock,
+				log: logrus.WithField(trace.Component, "middleware"),
+				dbRoute: tlsca.RouteToDatabase{
+					Protocol:    defaults.ProtocolPostgres,
+					ServiceName: "foo-database-server",
+				},
 			}
 
 			localProxy, err := alpn.NewLocalProxy(alpn.LocalProxyConfig{
 				RemoteProxyAddr: "localhost",
 				Protocols:       []alpncommon.Protocol{alpncommon.ProtocolHTTP},
 				ParentContext:   ctx,
+				Clock:           tt.clock,
 			})
 			require.NoError(t, err)
 
