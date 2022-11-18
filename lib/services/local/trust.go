@@ -114,7 +114,15 @@ func (s *CA) CompareAndSwapCertAuthority(new, expected types.CertAuthority) erro
 
 	actualItem, err := s.Get(context.TODO(), key)
 	if err != nil {
-		return trace.Wrap(err)
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		// might be deactivated CA
+		key = backend.Key(authoritiesPrefix, deactivatedPrefix, string(new.GetType()), new.GetName())
+		actualItem, err = s.Get(context.TODO(), key)
+		if err != nil  {
+			return trace.Wrap(err)
+		}
 	}
 	actual, err := services.UnmarshalCertAuthority(actualItem.Value)
 	if err != nil {
@@ -295,10 +303,10 @@ func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, 
 
 // UpdateUserCARoleMap updates the role map of the userCA of the specified existing cluster.
 func (s *CA) UpdateUserCARoleMap(ctx context.Context, existingCluster, trustedCluster types.TrustedCluster) error {
-	certAuthority, err := s.GetCertAuthority(ctx, types.CertAuthID{
+	existingCertAuthority, err := s.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: existingCluster.GetName(),
-	}, false)
+	}, true)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -310,28 +318,16 @@ func (s *CA) UpdateUserCARoleMap(ctx context.Context, existingCluster, trustedCl
 			return trace.Wrap(err)
 		}
 
-		certAuthority, err := services.UnmarshalCertAuthority(
+		existingCertAuthority, err = services.UnmarshalCertAuthority(
 			item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		certAuthority.SetRoleMap(trustedCluster.GetRoleMap())
-		value, err := services.MarshalCertAuthority(certAuthority)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		item = &backend.Item{
-			Key:     backend.Key(authoritiesPrefix, deactivatedPrefix, string(types.UserCA), existingCluster.GetName()),
-			Value:   value,
-			Expires: certAuthority.Expiry(),
-			ID:      certAuthority.GetResourceID(),
-		}
-
-		_, err = s.Put(context.TODO(), *item)
-		return trace.Wrap(err)
+		setSigningKeys(existingCertAuthority, true)
 	}
+	certAuthority := existingCertAuthority.Clone()
 	certAuthority.SetRoleMap(trustedCluster.GetRoleMap())
-	if err := s.UpsertCertAuthority(certAuthority); err != nil {
+	if err := s.CompareAndSwapCertAuthority(certAuthority, existingCertAuthority); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
