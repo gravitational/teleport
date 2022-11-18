@@ -35,6 +35,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -2223,15 +2224,23 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO: When the user clicks the "connect" button in the UI to connect to the
-	// node we already have the UUID to connect to so we do not need to fetch
-	// all nodes only that one. It's still possible for this endpoint to recieve
-	// only a hostname in which case we'll still need to fetch all of the nodes
-	// but we should improve this for the "happy path" as it'll be a considerable
-	// performance improvement for large environments.
-	servers, err := clt.GetNodes(r.Context(), apidefaults.Namespace)
+	var servers []types.Server
+
+	// req.Server will be either an IP, hostname, or server UUID. If it correctly
+	// parses as a UUID then only fetch the single node. This dramatically
+	// improves performance in large environments.
+	_, err = uuid.Parse(req.Server)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		servers, err = clt.GetNodes(r.Context(), apidefaults.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		server, err := clt.GetNode(r.Context(), apidefaults.Namespace, req.Server)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers = append(servers, server)
 	}
 
 	var sessionData session.Session
