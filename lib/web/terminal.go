@@ -88,7 +88,7 @@ type AuthProvider interface {
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
 // new TerminalHandler.
-func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProvider, sessCtx *SessionContext, sessionData session.Session) (*TerminalHandler, error) {
+func NewTerminal(req TerminalRequest, authProvider AuthProvider, sessCtx *SessionContext, sessionData session.Session) (*TerminalHandler, error) {
 	// Make sure whatever session is requested is a valid session.
 	_, err := session.ParseID(string(sessionData.ID))
 	if err != nil {

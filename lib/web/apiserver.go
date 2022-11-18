@@ -2210,7 +2210,7 @@ func (h *Handler) siteNodeConnect(
 	req.ProxyHostPort = h.ProxyHostPort()
 	req.Cluster = site.GetName()
 
-	term, err := NewTerminal(r.Context(), *req, clt, sctx, sessionData)
+	term, err := NewTerminal(*req, clt, sctx, sessionData)
 	if err != nil {
 		h.log.WithError(err).Error("Unable to create terminal.")
 		return nil, trace.Wrap(err)
