@@ -20,7 +20,7 @@ and installing `tsh`, sign in to your Teleport cluster:
 <TabItem label="Local user">
 
 ```code
-$ tsh login --proxy=<Var name="teleport.example.com" description="Your Teleport Proxy Service address or Teleport Cloud tenant."/> --user=<Var name="user"/>
+$ tsh login --proxy=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/> --user=<Var name="user" description="Your Teleport username"/>
 Enter password for Teleport user alice:
 Tap any security key
 > Profile URL:        https://teleport.example.com:443
@@ -174,8 +174,33 @@ your kubeconfig to point to your chosen Kubernetes cluster. You can then run
 
 </TabItem>
 <TabItem label="Teleport Connect">
+
+After logging in to a cluster in Teleport Connect, click the **Kubes** tab to
+see a list of Kubernetes clusters you can access.
+
+![Clusters you can access](../../img/use-teleport/connect-kube-list.png)
+
+Next to your chosen cluster, click **Connect**. Teleport Connect will
+open a terminal in a new tab and authenticate to the cluster. You can then run
+`kubectl` commands to interact with the cluster.
+
+![Connect to a cluster](../../img/use-teleport/connect-kube-access.png)
 </TabItem>
 <TabItem label="Web UI">
+
+In the Teleport Web UI, click the <Icon name="kubernetes" size="sm" inline/>
+**Kubernetes** tab. You will see a list of Kubernetes clusters your Teleport
+user is authorized to connect to.
+
+![Available Kubernetes clusters](../../img/use-teleport/kubernetes-clusters.png)
+
+Find your chosen cluster and click **Connect**. You will see a modal window that
+lists the commands you can execute in your terminal to connect to the cluster
+via Teleport.
+
+![Connect to a Kubernetes
+cluster](../../img/use-teleport/kubernetes-login.png)
+
 </TabItem>
 </Tabs>
 
