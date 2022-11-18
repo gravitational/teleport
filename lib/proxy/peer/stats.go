@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package proxy
+package peer
 
 import (
 	"context"
@@ -51,7 +51,7 @@ func (s *statsHandler) TagConn(ctx context.Context, info *stats.ConnTagInfo) con
 	return ctx
 }
 
-// HandleRPC implements per-Connection stats reporting.
+// HandleConn implements per-Connection stats reporting.
 func (s *statsHandler) HandleConn(ctx context.Context, connStats stats.ConnStats) {
 	// client connection stats are monitored by the monitor() function in client.go
 	if connStats.IsClient() {
