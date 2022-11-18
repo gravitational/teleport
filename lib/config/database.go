@@ -206,7 +206,7 @@ db_service:
   - types: ["sqlserver"]
     # Azure subscription IDs to match.
     subscriptions:
-    {{- range .AzureSQLServerDiscoveryRegions }}
+    {{- range .DatabaseAzureSubscriptions }}
     - "{{ . }}"
     {{- end }}
     # Azure resource groups to match.
