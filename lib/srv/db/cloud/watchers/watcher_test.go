@@ -22,18 +22,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/cloud"
-	"github.com/gravitational/teleport/lib/srv/db/common"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshift"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/cloud"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 // TestWatcher tests cloud databases watcher.
