@@ -117,8 +117,8 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// RestrictedSessConfig holds configuration for the RestrictedSession service.
-type RestrictedSessConfig struct {
+// RestrictedSessionConfig holds configuration for the RestrictedSession service.
+type RestrictedSessionConfig struct {
 	// Enabled if this service will try and install BPF programs on this system.
 	Enabled bool
 
@@ -127,7 +127,7 @@ type RestrictedSessConfig struct {
 }
 
 // CheckAndSetDefaults checks BPF configuration.
-func (c *RestrictedSessConfig) CheckAndSetDefaults() error {
+func (c *RestrictedSessionConfig) CheckAndSetDefaults() error {
 	var perfBufferPageCount = defaults.PerfBufferPageCount
 
 	if c.EventsBufferSize == nil {

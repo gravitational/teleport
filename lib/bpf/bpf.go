@@ -109,13 +109,17 @@ type Service struct {
 	open *open
 
 	// conn is a BPF programs that hooks connect.
+	// conn is set only when restricted sessions are enabled.
 	conn *conn
 }
 
 // New creates a BPF service.
-func New(config *Config, restrictedSession *RestrictedSessConfig) (BPF, error) {
-	err := config.CheckAndSetDefaults()
-	if err != nil {
+func New(config *Config, restrictedSession *RestrictedSessionConfig) (BPF, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := restrictedSession.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -127,8 +131,7 @@ func New(config *Config, restrictedSession *RestrictedSessConfig) (BPF, error) {
 	}
 
 	// Check if the host can run BPF programs.
-	err = IsHostCompatible()
-	if err != nil {
+	if err := IsHostCompatible(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -180,9 +183,11 @@ func New(config *Config, restrictedSession *RestrictedSessConfig) (BPF, error) {
 		}
 
 		log.Debugf("Started enhanced session recording with buffer sizes (command=%v, "+
-			"disk=%v, network=%v) and cgroup mount path: %v. Took %v.",
-			*s.CommandBufferSize, *s.DiskBufferSize, *s.NetworkBufferSize, s.CgroupPath,
-			time.Since(start))
+			"disk=%v, network=%v), restricted session (bufferSize=%v) "+
+			"and cgroup mount path: %v. Took %v.",
+			*s.CommandBufferSize, *s.DiskBufferSize, *s.NetworkBufferSize,
+			restrictedSession.EventsBufferSize,
+			s.CgroupPath, time.Since(start))
 
 		go s.processNetworkEvents()
 	} else {
@@ -212,7 +217,7 @@ func (s *Service) Close() error {
 
 	// Close cgroup service.
 	if err := s.cgroup.Close(); err != nil {
-		log.Warnf("Failed to close cgroup: %v", err)
+		log.WithError(err).Warn("Failed to close cgroup")
 	}
 
 	// Signal to the processAccessEvents pulling events off the perf buffer to shutdown.
@@ -284,8 +289,8 @@ func (s *Service) processAccessEvents() {
 	}
 }
 
-// processAccessEvents pulls networks events of the ring buffer and emmit them to
-// the audit log.
+// processNetworkEvents pulls networks events of the ring buffer and emits them
+// to the audit log.
 func (s *Service) processNetworkEvents() {
 	for {
 		select {

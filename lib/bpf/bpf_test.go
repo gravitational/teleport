@@ -67,7 +67,7 @@ func TestRootWatch(t *testing.T) {
 	service, err := New(&Config{
 		Enabled:    true,
 		CgroupPath: dir,
-	}, &RestrictedSessConfig{})
+	}, &RestrictedSessionConfig{})
 	defer service.Close()
 
 	// Create a fake audit log that can be used to capture the events emitted.

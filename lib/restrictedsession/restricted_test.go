@@ -155,44 +155,44 @@ func setupBPFContext(t *testing.T) *bpfContext {
 	// we mount cgroup in Close() this test will fail.
 	cgroupDir := t.TempDir()
 
-	tt := bpfContext{
+	bpfCtx := bpfContext{
 		cgroupDir: cgroupDir,
 	}
-	t.Cleanup(func() { tt.Close(t) })
+	t.Cleanup(func() { bpfCtx.Close(t) })
 
-	tt.srcAddrs = map[int]string{
+	bpfCtx.srcAddrs = map[int]string{
 		4: "0.0.0.0",
 		6: "::",
 	}
 
-	config := &bpf.RestrictedSessConfig{
+	config := &bpf.RestrictedSessionConfig{
 		Enabled: true,
 	}
 
 	var err error
 	// Create BPF service since we piggyback on it
-	tt.enhancedRecorder, err = bpf.New(&bpf.Config{
+	bpfCtx.enhancedRecorder, err = bpf.New(&bpf.Config{
 		Enabled:    true,
-		CgroupPath: tt.cgroupDir,
+		CgroupPath: bpfCtx.cgroupDir,
 	}, config)
 	require.NoError(t, err)
 
 	// Create the SessionContext used by both enhanced recording and us (restricted session)
-	tt.ctx = &bpf.SessionContext{
+	bpfCtx.ctx = &bpf.SessionContext{
 		Namespace: apidefaults.Namespace,
 		SessionID: uuid.New().String(),
 		ServerID:  uuid.New().String(),
 		Login:     "foo",
 		User:      "foo@example.com",
 		PID:       os.Getpid(),
-		Emitter:   &tt.emitter,
+		Emitter:   &bpfCtx.emitter,
 		Events:    map[string]bool{},
 	}
 
 	// Create enhanced recording session to piggyback on.
-	tt.cgroupID, err = tt.enhancedRecorder.OpenSession(tt.ctx)
+	bpfCtx.cgroupID, err = bpfCtx.enhancedRecorder.OpenSession(bpfCtx.ctx)
 	require.NoError(t, err)
-	require.Equal(t, tt.cgroupID > 0, true)
+	require.Equal(t, bpfCtx.cgroupID > 0, true)
 
 	deny := []api.AddressCondition{}
 	allow := []api.AddressCondition{}
@@ -215,14 +215,14 @@ func setupBPFContext(t *testing.T) *bpfContext {
 		Fanout:       *services.NewFanout(),
 	}
 
-	tt.restrictedMgr, err = New(config, client)
+	bpfCtx.restrictedMgr, err = New(config, client)
 	require.NoError(t, err)
 
 	client.Fanout.SetInit()
 
 	time.Sleep(100 * time.Millisecond)
 
-	return &tt
+	return &bpfCtx
 }
 
 func (tt *bpfContext) Close(t *testing.T) {
@@ -386,7 +386,8 @@ func TestRootNetwork(t *testing.T) {
 
 	// Check that the emitted audit events are correct
 	actualAuditEvents := tt.emitter.Events()
-	require.Empty(t, gocmp.Diff(actualAuditEvents, tt.expectedAuditEvents))
+	require.Empty(t, gocmp.Diff(tt.expectedAuditEvents, actualAuditEvents),
+		"Audit events mismatch (-want +got)")
 
 	// Clear out the expected and actual events
 	tt.expectedAuditEvents = nil

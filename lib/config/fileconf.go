@@ -1356,13 +1356,13 @@ type RestrictedSession struct {
 }
 
 // Parse will parse the enhanced session recording configuration.
-func (r *RestrictedSession) Parse() (*bpf.RestrictedSessConfig, error) {
+func (r *RestrictedSession) Parse() (*bpf.RestrictedSessionConfig, error) {
 	enabled, err := apiutils.ParseBool(r.Enabled)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &bpf.RestrictedSessConfig{
+	return &bpf.RestrictedSessionConfig{
 		Enabled:          enabled,
 		EventsBufferSize: r.EventsBufferSize,
 	}, nil
