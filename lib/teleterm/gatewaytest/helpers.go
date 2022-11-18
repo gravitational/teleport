@@ -22,8 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"golang.org/x/exp/slices"
 )
 
 const timeout = time.Second * 5
@@ -66,7 +65,7 @@ type MockTCPPortAllocator struct {
 func (m *MockTCPPortAllocator) Listen(localAddress, localPort string) (net.Listener, error) {
 	m.CallCount++
 
-	if apiutils.SliceContainsStr(m.PortsInUse, localPort) {
+	if slices.Contains(m.PortsInUse, localPort) {
 		return nil, trace.BadParameter("address already in use")
 	}
 

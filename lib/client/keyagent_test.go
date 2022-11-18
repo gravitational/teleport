@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -34,9 +35,12 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
@@ -73,8 +77,11 @@ func makeSuite(t *testing.T) *KeyAgentTestSuite {
 	s.tlsca, s.tlscaCert, err = newSelfSignedCA(pemBytes, "localhost")
 	require.NoError(t, err)
 
-	s.key, err = s.makeKey(s.username, []string{s.username}, 1*time.Minute)
+	keygen := testauthority.New()
+	priv, err := keygen.GeneratePrivateKey()
 	require.NoError(t, err)
+
+	s.key = s.makeKey(t, s.username, s.hostname, priv)
 
 	return s
 }
@@ -89,23 +96,17 @@ func makeSuite(t *testing.T) *KeyAgentTestSuite {
 //     a teleport key with the teleport username.
 func TestAddKey(t *testing.T) {
 	s := makeSuite(t)
-
-	// make a new local agent
-	keystore, err := NewFSLocalKeyStore(s.keyDir)
-	require.NoError(t, err)
-	lka, err := NewLocalAgent(
-		LocalAgentConfig{
-			Keystore:   keystore,
-			ProxyHost:  s.hostname,
-			Username:   s.username,
-			KeysOption: AddKeysToAgentAuto,
-		})
-	require.NoError(t, err)
+	lka := s.newKeyAgent(t)
 
 	// add the key to the local agent, this should write the key
 	// to disk as well as load it in the agent
-	err = lka.AddKey(s.key)
+	err := lka.AddKey(s.key)
 	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err = lka.UnloadKey(s.key.KeyIndex)
+		require.NoError(t, err)
+	})
 
 	// check that the key has been written to disk
 	expectedFiles := []string{
@@ -125,104 +126,123 @@ func TestAddKey(t *testing.T) {
 
 	// check that we've loaded a cert as well as a private key into the teleport agent
 	// and it's for the user we expected to add a certificate for
+	expectComment := teleportAgentKeyComment(s.key.KeyIndex)
 	require.Len(t, teleportAgentKeys, 2)
 	require.Equal(t, ssh.CertAlgoRSAv01, teleportAgentKeys[0].Type())
-	require.Equal(t, "teleport:"+s.username, teleportAgentKeys[0].Comment)
+	require.Equal(t, expectComment, teleportAgentKeys[0].Comment)
 	require.Equal(t, "ssh-rsa", teleportAgentKeys[1].Type())
-	require.Equal(t, "teleport:"+s.username, teleportAgentKeys[1].Comment)
+	require.Equal(t, expectComment, teleportAgentKeys[1].Comment)
 
 	// check that we've loaded a cert as well as a private key into the system again
 	found := false
 	for _, sak := range systemAgentKeys {
-		if sak.Comment == "teleport:"+s.username && sak.Type() == "ssh-rsa" {
+		if sak.Comment == expectComment && sak.Type() == "ssh-rsa" {
 			found = true
 		}
 	}
 	require.True(t, found)
 	found = false
 	for _, sak := range systemAgentKeys {
-		if sak.Comment == "teleport:"+s.username && sak.Type() == ssh.CertAlgoRSAv01 {
+		if sak.Comment == expectComment && sak.Type() == ssh.CertAlgoRSAv01 {
 			found = true
 		}
 	}
 	require.True(t, found)
 
-	// unload all keys for this user from the teleport agent and system agent
-	err = lka.UnloadKey()
-	require.NoError(t, err)
 }
 
 // TestLoadKey ensures correct loading of a key into an agent. This test
 // checks the following:
 //   - Loading a key multiple times overwrites the same key.
+//   - Loading a key for separate teleport users/clusters does not overwrite existing keys.
 //   - The key is correctly loaded into the agent. This is tested by having
 //     the agent sign data that is then verified using the public key
 //     directly.
 func TestLoadKey(t *testing.T) {
 	s := makeSuite(t)
-
-	userdata := []byte("hello, world")
-
-	// make a new local agent
-	keystore, err := NewFSLocalKeyStore(s.keyDir)
-	require.NoError(t, err)
-	lka, err := NewLocalAgent(LocalAgentConfig{
-		Keystore:   keystore,
-		ProxyHost:  s.hostname,
-		Username:   s.username,
-		KeysOption: AddKeysToAgentAuto,
-	})
-	require.NoError(t, err)
-
-	// unload any keys that might be in the agent for this user
-	err = lka.UnloadKey()
-	require.NoError(t, err)
+	keyAgent := s.newKeyAgent(t)
 
 	// get all the keys in the teleport and system agent
-	teleportAgentKeys, err := lka.ExtendedAgent.List()
+	teleportAgentKeys, err := keyAgent.ExtendedAgent.List()
 	require.NoError(t, err)
-	teleportAgentInitialKeyCount := len(teleportAgentKeys)
-	systemAgentKeys, err := lka.sshAgent.List()
-	require.NoError(t, err)
-	systemAgentInitialKeyCount := len(systemAgentKeys)
-
-	// load the key to the twice, this should only
-	// result in one key for this user in the agent
-	err = lka.LoadKey(*s.key)
-	require.NoError(t, err)
-	err = lka.LoadKey(*s.key)
+	systemAgentKeys, err := keyAgent.sshAgent.List()
 	require.NoError(t, err)
 
-	// get all the keys in the teleport and system agent
-	teleportAgentKeys, err = lka.ExtendedAgent.List()
-	require.NoError(t, err)
-	systemAgentKeys, err = lka.sshAgent.List()
-	require.NoError(t, err)
+	// Create 3 separate keys, with overlapping user and cluster names
+	keys := []*Key{
+		s.key,
+		s.genKey(t, s.key.Username, "other-proxy-host"),
+		s.genKey(t, "other-user", s.key.ProxyHost),
+	}
 
-	// check if we have the correct counts
-	require.Len(t, teleportAgentKeys, teleportAgentInitialKeyCount+2)
-	require.Len(t, systemAgentKeys, systemAgentInitialKeyCount+2)
+	// We should see two agent keys for each key added
+	agentsPerKey := 2
+	if runtime.GOOS == constants.WindowsOS {
+		// or just 1 agent key for windows
+		agentsPerKey = 1
+	}
 
-	// now sign data using the teleport agent and system agent
-	teleportAgentSignature, err := lka.ExtendedAgent.Sign(teleportAgentKeys[0], userdata)
-	require.NoError(t, err)
-	systemAgentSignature, err := lka.sshAgent.Sign(systemAgentKeys[0], userdata)
-	require.NoError(t, err)
+	for i, key := range keys {
+		t.Cleanup(func() {
+			err = keyAgent.UnloadKey(key.KeyIndex)
+			require.NoError(t, err)
+		})
 
-	// parse the pem bytes for the private key, create a signer, and extract the public key
-	sshSigner, err := s.key.SSHSigner()
-	require.NoError(t, err)
-	sshPublicKey := sshSigner.PublicKey()
+		t.Run(fmt.Sprintf("key %v", i+1), func(t *testing.T) {
+			// load each key to the agent twice, this should not
+			// lead to duplicate keys in the agent.
+			keyAgent.username = key.Username
+			keyAgent.proxyHost = key.ProxyHost
+			err = keyAgent.LoadKey(*key)
+			require.NoError(t, err)
+			err = keyAgent.LoadKey(*key)
+			require.NoError(t, err)
 
-	// verify data signed by both the teleport agent and system agent was signed correctly
-	err = sshPublicKey.Verify(userdata, teleportAgentSignature)
-	require.NoError(t, err)
-	err = sshPublicKey.Verify(userdata, systemAgentSignature)
-	require.NoError(t, err)
+			// get an updated list of all keys in the teleport and system agent,
+			// and check that each list has grown by the expected amount.
+			expectTeleportAgentKeyCount := len(teleportAgentKeys) + agentsPerKey
+			expectSystemAgentKeyCount := len(systemAgentKeys) + agentsPerKey
+			teleportAgentKeys, err = keyAgent.ExtendedAgent.List()
+			require.NoError(t, err)
+			require.Len(t, teleportAgentKeys, expectTeleportAgentKeyCount)
+			systemAgentKeys, err = keyAgent.sshAgent.List()
+			require.NoError(t, err)
+			require.Len(t, systemAgentKeys, expectSystemAgentKeyCount)
 
-	// unload all keys from the teleport agent and system agent
-	err = lka.UnloadKey()
-	require.NoError(t, err)
+			// gather all agent keys for the added key, making sure
+			// we added the correct amount to each agent.
+			keyAgentName := teleportAgentKeyComment(key.KeyIndex)
+			var agentKeysForKey []*agent.Key
+			for _, agentKey := range teleportAgentKeys {
+				if agentKey.Comment == keyAgentName {
+					agentKeysForKey = append(agentKeysForKey, agentKey)
+				}
+			}
+			require.Len(t, agentKeysForKey, agentsPerKey)
+			for _, agentKey := range systemAgentKeys {
+				if agentKey.Comment == keyAgentName {
+					agentKeysForKey = append(agentKeysForKey, agentKey)
+				}
+			}
+			require.Len(t, agentKeysForKey, agentsPerKey*2)
+
+			// verify that each new agent key can be used to sign
+			for _, agentKey := range agentKeysForKey {
+				// now sign data using the retrieved agent keys
+				userdata := []byte("hello, world")
+				teleportAgentSignature, err := keyAgent.ExtendedAgent.Sign(agentKey, userdata)
+				require.NoError(t, err)
+				systemAgentSignature, err := keyAgent.sshAgent.Sign(agentKey, userdata)
+				require.NoError(t, err)
+
+				// verify data signed by both the teleport agent and system agent was signed correctly
+				err = key.PrivateKey.SSHPublicKey().Verify(userdata, teleportAgentSignature)
+				require.NoError(t, err)
+				err = key.PrivateKey.SSHPublicKey().Verify(userdata, systemAgentSignature)
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestHostCertVerification(t *testing.T) {
@@ -242,7 +262,14 @@ func TestHostCertVerification(t *testing.T) {
 	// By default user has not refused any hosts.
 	require.False(t, lka.UserRefusedHosts())
 
-	lka.AddKey(s.key)
+	err = lka.AddKey(s.key)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err = lka.UnloadKey(s.key.KeyIndex)
+		require.NoError(t, err)
+	})
+
 	// Create a CA, generate a keypair for the CA, and add it to the known
 	// hosts cache (done by "tsh login").
 	keygen := testauthority.New()
@@ -415,7 +442,14 @@ func TestHostKeyVerification(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	lka.AddKey(s.key)
+	err = lka.AddKey(s.key)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err = lka.UnloadKey(s.key.KeyIndex)
+		require.NoError(t, err)
+	})
+
 	// Call SaveTrustedCerts to create cas profile dir - this step is needed to support migration from profile combined
 	// CA file certs.pem to per cluster CA files in cas profile directory.
 	err = lka.keyStore.SaveTrustedCerts(s.hostname, nil)
@@ -551,66 +585,60 @@ func TestLocalKeyAgent_AddDatabaseKey(t *testing.T) {
 	})
 }
 
-func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl time.Duration) (*Key, error) {
+func (s *KeyAgentTestSuite) makeKey(t *testing.T, username, proxyHost string, priv *keys.PrivateKey) *Key {
 	keygen := testauthority.New()
+	ttl := time.Minute
 
-	privateKey, err := keygen.GeneratePrivateKey()
-	if err != nil {
-		return nil, err
-	}
-
-	// reuse the same RSA keys for SSH and TLS keys
 	clock := clockwork.NewRealClock()
 	identity := tlsca.Identity{
 		Username: username,
 	}
 
 	subject, err := identity.Subject()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	require.NoError(t, err)
 	tlsCert, err := s.tlsca.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
-		PublicKey: privateKey.Public(),
+		PublicKey: priv.Public(),
 		Subject:   subject,
 		NotAfter:  clock.Now().UTC().Add(ttl),
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	require.NoError(t, err)
 
 	pemBytes, ok := fixtures.PEMBytes["rsa"]
-	if !ok {
-		return nil, trace.BadParameter("RSA key not found in fixtures")
-	}
+	require.True(t, ok, "RSA key not found in fixtures")
+
 	caSigner, err := ssh.ParsePrivateKey(pemBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	require.NoError(t, err)
 
 	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
+		CertificateFormat:     constants.CertificateFormatStandard,
 		CASigner:              caSigner,
-		PublicUserKey:         ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+		PublicUserKey:         ssh.MarshalAuthorizedKey(priv.SSHPublicKey()),
 		Username:              username,
-		AllowedLogins:         allowedLogins,
+		AllowedLogins:         []string{username},
 		TTL:                   ttl,
 		PermitAgentForwarding: true,
 		PermitPortForwarding:  true,
+		RouteToCluster:        s.clusterName,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	require.NoError(t, err)
 
 	return &Key{
-		PrivateKey: privateKey,
+		PrivateKey: priv,
 		Cert:       certificate,
 		TLSCert:    tlsCert,
 		KeyIndex: KeyIndex{
-			ProxyHost:   s.hostname,
+			ProxyHost:   proxyHost,
 			Username:    username,
 			ClusterName: s.clusterName,
 		},
-	}, nil
+	}
+}
+
+func (s *KeyAgentTestSuite) genKey(t *testing.T, username, proxyHost string) *Key {
+	priv, err := native.GeneratePrivateKey()
+	require.NoError(t, err)
+	return s.makeKey(t, username, proxyHost, priv)
 }
 
 func startDebugAgent(t *testing.T) error {
@@ -674,4 +702,19 @@ func startDebugAgent(t *testing.T) error {
 	// block until agent is started
 	<-startedC
 	return nil
+}
+
+func (s *KeyAgentTestSuite) newKeyAgent(t *testing.T) *LocalKeyAgent {
+	// make a new local agent
+	keystore, err := NewFSLocalKeyStore(s.keyDir)
+	require.NoError(t, err)
+	keyAgent, err := NewLocalAgent(LocalAgentConfig{
+		Keystore:   keystore,
+		ProxyHost:  s.hostname,
+		Site:       s.clusterName,
+		Username:   s.username,
+		KeysOption: AddKeysToAgentAuto,
+	})
+	require.NoError(t, err)
+	return keyAgent
 }

@@ -28,12 +28,14 @@ import (
 	"github.com/sirupsen/logrus"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -246,6 +248,12 @@ func hasRemoteUserRole(authContext Context) bool {
 func hasLocalUserRole(authContext Context) bool {
 	_, ok := authContext.UnmappedIdentity.(LocalUser)
 	return ok
+}
+
+// DevicesClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles and will always panic.
+func (a *ServerWithRoles) DevicesClient() devicepb.DeviceTrustServiceClient {
+	panic("DevicesClient not implemented by ServerWithRoles")
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
@@ -2315,7 +2323,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 	var finalRequestIDs []string
 	for _, requestList := range [][]string{currentIdentity.ActiveRequests, req.AccessRequests} {
 		for _, reqID := range requestList {
-			if !apiutils.SliceContainsStr(req.DropAccessRequests, reqID) {
+			if !slices.Contains(req.DropAccessRequests, reqID) {
 				finalRequestIDs = append(finalRequestIDs, reqID)
 			}
 		}
@@ -3285,7 +3293,7 @@ func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (types.Role,
 	// Current-user exception: we always allow users to read roles
 	// that they hold.  This requirement is checked first to avoid
 	// misleading denial messages in the logs.
-	if !apiutils.SliceContainsStr(a.context.User.GetRoles(), name) {
+	if !slices.Contains(a.context.User.GetRoles(), name) {
 		if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -37,7 +37,7 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-amd64
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport12
   GID: "1000"
   RUNTIME: go1.19.2
   UID: "1000"
@@ -150,7 +150,7 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-386
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport12
   GID: "1000"
   RUNTIME: go1.19.2
   UID: "1000"
@@ -255,7 +255,7 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-amd64-fips
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport12
   GID: "1000"
   RUNTIME: go1.19.2
   UID: "1000"
@@ -364,7 +364,7 @@ kind: pipeline
 type: kubernetes
 name: push-build-windows-amd64
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport12
   GID: "1000"
   RUNTIME: go1.19.2
   UID: "1000"
@@ -677,7 +677,7 @@ platform:
   os: windows
   arch: amd64
 node:
-  buildbox_version: teleport11
+  buildbox_version: teleport12
 clone:
   disable: true
 steps:
@@ -962,7 +962,7 @@ platform:
   os: windows
   arch: amd64
 node:
-  buildbox_version: teleport11
+  buildbox_version: teleport12
 clone:
   disable: true
 depends_on:
@@ -1165,7 +1165,7 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-arm
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport12
   GID: "1000"
   RUNTIME: go1.19.2
   UID: "1000"
@@ -1270,7 +1270,7 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-arm64
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport12
   GID: "1000"
   RUNTIME: go1.19.2
   UID: "1000"
@@ -1713,7 +1713,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos7
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport12
   RUNTIME: go1.19.2
 trigger:
   event:
@@ -1899,7 +1899,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport12
   RUNTIME: go1.19.2
 trigger:
   event:
@@ -2084,7 +2084,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport12
   RUNTIME: go1.19.2
 trigger:
   event:
@@ -2282,7 +2282,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-fips
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport12
   RUNTIME: go1.19.2
 trigger:
   event:
@@ -3481,7 +3481,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-386
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport12
   RUNTIME: go1.19.2
 trigger:
   event:
@@ -4794,7 +4794,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport12
   RUNTIME: go1.19.2
 trigger:
   event:
@@ -4977,7 +4977,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm64
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport12
   RUNTIME: go1.19.2
 trigger:
   event:
@@ -6176,7 +6176,7 @@ kind: pipeline
 type: kubernetes
 name: build-windows-amd64
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport12
   RUNTIME: go1.19.2
 trigger:
   event:
@@ -6711,7 +6711,7 @@ kind: pipeline
 type: kubernetes
 name: build-buildboxes
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport12
   GID: "1000"
   UID: "1000"
 trigger:
@@ -9119,7 +9119,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11 --build-arg
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport12 --build-arg
     COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-amd64-builder"
@@ -9156,7 +9156,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport12 --build-arg
     COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-arm-builder"
@@ -9193,7 +9193,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport12 --build-arg
     COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-arm64-builder"
@@ -12890,7 +12890,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11 --build-arg
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport12 --build-arg
     COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-amd64-builder"
@@ -12929,7 +12929,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport12 --build-arg
     COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-arm-builder"
@@ -12968,7 +12968,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport12 --build-arg
     COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-arm64-builder"
@@ -15544,7 +15544,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v10-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11 --build-arg
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport12 --build-arg
     COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v10-amd64-builder"
@@ -15583,7 +15583,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v10-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport12 --build-arg
     COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v10-arm-builder"
@@ -15622,7 +15622,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v10-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport12 --build-arg
     COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v10-arm64-builder"
@@ -18198,6 +18198,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 46878a54a913855fa63886809660fe2f90076b82fbb8ac91f7f507d86d202aad
+hmac: 892cbcb00029f188778589b3afc1a932ea60a568e6393275a23ddfc459a77a61
 
 ...
