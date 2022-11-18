@@ -58,54 +58,40 @@ func (h *Handler) createUserEventHandle(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 
-	user := sctx.GetUser()
 	typedEvent := v1.UsageEventOneOf{}
 	switch req.Event {
 	case bannerClickEvent:
 		typedEvent.Event = &v1.UsageEventOneOf_UiBannerClick{
 			UiBannerClick: &v1.UIBannerClickEvent{
-				UserName: user,
-				Alert:    req.Alert,
+				Alert: req.Alert,
 			},
 		}
 	case getStartedClickEvent:
 		typedEvent.Event = &v1.UsageEventOneOf_UiOnboardGetStartedClick{
-			UiOnboardGetStartedClick: &v1.UIOnboardGetStartedClickEvent{
-				UserName: user,
-			},
+			UiOnboardGetStartedClick: &v1.UIOnboardGetStartedClickEvent{},
 		}
 
 	// todo mberg need the updated events from prehog in the timothyb89/usage-reporting branch
 	//case setPasswordSubmitEvent:
 	//			typedEvent.Event = &v1.UI {
-	//		UiBannerClick: &v1.UIBannerClickEvent{
-	//			UserName: user,
-	//		},
+	//		UiBannerClick: &v1.UIBannerClickEvent{},
 	//	}
 	//case registerChallengeSubmitEvent:
 	//			typedEvent.Event = &v1.UIOnboard {
-	//		UiBannerClick: &v1.UIBannerClickEvent{
-	//			UserName: user,
-	//		},
+	//		UiBannerClick: &v1.UIBannerClickEvent{},
 	//	}
 	//case recoveryCodesContinueClickEvent:
 	//			typedEvent.Event = &v1.UIon {
-	//		UiBannerClick: &v1.UIBannerClickEvent{
-	//			UserName: user,
-	//		},
+	//		UiBannerClick: &v1.UIBannerClickEvent{},
 	//	}
 
 	case addFirstResourceClickEvent:
 		typedEvent.Event = &v1.UsageEventOneOf_UiOnboardAddFirstResourceClick{
-			UiOnboardAddFirstResourceClick: &v1.UIOnboardAddFirstResourceClickEvent{
-				UserName: user,
-			},
+			UiOnboardAddFirstResourceClick: &v1.UIOnboardAddFirstResourceClickEvent{},
 		}
 	case addFirstResourceLaterClickEvent:
 		typedEvent.Event = &v1.UsageEventOneOf_UiOnboardAddFirstResourceLaterClick{
-			UiOnboardAddFirstResourceLaterClick: &v1.UIOnboardAddFirstResourceLaterClickEvent{
-				UserName: user,
-			},
+			UiOnboardAddFirstResourceLaterClick: &v1.UIOnboardAddFirstResourceLaterClickEvent{},
 		}
 	default:
 		return nil, trace.BadParameter("invalid event %s", req.Event)
