@@ -211,7 +211,29 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	ws.SetReadDeadline(deadlineForInterval(t.params.KeepAliveInterval))
 
-	ws.WriteJSON(siteSessionGenerateResponse{Session: t.sessionData})
+	sessionString, err := json.Marshal(siteSessionGenerateResponse{Session: t.sessionData})
+	if err != nil {
+		errMsg := "unable to marshal session response"
+		t.log.Errorf("%s: %s", errMsg, err)
+		http.Error(w, errMsg, http.StatusInternalServerError)
+		return
+	}
+
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketSessionData,
+		Payload: string(sessionString),
+	}
+
+	envelopeBytes, err := proto.Marshal(envelope)
+	if err != nil {
+		errMsg := "unable to process session response"
+		t.log.Errorf("%s: %s", errMsg, err)
+		http.Error(w, errMsg, http.StatusInternalServerError)
+		return
+	}
+
+	ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
 
 	t.handler(ws, r)
 }
