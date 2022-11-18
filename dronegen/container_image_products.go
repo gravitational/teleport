@@ -25,15 +25,16 @@ import (
 // Describes a Gravitational "product", where a "product" is a piece of software
 // that we provide to our customers via container repositories.
 type Product struct {
-	Name                 string
-	DockerfilePath       string
-	WorkingDirectory     string                                          // Working directory to use for "docker build".
-	DockerfileTarget     string                                          // Optional. Defines a dockerfile target to stop at on build.
-	SupportedArchs       []string                                        // ISAs that the builder should produce
-	SetupSteps           []step                                          // Product-specific, arch agnostic steps that must be ran before building an image.
-	ArchSetupSteps       map[string][]step                               // Product and arch specific steps that must be ran before building an image.
-	DockerfileArgBuilder func(arch string) []string                      // Generator that returns "docker build --arg" strings
-	ImageBuilder         func(repo *ContainerRepo, tag *ImageTag) *Image // Generator that returns an Image struct that defines what "docker build" should produce
+	Name                         string
+	DockerfilePath               string
+	WorkingDirectory             string                                          // Working directory to use for "docker build".
+	DockerfileTarget             string                                          // Optional. Defines a dockerfile target to stop at on build.
+	SupportedArchs               []string                                        // ISAs that the builder should produce
+	SetupSteps                   []step                                          // Product-specific, arch agnostic steps that must be ran before building an image.
+	ArchSetupSteps               map[string][]step                               // Product and arch specific steps that must be ran before building an image. If commands are empty then they are treated as dependent steps.
+	DockerfileArgBuilder         func(arch string) []string                      // Generator that returns "docker build --arg" strings
+	ImageBuilder                 func(repo *ContainerRepo, tag *ImageTag) *Image // Generator that returns an Image struct that defines what "docker build" should produce
+	MinimumSupportedMajorVersion string                                          // Semver of the minimum major version that the product can be built for. For example, for Teleport Lab, this would be "v10".
 }
 
 func NewTeleportProduct(isEnterprise, isFips bool, version *ReleaseVersion) *Product {
@@ -88,6 +89,8 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *ReleaseVersion) *Pro
 				Tag:  tag,
 			}
 		},
+		// While technically this goes back much further, this is as far back as changes will be backported.
+		MinimumSupportedMajorVersion: "v9",
 	}
 }
 
@@ -123,13 +126,14 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 				compilerName = "arm-linux-gnueabihf-gcc"
 			}
 
-			buildboxName += ":teleport11"
+			buildboxName += ":teleport12"
 
 			return []string{
 				fmt.Sprintf("BUILDBOX=%s", buildboxName),
 				fmt.Sprintf("COMPILER_NAME=%s", compilerName),
 			}
 		},
+		MinimumSupportedMajorVersion: "v10",
 	}
 }
 

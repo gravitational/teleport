@@ -34,8 +34,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
+	resourcesv3 "github.com/gravitational/teleport/operator/apis/resources/v3"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
 	resourcescontrollers "github.com/gravitational/teleport/operator/controllers/resources"
 	"github.com/gravitational/teleport/operator/sidecar"
@@ -51,6 +53,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(resourcesv5.AddToScheme(scheme))
+	utilruntime.Must(resourcesv3.AddToScheme(scheme))
 	utilruntime.Must(resourcesv2.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 
@@ -107,6 +110,7 @@ func main() {
 	}
 
 	var bot *sidecar.Bot
+	var features *proto.Features
 
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: 100 * time.Millisecond,
@@ -117,7 +121,7 @@ func main() {
 		os.Exit(1)
 	}
 	if err := retry.For(ctx, func() error {
-		bot, err = sidecar.CreateAndBootstrapBot(ctx, sidecar.Options{})
+		bot, features, err = sidecar.CreateAndBootstrapBot(ctx, sidecar.Options{})
 		if err != nil {
 			setupLog.Error(err, "failed to connect to teleport cluster, backing off")
 		}
@@ -145,8 +149,34 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "TeleportUser")
 		os.Exit(1)
 	}
-	//+kubebuilder:scaffold:builder
 
+	if err = resourcescontrollers.NewGithubConnectorReconciler(mgr.GetClient(), bot.GetClient).
+		SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TeleportGithubConnector")
+		os.Exit(1)
+	}
+
+	if features.OIDC {
+		if err = resourcescontrollers.NewOIDCConnectorReconciler(mgr.GetClient(), bot.GetClient).
+			SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "TeleportOIDCConnector")
+			os.Exit(1)
+		}
+	} else {
+		setupLog.Info("OIDC connectors are only available in Teleport Enterprise edition. TeleportOIDCConnector resources won't be reconciled")
+	}
+
+	if features.SAML {
+		if err = resourcescontrollers.NewSAMLConnectorReconciler(mgr.GetClient(), bot.GetClient).
+			SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "TeleportSAMLConnector")
+			os.Exit(1)
+		}
+	} else {
+		setupLog.Info("SAML connectors are only available in Teleport Enterprise edition. TeleportSAMLConnector resources won't be reconciled")
+	}
+
+	//+kubebuilder:scaffold:builder
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
 		os.Exit(1)

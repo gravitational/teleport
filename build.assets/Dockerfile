@@ -88,8 +88,12 @@ ARG BUILDARCH
 
 # Install packages.
 # Java JRE is required by gcloud firestore emulator.
+# Latest git 2.18+ is required for GitHub actions
 # NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
-RUN apt-get update -y --fix-missing && \
+RUN apt-get -y update && \
+    apt-get -y install software-properties-common && \
+    add-apt-repository -y ppa:git-core/ppa && \
+    apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -q -y --no-install-recommends \
         apt-utils \
@@ -165,6 +169,9 @@ RUN go install github.com/google/addlicense@v1.0.0
 
 # Install golangci-lint.
 RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
+
+# Install GCI
+RUN go install github.com/daixiang0/gci@v0.8.2
 
 # Install helm.
 RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \

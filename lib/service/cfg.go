@@ -38,13 +38,13 @@ import (
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	"golang.org/x/net/http/httpguts"
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -956,7 +956,7 @@ func (d *Database) CheckAndSetDefaults() error {
 	if errs := validation.IsDNS1035Label(d.Name); len(errs) > 0 {
 		return trace.BadParameter("invalid database %q name: %v", d.Name, errs)
 	}
-	if !apiutils.SliceContainsStr(defaults.DatabaseProtocols, d.Protocol) {
+	if !slices.Contains(defaults.DatabaseProtocols, d.Protocol) {
 		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v",
 			d.Name, d.Protocol, defaults.DatabaseProtocols)
 	}
@@ -1044,6 +1044,10 @@ type AppsConfig struct {
 
 	// ResourceMatchers match cluster database resources.
 	ResourceMatchers []services.ResourceMatcher
+
+	// MonitorCloseChannel will be signaled when a monitor closes a connection.
+	// Used only for testing. Optional.
+	MonitorCloseChannel chan struct{}
 }
 
 // App is the specific application that will be proxied by the application
@@ -1323,8 +1327,16 @@ type DiscoveryConfig struct {
 	Enabled bool
 	// AWSMatchers are used to match EC2 instances for auto enrollment.
 	AWSMatchers []services.AWSMatcher
-	// AzureMatchers are used to match resources for auto discovery.
+	// AzureMatchers are used to match resources for auto enrollment.
 	AzureMatchers []services.AzureMatcher
+	// GCPMatchers are used to match GCP resources for auto discovery.
+	GCPMatchers []services.GCPMatcher
+}
+
+// IsEmpty validates if the Discovery Service config has no cloud matchers.
+func (d DiscoveryConfig) IsEmpty() bool {
+	return len(d.AWSMatchers) == 0 &&
+		len(d.AzureMatchers) == 0 && len(d.GCPMatchers) == 0
 }
 
 // ParseHeader parses the provided string as a http header.

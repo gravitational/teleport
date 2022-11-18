@@ -174,7 +174,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		return trace.BadParameter("missing GetRotation")
 	}
 	if c.CADownloader == nil {
-		c.CADownloader = NewRealDownloader(c.DataDir)
+		c.CADownloader = NewRealDownloader()
 	}
 	if c.LockWatcher == nil {
 		return trace.BadParameter("missing LockWatcher")
@@ -939,7 +939,7 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 		Kind:         string(types.DatabaseSessionKind),
 		State:        types.SessionState_SessionStateRunning,
 		Hostname:     sessionCtx.HostID,
-		DatabaseName: sessionCtx.DatabaseName,
+		DatabaseName: sessionCtx.Database.GetName(),
 		ClusterName:  sessionCtx.ClusterName,
 		Login:        sessionCtx.Identity.GetUserMetadata().Login,
 		Participants: []types.Participant{{
@@ -957,7 +957,7 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 
 	go func() {
 		if err := tracker.UpdateExpirationLoop(ctx, s.cfg.Clock); err != nil {
-			s.log.WithError(err).Debugf("Failed to update session tracker expiration for session %v", sessionCtx.ID)
+			s.log.WithError(err).Warnf("Failed to update session tracker expiration for session %v", sessionCtx.ID)
 		}
 	}()
 

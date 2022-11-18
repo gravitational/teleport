@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/defaults"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -57,7 +58,7 @@ var JoinMethods = []JoinMethod{
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
-	hasJoinMethod := apiutils.SliceContainsStr(JoinMethods, method)
+	hasJoinMethod := slices.Contains(JoinMethods, method)
 	if !hasJoinMethod {
 		return trace.BadParameter("join method must be one of %s", apiutils.JoinStrings(JoinMethods, ", "))
 	}
@@ -87,6 +88,12 @@ type ProvisionToken interface {
 
 	// GetSuggestedLabels returns the set of labels that the resource should add when adding itself to the cluster
 	GetSuggestedLabels() Labels
+
+	// GetSuggestedAgentMatcherLabels returns the set of labels that should be watched when an agent/service uses this token.
+	// An example of this is the Database Agent.
+	// When using the install-database.sh script, the script will add those labels as part of the `teleport.yaml` configuration.
+	// They are added to `db_service.resources.0.labels`.
+	GetSuggestedAgentMatcherLabels() Labels
 
 	// V1 returns V1 version of the resource
 	V1() *ProvisionTokenV1
@@ -305,6 +312,14 @@ func (p *ProvisionTokenV2) SetMetadata(meta Metadata) {
 // GetSuggestedLabels returns the labels the resource should set when using this token
 func (p *ProvisionTokenV2) GetSuggestedLabels() Labels {
 	return p.Spec.SuggestedLabels
+}
+
+// GetAgentMatcherLabels returns the set of labels that should be watched when an agent/service uses this token.
+// An example of this is the Database Agent.
+// When using the install-database.sh script, the script will add those labels as part of the `teleport.yaml` configuration.
+// They are added to `db_service.resources.0.labels`.
+func (p *ProvisionTokenV2) GetSuggestedAgentMatcherLabels() Labels {
+	return p.Spec.SuggestedAgentMatcherLabels
 }
 
 // V1 returns V1 version of the resource

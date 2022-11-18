@@ -34,6 +34,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
@@ -442,17 +443,17 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	sc.SetDefaults()
 
 	for _, c := range conf.Ciphers {
-		if !apiutils.SliceContainsStr(sc.Ciphers, c) {
+		if !slices.Contains(sc.Ciphers, c) {
 			return trace.BadParameter("cipher algorithm %q is not supported; supported algorithms: %q", c, sc.Ciphers)
 		}
 	}
 	for _, k := range conf.KEXAlgorithms {
-		if !apiutils.SliceContainsStr(sc.KeyExchanges, k) {
+		if !slices.Contains(sc.KeyExchanges, k) {
 			return trace.BadParameter("KEX algorithm %q is not supported; supported algorithms: %q", k, sc.KeyExchanges)
 		}
 	}
 	for _, m := range conf.MACAlgorithms {
-		if !apiutils.SliceContainsStr(sc.MACs, m) {
+		if !slices.Contains(sc.MACs, m) {
 			return trace.BadParameter("MAC algorithm %q is not supported; supported algorithms: %q", m, sc.MACs)
 		}
 	}
@@ -463,6 +464,10 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	if err := checkAndSetDefaultsForAzureMatchers(conf.Discovery.AzureMatchers); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := checkAndSetDefaultsForGCPMatchers(conf.Discovery.GCPMatchers); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -472,7 +477,7 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 	for i := range matcherInput {
 		matcher := &matcherInput[i]
 		for _, serviceType := range matcher.Types {
-			if !apiutils.SliceContainsStr(constants.SupportedAWSDiscoveryServices, serviceType) {
+			if !slices.Contains(constants.SupportedAWSDiscoveryServices, serviceType) {
 				return trace.BadParameter("discovery service type does not support %q, supported resource types are: %v",
 					serviceType, constants.SupportedAWSDiscoveryServices)
 			}
@@ -523,26 +528,65 @@ func checkAndSetDefaultsForAzureMatchers(matcherInput []AzureMatcher) error {
 		}
 
 		for _, serviceType := range matcher.Types {
-			if !apiutils.SliceContainsStr(constants.SupportedAzureDiscoveryServices, serviceType) {
+			if !slices.Contains(constants.SupportedAzureDiscoveryServices, serviceType) {
 				return trace.BadParameter("Azure discovery service type does not support %q resource type; supported resource types are: %v",
 					serviceType, constants.SupportedAzureDiscoveryServices)
 			}
 		}
 
-		if apiutils.SliceContainsStr(matcher.Regions, types.Wildcard) || len(matcher.Regions) == 0 {
+		if slices.Contains(matcher.Regions, types.Wildcard) || len(matcher.Regions) == 0 {
 			matcher.Regions = []string{types.Wildcard}
 		}
 
-		if apiutils.SliceContainsStr(matcher.Subscriptions, types.Wildcard) || len(matcher.Subscriptions) == 0 {
+		if slices.Contains(matcher.Subscriptions, types.Wildcard) || len(matcher.Subscriptions) == 0 {
 			matcher.Subscriptions = []string{types.Wildcard}
 		}
 
-		if apiutils.SliceContainsStr(matcher.ResourceGroups, types.Wildcard) || len(matcher.ResourceGroups) == 0 {
+		if slices.Contains(matcher.ResourceGroups, types.Wildcard) || len(matcher.ResourceGroups) == 0 {
 			matcher.ResourceGroups = []string{types.Wildcard}
 		}
 
 		if len(matcher.ResourceTags) == 0 {
 			matcher.ResourceTags = map[string]apiutils.Strings{
+				types.Wildcard: {types.Wildcard},
+			}
+		}
+
+	}
+	return nil
+}
+
+// checkAndSetDefaultsForGCPMatchers sets the default values for GCP matchers
+// and validates the provided types.
+func checkAndSetDefaultsForGCPMatchers(matcherInput []GCPMatcher) error {
+	for i := range matcherInput {
+		matcher := &matcherInput[i]
+
+		if len(matcher.Types) == 0 {
+			return trace.BadParameter("At least one GCP discovery service type must be specified, the supported resource types are: %v",
+				constants.SupportedGCPDiscoveryServices)
+		}
+
+		for _, serviceType := range matcher.Types {
+			if !slices.Contains(constants.SupportedGCPDiscoveryServices, serviceType) {
+				return trace.BadParameter("GCP discovery service type does not support %q resource type; supported resource types are: %v",
+					serviceType, constants.SupportedGCPDiscoveryServices)
+			}
+		}
+
+		if slices.Contains(matcher.Locations, types.Wildcard) || len(matcher.Locations) == 0 {
+			matcher.Locations = []string{types.Wildcard}
+		}
+
+		if slices.Contains(matcher.ProjectIDs, types.Wildcard) {
+			return trace.BadParameter("GCP discovery service project_ids does not support wildcards; please specify at least one value in project_ids.")
+		}
+		if len(matcher.ProjectIDs) == 0 {
+			return trace.BadParameter("GCP discovery service project_ids does cannot be empty; please specify at least one value in project_ids.")
+		}
+
+		if len(matcher.Tags) == 0 {
+			matcher.Tags = map[string]apiutils.Strings{
 				types.Wildcard: {types.Wildcard},
 			}
 		}
@@ -848,9 +892,12 @@ type Auth struct {
 
 // CAKeyParams configures how CA private keys will be created and stored.
 type CAKeyParams struct {
-	// PKCS11 configures a PKCS#11 HSM to be used for private key generation and
+	// PKCS11 configures a PKCS#11 HSM to be used for all CA private key generation and
 	// storage.
-	PKCS11 PKCS11 `yaml:"pkcs11"`
+	PKCS11 *PKCS11 `yaml:"pkcs11,omitempty"`
+	// GoogleCloudKMS configures Google Cloud Key Management Service to to be used for
+	// all CA private key crypto operations.
+	GoogleCloudKMS *GoogleCloudKMS `yaml:"gcp_kms,omitempty"`
 }
 
 // PKCS11 configures a PKCS#11 HSM to be used for private key generation and
@@ -871,6 +918,20 @@ type PKCS11 struct {
 	// Trailing newlines will be removed, other whitespace will be left. Set
 	// this or Pin to set the pin.
 	PinPath string `yaml:"pin_path,omitempty"`
+}
+
+// GoogleCloudKMS configures Google Cloud Key Management Service to to be used for
+// all CA private key crypto operations.
+type GoogleCloudKMS struct {
+	// KeyRing is the GCP key ring where all keys generated by this auth server
+	// should be held. This must be the fully qualified resource name of the key
+	// ring, including the project and location, e.g.
+	// projects/teleport-project/locations/us-west1/keyRings/teleport-keyring
+	KeyRing string `yaml:"keyring"`
+	// ProtectionLevel specifies how cryptographic operations are performed.
+	// For more information, see https://cloud.google.com/kms/docs/algorithms#protection_levels
+	// Supported options are "HSM" and "SOFTWARE".
+	ProtectionLevel string `yaml:"protection_level"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -1199,6 +1260,21 @@ type Discovery struct {
 
 	// AzureMatchers are used to match Azure resources.
 	AzureMatchers []AzureMatcher `yaml:"azure,omitempty"`
+
+	// GCPMatchers are used to match GCP resources.
+	GCPMatchers []GCPMatcher `yaml:"gcp,omitempty"`
+}
+
+// GCPMatcher matches GCP resources.
+type GCPMatcher struct {
+	// Types are GKE resource types to match: "gke".
+	Types []string `yaml:"types,omitempty"`
+	// Locations are GKE locations to search resources for.
+	Locations []string `yaml:"locations,omitempty"`
+	// Tags are GCP labels to match.
+	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
+	// ProjectIDs are the GCP project ID where the resources are deployed.
+	ProjectIDs []string `yaml:"project_ids,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -1361,13 +1437,13 @@ type AWSSSM struct {
 	DocumentName string `yaml:"document_name,omitempty"`
 }
 
-// AzureMatcher matches Azure databases.
+// AzureMatcher matches Azure resources.
 type AzureMatcher struct {
 	// Subscriptions are Azure subscriptions to query for resources.
 	Subscriptions []string `yaml:"subscriptions,omitempty"`
 	// ResourceGroups are Azure resource groups to query for resources.
 	ResourceGroups []string `yaml:"resource_groups,omitempty"`
-	// Types are Azure types to match: "mysql", "postgres", "aks"
+	// Types are Azure types to match: "mysql", "postgres", "aks", "vm"
 	Types []string `yaml:"types,omitempty"`
 	// Regions are Azure locations to match for databases.
 	Regions []string `yaml:"regions,omitempty"`
