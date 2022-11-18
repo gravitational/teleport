@@ -432,7 +432,7 @@ func (t *TrackingReadConn) UpdateClientActivity() {
 func GetDisconnectExpiredCertFromIdentity(
 	checker services.AccessChecker,
 	authPref types.AuthPreference,
-	identity tlsca.Identity,
+	identity *tlsca.Identity,
 ) time.Time {
 	// In the case where both disconnect_expired_cert and require_session_mfa are enabled,
 	// the MFAVerifiedSessionExpires value of the certificate will be used, which is the
@@ -460,7 +460,7 @@ func GetDisconnectExpiredCertFromIdentity(
 func getDisconnectExpiredCertFromIdentityContext(
 	checker services.AccessChecker,
 	authPref types.AuthPreference,
-	identity IdentityContext,
+	identity *IdentityContext,
 ) time.Time {
 	// In the case where both disconnect_expired_cert and require_session_mfa are enabled,
 	// the MFAVerifiedSessionExpires value of the certificate will be used, which is the

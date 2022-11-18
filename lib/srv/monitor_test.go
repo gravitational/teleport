@@ -278,7 +278,7 @@ func TestGetDisconnectExpiredCertFromIdentity(t *testing.T) {
 				MFAVerifiedSessionExpires: test.mfaVerifiedSessionExpires,
 			}
 			disconnectExpiredCert = test.disconnectExpiredCert
-			got := GetDisconnectExpiredCertFromIdentity(checker, authPref, identity)
+			got := GetDisconnectExpiredCertFromIdentity(checker, authPref, &identity)
 			require.Equal(t, test.expected, got)
 		})
 	}
