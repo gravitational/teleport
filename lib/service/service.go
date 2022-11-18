@@ -96,6 +96,7 @@ import (
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/proxy/clusterdial"
+	"github.com/gravitational/teleport/lib/proxy/peer"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -3372,11 +3373,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
 	var tsrv reversetunnel.Server
-	var peerClient *proxy.Client
+	var peerClient *peer.Client
 
 	if !process.Config.Proxy.DisableReverseTunnel {
 		if listeners.proxy != nil {
-			peerClient, err = proxy.NewClient(proxy.ClientConfig{
+			peerClient, err = peer.NewClient(peer.ClientConfig{
 				Context:     process.ExitContext(),
 				ID:          process.Config.HostUUID,
 				AuthClient:  conn.Client,
@@ -3437,6 +3438,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return nil
 		})
 	}
+
 	if !process.Config.Proxy.DisableTLS {
 		tlsConfigWeb, err = process.setupProxyTLSConfig(conn, tsrv, accessPoint, clusterName)
 		if err != nil {
@@ -3556,10 +3558,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	var peerAddr string
-	var proxyServer *proxy.Server
+	var proxyServer *peer.Server
 	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxy != nil {
 		peerAddr = listeners.proxy.Addr().String()
-		proxyServer, err = proxy.NewServer(proxy.ServerConfig{
+		proxyServer, err = peer.NewServer(peer.ServerConfig{
 			AccessCache:   accessPoint,
 			Listener:      listeners.proxy,
 			TLSConfig:     serverTLSConfig,
@@ -3586,6 +3588,21 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		})
 	}
 
+	var proxyRouter *proxy.Router
+	if !process.Config.Proxy.DisableReverseTunnel {
+		router, err := proxy.NewRouter(proxy.RouterConfig{
+			ClusterName:         clusterName,
+			Log:                 process.log.WithField(trace.Component, "router"),
+			RemoteClusterGetter: accessPoint,
+			SiteGetter:          tsrv,
+			TracerProvider:      process.TracingProvider,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		proxyRouter = router
+	}
+
 	sshProxy, err := regular.New(cfg.Proxy.SSHAddr,
 		cfg.Hostname,
 		[]ssh.Signer{conn.ServerIdentity.KeySigner},
@@ -3595,7 +3612,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		process.proxyPublicAddr(),
 		conn.Client,
 		regular.SetLimiter(proxyLimiter),
-		regular.SetProxyMode(peerAddr, tsrv, accessPoint),
+		regular.SetProxyMode(peerAddr, tsrv, accessPoint, proxyRouter),
 		regular.SetSessionServer(conn.Client),
 		regular.SetCiphers(cfg.Ciphers),
 		regular.SetKEXAlgorithms(cfg.KEXAlgorithms),

@@ -52,9 +52,24 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+	lemma_secret "github.com/mailgun/lemma/secret"
+	"github.com/pquerna/otp/totp"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
+	"golang.org/x/text/encoding/unicode"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -82,7 +97,9 @@ import (
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/pam"
+	libproxy "github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
@@ -96,24 +113,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
-	lemma_secret "github.com/mailgun/lemma/secret"
-	"github.com/pquerna/otp/totp"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
-	"golang.org/x/text/encoding/unicode"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
-	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
-	"k8s.io/client-go/tools/clientcmd"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 const hostID = "00000000-0000-0000-0000-000000000000"
@@ -325,6 +324,15 @@ func newWebSuite(t *testing.T) *WebSuite {
 	require.NoError(t, err)
 	s.proxyTunnel = revTunServer
 
+	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+		ClusterName:         s.server.ClusterName(),
+		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		RemoteClusterGetter: s.proxyClient,
+		SiteGetter:          revTunServer,
+		TracerProvider:      tracing.NoopProvider(),
+	})
+	require.NoError(t, err)
+
 	// proxy server:
 	s.proxy, err = regular.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
@@ -336,7 +344,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 		utils.NetAddr{},
 		s.proxyClient,
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode("", revTunServer, s.proxyClient),
+		regular.SetProxyMode("", revTunServer, s.proxyClient, router),
 		regular.SetSessionServer(s.proxyClient),
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(apidefaults.Namespace),
@@ -5103,6 +5111,15 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, revTunServer.Close()) })
 
+	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+		ClusterName:         authServer.ClusterName(),
+		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		RemoteClusterGetter: client,
+		SiteGetter:          revTunServer,
+		TracerProvider:      tracing.NoopProvider(),
+	})
+	require.NoError(t, err)
+
 	proxyServer, err := regular.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		authServer.ClusterName(),
@@ -5113,7 +5130,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		utils.NetAddr{},
 		client,
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode("", revTunServer, client),
+		regular.SetProxyMode("", revTunServer, client, router),
 		regular.SetSessionServer(client),
 		regular.SetEmitter(client),
 		regular.SetNamespace(apidefaults.Namespace),

@@ -23,24 +23,24 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/proxy"
+	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/utils"
 	proxyutils "github.com/gravitational/teleport/lib/utils/proxy"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -149,7 +149,7 @@ type localSite struct {
 	offlineThreshold time.Duration
 
 	// peerClient is the proxy peering client
-	peerClient *proxy.Client
+	peerClient *peer.Client
 
 	// periodicFunctionInterval defines the interval period functions run at
 	periodicFunctionInterval time.Duration
@@ -446,9 +446,9 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 	// return a tunnel connection to that node. Otherwise net.Dial to the target host.
 	conn, tunnelErr = s.dialTunnel(dreq)
 	if tunnelErr == nil {
-		dt := tunnel
+		dt := dialTypeTunnel
 		if params.FromPeerProxy {
-			dt = peerTunnel
+			dt = dialTypePeerTunnel
 		}
 
 		return newMetricConn(conn, dt, dialStart, s.srv.Clock), true, nil
@@ -461,7 +461,7 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 			params.ProxyIDs, params.ServerID, params.From, params.To, params.ConnType,
 		)
 		if peerErr == nil {
-			return newMetricConn(conn, peer, dialStart, s.srv.Clock), true, nil
+			return newMetricConn(conn, dialTypePeer, dialStart, s.srv.Clock), true, nil
 		}
 		s.log.WithError(peerErr).WithField("address", dreq.Address).Debug("Error occurred while dialing over peer proxy.")
 	}
@@ -493,7 +493,7 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 	}
 
 	// Return a direct dialed connection.
-	return newMetricConn(conn, direct, dialStart, s.srv.Clock), false, nil
+	return newMetricConn(conn, dialTypeDirect, dialStart, s.srv.Clock), false, nil
 }
 
 func (s *localSite) addConn(nodeID string, connType types.TunnelType, conn net.Conn, sconn ssh.Conn) (*remoteConn, error) {
