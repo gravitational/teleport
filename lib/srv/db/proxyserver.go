@@ -556,7 +556,7 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 	err = srv.StartMonitor(srv.MonitorConfig{
 		LockWatcher:           cfg.lockWatcher,
 		LockTargets:           cfg.lockTargets,
-		DisconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(cfg.checker, authPref, cfg.identity),
+		DisconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(cfg.checker, authPref, &cfg.identity),
 		ClientIdleTimeout:     idleTimeout,
 		Conn:                  cfg.conn,
 		Tracker:               tc,

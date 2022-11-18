@@ -424,7 +424,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	}
 
 	child.disconnectExpiredCert = getDisconnectExpiredCertFromIdentityContext(
-		identityContext.AccessChecker, authPref, identityContext,
+		identityContext.AccessChecker, authPref, &identityContext,
 	)
 
 	// Update log entry fields.

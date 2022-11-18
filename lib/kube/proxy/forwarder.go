@@ -75,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -431,7 +432,11 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 		return nil, trace.AccessDenied("access denied: only mutual TLS authentication is supported")
 	}
 	clientCert := peers[0]
-	authContext, err := f.setupContext(*userContext, req, isRemoteUser, clientCert.NotAfter)
+	clientIdentity, err := tlsca.FromSubject(clientCert.Subject, clientCert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authContext, err := f.setupContext(*userContext, req, isRemoteUser, clientIdentity)
 	if err != nil {
 		f.log.Warn(err.Error())
 		if trace.IsAccessDenied(err) {
@@ -535,7 +540,7 @@ func (f *Forwarder) formatResponseError(rw http.ResponseWriter, respErr error) {
 	}
 }
 
-func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUser bool, certExpires time.Time) (*authContext, error) {
+func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUser bool, clientIdentity *tlsca.Identity) (*authContext, error) {
 	roles := ctx.Checker
 
 	// adjust session ttl to the smaller of two values: the session
@@ -665,16 +670,22 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		return nil, trace.Wrap(err)
 	}
 
+	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(req.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	authCtx := &authContext{
-		clientIdleTimeout: roles.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
-		sessionTTL:        sessionTTL,
-		Context:           ctx,
-		kubeGroups:        utils.StringsSet(kubeGroups),
-		kubeUsers:         utils.StringsSet(kubeUsers),
-		kubeClusterLabels: kubeLabels,
-		recordingConfig:   recordingConfig,
-		kubeCluster:       kubeCluster,
-		certExpires:       certExpires,
+		clientIdleTimeout:     roles.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		sessionTTL:            sessionTTL,
+		Context:               ctx,
+		kubeGroups:            utils.StringsSet(kubeGroups),
+		kubeUsers:             utils.StringsSet(kubeUsers),
+		kubeClusterLabels:     kubeLabels,
+		recordingConfig:       recordingConfig,
+		kubeCluster:           kubeCluster,
+		certExpires:           clientIdentity.Expires,
+		disconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(roles, authPref, clientIdentity),
 		teleportCluster: teleportClusterClient{
 			name:           teleportClusterName,
 			remoteAddr:     utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
@@ -682,22 +693,6 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 			isRemote:       isRemoteCluster,
 			isRemoteClosed: isRemoteClosed,
 		},
-	}
-
-	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(req.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	disconnectExpiredCert := roles.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
-	if disconnectExpiredCert {
-		if !identity.MFAVerifiedSessionExpires.IsZero() {
-			// Cause MFA verified sessions to disconnect on issuing certs expiry
-			// (see https://github.com/gravitational/teleport/issues/18544).
-			authCtx.disconnectExpiredCert = identity.MFAVerifiedSessionExpires
-		} else if !certExpires.IsZero() {
-			authCtx.disconnectExpiredCert = certExpires
-		}
 	}
 
 	return authCtx, nil
