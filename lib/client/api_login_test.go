@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -282,6 +283,7 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 			// MFA opts.
 			AuthenticatorAttachment: wancli.AttachmentAuto,
 			PreferOTP:               false,
+			Tracer:                  tracing.NoopProvider().Tracer("test"),
 		},
 	}
 
@@ -292,6 +294,7 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 			// MFA opts.
 			AuthenticatorAttachment: wancli.AttachmentCrossPlatform,
 			PreferOTP:               true,
+			Tracer:                  tracing.NoopProvider().Tracer("test"),
 		},
 	}
 
@@ -353,7 +356,6 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 				gotOpts *client.PromptMFAChallengeOpts,
 			) (*proto.MFAAuthenticateResponse, error) {
 				promptCalled = true
-				assert.Equal(t, ctx, gotCtx, "ctx mismatch")
 				assert.Equal(t, challenge, gotChallenge, "challenge mismatch")
 				assert.Equal(t, test.wantProxy, gotProxy, "proxy mismatch")
 				assert.Equal(t, test.wantOpts, gotOpts, "opts mismatch")

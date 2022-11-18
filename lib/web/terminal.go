@@ -30,6 +30,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/unicode"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -88,7 +90,10 @@ type AuthProvider interface {
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
 // new TerminalHandler.
-func NewTerminal(req TerminalRequest, authProvider AuthProvider, sessCtx *SessionContext, sessionData session.Session) (*TerminalHandler, error) {
+func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProvider, sessCtx *SessionContext, sessionData session.Session) (*TerminalHandler, error) {
+	_, span := tracing.DefaultProvider().Tracer("terminal").Start(ctx, "terminal/NewTerminal")
+	defer span.End()
+
 	// Make sure whatever session is requested is a valid session.
 	_, err := session.ParseID(string(sessionData.ID))
 	if err != nil {
@@ -181,10 +186,10 @@ type TerminalHandler struct {
 	sessionData session.Session
 }
 
-// Serve builds a connect to the remote node and then pumps back two types of
+// ServeHTTP builds a connection to the remote node and then pumps back two types of
 // events: raw input/output events for what's happening on the terminal itself
 // and audit log events relevant to this session.
-func (t *TerminalHandler) Serve(w http.ResponseWriter, r *http.Request) {
+func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// This allows closing of the websocket if the user logs out before exiting
 	// the session.
 	t.ctx.AddClosers(t)
@@ -259,8 +264,10 @@ func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
 func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	defer ws.Close()
 
-	// Create a context for signaling when the terminal session is over.
-	t.terminalContext, t.terminalCancel = context.WithCancel(context.Background())
+	// Create a context for signaling when the terminal session is over and
+	// link it first with the trace context from the request context
+	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(r.Context()))
+	t.terminalContext, t.terminalCancel = context.WithCancel(tctx)
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
@@ -296,7 +303,10 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 
 // makeClient builds a *client.TeleportClient for the connection.
 func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*client.TeleportClient, error) {
-	clientConfig, err := makeTeleportClientConfig(r.Context(), t.ctx)
+	ctx, span := tracing.DefaultProvider().Tracer("terminal").Start(r.Context(), "terminal/makeClient")
+	defer span.End()
+
+	clientConfig, err := makeTeleportClientConfig(ctx, t.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -324,6 +334,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	clientConfig.HostPort = t.hostPort
 	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: string(t.sessionData.ID)}
 	clientConfig.ClientAddr = r.RemoteAddr
+	clientConfig.Tracer = tracing.DefaultProvider().Tracer("TerminalHandler")
 
 	if len(t.params.InteractiveCommand) > 0 {
 		clientConfig.Interactive = true
@@ -344,15 +355,18 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 		return false, nil
 	}
 
-	if err := t.issueSessionMFACerts(tc, ws); err != nil {
+	if err := t.issueSessionMFACerts(ctx, tc, ws); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return tc, nil
 }
 
-func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *websocket.Conn) error {
-	pc, err := tc.ConnectToProxy(t.terminalContext)
+func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.TeleportClient, ws *websocket.Conn) error {
+	ctx, span := tracing.DefaultProvider().Tracer("terminal").Start(ctx, "terminal/issueSessionMFACerts")
+	defer span.End()
+
+	pc, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -363,7 +377,7 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 		return trace.Wrap(err)
 	}
 
-	key, err := pc.IssueUserCertsWithMFA(t.terminalContext, client.ReissueParams{
+	key, err := pc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToCluster: t.params.Cluster,
 		NodeName:       t.params.Server,
 		ExistingCreds: &client.Key{
@@ -681,7 +695,7 @@ func (t *TerminalHandler) read(out []byte, ws *websocket.Conn) (n int, err error
 
 		// Send the window change request in a goroutine so reads are not blocked
 		// by network connectivity issues.
-		go t.windowChange(context.TODO(), params)
+		go t.windowChange(t.terminalContext, params)
 
 		return 0, nil
 	default:

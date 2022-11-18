@@ -22,7 +22,7 @@ Usually, this means that the Smart Card service is not running on the target
 host.
 
 First, make sure that you [enable the Smart Card service in Group
-Policy](./getting-started.mdx#enable-the-smart-card-service).
+Policy](./manual-setup.mdx#enable-the-smart-card-service).
 
 If that doesn't help, log into the target host directly, open the "Services"
 program from the "Start" menu and check that the "Smart Card" service is in the
@@ -43,7 +43,7 @@ authentication was not trusted"** (or similar).
 This means that the host does not trust the Teleport CA.
 
 First, make sure that you [import the Teleport CA into Group
-Policy](./getting-started.mdx#create-another-gpo-and-import-the-teleport-ca). Note that if the
+Policy](./manual-setup.mdx#create-another-gpo-and-import-the-teleport-ca). Note that if the
 Teleport CA was rotated since the last import, you will have to fetch the
 new CA using the following command:
 
@@ -86,9 +86,9 @@ This happens when the `windows_desktop_service` can't reach the target Windows
 host.
 
 First, make sure that you [open the RDP
-port](./getting-started.mdx#open-firewall-to-inbound-rdp-connections) and [allow
+port](./manual-setup.mdx#open-firewall-to-inbound-rdp-connections) and [allow
 remote RDP connections in Group
-Policy](./getting-started.mdx#allow-remote-rdp-connections).
+Policy](./manual-setup.mdx#allow-remote-rdp-connections).
 
 If that does not help, check if the target host is online and try to `ping` it
 from the Linux server that runs `windows_desktop_service`. If the host is
@@ -126,7 +126,7 @@ Rdp(Io(Os { code: 54, kind: ConnectionReset, message: "Connection reset by peer"
 This means that the desktop does not support secure cipher suites for TLS
 connections.
 
-Make sure that you [configure a certificate for RDP connections](./getting-started.mdx#step-47-configure-a-certificate-for-rdp-connections).
+Make sure that you [configure a certificate for RDP connections](./manual-setup.mdx#step-47-configure-a-certificate-for-rdp-connections).
 
 ## Teleport fails to start
 
@@ -253,4 +253,4 @@ Teleport currently requires that NLA is disabled in order to perform its
 certificate-based passwordless login.
 
 To disable NLA, follow the instructions in our
-[Getting Started Guide](./getting-started.mdx#allow-remote-rdp-connections).
+[Getting Started Guide](./manual-setup.mdx#allow-remote-rdp-connections).
