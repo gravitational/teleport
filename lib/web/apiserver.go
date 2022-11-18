@@ -926,13 +926,13 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 func (h *Handler) traces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *SessionContext) (interface{}, error) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, teleport.MaxHTTPRequestSize))
 	if err != nil {
-		h.log.WithError(err).Error("Failed to reading traces request")
+		h.log.WithError(err).Error("Failed to read traces request")
 		w.WriteHeader(http.StatusBadRequest)
 		return nil, nil
 	}
 
 	if err := r.Body.Close(); err != nil {
-		h.log.WithError(err).Warn("Failed to closing traces request body")
+		h.log.WithError(err).Warn("Failed to close traces request body")
 	}
 
 	var data tracepb.TracesData
@@ -3180,7 +3180,7 @@ func makeTeleportClientConfig(ctx context.Context, sesCtx *SessionContext) (*cli
 		DefaultPrincipal:  cert.ValidPrincipals[0],
 		HostKeyCallback:   callback,
 		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
-		Tracer:            apitracing.DefaultProvider().Tracer("webTerminal"),
+		Tracer:            apitracing.DefaultProvider().Tracer("webterminal"),
 	}
 
 	return config, nil
