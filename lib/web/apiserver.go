@@ -2171,7 +2171,6 @@ func (h *Handler) siteNodeConnect(
 			h.log.WithError(err).Debug("Unable to generate new ssh session.")
 			return nil, trace.Wrap(err)
 		}
-		req.SessionID = sessionData.ID
 	} else {
 		// Fetch the session data from the supplied SID.
 		sessionID, err := session.ParseID(req.SessionID.String())

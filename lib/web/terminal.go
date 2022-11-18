@@ -113,15 +113,12 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		return nil, trace.BadParameter("term: bad term dimensions")
 	}
 
-	var join bool
-	_, err = authProvider.GetSessionTracker(ctx, string(req.SessionID))
-	switch {
-	case trace.IsNotFound(err):
+	// If a session ID is provided in the terminal request then we're trying to
+	// join an existing session. The session ID is required in the request struct.
+	join := true
+	if req.SessionID.IsZero() {
 		join = false
-	case err != nil:
-		return nil, trace.Wrap(err)
-	default:
-		join = true
+		req.SessionID = sessionData.ID
 	}
 
 	return &TerminalHandler{
@@ -192,6 +189,7 @@ type TerminalHandler struct {
 	// join is set if we're joining an existing session
 	join bool
 
+	// The server data for the active session.
 	sessionData session.Session
 }
 
