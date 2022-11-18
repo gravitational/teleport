@@ -871,7 +871,6 @@ func labelsFromAzureManagedSQLServer(server *armsql.ManagedInstance) (map[string
 	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
 	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(server.Location)
-	labels[labelEngineVersion] = AzureSQLManagedInstanceLabel
 	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
 }
 
@@ -1315,9 +1314,6 @@ const (
 	AzureEngineMySQL = "Microsoft.DBforMySQL/servers"
 	// AzureEnginePostgres is the Azure engine name for PostgreSQL single-server instances
 	AzureEnginePostgres = "Microsoft.DBforPostgreSQL/servers"
-	// AzureSQLManagedInstanceLabel is used to identify Azure managed SQL
-	// instances.
-	AzureSQLManagedInstanceLabel = "managed-instance"
 )
 
 const (
