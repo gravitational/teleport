@@ -2269,8 +2269,8 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 		return trace.Wrap(err)
 	}
 
-	// Generate the cert.
-	respCert, err := userSingleUseCertsGenerate(ctx, actx, *initReq, mfaDev)
+	// Generate the cert
+	respCert, err := userSingleUseCertsGenerate(ctx, actx, *initReq, mfaDev, actx.Identity.GetIdentity().Expires)
 	if err != nil {
 		g.Entry.Warningf("Failed to generate single-use cert: %v", err)
 		return trace.Wrap(err)
@@ -2356,7 +2356,9 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 	return mfaDev, nil
 }
 
-func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req proto.UserCertsRequest, mfaDev *types.MFADevice) (*proto.SingleUseUserCert, error) {
+// mfaVerifiedSessionExpires is the expiry of the user cert from which this single use cert is derived from.
+// See https://github.com/gravitational/teleport/issues/18544.
+func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req proto.UserCertsRequest, mfaDev *types.MFADevice, mfaVerifiedSessionExpires time.Time) (*proto.SingleUseUserCert, error) {
 	// Get the client IP.
 	clientPeer, ok := peer.FromContext(ctx)
 	if !ok {
@@ -2368,7 +2370,7 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 	}
 
 	// Generate the cert.
-	certs, err := actx.generateUserCerts(ctx, req, certRequestMFAVerified(mfaDev.Id), certRequestClientIP(clientIP))
+	certs, err := actx.generateUserCerts(ctx, req, certRequestMFAVerified(mfaDev.Id), certRequestMFAVerifiedSessionExpires(mfaVerifiedSessionExpires), certRequestClientIP(clientIP))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -1016,6 +1016,9 @@ type certRequest struct {
 	// mfaVerified is the UUID of an MFA device when this certRequest was
 	// created immediately after an MFA check.
 	mfaVerified string
+	// mfaVerified is the the hard deadline of a session when this Identity was
+	// confirmed immediately after an MFA check.
+	mfaVerifiedSessionExpires time.Time
 	// clientIP is an IP of the client requesting the certificate.
 	clientIP string
 	// sourceIP is an IP this certificate should be pinned to
@@ -1065,6 +1068,10 @@ type certRequestOption func(*certRequest)
 
 func certRequestMFAVerified(mfaID string) certRequestOption {
 	return func(r *certRequest) { r.mfaVerified = mfaID }
+}
+
+func certRequestMFAVerifiedSessionExpires(mfaVerifiedSessionExpires time.Time) certRequestOption {
+	return func(r *certRequest) { r.mfaVerifiedSessionExpires = mfaVerifiedSessionExpires }
 }
 
 func certRequestClientIP(ip string) certRequestOption {
@@ -1345,30 +1352,31 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	}
 
 	params := services.UserCertParams{
-		CASigner:               caSigner,
-		PublicUserKey:          req.publicKey,
-		Username:               req.user.GetName(),
-		Impersonator:           req.impersonator,
-		AllowedLogins:          allowedLogins,
-		TTL:                    sessionTTL,
-		Roles:                  req.checker.RoleNames(),
-		CertificateFormat:      certificateFormat,
-		PermitPortForwarding:   req.checker.CanPortForward(),
-		PermitAgentForwarding:  req.checker.CanForwardAgents(),
-		PermitX11Forwarding:    req.checker.PermitX11Forwarding(),
-		RouteToCluster:         req.routeToCluster,
-		Traits:                 req.traits,
-		ActiveRequests:         req.activeRequests,
-		MFAVerified:            req.mfaVerified,
-		ClientIP:               req.clientIP,
-		DisallowReissue:        req.disallowReissue,
-		Renewable:              req.renewable,
-		Generation:             req.generation,
-		CertificateExtensions:  req.checker.CertificateExtensions(),
-		AllowedResourceIDs:     requestedResourcesStr,
-		SourceIP:               req.sourceIP,
-		ConnectionDiagnosticID: req.connectionDiagnosticID,
-		PrivateKeyPolicy:       attestedKeyPolicy,
+		CASigner:                  caSigner,
+		PublicUserKey:             req.publicKey,
+		Username:                  req.user.GetName(),
+		Impersonator:              req.impersonator,
+		AllowedLogins:             allowedLogins,
+		TTL:                       sessionTTL,
+		Roles:                     req.checker.RoleNames(),
+		CertificateFormat:         certificateFormat,
+		PermitPortForwarding:      req.checker.CanPortForward(),
+		PermitAgentForwarding:     req.checker.CanForwardAgents(),
+		PermitX11Forwarding:       req.checker.PermitX11Forwarding(),
+		RouteToCluster:            req.routeToCluster,
+		Traits:                    req.traits,
+		ActiveRequests:            req.activeRequests,
+		MFAVerified:               req.mfaVerified,
+		MFAVerifiedSessionExpires: req.mfaVerifiedSessionExpires,
+		ClientIP:                  req.clientIP,
+		DisallowReissue:           req.disallowReissue,
+		Renewable:                 req.renewable,
+		Generation:                req.generation,
+		CertificateExtensions:     req.checker.CertificateExtensions(),
+		AllowedResourceIDs:        requestedResourcesStr,
+		SourceIP:                  req.sourceIP,
+		ConnectionDiagnosticID:    req.connectionDiagnosticID,
+		PrivateKeyPolicy:          attestedKeyPolicy,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {

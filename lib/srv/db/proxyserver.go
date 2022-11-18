@@ -542,9 +542,16 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 
 	certExpires := cfg.identity.Expires
 	var disconnectCertExpired time.Time
-	if !certExpires.IsZero() && cfg.checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
-		disconnectCertExpired = certExpires
+	if cfg.checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+		if !cfg.identity.MFAVerifiedSessionExpires.IsZero() {
+			// Cause MFA verified sessions to disconnect on issuing certs expiry
+			// (see https://github.com/gravitational/teleport/issues/18544).
+			disconnectCertExpired = cfg.identity.MFAVerifiedSessionExpires
+		} else if !certExpires.IsZero() {
+			disconnectCertExpired = certExpires
+		}
 	}
+
 	idleTimeout := cfg.checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
 	ctx, cancel := context.WithCancel(ctx)
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{

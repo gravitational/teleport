@@ -272,6 +272,9 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	if c.MFAVerified != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionMFAVerified] = c.MFAVerified
 	}
+	if !c.MFAVerifiedSessionExpires.IsZero() {
+		cert.Permissions.Extensions[teleport.CertExtensionMFAVerifiedSessionExpires] = c.MFAVerifiedSessionExpires.Format(time.RFC3339)
+	}
 	if c.ClientIP != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionClientIP] = c.ClientIP
 	}
