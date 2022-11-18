@@ -48,12 +48,10 @@ type config struct {
 }
 
 func main() {
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	if isatty.IsTerminal(os.Stderr.Fd()) {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
-	} else {
-		zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	}
-
 	stdlog.SetFlags(0)
 	stdlog.SetOutput(log.Logger)
 
@@ -190,12 +188,15 @@ func run(cfg config) error {
 
 	if cfg.proxyProtocol {
 		log.Info().Msg("Enabling proxy protocol on api listener")
-		listener = &proxyproto.Listener{Listener: listener}
+		listener = &proxyproto.Listener{
+			Listener:          listener,
+			ReadHeaderTimeout: time.Second,
+		}
 	}
 
 	go func() {
 		defer cancel()
-		log.Info().Msg("Serving api")
+		log.Info().Stringer("addr", listener.Addr()).Msg("Serving api")
 		err := srv.ServeTLS(listener, "", "")
 		if errors.Is(err, http.ErrServerClosed) {
 			err = nil
@@ -236,7 +237,6 @@ func runDiagServer(addr string, enableDebug bool) {
 	}
 
 	diagSrv := &http.Server{
-		Addr:        addr,
 		Handler:     mux,
 		ReadTimeout: 5 * time.Second,
 		ErrorLog:    httpServerLogger("diag"),
@@ -247,7 +247,10 @@ func runDiagServer(addr string, enableDebug bool) {
 		log.Err(err).Msg("Failed to listen for diag")
 		return
 	}
-	listener = &proxyproto.Listener{Listener: listener}
-	log.Info().Msg("Serving diag")
+	listener = &proxyproto.Listener{
+		Listener:          listener,
+		ReadHeaderTimeout: time.Second,
+	}
+	log.Info().Stringer("addr", listener.Addr()).Msg("Serving diag")
 	log.Err(diagSrv.Serve(listener)).Msg("Done serving diag")
 }

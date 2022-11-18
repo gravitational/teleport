@@ -98,3 +98,23 @@ func (h *Handler) UpdateAccount(ctx context.Context, req *connect.Request[prehog
 
 	return &connect.Response[prehogv1.UpdateAccountResponse]{}, nil
 }
+
+// SubmitSalesEvent implements SalesReportingServiceHandler
+func (h *Handler) SubmitSalesEvent(ctx context.Context, req *connect.Request[prehogv1.SubmitSalesEventRequest]) (*connect.Response[prehogv1.SubmitSalesEventResponse], error) {
+	if !authn.IsCAFromContext(ctx) {
+		return nil, connect.NewError(connect.CodeUnauthenticated, nil)
+	}
+
+	event, err := encodeSubmitSalesEvent(req.Msg)
+	if err != nil {
+		return nil, err
+	}
+
+	dur, err := h.client.Emit(ctx, event)
+	log.Err(err).Str("event", string(event.Event)).Dur("elapsed", dur).Msg("SubmitSalesEvent Emit")
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnknown, nil)
+	}
+
+	return &connect.Response[prehogv1.SubmitSalesEventResponse]{}, nil
+}

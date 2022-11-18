@@ -29,26 +29,30 @@ type authnState struct {
 // will add validated data to a connection's context regarding the client
 // certificate being a valid Teleport license file, or it being a known CA.
 func ConnContext(trusted *x509.CertPool) func(context.Context, net.Conn) context.Context {
-	return func(baseCtx context.Context, c net.Conn) context.Context {
+	return func(ctx context.Context, c net.Conn) context.Context {
 		t, ok := c.(*tls.Conn)
 		if !ok {
-			return baseCtx
+			return ctx
 		}
 
 		state := t.ConnectionState()
 		if !state.HandshakeComplete {
-			handshakeCtx, cancel := context.WithTimeout(baseCtx, 2*time.Second)
-			if err := t.HandshakeContext(handshakeCtx); err != nil {
-				cancel()
+			// same behavior as (*net/http.conn).serve
+			dl := time.Now().Add(time.Second)
+			_ = t.SetReadDeadline(dl)
+			_ = t.SetWriteDeadline(dl)
+			err := t.HandshakeContext(ctx)
+			_ = t.SetReadDeadline(time.Time{})
+			_ = t.SetWriteDeadline(time.Time{})
+			if err != nil {
 				// the http server will catch and handle the same error immediately after this
-				return baseCtx
+				return ctx
 			}
-			cancel()
 			state = t.ConnectionState()
 		}
 
 		if len(state.VerifiedChains) < 1 {
-			return baseCtx
+			return ctx
 		}
 
 		var a authnState
@@ -64,7 +68,7 @@ func ConnContext(trusted *x509.CertPool) func(context.Context, net.Conn) context
 			a.license = &l
 		}
 
-		return context.WithValue(baseCtx, (*authnState)(nil), a)
+		return context.WithValue(ctx, (*authnState)(nil), a)
 	}
 }
 

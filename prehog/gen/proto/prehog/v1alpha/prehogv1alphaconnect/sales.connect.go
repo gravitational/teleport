@@ -29,6 +29,7 @@ const (
 type SalesReportingServiceClient interface {
 	IdentifyAccount(context.Context, *connect_go.Request[v1alpha.IdentifyAccountRequest]) (*connect_go.Response[v1alpha.IdentifyAccountResponse], error)
 	UpdateAccount(context.Context, *connect_go.Request[v1alpha.UpdateAccountRequest]) (*connect_go.Response[v1alpha.UpdateAccountResponse], error)
+	SubmitSalesEvent(context.Context, *connect_go.Request[v1alpha.SubmitSalesEventRequest]) (*connect_go.Response[v1alpha.SubmitSalesEventResponse], error)
 }
 
 // NewSalesReportingServiceClient constructs a client for the prehog.v1alpha.SalesReportingService
@@ -51,13 +52,19 @@ func NewSalesReportingServiceClient(httpClient connect_go.HTTPClient, baseURL st
 			baseURL+"/prehog.v1alpha.SalesReportingService/UpdateAccount",
 			opts...,
 		),
+		submitSalesEvent: connect_go.NewClient[v1alpha.SubmitSalesEventRequest, v1alpha.SubmitSalesEventResponse](
+			httpClient,
+			baseURL+"/prehog.v1alpha.SalesReportingService/SubmitSalesEvent",
+			opts...,
+		),
 	}
 }
 
 // salesReportingServiceClient implements SalesReportingServiceClient.
 type salesReportingServiceClient struct {
-	identifyAccount *connect_go.Client[v1alpha.IdentifyAccountRequest, v1alpha.IdentifyAccountResponse]
-	updateAccount   *connect_go.Client[v1alpha.UpdateAccountRequest, v1alpha.UpdateAccountResponse]
+	identifyAccount  *connect_go.Client[v1alpha.IdentifyAccountRequest, v1alpha.IdentifyAccountResponse]
+	updateAccount    *connect_go.Client[v1alpha.UpdateAccountRequest, v1alpha.UpdateAccountResponse]
+	submitSalesEvent *connect_go.Client[v1alpha.SubmitSalesEventRequest, v1alpha.SubmitSalesEventResponse]
 }
 
 // IdentifyAccount calls prehog.v1alpha.SalesReportingService.IdentifyAccount.
@@ -70,11 +77,17 @@ func (c *salesReportingServiceClient) UpdateAccount(ctx context.Context, req *co
 	return c.updateAccount.CallUnary(ctx, req)
 }
 
+// SubmitSalesEvent calls prehog.v1alpha.SalesReportingService.SubmitSalesEvent.
+func (c *salesReportingServiceClient) SubmitSalesEvent(ctx context.Context, req *connect_go.Request[v1alpha.SubmitSalesEventRequest]) (*connect_go.Response[v1alpha.SubmitSalesEventResponse], error) {
+	return c.submitSalesEvent.CallUnary(ctx, req)
+}
+
 // SalesReportingServiceHandler is an implementation of the prehog.v1alpha.SalesReportingService
 // service.
 type SalesReportingServiceHandler interface {
 	IdentifyAccount(context.Context, *connect_go.Request[v1alpha.IdentifyAccountRequest]) (*connect_go.Response[v1alpha.IdentifyAccountResponse], error)
 	UpdateAccount(context.Context, *connect_go.Request[v1alpha.UpdateAccountRequest]) (*connect_go.Response[v1alpha.UpdateAccountResponse], error)
+	SubmitSalesEvent(context.Context, *connect_go.Request[v1alpha.SubmitSalesEventRequest]) (*connect_go.Response[v1alpha.SubmitSalesEventResponse], error)
 }
 
 // NewSalesReportingServiceHandler builds an HTTP handler from the service implementation. It
@@ -94,6 +107,11 @@ func NewSalesReportingServiceHandler(svc SalesReportingServiceHandler, opts ...c
 		svc.UpdateAccount,
 		opts...,
 	))
+	mux.Handle("/prehog.v1alpha.SalesReportingService/SubmitSalesEvent", connect_go.NewUnaryHandler(
+		"/prehog.v1alpha.SalesReportingService/SubmitSalesEvent",
+		svc.SubmitSalesEvent,
+		opts...,
+	))
 	return "/prehog.v1alpha.SalesReportingService/", mux
 }
 
@@ -106,4 +124,8 @@ func (UnimplementedSalesReportingServiceHandler) IdentifyAccount(context.Context
 
 func (UnimplementedSalesReportingServiceHandler) UpdateAccount(context.Context, *connect_go.Request[v1alpha.UpdateAccountRequest]) (*connect_go.Response[v1alpha.UpdateAccountResponse], error) {
 	return nil, connect_go.NewError(connect_go.CodeUnimplemented, errors.New("prehog.v1alpha.SalesReportingService.UpdateAccount is not implemented"))
+}
+
+func (UnimplementedSalesReportingServiceHandler) SubmitSalesEvent(context.Context, *connect_go.Request[v1alpha.SubmitSalesEventRequest]) (*connect_go.Response[v1alpha.SubmitSalesEventResponse], error) {
+	return nil, connect_go.NewError(connect_go.CodeUnimplemented, errors.New("prehog.v1alpha.SalesReportingService.SubmitSalesEvent is not implemented"))
 }
