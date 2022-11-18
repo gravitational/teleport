@@ -111,32 +111,46 @@ type eqConcat struct {
 	right astNode
 }
 
+func (*eqConcat) predicateGuard() {}
+
 type eqSplit struct {
 	inner astNode
 	sep   astNode
 }
 
+func (*eqSplit) predicateGuard() {}
+
 type eqArray struct {
 	values []astNode
 }
+
+func (*eqArray) predicateGuard() {}
 
 type eqUpper struct {
 	inner astNode
 }
 
+func (*eqUpper) predicateGuard() {}
+
 type eqLower struct {
 	inner astNode
 }
+
+func (*eqLower) predicateGuard() {}
 
 type eqAppend struct {
 	list  astNode
 	value astNode
 }
 
+func (*eqAppend) predicateGuard() {}
+
 type eqContains struct {
 	within astNode
 	sub    astNode
 }
+
+func (*eqContains) predicateGuard() {}
 
 type eqReplace struct {
 	inner astNode
@@ -144,23 +158,34 @@ type eqReplace struct {
 	to    astNode
 }
 
-type eqRegex struct {
-	inner astNode
-}
+func (*eqReplace) predicateGuard() {}
 
 type eqMatches struct {
 	target astNode
 	regex  astNode
 }
 
+func (*eqMatches) predicateGuard() {}
+
+type eqMatchesAny struct {
+	target astNode
+	regex  astNode
+}
+
+func (*eqMatchesAny) predicateGuard() {}
+
 type eqLen struct {
 	inner astNode
 }
+
+func (*eqLen) predicateGuard() {}
 
 type eqGetOrEmpty struct {
 	inner astNode
 	index astNode
 }
+
+func (*eqGetOrEmpty) predicateGuard() {}
 
 type eqMapInsert struct {
 	ma    astNode
@@ -168,7 +193,11 @@ type eqMapInsert struct {
 	value astNode
 }
 
+func (*eqMapInsert) predicateGuard() {}
+
 type eqMapRemove struct {
 	ma  astNode
 	key astNode
 }
+
+func (*eqMapRemove) predicateGuard() {}

@@ -163,7 +163,105 @@ func lowerCall(node *goast.CallExpr) (astNode, error) {
 		return nil, trace.BadParameter("unsupported call target %T", node.Fun)
 	}
 
+	args := make([]astNode, len(node.Args))
+	for i, arg := range node.Args {
+		lowered, err := lower(arg)
+		if err != nil {
+			return nil, err
+		}
+
+		args[i] = lowered
+	}
+
+	has_args := func(n int) error {
+		if len(args) != n {
+			return trace.BadParameter("expected %d arguments, got %d", n, len(node.Args))
+		}
+
+		return nil
+	}
+
 	switch fn {
+	case "concat":
+		if err := has_args(2); err != nil {
+			return nil, err
+		}
+
+		return &eqConcat{args[0], args[1]}, nil
+	case "split":
+		if err := has_args(2); err != nil {
+			return nil, err
+		}
+
+		return &eqSplit{args[0], args[1]}, nil
+	case "array":
+		return &eqArray{args}, nil
+	case "upper":
+		if err := has_args(1); err != nil {
+			return nil, err
+		}
+
+		return &eqUpper{args[0]}, nil
+	case "lower":
+		if err := has_args(1); err != nil {
+			return nil, err
+		}
+
+		return &eqLower{args[0]}, nil
+	case "append":
+		if err := has_args(2); err != nil {
+			return nil, err
+		}
+
+		return &eqAppend{args[0], args[1]}, nil
+	case "contains":
+		if err := has_args(2); err != nil {
+			return nil, err
+		}
+
+		return &eqContains{args[0], args[1]}, nil
+	case "replace":
+		if err := has_args(3); err != nil {
+			return nil, err
+		}
+
+		return &eqReplace{args[0], args[1], args[2]}, nil
+	case "matches":
+		if err := has_args(2); err != nil {
+			return nil, err
+		}
+
+		return &eqMatches{args[0], args[1]}, nil
+	case "matches_any":
+		if err := has_args(2); err != nil {
+			return nil, err
+		}
+
+		return &eqMatchesAny{args[0], args[1]}, nil
+	case "len":
+		if err := has_args(1); err != nil {
+			return nil, err
+		}
+
+		return &eqLen{args[0]}, nil
+	case "getOrEmpty":
+		if err := has_args(2); err != nil {
+			return nil, err
+		}
+
+		return &eqGetOrEmpty{args[0], args[1]}, nil
+	case "mapInsert":
+		if err := has_args(3); err != nil {
+			return nil, err
+		}
+
+		return &eqMapInsert{args[0], args[1], args[2]}, nil
+	case "mapRemove":
+		if err := has_args(2); err != nil {
+			return nil, err
+		}
+
+		return &eqMapRemove{args[0], args[1]}, nil
 	default:
 		return nil, trace.NotImplemented("unsupported function %q", fn)
 	}
