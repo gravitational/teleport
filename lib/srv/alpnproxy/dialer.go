@@ -65,9 +65,9 @@ func (d ALPNDialer) DialContext(ctx context.Context, network, addr string) (net.
 		return nil, trace.BadParameter("missing TLS config")
 	}
 
-	var dialer ContextDialer = apiclient.NewDialer(ctx, d.cfg.KeepAlivePeriod, d.cfg.DialTimeout)
+	dialer := apiclient.NewDialer(ctx, d.cfg.DialTimeout, d.cfg.DialTimeout)
 	if d.cfg.ALPNConnUpgradeRequired {
-		dialer = newALPNConnUpgradeDialer(d.cfg.KeepAlivePeriod, d.cfg.DialTimeout, d.cfg.TLSConfig.InsecureSkipVerify)
+		dialer = newALPNConnUpgradeDialer(dialer, d.cfg.TLSConfig.InsecureSkipVerify)
 	}
 
 	conn, err := dialer.DialContext(ctx, network, addr)
