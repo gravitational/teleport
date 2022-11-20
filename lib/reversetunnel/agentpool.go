@@ -98,6 +98,8 @@ type AgentPoolConfig struct {
 	Cluster string
 	// FIPS indicates if Teleport was started in FIPS mode.
 	FIPS bool
+	// IsRemoteCluster indicates the agent pool is connecting to a remote cluster.
+	IsRemoteCluster bool
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -340,6 +342,10 @@ func (m *AgentPool) removeDisconnected() {
 	m.agents = filterAndClose(m.agents, func(agent *Agent) bool {
 		return agent.getState() == agentStateDisconnected
 	})
+
+	if m.cfg.IsRemoteCluster {
+		trustedClustersStats.WithLabelValues(m.cfg.Cluster).Set(float64(len(m.agents)))
+	}
 }
 
 // Make sure ServerHandlerToListener implements both interfaces.
