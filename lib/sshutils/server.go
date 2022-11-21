@@ -504,16 +504,27 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			s.log.Warnf("Dropping inbound ssh connection due to error: %v", err)
 			// Immediately dropping the ssh connection results in an
 			// EOF error for the client.  We therefore wait briefly
-			// to see if the client opens a channel, which will give
-			// us the opportunity to respond with a human-readable
-			// error.
-			select {
-			case firstChan := <-chans:
-				if firstChan != nil {
-					firstChan.Reject(ssh.Prohibited, err.Error())
+			// to see if the client opens a channel or sends any global
+			// requests, which will give us the opportunity to respond
+			// with a human-readable error.
+			for wait := true; wait; {
+				select {
+				case req := <-reqs:
+					if req.WantReply {
+						if err := req.Reply(false, []byte(err.Error())); err != nil {
+							s.log.WithError(err).Warnf("failed to reply to request %s", req.Type)
+						}
+					}
+				case firstChan := <-chans:
+					if firstChan != nil {
+						firstChan.Reject(ssh.Prohibited, err.Error())
+					}
+					wait = false
+				case <-s.closeContext.Done():
+					wait = false
+				case <-time.After(time.Second * 1):
+					wait = false
 				}
-			case <-s.closeContext.Done():
-			case <-time.After(time.Second * 1):
 			}
 			sconn.Close()
 			conn.Close()
