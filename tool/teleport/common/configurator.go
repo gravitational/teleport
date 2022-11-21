@@ -173,10 +173,6 @@ type configureDatabaseAWSFlags struct {
 	user string
 	// policyName name of the generated policy.
 	policyName string
-	// assumeRoleTagKey is the tag key used in AssumeRole conditions.
-	assumeRoleTagKey string
-	// AssumeRoleTagValues is a slice of tag values used in AssumeRole conditions.
-	assumeRoleTagValues []string
 }
 
 func (f *configureDatabaseAWSFlags) CheckAndSetDefaults() error {
@@ -214,12 +210,10 @@ func buildAWSConfigurator(manual bool, flags configureDatabaseAWSFlags) (configu
 
 	fileConfig := &config.FileConfig{}
 	configuratorFlags := configurators.BootstrapFlags{
-		Manual:              manual,
-		PolicyName:          flags.policyName,
-		AttachToUser:        flags.user,
-		AttachToRole:        flags.role,
-		AssumeRoleTagKey:    flags.assumeRoleTagKey,
-		AssumeRoleTagValues: flags.assumeRoleTagValues,
+		Manual:       manual,
+		PolicyName:   flags.policyName,
+		AttachToUser: flags.user,
+		AttachToRole: flags.role,
 	}
 
 	for _, dbType := range flags.typesList {

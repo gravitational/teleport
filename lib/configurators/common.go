@@ -47,10 +47,6 @@ type BootstrapFlags struct {
 	ForceMemoryDBPermissions bool
 	// ForceEC2Permissions forces the presence of EC2 permissions.
 	ForceEC2Permissions bool
-	// AssumeRoleTagKey is the tag key used in AssumeRole conditions.
-	AssumeRoleTagKey string
-	// AssumeRoleTagValues is a slice of tag values used in AssumeRole conditions.
-	AssumeRoleTagValues []string
 }
 
 // ConfiguratorActionContext context passed across configurator actions. It is

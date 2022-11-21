@@ -230,9 +230,15 @@ propagate):
 func (a *dbAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error) {
 	awsMetadata := sessionCtx.Database.GetAWS()
 	roleARN := UsernameToAWSRoleARN(sessionCtx.Database, sessionCtx.DatabaseUser)
-	client, err := a.cfg.Clients.GetAWSRedshiftServerlessClientForRole(awsMetadata.Region, roleARN)
+	client, err := a.cfg.Clients.GetAWSRedshiftServerlessClientForRole(ctx, awsMetadata.Region, roleARN)
 	if err != nil {
-		return "", "", trace.Wrap(err)
+		return "", "", trace.AccessDenied(`Could not generate Redshift Serverless auth token:
+
+  %v
+
+Make sure that IAM role %q has a trust relationship
+with Teleport database agent's IAM identity.
+`, err, roleARN)
 	}
 
 	a.cfg.Log.Debugf("Generating Redshift Serverless auth token for %s.", sessionCtx)
@@ -241,7 +247,14 @@ func (a *dbAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx 
 		DbName:        aws.String(sessionCtx.DatabaseName),
 	})
 	if err != nil {
-		return "", "", trace.Wrap(err)
+		return "", "", trace.AccessDenied(`Could not generate Redshift Serverless auth token:
+
+  %v
+
+Make sure that IAM role %q is allowed to perform
+"redshift-serverless:GetCredentials" action on this Redshift Serverless
+workgroup.
+`, err, roleARN)
 	}
 	return aws.StringValue(resp.DbUser), aws.StringValue(resp.DbPassword), nil
 }

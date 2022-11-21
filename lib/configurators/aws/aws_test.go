@@ -619,12 +619,6 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Resources: awslib.SliceOrString{"*"},
 					Actions:   awslib.SliceOrString{"redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
 				},
-				{
-					Effect:     awslib.EffectAllow,
-					Resources:  awslib.SliceOrString{"*"},
-					Actions:    awslib.SliceOrString{"sts:AssumeRole"},
-					Conditions: awslib.ConditionsMap{"StringEquals": {"iam:ResourceTag/AllowTeleport": {"true"}}},
-				},
 			},
 			boundaryStatements: []*awslib.Statement{
 				{
@@ -632,19 +626,9 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Resources: awslib.SliceOrString{"*"},
 					Actions:   awslib.SliceOrString{"redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
 				},
-				{
-					Effect:     awslib.EffectAllow,
-					Resources:  awslib.SliceOrString{"*"},
-					Actions:    awslib.SliceOrString{"sts:AssumeRole"},
-					Conditions: awslib.ConditionsMap{"StringEquals": {"iam:ResourceTag/AllowTeleport": {"true"}}},
-				},
 			},
 		},
 		"Redshift Serverless static database": {
-			flags: configurators.BootstrapFlags{
-				AssumeRoleTagKey:    "my-tag",
-				AssumeRoleTagValues: []string{"val1", "val2"},
-			},
 			target: roleTarget,
 			fileConfig: &config.FileConfig{
 				Databases: config.Databases{
@@ -663,24 +647,12 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Resources: awslib.SliceOrString{"*"},
 					Actions:   awslib.SliceOrString{"redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
 				},
-				{
-					Effect:     awslib.EffectAllow,
-					Resources:  awslib.SliceOrString{"*"},
-					Actions:    awslib.SliceOrString{"sts:AssumeRole"},
-					Conditions: awslib.ConditionsMap{"StringEquals": {"iam:ResourceTag/my-tag": {"val1", "val2"}}},
-				},
 			},
 			boundaryStatements: []*awslib.Statement{
 				{
 					Effect:    awslib.EffectAllow,
 					Resources: awslib.SliceOrString{"*"},
 					Actions:   awslib.SliceOrString{"redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
-				},
-				{
-					Effect:     awslib.EffectAllow,
-					Resources:  awslib.SliceOrString{"*"},
-					Actions:    awslib.SliceOrString{"sts:AssumeRole"},
-					Conditions: awslib.ConditionsMap{"StringEquals": {"iam:ResourceTag/my-tag": {"val1", "val2"}}},
 				},
 			},
 		},

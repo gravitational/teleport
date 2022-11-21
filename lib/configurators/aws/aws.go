@@ -69,8 +69,6 @@ var (
 	userBaseActions = []string{"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy"}
 	// roleBaseActions list of actions used when target is a role.
 	roleBaseActions = []string{"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy"}
-	// assumeRoleActions is a list of actions for assuming other roles.
-	assumeRoleActions = []string{"sts:AssumeRole"}
 	// rdsInstancesActions list of actions used when giving RDS instances permissions.
 	rdsInstancesActions = []string{"rds:DescribeDBInstances", "rds:ModifyDBInstance"}
 	// auroraActions list of actions used when giving RDS Aurora permissions.
@@ -494,10 +492,6 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, fileConfig *config.
 
 		statements = append(statements, targetStatements...)
 	}
-	// For databases that need to call STS AssumeRole.
-	if redshiftServerlessDatabases {
-		statements = append(statements, buildIAMAssumeRoleStatements(flags)...)
-	}
 
 	document := awslib.NewPolicyDocument()
 	document.Statements = statements
@@ -598,10 +592,6 @@ func buildPolicyBoundaryDocument(flags configurators.BootstrapFlags, fileConfig 
 		}
 
 		statements = append(statements, targetStatements...)
-	}
-	// For databases that need to call STS AssumeRole.
-	if redshiftServerlessDatabases {
-		statements = append(statements, buildIAMAssumeRoleStatements(flags)...)
 	}
 
 	document := awslib.NewPolicyDocument()
@@ -748,23 +738,6 @@ func buildIAMEditStatements(target awslib.Identity) ([]*awslib.Statement, error)
 	}
 
 	return []*awslib.Statement{statement}, nil
-}
-
-func buildIAMAssumeRoleStatements(flags configurators.BootstrapFlags) []*awslib.Statement {
-	tagKey := flags.AssumeRoleTagKey
-	if tagKey == "" {
-		tagKey = awslib.TagKeyAllowTeleport
-	}
-	tagValues := flags.AssumeRoleTagValues
-	if len(tagValues) == 0 {
-		tagValues = append(tagValues, awslib.TagValueTrue)
-	}
-
-	statement := statementWithAllowedActions(assumeRoleActions)
-	for _, tagValue := range tagValues {
-		statement.AddCondition("StringEquals", fmt.Sprintf("iam:ResourceTag/%v", tagKey), tagValue)
-	}
-	return []*awslib.Statement{statement}
 }
 
 // buildEC2AutoDiscoveryStatements returns IAM statements necessary for

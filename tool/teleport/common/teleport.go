@@ -33,7 +33,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/config"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -273,8 +272,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureBootstrap.Flag("confirm", "Do not prompt user and auto-confirm all actions.").BoolVar(&configureDiscoveryBootstrapFlags.confirm)
 	dbConfigureBootstrap.Flag("attach-to-role", "Role name to attach policy to. Mutually exclusive with --attach-to-user. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.").StringVar(&configureDiscoveryBootstrapFlags.config.AttachToRole)
 	dbConfigureBootstrap.Flag("attach-to-user", "User name to attach policy to. Mutually exclusive with --attach-to-role. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.").StringVar(&configureDiscoveryBootstrapFlags.config.AttachToUser)
-	dbConfigureBootstrap.Flag("assume-role-tag-key", fmt.Sprintf("(Only for Redshift Serverless) The tag key used in sts:AssumeRole condition. Default is %q.", libcloudaws.TagKeyAllowTeleport)).Default(libcloudaws.TagKeyAllowTeleport).StringVar(&configureDiscoveryBootstrapFlags.config.AssumeRoleTagKey)
-	dbConfigureBootstrap.Flag("assume-role-tag-value", fmt.Sprintf("(Only for Redshift Serverless) List of tag values used in sts:AssumeRole condition. Default is [%q].", libcloudaws.TagValueTrue)).Default(libcloudaws.TagValueTrue).StringsVar(&configureDiscoveryBootstrapFlags.config.AssumeRoleTagValues)
 
 	dbConfigureAWS := dbConfigure.Command("aws", "Bootstrap for AWS hosted databases.")
 	dbConfigureAWSPrintIAM := dbConfigureAWS.Command("print-iam", "Generate and show IAM policies.")
@@ -286,8 +283,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureAWSPrintIAM.Flag("user", "IAM user name to attach policy to. Mutually exclusive with --role").StringVar(&configureDatabaseAWSPrintFlags.user)
 	dbConfigureAWSPrintIAM.Flag("policy", "Only print IAM policy document.").BoolVar(&configureDatabaseAWSPrintFlags.policyOnly)
 	dbConfigureAWSPrintIAM.Flag("boundary", "Only print IAM boundary policy document.").BoolVar(&configureDatabaseAWSPrintFlags.boundaryOnly)
-	dbConfigureAWSPrintIAM.Flag("assume-role-tag-key", fmt.Sprintf("(Only for Redshift Serverless) The tag key used in sts:AssumeRole condition. Default is %q.", libcloudaws.TagKeyAllowTeleport)).Default(libcloudaws.TagKeyAllowTeleport).StringVar(&configureDatabaseAWSPrintFlags.assumeRoleTagKey)
-	dbConfigureAWSPrintIAM.Flag("assume-role-tag-value", fmt.Sprintf("(Only for Redshift Serverless) List of tag values used in sts:AssumeRole condition. Default is [%q].", libcloudaws.TagValueTrue)).Default(libcloudaws.TagValueTrue).StringsVar(&configureDatabaseAWSPrintFlags.assumeRoleTagValues)
 	dbConfigureAWSCreateIAM := dbConfigureAWS.Command("create-iam", "Generate, create and attach IAM policies.")
 	dbConfigureAWSCreateIAM.Flag("types",
 		fmt.Sprintf("Comma-separated list of database types to include in the policy. Any of %s", strings.Join(awsDatabaseTypes, ","))).
@@ -298,8 +293,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureAWSCreateIAM.Flag("confirm", "Do not prompt user and auto-confirm all actions.").BoolVar(&configureDatabaseAWSCreateFlags.confirm)
 	dbConfigureAWSCreateIAM.Flag("role", "IAM role name to attach policy to. Mutually exclusive with --user").StringVar(&configureDatabaseAWSCreateFlags.role)
 	dbConfigureAWSCreateIAM.Flag("user", "IAM user name to attach policy to. Mutually exclusive with --role").StringVar(&configureDatabaseAWSCreateFlags.user)
-	dbConfigureAWSCreateIAM.Flag("assume-role-tag-key", fmt.Sprintf("(Only for Redshift Serverless) The tag key used in sts:AssumeRole condition. Default is %q.", libcloudaws.TagKeyAllowTeleport)).Default(libcloudaws.TagKeyAllowTeleport).StringVar(&configureDatabaseAWSCreateFlags.assumeRoleTagKey)
-	dbConfigureAWSCreateIAM.Flag("assume-role-tag-value", fmt.Sprintf("(Only for Redshift Serverless) List of tag values used in sts:AssumeRole condition. Default is [%q].", libcloudaws.TagValueTrue)).Default(libcloudaws.TagValueTrue).StringsVar(&configureDatabaseAWSCreateFlags.assumeRoleTagValues)
 
 	// "teleport discovery" bootstrap command and subcommnads.
 	discoveryCmd := app.Command("discovery", "Teleport discovery service commands")

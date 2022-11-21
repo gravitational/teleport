@@ -64,11 +64,6 @@ type PolicyDocument struct {
 	Statements []*Statement `json:"Statement"`
 }
 
-// ConditionsMap specifies conditions for when a policy is in effect.
-//
-// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition.html
-type ConditionsMap map[string]map[string]SliceOrString
-
 // Statement is a single AWS IAM policy statement.
 type Statement struct {
 	// Effect is the statement effect such as Allow or Deny.
@@ -77,22 +72,6 @@ type Statement struct {
 	Actions SliceOrString `json:"Action"`
 	// Resources is a list of resources.
 	Resources SliceOrString `json:"Resource"`
-	// Conditions specifies conditions for when a policy is in effect.
-	Conditions ConditionsMap `json:"Condition,omitempty"`
-}
-
-// AddCondition adds a condition to the statement.
-func (s *Statement) AddCondition(operator, conditionKey string, conditionValues ...string) {
-	if s.Conditions == nil {
-		s.Conditions = make(ConditionsMap)
-	}
-
-	operatorConditions := s.Conditions[operator]
-	if operatorConditions == nil {
-		operatorConditions = make(map[string]SliceOrString)
-		s.Conditions[operator] = operatorConditions
-	}
-	operatorConditions[conditionKey] = append(operatorConditions[conditionKey], conditionValues...)
 }
 
 // ParsePolicyDocument returns parsed AWS IAM policy document.
