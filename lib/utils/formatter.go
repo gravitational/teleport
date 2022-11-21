@@ -31,8 +31,7 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/teleport/api/utils"
+	"golang.org/x/exp/slices"
 )
 
 type TextFormatter struct {
@@ -102,11 +101,11 @@ func (tf *TextFormatter) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if utils.SliceContainsStr(res, timestampField) {
+	if slices.Contains(res, timestampField) {
 		tf.timestampEnabled = true
 	}
 
-	if utils.SliceContainsStr(res, callerField) {
+	if slices.Contains(res, callerField) {
 		tf.callerEnabled = true
 	}
 
@@ -210,15 +209,15 @@ func (j *JSONFormatter) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if utils.SliceContainsStr(res, timestampField) {
+	if slices.Contains(res, timestampField) {
 		j.JSONFormatter.DisableTimestamp = true
 	}
 
-	if utils.SliceContainsStr(res, callerField) {
+	if slices.Contains(res, callerField) {
 		j.callerEnabled = true
 	}
 
-	if utils.SliceContainsStr(res, componentField) {
+	if slices.Contains(res, componentField) {
 		j.componentEnabled = true
 	}
 

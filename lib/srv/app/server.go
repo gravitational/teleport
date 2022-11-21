@@ -286,7 +286,11 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	s.httpServer = s.newHTTPServer()
 
 	// TCP server will handle TCP applications.
-	s.tcpServer = s.newTCPServer()
+	tcpServer, err := s.newTCPServer()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s.tcpServer = tcpServer
 
 	// Create a new session cache, this holds sessions that can be used to
 	// forward requests.
@@ -358,17 +362,6 @@ func (s *Server) startDynamicLabels(ctx context.Context, app types.Application) 
 	return nil
 }
 
-// getDynamicLabels returns dynamic labels for the specified app.
-func (s *Server) getDynamicLabels(name string) *labels.Dynamic {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	dynamic, ok := s.dynamicLabels[name]
-	if !ok {
-		return nil
-	}
-	return dynamic
-}
-
 // stopDynamicLabels stops dynamic labels for the specified app.
 func (s *Server) stopDynamicLabels(name string) {
 	s.mu.Lock()
@@ -430,16 +423,8 @@ func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
 	s.mu.RLock()
-	copy := app.Copy()
+	copy := s.appWithUpdatedLabels(app)
 	s.mu.RUnlock()
-	// Update dynamic labels if the app has them.
-	labels := s.getDynamicLabels(copy.GetName())
-	if labels != nil {
-		copy.SetDynamicLabels(labels.Get())
-	}
-	if s.c.CloudLabels != nil {
-		s.c.CloudLabels.Apply(copy)
-	}
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	server, err := types.NewAppServerV3(types.Metadata{
 		Name:    copy.GetName(),
@@ -795,7 +780,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	identity := authCtx.Identity.GetIdentity()
 	switch {
 	case app.IsAWSConsole():
-		//  Requests from AWS applications are singed by AWS Signature Version
+		//  Requests from AWS applications are signed by AWS Signature Version
 		//  4 algorithm. AWS CLI and AWS SDKs automatically use SigV4 for all
 		//  services that support it (All services expect Amazon SimpleDB but
 		//  this AWS service has been deprecated)
@@ -842,15 +827,8 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request, identity *
 	}
 	defer session.release()
 
-	// Create session context.
-	sessionCtx := &common.SessionContext{
-		Identity: identity,
-		App:      app,
-		Emitter:  session.streamWriter,
-	}
-
 	// Forward request to the target application.
-	session.fwd.ServeHTTP(w, common.WithSessionContext(r, sessionCtx))
+	session.fwd.ServeHTTP(w, common.WithSessionContext(r, session.sessionCtx))
 	return nil
 }
 
@@ -959,10 +937,31 @@ func (s *Server) getApp(ctx context.Context, publicAddr string) (types.Applicati
 
 	for _, a := range s.getApps() {
 		if publicAddr == a.GetPublicAddr() {
-			return a, nil
+			return s.appWithUpdatedLabels(a), nil
 		}
 	}
 	return nil, trace.NotFound("no application at %v found", publicAddr)
+}
+
+// appWithUpdatedLabels will inject updated dynamic and cloud labels into an application
+// object. The caller must invoke an RLock on `s.mu` before calling this function.
+func (s *Server) appWithUpdatedLabels(app types.Application) *types.AppV3 {
+	// Create a copy of the application to modify
+	copy := app.Copy()
+
+	// Update dynamic labels if the app has them.
+	labels := s.dynamicLabels[copy.GetName()]
+
+	if labels != nil {
+		copy.SetDynamicLabels(labels.Get())
+	}
+
+	// Add in the cloud labels if the app has them.
+	if s.c.CloudLabels != nil {
+		s.c.CloudLabels.Apply(copy)
+	}
+
+	return copy
 }
 
 // newHTTPServer creates an *http.Server that can authorize and forward
@@ -987,12 +986,18 @@ func (s *Server) newHTTPServer() *http.Server {
 }
 
 // newTCPServer creates a server that proxies TCP applications.
-func (s *Server) newTCPServer() *tcpServer {
-	return &tcpServer{
-		authClient: s.c.AuthClient,
-		hostID:     s.c.HostID,
-		log:        s.log,
+func (s *Server) newTCPServer() (*tcpServer, error) {
+	audit, err := common.NewAudit(common.AuditConfig{
+		Emitter: s.c.Emitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	return &tcpServer{
+		audit:  audit,
+		hostID: s.c.HostID,
+		log:    s.log,
+	}, nil
 }
 
 // getProxyPort tries to figure out the address the proxy is running at.

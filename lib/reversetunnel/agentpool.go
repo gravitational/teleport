@@ -222,6 +222,10 @@ func (p *AgentPool) GetConnectedProxyGetter() *ConnectedProxyGetter {
 }
 
 func (p *AgentPool) updateConnectedProxies() {
+	if p.IsRemoteCluster {
+		trustedClustersStats.WithLabelValues(p.Cluster).Set(float64(p.active.len()))
+	}
+
 	if !p.runtimeConfig.reportConnectedProxies() {
 		p.ConnectedProxyGetter.setProxyIDs(nil)
 		return
