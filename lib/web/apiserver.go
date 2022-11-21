@@ -2224,32 +2224,13 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	var servers []types.Server
-
-	// req.Server will be either an IP, hostname, or server UUID. If it correctly
-	// parses as a UUID then only fetch the single node. This dramatically
-	// improves performance in large environments.
-	_, err = uuid.Parse(req.Server)
-	if err != nil {
-		servers, err = clt.GetNodes(r.Context(), apidefaults.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		server, err := clt.GetNode(r.Context(), apidefaults.Namespace, req.Server)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		servers = append(servers, server)
-	}
-
 	var sessionData session.Session
 
 	if req.SessionID.IsZero() {
 		// An existing session ID was not provided so we need to create a new one.
 		clusterName := p.ByName("site")
 		h.log.Infof("Generating new session for %s\n", clusterName)
-		sessionData, err = h.generateSession(req, servers, clusterName)
+		sessionData, err = h.generateSession(r.Context(), clt, req, clusterName)
 		if err != nil {
 			h.log.WithError(err).Debug("Unable to generate new ssh session.")
 			return nil, trace.Wrap(err)
@@ -2312,18 +2293,35 @@ func (h *Handler) siteNodeConnect(
 	return nil, nil
 }
 
-func (h *Handler) generateSession(termReq *TerminalRequest, servers []types.Server, clusterName string) (session.Session, error) {
-	hostname, hostPort, err := resolveServerHostPort(termReq.Server, servers)
+func (h *Handler) generateSession(ctx context.Context, clt AuthProvider, req *TerminalRequest, clusterName string) (session.Session, error) {
+	var (
+		host string
+		port int
+	)
+
+	// req.Server will be either an IP, hostname, or server UUID. If it correctly
+	// parses as a UUID then only fetch the single node. This dramatically
+	// improves performance in large environments.
+	_, err := uuid.Parse(req.Server)
 	if err != nil {
-		return session.Session{}, trace.Wrap(err)
+		servers, err := clt.GetNodes(ctx, apidefaults.Namespace)
+		if err != nil {
+			return session.Session{}, trace.Wrap(err)
+		}
+		host, port, err = resolveServerHostPort(req.Server, servers)
+		if err != nil {
+			return session.Session{}, trace.Wrap(err)
+		}
+	} else {
+		host = req.Server
 	}
 
 	return session.Session{
-		Login:          termReq.Login,
-		ServerID:       termReq.Server,
+		Login:          req.Login,
+		ServerID:       req.Server,
 		ClusterName:    clusterName,
-		ServerHostname: hostname,
-		ServerHostPort: hostPort,
+		ServerHostname: host,
+		ServerHostPort: port,
 		ID:             session.NewID(),
 		Created:        time.Now().UTC(),
 		LastActive:     time.Now().UTC(),
