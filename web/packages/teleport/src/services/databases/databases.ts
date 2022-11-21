@@ -18,8 +18,13 @@ import api from 'teleport/services/api';
 import cfg, { UrlResourcesParams } from 'teleport/config';
 import { AgentResponse } from 'teleport/services/agents';
 
-import { Database } from './types';
 import makeDatabase from './makeDatabase';
+
+import type {
+  CreateDatabaseRequest,
+  Database,
+  UpdateDatabaseRequest,
+} from './types';
 
 class DatabaseService {
   fetchDatabases(
@@ -38,6 +43,26 @@ class DatabaseService {
           totalCount: json?.totalCount,
         };
       });
+  }
+
+  fetchDatabase(clusterId: string, dbName: string): Promise<Database> {
+    return api.get(cfg.getDatabaseUrl(clusterId, dbName)).then(makeDatabase);
+  }
+
+  updateDatabase(
+    clusterId: string,
+    req: UpdateDatabaseRequest
+  ): Promise<Database> {
+    return api
+      .put(cfg.getDatabaseUrl(clusterId, req.name), { ca_cert: req.caCert })
+      .then(makeDatabase);
+  }
+
+  createDatabase(
+    clusterId: string,
+    req: CreateDatabaseRequest
+  ): Promise<Database> {
+    return api.post(cfg.getDatabasesUrl(clusterId), req).then(makeDatabase);
   }
 }
 

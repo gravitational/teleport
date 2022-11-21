@@ -66,8 +66,14 @@ export function useDiscover(config: UseMainConfig) {
     setSelectedResourceKind(kind);
   }
 
-  function nextStep() {
-    const nextView = findViewAtIndex(views, currentStep + 1);
+  // nextStep takes the user to the next screen.
+  // The prop `numToIncrement` is used (>1) when we want to
+  // skip some number of steps.
+  // eg: particularly for Database flow, if there exists a
+  // database service, then we don't want to show the user
+  // the screen that lets them add a database server.
+  function nextStep(numToIncrement = 1) {
+    const nextView = findViewAtIndex(views, currentStep + numToIncrement);
 
     if (nextView) {
       setCurrentStep(currentStep + 1);
@@ -109,9 +115,10 @@ export function useDiscover(config: UseMainConfig) {
 }
 
 type BaseMeta = {
-  // resourceName is the resource name which for each resource
-  // can be determined from a different field. Atm only resource
-  // `node` is the only outlier.
+  // resourceName provides a consistent field to refer to for
+  // the resource name since resources can refer to its name
+  // by different field names.
+  // Eg. used in Finish (last step) component.
   resourceName: string;
 };
 

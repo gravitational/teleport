@@ -15,21 +15,9 @@
  */
 
 import React, { useState, Suspense } from 'react';
-import {
-  Text,
-  Box,
-  ButtonSecondary,
-  Flex,
-  ButtonIcon,
-  ButtonText,
-} from 'design';
+import { Text, Box, ButtonSecondary } from 'design';
 import * as Icons from 'design/Icon';
-import FieldInput from 'shared/components/FieldInput';
-import Validation, {
-  useValidation,
-  Validator,
-} from 'shared/components/Validation';
-import { requiredField } from 'shared/components/Validation/rules';
+import Validation, { Validator } from 'shared/components/Validation';
 
 import { CatchError } from 'teleport/components/CatchError';
 import {
@@ -48,6 +36,7 @@ import {
   HeaderSubtitle,
   ResourceKind,
   TextIcon,
+  LabelsCreater,
 } from '../../Shared';
 
 import type { AgentStepProps } from '../../types';
@@ -98,7 +87,7 @@ export default function Container(
                 <Labels
                   labels={labels}
                   setLabels={setLabels}
-                  disableAddBtn={true}
+                  disableBtns={true}
                 />
                 <ButtonSecondary width="200px" disabled={true}>
                   Generate Command
@@ -195,7 +184,7 @@ export function DownloadScript(
       <Labels
         labels={props.labels}
         setLabels={props.setLabels}
-        disableAddBtn={poll.state === 'polling'}
+        disableBtns={poll.state === 'polling'}
       />
       <ButtonSecondary
         width="200px"
@@ -230,55 +219,12 @@ const Heading = () => {
 export const Labels = ({
   labels,
   setLabels,
-  disableAddBtn = false,
+  disableBtns = false,
 }: {
   labels: AgentLabel[];
   setLabels(l: AgentLabel[]): void;
-  disableAddBtn?: boolean;
+  disableBtns?: boolean;
 }) => {
-  const validator = useValidation() as Validator;
-
-  function addLabel() {
-    // Prevent adding more rows if there are
-    // empty input fields. After checking,
-    // reset the validator so the newly
-    // added empty input boxes are not
-    // considered an error.
-    if (!validator.validate()) {
-      return;
-    }
-    validator.reset();
-    setLabels([...labels, { name: '', value: '' }]);
-  }
-
-  function removeLabel(index: number) {
-    if (labels.length === 1) {
-      // Since at least one label is required
-      // instead of removing the row, clear
-      // the input and turn on error.
-      const newList = [...labels];
-      newList[index] = { name: '', value: '' };
-      setLabels(newList);
-
-      validator.validate();
-      return;
-    }
-    const newList = [...labels];
-    newList.splice(index, 1);
-    setLabels(newList);
-  }
-
-  const handleChange = (
-    event: React.ChangeEvent<HTMLInputElement>,
-    index: number,
-    labelField: keyof AgentLabel
-  ) => {
-    const { value } = event.target;
-    const newList = [...labels];
-    newList[index] = { ...newList[index], [labelField]: value };
-    setLabels(newList);
-  };
-
   return (
     <Box mb={2}>
       <Text bold>Labels</Text>
@@ -286,84 +232,11 @@ export const Labels = ({
         At least one label is required to help this service identify your
         database.
       </Text>
-      <Flex mt={2}>
-        <Box width="170px" mr="3">
-          Key{' '}
-          <span css={{ fontSize: '12px', fontWeight: 'lighter' }}>
-            (required field)
-          </span>
-        </Box>
-        <Box>
-          Value{' '}
-          <span css={{ fontSize: '12px', fontWeight: 'lighter' }}>
-            (required field)
-          </span>
-        </Box>
-      </Flex>
-      <Box>
-        {labels.map((label, index) => {
-          return (
-            <Box mb={2} key={index}>
-              <Flex alignItems="center">
-                <FieldInput
-                  Input
-                  rule={requiredField('required')}
-                  autoFocus
-                  value={label.name}
-                  placeholder="label key"
-                  width="170px"
-                  mr={3}
-                  mb={0}
-                  onChange={e => handleChange(e, index, 'name')}
-                />
-                <FieldInput
-                  rule={requiredField('required')}
-                  value={label.value}
-                  placeholder="label value"
-                  width="170px"
-                  mb={0}
-                  mr={2}
-                  onChange={e => handleChange(e, index, 'value')}
-                />
-                <ButtonIcon
-                  size={1}
-                  title="Remove Label"
-                  onClick={() => removeLabel(index)}
-                >
-                  <Icons.Trash />
-                </ButtonIcon>
-              </Flex>
-            </Box>
-          );
-        })}
-      </Box>
-      <ButtonText
-        onClick={addLabel}
-        css={`
-          padding-left: 0px;
-          &:disabled {
-            .icon-add {
-              opacity: 0.35;
-            }
-            pointer-events: none;
-          }
-        `}
-        disabled={disableAddBtn}
-      >
-        <Icons.Add
-          className="icon-add"
-          disabled={disableAddBtn}
-          css={`
-            font-weight: bold;
-            letter-spacing: 4px;
-            margin-top: -2px;
-            &:after {
-              content: ' ';
-            }
-          `}
-        />
-        Add New Label
-      </ButtonText>
+      <LabelsCreater
+        labels={labels}
+        setLabels={setLabels}
+        disableBtns={disableBtns}
+      />
     </Box>
   );
 };

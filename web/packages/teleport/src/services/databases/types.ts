@@ -39,3 +39,17 @@ export type DatabasesResponse = {
   startKey?: string;
   totalCount?: number;
 };
+
+export type UpdateDatabaseRequest = {
+  name: string;
+  caCert: string;
+};
+
+export type CreateDatabaseRequest = {
+  name: string;
+  protocol: DbProtocol;
+  uri: string;
+  labels?: AgentLabel[];
+  // TODO (lisa or ryan): marco will work on including aws object fields
+  // eg: aws account id and resource id
+};
