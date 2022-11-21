@@ -146,7 +146,7 @@ func (c *TemplateSSHHostCert) Render(ctx context.Context, bot Bot, currentIdenti
 	// For now, we'll reuse the bot's regular TTL, and hostID and nodeName are
 	// left unset.
 	botCfg := bot.Config()
-	key.Cert, err = authClient.GenerateHostCert(key.MarshalSSHPublicKey(),
+	key.Cert, err = authClient.GenerateHostCert(ctx, key.MarshalSSHPublicKey(),
 		"", "", c.Principals,
 		clusterName, types.RoleNode, botCfg.CertificateTTL)
 	if err != nil {
