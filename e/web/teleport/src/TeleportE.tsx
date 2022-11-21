@@ -1,9 +1,9 @@
 import React from 'react';
-import { Route } from 'teleport/components/Router';
+import { Route, Switch } from 'teleport/components/Router';
 import Teleport, {
-  renderPublicRoutes,
-  renderPrivateRoutes,
   Props,
+  getSharedPrivateRoutes,
+  getSharedPublicRoutes,
 } from 'teleport/Teleport';
 
 import ossConfig from 'teleport/config';
@@ -34,7 +34,7 @@ const Recovery = React.lazy(
 );
 
 function publicERoutes() {
-  return renderPublicRoutes(
+  return [
     <Route
       key="ent-1"
       title="Login"
@@ -46,8 +46,9 @@ function publicERoutes() {
       title="Recovery"
       path={cfg.routes.recovery}
       component={Recovery}
-    />
-  );
+    />,
+    ...getSharedPublicRoutes(),
+  ];
 }
 
 const Main = React.lazy(
@@ -57,10 +58,13 @@ const Main = React.lazy(
 const Discover = React.lazy(() => import('e-teleport/Discover'));
 
 function privateERoutes() {
-  return renderPrivateRoutes(
-    <WaitingRoom key="waiting room">
-      <Route path={ossConfig.routes.discover} component={Discover} />
-      <Route path={ossConfig.routes.root} component={Main} />
+  return (
+    <WaitingRoom>
+      <Switch>
+        <Route path={ossConfig.routes.discover} component={Discover} />
+        {getSharedPrivateRoutes()}
+        <Route path={ossConfig.routes.root} component={Main} />
+      </Switch>
     </WaitingRoom>
   );
 }
