@@ -28,11 +28,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/tools/remotecommand"
-
-	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -303,7 +302,7 @@ func TestModeratedSessions(t *testing.T) {
 						// If the moderator sees it, it means that the payload was not correctly
 						// discarded.
 						if strings.Contains(stringData, discardPayload) {
-							return trace.Wrap(errors.New("discardPayload was not properly discarded."))
+							return trace.Wrap(errors.New("discardPayload was not properly discarded"))
 						}
 
 						// stdinPayload is sent by the user after the session started.
