@@ -3474,6 +3474,42 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 	}
 
+	var proxyRouter *proxy.Router
+	if !process.Config.Proxy.DisableReverseTunnel {
+		router, err := proxy.NewRouter(proxy.RouterConfig{
+			ClusterName:         clusterName,
+			Log:                 process.log.WithField(trace.Component, "router"),
+			RemoteClusterGetter: accessPoint,
+			SiteGetter:          tsrv,
+			TracerProvider:      process.TracingProvider,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		proxyRouter = router
+	}
+
+	// read the host UUID:
+	serverID, err := utils.ReadOrMakeHostUUID(cfg.DataDir)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:     accessPoint,
+		AccessPoint:    accessPoint,
+		LockEnforcer:   lockWatcher,
+		Emitter:        &events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: streamer},
+		Component:      teleport.ComponentProxy,
+		Logger:         process.log.WithField(trace.Component, "sessionctrl"),
+		TracerProvider: process.TracingProvider,
+		ServerID:       serverID,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Register web proxy server
 	alpnHandlerForWeb := &alpnproxy.ConnectionHandlerWrapper{}
 	var webServer *http.Server
@@ -3539,6 +3575,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ALPNHandler:      alpnHandlerForWeb.HandleConnection,
 			ProxyKubeAddr:    proxyKubeAddr,
 			TraceClient:      traceClt,
+			Router:           proxyRouter,
+			SessionControl:   sessionController,
 		}
 		webHandler, err = web.NewHandler(webConfig)
 		if err != nil {
@@ -3634,41 +3672,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 			return nil
 		})
-	}
-
-	var proxyRouter *proxy.Router
-	if !process.Config.Proxy.DisableReverseTunnel {
-		router, err := proxy.NewRouter(proxy.RouterConfig{
-			ClusterName:         clusterName,
-			Log:                 process.log.WithField(trace.Component, "router"),
-			RemoteClusterGetter: accessPoint,
-			SiteGetter:          tsrv,
-			TracerProvider:      process.TracingProvider,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		proxyRouter = router
-	}
-
-	// read the host UUID:
-	serverID, err := utils.ReadOrMakeHostUUID(cfg.DataDir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
-		Semaphores:     accessPoint,
-		AccessPoint:    accessPoint,
-		LockEnforcer:   lockWatcher,
-		Emitter:        &events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: streamer},
-		Component:      teleport.ComponentProxy,
-		Logger:         process.log.WithField(trace.Component, "sessionctrl"),
-		TracerProvider: process.TracingProvider,
-		ServerID:       serverID,
-	})
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	sshProxy, err := regular.New(
