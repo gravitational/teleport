@@ -78,6 +78,8 @@ of the stream is reached. To replay a session, refresh the page.
 
 ## Log rotation
 
-Be aware, Desktop Access session recording comprises of raw PNG-based files.
-Consider the frequency and duration of Desktop Access sessions and rotate logs
-apporpirately to avoid filling up filesystems in your infrastructure.
+Be aware, Desktop Access session recording comprises of raw PNG-based files,
+and are stored on the host running the Desktop Access service. Session recordings
+are stored permanently, but only accessible through the Web UI for sessions
+still available in the audit log. Refer to the `storage` section of the [Teleport Configuration Reference](../../reference/config.mdx)
+for more information on session logging and recoring management.
