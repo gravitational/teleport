@@ -1180,22 +1180,12 @@
   ],
   "variables": {
     "version": "7.0",
-    "terraform": {
-      "version": "1.0.0"
+    "ansible": {
+      "min_version": "2.9.6"
     },
-    "presets": {
-      "tokens": {
-        "first": "abcd123-insecure-do-not-use-this",
-        "second": "efgh456-insecure-do-not-use-this",
-        "third": "ijkl789-insecure-do-not-use-this"
-      },
-      "ca_pin": "sha256:abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678"
-    },
-    "fedramp": {
-      "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
-    },
-    "soc2": {
-      "last_report": "August 9th, 2022"
+    "aws": {
+      "aws_access_key": "abcd1234-this-is-an-example",
+      "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
       "version": "10.3.8",
@@ -1205,14 +1195,17 @@
         "monthly_downtime": "3 hours 40 minutes"
       }
     },
-    "fluentd": {
-      "version": "1.12.4"
-    },
     "docker": {
       "version": "20.10.7",
       "compose": {
         "version": "1.25.0"
       }
+    },
+    "fedramp": {
+      "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
+    },
+    "fluentd": {
+      "version": "1.12.4"
     },
     "helm": {
       "version": "3.4.2"
@@ -1221,11 +1214,19 @@
       "major_version": "1",
       "minor_version": "17"
     },
-    "ansible": {
-      "min_version": "2.9.6"
-    },
     "mongodb": {
       "min_version": "3.6"
+    },
+    "presets": {
+      "tokens": {
+        "first": "abcd123-insecure-do-not-use-this",
+        "second": "efgh456-insecure-do-not-use-this",
+        "third": "ijkl789-insecure-do-not-use-this"
+      },
+      "ca_pin": "sha256:abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678"
+    },
+    "soc2": {
+      "last_report": "August 9th, 2022"
     },
     "teleport": {
       "major_version": "11",
@@ -1237,6 +1238,9 @@
       "helm_repo_url": "https://charts.releases.teleport.dev",
       "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport:11.0.3",
       "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent:11.0.3"
+    },
+    "terraform": {
+      "version": "1.0.0"
     }
   },
   "redirects": [
