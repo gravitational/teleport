@@ -11,7 +11,7 @@ jobs:
     strategy:
       matrix: 
         arm-arch: ['arm', 'arm64']
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-16core
     timeout-minutes: 60
     env:
       GOMODCACHE: /tmp/gomodcache
