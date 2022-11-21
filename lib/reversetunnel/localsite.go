@@ -558,7 +558,7 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 	for {
 		select {
 		case <-s.srv.ctx.Done():
-			s.log.Infof("closing")
+			logger.Infof("closing")
 			return
 		case <-proxyResyncTicker.Chan():
 			req := discoveryRequest{
@@ -566,7 +566,7 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 			}
 
 			if err := rconn.sendDiscoveryRequest(req); err != nil {
-				s.log.WithError(err).Debug("Marking connection invalid on error")
+				logger.WithError(err).Debug("Marking connection invalid on error")
 				rconn.markInvalid(err)
 				return
 			}
@@ -802,7 +802,7 @@ func (s *localSite) sshTunnelStats() error {
 		if n > 10 {
 			n = 10
 		}
-		log.Debugf("Cluster %v is missing %v tunnels. A small number of missing tunnels is normal, for example, a node could have just been shut down, the proxy restarted, etc. However, if this error persists with an elevated number of missing tunnels, it often indicates nodes can not discover all registered proxies. Check that all of your proxies are behind a load balancer and the load balancer is using a round robin strategy. Some of the missing hosts: %v.", s.domainName, len(missing), missing[:n])
+		s.log.Debugf("Cluster %v is missing %v tunnels. A small number of missing tunnels is normal, for example, a node could have just been shut down, the proxy restarted, etc. However, if this error persists with an elevated number of missing tunnels, it often indicates nodes can not discover all registered proxies. Check that all of your proxies are behind a load balancer and the load balancer is using a round robin strategy. Some of the missing hosts: %v.", s.domainName, len(missing), missing[:n])
 	}
 	return nil
 }

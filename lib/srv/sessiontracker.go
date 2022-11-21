@@ -21,13 +21,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/jonboulle/clockwork"
-
-	"github.com/gravitational/trace"
 )
 
 // SessionTracker is a session tracker for a specific session. It tracks
@@ -45,17 +45,15 @@ type SessionTracker struct {
 
 // NewSessionTracker returns a new SessionTracker for the given types.SessionTracker
 func NewSessionTracker(ctx context.Context, trackerSpec types.SessionTrackerSpecV1, service services.SessionTrackerService) (*SessionTracker, error) {
-	if service == nil {
-		return nil, trace.BadParameter("missing parameter service")
-	}
-
 	t, err := types.NewSessionTracker(trackerSpec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if t, err = service.CreateSessionTracker(ctx, t); err != nil {
-		return nil, trace.Wrap(err)
+	if service != nil {
+		if t, err = service.CreateSessionTracker(ctx, t); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return &SessionTracker{
@@ -106,15 +104,18 @@ func (s *SessionTracker) UpdateExpiration(ctx context.Context, expiry time.Time)
 	s.tracker.SetExpiry(expiry)
 	s.trackerCond.Broadcast()
 
-	err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
-		SessionID: s.tracker.GetSessionID(),
-		Update: &proto.UpdateSessionTrackerRequest_UpdateExpiry{
-			UpdateExpiry: &proto.SessionTrackerUpdateExpiry{
-				Expires: &expiry,
+	if s.service != nil {
+		err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
+			SessionID: s.tracker.GetSessionID(),
+			Update: &proto.UpdateSessionTrackerRequest_UpdateExpiry{
+				UpdateExpiry: &proto.SessionTrackerUpdateExpiry{
+					Expires: &expiry,
+				},
 			},
-		},
-	})
-	return trace.Wrap(err)
+		})
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func (s *SessionTracker) AddParticipant(ctx context.Context, p *types.Participant) error {
@@ -123,15 +124,19 @@ func (s *SessionTracker) AddParticipant(ctx context.Context, p *types.Participan
 	s.tracker.AddParticipant(*p)
 	s.trackerCond.Broadcast()
 
-	err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
-		SessionID: s.tracker.GetSessionID(),
-		Update: &proto.UpdateSessionTrackerRequest_AddParticipant{
-			AddParticipant: &proto.SessionTrackerAddParticipant{
-				Participant: p,
+	if s.service != nil {
+		err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
+			SessionID: s.tracker.GetSessionID(),
+			Update: &proto.UpdateSessionTrackerRequest_AddParticipant{
+				AddParticipant: &proto.SessionTrackerAddParticipant{
+					Participant: p,
+				},
 			},
-		},
-	})
-	return trace.Wrap(err)
+		})
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 func (s *SessionTracker) RemoveParticipant(ctx context.Context, participantID string) error {
@@ -140,15 +145,19 @@ func (s *SessionTracker) RemoveParticipant(ctx context.Context, participantID st
 	s.tracker.RemoveParticipant(participantID)
 	s.trackerCond.Broadcast()
 
-	err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
-		SessionID: s.tracker.GetSessionID(),
-		Update: &proto.UpdateSessionTrackerRequest_RemoveParticipant{
-			RemoveParticipant: &proto.SessionTrackerRemoveParticipant{
-				ParticipantID: participantID,
+	if s.service != nil {
+		err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
+			SessionID: s.tracker.GetSessionID(),
+			Update: &proto.UpdateSessionTrackerRequest_RemoveParticipant{
+				RemoveParticipant: &proto.SessionTrackerRemoveParticipant{
+					ParticipantID: participantID,
+				},
 			},
-		},
-	})
-	return trace.Wrap(err)
+		})
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 func (s *SessionTracker) UpdateState(ctx context.Context, state types.SessionState) error {
@@ -157,15 +166,19 @@ func (s *SessionTracker) UpdateState(ctx context.Context, state types.SessionSta
 	s.tracker.SetState(state)
 	s.trackerCond.Broadcast()
 
-	err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
-		SessionID: s.tracker.GetSessionID(),
-		Update: &proto.UpdateSessionTrackerRequest_UpdateState{
-			UpdateState: &proto.SessionTrackerUpdateState{
-				State: state,
+	if s.service != nil {
+		err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
+			SessionID: s.tracker.GetSessionID(),
+			Update: &proto.UpdateSessionTrackerRequest_UpdateState{
+				UpdateState: &proto.SessionTrackerUpdateState{
+					State: state,
+				},
 			},
-		},
-	})
-	return trace.Wrap(err)
+		})
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // WaitForStateUpdate waits for the tracker's state to be updated and returns the new state.
@@ -178,30 +191,6 @@ func (s *SessionTracker) WaitForStateUpdate(initialState types.SessionState) typ
 			return state
 		}
 		s.trackerCond.Wait()
-	}
-}
-
-// WaitOnState waits until the desired state is reached or the context is canceled.
-func (s *SessionTracker) WaitOnState(ctx context.Context, wanted types.SessionState) error {
-	go func() {
-		<-ctx.Done()
-		s.trackerCond.Broadcast()
-	}()
-
-	s.trackerCond.L.Lock()
-	defer s.trackerCond.L.Unlock()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			if s.tracker.GetState() == wanted {
-				return nil
-			}
-
-			s.trackerCond.Wait()
-		}
 	}
 }
 
