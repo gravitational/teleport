@@ -4,11 +4,11 @@ on:
   push:
     branches:
       - master
-      - branch/*
+      - teleport-v*
   pull_request:
     branches:
       - master
-      - branch/*
+      - teleport-v*
     paths-ignore:
       - 'scripts/**'
 
@@ -35,10 +35,6 @@ jobs:
       uses: github/codeql-action/init@v2
       with:
         languages: ${{ matrix.language }}
-
-    # - run: |
-    #   echo "Run, Build Application using script"
-    #   ./location_of_script_within_repo/buildscript.sh
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
