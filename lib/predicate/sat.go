@@ -14,8 +14,6 @@
 
 package predicate
 
-import "fmt"
-
 const (
 	dpllSatisfied = iota
 	dpllUnsatisfied
@@ -54,19 +52,45 @@ type assignment struct {
 type state struct {
 	clauses     []node
 	assignments []assignment
+	watched     map[string][]node
+	enforce     []node
+	uprop       []node
 }
 
-func dpll_is_assigned(state *state, key string) (bool, bool) {
-	for _, assignment := range state.assignments {
-		if assignment.key == key {
-			return true, assignment.value
+func newState(clause node) *state {
+	// todo: cnf conversion
+	clauses := []node{clause}
+	watched := make(map[string][]node)
+	enforce := make([]node, 0)
+	uprop := make([]node, 0)
+
+	for _, clause := range clauses {
+		a := pickLiteral(clause, func(x string) bool { return false })
+		if a != nil {
+			enforce = append(enforce, clause)
+			continue
+		}
+
+		b := pickLiteral(clause, func(x string) bool { return x != *a })
+		if b != nil {
+			uprop = append(uprop, clause)
+			continue
+		}
+
+		for _, lit := range []string{*a, *b} {
+			watched[lit] = append(watched[lit], clause)
 		}
 	}
 
-	return false, false
+	return &state{
+		clauses: clauses,
+		watched: watched,
+		enforce: enforce,
+		uprop:   uprop,
+	}
 }
 
-func dpll_select_literal_clause(state *state, node node) *string {
+func pickLiteral(node node, isExcluded func(string) bool) *string {
 	one_of_two := func(left, right *string) *string {
 		if left != nil {
 			return left
@@ -79,125 +103,22 @@ func dpll_select_literal_clause(state *state, node node) *string {
 	case *nodeLiteral:
 		return nil
 	case *nodeIdentifier:
-		assigned, _ := dpll_is_assigned(state, node.key)
-		if assigned {
+		if isExcluded(node.key) {
 			return nil
 		}
 
 		return &node.key
 	case *nodeNot:
-		return dpll_select_literal_clause(state, node.left)
+		return pickLiteral(node.left, isExcluded)
 	case *nodeOr:
-		return one_of_two(dpll_select_literal_clause(state, node.left), dpll_select_literal_clause(state, node.right))
+		return one_of_two(pickLiteral(node.left, isExcluded), pickLiteral(node.right, isExcluded))
 	case *nodeAnd:
-		return one_of_two(dpll_select_literal_clause(state, node.left), dpll_select_literal_clause(state, node.right))
+		return one_of_two(pickLiteral(node.left, isExcluded), pickLiteral(node.right, isExcluded))
 	default:
 		panic("unreachable")
 	}
 }
 
-func dpll_select_literal(state *state) *string {
-	for _, clause := range state.clauses {
-		if literal := dpll_select_literal_clause(state, clause); literal != nil {
-			return literal
-		}
-	}
-
-	return nil
-}
-
-func dpll_is_clause_statisfied(state *state, node node) int {
-	switch node := node.(type) {
-	case *nodeLiteral:
-		switch node.value {
-		case true:
-			return dpllSatisfied
-		case false:
-			return dpllUnsatisfied
-		}
-	case *nodeIdentifier:
-		assigned, value := dpll_is_assigned(state, node.key)
-		if assigned {
-			switch value {
-			case true:
-				return dpllSatisfied
-			case false:
-				return dpllUnsatisfied
-			}
-		}
-
-		return dpllUnknown
-	case *nodeNot:
-		switch dpll_is_clause_statisfied(state, node.left) {
-		case dpllSatisfied:
-			return dpllUnsatisfied
-		case dpllUnsatisfied:
-			return dpllSatisfied
-		case dpllUnknown:
-			return dpllUnknown
-		}
-	case *nodeOr:
-		left := dpll_is_clause_statisfied(state, node.left)
-		right := dpll_is_clause_statisfied(state, node.right)
-		if left == dpllUnknown || right == dpllUnknown {
-			return dpllUnknown
-		}
-
-		if left == dpllSatisfied || right == dpllSatisfied {
-			return dpllSatisfied
-		}
-
-		return dpllUnsatisfied
-	case *nodeAnd:
-		left := dpll_is_clause_statisfied(state, node.left)
-		right := dpll_is_clause_statisfied(state, node.right)
-		if left == dpllUnknown || right == dpllUnknown {
-			return dpllUnknown
-		}
-
-		if left == dpllSatisfied && right == dpllSatisfied {
-			return dpllSatisfied
-		}
-
-		return dpllUnsatisfied
-	}
-
-	panic(fmt.Sprintf("unknown node type: %T", node))
-}
-
-func dpll_is_satisfied(state *state) bool {
-	for _, clause := range state.clauses {
-		if dpll_is_clause_statisfied(state, clause) == dpllUnsatisfied {
-			return false
-		}
-	}
-
-	return true
-}
-
-// convert to cnf
-// backtracking fix
 func dpll(state *state) bool {
-	for {
-		i := len(state.assignments) - 1
-		for !dpll_is_satisfied(state) {
-			state.assignments[i].value = !state.assignments[i].value
-
-			// formula is unsatisfiable
-			if i == 0 {
-				return false
-			}
-			i--
-		}
-
-		v := dpll_select_literal(state)
-		if v == nil {
-			break
-		}
-
-		// try assigning v to true
-		state.assignments = append(state.assignments, assignment{key: *v, value: true})
-	}
-
 	return true
 }
