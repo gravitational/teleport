@@ -570,7 +570,7 @@
               "slug": "/application-access/guides/aws-console/"
             },
             {
-              "title": "Dynamic Registration",
+              "title": "Dynamic Registration (Preview)",
               "slug": "/application-access/guides/dynamic-registration/"
             }
           ]
@@ -695,6 +695,10 @@
             {
               "title": "Standalone",
               "slug": "/kubernetes-access/guides/standalone-teleport/"
+            },
+            {
+              "title": "Dynamic Registration",
+              "slug": "/kubernetes-access/guides/dynamic-registration/"
             }
           ]
         },
