@@ -1432,11 +1432,11 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Metrics.MTLS = true
 
 	if len(fc.Metrics.KeyPairs) == 0 {
-		return trace.BadParameter("at least one keypair shoud be provided when mtls is enabled in the metrics config")
+		return trace.BadParameter("at least one keypair should be provided when mtls is enabled in the metrics config")
 	}
 
 	if len(fc.Metrics.CACerts) == 0 {
-		return trace.BadParameter("at least one CA cert shoud be provided when mtls is enabled in the metrics config")
+		return trace.BadParameter("at least one CA cert should be provided when mtls is enabled in the metrics config")
 	}
 
 	for _, p := range fc.Metrics.KeyPairs {
