@@ -221,9 +221,20 @@ func newWebSuite(t *testing.T) *WebSuite {
 	})
 	require.NoError(t, err)
 
+	nodeSessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   nodeClient,
+		AccessPoint:  nodeClient,
+		LockEnforcer: nodeLockWatcher,
+		Emitter:      nodeClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     nodeID,
+	})
+	require.NoError(t, err)
+
 	// create SSH service:
 	nodeDataDir := t.TempDir()
 	node, err := regular.New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
 		[]ssh.Signer{signer},
@@ -242,6 +253,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(nodeLockWatcher),
+		regular.SetSessionController(nodeSessionController),
 	)
 	require.NoError(t, err)
 	s.node = node
@@ -316,8 +328,19 @@ func newWebSuite(t *testing.T) *WebSuite {
 	})
 	require.NoError(t, err)
 
+	proxySessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   s.proxyClient,
+		AccessPoint:  s.proxyClient,
+		LockEnforcer: proxyLockWatcher,
+		Emitter:      s.proxyClient,
+		Component:    teleport.ComponentProxy,
+		ServerID:     proxyID,
+	})
+	require.NoError(t, err)
+
 	// proxy server:
 	s.proxy, err = regular.New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
 		[]ssh.Signer{signer},
@@ -336,6 +359,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(proxyLockWatcher),
 		regular.SetNodeWatcher(proxyNodeWatcher),
+		regular.SetSessionController(proxySessionController),
 	)
 	require.NoError(t, err)
 
@@ -4020,9 +4044,20 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	require.NoError(t, err)
 	t.Cleanup(nodeLockWatcher.Close)
 
+	nodeSessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   nodeClient,
+		AccessPoint:  nodeClient,
+		LockEnforcer: nodeLockWatcher,
+		Emitter:      nodeClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     nodeID,
+	})
+	require.NoError(t, err)
+
 	// create SSH service:
 	nodeDataDir := t.TempDir()
 	node, err := regular.New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		server.TLS.ClusterName(),
 		hostSigners,
@@ -4041,6 +4076,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(clock),
 		regular.SetLockWatcher(nodeLockWatcher),
+		regular.SetSessionController(nodeSessionController),
 	)
 	require.NoError(t, err)
 
@@ -4147,7 +4183,18 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	})
 	require.NoError(t, err)
 
+	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   client,
+		AccessPoint:  client,
+		LockEnforcer: proxyLockWatcher,
+		Emitter:      client,
+		Component:    teleport.ComponentProxy,
+		ServerID:     proxyID,
+	})
+	require.NoError(t, err)
+
 	proxyServer, err := regular.New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		authServer.ClusterName(),
 		hostSigners,
@@ -4166,6 +4213,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		regular.SetClock(clock),
 		regular.SetLockWatcher(proxyLockWatcher),
 		regular.SetNodeWatcher(proxyNodeWatcher),
+		regular.SetSessionController(sessionController),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })

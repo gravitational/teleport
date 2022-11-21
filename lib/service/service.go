@@ -2047,7 +2047,29 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		s, err := regular.New(cfg.SSH.Addr,
+		// read the host UUID:
+		serverID, err := utils.ReadOrMakeHostUUID(cfg.DataDir)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+			Semaphores:     authClient,
+			AccessPoint:    authClient,
+			LockEnforcer:   lockWatcher,
+			Emitter:        &events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: streamer},
+			Component:      teleport.ComponentNode,
+			Logger:         process.log.WithField(trace.Component, "sessionctrl"),
+			TracerProvider: process.TracingProvider,
+			ServerID:       serverID,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		s, err := regular.New(
+			process.ExitContext(),
+			cfg.SSH.Addr,
 			cfg.Hostname,
 			[]ssh.Signer{conn.ServerIdentity.KeySigner},
 			authClient,
@@ -2075,6 +2097,8 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetAllowTCPForwarding(cfg.SSH.AllowTCPForwarding),
 			regular.SetLockWatcher(lockWatcher),
 			regular.SetX11ForwardingConfig(cfg.SSH.X11),
+			regular.SetTracerProvider(process.TracingProvider),
+			regular.SetSessionController(sessionController),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -3140,18 +3164,44 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		log.Info("Web UI is disabled.")
 	}
 
-	proxyRouter, err := proxy.NewRouter(proxy.RouterConfig{
-		ClusterName:         clusterName,
-		Log:                 process.log.WithField(trace.Component, "router"),
-		RemoteClusterGetter: accessPoint,
-		SiteGetter:          tsrv,
-		TracerProvider:      process.TracingProvider,
+	var proxyRouter *proxy.Router
+	if !process.Config.Proxy.DisableReverseTunnel {
+		router, err := proxy.NewRouter(proxy.RouterConfig{
+			ClusterName:         clusterName,
+			Log:                 process.log.WithField(trace.Component, "router"),
+			RemoteClusterGetter: accessPoint,
+			SiteGetter:          tsrv,
+			TracerProvider:      process.TracingProvider,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		proxyRouter = router
+	}
+
+	// read the host UUID:
+	serverID, err := utils.ReadOrMakeHostUUID(cfg.DataDir)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:     accessPoint,
+		AccessPoint:    accessPoint,
+		LockEnforcer:   lockWatcher,
+		Emitter:        &events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: streamer},
+		Component:      teleport.ComponentProxy,
+		Logger:         process.log.WithField(trace.Component, "sessionctrl"),
+		TracerProvider: process.TracingProvider,
+		ServerID:       serverID,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	sshProxy, err := regular.New(cfg.Proxy.SSHAddr,
+	sshProxy, err := regular.New(
+		process.ExitContext(),
+		cfg.SSH.Addr,
 		cfg.Hostname,
 		[]ssh.Signer{conn.ServerIdentity.KeySigner},
 		accessPoint,
@@ -3172,6 +3222,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetEmitter(streamEmitter),
 		regular.SetLockWatcher(lockWatcher),
 		regular.SetNodeWatcher(nodeWatcher),
+		regular.SetTracerProvider(process.TracingProvider),
+		regular.SetSessionController(sessionController),
 	)
 	if err != nil {
 		return trace.Wrap(err)
