@@ -69,16 +69,8 @@ type TerminalRequest struct {
 	// ProxyHostPort is the address of the server to connect to.
 	ProxyHostPort string `json:"-"`
 
-	// Cluster is the name of the remote cluster to connect to.
-	Cluster string `json:"-"`
-
 	// InteractiveCommand is a command to execut.e
 	InteractiveCommand []string `json:"-"`
-
-	// KeepAliveInterval is the interval for sending ping frames to web client.
-	// This value is pulled from the cluster network config and
-	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
-	KeepAliveInterval time.Duration
 }
 
 // AuthProvider is a subset of the full Auth API.
@@ -90,31 +82,26 @@ type AuthProvider interface {
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
 // new TerminalHandler.
-func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProvider, sessCtx *SessionContext, sessionData session.Session) (*TerminalHandler, error) {
+func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandler, error) {
 	_, span := tracing.DefaultProvider().Tracer("terminal").Start(ctx, "terminal/NewTerminal")
 	defer span.End()
 
 	// Make sure whatever session is requested is a valid session.
-	_, err := session.ParseID(string(sessionData.ID))
+	_, err := session.ParseID(cfg.sessionData.ID.String())
 	if err != nil {
 		return nil, trace.BadParameter("sid: invalid session id")
 	}
 
-	if req.Login == "" {
-		if sessionData.Login == "" {
-			return nil, trace.BadParameter("login: missing login")
-		}
-		req.Login = sessionData.Login
+	if cfg.sessionData.Login == "" {
+		return nil, trace.BadParameter("login: missing login")
 	}
 
-	if req.Server == "" {
-		if sessionData.ServerID == "" {
-			return nil, trace.BadParameter("server: missing server")
-		}
-		req.Server = sessionData.ServerID
+	if cfg.sessionData.ServerID == "" {
+		return nil, trace.BadParameter("server: missing server")
 	}
 
-	if req.Term.W <= 0 || req.Term.H <= 0 {
+	if cfg.term.W <= 0 || cfg.term.H <= 0 ||
+		cfg.term.W >= 4096 || cfg.term.H >= 4096 {
 		return nil, trace.BadParameter("term: bad term dimensions")
 	}
 
@@ -122,17 +109,38 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentWebsocket,
 		}),
-		params:       req,
-		ctx:          sessCtx,
-		hostName:     sessionData.ServerHostname,
-		hostPort:     sessionData.ServerHostPort,
-		hostUUID:     req.Server,
-		authProvider: authProvider,
-		encoder:      unicode.UTF8.NewEncoder(),
-		decoder:      unicode.UTF8.NewDecoder(),
-		wsLock:       &sync.Mutex{},
-		sessionData:  sessionData,
+		ctx:                cfg.sctx,
+		authProvider:       cfg.authProvider,
+		encoder:            unicode.UTF8.NewEncoder(),
+		decoder:            unicode.UTF8.NewDecoder(),
+		wsLock:             &sync.Mutex{},
+		sessionData:        cfg.sessionData,
+		keepAliveInterval:  cfg.keepAliveInterval,
+		proxyHostPort:      cfg.proxyHostPort,
+		interactiveCommand: cfg.interactiveCommand,
+		term:               cfg.term,
 	}, nil
+}
+
+// TerminalHandlerConfig contains the configuration options necessary to
+// correctly setup the TerminalHandler
+type TerminalHandlerConfig struct {
+	// term is the initial PTY size.
+	term session.TerminalParams
+	// sctx is the context for the users web session.
+	sctx *SessionContext
+	// authProvider is used to fetch nodes and sessions from the backend.
+	authProvider AuthProvider
+	// sessionData is the data to send to the client on the initial session creation.
+	sessionData session.Session
+	// KeepAliveInterval is the interval for sending ping frames to web client.
+	// This value is pulled from the cluster network config and
+	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
+	keepAliveInterval time.Duration
+	// proxyHostPort is the address of the server to connect to.
+	proxyHostPort string
+	// interactiveCommand is a command to execute.
+	interactiveCommand []string
 }
 
 // TerminalHandler connects together an SSH session with a web-based
@@ -141,20 +149,8 @@ type TerminalHandler struct {
 	// log holds the structured logger.
 	log *logrus.Entry
 
-	// params describes the request for a PTY
-	params TerminalRequest
-
 	// ctx is a web session context for the currently logged in user.
 	ctx *SessionContext
-
-	// hostName is the hostname of the server.
-	hostName string
-
-	// hostPort is the port of the server.
-	hostPort int
-
-	// hostUUID is the UUID of the server.
-	hostUUID string
 
 	// sshSession holds the "shell" SSH channel to the node.
 	sshSession *tracessh.Session
@@ -181,6 +177,20 @@ type TerminalHandler struct {
 	closeOnce sync.Once
 
 	wsLock *sync.Mutex
+
+	// KeepAliveInterval is the interval for sending ping frames to web client.
+	// This value is pulled from the cluster network config and
+	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
+	keepAliveInterval time.Duration
+
+	// proxyHostPort is the address of the server to connect to.
+	proxyHostPort string
+
+	// interactiveCommand is a command to execute.
+	interactiveCommand []string
+
+	// term is the initial PTY size.
+	term session.TerminalParams
 
 	// The server data for the active session.
 	sessionData session.Session
@@ -209,7 +219,7 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ws.SetReadDeadline(deadlineForInterval(t.params.KeepAliveInterval))
+	ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
 
 	emitError := func(errMsg string, err error) {
 		t.log.Errorf("%s: %s", errMsg, err)
@@ -263,8 +273,8 @@ func (t *TerminalHandler) Close() error {
 // Interval is determined by the keep_alive_interval config set by user (or default).
 // Loop will terminate when there is an error sending ping frame or when terminal session is closed.
 func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
-	t.log.Debugf("Starting websocket ping loop with interval %v.", t.params.KeepAliveInterval)
-	tickerCh := time.NewTicker(t.params.KeepAliveInterval)
+	t.log.Debugf("Starting websocket ping loop with interval %v.", t.keepAliveInterval)
+	tickerCh := time.NewTicker(t.keepAliveInterval)
 	defer tickerCh.Stop()
 
 	for {
@@ -300,7 +310,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	// the terminal.
 	tc, err := t.makeClient(ws, r)
 	if err != nil {
-		t.log.WithError(err).Infof("Failed creating a client for session %v.", t.sessionData.ID)
+		t.log.WithError(err).Infof("Failed creating a client for session %s.", t.sessionData.ID.String())
 		writeErr := t.writeError(err, ws)
 		if writeErr != nil {
 			t.log.WithError(writeErr).Warnf("Unable to send error to terminal.")
@@ -308,11 +318,11 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 		return
 	}
 
-	t.log.Debugf("Creating websocket stream for %v.", t.sessionData.ID)
+	t.log.Debugf("Creating websocket stream for %s.", t.sessionData.ID.String())
 
 	// Update the read deadline upon receiving a pong message.
 	ws.SetPongHandler(func(_ string) error {
-		ws.SetReadDeadline(deadlineForInterval(t.params.KeepAliveInterval))
+		ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
 		return nil
 	})
 
@@ -325,7 +335,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 
 	// Block until the terminal session is complete.
 	<-t.terminalContext.Done()
-	t.log.Debugf("Closing websocket stream for %v.", t.sessionData.ID)
+	t.log.Debugf("Closing websocket stream for %s.", t.sessionData.ID.String())
 }
 
 // makeClient builds a *client.TeleportClient for the connection.
@@ -342,28 +352,23 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	// communicate over the websocket.
 	stream := t.asTerminalStream(ws)
 
-	if !t.params.SessionID.IsZero() {
-		clientConfig.HostLogin = teleport.SSHSessionJoinPrincipal
-	} else {
-		clientConfig.HostLogin = t.params.Login
-	}
-
+	clientConfig.HostLogin = t.sessionData.Login
 	clientConfig.ForwardAgent = client.ForwardAgentLocal
 	clientConfig.Namespace = apidefaults.Namespace
 	clientConfig.Stdout = stream
 	clientConfig.Stderr = stream
 	clientConfig.Stdin = stream
-	clientConfig.SiteName = t.params.Cluster
-	if err := clientConfig.ParseProxyHost(t.params.ProxyHostPort); err != nil {
+	clientConfig.SiteName = t.sessionData.ClusterName
+	if err := clientConfig.ParseProxyHost(t.proxyHostPort); err != nil {
 		return nil, trace.BadParameter("failed to parse proxy address: %v", err)
 	}
-	clientConfig.Host = t.hostName
-	clientConfig.HostPort = t.hostPort
-	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: string(t.sessionData.ID)}
+	clientConfig.Host = t.sessionData.ServerHostname
+	clientConfig.HostPort = t.sessionData.ServerHostPort
+	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: string(t.sessionData.ID.String())}
 	clientConfig.ClientAddr = r.RemoteAddr
 	clientConfig.Tracer = tracing.DefaultProvider().Tracer("TerminalHandler")
 
-	if len(t.params.InteractiveCommand) > 0 {
+	if len(t.interactiveCommand) > 0 {
 		clientConfig.Interactive = true
 	}
 
@@ -377,7 +382,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	// to allow future window changes.
 	tc.OnShellCreated = func(s *tracessh.Session, c *tracessh.Client, _ io.ReadWriteCloser) (bool, error) {
 		t.sshSession = s
-		t.windowChange(r.Context(), &t.params.Term)
+		t.windowChange(r.Context(), &t.term)
 
 		return false, nil
 	}
@@ -405,8 +410,8 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 	}
 
 	key, err := pc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
-		RouteToCluster: t.params.Cluster,
-		NodeName:       t.params.Server,
+		RouteToCluster: t.sessionData.ClusterName,
+		NodeName:       t.sessionData.ServerID,
 		ExistingCreds: &client.Key{
 			PrivateKey: pk,
 			Cert:       t.ctx.session.GetPub(),
@@ -479,19 +484,19 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
-	err := tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
+	err := tc.SSH(t.terminalContext, t.interactiveCommand, false)
 
 	// TODO IN: 5.0
 	//
 	// Make connecting by UUID the default instead of the fallback.
 	//
 	if err != nil && strings.Contains(err.Error(), teleport.NodeIsAmbiguous) {
-		t.log.Debugf("Ambiguous hostname %q, attempting to connect by UUID (%q).", t.hostName, t.hostUUID)
-		tc.Host = t.hostUUID
+		t.log.Debugf("Ambiguous hostname %q, attempting to connect by UUID (%q).", t.sessionData.ServerHostname, t.sessionData.ServerID)
+		tc.Host = t.sessionData.ServerID
 		// We don't technically need to zero the HostPort, but future version won't look up
 		// HostPort when connecting by UUID, so its best to keep behavior consistent.
 		tc.HostPort = 0
-		err = tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
+		err = tc.SSH(t.terminalContext, t.interactiveCommand, false)
 	}
 
 	if err != nil {

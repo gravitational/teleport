@@ -2289,11 +2289,17 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	req.KeepAliveInterval = netConfig.GetKeepAliveInterval()
-	req.ProxyHostPort = h.ProxyHostPort()
-	req.Cluster = site.GetName()
+	terminalConfig := TerminalHandlerConfig{
+		term:               req.Term,
+		sctx:               sctx,
+		authProvider:       clt,
+		sessionData:        sessionData,
+		keepAliveInterval:  netConfig.GetKeepAliveInterval(),
+		proxyHostPort:      h.ProxyHostPort(),
+		interactiveCommand: req.InteractiveCommand,
+	}
 
-	term, err := NewTerminal(r.Context(), *req, clt, sctx, sessionData)
+	term, err := NewTerminal(r.Context(), terminalConfig)
 	if err != nil {
 		h.log.WithError(err).Error("Unable to create terminal.")
 		return nil, trace.Wrap(err)
