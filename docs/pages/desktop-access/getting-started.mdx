@@ -18,6 +18,16 @@ The features documented on this page are available in Teleport `10.2.6` and high
 This guide will help you configure Teleport and Active Directory in order to
 provide secure, passwordless access to Windows desktops.
 
+<Details title="Compare Desktop Access to traditional RDP">
+
+Teleport Desktop Access is desiged to be a secure access protocol for Windows
+environments. Our protocol is designed with security as a priority, and may not
+be as performant as RDP or Guacamole. Consider Desktop Accesss to manage access
+to your most sensitive Windows environments, not as a drop-in replacement for
+other tools to provide general access to Windows desktops.
+
+</Details>
+
 ## Prerequisites
 
 <ScopedBlock scope={["oss", "enterprise"]}>
