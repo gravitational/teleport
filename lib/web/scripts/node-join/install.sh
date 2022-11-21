@@ -57,6 +57,7 @@ ARG_CA_PIN_HASHES=""
 APP_INSTALL_MODE='{{.appInstallMode}}'
 APP_NAME='{{.appName}}'
 APP_URI='{{.appURI}}'
+DB_INSTALL_MODE='{{.databaseInstallMode}}'
 
 # usage message
 # shellcheck disable=SC2086
@@ -435,6 +436,40 @@ app_service:
   - name: "${APP_NAME}"
     uri: "${APP_URI}"
     public_addr: ${APP_PUBLIC_ADDR}
+EOF
+}
+# installs the provided teleport config (for database service)
+install_teleport_database_config() {
+    log "Writing Teleport database service config to ${TELEPORT_CONFIG_PATH}"
+    CA_PINS_CONFIG=$(get_yaml_list "ca_pin" "${CA_PIN_HASHES}" "  ")
+
+    # This file is processed by `shellschek` as part of the lint step
+    # It detects an issue because of un-set variables - $index and $line. This check is called SC2154.
+    # However, that's not an issue, because those variables are replaced when we run go's text/template engine over it.
+    # When executing the script, those are no long variables but actual values.
+    # shellcheck disable=SC2154
+    cat << EOF > ${TELEPORT_CONFIG_PATH}
+version: v3
+teleport:
+  nodename: ${NODENAME}
+  auth_token: ${JOIN_TOKEN}
+${CA_PINS_CONFIG}
+  proxy_server: ${TARGET_HOSTNAME}:${TARGET_PORT}
+  log:
+    output: stderr
+    severity: INFO
+auth_service:
+  enabled: no
+ssh_service:
+  enabled: no
+proxy_service:
+  enabled: no
+db_service:
+  enabled: "yes"
+  resources:
+    - labels:{{range $index, $line := .db_service_resource_labels}}
+        {{$line -}}
+{{end}}
 EOF
 }
 # installs the provided teleport config (for node service)
@@ -835,9 +870,11 @@ if ! check_teleport_binary; then
 fi
 
 # install teleport config
-# check whether we're running in app mode so we can write the appropriate config type
+# check the mode and write the appropriate config type
 if [[ "${APP_INSTALL_MODE}" == "true" ]]; then
     install_teleport_app_config
+elif [[ "${DB_INSTALL_MODE}" == "true" ]]; then
+    install_teleport_database_config
 else
     install_teleport_node_config
 fi

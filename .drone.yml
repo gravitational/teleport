@@ -676,6 +676,8 @@ workspace:
 platform:
   os: windows
   arch: amd64
+node:
+  buildbox_version: teleport11
 clone:
   disable: true
 concurrency:
@@ -753,7 +755,23 @@ steps:
   - Enable-Go -ToolchainDir "$Workspace/toolchains"
   - cd $TeleportSrc
   - $Env:GCO_ENABLED=1
-  - go build -o build/tsh.exe ./tool/tsh
+  - go build -o build/tsh-unsigned.exe ./tool/tsh
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+- name: Sign tsh
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - cd $TeleportSrc
+  - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
+    windows-signing-cert.pfx -Encoding Byte
+  - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
+    sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
+    /du https://goteleport.com /fd sha256 build\tsh-unsigned.exe'
+  - mv build\tsh-unsigned.exe build\tsh.exe
+  - rm -r windows-signing-cert.pfx
   environment:
     WINDOWS_SIGNING_CERT:
       from_secret: WINDOWS_SIGNING_CERT
@@ -813,7 +831,7 @@ kind: pipeline
 type: kubernetes
 name: clean-up-previous-build
 environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.70
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.75
 trigger:
   event:
     include:
@@ -945,12 +963,12 @@ workspace:
 platform:
   os: windows
   arch: amd64
+node:
+  buildbox_version: teleport11
 clone:
   disable: true
 depends_on:
 - clean-up-previous-build
-concurrency:
-  limit: 1
 steps:
 - name: Check out Teleport
   commands:
@@ -1024,7 +1042,23 @@ steps:
   - Enable-Go -ToolchainDir "$Workspace/toolchains"
   - cd $TeleportSrc
   - $Env:GCO_ENABLED=1
-  - go build -o build/tsh.exe ./tool/tsh
+  - go build -o build/tsh-unsigned.exe ./tool/tsh
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+- name: Sign tsh
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - cd $TeleportSrc
+  - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
+    windows-signing-cert.pfx -Encoding Byte
+  - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
+    sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
+    /du https://goteleport.com /fd sha256 build\tsh-unsigned.exe'
+  - mv build\tsh-unsigned.exe build\tsh.exe
+  - rm -r windows-signing-cert.pfx
   environment:
     WINDOWS_SIGNING_CERT:
       from_secret: WINDOWS_SIGNING_CERT
@@ -1097,8 +1131,8 @@ steps:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - $OutputsDir = "$Workspace/outputs"
-  - $relcliUrl = 'https://cdn.teleport.dev/relcli-v1.1.70-windows.exe'
-  - $relcliSha256 = '1cd0e4e2912ded6c6b61a82018ac3d76eac091f9719b5a80795d79ff194788a7'
+  - $relcliUrl = 'https://cdn.teleport.dev/relcli-v1.1.75-windows.exe'
+  - $relcliSha256 = '664a48f349791b51c3fb5610ff282b050d5c3d74523730bb229256d2cc9ea0d7'
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Get-Relcli -Url $relcliUrl -Sha256 $relcliSha256 -Workspace $Workspace
   - Register-Artifacts -Workspace $Workspace -Outputs $OutputsDir
@@ -6350,7 +6384,7 @@ steps:
       - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # set version
-      - if [[ "$(echo v1.2.3-fred.1)" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
   - name: Assume Download AWS Role
     image: amazon/aws-cli
@@ -6388,7 +6422,7 @@ steps:
         path: /root/.aws
     commands:
       - export VERSION=$(cat /go/.version.txt)
-      - if [[ "$(echo v1.2.3-fred.1)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
 
   - name: Assume Packer AWS Role
@@ -6524,7 +6558,7 @@ steps:
       - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # set version
-      - if [[ "$(echo v1.2.3-fred.1)" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
   - name: Assume Download AWS Role
     image: amazon/aws-cli
@@ -6562,7 +6596,7 @@ steps:
         path: /root/.aws
     commands:
       - export VERSION=$(cat /go/.version.txt)
-      - if [[ "$(echo v1.2.3-fred.1)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
 
@@ -7300,7 +7334,7 @@ steps:
   - name: Check if commit is tagged
     image: alpine
     commands:
-      - "[ -n $(echo v1.2.3-fred.1) ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)"
+      - "[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)"
 
   - name: Assume Download AWS Role
     image: amazon/aws-cli
@@ -7385,7 +7419,7 @@ steps:
         mkdir -p /go/src/github.com/gravitational/teleport
         cd /go/src/github.com/gravitational/teleport
         git init && git remote add origin ${DRONE_REMOTE_URL}
-        git fetch origin +refs/tags/$(echo v1.2.3-fred.1):
+        git fetch origin +refs/tags/${DRONE_TAG}:
         git checkout -qf FETCH_HEAD
 
   - name: Assume AMI Download AWS Role
@@ -7552,7 +7586,7 @@ steps:
         path: /root/.aws
     commands:
       - cd /go/chart/
-      - aws s3 sync s3://$AWS_S3_BUCKET/
+      - aws s3 sync . s3://$AWS_S3_BUCKET/
 
   # NOTE: all mandatory steps for a release promotion need to go BEFORE this
   # step, as there is a chance that everything afterwards will be skipped.
@@ -7569,7 +7603,7 @@ steps:
     image: golang:1.17-alpine
     commands:
       - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
-      - go run ./cmd/check -tag $(echo v1.2.3-fred.1) -check prerelease || (echo '---> Not publishing $(echo v1.2.3-fred.1) packages to RPM and DEB repos' && exit 78)
+      - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> Not publishing ${DRONE_TAG} packages to RPM and DEB repos' && exit 78)
 
   - name: Assume RPM Repo AWS Role
     image: amazon/aws-cli
@@ -7671,7 +7705,7 @@ steps:
     image: golang:1.17-alpine
     commands:
       - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
-      - go run ./cmd/check -tag $(echo v1.2.3-fred.1) -check latest || (echo '---> Not publishing ${DRONE_REPO} packages to DEB repo' && exit 78)
+      - go run ./cmd/check -tag ${DRONE_TAG} -check latest || (echo '---> Not publishing ${DRONE_REPO} packages to DEB repo' && exit 78)
 
   - name: Assume Deb Repo AWS Role
     image: amazon/aws-cli
@@ -7819,7 +7853,7 @@ kind: pipeline
 type: kubernetes
 name: publish-rlz
 environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.70
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.75
 trigger:
   event:
     include:
@@ -9325,19 +9359,6 @@ steps:
   commands:
   - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
-- name: Check if tag is prerelease
-  image: golang:1.18-alpine
-  commands:
-  - apk add git
-  - mkdir -pv "/tmp/repo"
-  - cd "/tmp/repo"
-  - git init
-  - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
-  - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
 - name: Wait for docker
   image: docker
   commands:
@@ -9347,7 +9368,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
 - name: Wait for docker registry
   image: alpine
   commands:
@@ -9356,7 +9376,6 @@ steps:
     != "200" ]; do sleep 1; done'
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -9368,7 +9387,6 @@ steps:
   - git checkout -qf "$DRONE_TAG"
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
 - name: Build major, minor, and full semvers
   image: alpine
   commands:
@@ -9383,7 +9401,6 @@ steps:
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
   commands:
@@ -9410,7 +9427,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
 - name: Assume ECR - production AWS Role
   image: amazon/aws-cli
   commands:
@@ -9438,7 +9454,6 @@ steps:
   depends_on:
   - Assume ECR - staging AWS Role
   - Verify build is tagged
-  - Check if tag is prerelease
 - name: Pull teleport:v11-amd64 and push it to Local Registry
   image: docker
   commands:
@@ -9460,7 +9475,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9488,7 +9502,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9516,7 +9529,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9853,7 +9865,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9881,7 +9892,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9909,7 +9919,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -10250,7 +10259,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -10456,7 +10464,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -10485,7 +10492,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -10514,7 +10520,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -18193,6 +18198,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: aa1dd8dd1ad2d28ad9fbf4c096f3e1782d8fceee98f00ecbff53e38f52250973
+hmac: bfb8d4b84019adf84d78be52736cd634fad49342405c60924712c0098ee987bf
 
 ...

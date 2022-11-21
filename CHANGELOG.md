@@ -1,5 +1,39 @@
 # Changelog
 
+## 11.0.3
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with validation of U2F devices. [#17876](https://github.com/gravitational/teleport/pull/17876)
+* Fixed `tsh ssh -J` not being able to connect to leaf cluster nodes. [#18268](https://github.com/gravitational/teleport/pull/18268)
+* Fixed issue with failed database connection when client requests GSS encryption. [#17811](https://github.com/gravitational/teleport/pull/17811)
+* Fixed issue with setting Teleport version to v10 in Helm charts resulting in invalid config. [#18008](https://github.com/gravitational/teleport/pull/18008)
+* Fixed issue with Teleport Kubernetes resource name conflicting with builtin resources. [#17717](https://github.com/gravitational/teleport/pull/17717)
+* Fixed issue with invalid MS Teams plugin systemd service file. [#18028](https://github.com/gravitational/teleport/pull/18028)
+* Fixed issue with failing to connect to OpenSSH 7.x servers. [#18248](https://github.com/gravitational/teleport/pull/18248)
+* Fixed issue with extra trailing question mark in application access requests. [#17955](https://github.com/gravitational/teleport/pull/17955)
+* Fixed issue with application access websocket requests sometimes failing in Chrome. [#18002](https://github.com/gravitational/teleport/pull/18002)
+* Fixed issue with multiple `tbot`'s concurrently using the same output directory. [#17999](https://github.com/gravitational/teleport/pull/17999)
+* Fixed issue with `tbot` failing to parse version on some kernels. [#18298](https://github.com/gravitational/teleport/pull/18298)
+* Fixed panic when v9 node runs against v11 auth server. [#18383](https://github.com/gravitational/teleport/pull/18383)
+* Fixed issue with Kubernetes proxy caching client credentials between sessions. [#18109](https://github.com/gravitational/teleport/pull/18109)
+* Fixed issue with agents not being able to reconnect to proxies in some cases. [#18149](https://github.com/gravitational/teleport/pull/18149)
+* Fixed issue with remote tunnel connections not being closed properly. [#18224](https://github.com/gravitational/teleport/pull/18224)
+* Added CircleCI support to Machine ID. [#17996](https://github.com/gravitational/teleport/pull/17996)
+* Added support for `arm` and `arm64` Docker images for Teleport and Operator. [#18222](https://github.com/gravitational/teleport/pull/18222)
+* Added PostgreSQL and MySQL RDS Proxy support to database access. [#18045](https://github.com/gravitational/teleport/pull/18045)
+* Improved database access denied error messages. [#17856](https://github.com/gravitational/teleport/pull/17856)
+* Improved desktop access errors in case of locked sessions. [#17549](https://github.com/gravitational/teleport/pull/17549)
+* Improved web UI handling of private key policy errors. [#17991](https://github.com/gravitational/teleport/pull/17991)
+* Improved memory usage in clusters with large numbers of active sessions. [#18051](https://github.com/gravitational/teleport/pull/18051)
+* Updated `tsh proxy ssh` to support `HTTPS_PROXY`. [#18295](https://github.com/gravitational/teleport/pull/18295)
+* Updated Azure hosted databases to fetch the new CA. [#18172](https://github.com/gravitational/teleport/pull/18172)
+* Updated `tsh kube login` to support providing default user, group and namespace. [#18185](https://github.com/gravitational/teleport/pull/18185)
+* Updated web UI session listing to include active sessions of all types. [#18229](https://github.com/gravitational/teleport/pull/18229)
+* Updated user locking to terminate in progress TCP application access connections. [#18187](https://github.com/gravitational/teleport/pull/18187)
+* Updated `teleport configure` command to produce v2 config when auth server is provided. [#17914](https://github.com/gravitational/teleport/pull/17914)
+* Updated all systemd service files to set max open files limit. [#17961](https://github.com/gravitational/teleport/pull/17961)
+
 ## 11.0.1
 
 This release of Teleport contains a security fix and multiple bug fixes.
