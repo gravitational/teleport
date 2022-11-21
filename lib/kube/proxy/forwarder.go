@@ -35,6 +35,27 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
+	"github.com/gravitational/oxy/forward"
+	fwdutils "github.com/gravitational/oxy/utils"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
+	"golang.org/x/net/http2"
+	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/httpstream"
+	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/client-go/transport/spdy"
+	kubeexec "k8s.io/client-go/util/exec"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -56,26 +77,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
-	"github.com/gravitational/oxy/forward"
-	fwdutils "github.com/gravitational/oxy/utils"
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
-	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/net/http2"
-	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/httpstream"
-	"k8s.io/client-go/tools/remotecommand"
-	"k8s.io/client-go/transport/spdy"
-	kubeexec "k8s.io/client-go/util/exec"
 )
 
 // KubeServiceType specifies a Teleport service type which can forward Kubernetes requests
@@ -327,6 +328,8 @@ type authContext struct {
 	// disconnectExpiredCert if set, controls the time when the connection
 	// should be disconnected because the client cert expires
 	disconnectExpiredCert time.Time
+	// certExpires is the client certificate expiration timestamp.
+	certExpires time.Time
 	// sessionTTL specifies the duration of the user's session
 	sessionTTL time.Duration
 }
@@ -338,7 +341,7 @@ func (c authContext) String() string {
 func (c *authContext) key() string {
 	// it is important that the context key contains user, kubernetes groups and certificate expiry,
 	// so that new logins with different parameters will not reuse this context
-	return fmt.Sprintf("%v:%v:%v:%v:%v:%v", c.teleportCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.kubeCluster, c.disconnectExpiredCert.UTC().Unix())
+	return fmt.Sprintf("%v:%v:%v:%v:%v:%v", c.teleportCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.kubeCluster, c.certExpires.Unix())
 }
 
 func (c *authContext) eventClusterMeta() apievents.KubernetesClusterMetadata {
@@ -596,7 +599,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	// any user to access common API methods, e.g. discovery methods
 	// required for initial client usage, without it, restricted user's
 	// kubectl clients will not work
-	if !apiutils.SliceContainsStr(kubeGroups, teleport.KubeSystemAuthenticated) {
+	if !slices.Contains(kubeGroups, teleport.KubeSystemAuthenticated) {
 		kubeGroups = append(kubeGroups, teleport.KubeSystemAuthenticated)
 	}
 
@@ -672,6 +675,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		kubeClusterLabels: kubeLabels,
 		recordingConfig:   recordingConfig,
 		kubeCluster:       kubeCluster,
+		certExpires:       certExpires,
 		teleportCluster: teleportClusterClient{
 			name:           teleportClusterName,
 			remoteAddr:     utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
@@ -708,7 +712,8 @@ type kubeAccessDetails struct {
 func (f *Forwarder) getKubeAccessDetails(
 	roles services.AccessChecker,
 	kubeClusterName string,
-	sessionTTL time.Duration) (kubeAccessDetails, error) {
+	sessionTTL time.Duration,
+) (kubeAccessDetails, error) {
 	kubeServers, err := f.cfg.CachingAuthClient.GetKubernetesServers(f.ctx)
 	if err != nil {
 		return kubeAccessDetails{}, trace.Wrap(err)
@@ -1124,7 +1129,6 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, sessionEndEvent); err != nil {
 			f.log.WithError(err).Warn("Failed to emit session end event.")
 		}
-
 	}()
 
 	executor, err := f.getExecutor(*ctx, sess, req)
@@ -1412,7 +1416,16 @@ func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers 
 			if len(values) == 0 || len(values) > 1 {
 				return trace.AccessDenied("%v, invalid user header %q", ImpersonationRequestDeniedMessage, values)
 			}
+			// when Kubernetes go-client sends impersonated groups it also sends the impersonated user.
+			// The issue arrises when the impersonated user was not defined and the user want to just impersonate
+			// a subset of his groups. In that case the request would fail because empty user is not on
+			// ctx.kubeUsers. If Teleport receives an empty impersonated user it will ignore it and later will fill it
+			// with the Teleport username.
+			if len(values[0]) == 0 {
+				continue
+			}
 			impersonateUser = values[0]
+
 			if _, ok := ctx.kubeUsers[impersonateUser]; !ok {
 				return trace.AccessDenied("%v, user header %q is not allowed in roles", ImpersonationRequestDeniedMessage, impersonateUser)
 			}

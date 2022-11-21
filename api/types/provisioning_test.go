@@ -256,6 +256,81 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			},
 			expectedErr: &trace.BadParameterError{},
 		},
+		{
+			desc: "circleci valid",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodCircleCI,
+					CircleCI: &ProvisionTokenSpecV2CircleCI{
+						OrganizationID: "foo",
+						Allow: []*ProvisionTokenSpecV2CircleCI_Rule{
+							{
+								ProjectID: "foo",
+								ContextID: "bar",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "circleci and no allow",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodCircleCI,
+					CircleCI: &ProvisionTokenSpecV2CircleCI{
+						OrganizationID: "foo",
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "circleci and no org id",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodCircleCI,
+					CircleCI: &ProvisionTokenSpecV2CircleCI{
+						Allow: []*ProvisionTokenSpecV2CircleCI_Rule{
+							{
+								ProjectID: "foo",
+							},
+						},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "circleci allow rule blank",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodCircleCI,
+					CircleCI: &ProvisionTokenSpecV2CircleCI{
+						Allow: []*ProvisionTokenSpecV2CircleCI_Rule{
+							{},
+						},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
 	}
 
 	for _, tc := range testcases {
@@ -266,7 +341,9 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tc.token, tc.expected)
+			if tc.expected != nil {
+				require.Equal(t, tc.token, tc.expected)
+			}
 		})
 	}
 }

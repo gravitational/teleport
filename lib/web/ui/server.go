@@ -228,37 +228,43 @@ type Database struct {
 	Type string `json:"type"`
 	// Labels is a map of static and dynamic labels associated with a database.
 	Labels []Label `json:"labels"`
+	// DatabaseUsers is the list of allowed Database RBAC users that the user can login.
+	DatabaseUsers []string `json:"database_users,omitempty"`
+	// DatabaseNames is the list of allowed Database RBAC names that the user can login.
+	DatabaseNames []string `json:"database_names,omitempty"`
+}
+
+// MakeDatabase creates database objects.
+func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
+
+	uiLabels := []Label{}
+
+	for name, value := range database.GetAllLabels() {
+		uiLabels = append(uiLabels, Label{
+			Name:  name,
+			Value: value,
+		})
+	}
+
+	sort.Sort(sortedLabels(uiLabels))
+
+	return Database{
+		Name:          database.GetName(),
+		Desc:          database.GetDescription(),
+		Protocol:      database.GetProtocol(),
+		Type:          database.GetType(),
+		Labels:        uiLabels,
+		DatabaseUsers: dbUsers,
+		DatabaseNames: dbNames,
+	}
 }
 
 // MakeDatabases creates database objects.
-func MakeDatabases(clusterName string, databases []types.Database) []Database {
+func MakeDatabases(databases []types.Database) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
-		uiLabels := []Label{}
-
-		for name, value := range database.GetStaticLabels() {
-			uiLabels = append(uiLabels, Label{
-				Name:  name,
-				Value: value,
-			})
-		}
-
-		for name, cmd := range database.GetDynamicLabels() {
-			uiLabels = append(uiLabels, Label{
-				Name:  name,
-				Value: cmd.GetResult(),
-			})
-		}
-
-		sort.Sort(sortedLabels(uiLabels))
-
-		uiServers = append(uiServers, Database{
-			Name:     database.GetName(),
-			Desc:     database.GetDescription(),
-			Protocol: database.GetProtocol(),
-			Type:     database.GetType(),
-			Labels:   uiLabels,
-		})
+		db := MakeDatabase(database, nil /* database Users */, nil /* database Names */)
+		uiServers = append(uiServers, db)
 	}
 
 	return uiServers

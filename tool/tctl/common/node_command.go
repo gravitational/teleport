@@ -26,10 +26,10 @@ import (
 	"time"
 
 	"github.com/gravitational/kingpin"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -174,7 +174,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client auth.ClientI) error {
 
 			pingResponse, err := client.Ping(ctx)
 			if err != nil {
-				log.Debugf("unnable to ping auth client: %s.", err.Error())
+				log.Debugf("unable to ping auth client: %s.", err.Error())
 			}
 
 			if err == nil && pingResponse.GetServerFeatures().Cloud {

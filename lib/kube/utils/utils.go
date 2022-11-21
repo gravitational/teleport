@@ -20,15 +20,15 @@ import (
 	"context"
 	"encoding/hex"
 
-	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
-
+	"golang.org/x/exp/slices"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // GetKubeClient returns instance of client to the kubernetes cluster
@@ -269,7 +269,7 @@ func CheckOrSetKubeCluster(ctx context.Context, p KubeServicesPresence, kubeClus
 		return "", trace.Wrap(err)
 	}
 	if kubeClusterName != "" {
-		if !apiutils.SliceContainsStr(kubeClusterNames, kubeClusterName) {
+		if !slices.Contains(kubeClusterNames, kubeClusterName) {
 			return "", trace.BadParameter("kubernetes cluster %q is not registered in this teleport cluster; you can list registered kubernetes clusters using 'tsh kube ls'", kubeClusterName)
 		}
 		return kubeClusterName, nil
@@ -280,7 +280,7 @@ func CheckOrSetKubeCluster(ctx context.Context, p KubeServicesPresence, kubeClus
 	if len(kubeClusterNames) == 0 {
 		return "", trace.NotFound("no kubernetes clusters registered")
 	}
-	if apiutils.SliceContainsStr(kubeClusterNames, teleportClusterName) {
+	if slices.Contains(kubeClusterNames, teleportClusterName) {
 		return teleportClusterName, nil
 	}
 	return kubeClusterNames[0], nil

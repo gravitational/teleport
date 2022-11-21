@@ -24,7 +24,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/configure/cstrings"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"github.com/vulcand/predicate"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -36,13 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
-
-	"github.com/gravitational/configure/cstrings"
-	"github.com/gravitational/trace"
-
-	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
-	"github.com/vulcand/predicate"
 )
 
 // DefaultImplicitRules provides access to the default set of implicit rules
@@ -154,6 +153,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindToken, RW()),
 				types.NewRule(types.KindConnectionDiagnostic, RW()),
 				types.NewRule(types.KindKubernetesCluster, RW()),
+				types.NewRule(types.KindSessionTracker, RO()),
 			},
 			JoinSessions: []*types.SessionJoinPolicy{
 				{
@@ -493,7 +493,7 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 func ruleScore(r *types.Rule) int {
 	score := 0
 	// wildcard rules are less specific
-	if apiutils.SliceContainsStr(r.Resources, types.Wildcard) {
+	if slices.Contains(r.Resources, types.Wildcard) {
 		score -= 4
 	} else if len(r.Resources) == 1 {
 		// rules that match specific resource are more specific than
@@ -501,7 +501,7 @@ func ruleScore(r *types.Rule) int {
 		score += 2
 	}
 	// rules that have wildcard verbs are less specific
-	if apiutils.SliceContainsStr(r.Verbs, types.Wildcard) {
+	if slices.Contains(r.Verbs, types.Wildcard) {
 		score -= 2
 	}
 	// rules that supply 'where' or 'actions' are more specific
@@ -1035,7 +1035,7 @@ func MatchLabels(selector types.Labels, target map[string]string) (bool, string,
 			return false, fmt.Sprintf("no key match: '%v'", key), nil
 		}
 
-		if !apiutils.SliceContainsStr(selectorValues, types.Wildcard) {
+		if !slices.Contains(selectorValues, types.Wildcard) {
 			result, err := utils.SliceMatchesRegex(targetVal, selectorValues)
 			if err != nil {
 				return false, "", trace.Wrap(err)

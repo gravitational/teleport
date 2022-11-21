@@ -27,9 +27,9 @@ RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 &&
 # Instal openssl.
 # Pulled from source because repository versions are too old.
 # install_sw install only binaries, skips docs.
-RUN git clone --depth=1 git://git.openssl.org/openssl.git -b OpenSSL_1_1_1q && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b OpenSSL_1_1_1s && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = "29708a562a1887a91de0fa6ca668c71871accde9" ] && \
+    [ "$(git rev-parse HEAD)" = "129058165d195e43a0ad10111b0c2e29bdf65980" ] && \
     ./config --release && \
     make && \
     make install_sw
@@ -146,7 +146,6 @@ RUN yum groupinstall -y 'Development Tools' && \
     devtoolset-11-* \
     # required by libbpf
     elfutils-libelf-devel-static \
-    git \
     net-tools \
     # required by Teleport PAM support
     pam-devel \
@@ -157,6 +156,8 @@ RUN yum groupinstall -y 'Development Tools' && \
     zip \
     # required by libbpf
     zlib-static && \
+    yum -y install https://packages.endpointdev.com/rhel/7/os/x86_64/endpoint-repo.x86_64.rpm && \
+    yum -y install git && \
     yum clean all
 
 # Install etcd.

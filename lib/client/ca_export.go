@@ -22,12 +22,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/trace"
 )
 
 // ExportAuthoritiesRequest has the required fields to create an export authorities request.

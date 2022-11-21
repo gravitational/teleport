@@ -22,8 +22,9 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // KubeCluster represents a kubernetes cluster.
@@ -58,10 +59,16 @@ type KubeCluster interface {
 	GetAWSConfig() KubeAWS
 	// SetAWSConfig sets the AWS config.
 	SetAWSConfig(KubeAWS)
+	// GetGCPConfig gets the GCP config.
+	GetGCPConfig() KubeGCP
+	// SetGCPConfig sets the GCP config.
+	SetGCPConfig(KubeGCP)
 	// IsAzure indentifies if the KubeCluster contains Azure details.
 	IsAzure() bool
 	// IsAWS indentifies if the KubeCluster contains AWS details.
 	IsAWS() bool
+	// IsGCP indentifies if the KubeCluster contains GCP details.
+	IsGCP() bool
 	// IsKubeconfig identifies if the KubeCluster contains kubeconfig data.
 	IsKubeconfig() bool
 	// Copy returns a copy of this kube cluster resource.
@@ -255,6 +262,16 @@ func (k *KubernetesClusterV3) SetAWSConfig(cfg KubeAWS) {
 	k.Spec.AWS = cfg
 }
 
+// GetGCPConfig gets the GCP config.
+func (k *KubernetesClusterV3) GetGCPConfig() KubeGCP {
+	return k.Spec.GCP
+}
+
+// SetGCPConfig sets the GCP config.
+func (k *KubernetesClusterV3) SetGCPConfig(cfg KubeGCP) {
+	k.Spec.GCP = cfg
+}
+
 // IsAzure indentifies if the KubeCluster contains Azure details.
 func (k *KubernetesClusterV3) IsAzure() bool {
 	// on protobuf default values are not encoded.
@@ -267,6 +284,13 @@ func (k *KubernetesClusterV3) IsAWS() bool {
 	// on protobuf default values are not encoded.
 	// the empty structure returns no storage.
 	return k.Spec.AWS.Size() != 0
+}
+
+// IsGCP indentifies if the KubeCluster contains GCP details.
+func (k *KubernetesClusterV3) IsGCP() bool {
+	// on protobuf default values are not encoded.
+	// the empty structure returns no storage.
+	return k.Spec.GCP.Size() != 0
 }
 
 // IsKubeconfig identifies if the KubeCluster contains kubeconfig data.

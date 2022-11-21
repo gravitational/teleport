@@ -25,6 +25,17 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gravitational/oxy/ratelimit"
+	"github.com/gravitational/trace"
+	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+	"golang.org/x/net/http2"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -36,16 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/oxy/ratelimit"
-	"github.com/gravitational/trace"
-	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/net/http2"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/peer"
 )
 
 // TLSServerConfig is a configuration for TLS server
@@ -502,7 +503,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	// of certificates issued for kubernetes usage by proxy, can not be used
 	// against auth server. Later on we can extend more
 	// advanced cert usage, but for now this is the safest option.
-	if len(identity.Usage) != 0 && !apiutils.StringSlicesEqual(a.AcceptedUsage, identity.Usage) {
+	if len(identity.Usage) != 0 && !slices.Equal(a.AcceptedUsage, identity.Usage) {
 		log.Warningf("Restricted certificate of user %q with usage %v rejected while accessing the auth endpoint with acceptable usage %v.",
 			identity.Username, identity.Usage, a.AcceptedUsage)
 		return nil, trace.AccessDenied("access denied: invalid client certificate")

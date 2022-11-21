@@ -24,16 +24,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 // ActivityTracker is a connection activity tracker,
@@ -93,6 +93,9 @@ type MonitorConfig struct {
 	// MessageWriter wraps a channel to send text messages to the client. Use
 	// for disconnection messages, etc.
 	MessageWriter io.StringWriter
+	// MonitorCloseChannel will be signaled when the monitor closes a connection.
+	// Used only for testing. Optional.
+	MonitorCloseChannel chan struct{}
 }
 
 // CheckAndSetDefaults checks values and sets defaults
@@ -141,7 +144,16 @@ func StartMonitor(cfg MonitorConfig) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	go w.start(lockWatch)
+	go func() {
+		w.start(lockWatch)
+		if w.MonitorCloseChannel != nil {
+			// Non blocking send to the close channel.
+			select {
+			case w.MonitorCloseChannel <- struct{}{}:
+			default:
+			}
+		}
+	}()
 	return nil
 }
 

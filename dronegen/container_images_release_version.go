@@ -19,6 +19,8 @@ import (
 	"path"
 	"strconv"
 	"strings"
+
+	"golang.org/x/mod/semver"
 )
 
 const (
@@ -45,7 +47,7 @@ func (rv *ReleaseVersion) buildVersionPipeline(triggerSetupSteps []step, flags *
 		dockerService(),
 		dockerRegistryService(),
 	}
-	pipeline.Volumes = dockerVolumes()
+	pipeline.Volumes = dockerVolumes(volumeAwsConfig)
 	pipeline.Environment = map[string]value{
 		"DEBIAN_FRONTEND": {
 			raw: "noninteractive",
@@ -78,7 +80,7 @@ func (rv *ReleaseVersion) getSetupStepInformation(triggerSetupSteps []step) ([]s
 	return setupSteps, nextStageSetupStepNames
 }
 
-func (rv *ReleaseVersion) buildSteps(setupStepNames []string, flags *TriggerFlags) []step {
+func (rv *ReleaseVersion) buildSteps(parentSetupStepNames []string, flags *TriggerFlags) []step {
 	clonedRepoPath := "/go/src/github.com/gravitational/teleport"
 	steps := make([]step, 0)
 
@@ -88,17 +90,57 @@ func (rv *ReleaseVersion) buildSteps(setupStepNames []string, flags *TriggerFlag
 		cloneRepoStep(clonedRepoPath, rv.ShellVersion),
 		rv.buildSplitSemverSteps(flags.ShouldOnlyPublishFullSemver),
 	}
-	for _, setupStep := range setupSteps {
-		setupStep.DependsOn = append(setupStep.DependsOn, setupStepNames...)
-		steps = append(steps, setupStep)
-		setupStepNames = append(setupStepNames, setupStep.Name)
+
+	// These are sequential to prevent read/write contention by mounting volumes on
+	// multiple containeres at once
+	repos := getReposUsedByPipeline(flags)
+	var previousSetupRepo *ContainerRepo
+	for _, containerRepo := range repos {
+		repoSetupSteps := containerRepo.SetupSteps
+		if previousSetupRepo != nil {
+			previousRepoStepNames := getStepNames(previousSetupRepo.SetupSteps)
+			for i, repoSetupStep := range repoSetupSteps {
+				repoSetupSteps[i].DependsOn = append(repoSetupStep.DependsOn, previousRepoStepNames...)
+			}
+		}
+		setupSteps = append(setupSteps, repoSetupSteps...)
+
+		if len(repoSetupSteps) > 0 {
+			previousSetupRepo = containerRepo
+		}
 	}
 
+	for _, setupStep := range setupSteps {
+		setupStep.DependsOn = append(setupStep.DependsOn, parentSetupStepNames...)
+		steps = append(steps, setupStep)
+	}
+
+	setupStepNames := append(parentSetupStepNames, getStepNames(setupSteps)...)
+
 	for _, product := range rv.getProducts(clonedRepoPath) {
+		if semver.Compare(rv.MajorVersion, product.MinimumSupportedMajorVersion) < 0 {
+			// If the release version doesn't support the product
+			continue
+		}
+
 		steps = append(steps, product.buildSteps(rv, setupStepNames, flags)...)
 	}
 
 	return steps
+}
+
+func getReposUsedByPipeline(flags *TriggerFlags) []*ContainerRepo {
+	repos := []*ContainerRepo{GetStagingContainerRepo(flags.UseUniqueStagingTag)}
+
+	if flags.ShouldBuildNewImages {
+		repos = append(repos, GetPublicEcrPullRegistry())
+	}
+
+	if flags.ShouldAffectProductionImages {
+		repos = append(repos, GetProductionContainerRepos()...)
+	}
+
+	return repos
 }
 
 type Semver struct {
@@ -203,9 +245,16 @@ func (rv *ReleaseVersion) buildSplitSemverSteps(onlyBuildFullSemver bool) step {
 }
 
 func (rv *ReleaseVersion) getProducts(clonedRepoPath string) []*Product {
+	teleportProducts := []*Product{
+		NewTeleportProduct(false, false, rv), // OSS
+		NewTeleportProduct(true, false, rv),  // Enterprise
+		NewTeleportProduct(true, true, rv),   // Enterprise/FIPS
+	}
+
 	teleportOperatorProduct := NewTeleportOperatorProduct(clonedRepoPath)
 
-	products := make([]*Product, 0, 1)
+	products := make([]*Product, 0, len(teleportProducts)+1)
+	products = append(products, teleportProducts...)
 	products = append(products, teleportOperatorProduct)
 
 	return products

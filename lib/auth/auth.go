@@ -41,8 +41,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/lib/githubactions"
-
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
@@ -50,10 +48,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	saml2 "github.com/russellhaering/gosaml2"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -70,8 +68,10 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/inventory"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -103,7 +103,7 @@ const (
 	githubCacheTimeout = time.Hour
 )
 
-var ErrRequiresEnterprise = trace.AccessDenied("this feature requires Teleport Enterprise")
+var ErrRequiresEnterprise = services.ErrRequiresEnterprise
 
 // ServerOption allows setting options as functional arguments to Server
 type ServerOption func(*Server) error
@@ -185,13 +185,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.AssertionReplayService == nil {
 		cfg.AssertionReplayService = local.NewAssertionReplayService(cfg.Backend)
 	}
-	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
-		native.PrecomputeKeys()
-		cfg.KeyStoreConfig.RSAKeyPairSource = native.GenerateKeyPair
-	}
-	if cfg.KeyStoreConfig.HostUUID == "" {
-		cfg.KeyStoreConfig.HostUUID = cfg.HostUUID
-	}
 	if cfg.TraceClient == nil {
 		cfg.TraceClient = tracing.NewNoopClient()
 	}
@@ -203,7 +196,22 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	keyStore, err := keystore.NewKeyStore(cfg.KeyStoreConfig)
+	if cfg.KeyStoreConfig.PKCS11 != (keystore.PKCS11Config{}) {
+		if !modules.GetModules().Features().HSM {
+			return nil, fmt.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+		}
+		cfg.KeyStoreConfig.PKCS11.HostUUID = cfg.HostUUID
+	} else if cfg.KeyStoreConfig.GCPKMS != (keystore.GCPKMSConfig{}) {
+		if !modules.GetModules().Features().HSM {
+			return nil, fmt.Errorf("Google Cloud KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+		}
+		cfg.KeyStoreConfig.GCPKMS.HostUUID = cfg.HostUUID
+	} else {
+		native.PrecomputeKeys()
+		cfg.KeyStoreConfig.Software.RSAKeyPairSource = native.GenerateKeyPair
+	}
+	cfg.KeyStoreConfig.Logger = log
+	keyStore, err := keystore.NewManager(context.Background(), cfg.KeyStoreConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -237,13 +245,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		AuthServiceName: cfg.AuthServiceName,
 		ServerID:        cfg.HostUUID,
 		oidcClients:     make(map[string]*oidcClient),
-		samlProviders:   make(map[string]*samlProvider),
 		githubClients:   make(map[string]*githubClient),
 		cancelFunc:      cancelFunc,
 		closeCtx:        closeCtx,
 		emitter:         cfg.Emitter,
 		streamer:        cfg.Streamer,
-		unstable:        local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
+		Unstable:        local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
 		Services:        services,
 		Cache:           services,
 		keyStore:        keyStore,
@@ -274,6 +281,22 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			},
 		)
 	}
+	if as.circleCITokenValidate == nil {
+		as.circleCITokenValidate = func(
+			ctx context.Context, organizationID, token string,
+		) (*circleci.IDTokenClaims, error) {
+			return circleci.ValidateToken(
+				ctx, as.clock, circleci.IssuerURLTemplate, organizationID, token,
+			)
+		}
+	}
+	// Plug in SAML auth service
+	sas := NewSAMLAuthService(&SAMLAuthServiceConfig{
+		Auth:                   &as,
+		Emitter:                as.emitter,
+		AssertionReplayService: as.Unstable.AssertionReplayService,
+	})
+	as.SetSAMLService(sas)
 
 	return &as, nil
 }
@@ -381,13 +404,14 @@ type Server struct {
 	lock sync.RWMutex
 	// oidcClients is a map from authID & proxyAddr -> oidcClient
 	oidcClients   map[string]*oidcClient
-	samlProviders map[string]*samlProvider
 	githubClients map[string]*githubClient
 	clock         clockwork.Clock
 	bk            backend.Backend
 
 	closeCtx   context.Context
 	cancelFunc context.CancelFunc
+
+	samlAuthService SAMLService
 
 	sshca.Authority
 
@@ -399,9 +423,9 @@ type Server struct {
 	// ServerID is the server ID of this auth server.
 	ServerID string
 
-	// unstable implements unstable backend methods not suitable
+	// Unstable implements Unstable backend methods not suitable
 	// for inclusion in Services.
-	unstable local.UnstableService
+	Unstable local.UnstableService
 
 	// Services encapsulate services - provisioner, trust, etc. used by the auth
 	// server in a separate structure. Reads through Services hit the backend.
@@ -431,9 +455,9 @@ type Server struct {
 	// session related streams
 	streamer events.Streamer
 
-	// keyStore is an interface for interacting with private keys in CAs which
-	// may be backed by HSMs
-	keyStore keystore.KeyStore
+	// keyStore manages all CA private keys, which  may or may not be backed by
+	// HSMs
+	keyStore *keystore.Manager
 
 	// lockWatcher is a lock watcher, used to verify cert generation requests.
 	lockWatcher *services.LockWatcher
@@ -458,8 +482,19 @@ type Server struct {
 	// by the auth server. It can be overridden for the purpose of tests.
 	ghaIDTokenValidator ghaIDTokenValidator
 
+	// circleCITokenValidate allows ID tokens from CircleCI to be validated by
+	// the auth server. It can be overridden for the purpose of tests.
+	circleCITokenValidate func(ctx context.Context, organizationID, token string) (*circleci.IDTokenClaims, error)
+
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
+}
+
+// SetSAMLService registers ss as the SAMLService that provides the SAML
+// connector implementation. If a SAMLService has already been registered, this
+// will override the previous registration.
+func (a *Server) SetSAMLService(svc SAMLService) {
+	a.samlAuthService = svc
 }
 
 func (a *Server) CloseContext() context.Context {
@@ -570,9 +605,11 @@ func (a *Server) runPeriodicOperations() {
 	}
 }
 
-const releaseAlertID = "upgrade-suggestion"
-const secAlertID = "security-patch-available"
-const verInUseLabel = "teleport.internal/ver-in-use"
+const (
+	releaseAlertID = "upgrade-suggestion"
+	secAlertID     = "security-patch-available"
+	verInUseLabel  = "teleport.internal/ver-in-use"
+)
 
 // syncReleaseAlerts calculates alerts related to new teleport releases. When checkRemote
 // is true it pulls the latest release info from github.  Otherwise, it loads the versions used
@@ -866,7 +903,7 @@ func (a *Server) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertR
 
 // GenerateHostCert uses the private key of the CA to sign the public key of the host
 // (along with meta data like host ID, node name, roles, and ttl) to generate a host certificate.
-func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
+func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
 	domainName, err := a.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -881,7 +918,7 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 		return nil, trace.BadParameter("failed to load host CA for %q: %v", domainName, err)
 	}
 
-	caSigner, err := a.keyStore.GetSSHSigner(ca)
+	caSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -915,7 +952,7 @@ func (a *Server) generateHostCert(p services.HostCertParams) ([]byte, error) {
 }
 
 // GetKeyStore returns the KeyStore used by the auth server
-func (a *Server) GetKeyStore() keystore.KeyStore {
+func (a *Server) GetKeyStore() *keystore.Manager {
 	return a.keyStore
 }
 
@@ -1254,7 +1291,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		}
 	}
 
-	var attestedKeyPolicy = keys.PrivateKeyPolicyNone
+	attestedKeyPolicy := keys.PrivateKeyPolicyNone
 	if !req.skipAttestation {
 		// verify that the required private key policy for the requesting identity
 		// is met by the provided attestation statement.
@@ -1293,7 +1330,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caSigner, err := a.keyStore.GetSSHSigner(userCA)
+	caSigner, err := a.keyStore.GetSSHSigner(ctx, userCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1370,7 +1407,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	}
 
 	// generate TLS certificate
-	cert, signer, err := a.keyStore.GetTLSCertAndSigner(userCA)
+	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ctx, userCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2224,19 +2261,13 @@ func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
+	session, err := a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
 		User:      user,
 		Roles:     u.GetRoles(),
 		Traits:    u.GetTraits(),
 		LoginTime: a.clock.Now().UTC(),
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := a.upsertWebSession(ctx, user, sess); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sess, nil
+	return session, trace.Wrap(err)
 }
 
 // GenerateToken generates multi-purpose authentication token.
@@ -2335,7 +2366,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	// If the request contains 0.0.0.0, this implies an advertise IP was not
 	// specified on the node. Try and guess what the address by replacing 0.0.0.0
 	// with the RemoteAddr as known to the Auth Server.
-	if apiutils.SliceContainsStr(req.AdditionalPrincipals, defaults.AnyAddress) {
+	if slices.Contains(req.AdditionalPrincipals, defaults.AnyAddress) {
 		remoteHost, err := utils.Host(req.RemoteAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2390,14 +2421,14 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 
 	isAdminRole := req.Role == types.RoleAdmin
 
-	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca)
+	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ctx, ca)
 	if trace.IsNotFound(err) && isAdminRole {
 		// If there is no local TLS signer found in the host CA ActiveKeys, this
 		// auth server may have a newly configured HSM and has only populated
 		// local keys in the AdditionalTrustedKeys until the next CA rotation.
 		// This is the only case where we should be able to get a signer from
 		// AdditionalTrustedKeys but not ActiveKeys.
-		cert, signer, err = a.keyStore.GetAdditionalTrustedTLSCertAndSigner(ca)
+		cert, signer, err = a.keyStore.GetAdditionalTrustedTLSCertAndSigner(ctx, ca)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2407,14 +2438,14 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		return nil, trace.Wrap(err)
 	}
 
-	caSigner, err := a.keyStore.GetSSHSigner(ca)
+	caSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
 	if trace.IsNotFound(err) && isAdminRole {
 		// If there is no local SSH signer found in the host CA ActiveKeys, this
 		// auth server may have a newly configured HSM and has only populated
 		// local keys in the AdditionalTrustedKeys until the next CA rotation.
 		// This is the only case where we should be able to get a signer from
 		// AdditionalTrustedKeys but not ActiveKeys.
-		caSigner, err = a.keyStore.GetAdditionalTrustedSSHSigner(ca)
+		caSigner, err = a.keyStore.GetAdditionalTrustedSSHSigner(ctx, ca)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2485,11 +2516,11 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 // instances to prove that they hold a given system role.
 // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
 func (a *Server) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
-	return trace.Wrap(a.unstable.AssertSystemRole(ctx, req))
+	return trace.Wrap(a.Unstable.AssertSystemRole(ctx, req))
 }
 
 func (a *Server) UnstableGetSystemRoleAssertions(ctx context.Context, serverID string, assertionID string) (proto.UnstableSystemRoleAssertionSet, error) {
-	set, err := a.unstable.GetSystemRoleAssertions(ctx, serverID, assertionID)
+	set, err := a.Unstable.GetSystemRoleAssertions(ctx, serverID, assertionID)
 	return set, trace.Wrap(err)
 }
 
@@ -3002,14 +3033,14 @@ func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.Cert
 	// If there are multiple signers (multiple HSMs), we won't have the full CRL coverage.
 	// Generate a CRL per signer and return all of them separately.
 
-	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ca)
+	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ctx, ca)
 	if trace.IsNotFound(err) {
 		// If there is no local TLS signer found in the host CA ActiveKeys, this
 		// auth server may have a newly configured HSM and has only populated
 		// local keys in the AdditionalTrustedKeys until the next CA rotation.
 		// This is the only case where we should be able to get a signer from
 		// AdditionalTrustedKeys but not ActiveKeys.
-		cert, signer, err = a.keyStore.GetAdditionalTrustedTLSCertAndSigner(ca)
+		cert, signer, err = a.keyStore.GetAdditionalTrustedTLSCertAndSigner(ctx, ca)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3730,19 +3761,23 @@ func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {
 
 // addAdditionalTrustedKeysAtomic performs an atomic CompareAndSwap to update
 // the given CA with newKeys added to the AdditionalTrustedKeys
-func (a *Server) addAddtionalTrustedKeysAtomic(
+func (a *Server) addAdditionalTrustedKeysAtomic(
 	ctx context.Context,
 	currentCA types.CertAuthority,
 	newKeys types.CAKeySet,
-	needsUpdate func(types.CertAuthority) bool,
+	needsUpdate func(types.CertAuthority) (bool, error),
 ) error {
 	for {
 		select {
-		case <-a.closeCtx.Done():
-			return trace.Wrap(a.closeCtx.Err())
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
 		default:
 		}
-		if !needsUpdate(currentCA) {
+		updateRequired, err := needsUpdate(currentCA)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !updateRequired {
 			return nil
 		}
 
@@ -3753,7 +3788,7 @@ func (a *Server) addAddtionalTrustedKeysAtomic(
 			return trace.Wrap(err)
 		}
 
-		err := a.CompareAndSwapCertAuthority(newCA, currentCA)
+		err = a.CompareAndSwapCertAuthority(newCA, currentCA)
 		if err != nil && !trace.IsCompareFailed(err) {
 			return trace.Wrap(err)
 		}
@@ -3772,15 +3807,15 @@ func (a *Server) addAddtionalTrustedKeysAtomic(
 
 // newKeySet generates a new sets of keys for a given CA type.
 // Keep this function in sync with lib/service/suite/suite.go:NewTestCAWithConfig().
-func newKeySet(keyStore keystore.KeyStore, caID types.CertAuthID) (types.CAKeySet, error) {
+func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertAuthID) (types.CAKeySet, error) {
 	var keySet types.CAKeySet
 	switch caID.Type {
 	case types.UserCA, types.HostCA:
-		sshKeyPair, err := keyStore.NewSSHKeyPair()
+		sshKeyPair, err := keyStore.NewSSHKeyPair(ctx)
 		if err != nil {
 			return keySet, trace.Wrap(err)
 		}
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(caID.DomainName)
+		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
 		if err != nil {
 			return keySet, trace.Wrap(err)
 		}
@@ -3788,13 +3823,13 @@ func newKeySet(keyStore keystore.KeyStore, caID types.CertAuthID) (types.CAKeySe
 		keySet.TLS = append(keySet.TLS, tlsKeyPair)
 	case types.DatabaseCA:
 		// Database CA only contains TLS cert.
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(caID.DomainName)
+		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
 		if err != nil {
 			return keySet, trace.Wrap(err)
 		}
 		keySet.TLS = append(keySet.TLS, tlsKeyPair)
 	case types.JWTSigner:
-		jwtKeyPair, err := keyStore.NewJWTKeyPair()
+		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx)
 		if err != nil {
 			return keySet, trace.Wrap(err)
 		}
@@ -3808,30 +3843,38 @@ func newKeySet(keyStore keystore.KeyStore, caID types.CertAuthID) (types.CAKeySe
 // ensureLocalAdditionalKeys adds additional trusted keys to the CA if they are not
 // already present.
 func (a *Server) ensureLocalAdditionalKeys(ctx context.Context, ca types.CertAuthority) error {
-	if a.keyStore.HasLocalAdditionalKeys(ca) {
+	hasUsableKeys, err := a.keyStore.HasUsableAdditionalKeys(ctx, ca)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if hasUsableKeys {
 		// nothing to do
 		return nil
 	}
 
-	newKeySet, err := newKeySet(a.keyStore, ca.GetID())
+	newKeySet, err := newKeySet(ctx, a.keyStore, ca.GetID())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = a.addAddtionalTrustedKeysAtomic(ctx, ca, newKeySet, func(ca types.CertAuthority) bool {
-		return !a.keyStore.HasLocalAdditionalKeys(ca)
-	})
+	// The CA still needs an update while the keystore does not have any usable
+	// keys in the CA.
+	needsUpdate := func(ca types.CertAuthority) (bool, error) {
+		hasUsableKeys, err := a.keyStore.HasUsableAdditionalKeys(ctx, ca)
+		return !hasUsableKeys, trace.Wrap(err)
+	}
+	err = a.addAdditionalTrustedKeysAtomic(ctx, ca, newKeySet, needsUpdate)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Infof("Successfully added local additional trusted keys to %s CA.", ca.GetType())
+	log.Infof("Successfully added locally usable additional trusted keys to %s CA.", ca.GetType())
 	return nil
 }
 
 // createSelfSignedCA creates a new self-signed CA and writes it to the
 // backend, with the type and clusterName given by the argument caID.
-func (a *Server) createSelfSignedCA(caID types.CertAuthID) error {
-	keySet, err := newKeySet(a.keyStore, caID)
+func (a *Server) createSelfSignedCA(ctx context.Context, caID types.CertAuthID) error {
+	keySet, err := newKeySet(ctx, a.keyStore, caID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3876,7 +3919,7 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 			}
 		}
 	}
-	return trace.Wrap(a.keyStore.DeleteUnusedKeys(usedKeys))
+	return trace.Wrap(a.keyStore.DeleteUnusedKeys(ctx, usedKeys))
 }
 
 // authKeepAliver is a keep aliver using auth server directly
@@ -3963,12 +4006,6 @@ type oidcClient struct {
 	syncCancel context.CancelFunc
 	// firstSync will be closed once the first provider sync succeeds
 	firstSync chan struct{}
-}
-
-// samlProvider is internal structure that stores SAML client and its config
-type samlProvider struct {
-	provider  *saml2.SAMLServiceProvider
-	connector types.SAMLConnector
 }
 
 // githubClient is internal structure that stores Github OAuth 2client and its config

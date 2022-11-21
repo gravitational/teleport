@@ -2530,9 +2530,6 @@ func (g *GRPCServer) UpsertSAMLConnector(ctx context.Context, samlConnector *typ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = services.ValidateSAMLConnector(samlConnector, auth); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if err = auth.ServerWithRoles.UpsertSAMLConnector(ctx, samlConnector); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2617,12 +2614,16 @@ func (g *GRPCServer) GetGithubConnectors(ctx context.Context, req *types.Resourc
 }
 
 // UpsertGithubConnector upserts a Github connector.
-func (g *GRPCServer) UpsertGithubConnector(ctx context.Context, GithubConnector *types.GithubConnectorV3) (*emptypb.Empty, error) {
+func (g *GRPCServer) UpsertGithubConnector(ctx context.Context, connector *types.GithubConnectorV3) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = auth.ServerWithRoles.UpsertGithubConnector(ctx, GithubConnector); err != nil {
+	githubConnector, err := services.InitGithubConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = auth.ServerWithRoles.UpsertGithubConnector(ctx, githubConnector); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
@@ -3909,6 +3910,11 @@ func (g *GRPCServer) CreateSessionTracker(ctx context.Context, req *proto.Create
 		return nil, trace.Wrap(err)
 	}
 
+	if req.SessionTracker == nil {
+		g.Errorf("Missing SessionTracker in CreateSessionTrackerRequest. This can be caused by an outdated Teleport node running against your cluster.")
+		return nil, trace.BadParameter("missing SessionTracker from CreateSessionTrackerRequest")
+	}
+
 	tracker, err := auth.ServerWithRoles.CreateSessionTracker(ctx, req.SessionTracker)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3949,6 +3955,33 @@ func (g *GRPCServer) GetActiveSessionTrackers(_ *emptypb.Empty, stream proto.Aut
 		return trace.Wrap(err)
 	}
 	sessions, err := auth.ServerWithRoles.GetActiveSessionTrackers(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, session := range sessions {
+		defined, ok := session.(*types.SessionTrackerV1)
+		if !ok {
+			return trace.BadParameter("unexpected session type %T", session)
+		}
+
+		err := stream.Send(defined)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// GetActiveSessionTrackersWithFilter returns a list of active sessions filtered by a filter.
+func (g *GRPCServer) GetActiveSessionTrackersWithFilter(filter *types.SessionTrackerFilter, stream proto.AuthService_GetActiveSessionTrackersWithFilterServer) error {
+	ctx := stream.Context()
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sessions, err := auth.ServerWithRoles.GetActiveSessionTrackersWithFilter(ctx, filter)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -35,15 +35,31 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/oxy/ratelimit"
+	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+	lemma_secret "github.com/mailgun/lemma/secret"
+	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
+	"golang.org/x/mod/semver"
+	"google.golang.org/protobuf/encoding/protojson"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -54,7 +70,6 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
@@ -63,17 +78,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
-
-	"github.com/gravitational/oxy/ratelimit"
-	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
-	lemma_secret "github.com/mailgun/lemma/secret"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/mod/semver"
 )
 
 const (
@@ -206,6 +210,9 @@ type Config struct {
 	// ALPNHandler is the ALPN connection handler for handling upgraded ALPN
 	// connection through a HTTP upgrade call.
 	ALPNHandler ConnectionHandler
+
+	// TraceClient is used to forward spans to the upstream collector for the UI
+	TraceClient otlptrace.Client
 }
 
 type APIHandler struct {
@@ -249,6 +256,7 @@ func (h *APIHandler) Close() error {
 // NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
+	cfg.ProxyClient = auth.WithGithubConnectorConversions(cfg.ProxyClient)
 	h := &Handler{
 		cfg:             cfg,
 		log:             newPackageLogger(),
@@ -480,6 +488,9 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	// Migrated this endpoint to /webapi/sessions/web below.
 	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createWebSession))
 
+	// Forwards traces to the configured upstream collector
+	h.POST("/webapi/traces", h.WithAuth(h.traces))
+
 	// Web sessions
 	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.createWebSession))
 	h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
@@ -492,8 +503,8 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.DELETE("/webapi/users/:username", h.WithAuth(h.deleteUserHandle))
 
 	// We have an overlap route here, please see godoc of handleGetUserOrResetToken
-	//h.GET("/webapi/users/:username", h.WithAuth(h.getUserHandle))
-	//h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
+	// h.GET("/webapi/users/:username", h.WithAuth(h.getUserHandle))
+	// h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
 	h.GET("/webapi/users/*wildcard", h.handleGetUserOrResetToken)
 
 	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changeUserAuthentication))
@@ -552,12 +563,17 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	// join scripts
 	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(h.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(h.getAppJoinScriptHandle))
+	h.GET("/scripts/:token/install-database.sh", httplib.MakeHandler(h.getDatabaseJoinScriptHandle))
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
 	h.GET("/webapi/sites/:site/resources/check", h.WithClusterAuth(h.checkAccessToRegisteredResource))
 
 	// Database access handlers.
 	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.clusterDatabasesGet))
+	h.POST("/webapi/sites/:site/databases", h.WithClusterAuth(h.handleDatabaseCreate))
+	h.PUT("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.handleDatabaseUpdate))
+	h.GET("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.clusterDatabaseGet))
+	h.GET("/webapi/sites/:site/databases/:database/iam/policy", h.WithClusterAuth(h.handleDatabaseGetIAMPolicy))
 
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
@@ -614,6 +630,7 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.GET("/webapi/sites/:site/desktops/:desktopName/connect", h.WithClusterAuth(h.desktopConnectHandle))
 	// GET /webapi/sites/:site/desktopplayback/:sid?access_token=<bearer_token>
 	h.GET("/webapi/sites/:site/desktopplayback/:sid", h.WithClusterAuth(h.desktopPlaybackHandle))
+	h.GET("/webapi/sites/:site/desktops/:desktopName/active", h.WithClusterAuth(h.desktopIsActive))
 
 	// GET a Connection Diagnostics by its name
 	h.GET("/webapi/sites/:site/diagnostics/connections/:connectionid", h.WithClusterAuth(h.getConnectionDiagnostic))
@@ -904,6 +921,70 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 	return as, nil
 }
 
+// traces forwards spans from the web ui to the upstream collector configured for the proxy. If tracing is
+// disabled then the forwarding is a noop.
+func (h *Handler) traces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *SessionContext) (interface{}, error) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, teleport.MaxHTTPRequestSize))
+	if err != nil {
+		h.log.WithError(err).Error("Failed to read traces request")
+		w.WriteHeader(http.StatusBadRequest)
+		return nil, nil
+	}
+
+	if err := r.Body.Close(); err != nil {
+		h.log.WithError(err).Warn("Failed to close traces request body")
+	}
+
+	var data tracepb.TracesData
+	if err := protojson.Unmarshal(body, &data); err != nil {
+		h.log.WithError(err).Error("Failed to unmarshal traces request")
+		w.WriteHeader(http.StatusBadRequest)
+		return nil, nil
+	}
+
+	if len(data.ResourceSpans) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return nil, nil
+	}
+
+	// Unmarshalling of TraceId, SpanId, and ParentSpanId might all yield incorrect values. The raw values from
+	// OpenTelemetry-js are hex encoded, but the unmarshal call above will decode them as base64.
+	// In order to ensure the ids are in the right format and won't be rejected by the upstream collector
+	// we attempt to convert them back into the base64 and then hex decode them.
+	for _, resourceSpan := range data.ResourceSpans {
+		for _, scopeSpan := range resourceSpan.ScopeSpans {
+			for _, span := range scopeSpan.Spans {
+
+				// attempt to convert the trace id to the right format
+				if tid, err := oteltrace.TraceIDFromHex(base64.StdEncoding.EncodeToString(span.TraceId)); err == nil {
+					span.TraceId = tid[:]
+				}
+
+				// attempt to convert the span id to the right format
+				if sid, err := oteltrace.SpanIDFromHex(base64.StdEncoding.EncodeToString(span.SpanId)); err == nil {
+					span.SpanId = sid[:]
+				}
+
+				// attempt to convert the parent span id to the right format
+				if len(span.ParentSpanId) > 0 {
+					if psid, err := oteltrace.SpanIDFromHex(base64.StdEncoding.EncodeToString(span.ParentSpanId)); err == nil {
+						span.ParentSpanId = psid[:]
+					}
+				}
+			}
+		}
+	}
+
+	go func() {
+		if err := h.cfg.TraceClient.UploadTraces(r.Context(), data.ResourceSpans); err != nil {
+			h.log.WithError(err).Error("Failed to upload traces")
+		}
+	}()
+
+	w.WriteHeader(http.StatusOK)
+	return nil, nil
+}
+
 func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var err error
 	authSettings, err := getAuthSettings(r.Context(), h.cfg.ProxyClient)
@@ -970,7 +1051,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	hasMessageOfTheDay := cap.GetMessageOfTheDay() != ""
-	if apiutils.SliceContainsStr(constants.SystemConnectors, connectorName) {
+	if slices.Contains(constants.SystemConnectors, connectorName) {
 		response.Auth, err = localSettings(cap)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1107,6 +1188,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			AuthType:           authType,
 			PreferredLocalMFA:  cap.GetPreferredLocalMFA(),
 			LocalConnectorName: localConnectorName,
+			PrivateKeyPolicy:   cap.GetPrivateKeyPolicy(),
 		}
 	}
 
@@ -1570,6 +1652,12 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 	if err != nil {
 		h.log.WithError(err).Warnf("Access attempt denied for user %q.", req.User)
+		// Since checking for private key policy meant that they passed authn,
+		// return policy error as is to help direct user.
+		if keys.IsPrivateKeyPolicyError(err) {
+			return nil, trace.Wrap(err)
+		}
+		// Obscure all other errors.
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
@@ -1721,10 +1809,30 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
+	if res.PrivateKeyPolicyEnabled {
+		if res.GetRecovery() == nil {
+			return &ui.ChangedUserAuthn{
+				PrivateKeyPolicyEnabled: res.PrivateKeyPolicyEnabled,
+			}, nil
+		}
+		return &ui.ChangedUserAuthn{
+			Recovery: ui.RecoveryCodes{
+				Codes:   res.GetRecovery().GetCodes(),
+				Created: &res.GetRecovery().Created,
+			},
+			PrivateKeyPolicyEnabled: res.PrivateKeyPolicyEnabled,
+		}, nil
+	}
+
 	sess := res.WebSession
 	ctx, err := h.auth.newSessionContext(r.Context(), sess.GetUser(), sess.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	err = h.trySettingConnectorNameToPasswordless(r.Context(), ctx, req)
+	if err != nil {
+		h.log.WithError(err).Error("Failed to set passwordless as connector name.")
 	}
 
 	if err := SetSessionCookie(w, sess.GetUser(), sess.GetName()); err != nil {
@@ -1737,13 +1845,54 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	}
 
 	if res.GetRecovery() == nil {
-		return &ui.RecoveryCodes{}, nil
+		return &ui.ChangedUserAuthn{}, nil
 	}
 
-	return &ui.RecoveryCodes{
-		Codes:   res.Recovery.Codes,
-		Created: &res.Recovery.Created,
+	return &ui.ChangedUserAuthn{
+		Recovery: ui.RecoveryCodes{
+			Codes:   res.GetRecovery().GetCodes(),
+			Created: &res.GetRecovery().Created,
+		},
 	}, nil
+}
+
+// trySettingConnectorNameToPasswordless sets cluster_auth_preference connectorName to `passwordless` when the first cloud user chooses passwordless as the authentication method.
+// This simplifies UX for cloud users, as they will not need to select a passwordless connector when logging in.
+func (h *Handler) trySettingConnectorNameToPasswordless(ctx context.Context, sessCtx *SessionContext, req changeUserAuthenticationRequest) error {
+	// We use the presence of a WebAuthn response, along with the absence of a
+	// password, as a proxy to determine that a passwordless registration took
+	// place, as it is not possible to infer that just from the WebAuthn response.
+	isPasswordlessRegistration := req.WebauthnCreationResponse != nil && len(req.Password) == 0
+	if !isPasswordlessRegistration {
+		return nil
+	}
+
+	if !h.ClusterFeatures.GetCloud() {
+		return nil
+	}
+
+	authPreference, err := sessCtx.clt.GetAuthPreference(ctx)
+	if err != nil {
+		return nil
+	}
+
+	if connector := authPreference.GetConnectorName(); connector != "" && connector != constants.LocalConnector {
+		return nil
+	}
+
+	users, err := h.cfg.ProxyClient.GetUsers(false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(users) != 1 {
+		return nil
+	}
+
+	authPreference.SetConnectorName(constants.PasswordlessConnector)
+
+	err = sessCtx.clt.SetAuthPreference(ctx, authPreference)
+	return trace.Wrap(err)
 }
 
 // createResetPasswordToken allows a UI user to reset a user's password.
@@ -1896,6 +2045,12 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	clientMeta := clientMetaFromReq(r)
 	session, err := h.auth.AuthenticateWebUser(r.Context(), req, clientMeta)
 	if err != nil {
+		// Since checking for private key policy meant that they passed authn,
+		// return policy error as is to help direct user.
+		if keys.IsPrivateKeyPolicyError(err) {
+			return nil, trace.Wrap(err)
+		}
+		// Obscure all other errors.
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
@@ -1909,6 +2064,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}
+
 	return newSessionResponse(ctx)
 }
 
@@ -1954,15 +2110,13 @@ type getSiteNamespacesResponse struct {
 	Namespaces []types.Namespace `json:"namespaces"`
 }
 
-/*
-	getSiteNamespaces returns a list of namespaces for a given site
-
-GET /v1/webapi/sites/:site/namespaces
-
-Successful response:
-
-{"namespaces": [{..namespace resource...}]}
-*/
+// getSiteNamespaces returns a list of namespaces for a given site
+//
+// GET /v1/webapi/sites/:site/namespaces
+//
+// Successful response:
+//
+// {"namespaces": [{..namespace resource...}]}
 func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := site.GetClient()
 	if err != nil {
@@ -2026,7 +2180,6 @@ func (h *Handler) clusterLoginAlertsGet(w http.ResponseWriter, r *http.Request, 
 			types.AlertOnLogin: "yes",
 		},
 	})
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2072,7 +2225,7 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(h.cfg.Context)
+	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(r.Context())
 	if err != nil {
 		h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
 		return nil, trace.Wrap(err)
@@ -2096,7 +2249,7 @@ func (h *Handler) siteNodeConnect(
 
 	// start the websocket session with a web-based terminal:
 	h.log.Infof("Getting terminal to %#v.", req)
-	term.Serve(w, r)
+	httplib.MakeTracingHandler(term, teleport.ComponentProxy).ServeHTTP(w, r)
 
 	return nil, nil
 }
@@ -2134,6 +2287,7 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 			return nil, trace.Wrap(err)
 		}
 
+		req.Session.Kind = types.SSHSessionKind
 		req.Session.ServerHostname = hostname
 	}
 
@@ -2180,6 +2334,9 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 		ServerAddr:            tracker.GetAddress(),
 		ClusterName:           clusterName,
 		KubernetesClusterName: tracker.GetKubeCluster(),
+		DesktopName:           tracker.GetDesktopName(),
+		AppName:               tracker.GetAppName(),
+		DatabaseName:          tracker.GetDatabaseName(),
 	}
 }
 
@@ -2204,9 +2361,7 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 
 	sessions := make([]session.Session, 0, len(trackers))
 	for _, tracker := range trackers {
-		// Only return ssh and k8s session type.
-		isSSHOrK8s := tracker.GetSessionKind() == types.SSHSessionKind || tracker.GetSessionKind() == types.KubernetesSessionKind
-		if isSSHOrK8s && tracker.GetState() != types.SessionState_SessionStateTerminated {
+		if tracker.GetState() != types.SessionState_SessionStateTerminated {
 			sessions = append(sessions, trackerToLegacySession(tracker, p.ByName("site")))
 		}
 	}
@@ -3025,7 +3180,7 @@ func makeTeleportClientConfig(ctx context.Context, sesCtx *SessionContext) (*cli
 		DefaultPrincipal:  cert.ValidPrincipals[0],
 		HostKeyCallback:   callback,
 		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
-		Tracer:            tracing.NoopProvider().Tracer("test"),
+		Tracer:            apitracing.DefaultProvider().Tracer("webterminal"),
 	}
 
 	return config, nil

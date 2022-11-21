@@ -168,10 +168,8 @@ func (t *terminal) AddParty(delta int) {
 }
 
 // Run will run the terminal.
-func (t *terminal) Run(ctx context.Context) error {
+func (t *terminal) Run(_ context.Context) error {
 	var err error
-	defer t.closeTTY()
-
 	// Create the command that will actually execute.
 	t.cmd, err = ConfigureCommand(t.ctx)
 	if err != nil {
@@ -224,7 +222,9 @@ func (t *terminal) Wait() (*ExecResult, error) {
 // Continue will resume execution of the process after it completes its
 // pre-processing routine (placed in a cgroup).
 func (t *terminal) Continue() {
-	t.ctx.contw.Close()
+	if err := t.ctx.contw.Close(); err != nil {
+		t.log.Warnf("failed to close server context")
+	}
 }
 
 // Kill will force kill the terminal.
@@ -269,10 +269,14 @@ func (t *terminal) Close() error {
 }
 
 func (t *terminal) closeTTY() error {
+	t.log.Debugf("Closing TTY")
+	defer t.log.Debugf("Closed TTY")
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	if t.tty == nil {
+		t.log.Debugf("TTY already closed")
 		return nil
 	}
 
@@ -287,14 +291,21 @@ func (t *terminal) closeTTY() error {
 }
 
 func (t *terminal) closePTY() {
+	defer t.log.Debugf("Closed PTY")
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	defer t.log.Debugf("Closed PTY")
 
 	// wait until all copying is over (all participants have left)
 	t.wg.Wait()
 
-	t.pty.Close()
+	if t.pty == nil {
+		return
+	}
+
+	if err := t.pty.Close(); err != nil {
+		t.log.Warnf("Failed to close PTY: %v", err)
+	}
 	t.pty = nil
 }
 
@@ -458,7 +469,7 @@ func (b *ptyBuffer) Write(p []byte) (n int, err error) {
 }
 
 func (t *remoteTerminal) Run(ctx context.Context) error {
-	// prepare the remote remote session by setting environment variables
+	// prepare the remote session by setting environment variables
 	t.prepareRemoteSession(ctx, t.session, t.ctx)
 
 	// combine stdout and stderr
@@ -560,6 +571,7 @@ func (t *remoteTerminal) PID() int {
 }
 
 func (t *remoteTerminal) Close() error {
+	t.wg.Wait()
 	// this closes the underlying stdin,stdout,stderr which is what ptyBuffer is
 	// hooked to directly
 	err := t.session.Close()

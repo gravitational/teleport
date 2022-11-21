@@ -30,7 +30,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/moby/term"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -50,13 +56,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/socks"
-
-	"github.com/gravitational/trace"
-	"github.com/moby/term"
-	"go.opentelemetry.io/otel/attribute"
-	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 )
 
 // ProxyClient implements ssh client to a teleport proxy
@@ -198,6 +197,8 @@ type ReissueParams struct {
 	// MFACheck is optional parameter passed if MFA check was already done.
 	// It can be nil.
 	MFACheck *proto.IsMFARequiredResponse
+	// AuthClient is the client used for the MFACheck that can be reused
+	AuthClient auth.ClientI
 }
 
 func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
@@ -410,12 +411,16 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		// Connect to the target cluster (root or leaf) to check whether MFA is
 		// required or if we know from param that it's required, connect because
 		// it will be needed to do MFA check.
-		var err error
-		clt, err = proxy.ConnectToCluster(ctx, params.RouteToCluster)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if params.AuthClient != nil {
+			clt = params.AuthClient
+		} else {
+			authClt, err := proxy.ConnectToCluster(ctx, params.RouteToCluster)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			clt = authClt
+			defer clt.Close()
 		}
-		defer clt.Close()
 	}
 
 	if requiredCheck == nil {
@@ -488,7 +493,13 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		}
 		return nil, trace.Wrap(err)
 	}
-	defer stream.CloseSend()
+	defer func() {
+		// CloseSend closes the client side of the stream
+		stream.CloseSend()
+		// Recv to wait for the server side of the stream to end, this needs to
+		// be called to ensure the spans are finished properly
+		stream.Recv()
+	}()
 
 	initReq, err := proxy.prepareUserCertsRequest(params, key)
 	if err != nil {
@@ -1498,7 +1509,7 @@ func requestSubsystem(ctx context.Context, session *tracessh.Session, name strin
 
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
-func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDetails, user string) (*NodeClient, error) {
+func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDetails, user string, details sshutils.ClusterDetails, authMethods []ssh.AuthMethod) (*NodeClient, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/ConnectToNode",
@@ -1513,12 +1524,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 
 	log.Infof("Client=%v connecting to node=%v", proxy.clientAddr, nodeAddress)
 	if len(proxy.teleportClient.JumpHosts) > 0 {
-		return proxy.PortForwardToNode(ctx, nodeAddress, user)
-	}
-
-	authMethods, err := proxy.sessionSSHCertificate(ctx, nodeAddress)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		return proxy.PortForwardToNode(ctx, nodeAddress, user, details, authMethods)
 	}
 
 	// parse destination first:
@@ -1527,12 +1533,6 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 		return nil, trace.Wrap(err)
 	}
 	fakeAddr, err := utils.ParseAddr("tcp://" + nodeAddress.Addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// after auth but before we create the first session, find out cluster details
-	details, err := proxy.clusterDetails(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1641,7 +1641,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 
 // PortForwardToNode connects to the ssh server via Proxy
 // It returns connected and authenticated NodeClient
-func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress NodeDetails, user string) (*NodeClient, error) {
+func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress NodeDetails, user string, details sshutils.ClusterDetails, authMethods []ssh.AuthMethod) (*NodeClient, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/PortForwardToNode",
@@ -1656,18 +1656,6 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 
 	log.Infof("Client=%v jumping to node=%s", proxy.clientAddr, nodeAddress)
 
-	authMethods, err := proxy.sessionSSHCertificate(ctx, nodeAddress)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// after auth but before we create the first session, find out if the proxy
-	// is in recording mode or not
-	details, err := proxy.clusterDetails(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// the client only tries to forward an agent when the proxy is in recording
 	// mode. we always try and forward an agent here because each new session
 	// creates a new context which holds the agent. if ForwardToAgent returns an error
@@ -1676,7 +1664,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 		if proxy.teleportClient.localAgent == nil {
 			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
 		}
-		err = agent.ForwardToAgent(proxy.Client.Client, proxy.teleportClient.localAgent.ExtendedAgent)
+		err := agent.ForwardToAgent(proxy.Client.Client, proxy.teleportClient.localAgent.ExtendedAgent)
 		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
 			return nil, trace.Wrap(err)
 		}
@@ -2137,7 +2125,7 @@ func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr No
 		ctx,
 		ReissueParams{
 			NodeName:       nodeName(nodeAddr.Addr),
-			RouteToCluster: nodeAddr.Cluster,
+			RouteToCluster: proxy.ClusterName(),
 			MFACheck:       nodeAddr.MFACheck,
 		},
 		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
