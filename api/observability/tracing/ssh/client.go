@@ -169,6 +169,15 @@ func (c *Client) SendRequest(ctx context.Context, name string, wantReply bool, p
 	defer span.End()
 
 	c.mu.RLock()
+	// If the TracingChannel was rejected when the client was created,
+	// the connection was prohibited due to a lock or session control.
+	// Callers to SendRequest are expecting to receive the reason the request
+	// was rejected, so we need to propagate the rejectedError here.
+	if c.rejectedError != nil {
+		c.mu.RUnlock()
+		return false, nil, trace.Wrap(c.rejectedError)
+	}
+
 	capability := c.capability
 	c.mu.RUnlock()
 
