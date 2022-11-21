@@ -106,7 +106,9 @@ import (
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/pam"
+	libproxy "github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
@@ -340,6 +342,15 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	require.NoError(t, err)
 	s.proxyTunnel = revTunServer
 
+	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+		ClusterName:         s.server.ClusterName(),
+		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		RemoteClusterGetter: s.proxyClient,
+		SiteGetter:          revTunServer,
+		TracerProvider:      tracing.NoopProvider(),
+	})
+	require.NoError(t, err)
+
 	// proxy server:
 	s.proxy, err = regular.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
@@ -351,7 +362,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		utils.NetAddr{},
 		s.proxyClient,
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode("", revTunServer, s.proxyClient),
+		regular.SetProxyMode("", revTunServer, s.proxyClient, router),
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
@@ -6042,6 +6053,15 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, revTunServer.Close()) })
 
+	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+		ClusterName:         authServer.ClusterName(),
+		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		RemoteClusterGetter: client,
+		SiteGetter:          revTunServer,
+		TracerProvider:      tracing.NoopProvider(),
+	})
+	require.NoError(t, err)
+
 	proxyServer, err := regular.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		authServer.ClusterName(),
@@ -6052,7 +6072,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "proxy-1.example.com:443"},
 		client,
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode("", revTunServer, client),
+		regular.SetProxyMode("", revTunServer, client, router),
 		regular.SetEmitter(client),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
