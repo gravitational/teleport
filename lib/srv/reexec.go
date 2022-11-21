@@ -429,12 +429,12 @@ func startNewParker(parkerCtx context.Context, cmd *exec.Cmd, login string, loca
 		return trace.Wrap(err)
 	}
 
-	guid, err := strconv.Atoi(group.Gid)
+	guid, err := strconv.ParseUint(group.Gid, 10, 32)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if cmd.SysProcAttr.Credential.Gid != uint32(guid) {
+	if uint64(cmd.SysProcAttr.Credential.Gid) != guid {
 		// Check if the new user guid matches the TeleportServiceGroup. If not
 		// this user hasn't been created by Teleport, and we don't need the parker.
 		return nil
