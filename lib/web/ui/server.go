@@ -75,6 +75,10 @@ func MakeServers(clusterName string, servers []types.Server, userRoles services.
 		uiLabels := []Label{}
 		serverLabels := server.GetStaticLabels()
 		for name, value := range serverLabels {
+			if strings.HasPrefix(name, "teleport.internal") {
+				continue
+			}
+
 			uiLabels = append(uiLabels, Label{
 				Name:  name,
 				Value: value,
@@ -128,6 +132,10 @@ func MakeKubeClusters(clusters []types.KubeCluster, userRoles services.RoleSet) 
 		uiLabels := make([]Label, 0, len(staticLabels)+len(dynamicLabels))
 
 		for name, value := range staticLabels {
+			if strings.HasPrefix(name, "teleport.internal") {
+				continue
+			}
+
 			uiLabels = append(uiLabels, Label{
 				Name:  name,
 				Value: value,
@@ -135,6 +143,10 @@ func MakeKubeClusters(clusters []types.KubeCluster, userRoles services.RoleSet) 
 		}
 
 		for name, cmd := range dynamicLabels {
+			if strings.HasPrefix(name, "teleport.internal") {
+				continue
+			}
+
 			uiLabels = append(uiLabels, Label{
 				Name:  name,
 				Value: cmd.GetResult(),
@@ -162,7 +174,10 @@ func MakeKubeClusters(clusters []types.KubeCluster, userRoles services.RoleSet) 
 // This function ignores any verification of the TTL associated with
 // each Role, and focuses only on listing all users and groups that the user may
 // have access to.
-func getAllowedKubeUsersAndGroupsForCluster(roles services.RoleSet, kube types.KubeCluster) (kubeUsers []string, kubeGroups []string) {
+func getAllowedKubeUsersAndGroupsForCluster(
+	roles services.RoleSet,
+	kube types.KubeCluster,
+) (kubeUsers []string, kubeGroups []string) {
 	matcher := services.NewKubernetesClusterLabelMatcher(kube.GetAllLabels())
 	// We ignore the TTL verification because we want to include every possibility.
 	// Later, if the user certificate expiration is longer than the maximum allowed TTL
@@ -236,10 +251,13 @@ type Database struct {
 
 // MakeDatabase creates database objects.
 func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
-
 	uiLabels := []Label{}
 
 	for name, value := range database.GetAllLabels() {
+		if strings.HasPrefix(name, "teleport.internal") {
+			continue
+		}
+
 		uiLabels = append(uiLabels, Label{
 			Name:  name,
 			Value: value,
@@ -297,6 +315,10 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
 	uiLabels := []Label{}
 
 	for name, value := range windowsDesktop.GetAllLabels() {
+		if strings.HasPrefix(name, "teleport.internal") {
+			continue
+		}
+
 		uiLabels = append(uiLabels, Label{
 			Name:  name,
 			Value: value,
@@ -342,6 +364,10 @@ func MakeDesktopService(desktopService types.WindowsDesktopService) DesktopServi
 	uiLabels := []Label{}
 
 	for name, value := range desktopService.GetAllLabels() {
+		if strings.HasPrefix(name, "teleport.internal") {
+			continue
+		}
+
 		uiLabels = append(uiLabels, Label{
 			Name:  name,
 			Value: value,
