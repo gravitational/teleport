@@ -326,8 +326,8 @@ $ tsh proxy aws -p 23456
 Started AWS proxy on http://127.0.0.1:23456.
 
 Use the following credentials and HTTPS proxy setting to connect to the proxy:
-  AWS_ACCESS_KEY_ID=<access-key-id>
-  AWS_SECRET_ACCESS_KEY=<secret-access-key>
+  AWS_ACCESS_KEY_ID=(=aws.aws_access_key=)
+  AWS_SECRET_ACCESS_KEY=(=aws.aws_secret_access_key=)
   AWS_CA_BUNDLE=<ca-bundle-path>
   HTTPS_PROXY=http://127.0.0.1:23456
 ```
@@ -341,8 +341,8 @@ configured for your application. For example, many command line tools like
 proxy using environment variables:
 
 ```code
-$ export AWS_ACCESS_KEY_ID=<access-key-id>
-$ export AWS_SECRET_ACCESS_KEY=<secret-access-key>
+$ export AWS_ACCESS_KEY_ID=(=aws.aws_access_key=)
+$ export AWS_SECRET_ACCESS_KEY=(=aws.aws_secret_access_key=)
 $ export AWS_CA_BUNDLE=<ca-bundle-path>
 $ export HTTPS_PROXY=http://127.0.0.1:23456
 $ terraform plan

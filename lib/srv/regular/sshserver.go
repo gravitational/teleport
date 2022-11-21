@@ -32,7 +32,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -45,7 +44,6 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -53,8 +51,8 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/pam"
+	"github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -72,13 +70,6 @@ var (
 	log = logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentNode,
 	})
-
-	userSessionLimitHitCount = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricUserMaxConcurrentSessionsHit,
-			Help: "Number of times a user exceeded their max concurrent ssh connections",
-		},
-	)
 )
 
 // Server implements SSH server that uses configuration backend and
@@ -223,6 +214,14 @@ type Server struct {
 	// tracerProvider is used to create tracers capable
 	// of starting spans.
 	tracerProvider oteltrace.TracerProvider
+
+	// router used by subsystem requests to connect to nodes
+	// and clusters
+	router *proxy.Router
+
+	// sessionController is used to restrict new sessions
+	// based on locks and cluster preferences
+	sessionController *srv.SessionController
 }
 
 // TargetMetadata returns metadata about the server.
@@ -422,7 +421,7 @@ func SetShell(shell string) ServerOption {
 }
 
 // SetProxyMode starts this server in SSH proxying mode
-func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint) ServerOption {
+func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
 	return func(s *Server) error {
 		// always set proxy mode to true,
 		// because in some tests reverse tunnel is disabled,
@@ -431,6 +430,7 @@ func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyA
 		s.proxyTun = tsrv
 		s.proxyAccessPoint = ap
 		s.peerAddr = peerAddr
+		s.router = router
 		return nil
 	}
 }
@@ -652,8 +652,18 @@ func SetTracerProvider(provider oteltrace.TracerProvider) ServerOption {
 	}
 }
 
+// SetSessionController sets the session controller.
+func SetSessionController(controller *srv.SessionController) ServerOption {
+	return func(s *Server) error {
+		s.sessionController = controller
+		return nil
+	}
+}
+
 // New returns an unstarted server
-func New(addr utils.NetAddr,
+func New(
+	ctx context.Context,
+	addr utils.NetAddr,
 	hostname string,
 	signers []ssh.Signer,
 	authService srv.AccessPoint,
@@ -663,18 +673,13 @@ func New(addr utils.NetAddr,
 	auth auth.ClientI,
 	options ...ServerOption,
 ) (*Server, error) {
-	err := metrics.RegisterPrometheusCollectors(userSessionLimitHitCount)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// read the host UUID:
 	uuid, err := utils.ReadOrMakeHostUUID(dataDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancel(context.TODO())
+	ctx, cancel := context.WithCancel(ctx)
 	s := &Server{
 		addr:               addr,
 		authService:        authService,
@@ -715,6 +720,10 @@ func New(addr utils.NetAddr,
 
 	if s.lockWatcher == nil {
 		return nil, trace.BadParameter("setup valid LockWatcher parameter using SetLockWatcher")
+	}
+
+	if s.sessionController == nil {
+		return nil, trace.BadParameter("setup valid SessionControl parameter using SetSessionControl")
 	}
 
 	if s.connectedProxyGetter == nil {
@@ -1064,104 +1073,9 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
-	authPref, err := s.GetAccessPoint().GetAuthPreference(ctx)
-	if err != nil {
-		return ctx, trace.Wrap(err)
-	}
-	lockingMode := identityContext.AccessChecker.LockingMode(authPref.GetLockingMode())
 
-	event := &apievents.SessionReject{
-		Metadata: apievents.Metadata{
-			Type: events.SessionRejectedEvent,
-			Code: events.SessionRejectedCode,
-		},
-		UserMetadata: identityContext.GetUserMetadata(),
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			Protocol:   events.EventProtocolSSH,
-			LocalAddr:  ccx.ServerConn.LocalAddr().String(),
-			RemoteAddr: ccx.ServerConn.RemoteAddr().String(),
-		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        s.uuid,
-			ServerNamespace: s.GetNamespace(),
-		},
-	}
-
-	lockTargets, err := srv.ComputeLockTargets(s, identityContext)
-	if err != nil {
-		return ctx, trace.Wrap(err)
-	}
-	if lockErr := s.lockWatcher.CheckLockInForce(lockingMode, lockTargets...); lockErr != nil {
-		event.Reason = lockErr.Error()
-		if err := s.EmitAuditEvent(s.ctx, event); err != nil {
-			s.Logger.WithError(err).Warn("Failed to emit session reject event.")
-		}
-		return ctx, trace.Wrap(lockErr)
-	}
-
-	// Check that the required private key policy, defined by roles and auth pref,
-	// is met by this Identity's ssh certificate.
-	identityPolicy := identityContext.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy]
-	requiredPolicy := identityContext.AccessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	if err := requiredPolicy.VerifyPolicy(keys.PrivateKeyPolicy(identityPolicy)); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Don't apply the following checks in non-node contexts.
-	if s.Component() != teleport.ComponentNode {
-		return ctx, nil
-	}
-
-	maxConnections := identityContext.AccessChecker.MaxConnections()
-	if maxConnections == 0 {
-		// concurrent session control is not active, nothing
-		// else needs to be done here.
-		return ctx, nil
-	}
-
-	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return ctx, trace.Wrap(err)
-	}
-
-	semLock, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
-		Service: s.authService,
-		Expiry:  netConfig.GetSessionControlTimeout(),
-		Params: types.AcquireSemaphoreRequest{
-			SemaphoreKind: types.SemaphoreKindConnection,
-			SemaphoreName: identityContext.TeleportUser,
-			MaxLeases:     maxConnections,
-			Holder:        s.uuid,
-		},
-	})
-	if err != nil {
-		if strings.Contains(err.Error(), teleport.MaxLeases) {
-			// user has exceeded their max concurrent ssh connections.
-			userSessionLimitHitCount.Inc()
-			event.Reason = events.SessionRejectedEvent
-			event.Maximum = maxConnections
-			if err := s.EmitAuditEvent(s.ctx, event); err != nil {
-				s.Logger.WithError(err).Warn("Failed to emit session reject event.")
-			}
-			err = trace.AccessDenied("too many concurrent ssh connections for user %q (max=%d)",
-				identityContext.TeleportUser,
-				maxConnections,
-			)
-		}
-		return ctx, trace.Wrap(err)
-	}
-
-	// ensure that losing the lock closes the connection context.  Under normal
-	// conditions, cancellation propagates from the connection context to the
-	// lock, but if we lose the lock due to some error (e.g. poor connectivity
-	// to auth server) then cancellation propagates in the other direction.
-	go func() {
-		// TODO(fspmarshall): If lock was lost due to error, find a way to propagate
-		// an error message to user.
-		<-semLock.Done()
-		ccx.Close()
-	}()
-	return ctx, nil
+	ctx, err = s.sessionController.AcquireSessionContext(ctx, identityContext, ccx.ServerConn.LocalAddr().String(), ccx.ServerConn.RemoteAddr().String(), ccx)
+	return ctx, trace.Wrap(err)
 }
 
 // HandleNewChan is called when new channel is opened
