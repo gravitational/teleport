@@ -509,6 +509,37 @@ func TestAttachPolicyBoundary(t *testing.T) {
 	}
 }
 
+func TestStatement(t *testing.T) {
+	statement := Statement{
+		Effect:    EffectAllow,
+		Actions:   SliceOrString{"test:action"},
+		Resources: SliceOrString{"*"},
+	}
+	statement.AddCondition("StringEquals", "status", "terminating", "terminated")
+	statement.AddCondition("StringEquals", "status", "deleted")
+	statement.AddCondition("NumericLessThanEquals", "age", "500")
+
+	bytes, err := json.MarshalIndent(statement, "", "  ")
+	require.NoError(t, err)
+	require.Equal(t, `{
+  "Effect": "Allow",
+  "Action": "test:action",
+  "Resource": "*",
+  "Condition": {
+    "NumericLessThanEquals": {
+      "age": "500"
+    },
+    "StringEquals": {
+      "status": [
+        "terminating",
+        "terminated",
+        "deleted"
+      ]
+    }
+  }
+}`, string(bytes))
+}
+
 // userIdentity helper function to generate an user `Identity` .
 func userIdentity() Identity {
 	return &User{

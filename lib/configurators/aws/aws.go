@@ -69,6 +69,8 @@ var (
 	userBaseActions = []string{"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy"}
 	// roleBaseActions list of actions used when target is a role.
 	roleBaseActions = []string{"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy"}
+	// assumeRoleActions is a list of actions for assuming other roles.
+	assumeRoleActions = []string{"sts:AssumeRole"}
 	// rdsInstancesActions list of actions used when giving RDS instances permissions.
 	rdsInstancesActions = []string{"rds:DescribeDBInstances", "rds:ModifyDBInstance"}
 	// auroraActions list of actions used when giving RDS Aurora permissions.
@@ -78,6 +80,9 @@ var (
 	// redshiftActions list of actions used when giving Redshift auto-discovery
 	// permissions.
 	redshiftActions = []string{"redshift:DescribeClusters"}
+	// redshiftServerlessActions is a list of actions used for Redshift
+	// Serverless auto-discovery.
+	redshiftServerlessActions = []string{"redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"}
 	// elastiCacheActions is a list of actions used for ElastiCache
 	// auto-discovery and metadata update.
 	elastiCacheActions = []string{
@@ -452,6 +457,7 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, fileConfig *config.
 	rdsDatabases := hasRDSDatabases(flags, fileConfig)
 	rdsProxyDatabases := hasRDSProxyDatabases(flags, fileConfig)
 	redshiftDatabases := hasRedshiftDatabases(flags, fileConfig)
+	redshiftServerlessDatabases := hasRedshiftServerlessDatabases(flags, fileConfig)
 	elastiCacheDatabases := hasElastiCacheDatabases(flags, fileConfig)
 	memoryDBDatabases := hasMemoryDBDatabases(flags, fileConfig)
 	requireSecretsManager := elastiCacheDatabases || memoryDBDatabases
@@ -459,16 +465,15 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, fileConfig *config.
 	if rdsDatabases {
 		statements = append(statements, buildRDSStatements()...)
 	}
-
 	if rdsProxyDatabases {
 		statements = append(statements, buildRDSProxyStatements()...)
 	}
-
 	if redshiftDatabases {
 		statements = append(statements, buildRedshiftStatements()...)
 	}
-
-	// ElastiCache does not require permissions to edit user/role IAM policy.
+	if redshiftServerlessDatabases {
+		statements = append(statements, statementWithAllowedActions(redshiftServerlessActions))
+	}
 	if elastiCacheDatabases {
 		statements = append(statements, buildElastiCacheStatements()...)
 	}
@@ -476,12 +481,11 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, fileConfig *config.
 		statements = append(statements, buildMemoryDBStatements()...)
 	}
 
+	// For databases that need to access SecretsManager (and KMS).
 	if requireSecretsManager {
 		statements = append(statements, buildSecretsManagerStatements(fileConfig, target)...)
 	}
-
-	// If there are RDS, RDS Proxy, Redshift databases, we need permission to
-	// edit the target user/role.
+	// For databases that need to edit IAM user/role policy.
 	if rdsDatabases || rdsProxyDatabases || redshiftDatabases {
 		targetStatements, err := buildIAMEditStatements(target)
 		if err != nil {
@@ -489,6 +493,10 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, fileConfig *config.
 		}
 
 		statements = append(statements, targetStatements...)
+	}
+	// For databases that need to call STS AssumeRole.
+	if redshiftServerlessDatabases {
+		statements = append(statements, buildIAMAssumeRoleStatements(flags)...)
 	}
 
 	document := awslib.NewPolicyDocument()
@@ -554,6 +562,7 @@ func buildPolicyBoundaryDocument(flags configurators.BootstrapFlags, fileConfig 
 	rdsDatabases := hasRDSDatabases(flags, fileConfig)
 	rdsProxyDatabases := hasRDSProxyDatabases(flags, fileConfig)
 	redshiftDatabases := hasRedshiftDatabases(flags, fileConfig)
+	redshiftServerlessDatabases := hasRedshiftServerlessDatabases(flags, fileConfig)
 	elastiCacheDatabases := hasElastiCacheDatabases(flags, fileConfig)
 	memoryDBDatabases := hasMemoryDBDatabases(flags, fileConfig)
 	requireSecretsManager := elastiCacheDatabases || memoryDBDatabases
@@ -561,29 +570,27 @@ func buildPolicyBoundaryDocument(flags configurators.BootstrapFlags, fileConfig 
 	if rdsDatabases {
 		statements = append(statements, buildRDSBoundaryStatements()...)
 	}
-
 	if rdsProxyDatabases {
 		statements = append(statements, buildRDSProxyBoundaryStatements()...)
 	}
-
 	if redshiftDatabases {
 		statements = append(statements, buildRedshiftBoundaryStatements()...)
+	}
+	if redshiftServerlessDatabases {
+		statements = append(statements, statementWithAllowedActions(redshiftServerlessActions))
+	}
+	if elastiCacheDatabases {
+		statements = append(statements, buildElastiCacheBoundaryStatements()...)
 	}
 	if memoryDBDatabases {
 		statements = append(statements, buildMemoryDBBoundaryStatements()...)
 	}
 
-	// ElastiCache does not require permissions to edit user/role IAM policy.
-	if elastiCacheDatabases {
-		statements = append(statements, buildElastiCacheBoundaryStatements()...)
-	}
-
+	// For databases that need to access SecretsManager (and KMS).
 	if requireSecretsManager {
 		statements = append(statements, buildSecretsManagerStatements(fileConfig, target)...)
 	}
-
-	// If there are RDS, RDS Proxy, Redshift databases, we need permission to
-	// edit the target user/role.
+	// For databases that need to edit IAM user/role policy.
 	if rdsDatabases || rdsProxyDatabases || redshiftDatabases {
 		targetStatements, err := buildIAMEditStatements(target)
 		if err != nil {
@@ -591,6 +598,10 @@ func buildPolicyBoundaryDocument(flags configurators.BootstrapFlags, fileConfig 
 		}
 
 		statements = append(statements, targetStatements...)
+	}
+	// For databases that need to call STS AssumeRole.
+	if redshiftServerlessDatabases {
+		statements = append(statements, buildIAMAssumeRoleStatements(flags)...)
 	}
 
 	document := awslib.NewPolicyDocument()
@@ -642,6 +653,17 @@ func hasRedshiftDatabases(flags configurators.BootstrapFlags, fileConfig *config
 
 	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherRedshift, fileConfig.Databases.AWSMatchers) ||
 		findEndpointIs(fileConfig, awsutils.IsRedshiftEndpoint)
+}
+
+// hasRedshiftServerlessDatabases checks if the agent needs permission for
+// Redshift Serverless databases.
+func hasRedshiftServerlessDatabases(flags configurators.BootstrapFlags, fileConfig *config.FileConfig) bool {
+	if flags.ForceRedshiftServerlessPermissions {
+		return true
+	}
+
+	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherRedshiftServerless, fileConfig.Databases.AWSMatchers) ||
+		findEndpointIs(fileConfig, awsutils.IsRedshiftServerlessEndpoint)
 }
 
 // hasElastiCacheDatabases checks if the agent needs permission for
@@ -728,6 +750,23 @@ func buildIAMEditStatements(target awslib.Identity) ([]*awslib.Statement, error)
 	return []*awslib.Statement{statement}, nil
 }
 
+func buildIAMAssumeRoleStatements(flags configurators.BootstrapFlags) []*awslib.Statement {
+	tagKey := flags.AssumeRoleTagKey
+	if tagKey == "" {
+		tagKey = awslib.TagKeyAllowTeleport
+	}
+	tagValues := flags.AssumeRoleTagValues
+	if len(tagValues) == 0 {
+		tagValues = append(tagValues, awslib.TagValueTrue)
+	}
+
+	statement := statementWithAllowedActions(assumeRoleActions)
+	for _, tagValue := range tagValues {
+		statement.AddCondition("StringEquals", fmt.Sprintf("iam:ResourceTag/%v", tagKey), tagValue)
+	}
+	return []*awslib.Statement{statement}
+}
+
 // buildEC2AutoDiscoveryStatements returns IAM statements necessary for
 // EC2 instance auto-discovery.
 func buildEC2AutoDiscoveryStatements() []*awslib.Statement {
@@ -742,6 +781,17 @@ func buildEC2AutoDiscoveryStatements() []*awslib.Statement {
 
 func buildEC2AutoDiscoveryBoundaryStatements() []*awslib.Statement {
 	return buildEC2AutoDiscoveryStatements()
+}
+
+func statementWithAllowedActions(actions []string, resources ...string) *awslib.Statement {
+	if len(resources) == 0 {
+		resources = append(resources, "*")
+	}
+	return &awslib.Statement{
+		Effect:    awslib.EffectAllow,
+		Actions:   actions,
+		Resources: resources,
+	}
 }
 
 // buildRDSAutoDiscoveryStatements returns IAM statements necessary for

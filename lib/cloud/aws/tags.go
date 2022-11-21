@@ -41,6 +41,10 @@ const (
 	// resource is being managed by Teleport.
 	TagKeyTeleportManaged = "teleport.dev/managed"
 
+	// TagKeyAllowTeleport defines a tag key that indicates the AWS resource
+	// (e.g. IAM role) is allowed to be used by Teleport.
+	TagKeyAllowTeleport = "AllowTeleport"
+
 	// TagValueTrue is the tag value "true" in string format.
 	TagValueTrue = "true"
 )

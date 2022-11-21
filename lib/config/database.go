@@ -58,7 +58,7 @@ db_service:
   resources:
   - labels:
       "*": "*"
-  {{- if or .RDSDiscoveryRegions .RDSProxyDiscoveryRegions .RedshiftDiscoveryRegions .ElastiCacheDiscoveryRegions}}
+  {{- if or .RDSDiscoveryRegions .RDSProxyDiscoveryRegions .RedshiftDiscoveryRegions .RedshiftServerlessDiscoveryRegions .ElastiCacheDiscoveryRegions .MemoryDBDiscoveryRegions}}
   # Matchers for registering AWS-hosted databases.
   aws:
   {{- end }}
@@ -95,6 +95,19 @@ db_service:
     # AWS regions to register databases from.
     regions:
     {{- range .RedshiftDiscoveryRegions }}
+    - {{ . }}
+    {{- end }}
+    # AWS resource tags to match when registering databases.
+    tags:
+      "*": "*"
+  {{- end }}
+  {{- if .RedshiftServerlessDiscoveryRegions }}
+  # Redshift Serverless databases auto-discovery.
+  # For more information about Redshift Serverless auto-discovery: https://goteleport.com/docs/database-access/guides/postgres-redshift-serverless/
+  - types: ["redshift-serverless"]
+    # AWS regions to register databases from.
+    regions:
+    {{- range .RedshiftServerlessDiscoveryRegions }}
     - {{ . }}
     {{- end }}
     # AWS resource tags to match when registering databases.
@@ -396,6 +409,9 @@ type DatabaseSampleFlags struct {
 	// RedshiftDiscoveryRegions is a list of regions the Redshift
 	// auto-discovery is configured.
 	RedshiftDiscoveryRegions []string
+	// RedshiftServerlessDiscoveryRegions is a list of regions the Redshift
+	// Serverless auto-discovery is configured.
+	RedshiftServerlessDiscoveryRegions []string
 	// ElastiCacheDiscoveryRegions is a list of regions the ElastiCache
 	// auto-discovery is configured.
 	ElastiCacheDiscoveryRegions []string
