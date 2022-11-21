@@ -886,6 +886,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 // getSession retrieves the session from in-memory database.
 // If the session was not found, returns nil.
+// This method locks f.mu.
 func (f *Forwarder) getSession(id uuid.UUID) *session {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -896,6 +897,7 @@ func (f *Forwarder) getSession(id uuid.UUID) *session {
 
 // setSession sets the session into in-memory database.
 // If the session was not found, returns nil.
+// This method locks f.mu.
 func (f *Forwarder) setSession(id uuid.UUID, sess *session) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -903,6 +905,7 @@ func (f *Forwarder) setSession(id uuid.UUID, sess *session) {
 }
 
 // deleteSession removes a session.
+// This method locks f.mu.
 func (f *Forwarder) deleteSession(id uuid.UUID) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
