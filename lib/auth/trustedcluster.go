@@ -86,9 +86,6 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		}
 		log.Debugf("Enabling existing Trusted Cluster relationship.")
 
-		if err := a.checkLocalRoles(ctx, trustedCluster.GetRoleMap()); err != nil {
-			return nil, trace.Wrap(err)
-		}
 		if err := a.activateCertAuthority(trustedCluster); err != nil {
 			if trace.IsNotFound(err) {
 				return nil, trace.BadParameter("enable only supported for Trusted Clusters created with Teleport 2.3 and above")
