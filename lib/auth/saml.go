@@ -44,46 +44,68 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// ErrSAMLNotImplemented is the error returned by the SAML methods when not
+// using the Enterprise edition of Teleport.
+var ErrSAMLNotImplemented = trace.AccessDenied("SAML is only available in enterprise subscriptions")
+
 // SAMLService are the methods that the auth server delegates to a plugin for
-// implementing the SAML connector. The Identity service contains a few more
-// methods for getting connectors and requests from the backend, but there is
-// no specific logic related to SAML in those methods.
+// implementing the SAML connector. These are the core functions of SAML
+// authentication - the connector CRUD operations and Get methods are
+// implemeneted in auth.Server and provide no connector-specific logic.
 type SAMLService interface {
-	// UpsertSAMLConnector updates or creates SAML connector
-	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error
-	// DeleteSAMLConnector deletes SAML connector by ID
-	DeleteSAMLConnector(ctx context.Context, connectorID string) error
 	// CreateSAMLAuthRequest creates SAML AuthnRequest
 	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
 	// ValidateSAMLResponse validates SAML auth response
 	ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error)
 }
 
-// UpsertSAMLConnector delegates the method call to the samlAuthService if present,
-// or returns a NotImplemented error if not present.
+// UpsertSAMLConnector creates or updates a SAML connector.
 func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
-	if a.samlAuthService == nil {
-		return trace.NotImplemented("SAML is only available in enterprise subscriptions")
+	if err := a.Services.UpsertSAMLConnector(ctx, connector); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorCreate{
+		Metadata: apievents.Metadata{
+			Type: events.SAMLConnectorCreatedEvent,
+			Code: events.SAMLConnectorCreatedCode,
+		},
+		UserMetadata: ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: connector.GetName(),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit SAML connector create event.")
 	}
 
-	return trace.Wrap(a.samlAuthService.UpsertSAMLConnector(ctx, connector))
+	return nil
 }
 
-// DeleteSAMLConnector delegates the method call to the samlAuthService if present,
-// or returns a NotImplemented error if not present.
+// DeleteSAMLConnector deletes a SAML connector.
 func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorID string) error {
-	if a.samlAuthService == nil {
-		return trace.NotImplemented("SAML is only available in enterprise subscriptions")
+	if err := a.Services.DeleteSAMLConnector(ctx, connectorID); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorDelete{
+		Metadata: apievents.Metadata{
+			Type: events.SAMLConnectorDeletedEvent,
+			Code: events.SAMLConnectorDeletedCode,
+		},
+		UserMetadata: ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: connectorID,
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit SAML connector delete event.")
 	}
 
-	return trace.Wrap(a.samlAuthService.DeleteSAMLConnector(ctx, connectorID))
+	return nil
 }
 
 // CreateSAMLAuthRequest delegates the method call to the samlAuthService if present,
 // or returns a NotImplemented error if not present.
 func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
 	if a.samlAuthService == nil {
-		return nil, trace.NotImplemented("SAML is only available in enterprise subscriptions")
+		return nil, ErrSAMLNotImplemented
 	}
 
 	rq, err := a.samlAuthService.CreateSAMLAuthRequest(ctx, req)
@@ -94,7 +116,7 @@ func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRe
 // or returns a NotImplemented error if not present.
 func (a *Server) ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error) {
 	if a.samlAuthService == nil {
-		return nil, trace.NotImplemented("SAML is only available in enterprise subscriptions")
+		return nil, ErrSAMLNotImplemented
 	}
 
 	resp, err := a.samlAuthService.ValidateSAMLResponse(ctx, re, connectorID)
@@ -139,51 +161,6 @@ type samlProvider struct {
 
 // ErrSAMLNoRoles results from not mapping any roles from SAML claims.
 var ErrSAMLNoRoles = trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
-
-// UpsertSAMLConnector creates or updates a SAML connector.
-func (sas *SAMLAuthService) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
-	if err := services.ValidateSAMLConnector(connector, sas.auth); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := sas.auth.Services.UpsertSAMLConnector(ctx, connector); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := sas.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorCreate{
-		Metadata: apievents.Metadata{
-			Type: events.SAMLConnectorCreatedEvent,
-			Code: events.SAMLConnectorCreatedCode,
-		},
-		UserMetadata: ClientUserMetadata(ctx),
-		ResourceMetadata: apievents.ResourceMetadata{
-			Name: connector.GetName(),
-		},
-	}); err != nil {
-		log.WithError(err).Warn("Failed to emit SAML connector create event.")
-	}
-
-	return nil
-}
-
-// DeleteSAMLConnector deletes a SAML connector by name.
-func (sas *SAMLAuthService) DeleteSAMLConnector(ctx context.Context, connectorName string) error {
-	if err := sas.auth.Services.DeleteSAMLConnector(ctx, connectorName); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := sas.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorDelete{
-		Metadata: apievents.Metadata{
-			Type: events.SAMLConnectorDeletedEvent,
-			Code: events.SAMLConnectorDeletedCode,
-		},
-		UserMetadata: ClientUserMetadata(ctx),
-		ResourceMetadata: apievents.ResourceMetadata{
-			Name: connectorName,
-		},
-	}); err != nil {
-		log.WithError(err).Warn("Failed to emit SAML connector delete event.")
-	}
-
-	return nil
-}
 
 func (sas *SAMLAuthService) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
 	connector, provider, err := sas.getSAMLConnectorAndProvider(ctx, req)
