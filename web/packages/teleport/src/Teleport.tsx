@@ -60,9 +60,7 @@ const Teleport: React.FC<Props> = props => {
                           path={cfg.routes.appLauncher}
                           component={AppLauncher}
                         />
-                        <Route>
-                          <Switch>{createPrivateRoutes()}</Switch>
-                        </Route>
+                        <Route>{createPrivateRoutes()}</Route>
                       </Switch>
                     </FeaturesContextProvider>
                   </TeleportContextProvider>
@@ -89,20 +87,35 @@ const Welcome = React.lazy(
   () => import(/* webpackChunkName: "welcome" */ './Welcome')
 );
 
+const Console = React.lazy(
+  () => import(/* webpackChunkName: "console" */ './Console')
+);
+const Player = React.lazy(
+  () => import(/* webpackChunkName: "player" */ './Player')
+);
+const DesktopSession = React.lazy(
+  () => import(/* webpackChunkName: "desktop-session" */ './DesktopSession')
+);
+const Discover = React.lazy(
+  () => import(/* webpackChunkName: "discover" */ './Discover')
+);
+
+const Main = React.lazy(() => import(/* webpackChunkName: "main" */ './Main'));
+
 function publicOSSRoutes() {
-  return renderPublicRoutes(
+  return [
     <Route
       title="Login"
       path={cfg.routes.login}
       component={Login}
       key="login"
-    />
-  );
+    />,
+    ...getSharedPublicRoutes(),
+  ];
 }
 
-export function renderPublicRoutes(...childrenRoutes: React.ReactNode[]) {
+export function getSharedPublicRoutes() {
   return [
-    ...childrenRoutes,
     <Route
       key="login-failed"
       title="Login Failed"
@@ -136,31 +149,18 @@ export function renderPublicRoutes(...childrenRoutes: React.ReactNode[]) {
   ];
 }
 
-const Console = React.lazy(
-  () => import(/* webpackChunkName: "console" */ './Console')
-);
-const Player = React.lazy(
-  () => import(/* webpackChunkName: "player" */ './Player')
-);
-const DesktopSession = React.lazy(
-  () => import(/* webpackChunkName: "desktop-session" */ './DesktopSession')
-);
-const Discover = React.lazy(
-  () => import(/* webpackChunkName: "discover" */ './Discover')
-);
-
-const Main = React.lazy(() => import(/* webpackChunkName: "main" */ './Main'));
-
 function privateOSSRoutes() {
-  return renderPrivateRoutes(
-    <Route key="discover" path={cfg.routes.discover} component={Discover} />,
-    <Route key="root" path={cfg.routes.root} component={Main} />
+  return (
+    <Switch>
+      <Route path={cfg.routes.discover} component={Discover} />
+      {getSharedPrivateRoutes()}
+      <Route path={cfg.routes.root} component={Main} />
+    </Switch>
   );
 }
 
-export function renderPrivateRoutes(...childrenRoutes: React.ReactNode[]) {
+export function getSharedPrivateRoutes() {
   return [
-    ...childrenRoutes,
     <Route
       key="desktop"
       path={cfg.routes.desktop}
@@ -177,10 +177,6 @@ export type Props = {
   features?: Feature[];
   ctx: TeleportContext;
   history: History;
-  renderPublicRoutes?: (
-    ...childrenRoutes: React.ReactNode[]
-  ) => React.ReactNode[];
-  renderPrivateRoutes?: (
-    ...childrenRoutes: React.ReactNode[]
-  ) => React.ReactNode[];
+  renderPublicRoutes?: () => React.ReactNode[];
+  renderPrivateRoutes?: () => React.ReactNode;
 };
