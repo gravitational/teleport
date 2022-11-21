@@ -40,6 +40,8 @@ import (
 	"golang.org/x/crypto/ssh"
 	yamlv2 "gopkg.in/yaml.v2"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -69,7 +71,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/tool/common"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -246,7 +247,7 @@ func TestAlias(t *testing.T) {
 			config := &TshConfig{Aliases: tt.aliases}
 			configBytes, err := yamlv2.Marshal(config)
 			require.NoError(t, err)
-			err = os.WriteFile(filepath.Join(tmpHomePath, "tsh_global.yaml"), configBytes, 0777)
+			err = os.WriteFile(filepath.Join(tmpHomePath, "tsh_global.yaml"), configBytes, 0o777)
 			require.NoError(t, err)
 
 			// run command
@@ -632,33 +633,47 @@ func TestMakeClient(t *testing.T) {
 	require.Greater(t, len(agentKeys), 0)
 }
 
-// approveAllAccessRequests starts a loop which gets all pending AccessRequests
-// from access and approves them. It accepts a stop channel, which will stop the
-// loop and cancel all active requests when it is closed.
-func approveAllAccessRequests(ctx context.Context, access services.DynamicAccess) (err error) {
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
+// accessApprover allows watching and updating access requests
+type accessApprover interface {
+	types.Events
+	SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error
+}
+
+// approveAllAccessRequests starts a loop which watches for pending AccessRequests
+// and automatically approves them.
+func approveAllAccessRequests(ctx context.Context, approver accessApprover) error {
+	watcher, err := approver.NewWatcher(ctx, types.Watch{
+		Name:  types.KindAccessRequest,
+		Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}},
+	})
+	if err != nil {
+		return err
+	}
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
-		}
-		requests, err := access.GetAccessRequests(ctx,
-			types.AccessRequestFilter{
-				State: types.RequestState_PENDING,
-			})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, req := range requests {
-			err = access.SetAccessRequestState(ctx,
-				types.AccessRequestUpdate{
-					RequestID: req.GetName(),
-					State:     types.RequestState_APPROVED,
-				})
-			if err != nil {
+		case <-watcher.Done():
+			return watcher.Error()
+		case evt := <-watcher.Events():
+			if evt.Type != types.OpPut {
+				continue
+			}
+
+			request, ok := evt.Resource.(types.AccessRequest)
+			if !ok {
+				return trace.BadParameter("unexpected event type received: %q", evt.Resource.GetKind())
+			}
+
+			if request.GetState() == types.RequestState_APPROVED {
+				continue
+			}
+
+			if err := approver.SetAccessRequestState(ctx, types.AccessRequestUpdate{
+				RequestID: request.GetName(),
+				State:     types.RequestState_APPROVED,
+			}); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -1020,7 +1035,6 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			tt.stdoutAssertion(t, stdout.String())
 			require.Equal(t, tt.deviceSignCount, int(device.Counter()), "device sign count mismatch")
 		})
-
 	}
 }
 
@@ -1729,10 +1743,10 @@ func TestKubeConfigUpdate(t *testing.T) {
 				Credentials:         creds,
 				ClusterAddr:         "https://a.example.com:3026",
 				TeleportClusterName: "a.example.com",
+				KubeClusters:        []string{"dev", "prod"},
+				SelectCluster:       "dev",
 				Exec: &kubeconfig.ExecValues{
 					TshBinaryPath: "/bin/tsh",
-					KubeClusters:  []string{"dev", "prod"},
-					SelectCluster: "dev",
 					Env:           make(map[string]string),
 				},
 			},
@@ -1761,10 +1775,10 @@ func TestKubeConfigUpdate(t *testing.T) {
 				Credentials:         creds,
 				ClusterAddr:         "https://a.example.com:3026",
 				TeleportClusterName: "a.example.com",
+				KubeClusters:        []string{"dev", "prod"},
+				SelectCluster:       "",
 				Exec: &kubeconfig.ExecValues{
 					TshBinaryPath: "/bin/tsh",
-					KubeClusters:  []string{"dev", "prod"},
-					SelectCluster: "",
 					Env:           make(map[string]string),
 				},
 			},
@@ -2347,6 +2361,13 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 func setHomePath(path string) cliOption {
 	return func(cf *CLIConf) error {
 		cf.HomePath = path
+		return nil
+	}
+}
+
+func setKubeConfigPath(path string) cliOption {
+	return func(cf *CLIConf) error {
+		cf.kubeConfigPath = path
 		return nil
 	}
 }

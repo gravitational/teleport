@@ -11,13 +11,9 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=10.3.6
+VERSION=10.3.8
 
-DOCKER_IMAGE_QUAY ?= quay.io/gravitational/teleport
-DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
-DOCKER_IMAGE_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport
-DOCKER_IMAGE_OPERATOR_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator
-
+DOCKER_IMAGE ?= teleport
 
 GOPATH ?= $(shell go env GOPATH)
 
@@ -366,11 +362,10 @@ release-arm64:
 	$(MAKE) release ARCH=arm64
 
 #
-# make release-unix - Produces a binary release tarball containing teleport,
-# tctl, and tsh.
+# make build-archive - Packages the results of a build into a release tarball
 #
-.PHONY:
-release-unix: clean full
+.PHONY: build-archive
+build-archive:
 	@echo "---> Creating OSS release archive."
 	mkdir teleport
 	cp -rf $(BUILDDIR)/* \
@@ -383,6 +378,13 @@ release-unix: clean full
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
+	
+#
+# make release-unix - Produces a binary release tarball containing teleport,
+# tctl, and tsh.
+#
+.PHONY:
+release-unix: clean full build-archive
 	@if [ -f e/Makefile ]; then \
 		rm -fr $(ASSETS_BUILDDIR)/webassets; \
 		$(MAKE) -C e release; \
@@ -963,69 +965,16 @@ install: build
 	cp -f $(BUILDDIR)/teleport  $(BINDIR)/
 	mkdir -p $(DATADIR)
 
-
 # Docker image build. Always build the binaries themselves within docker (see
 # the "docker" rule) to avoid dependencies on the host libc version.
 .PHONY: image
-image: clean docker-binaries
+image: OS=linux
+image: TARBALL_PATH_SECTION:=-s "$(shell pwd)"
+image: clean docker-binaries build-archive oss-deb
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_QUAY):$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE):$(VERSION)-$(ARCH) --target teleport \
+		--build-arg DEB_PATH="./teleport_$(VERSION)_$(ARCH).deb"
 	if [ -f e/Makefile ]; then $(MAKE) -C e image; fi
-
-.PHONY: publish
-publish: image
-	docker push $(DOCKER_IMAGE_QUAY):$(VERSION)
-	if [ -f e/Makefile ]; then $(MAKE) -C e publish; fi
-
-.PHONY: publish-ecr
-publish-ecr: image
-	docker tag $(DOCKER_IMAGE_QUAY) $(DOCKER_IMAGE_ECR)
-	docker push $(DOCKER_IMAGE_ECR):$(VERSION)
-	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ecr; fi
-
-# Docker image build in CI.
-# This is run to build and push Docker images to a private repository as part of the build process.
-# When we are ready to make the images public after testing (i.e. when publishing a release), we pull these
-# images down, retag them and push them up to the production repo so they're available for use.
-# This job can be removed/consolidated after we switch over completely from using Jenkins to using Drone.
-.PHONY: image-ci
-image-ci: clean docker-binaries
-	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_STAGING):$(VERSION)
-	if [ -f e/Makefile ]; then $(MAKE) -C e image-ci; fi
-
-
-# DOCKER_CLI_EXPERIMENTAL=enabled is set to allow inspecting the manifest for present images.
-# https://docs.docker.com/engine/reference/commandline/cli/#experimental-features
-# The internal staging images use amazon ECR's immutable repository settings. This makes overwrites impossible currently. 
-# This can cause issues when drone tagging pipelines must be re-run due to failures. 
-# Currently the work around for this is to not attempt to push to the image when it already exists.
-.PHONY: publish-ci
-publish-ci: image-ci
-	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect "$(DOCKER_IMAGE_STAGING):$(VERSION)" >/dev/null 2>&1; then\
-		echo "$(DOCKER_IMAGE_STAGING):$(VERSION) already exists. ";     \
-	else                                                                \
-		docker push "$(DOCKER_IMAGE_STAGING):$(VERSION)";                 \
-	fi
-	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
-
-# Docker image build for Teleport Operator
-.PHONY: image-operator-ci
-image-operator-ci:
-	make -C operator docker-build IMG="$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)"
-
-# DOCKER_CLI_EXPERIMENTAL=enabled is set to allow inspecting the manifest for present images.
-# https://docs.docker.com/engine/reference/commandline/cli/#experimental-features
-# The internal staging images use amazon ECR's immutable repository settings. This makes overwrites impossible currently. 
-# This can cause issues when drone tagging pipelines must be re-run due to failures. 
-# Currently the work around for this is to not attempt to push to the image when it already exists.
-.PHONY: publish-operator-ci
-publish-operator-ci: image-operator-ci
-	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)" >/dev/null 2>&1; then \
-		echo "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION) already exists. ";                                                         \
-	else                                                                                                                             \
-		docker push "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)";                                                                   \
-	fi
 
 .PHONY: print-version
 print-version:
@@ -1079,13 +1028,17 @@ rpm:
 rpm-unsigned:
 	$(MAKE) UNSIGNED_RPM=true rpm
 
-# build .deb
-.PHONY: deb
-deb:
+# build open source .deb only
+.PHONY: oss-deb
+oss-deb:
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+
+# build .deb
+.PHONY: deb
+deb: oss-deb
 	if [ -f e/Makefile ]; then $(MAKE) -C e deb; fi
 
 # check binary compatibility with different OSes
