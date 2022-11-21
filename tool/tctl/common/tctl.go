@@ -53,6 +53,10 @@ const (
 	labelHelp  = "List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)"
 )
 
+const (
+	identityFileEnvVar = "TELEPORT_IDENTITY_FILE"
+)
+
 // GlobalCLIFlags keeps the CLI flags that apply to all tctl commands
 type GlobalCLIFlags struct {
 	// Debug enables verbose logging mode to the console
@@ -147,6 +151,7 @@ func TryRun(commands []CLICommand, args []string) error {
 	app.Flag("identity",
 		"Path to an identity file. Must be provided to make remote connections to auth. An identity file can be exported with 'tctl auth sign'").
 		Short('i').
+		Envar(identityFileEnvVar).
 		StringVar(&ccf.IdentityFilePath)
 	app.Flag("insecure", "When specifying a proxy address in --auth-server, do not verify its TLS certificate. Danger: any data you send can be intercepted or modified by an attacker.").
 		BoolVar(&ccf.Insecure)
