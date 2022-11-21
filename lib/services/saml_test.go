@@ -77,14 +77,15 @@ func TestValidateRoles(t *testing.T) {
 	// not care what the role value is, just that it exists and that
 	// the RoleGetter does not return an error.
 	var validRoles roleSet = map[string]types.Role{
-		"foo": nil,
-		"bar": nil,
+		"foo":  nil,
+		"bar":  nil,
+		"big$": nil,
 	}
 
 	testCases := []struct {
-		desc      string
-		roles     []string
-		expectErr bool
+		desc        string
+		roles       []string
+		expectedErr error
 	}{
 		{
 			desc:  "valid roles",
@@ -95,9 +96,17 @@ func TestValidateRoles(t *testing.T) {
 			roles: []string{"foo", "$1", "$baz", "admin_${baz}"},
 		},
 		{
-			desc:      "missing role",
-			roles:     []string{"baz"},
-			expectErr: true,
+			desc:  "dollar literal",
+			roles: []string{"big$$"},
+		},
+		{
+			desc:  "dollar literal and expansion",
+			roles: []string{"big$$${baz}"},
+		},
+		{
+			desc:        "missing role",
+			roles:       []string{"baz"},
+			expectedErr: trace.BadParameter(`role "baz" specified in attributes_to_roles not found`),
 		},
 	}
 
@@ -115,11 +124,7 @@ func TestValidateRoles(t *testing.T) {
 			require.NoError(t, err)
 
 			err = ValidateSAMLConnector(connector, validRoles)
-			if tc.expectErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+			require.ErrorIs(t, tc.expectedErr, err)
 		})
 	}
 }
