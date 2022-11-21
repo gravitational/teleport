@@ -151,6 +151,10 @@ func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 
 		return nil
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return response, nil
 }
 
