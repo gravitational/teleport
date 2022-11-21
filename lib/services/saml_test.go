@@ -124,7 +124,7 @@ func TestValidateRoles(t *testing.T) {
 			require.NoError(t, err)
 
 			err = ValidateSAMLConnector(connector, validRoles)
-			require.ErrorIs(t, tc.expectedErr, err)
+			require.ErrorIs(t, err, tc.expectedErr)
 		})
 	}
 }
