@@ -6,10 +6,13 @@ on:
 
 jobs:
   build-arm-binaries:
+    permissions:
+      contents: read
     strategy:
       matrix: 
         arm-arch: ['arm', 'arm64']
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     env:
       GOMODCACHE: /tmp/gomodcache
       GOCACHE: /tmp/gocache

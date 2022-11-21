@@ -404,15 +404,15 @@ release-386:
 
 .PHONY: release-arm
 release-arm: RESOLVED_BUILDBOX_NAME ?= $(BUILDBOX_ARM)
-release-arm: buildbox-arm
+release-arm:
 	docker run --platform linux/arm $(DOCKERFLAGS) -i $(NOROOT) $(RESOLVED_BUILDBOX_NAME) \
-		make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+		make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
 .PHONY: release-arm64
 release-arm64: RESOLVED_BUILDBOX_NAME ?= $(BUILDBOX_ARM)
-release-arm64: #buildbox-arm
+release-arm64:
 	docker run --platform linux/arm64 $(DOCKERFLAGS) -i $(NOROOT) $(RESOLVED_BUILDBOX_NAME) \
-		make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+		make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
 .PHONY: release-amd64-centos7
 release-amd64-centos7: BUILDBOX ?= BUILDBOX_ARM
