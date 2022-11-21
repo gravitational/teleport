@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - master
+      - teleport-v*
   pull_request:
     branches:
       - master
+      - teleport-v*
 
 jobs:
   analyze:
