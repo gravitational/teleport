@@ -1988,7 +1988,7 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 		event, err := events.FromOneOf(*rawEvent)
 		if err != nil {
 			if trace.IsBadParameter(err) {
-				log.Warnf("skipping unparsable event: %v", err)
+				log.Warnf("skipping unknown event: %v", err)
 				continue
 			}
 			return nil, "", trace.Wrap(err)
