@@ -174,6 +174,7 @@ type multiResizeQueue struct {
 	queues   map[string]<-chan *remotecommand.TerminalSize
 	cases    []reflect.SelectCase
 	callback func(*remotecommand.TerminalSize)
+	mutex    sync.Mutex
 }
 
 func newMultiResizeQueue() *multiResizeQueue {
@@ -193,17 +194,24 @@ func (r *multiResizeQueue) rebuild() {
 }
 
 func (r *multiResizeQueue) add(id string, queue <-chan *remotecommand.TerminalSize) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
 	r.queues[id] = queue
 	r.rebuild()
 }
 
 func (r *multiResizeQueue) remove(id string) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
 	delete(r.queues, id)
 	r.rebuild()
 }
 
 func (r *multiResizeQueue) Next() *remotecommand.TerminalSize {
-	_, value, ok := reflect.Select(r.cases)
+	r.mutex.Lock()
+	cases := r.cases
+	r.mutex.Unlock()
+	_, value, ok := reflect.Select(cases)
 	if !ok {
 		return nil
 	}
@@ -350,6 +358,9 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		displayParticipantRequirements: utils.AsBool(q.Get("displayParticipantRequirements")),
 	}
 
+	s.io.OnWriteError = s.disconnectPartyOnErr
+	s.io.OnReadError = s.disconnectPartyOnErr
+
 	s.BroadcastMessage("Creating session with ID: %v...", id.String())
 	s.BroadcastMessage(srv.SessionControlsInfoBroadcast)
 
@@ -367,6 +378,22 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	}
 
 	return s, nil
+}
+
+// disconnectPartyOnErr is called when any party connection returns an error.
+// It is used to properly handle client disconnections.
+func (s *session) disconnectPartyOnErr(idString string, err error) {
+	if idString == sessionRecorderID {
+		s.log.Error("Failed to write to session recorder, closing session.")
+		s.Close()
+	}
+
+	s.log.Errorf("Encountered error: %v with party %v. Disconnecting them from the session.", err, idString)
+	id, _ := uuid.Parse(idString)
+
+	if err = s.leave(id); err != nil {
+		s.log.Errorf("Failed to disconnect party %v from the session: %v.", idString, err)
+	}
 }
 
 // checkPresence checks the presence timestamp of involved moderators
@@ -424,28 +451,6 @@ func (s *session) launch() error {
 	s.BroadcastMessage("Connecting to %v over K8S", s.podName)
 
 	eventPodMeta := request.eventPodMeta(request.context, s.sess.creds)
-	s.io.OnWriteError = func(idString string, err error) {
-		if idString == sessionRecorderID {
-			s.log.Error("Failed to write to session recorder, closing session.")
-			s.Close()
-		}
-
-		s.log.Errorf("Encountered error: %v with party %v. Disconnecting them from the session.", err, idString)
-		id, _ := uuid.Parse(idString)
-
-		if err = s.leave(id); err != nil {
-			s.log.Errorf("Failed to disconnect party %v from the session: %v.", idString, err)
-		}
-	}
-
-	s.io.OnReadError = func(idString string, err error) {
-		s.log.Errorf("Encountered error: %v with party %v. Disconnecting them from the session.", err, idString)
-		id, _ := uuid.Parse(idString)
-
-		if err = s.leave(id); err != nil {
-			s.log.Errorf("Failed to disconnect party %v from the session: %v.", idString, err)
-		}
-	}
 
 	onFinished, err := s.lockedSetupLaunch(request, q, eventPodMeta)
 	if err != nil {
