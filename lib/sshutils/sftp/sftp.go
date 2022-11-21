@@ -255,7 +255,22 @@ func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error
 		s.Setenv(string(FileTransferRequestID), fileTransferRequestID)
 	}
 
+	pe, err := s.StderrPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	if err := s.RequestSubsystem("sftp"); err != nil {
+		// If the subsystem request failed and a generic error is
+		// returned, return the session's stderr as the error if it's
+		// non-empty, as the session's stderr may have a more useful
+		// error message. String comparison is only used here because
+		// the error is not exported.
+		if strings.Contains(err.Error(), "ssh: subsystem request failed") {
+			var sb strings.Builder
+			if n, _ := io.Copy(&sb, pe); n > 0 {
+				return trace.Wrap(errors.New(sb.String()))
+			}
+		}
 		return trace.Wrap(err)
 	}
 	pw, err := s.StdinPipe()
