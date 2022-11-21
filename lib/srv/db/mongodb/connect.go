@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"net/url"
-	"time"
 
 	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/mongo/address"
@@ -41,7 +40,7 @@ import (
 // based on the read preference connection string option. This allows users to
 // configure database access to always connect to a secondary for example.
 func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (driver.Connection, func(), error) {
-	options, selector, err := e.getTopologyOptions(ctx, sessionCtx)
+	config, selector, err := e.getTopologyConfig(ctx, sessionCtx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -49,7 +48,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (drive
 	// over server connections (reading/writing wire messages) but at the
 	// same time get access to logic such as picking a server to connect to
 	// in a replica set.
-	top, err := topology.New(options...)
+	top, err := topology.New(config)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -78,8 +77,8 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (drive
 	return conn, closeFn, nil
 }
 
-// getTopologyOptions constructs topology options for connecting to a MongoDB server.
-func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *common.Session) ([]topology.Option, description.ServerSelector, error) {
+// getTopologyConfig constructs topology config for connecting to a MongoDB server.
+func (e *Engine) getTopologyConfig(ctx context.Context, sessionCtx *common.Session) (*topology.Config, description.ServerSelector, error) {
 	connString, err := getConnectionString(sessionCtx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -92,16 +91,15 @@ func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *common.Sess
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	return []topology.Option{
-		topology.WithConnString(func(cs connstring.ConnString) connstring.ConnString {
-			return connString
-		}),
-		topology.WithServerSelectionTimeout(func(time.Duration) time.Duration {
-			return common.DefaultMongoDBServerSelectionTimeout
-		}),
-		topology.WithServerOptions(func(so ...topology.ServerOption) []topology.ServerOption {
-			return serverOptions
-		}),
+	return &topology.Config{
+		URI:                    sessionCtx.Database.GetURI(),
+		SeedList:               connString.Hosts,
+		ServerSelectionTimeout: common.DefaultMongoDBServerSelectionTimeout,
+		ServerOpts:             serverOptions,
+		SRVMaxHosts:            connString.SRVMaxHosts,
+		SRVServiceName:         connString.SRVServiceName,
+		LoadBalanced:           connString.LoadBalanced,
+		ReplicaSetName:         connString.ReplicaSet,
 	}, selector, nil
 }
 
