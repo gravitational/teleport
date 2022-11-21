@@ -82,6 +82,8 @@ type RemoteClusterTunnelManagerConfig struct {
 	FIPS bool
 	// Log is the logger
 	Log logrus.FieldLogger
+	// IsRemoteCluster indicates the agent pool is connecting to a remote cluster.
+	IsRemoteCluster bool
 }
 
 func (c *RemoteClusterTunnelManagerConfig) CheckAndSetDefaults() error {
@@ -192,6 +194,7 @@ func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 			continue
 		}
 		pool.Stop()
+		trustedClustersStats.DeleteLabelValues(pool.cfg.Cluster)
 		delete(w.pools, k)
 	}
 
@@ -202,6 +205,7 @@ func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 			continue
 		}
 
+		trustedClustersStats.WithLabelValues(k.cluster).Set(0)
 		pool, err := w.newAgentPool(ctx, w.cfg, k.cluster, k.addr)
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
@@ -229,8 +233,9 @@ func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig,
 		Component: teleport.ComponentProxy,
 
 		// Configs for remote cluster.
-		Cluster:  cluster,
-		Resolver: StaticResolver(addr, apitypes.ProxyListenerMode_Separate),
+		Cluster:         cluster,
+		Resolver:        StaticResolver(addr, apitypes.ProxyListenerMode_Separate),
+		IsRemoteCluster: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed creating reverse tunnel pool for remote cluster %q at address %q: %v", cluster, addr, err)
