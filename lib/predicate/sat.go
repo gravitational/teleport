@@ -176,6 +176,7 @@ func dpll_is_satisfied(state *state) bool {
 }
 
 // convert to cnf
+// backtracking fix
 func dpll(state *state) bool {
 	for {
 		i := len(state.assignments) - 1
