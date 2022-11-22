@@ -467,7 +467,7 @@ volumes:
 
 kind: pipeline
 type: exec
-name: push-build-darwin-amd64
+name: push-build-native-darwin-amd64
 trigger:
   event:
     include:
@@ -482,7 +482,7 @@ trigger:
     - master
     - branch/*
 workspace:
-  path: /tmp/push-build-darwin-amd64
+  path: /tmp/push-build-native-darwin-amd64
 platform:
   os: darwin
   arch: amd64
@@ -498,7 +498,7 @@ steps:
   - chmod -R u+rw $WORKSPACE_DIR
   - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
   environment:
-    WORKSPACE_DIR: /tmp/push-build-darwin-amd64
+    WORKSPACE_DIR: /tmp/push-build-native-darwin-amd64
 - name: Check out code
   commands:
   - set -u
@@ -526,7 +526,7 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-    WORKSPACE_DIR: /tmp/push-build-darwin-amd64
+    WORKSPACE_DIR: /tmp/push-build-native-darwin-amd64
 - name: Install Go Toolchain
   commands:
   - set -u
@@ -548,7 +548,7 @@ steps:
   - export RUSTUP_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/rustup
   - rustup toolchain install $RUST_VERSION
   environment:
-    WORKSPACE_DIR: /tmp/push-build-darwin-amd64
+    WORKSPACE_DIR: /tmp/push-build-native-darwin-amd64
 - name: Install Node Toolchain
   commands:
   - set -u
@@ -565,7 +565,7 @@ steps:
   - echo Node reporting version $(node --version)
   - echo Yarn reporting version $(yarn --version)
   environment:
-    WORKSPACE_DIR: /tmp/push-build-darwin-amd64
+    WORKSPACE_DIR: /tmp/push-build-native-darwin-amd64
 - name: Build Mac artifacts (binaries and Teleport Connect)
   commands:
   - set -u
@@ -601,10 +601,10 @@ steps:
     ARCH: amd64
     BUILDBOX_PASSWORD:
       from_secret: BUILDBOX_PASSWORD
-    GOCACHE: /tmp/push-build-darwin-amd64/go/cache
-    GOPATH: /tmp/push-build-darwin-amd64/go
+    GOCACHE: /tmp/push-build-native-darwin-amd64/go/cache
+    GOPATH: /tmp/push-build-native-darwin-amd64/go
     OS: darwin
-    WORKSPACE_DIR: /tmp/push-build-darwin-amd64
+    WORKSPACE_DIR: /tmp/push-build-native-darwin-amd64
 - name: Clean up toolchains (post)
   commands:
   - set -u
@@ -619,7 +619,7 @@ steps:
   - rustup toolchain uninstall $RUST_VERSION
   - rm -rf /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED
   environment:
-    WORKSPACE_DIR: /tmp/push-build-darwin-amd64
+    WORKSPACE_DIR: /tmp/push-build-native-darwin-amd64
   when:
     status:
     - success
@@ -630,7 +630,7 @@ steps:
   - chmod -R u+rw $WORKSPACE_DIR
   - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
   environment:
-    WORKSPACE_DIR: /tmp/push-build-darwin-amd64
+    WORKSPACE_DIR: /tmp/push-build-native-darwin-amd64
 - name: Send Slack notification (exec)
   commands:
   - |2
@@ -647,6 +647,119 @@ steps:
   when:
     status:
     - failure
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/push.go (main.pushPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: push-build-darwin-amd64
+environment:
+  BUILDBOX_VERSION: teleport12
+  GID: "1000"
+  RUNTIME: go1.19.2
+  UID: "1000"
+trigger:
+  event:
+    include:
+    - push
+    exclude:
+    - pull_request
+  repo:
+    include:
+    - gravitational/*
+  branch:
+    include:
+    - master
+    - branch/*
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Check out code
+  image: docker:git
+  commands:
+  - mkdir -p /go/src/github.com/gravitational/webapps
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - git submodule update --init webassets || true
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - git submodule update --init --recursive webassets || true
+  - mkdir -pv /go/cache
+  - cd /go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"
+  - git submodule update --init packages/webapps.e
+  - cd -
+  - rm -f /root/.ssh/id_rsa
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: Build artifacts
+  image: docker
+  commands:
+  - apk add --no-cache make
+  - chown -R $UID:$GID /go
+  - cd /go/src/github.com/gravitational/teleport
+  - export VERSION=$(cat /go/.version.txt)
+  - make -C build.assets release-darwin-unsigned
+  - make -C build.assets teleterm
+  environment:
+    ARCH: amd64
+    GID: "1000"
+    GOCACHE: /go/cache
+    GOPATH: /go
+    OS: darwin
+    UID: "1000"
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: Send Slack notification
+  image: plugins/slack
+  settings:
+    webhook:
+      from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+  template:
+  - |
+    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+    `${DRONE_STAGE_NAME}` artifact build failed.
+    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+    <{{ build.link }}|Visit Drone build page ↗>
+  when:
+    status:
+    - failure
+services:
+- name: Start Docker
+  image: docker:dind
+  privileged: true
+  volumes:
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: dockersock
+  temp: {}
 
 ---
 ################################################
@@ -18269,6 +18382,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: c50cecb03e9ca4c1a58759cd017fb8555b386f1f45938ae84b56bbb396b36ad3
+hmac: 95821106627a660800120e08889ff8ea4f54c4f6134b2672a681e309e985e3cf
 
 ...

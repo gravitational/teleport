@@ -390,6 +390,8 @@ release:
 	@echo "---> $(RELEASE_MESSAGE)"
 ifeq ("$(OS)", "windows")
 	$(MAKE) --no-print-directory release-windows
+else ifeq ("$(OS)", "darwin")
+	$(MAKE) --no-print-directory release-darwin
 else
 	$(MAKE) --no-print-directory release-unix
 endif
@@ -435,6 +437,19 @@ build-archive:
 #
 .PHONY:
 release-unix: clean full build-archive
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+
+.PHONY:
+release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
+release-darwin-unsigned: clean full build-archive
+
+.PHONY:
+release-darwin: release-darwin-unsigned
+	mkdir -p $(BUILDDIR)/
+	cp ./build.assets/build-common.sh ./build.assets/notarize-binaries.sh $(BUILDDIR)/
+	chmod +x $(BUILDDIR)/notarize-binaries.sh
+	./$(BUILDDIR)/notarize-binaries.sh $(BINARIES)
+	$(MAKE) build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 #

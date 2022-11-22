@@ -127,7 +127,7 @@ func darwinPushPipeline() pipeline {
 	toolchainConfig := toolchainConfig{golang: true, rust: true, nodejs: true}
 	artifactConfig := binariesWithConnect
 
-	p := newDarwinPipeline("push-build-darwin-amd64")
+	p := newDarwinPipeline("push-build-native-darwin-amd64")
 	p.Trigger = trigger{
 		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
 		Branch: triggerRef{Include: []string{"master", "branch/*"}},
