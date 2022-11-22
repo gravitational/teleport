@@ -37,10 +37,10 @@ ENV PATH="/opt/clang+llvm-7.0.1-x86_64-linux-gnu-ubuntu-18.04/bin:$PATH"
 
 
 RUN mkdir -p /opt && cd /opt && \
-    curl -sLO https://storage.googleapis.com/golang/1.12.7.linux-amd64.tar.gz && \
-    echo "66d83bfb5a9ede000e33c6579a91a29e6b101829ad41fffb5c5bb6c900e109d9" "1.12.7.linux-amd64.tar.gz" | sha256sum --check && \
-    tar xzf 1.12.7.linux-amd64.tar.gz && \
-    rm -f 1.12.7.linux-amd64.tar.gz && \
+    curl -sLO https://go.dev/dl/go1.12.7.linux-amd64.tar.gz && \
+    echo "66d83bfb5a9ede000e33c6579a91a29e6b101829ad41fffb5c5bb6c900e109d9" "go1.12.7.linux-amd64.tar.gz" | sha256sum --check && \
+    tar xf go1.12.7.linux-amd64.tar.gz && \
+    rm -f go1.12.7.linux-amd64.tar.gz && \
     chmod a+w /opt/go && \
     chmod a+w /var/lib && \
     chmod a-w /
