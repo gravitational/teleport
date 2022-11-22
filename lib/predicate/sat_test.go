@@ -60,3 +60,12 @@ func TestBoolAssign(t *testing.T) {
 		})
 	}
 }
+
+var sat bool
+var assignments map[string]any
+
+func BenchmarkSimpleBoolAssign(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		sat, assignments = evaluatePredicate("(a | b) & (!a | !b) & a")
+	}
+}

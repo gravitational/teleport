@@ -14,8 +14,6 @@
 
 package predicate
 
-import "fmt"
-
 const (
 	dpllSatisfied = iota
 	dpllUnsatisfied
@@ -204,7 +202,6 @@ func backtrackAdjust(state *state, rem []assignment) bool {
 
 	if len(rem) > 0 {
 		ass := &rem[len(rem)-1]
-		fmt.Printf("repick %v = %v\n", ass.key, !ass.value)
 		ass.value = !ass.value
 
 		if recurse() {
@@ -239,7 +236,6 @@ func dpll(state *state) bool {
 		}
 
 		state.assignments = append(state.assignments, assignment{key: *literal, value: true})
-		fmt.Printf("pick %v = true\n", *literal)
 		if !backtrackAdjust(state, state.assignments) {
 			// backtrack failed, formula is unsat
 			return false
