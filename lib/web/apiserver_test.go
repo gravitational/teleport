@@ -901,7 +901,7 @@ func TestClusterAlertsGet(t *testing.T) {
 func TestSiteNodeConnectInvalidSessionID(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	_, err := s.makeTerminal(t, s.authPack(t, "foo"), withSessionID(session.ID("/../../../foo")))
+	_, _, err := s.makeTerminal(t, s.authPack(t, "foo"), withSessionID(session.ID("/../../../foo")))
 	require.Error(t, err)
 }
 
@@ -1066,6 +1066,7 @@ func TestNewTerminalHandler(t *testing.T) {
 		keepAliveInterval:  time.Duration(100),
 		proxyHostPort:      "1234",
 		interactiveCommand: make([]string, 1),
+		displayLogin:       "tree",
 	}
 
 	term, err := NewTerminal(ctx, validCfg)
@@ -1078,6 +1079,7 @@ func TestNewTerminalHandler(t *testing.T) {
 	require.Equal(t, term.proxyHostPort, validCfg.proxyHostPort)
 	require.Equal(t, term.interactiveCommand, validCfg.interactiveCommand)
 	require.Equal(t, term.term, validCfg.term)
+	require.Equal(t, term.displayLogin, validCfg.displayLogin)
 	// newly added
 	require.Equal(t, term.encoder, unicode.UTF8.NewEncoder())
 	require.Equal(t, term.decoder, unicode.UTF8.NewDecoder())
@@ -1121,15 +1123,17 @@ func TestResizeTerminal(t *testing.T) {
 
 	// Create a new user "foo", open a terminal to a new session
 	pack1 := s.authPack(t, "foo")
-	ws1, err := s.makeTerminal(t, pack1, withSessionID(sid))
+	ws1, sess, err := s.makeTerminal(t, pack1)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws1.Close()) })
 
 	// Create a new user "bar", open a terminal to the session created above
 	pack2 := s.authPack(t, "bar")
-	ws2, err := s.makeTerminal(t, pack2, withSessionID(sid))
+	ws2, sess2, err := s.makeTerminal(t, pack2, withSessionID(sess.ID))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws2.Close()) })
+
+	require.Equal(t, sess.ID, sess2.ID)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -1148,7 +1152,7 @@ t1ready:
 	for {
 		select {
 		case <-done:
-			require.FailNow(t, "expected to receive 2 resize events (got %d) and at least 1 raw event (got %d)", t1ResizeEvents, t1RawEvents)
+			require.FailNow(t, fmt.Sprintf("expected to receive 2 resize events (got %d) and at least 1 raw event (got %d)", t1ResizeEvents, t1RawEvents))
 		case err := <-errs:
 			require.NoError(t, err)
 		case e := <-ws1Messages:
@@ -1228,7 +1232,7 @@ func isResizeEventEnvelope(e *Envelope) bool {
 func TestTerminalPing(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	ws, err := s.makeTerminal(t, s.authPack(t, "foo"), withKeepaliveInterval(500*time.Millisecond))
+	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"), withKeepaliveInterval(500*time.Millisecond))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -1270,7 +1274,7 @@ func TestTerminalPing(t *testing.T) {
 func TestTerminal(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	ws, err := s.makeTerminal(t, s.authPack(t, "foo"))
+	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -1342,7 +1346,7 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 			dev := tc.registerDevice()
 
 			// Open a terminal to a new session.
-			ws := proxy.makeTerminal(t, pack, session.NewID())
+			ws, _ := proxy.makeTerminal(t, pack, "")
 
 			// Wait for websocket authn challenge event.
 			ty, raw, err := ws.ReadMessage()
@@ -1544,7 +1548,7 @@ func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.Test
 func TestWebAgentForward(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	ws, err := s.makeTerminal(t, s.authPack(t, "foo"))
+	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -1641,10 +1645,9 @@ func TestActiveSessions(t *testing.T) {
 func TestCloseConnectionsOnLogout(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	sid := session.NewID()
 	pack := s.authPack(t, "foo")
 
-	ws, err := s.makeTerminal(t, pack, withSessionID(sid))
+	ws, _, err := s.makeTerminal(t, pack)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -1731,8 +1734,7 @@ func TestPlayback(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
 	pack := s.authPack(t, "foo")
-	sid := session.NewID()
-	ws, err := s.makeTerminal(t, pack, withSessionID(sid))
+	ws, _, err := s.makeTerminal(t, pack)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 }
@@ -4114,7 +4116,7 @@ func TestWebSessionsRenewDoesNotBreakExistingTerminalSession(t *testing.T) {
 	pack1 := proxy1.authPack(t, "foo", nil /* roles */)
 	pack2 := proxy2.authPackFromPack(t, pack1)
 
-	ws := proxy2.makeTerminal(t, pack2, session.NewID())
+	ws, _ := proxy2.makeTerminal(t, pack2, "")
 
 	// Advance the time before renewing the session.
 	// This will allow the new session to have a more plausible
@@ -5720,7 +5722,7 @@ func withKeepaliveInterval(d time.Duration) terminalOpt {
 	return func(t *TerminalRequest) { t.KeepAliveInterval = d }
 }
 
-func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOpt) (*websocket.Conn, error) {
+func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOpt) (*websocket.Conn, *session.Session, error) {
 	req := TerminalRequest{
 		Server: s.srvID,
 		Login:  pack.login,
@@ -5728,7 +5730,6 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 			W: 100,
 			H: 100,
 		},
-		SessionID: session.NewID(),
 	}
 	for _, opt := range opts {
 		opt(&req)
@@ -5741,7 +5742,7 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 	}
 	data, err := json.Marshal(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	q := u.Query()
@@ -5762,11 +5763,20 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 
 	ws, resp, err := dialer.Dial(u.String(), header)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
+	ty, raw, err := ws.ReadMessage()
+	require.Nil(t, err)
+	require.Equal(t, websocket.BinaryMessage, ty)
+	var env Envelope
+	require.Nil(t, proto.Unmarshal(raw, &env))
+
+	var sessResp siteSessionGenerateResponse
+	require.Nil(t, json.Unmarshal([]byte(env.Payload), &sessResp))
+
 	require.NoError(t, resp.Body.Close())
-	return ws, nil
+	return ws, &sessResp.Session, nil
 }
 
 func waitForOutput(stream *terminalStream, substr string) error {
@@ -6335,21 +6345,27 @@ func (r *proxy) newClient(t *testing.T, opts ...roundtrip.ClientParam) *client.W
 	return clt
 }
 
-func (r *proxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID) *websocket.Conn {
+func (r *proxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID) (*websocket.Conn, session.Session) {
 	u := url.URL{
 		Host:   r.webURL.Host,
 		Scheme: client.WSS,
 		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect", currentSiteShortcut),
 	}
-	data, err := json.Marshal(TerminalRequest{
+
+	requestData := TerminalRequest{
 		Server: r.node.ID(),
 		Login:  pack.login,
 		Term: session.TerminalParams{
 			W: 100,
 			H: 100,
 		},
-		SessionID: sessionID,
-	})
+	}
+
+	if sessionID != "" {
+		requestData.SessionID = sessionID
+	}
+
+	data, err := json.Marshal(requestData)
 	require.NoError(t, err)
 
 	q := u.Query()
@@ -6374,7 +6390,17 @@ func (r *proxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID)
 		require.NoError(t, ws.Close())
 		require.NoError(t, resp.Body.Close())
 	})
-	return ws
+
+	ty, raw, err := ws.ReadMessage()
+	require.Nil(t, err)
+	require.Equal(t, websocket.BinaryMessage, ty)
+	var env Envelope
+	require.Nil(t, proto.Unmarshal(raw, &env))
+
+	var sessResp siteSessionGenerateResponse
+	require.Nil(t, json.Unmarshal([]byte(env.Payload), &sessResp))
+
+	return ws, sessResp.Session
 }
 
 func (r *proxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID session.ID, addr net.Addr) *websocket.Conn {

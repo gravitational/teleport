@@ -69,8 +69,13 @@ type TerminalRequest struct {
 	// ProxyHostPort is the address of the server to connect to.
 	ProxyHostPort string `json:"-"`
 
-	// InteractiveCommand is a command to execut.e
+	// InteractiveCommand is a command to execute
 	InteractiveCommand []string `json:"-"`
+
+	// KeepAliveInterval is the interval for sending ping frames to web client.
+	// This value is pulled from the cluster network config and
+	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
+	KeepAliveInterval time.Duration
 }
 
 // AuthProvider is a subset of the full Auth API.

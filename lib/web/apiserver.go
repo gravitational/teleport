@@ -2229,7 +2229,7 @@ func (h *Handler) siteNodeConnect(
 
 	if req.SessionID.IsZero() {
 		// An existing session ID was not provided so we need to create a new one.
-		clusterName := p.ByName("site")
+		clusterName := site.GetName()
 		h.log.Infof("Generating new session for %s\n", clusterName)
 		sessionData, err = h.generateSession(r.Context(), clt, req, clusterName)
 		if err != nil {
