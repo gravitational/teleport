@@ -319,7 +319,8 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	parkerCtx, parkerCancel := context.WithCancel(context.Background())
 	defer parkerCancel()
 
-	if err := startNewParker(parkerCtx, cmd, c.Login, localUser); err != nil {
+	osPack := newOsWrapper()
+	if err := osPack.startNewParker(parkerCtx, cmd.SysProcAttr.Credential, c.Login, localUser); err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
@@ -412,15 +413,32 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	return io.Discard, exitCode(err), trace.Wrap(err)
 }
 
+// osWrapper wraps system calls, so we can replace them in tests.
+type osWrapper struct {
+	LookupGroup    func(name string) (*user.Group, error)
+	LookupUser     func(username string) (*user.User, error)
+	CommandContext func(ctx context.Context, name string, arg ...string) *exec.Cmd
+}
+
+func newOsWrapper() *osWrapper {
+	return &osWrapper{
+		LookupGroup:    user.LookupGroup,
+		LookupUser:     user.Lookup,
+		CommandContext: exec.CommandContext,
+	}
+}
+
 // startNewParker starts a new parker process only if the requested user has been created
 // by Teleport. Otherwise, does nothing.
-func startNewParker(parkerCtx context.Context, cmd *exec.Cmd, login string, localUser *user.User) error {
-	if cmd.SysProcAttr.Credential != nil {
+func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Credential,
+	loginAsUser string, localUser *user.User,
+) error {
+	if credential == nil {
 		// Empty credential, no reason to start the parker.
 		return nil
 	}
 
-	group, err := user.LookupGroup(types.TeleportServiceGroup)
+	group, err := o.LookupGroup(types.TeleportServiceGroup)
 	if errors.Is(err, user.UnknownGroupError(types.TeleportServiceGroup)) {
 		// The service group doesn't exist. Auto-provision is disabled, do nothing.
 		return nil
@@ -434,22 +452,22 @@ func startNewParker(parkerCtx context.Context, cmd *exec.Cmd, login string, loca
 		return trace.Wrap(err)
 	}
 
-	if uint64(cmd.SysProcAttr.Credential.Gid) != guid {
+	if uint64(credential.Gid) != guid {
 		// Check if the new user guid matches the TeleportServiceGroup. If not
 		// this user hasn't been created by Teleport, and we don't need the parker.
 		return nil
 	}
 
-	if err := newParker(parkerCtx, *cmd.SysProcAttr.Credential); err != nil {
+	if err := o.newParker(ctx, *credential); err != nil {
 		return trace.Wrap(err)
 	}
 
-	localUserCheck, err := user.Lookup(login)
+	localUserCheck, err := o.LookupUser(loginAsUser)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if localUser.Uid != localUserCheck.Uid || localUser.Gid != localUserCheck.Gid {
-		return trace.BadParameter("user %q has been changed", login)
+		return trace.BadParameter("user %q has been changed", loginAsUser)
 	}
 
 	return nil
@@ -882,13 +900,13 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 }
 
 // Spawns a process with the given credentials, outliving the context.
-func newParker(ctx context.Context, credential syscall.Credential) error {
+func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential) error {
 	executable, err := os.Executable()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	cmd := exec.CommandContext(ctx, executable, teleport.ParkSubCommand)
+	cmd := o.CommandContext(ctx, executable, teleport.ParkSubCommand)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Credential: &credential,
 	}
@@ -900,7 +918,7 @@ func newParker(ctx context.Context, credential syscall.Credential) error {
 		return trace.Wrap(err)
 	}
 
-	// the process will get killed when the context ends but we still need to
+	// the process will get killed when the context ends, but we still need to
 	// Wait on it
 	go cmd.Wait()
 
