@@ -890,8 +890,6 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 func (f *Forwarder) getSession(id uuid.UUID) *session {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	// Currently, Teleport closes the session when the initiator exits.
-	// So, it is safe to remove it
 	return f.sessions[id]
 }
 
