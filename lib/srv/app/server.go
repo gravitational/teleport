@@ -710,24 +710,13 @@ func (s *Server) monitorConn(ctx context.Context, tc *srv.TrackingReadConn, auth
 	identity := authCtx.Identity.GetIdentity()
 	checker := authCtx.Checker
 
-	certExpires := identity.Expires
-	var disconnectCertExpired time.Time
-	if checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
-		if !identity.PreviousIdentityExpires.IsZero() {
-			// Cause MFA verified sessions to disconnect on issuing cert's expiry
-			// (see https://github.com/gravitational/teleport/issues/18544).
-			disconnectCertExpired = identity.PreviousIdentityExpires
-		} else if !certExpires.IsZero() {
-			disconnectCertExpired = certExpires
-		}
-	}
 	idleTimeout := checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
 
 	// Start monitoring client connection. When client connection is closed the monitor goroutine exits.
 	err = srv.StartMonitor(srv.MonitorConfig{
 		LockWatcher:           s.c.LockWatcher,
 		LockTargets:           authCtx.LockTargets(),
-		DisconnectExpiredCert: disconnectCertExpired,
+		DisconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(checker, authPref, &identity),
 		ClientIdleTimeout:     idleTimeout,
 		Conn:                  tc,
 		Tracker:               tc,
