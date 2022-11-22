@@ -54,12 +54,7 @@ func (m *localProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpn.Loc
 
 	m.log.WithError(err).Debug("Gateway certificates have expired")
 
-	onExpiredCertErr := m.onExpiredCert(ctx)
-	if onExpiredCertErr != nil {
-		return trace.Wrap(onExpiredCertErr)
-	}
-
-	return nil
+	return trace.Wrap(m.onExpiredCert(ctx))
 }
 
 // OnStart is a noop. client.DBCertChecker.OnStart checks cert validity too. However in Connect
