@@ -4312,6 +4312,17 @@ func (g *GRPCServer) DeleteAllKubernetesClusters(ctx context.Context, _ *emptypb
 	return &emptypb.Empty{}, nil
 }
 
+func (g *GRPCServer) ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.ChangePassword(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration
