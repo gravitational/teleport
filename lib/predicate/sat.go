@@ -91,7 +91,7 @@ func newState(clause node) *state {
 }
 
 func pickLiteral(node node, isExcluded func(string) bool) *string {
-	one_of_two := func(left, right *string) *string {
+	or := func(left, right *string) *string {
 		if left != nil {
 			return left
 		}
@@ -111,14 +111,97 @@ func pickLiteral(node node, isExcluded func(string) bool) *string {
 	case *nodeNot:
 		return pickLiteral(node.left, isExcluded)
 	case *nodeOr:
-		return one_of_two(pickLiteral(node.left, isExcluded), pickLiteral(node.right, isExcluded))
+		return or(pickLiteral(node.left, isExcluded), pickLiteral(node.right, isExcluded))
 	case *nodeAnd:
-		return one_of_two(pickLiteral(node.left, isExcluded), pickLiteral(node.right, isExcluded))
+		return or(pickLiteral(node.left, isExcluded), pickLiteral(node.right, isExcluded))
 	default:
 		panic("unreachable")
 	}
 }
 
+func evalClause(state *state, clause node) int {
+	return dpllUnknown
+}
+
+func isAssigned(state *state, key string) (bool, bool) {
+	for _, assignment := range state.assignments {
+		if assignment.key == key {
+			return true, assignment.value
+		}
+	}
+
+	return false, false
+}
+
+func pickUnassigned(state *state) *string {
+	for _, clause := range state.clauses {
+		a := pickLiteral(clause, func(x string) bool { assigned, _ := isAssigned(state, x); return assigned })
+		if a != nil {
+			return a
+		}
+	}
+
+	return nil
+}
+
+func backtrackAdjust(state *state, rem []assignment) bool {
+	satisfied := func() bool {
+		for _, clause := range state.clauses {
+			switch evalClause(state, clause) {
+			case dpllSatisfied, dpllUnknown:
+				continue
+			case dpllUnsatisfied:
+				return false
+			}
+		}
+
+		return true
+	}
+
+	recurse := func() bool { return satisfied() || backtrackAdjust(state, rem[1:]) }
+
+	if recurse() {
+		return true
+	}
+
+	if len(rem) > 0 {
+		ass := &rem[len(rem)-1]
+		ass.value = !ass.value
+
+		if recurse() {
+			return true
+		}
+	}
+
+	return false
+}
+
+// opt: watch-literal based unit propagation
 func dpll(state *state) bool {
-	return true
+	// check that nonvariable clauses are satisfied
+	for _, clause := range state.enforce {
+		switch evalClause(state, clause) {
+		case dpllSatisfied:
+			continue
+		case dpllUnsatisfied:
+			// pure clause cannot be satisfied, formula is unsat
+			return false
+		case dpllUnknown:
+			panic("unreachable")
+		}
+	}
+
+	for {
+		literal := pickUnassigned(state)
+		if literal == nil {
+			// all variables are assigned, formula is sat
+			return true
+		}
+
+		state.assignments = append(state.assignments, assignment{key: *literal, value: true})
+		if !backtrackAdjust(state, state.assignments) {
+			// backtrack failed, formula is unsat
+			return false
+		}
+	}
 }
