@@ -50,7 +50,7 @@ const (
 	ServerAnnounceTTL = 600 * time.Second
 
 	// SessionTrackerTTL defines the default base ttl of a session tracker.
-	SessionTrackerTTL = time.Hour
+	SessionTrackerTTL = 30 * time.Minute
 )
 
 var (
