@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/defaults"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -57,7 +58,7 @@ var JoinMethods = []JoinMethod{
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
-	hasJoinMethod := apiutils.SliceContainsStr(JoinMethods, method)
+	hasJoinMethod := slices.Contains(JoinMethods, method)
 	if !hasJoinMethod {
 		return trace.BadParameter("join method must be one of %s", apiutils.JoinStrings(JoinMethods, ", "))
 	}

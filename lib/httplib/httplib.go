@@ -62,7 +62,27 @@ func MakeHandler(fn HandlerFunc) httprouter.Handle {
 // MakeTracingHandler returns a new httprouter.Handle func that wraps the provided handler func
 // with one that will add a tracing span for each request.
 func MakeTracingHandler(h http.Handler, component string) http.Handler {
-	return otelhttp.NewHandler(h, component, otelhttp.WithSpanNameFormatter(tracing.HTTPHandlerFormatter))
+	// Wrap the provided handler with one that will inject
+	// any propagated tracing context provided via a query parameter
+	// if there isn't already a header containing tracing context.
+	// This is required for scenarios using web sockets as headers
+	// cannot be modified to inject the tracing context.
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		// ensure headers have priority over query parameters
+		if r.Header.Get(tracing.TraceParent) != "" {
+			h.ServeHTTP(w, r)
+			return
+		}
+
+		traceParent := r.URL.Query()[tracing.TraceParent]
+		if len(traceParent) > 0 {
+			r.Header.Add(tracing.TraceParent, traceParent[0])
+		}
+
+		h.ServeHTTP(w, r)
+	}
+
+	return otelhttp.NewHandler(http.HandlerFunc(handler), component, otelhttp.WithSpanNameFormatter(tracing.HTTPHandlerFormatter))
 }
 
 // MakeHandlerWithErrorWriter returns a httprouter.Handle from the HandlerFunc,

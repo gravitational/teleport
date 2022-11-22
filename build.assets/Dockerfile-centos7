@@ -156,7 +156,8 @@ RUN yum groupinstall -y 'Development Tools' && \
     zip \
     # required by libbpf
     zlib-static && \
-    yum -y install https://packages.endpointdev.com/rhel/7/os/x86_64/endpoint-repo.x86_64.rpm git && \
+    yum -y install https://packages.endpointdev.com/rhel/7/os/x86_64/endpoint-repo.x86_64.rpm && \
+    yum -y install git && \
     yum clean all
 
 # Install etcd.

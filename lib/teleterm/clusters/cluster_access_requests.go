@@ -19,9 +19,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
@@ -194,7 +194,7 @@ func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 
 		// keep existing access requests that aren't included in the droprequests
 		for _, reqID := range c.status.ActiveRequests.AccessRequests {
-			if !apiutils.SliceContainsStr(req.DropRequestIds, reqID) {
+			if !slices.Contains(req.DropRequestIds, reqID) {
 				params.AccessRequests = append(params.AccessRequests, reqID)
 			}
 		}
