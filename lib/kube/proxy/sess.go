@@ -386,10 +386,16 @@ func (s *session) disconnectPartyOnErr(idString string, err error) {
 	if idString == sessionRecorderID {
 		s.log.Error("Failed to write to session recorder, closing session.")
 		s.Close()
+		return
 	}
 
 	s.log.Errorf("Encountered error: %v with party %v. Disconnecting them from the session.", err, idString)
-	id, _ := uuid.Parse(idString)
+
+	id, err := uuid.Parse(idString)
+	if err != nil {
+		s.log.WithError(err).Errorf("Unable to decode %q into a UUID.", idString)
+		return
+	}
 
 	if err = s.leave(id); err != nil {
 		s.log.Errorf("Failed to disconnect party %v from the session: %v.", idString, err)
@@ -457,7 +463,8 @@ func (s *session) launch() error {
 		return trace.Wrap(err)
 	}
 	defer func() {
-		// catch err by reference so we can access any write into it in the two calls that follow
+		// The closure captures the err variable pointer so that the variable can
+		// be changed by the code below, but when defer runs, it gets the last value.
 		onFinished(err)
 	}()
 
