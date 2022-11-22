@@ -78,8 +78,12 @@ of the stream is reached. To replay a session, refresh the page.
 
 ## Log rotation
 
-Be aware, Desktop Access session recording comprises of raw PNG-based files,
-and are stored on the host running the Desktop Access service. Session recordings
-are stored permanently, but only accessible through the Web UI for sessions
-still available in the audit log. Refer to the `storage` section of the [Teleport Configuration Reference](../../reference/config.mdx)
+Be aware, Desktop Access session recordings capture the entire contents of the
+screen. This means they take up significantly more disk space than SSH or Kubernetes
+session recordings. When using async recording modes, ensure that the host running
+Teleport's desktop service has sufficient disk space to store recordings that are
+in progress. If disk space is a concern, we recommend using sync recording and
+configuring a cloud storage solution such as S3.
+
+Refer to the `storage` section of the [Teleport Configuration Reference](../../reference/config.mdx)
 for more information on session logging and recoring management.
