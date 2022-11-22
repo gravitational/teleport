@@ -215,6 +215,7 @@ func backtrackAdjust(state *state, rem []assignment) bool {
 	return false
 }
 
+// opt: fast literal picks
 // opt: watch-literal based unit propagation (remember cnf conversion)
 func dpll(state *state) bool {
 	// check that nonvariable clauses are satisfied

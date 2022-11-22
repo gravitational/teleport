@@ -21,73 +21,41 @@ import (
 )
 
 type testCase struct {
-	name        string
-	clause      node
+	clause      string
 	sat         bool
-	assignments []assignment
+	assignments map[string]any
 }
 
-func TestAssign(t *testing.T) {
+func TestBoolAssign(t *testing.T) {
 	cases := []testCase{
 		{
-			name: "(a or b) and (not a or not b) and a",
-			clause: &nodeAnd{
-				left: &nodeOr{
-					left:  &nodeIdentifier{key: "a"},
-					right: &nodeIdentifier{key: "b"},
-				},
-				right: &nodeAnd{
-					left: &nodeOr{
-						left: &nodeNot{
-							left: &nodeIdentifier{key: "a"},
-						},
-						right: &nodeNot{
-							left: &nodeIdentifier{key: "b"},
-						},
-					},
-					right: &nodeIdentifier{key: "a"},
-				},
-			},
-			sat: true,
-			assignments: []assignment{
-				{key: "a", value: true},
-				{key: "b", value: false},
+			clause: "(a | b) & (!a | !b) & a",
+			sat:    true,
+			assignments: map[string]any{
+				"a": true,
+				"b": false,
 			},
 		},
 		{
-			name: "(a or b) and (not a or not b) and b",
-			clause: &nodeAnd{
-				left: &nodeOr{
-					left:  &nodeIdentifier{key: "a"},
-					right: &nodeIdentifier{key: "b"},
-				},
-				right: &nodeAnd{
-					left: &nodeOr{
-						left: &nodeNot{
-							left: &nodeIdentifier{key: "a"},
-						},
-						right: &nodeNot{
-							left: &nodeIdentifier{key: "b"},
-						},
-					},
-					right: &nodeIdentifier{key: "b"},
-				},
+			clause: "(a | b) & (!a | !b) & b",
+			sat:    true,
+			assignments: map[string]any{
+				"a": false,
+				"b": true,
 			},
-			sat: true,
-			assignments: []assignment{
-				{key: "a", value: false},
-				{key: "b", value: true},
-			},
+		},
+		{
+			clause: "a & !a",
+			sat:    false,
 		},
 	}
 
 	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			s := newState(c.clause)
-			require.Equal(t, c.sat, dpll(s))
+		t.Run(c.clause, func(t *testing.T) {
+			sat, assignments := evaluatePredicate(c.clause)
 
-			if c.sat {
-				require.Equal(t, c.assignments, s.assignments)
+			if sat {
+				require.Equal(t, c.assignments, assignments)
 			}
 		})
 	}
