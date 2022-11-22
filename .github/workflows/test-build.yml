@@ -1,0 +1,20 @@
+name: Build Teleport for ARM devices
+on: 
+  workflow_dispatch:
+    inputs:
+      oss-teleport-ref:
+        description: 'Git SHA, tag or branch of the revision of OSS teleport to build'
+        required: true
+        type: string        
+jobs:
+  build-release-artifacts:
+    permissions:
+      contents: read
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Test run
+        run: echo "Hello! ${{ inputs.oss-teleport-ref }}"
+
+
