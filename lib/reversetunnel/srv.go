@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/proxy"
+	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -191,7 +191,7 @@ type Config struct {
 	NewCachingAccessPointOldProxy auth.NewRemoteProxyCachingAccessPoint
 
 	// PeerClient is a client to peer proxy servers.
-	PeerClient *proxy.Client
+	PeerClient *peer.Client
 
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
@@ -1004,7 +1004,7 @@ func (s *server) GetSite(name string) (RemoteSite, error) {
 }
 
 // GetProxyPeerClient returns the proxy peer client
-func (s *server) GetProxyPeerClient() *proxy.Client {
+func (s *server) GetProxyPeerClient() *peer.Client {
 	return s.PeerClient
 }
 

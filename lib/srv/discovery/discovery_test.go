@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"cloud.google.com/go/container/apiv1/containerpb"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/request"
@@ -43,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/sirupsen/logrus"
@@ -90,8 +92,8 @@ type mockEC2Client struct {
 
 func (m *mockEC2Client) DescribeInstancesPagesWithContext(
 	ctx context.Context, input *ec2.DescribeInstancesInput,
-	f func(dio *ec2.DescribeInstancesOutput, b bool) bool, opts ...request.Option) error {
-
+	f func(dio *ec2.DescribeInstancesOutput, b bool) bool, opts ...request.Option,
+) error {
 	f(m.output, true)
 	return nil
 }
@@ -392,7 +394,6 @@ func TestDiscoveryServer(t *testing.T) {
 			server.Wait()
 		})
 	}
-
 }
 
 func TestDiscoveryKube(t *testing.T) {
@@ -402,6 +403,7 @@ func TestDiscoveryKube(t *testing.T) {
 		existingKubeClusters          []types.KubeCluster
 		awsMatchers                   []services.AWSMatcher
 		azureMatchers                 []services.AzureMatcher
+		gcpMatchers                   []services.GCPMatcher
 		expectedClustersToExistInAuth []types.KubeCluster
 		clustersNotUpdated            []string
 	}{
@@ -521,6 +523,22 @@ func TestDiscoveryKube(t *testing.T) {
 			},
 			clustersNotUpdated: []string{"aks-cluster1"},
 		},
+		{
+			name:                 "no clusters in auth server, import 2 prod clusters from GKE",
+			existingKubeClusters: []types.KubeCluster{},
+			gcpMatchers: []services.GCPMatcher{
+				{
+					Types:      []string{"gke"},
+					Locations:  []string{"*"},
+					ProjectIDs: []string{"p1"},
+					Tags:       map[string]utils.Strings{"env": {"prod"}},
+				},
+			},
+			expectedClustersToExistInAuth: []types.KubeCluster{
+				mustConvertGKEToKubeCluster(t, gkeMockClusters[0]),
+				mustConvertGKEToKubeCluster(t, gkeMockClusters[1]),
+			},
+		},
 	}
 
 	for _, tc := range tcs {
@@ -531,6 +549,7 @@ func TestDiscoveryKube(t *testing.T) {
 			testClients := cloud.TestCloudClients{
 				AzureAKSClient: newPopulatedAKSMock(),
 				EKS:            newPopulatedEKSMock(),
+				GCPGKE:         newPopulatedGCPMock(),
 			}
 
 			ctx := context.Background()
@@ -571,7 +590,7 @@ func TestDiscoveryKube(t *testing.T) {
 				// the current state of the cluster is equal to the previous.
 				// [r.log.Debugf("%v %v is already registered.", new.GetKind(), new.GetName())]
 				// lib/services/reconciler.go
-				var reconcileRegexp = regexp.MustCompile("kube_cluster (.*) is already registered")
+				reconcileRegexp := regexp.MustCompile("kube_cluster (.*) is already registered")
 
 				scanner := bufio.NewScanner(r)
 				for scanner.Scan() {
@@ -595,6 +614,7 @@ func TestDiscoveryKube(t *testing.T) {
 					AccessPoint:   tlsServer.Auth(),
 					AWSMatchers:   tc.awsMatchers,
 					AzureMatchers: tc.azureMatchers,
+					GCPMatchers:   tc.gcpMatchers,
 					Emitter:       authClient,
 					Log:           logger,
 				})
@@ -632,11 +652,9 @@ func TestDiscoveryKube(t *testing.T) {
 						}
 						break loop
 					}
-
 				}
 				return len(clustersNotUpdated) == 0 && clustersFoundInAuth
 			}, 5*time.Second, 200*time.Millisecond)
-
 		})
 	}
 }
@@ -757,7 +775,6 @@ func newPopulatedEKSMock() *mockEKSAPI {
 }
 
 var eksMockClusters = []*eks.Cluster{
-
 	{
 		Name:   aws.String("eks-cluster1"),
 		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster1"),
@@ -820,4 +837,72 @@ func sliceToSet[T comparable](slice []T) map[T]struct{} {
 		set[v] = struct{}{}
 	}
 	return set
+}
+
+func newPopulatedGCPMock() *mockGKEAPI {
+	return &mockGKEAPI{
+		clusters: gkeMockClusters,
+	}
+}
+
+var gkeMockClusters = []gcp.GKECluster{
+	{
+		Name:   "cluster1",
+		Status: containerpb.Cluster_RUNNING,
+		Labels: map[string]string{
+			"env":      "prod",
+			"location": "central-1",
+		},
+		ProjectID:   "p1",
+		Location:    "central-1",
+		Description: "desc1",
+	},
+	{
+		Name:   "cluster2",
+		Status: containerpb.Cluster_RUNNING,
+		Labels: map[string]string{
+			"env":      "prod",
+			"location": "central-1",
+		},
+		ProjectID:   "p1",
+		Location:    "central-1",
+		Description: "desc1",
+	},
+	{
+		Name:   "cluster3",
+		Status: containerpb.Cluster_RUNNING,
+		Labels: map[string]string{
+			"env":      "stg",
+			"location": "central-1",
+		},
+		ProjectID:   "p1",
+		Location:    "central-1",
+		Description: "desc1",
+	},
+	{
+		Name:   "cluster4",
+		Status: containerpb.Cluster_RUNNING,
+		Labels: map[string]string{
+			"env":      "stg",
+			"location": "central-1",
+		},
+		ProjectID:   "p1",
+		Location:    "central-1",
+		Description: "desc1",
+	},
+}
+
+func mustConvertGKEToKubeCluster(t *testing.T, gkeCluster gcp.GKECluster) types.KubeCluster {
+	cluster, err := services.NewKubeClusterFromGCPGKE(gkeCluster)
+	require.NoError(t, err)
+	return cluster
+}
+
+type mockGKEAPI struct {
+	gcp.GKEClient
+	clusters []gcp.GKECluster
+}
+
+func (m *mockGKEAPI) ListClusters(ctx context.Context, projectID string, location string) ([]gcp.GKECluster, error) {
+	return m.clusters, nil
 }

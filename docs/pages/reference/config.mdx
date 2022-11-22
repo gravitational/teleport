@@ -769,12 +769,18 @@ app_service:
       - name: "os"
         command: ["/usr/bin/uname"]
         period: "5s"
-      # Optional simple rewriting of Location header
-      # Rewrite the "Location" header on redirect responses replacing the
-      # host with the public address of this application.
-      # redirect:
-      #   - "localhost"
-      #   - "jenkins.internal.dev"
+      ## Optional list of rewrite rules to apply to requests and responses
+      # rewrite:
+        ## Optional simple rewriting of Location header
+        ## Rewrite the "Location" header on redirect responses replacing the
+        ## host with the public address of this application.
+        # redirect:
+        #   - "localhost"
+        #   - "jenkins.internal.dev"
+        ## Optional list of extra headers to inject in to requests.
+        # headers:
+        #   For example:
+        #   - "Host: jenkins.example.com"
 
 ## This section configures the 'kubernetes service'
 (!docs/pages/includes/kubernetes-access/kubernetes-config.yaml!)
