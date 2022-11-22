@@ -53,6 +53,12 @@ const (
 	labelHelp  = "List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)"
 )
 
+const (
+	identityFileEnvVar = "TELEPORT_IDENTITY_FILE"
+	proxyAddrEnvVar    = "TELEPORT_PROXY"
+	authAddrEnvVar     = "TELEPORT_AUTH_SERVER"
+)
+
 // GlobalCLIFlags keeps the CLI flags that apply to all tctl commands
 type GlobalCLIFlags struct {
 	// Debug enables verbose logging mode to the console
@@ -132,6 +138,9 @@ func TryRun(commands []CLICommand, args []string) error {
 		}
 	}
 
+	// Check environment for proxy or auth addresses
+	ccf.AuthServerAddr = authAddressesFromEnv()
+
 	// these global flags apply to all commands
 	app.Flag("debug", "Enable verbose logging to stderr").
 		Short('d').
@@ -147,6 +156,7 @@ func TryRun(commands []CLICommand, args []string) error {
 	app.Flag("identity",
 		"Path to an identity file. Must be provided to make remote connections to auth. An identity file can be exported with 'tctl auth sign'").
 		Short('i').
+		Envar(identityFileEnvVar).
 		StringVar(&ccf.IdentityFilePath)
 	app.Flag("insecure", "When specifying a proxy address in --auth-server, do not verify its TLS certificate. Danger: any data you send can be intercepted or modified by an attacker.").
 		BoolVar(&ccf.Insecure)
@@ -449,4 +459,15 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 	}
 
 	return authConfig, nil
+}
+
+func authAddressesFromEnv() []string {
+	var addresses []string
+	if val := os.Getenv(proxyAddrEnvVar); val != "" {
+		addresses = append(addresses, val)
+	}
+	if val := os.Getenv(authAddrEnvVar); val != "" {
+		addresses = append(addresses, val)
+	}
+	return addresses
 }

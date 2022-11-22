@@ -19,6 +19,7 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -779,6 +780,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			Protocols:          []alpncommon.Protocol{alpncommon.ProtocolMySQL},
 			InsecureSkipVerify: true,
 			Middleware:         libclient.NewDBCertChecker(tc, routeToDatabase, fakeClock),
+			Clock:              fakeClock,
 		})
 
 		client, err := mysql.MakeTestClientWithoutTLS(lp.GetAddr(), routeToDatabase)
@@ -791,19 +793,15 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 
 		// Disconnect.
 		require.NoError(t, client.Close())
-		certs := lp.GetCerts()
-		require.NotEmpty(t, certs)
-		cert1, err := utils.TLSCertToX509(certs[0])
-		require.NoError(t, err)
-		// sanity check that cert equality check works
-		require.Equal(t, cert1, cert1, "cert should be equal to itself")
 
-		// mock db cert expiration (as far as the middleware thinks anyway)
-		// Unfortunately, mocking cert expiration by advancing a fake clock
-		// does not cause an invalid certificate error even if no cert renewal is done by the middleware,
-		// because TLS handshakes are done with real system time.
-		require.Greater(t, cert1.NotAfter, fakeClock.Now())
-		fakeClock.Advance(cert1.NotAfter.Sub(fakeClock.Now()) + time.Second)
+		// advance the fake clock and verify that the local proxy thinks its cert expired.
+		fakeClock.Advance(time.Hour * 48)
+		err = lp.CheckDBCerts(routeToDatabase)
+		require.Error(t, err)
+		var x509Err x509.CertificateInvalidError
+		require.ErrorAs(t, err, &x509Err)
+		require.Equal(t, x509Err.Reason, x509.Expired)
+		require.Contains(t, x509Err.Detail, "is after")
 
 		// Open a new connection
 		client, err = mysql.MakeTestClientWithoutTLS(lp.GetAddr(), routeToDatabase)
@@ -816,11 +814,6 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 
 		// Disconnect.
 		require.NoError(t, client.Close())
-		certs = lp.GetCerts()
-		require.NotEmpty(t, certs)
-		cert2, err := utils.TLSCertToX509(certs[0])
-		require.NoError(t, err)
-		require.NotEqual(t, cert1, cert2, "cert should have been renewed by middleware")
 	})
 }
 
