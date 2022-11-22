@@ -58,7 +58,6 @@ type state struct {
 }
 
 func newState(clause node) *state {
-	// todo: cnf conversion
 	clauses := []node{clause}
 	watched := make(map[string][]node)
 	enforce := make([]node, 0)
@@ -66,13 +65,13 @@ func newState(clause node) *state {
 
 	for _, clause := range clauses {
 		a := pickLiteral(clause, func(x string) bool { return false })
-		if a != nil {
+		if a == nil {
 			enforce = append(enforce, clause)
 			continue
 		}
 
 		b := pickLiteral(clause, func(x string) bool { return x != *a })
-		if b != nil {
+		if b == nil {
 			uprop = append(uprop, clause)
 			continue
 		}
@@ -239,7 +238,7 @@ func backtrackAdjust(state *state, rem []assignment) bool {
 	return false
 }
 
-// opt: watch-literal based unit propagation
+// opt: watch-literal based unit propagation (remember cnf conversion)
 func dpll(state *state) bool {
 	// check that nonvariable clauses are satisfied
 	for _, clause := range state.enforce {

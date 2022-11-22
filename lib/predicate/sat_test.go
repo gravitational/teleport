@@ -20,30 +20,72 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBasicSat(t *testing.T) {
-	// (A or B) and (not A or not B)
-	state := &state{
-		clauses: []node{
-			&nodeAnd{
+type testCase struct {
+	name        string
+	clause      node
+	sat         bool
+	assignments []assignment
+}
+
+func TestAssign(t *testing.T) {
+	cases := []testCase{
+		{
+			name: "(a or b) and (not a or not b)",
+			clause: &nodeAnd{
 				left: &nodeOr{
-					left:  &nodeIdentifier{key: "A"},
-					right: &nodeIdentifier{key: "B"},
+					left:  &nodeIdentifier{key: "a"},
+					right: &nodeIdentifier{key: "b"},
 				},
 				right: &nodeOr{
 					left: &nodeNot{
-						left: &nodeIdentifier{key: "A"},
+						left: &nodeIdentifier{key: "a"},
 					},
 					right: &nodeNot{
-						left: &nodeIdentifier{key: "B"},
+						left: &nodeIdentifier{key: "b"},
 					},
 				},
+			},
+			sat: true,
+			assignments: []assignment{
+				{key: "a", value: true},
+				{key: "b", value: false},
+			},
+		},
+		{
+			name: "(a or b) and (not a or not b) and b",
+			clause: &nodeAnd{
+				left: &nodeOr{
+					left:  &nodeIdentifier{key: "a"},
+					right: &nodeIdentifier{key: "b"},
+				},
+				right: &nodeAnd{
+					left: &nodeOr{
+						left: &nodeNot{
+							left: &nodeIdentifier{key: "a"},
+						},
+						right: &nodeNot{
+							left: &nodeIdentifier{key: "b"},
+						},
+					},
+					right: &nodeIdentifier{key: "b"},
+				},
+			},
+			sat: true,
+			assignments: []assignment{
+				{key: "a", value: false},
+				{key: "b", value: true},
 			},
 		},
 	}
 
-	require.True(t, dpll(state))
-	require.Equal(t, []assignment{
-		{key: "A", value: true},
-		{key: "B", value: false},
-	}, state.assignments)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s := newState(c.clause)
+			require.Equal(t, c.sat, dpll(s))
+
+			if c.sat {
+				require.Equal(t, c.assignments, s.assignments)
+			}
+		})
+	}
 }
