@@ -114,6 +114,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 		encoder:            unicode.UTF8.NewEncoder(),
 		decoder:            unicode.UTF8.NewDecoder(),
 		wsLock:             &sync.Mutex{},
+		displayLogin:       cfg.displayLogin,
 		sessionData:        cfg.sessionData,
 		keepAliveInterval:  cfg.keepAliveInterval,
 		proxyHostPort:      cfg.proxyHostPort,
@@ -131,6 +132,8 @@ type TerminalHandlerConfig struct {
 	sctx *SessionContext
 	// authProvider is used to fetch nodes and sessions from the backend.
 	authProvider AuthProvider
+	// displayLogin is the login name to display in the UI.
+	displayLogin string
 	// sessionData is the data to send to the client on the initial session creation.
 	sessionData session.Session
 	// KeepAliveInterval is the interval for sending ping frames to web client.
@@ -151,6 +154,9 @@ type TerminalHandler struct {
 
 	// ctx is a web session context for the currently logged in user.
 	ctx *SessionContext
+
+	// displayLogin is the login name to display in the UI.
+	displayLogin string
 
 	// sshSession holds the "shell" SSH channel to the node.
 	sshSession *tracessh.Session
@@ -224,6 +230,13 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	emitError := func(errMsg string, err error) {
 		t.log.Errorf("%s: %s", errMsg, err)
 		http.Error(w, errMsg, http.StatusInternalServerError)
+	}
+
+	// If the displayLogin is set then use it instead of the login name used in
+	// the SSH connection. This is specifically for the use case when joining
+	// a session to avoid displaying "-teleport-internal-join" as the username.
+	if t.displayLogin != "" {
+		t.sessionData.Login = t.displayLogin
 	}
 
 	sessionString, err := json.Marshal(siteSessionGenerateResponse{Session: t.sessionData})

@@ -2225,6 +2225,7 @@ func (h *Handler) siteNodeConnect(
 	}
 
 	var sessionData session.Session
+	var displayLogin string
 
 	if req.SessionID.IsZero() {
 		// An existing session ID was not provided so we need to create a new one.
@@ -2253,6 +2254,16 @@ func (h *Handler) siteNodeConnect(
 		}
 
 		sessionData = trackerToLegacySession(tracker, site.GetName())
+		// When joining an existing session use the specially handled
+		// `SSHSessionJoinPrincipal` login instead of the provided login so that
+		// users are able to join sessions without having permissions to create
+		// new ones themselves for auditing purposes. Otherwise the user would
+		// fail the SSH lib username validation step.
+		sessionData.Login = teleport.SSHSessionJoinPrincipal
+		// Using the Login above will then display `-teleport-internal-join` as the
+		// username that the user is logging in as, so we need to instead show the
+		// session username in the UI.
+		displayLogin = tracker.GetLogin()
 	}
 
 	h.log.Debugf("New terminal request for server=%s, login=%s, sid=%s, websid=%s.",
@@ -2274,6 +2285,7 @@ func (h *Handler) siteNodeConnect(
 		term:               req.Term,
 		sctx:               sctx,
 		authProvider:       clt,
+		displayLogin:       displayLogin,
 		sessionData:        sessionData,
 		keepAliveInterval:  netConfig.GetKeepAliveInterval(),
 		proxyHostPort:      h.ProxyHostPort(),
