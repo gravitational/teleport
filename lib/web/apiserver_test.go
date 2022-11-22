@@ -978,109 +978,113 @@ func TestResolveServerHostPort(t *testing.T) {
 }
 
 func TestNewTerminalHandler(t *testing.T) {
-	validNode := types.ServerV2{}
-	validNode.SetName("eca53e45-86a9-11e7-a893-0242ac0a0101")
-	validNode.Spec.Hostname = "nodehostname"
+	ctx := context.Background()
 
-	validServer := "localhost"
-	validLogin := "root"
-	validSID := session.ID("eca53e45-86a9-11e7-a893-0242ac0a0101")
-	validParams := session.TerminalParams{
-		H: 1,
-		W: 1,
-	}
-
-	makeProvider := func(server types.ServerV2) AuthProvider {
-		return authProviderMock{
-			server: server,
-		}
-	}
-
-	// valid cases
-	validCases := []struct {
-		req          TerminalRequest
-		authProvider AuthProvider
-		expectedHost string
-		expectedPort int
-	}{
-		{
-			req: TerminalRequest{
-				Login:     validLogin,
-				Server:    validServer,
-				SessionID: validSID,
-				Term:      validParams,
-			},
-			authProvider: makeProvider(validNode),
-			expectedHost: validServer,
-			expectedPort: 0,
-		},
-		{
-			req: TerminalRequest{
-				Login:     validLogin,
-				Server:    "eca53e45-86a9-11e7-a893-0242ac0a0101",
-				SessionID: validSID,
-				Term:      validParams,
-			},
-			authProvider: makeProvider(validNode),
-			expectedHost: "nodehostname",
-			expectedPort: 0,
-		},
-	}
-
-	// invalid cases
 	invalidCases := []struct {
-		req          TerminalRequest
-		authProvider AuthProvider
-		expectedErr  string
+		expectedErr string
+		cfg         TerminalHandlerConfig
 	}{
 		{
-			expectedErr:  "invalid session",
-			authProvider: makeProvider(validNode),
-			req: TerminalRequest{
-				SessionID: "",
-				Login:     validLogin,
-				Server:    validServer,
-				Term:      validParams,
+			expectedErr: "sid: invalid session id",
+			cfg: TerminalHandlerConfig{
+				sessionData: session.Session{
+					ID: session.ID("not a uuid"),
+				},
 			},
-		},
-		{
-			expectedErr:  "bad term dimensions",
-			authProvider: makeProvider(validNode),
-			req: TerminalRequest{
-				SessionID: validSID,
-				Login:     validLogin,
-				Server:    validServer,
-				Term: session.TerminalParams{
-					H: -1,
-					W: 0,
+		}, {
+			expectedErr: "login: missing login",
+			cfg: TerminalHandlerConfig{
+				sessionData: session.Session{
+					ID:    session.NewID(),
+					Login: "",
+				},
+			},
+		}, {
+			expectedErr: "server: missing server",
+			cfg: TerminalHandlerConfig{
+				sessionData: session.Session{
+					ID:       session.NewID(),
+					Login:    "root",
+					ServerID: "",
 				},
 			},
 		},
 		{
-			expectedErr:  "invalid server name",
-			authProvider: makeProvider(validNode),
-			req: TerminalRequest{
-				Server:    "localhost:port",
-				SessionID: validSID,
-				Login:     validLogin,
-				Term:      validParams,
+			expectedErr: "term: bad dimensions(-1x0)",
+			cfg: TerminalHandlerConfig{
+				sessionData: session.Session{
+					ID:       session.NewID(),
+					Login:    "root",
+					ServerID: uuid.New().String(),
+				},
+				term: session.TerminalParams{
+					W: -1,
+					H: 0,
+				},
+			},
+		},
+		{
+			expectedErr: "term: bad dimensions(1x4097)",
+			cfg: TerminalHandlerConfig{
+				sessionData: session.Session{
+					ID:       session.NewID(),
+					Login:    "root",
+					ServerID: uuid.New().String(),
+				},
+				term: session.TerminalParams{
+					W: 1,
+					H: 4097,
+				},
 			},
 		},
 	}
 
-	ctx := context.Background()
-	for _, testCase := range validCases {
-		term, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(testCase.req, term.params))
-		require.Equal(t, testCase.expectedHost, testCase.expectedHost)
-		require.Equal(t, testCase.expectedPort, testCase.expectedPort)
+	for _, testCase := range invalidCases {
+		_, err := NewTerminal(ctx, testCase.cfg)
+		require.Equal(t, err.Error(), testCase.expectedErr)
 	}
 
-	for _, testCase := range invalidCases {
-		_, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
-		require.Regexp(t, ".*"+testCase.expectedErr+".*", err.Error())
+	validNode := types.ServerV2{}
+	validNode.SetName("eca53e45-86a9-11e7-a893-0242ac0a0101")
+	validNode.Spec.Hostname = "nodehostname"
+
+	// Valid Case
+	validCfg := TerminalHandlerConfig{
+		term: session.TerminalParams{
+			W: 100,
+			H: 100,
+		},
+		sctx: &SessionContext{},
+		authProvider: authProviderMock{
+			server: validNode,
+		},
+		sessionData: session.Session{
+			ID:       session.NewID(),
+			Login:    "root",
+			ServerID: uuid.New().String(),
+		},
+		keepAliveInterval:  time.Duration(100),
+		proxyHostPort:      "1234",
+		interactiveCommand: make([]string, 1),
 	}
+
+	term, err := NewTerminal(ctx, validCfg)
+	require.NoError(t, err)
+	// passed through
+	require.Equal(t, term.ctx, validCfg.sctx)
+	require.Equal(t, term.authProvider, validCfg.authProvider)
+	require.Equal(t, term.sessionData, validCfg.sessionData)
+	require.Equal(t, term.keepAliveInterval, validCfg.keepAliveInterval)
+	require.Equal(t, term.proxyHostPort, validCfg.proxyHostPort)
+	require.Equal(t, term.interactiveCommand, validCfg.interactiveCommand)
+	require.Equal(t, term.term, validCfg.term)
+	// newly added
+	require.Equal(t, term.encoder, unicode.UTF8.NewEncoder())
+	require.Equal(t, term.decoder, unicode.UTF8.NewDecoder())
+	require.Equal(t, term.wsLock, &sync.Mutex{})
+	require.Equal(t, term.log, logrus.WithFields(logrus.Fields{
+		trace.Component: teleport.ComponentWebsocket,
+	}))
 }
 
 func TestResizeTerminal(t *testing.T) {
