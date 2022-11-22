@@ -2356,10 +2356,6 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 	return mfaDev, nil
 }
 
-// previousIdentityExpires is the expiry time of the identity/cert that this
-// identity/cert was derived from. It is used to determine a session's hard
-// deadline in cases where both require_session_mfa and disconnect_expired_cert
-// are enabled. See https://github.com/gravitational/teleport/issues/18544.
 func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req proto.UserCertsRequest, mfaDev *types.MFADevice, previousIdentityExpires time.Time) (*proto.SingleUseUserCert, error) {
 	// Get the client IP.
 	clientPeer, ok := peer.FromContext(ctx)
