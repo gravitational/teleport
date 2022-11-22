@@ -64,7 +64,9 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		return nil, trace.Wrap(err)
 	}
 	m.t.Cleanup(func() {
-		gateway.Close()
+		if err := gateway.Close(); err != nil {
+			m.t.Logf("Ignoring error from gateway.Close() during cleanup, it appears the gateway was already closed. The error was: %s", err)
+		}
 	})
 
 	return gateway, nil
