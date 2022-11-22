@@ -18,12 +18,12 @@ import "fmt"
 
 // pushCheckoutCommands builds a list of commands for Drone to check out a git commit on a push build
 func pushCheckoutCommands(fips bool) []string {
-	commands := []string{
-		`mkdir -p /go/src/github.com/gravitational/teleport /go/cache`,
-		`cd /go/src/github.com/gravitational/teleport`,
-		`git init && git remote add origin ${DRONE_REMOTE_URL}`,
-		`git fetch origin`,
-		`git checkout -qf ${DRONE_COMMIT_SHA}`,
+	cloneDirectory := "/go/src/github.com/gravitational/teleport"
+	var commands []string
+
+	commands = append(commands, cloneRepoCommands(cloneDirectory, "${DRONE_COMMIT_SHA}")...)
+
+	commands = append(commands,
 		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
 		`git submodule update --init webassets || true`,
 		`mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa`,
@@ -32,8 +32,9 @@ func pushCheckoutCommands(fips bool) []string {
 		// do a recursive submodule checkout to get both webassets and webassets/e
 		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
 		`git submodule update --init --recursive webassets || true`,
+		`mkdir -pv /go/cache`,
 		`rm -f /root/.ssh/id_rsa`,
-	}
+	)
 	if fips {
 		commands = append(commands, `if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt`)
 	}
