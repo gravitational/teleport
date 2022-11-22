@@ -273,6 +273,12 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 	// Adjust expiry based on locally mapped roles.
 	ttl := time.Until(u.Identity.Expires)
 	ttl = checker.AdjustSessionTTL(ttl)
+	var previousIdentityExpires time.Time
+	if u.Identity.MFAVerified != "" {
+		prevIdentityTTL := time.Until(u.Identity.Expires)
+		prevIdentityTTL = checker.AdjustSessionTTL(prevIdentityTTL)
+		previousIdentityExpires = time.Now().Add(prevIdentityTTL)
+	}
 
 	kubeUsers, kubeGroups, err := checker.CheckKubeGroupsAndUsers(ttl, false)
 	// IsNotFound means that the user has no k8s users or groups, which is fine
@@ -289,11 +295,6 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 	//
 	// This prevents downstream users from accidentally using the unmapped
 	// identity information and confusing who's accessing a resource.
-	expires := time.Now().Add(ttl)
-	var previousIdentityExpires time.Time
-	if u.Identity.MFAVerified != "" {
-		previousIdentityExpires = expires
-	}
 	identity := tlsca.Identity{
 		Username:         user.GetName(),
 		Groups:           user.GetRoles(),
@@ -302,7 +303,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		KubernetesGroups: kubeGroups,
 		KubernetesUsers:  kubeUsers,
 		TeleportCluster:  a.clusterName,
-		Expires:          expires,
+		Expires:          time.Now().Add(ttl),
 
 		// These fields are for routing and restrictions, safe to re-use from
 		// unmapped identity.
