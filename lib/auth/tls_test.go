@@ -939,11 +939,6 @@ func TestNopUser(t *testing.T) {
 
 	_, err = client.GetNodes(ctx, apidefaults.Namespace)
 	require.True(t, trace.IsAccessDenied(err))
-
-	// Endpoints that allow current user access should return access denied to
-	// the Nop user.
-	err = client.CheckPassword("foo", nil, "")
-	require.True(t, trace.IsAccessDenied(err))
 }
 
 // TestOwnRole tests that user can read roles assigned to them (used by web UI)
@@ -1147,15 +1142,13 @@ func TestPasswordGarbage(t *testing.T) {
 	ctx := context.Background()
 	tt := setupAuthContext(ctx, t)
 
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
 	garbage := [][]byte{
 		nil,
 		make([]byte, defaults.MaxPasswordLength+1),
 		make([]byte, defaults.MinPasswordLength-1),
 	}
 	for _, g := range garbage {
-		err := clt.CheckPassword("user1", g, "123456")
+		_, err := tt.server.Auth().checkPassword("user1", g, "123456")
 		require.True(t, trace.IsBadParameter(err))
 	}
 }
@@ -1166,14 +1159,11 @@ func TestPasswordCRUD(t *testing.T) {
 	ctx := context.Background()
 	tt := setupAuthContext(ctx, t)
 
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
-
 	pass := []byte("abc123")
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
-	err = clt.CheckPassword("user1", pass, "123456")
+	_, err := tt.server.Auth().checkPassword("user1", pass, "123456")
 	require.Error(t, err)
 
 	err = tt.server.Auth().UpsertPassword("user1", pass)
@@ -1188,7 +1178,7 @@ func TestPasswordCRUD(t *testing.T) {
 	validToken, err := totp.GenerateCode(otpSecret, tt.server.Clock().Now())
 	require.NoError(t, err)
 
-	err = clt.CheckPassword("user1", pass, validToken)
+	_, err = tt.server.Auth().checkPassword("user1", pass, validToken)
 	require.NoError(t, err)
 }
 
@@ -1212,16 +1202,13 @@ func TestOTPCRUD(t *testing.T) {
 	ctx := context.Background()
 	tt := setupAuthContext(ctx, t)
 
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
-
 	user := "user1"
 	pass := []byte("abc123")
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	// upsert a password and totp secret
-	err = tt.server.Auth().UpsertPassword("user1", pass)
+	err := tt.server.Auth().UpsertPassword("user1", pass)
 	require.NoError(t, err)
 	dev, err := services.NewTOTPDevice("otp", otpSecret, tt.clock.Now())
 	require.NoError(t, err)
@@ -1230,7 +1217,7 @@ func TestOTPCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// a completely invalid token should return access denied
-	err = clt.CheckPassword("user1", pass, "123456")
+	_, err = tt.server.Auth().checkPassword("user1", pass, "123456")
 	require.Error(t, err)
 
 	// an invalid token should return access denied
@@ -1242,18 +1229,18 @@ func TestOTPCRUD(t *testing.T) {
 	// invalidity starts at 61 seconds in the future.
 	invalidToken, err := totp.GenerateCode(otpSecret, tt.server.Clock().Now().Add(61*time.Second))
 	require.NoError(t, err)
-	err = clt.CheckPassword("user1", pass, invalidToken)
+	_, err = tt.server.Auth().checkPassword("user1", pass, invalidToken)
 	require.Error(t, err)
 
 	// a valid token (created right now and from a valid key) should return success
 	validToken, err := totp.GenerateCode(otpSecret, tt.server.Clock().Now())
 	require.NoError(t, err)
 
-	err = clt.CheckPassword("user1", pass, validToken)
+	_, err = tt.server.Auth().checkPassword("user1", pass, validToken)
 	require.NoError(t, err)
 
 	// try the same valid token now it should fail because we don't allow re-use of tokens
-	err = clt.CheckPassword("user1", pass, validToken)
+	_, err = tt.server.Auth().checkPassword("user1", pass, validToken)
 	require.Error(t, err)
 }
 
