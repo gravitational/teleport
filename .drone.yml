@@ -8066,7 +8066,6 @@ clone:
   disable: true
 depends_on:
 - promote-build
-- teleport-container-images-branch-promote
 - publish-apt-new-repos
 - publish-yum-new-repos
 steps:
@@ -8164,6 +8163,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 4c0ef708ec8e656536a8a7edd6a084a41714a7689b2cfa2c0cda5a55e2ba9890
+hmac: 7606c4af2bc65ac1e007efc2c8aabd1f713fa399b2df5579beb43ebf7c3f9a44
 
 ...
