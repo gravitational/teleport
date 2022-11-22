@@ -514,30 +514,40 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			// to see if the client opens a channel or sends any global
 			// requests, which will give us the opportunity to respond
 			// with a human-readable error.
-			for wait := true; wait; {
+			waitCtx, waitCancel := context.WithTimeout(s.closeContext, time.Second)
+			defer waitCancel()
+			for {
 				select {
 				case req := <-reqs:
-					if req.WantReply {
-						if err := req.Reply(false, []byte(err.Error())); err != nil {
-							s.log.WithError(err).Warnf("failed to reply to request %s", req.Type)
-						}
-						wait = false
+					// wait for a request that wants a reply to send the error
+					if !req.WantReply {
+						continue
+					}
+
+					if err := req.Reply(false, []byte(err.Error())); err != nil {
+						s.log.WithError(err).Warnf("failed to reply to request %s", req.Type)
 					}
 				case firstChan := <-chans:
-					if firstChan != nil {
-						if err := firstChan.Reject(ssh.Prohibited, err.Error()); err != nil {
-							s.log.WithError(err).Warnf("failed to reject channel %s", firstChan.ChannelType())
-						}
+					// channel was closed, terminate the connection
+					if firstChan == nil {
+						break
 					}
-					wait = false
-				case <-s.closeContext.Done():
-					wait = false
-				case <-time.After(time.Second * 1):
-					wait = false
+
+					if err := firstChan.Reject(ssh.Prohibited, err.Error()); err != nil {
+						s.log.WithError(err).Warnf("failed to reject channel %s", firstChan.ChannelType())
+					}
+				case <-waitCtx.Done():
 				}
+
+				break
 			}
-			sconn.Close()
-			conn.Close()
+
+			if err := sconn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+				s.log.WithError(err).Warn("failed to close ssh server connection")
+			}
+			if err := conn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+				s.log.WithError(err).Warn("failed to close ssh client connection")
+			}
 			return
 		}
 	}
