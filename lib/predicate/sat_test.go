@@ -30,19 +30,22 @@ type testCase struct {
 func TestAssign(t *testing.T) {
 	cases := []testCase{
 		{
-			name: "(a or b) and (not a or not b)",
+			name: "(a or b) and (not a or not b) and a",
 			clause: &nodeAnd{
 				left: &nodeOr{
 					left:  &nodeIdentifier{key: "a"},
 					right: &nodeIdentifier{key: "b"},
 				},
-				right: &nodeOr{
-					left: &nodeNot{
-						left: &nodeIdentifier{key: "a"},
+				right: &nodeAnd{
+					left: &nodeOr{
+						left: &nodeNot{
+							left: &nodeIdentifier{key: "a"},
+						},
+						right: &nodeNot{
+							left: &nodeIdentifier{key: "b"},
+						},
 					},
-					right: &nodeNot{
-						left: &nodeIdentifier{key: "b"},
-					},
+					right: &nodeIdentifier{key: "a"},
 				},
 			},
 			sat: true,
