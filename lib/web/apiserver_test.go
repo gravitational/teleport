@@ -106,7 +106,9 @@ import (
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/pam"
+	libproxy "github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
@@ -340,6 +342,15 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	require.NoError(t, err)
 	s.proxyTunnel = revTunServer
 
+	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+		ClusterName:         s.server.ClusterName(),
+		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		RemoteClusterGetter: s.proxyClient,
+		SiteGetter:          revTunServer,
+		TracerProvider:      tracing.NoopProvider(),
+	})
+	require.NoError(t, err)
+
 	// proxy server:
 	s.proxy, err = regular.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
@@ -351,7 +362,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		utils.NetAddr{},
 		s.proxyClient,
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode("", revTunServer, s.proxyClient),
+		regular.SetProxyMode("", revTunServer, s.proxyClient, router),
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
@@ -909,8 +920,21 @@ func TestClusterNodesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
-	clusterName := env.server.ClusterName()
 
+	// Get the node already added by `newWebPack`
+	servers, err := env.server.Auth().GetNodes(context.Background(), apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, servers, 1)
+	server1 := servers[0]
+
+	// Add another node.
+	server2, err := types.NewServerWithLabels("server2", types.KindNode, types.ServerSpecV2{}, map[string]string{"test-field": "test-value"})
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertNode(context.Background(), server2)
+	require.NoError(t, err)
+
+	// Get nodes from endpoint.
+	clusterName := env.server.ClusterName()
 	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "nodes")
 
 	query := url.Values{"sort": []string{"name"}}
@@ -919,19 +943,36 @@ func TestClusterNodesGet(t *testing.T) {
 	re, err := pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 
-	nodes := clusterNodesGetResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes))
-	require.Len(t, nodes.Items, 1)
-	require.Equal(t, 1, nodes.TotalCount)
+	// Test response.
+	res := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Len(t, res.Items, 2)
+	require.Equal(t, 2, res.TotalCount)
+	require.ElementsMatch(t, res.Items, []ui.Server{
+		{
+			ClusterName: clusterName,
+			Name:        server1.GetName(),
+			Hostname:    server1.GetHostname(),
+			Tunnel:      server1.GetUseTunnel(),
+			Addr:        server1.GetAddr(),
+			Labels:      []ui.Label{},
+			SSHLogins:   []string{pack.login},
+		},
+		{ClusterName: clusterName,
+			Name:      "server2",
+			Labels:    []ui.Label{{Name: "test-field", Value: "test-value"}},
+			Tunnel:    false,
+			SSHLogins: []string{pack.login}},
+	})
 
 	// Get nodes using shortcut.
 	re, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), query)
 	require.NoError(t, err)
 
-	nodes2 := clusterNodesGetResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes2))
-	require.Len(t, nodes.Items, 1)
-	require.Equal(t, nodes, nodes2)
+	res2 := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res2))
+	require.Len(t, res.Items, 2)
+	require.Equal(t, res, res2)
 }
 
 type clusterAlertsGetResponse struct {
@@ -2885,7 +2926,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 0)
 
-	// Register a database.
+	// Register databases.
 	db, err := types.NewDatabaseServerV3(types.Metadata{
 		Name:   "test-db-name",
 		Labels: map[string]string{"test-field": "test-value"},
@@ -2897,8 +2938,17 @@ func TestClusterDatabasesGet(t *testing.T) {
 		HostID:      "test-hostID",
 	})
 	require.NoError(t, err)
+	db2, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "db2",
+	}, types.DatabaseServerSpecV3{
+		Hostname: "test-hostname",
+		HostID:   "test-hostID",
+	})
+	require.NoError(t, err)
 
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db2)
 	require.NoError(t, err)
 
 	re, err = pack.clt.Get(context.Background(), endpoint, query)
@@ -2906,15 +2956,19 @@ func TestClusterDatabasesGet(t *testing.T) {
 
 	resp = testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 1)
-	require.Equal(t, 1, resp.TotalCount)
-	require.EqualValues(t, ui.Database{
+	require.Len(t, resp.Items, 2)
+	require.Equal(t, 2, resp.TotalCount)
+	require.ElementsMatch(t, resp.Items, []ui.Database{{
 		Name:     "test-db-name",
 		Desc:     "test-description",
 		Protocol: "test-protocol",
 		Type:     types.DatabaseTypeSelfHosted,
 		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
-	}, resp.Items[0])
+	}, {
+		Name:   "db2",
+		Type:   types.DatabaseTypeSelfHosted,
+		Labels: []ui.Label{},
+	}})
 }
 
 func TestClusterDatabaseGet(t *testing.T) {
@@ -3113,7 +3167,7 @@ func TestClusterKubesGet(t *testing.T) {
 
 	cluster1, err := types.NewKubernetesClusterV3(
 		types.Metadata{
-			Name:   "test-kube-name",
+			Name:   "test-kube1",
 			Labels: map[string]string{"test-field": "test-value"},
 		},
 		types.KubernetesClusterSpecV3{},
@@ -3133,6 +3187,22 @@ func TestClusterKubesGet(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	cluster2, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: "test-kube2",
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+	server2, err := types.NewKubernetesServerV3FromCluster(
+		cluster2,
+		"test-kube2-hostname",
+		"test-kube2-hostid",
+	)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertKubernetesServer(context.Background(), server2)
+	require.NoError(t, err)
+
 	type testResponse struct {
 		Items      []ui.KubeCluster `json:"items"`
 		TotalCount int              `json:"totalCount"`
@@ -3142,27 +3212,43 @@ func TestClusterKubesGet(t *testing.T) {
 		name             string
 		user             string
 		extraRoles       services.RoleSet
-		expectedResponse ui.KubeCluster
+		expectedResponse []ui.KubeCluster
 	}{
 		{
 			name: "user with no extra roles",
 			user: "test-user@example.com",
-			expectedResponse: ui.KubeCluster{
-				Name:       "test-kube-name",
-				Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
-				KubeUsers:  nil,
-				KubeGroups: nil,
+			expectedResponse: []ui.KubeCluster{
+				{
+					Name:       "test-kube1",
+					Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
+					KubeUsers:  nil,
+					KubeGroups: nil,
+				},
+				{
+					Name:       "test-kube2",
+					Labels:     []ui.Label{},
+					KubeUsers:  nil,
+					KubeGroups: nil,
+				},
 			},
 		},
 		{
 			name:       "user with extra roles",
 			user:       "test-user2@example.com",
 			extraRoles: services.NewRoleSet(extraRole),
-			expectedResponse: ui.KubeCluster{
-				Name:       "test-kube-name",
-				Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
-				KubeUsers:  []string{"user1"},
-				KubeGroups: []string{"group1"},
+			expectedResponse: []ui.KubeCluster{
+				{
+					Name:       "test-kube1",
+					Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
+					KubeUsers:  []string{"user1"},
+					KubeGroups: []string{"group1"},
+				},
+				{
+					Name:       "test-kube2",
+					Labels:     []ui.Label{},
+					KubeUsers:  []string{"user1"},
+					KubeGroups: []string{"group1"},
+				},
 			},
 		},
 	}
@@ -3177,9 +3263,9 @@ func TestClusterKubesGet(t *testing.T) {
 
 		resp := testResponse{}
 		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-		require.Len(t, resp.Items, 1)
-		require.Equal(t, 1, resp.TotalCount)
-		require.EqualValues(t, tc.expectedResponse, resp.Items[0])
+		require.Len(t, resp.Items, 2)
+		require.Equal(t, 2, resp.TotalCount)
+		require.ElementsMatch(t, tc.expectedResponse, resp.Items)
 	}
 }
 
@@ -3214,8 +3300,29 @@ func TestClusterAppsGet(t *testing.T) {
 		},
 	}
 
-	// Register a app service.
-	_, err := env.server.Auth().UpsertApplicationServer(context.Background(), resource)
+	resource2, err := types.NewAppServerV3(types.Metadata{Name: "server2"}, types.AppServerSpecV3{
+		HostID: "hostid",
+		App: &types.AppV3{
+			Metadata: types.Metadata{Name: "app2"},
+			Spec:     types.AppSpecV3{URI: "uri", PublicAddr: "publicaddrs"},
+		}})
+	require.NoError(t, err)
+
+	// Test URIs with tcp is filtered out of result.
+	resource3, err := types.NewAppServerV3(types.Metadata{Name: "server3"}, types.AppServerSpecV3{
+		HostID: "hostid",
+		App: &types.AppV3{
+			Metadata: types.Metadata{Name: "app3"},
+			Spec:     types.AppSpecV3{URI: "tcp://something", PublicAddr: "publicaddrs"},
+		}})
+	require.NoError(t, err)
+
+	// Register apps.
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource2)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource3)
 	require.NoError(t, err)
 
 	// Make the call.
@@ -3226,9 +3333,9 @@ func TestClusterAppsGet(t *testing.T) {
 	// Test correct response.
 	resp := testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 1)
-	require.Equal(t, 1, resp.TotalCount)
-	require.EqualValues(t, ui.App{
+	require.Len(t, resp.Items, 2)
+	require.Equal(t, 2, resp.TotalCount)
+	require.ElementsMatch(t, resp.Items, []ui.App{{
 		Name:        resource.Spec.App.GetName(),
 		Description: resource.Spec.App.GetDescription(),
 		URI:         resource.Spec.App.GetURI(),
@@ -3237,7 +3344,16 @@ func TestClusterAppsGet(t *testing.T) {
 		FQDN:        resource.Spec.App.GetPublicAddr(),
 		ClusterID:   env.server.ClusterName(),
 		AWSConsole:  true,
-	}, resp.Items[0])
+	}, {
+		Name:       "app2",
+		URI:        "uri",
+		Labels:     []ui.Label{},
+		ClusterID:  env.server.ClusterName(),
+		FQDN:       "publicaddrs",
+		PublicAddr: "publicaddrs",
+		AWSConsole: false,
+	}})
+
 }
 
 // TestApplicationAccessDisabled makes sure application access can be disabled
@@ -4456,6 +4572,61 @@ func TestParseSSORequestParams(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestClusterDesktopsGet(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
+
+	type testResponse struct {
+		Items      []ui.Desktop `json:"items"`
+		TotalCount int          `json:"totalCount"`
+	}
+
+	// Add a few desktops.
+	resource, err := types.NewWindowsDesktopV3("desktop1", map[string]string{"test-field": "test-value"}, types.WindowsDesktopSpecV3{
+		Addr:   "addr:3389", // test stripping off rdp port
+		HostID: "host",
+	})
+	require.NoError(t, err)
+	resource2, err := types.NewWindowsDesktopV3("desktop2", map[string]string{"test-field": "test-value2"}, types.WindowsDesktopSpecV3{
+		Addr:   "addr",
+		HostID: "host",
+	})
+	require.NoError(t, err)
+
+	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), resource)
+	require.NoError(t, err)
+	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), resource2)
+	require.NoError(t, err)
+
+	// Make the call.
+	query := url.Values{"sort": []string{"name"}}
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "desktops")
+	re, err := pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+
+	// Test correct response.
+	resp := testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 2)
+	require.Equal(t, 2, resp.TotalCount)
+	require.ElementsMatch(t, resp.Items, []ui.Desktop{{
+		OS:     constants.WindowsOS,
+		Name:   "desktop1",
+		Addr:   "addr",
+		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
+		HostID: "host",
+	}, {
+		OS:     constants.WindowsOS,
+		Name:   "desktop2",
+		Addr:   "addr",
+		Labels: []ui.Label{{Name: "test-field", Value: "test-value2"}},
+		HostID: "host",
+	}})
 }
 
 func TestDesktopActive(t *testing.T) {
@@ -5882,6 +6053,15 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, revTunServer.Close()) })
 
+	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+		ClusterName:         authServer.ClusterName(),
+		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		RemoteClusterGetter: client,
+		SiteGetter:          revTunServer,
+		TracerProvider:      tracing.NoopProvider(),
+	})
+	require.NoError(t, err)
+
 	proxyServer, err := regular.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		authServer.ClusterName(),
@@ -5892,7 +6072,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "proxy-1.example.com:443"},
 		client,
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode("", revTunServer, client),
+		regular.SetProxyMode("", revTunServer, client, router),
 		regular.SetEmitter(client),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
@@ -5986,13 +6166,17 @@ type proxy struct {
 
 // authPack returns new authenticated package consisting of created valid
 // user, otp token, created web session and authenticated client.
-func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPack {
+func (r *proxy) authPack(t *testing.T, teleportUser string, roles []types.Role) *authPack {
 	ctx := context.Background()
 	const (
-		loginUser = "user"
 		pass      = "abc123"
 		rawSecret = "def456"
 	)
+
+	u, err := user.Current()
+	require.NoError(t, err)
+	loginUser := u.Username
+
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -6004,7 +6188,7 @@ func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPac
 	err = r.auth.Auth().SetAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
-	r.createUser(context.Background(), t, user, loginUser, pass, otpSecret, roles)
+	r.createUser(context.Background(), t, teleportUser, loginUser, pass, otpSecret, roles)
 
 	// create a valid otp token
 	validToken, err := totp.GenerateCode(otpSecret, r.clock.Now())
@@ -6012,7 +6196,7 @@ func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPac
 
 	clt := r.newClient(t)
 	req := CreateSessionReq{
-		User:              user,
+		User:              teleportUser,
 		Pass:              pass,
 		SecondFactorToken: validToken,
 	}
@@ -6034,7 +6218,7 @@ func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPac
 
 	return &authPack{
 		otpSecret: otpSecret,
-		user:      user,
+		user:      teleportUser,
 		login:     loginUser,
 		session:   session,
 		clt:       clt,
@@ -6222,13 +6406,15 @@ func login(t *testing.T, clt *client.WebClient, cookieToken, reqToken string, re
 }
 
 func validateTerminalStream(t *testing.T, conn *websocket.Conn) {
+	t.Helper()
 	termHandler := newTerminalHandler()
 	stream := termHandler.asTerminalStream(conn)
-	_, err := io.WriteString(stream, "echo foo\r\n")
-	require.NoError(t, err)
 
-	err = waitForOutput(stream, "foo")
+	// here we intentionally run a command where the output we're looking
+	// for is not present in the command itself
+	_, err := io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
 	require.NoError(t, err)
+	require.NoError(t, waitForOutput(stream, "teleport"))
 }
 
 type mockProxySettings struct{}

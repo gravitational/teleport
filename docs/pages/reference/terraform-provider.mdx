@@ -204,19 +204,19 @@ Role specification consists of two sections: `allow` and `deny`. They are identi
 |        `kubernetes_groups`| string list | List of Kubernetes groups                                       |
 |         `kubernetes_users`| string list | List of Kubernetes users to impersonate                         |
 |                   `logins`| string list | Logins is a list of *nix system logins                          |
-|               `app_labels`|         set | Application labels                                              |
+|               `app_labels`|         map | Application labels                                              |
 |           `app_labels.key`|      string | Application name                                                |
 |        `app_labels.values`| string list | List of labels                                                  |
-|           `cluster_labels`|         set | Cluster labels                                                  |
+|           `cluster_labels`|         map | Cluster labels                                                  |
 |       `cluster_labels.key`|      string | Cluster name                                                    |
 |    `cluster_labels.values`| string list | List of labels                                                  |
-|                `db_labels`|         set | Database labels                                                 |
+|                `db_labels`|         map | Database labels                                                 |
 |            `db_labels.key`|      string | Database name                                                   |
 |         `db_labels.values`| string list | List of labels                                                  |
-|        `kubernetes_labels`|         set | Kubernetes labels                                               |
+|        `kubernetes_labels`|         map | Kubernetes labels                                               |
 |    `kubernetes_labels.key`|      string | Kubernetes cluster name                                         |
 | `kubernetes_labels.values`| string list | List of labels                                                  |
-|              `node_labels`|         set | Node labels                                                     |
+|              `node_labels`|         map | Node labels                                                     |
 |          `node_labels.key`|      string | Node name                                                       |
 |       `node_labels.values`| string list | List of labels                                                  |
 |              `impersonate`|      object | Specifies whether users are allowed  to issue certificates for other users or groups |
@@ -281,6 +281,55 @@ Options specify session, connection and auditing permissions of the role.
 | `request_access`          | string      | Access request strategy (optional\|note\|always) |
 | `request_prompt`          | string      | An optional message which tells users what they aught to |
 | `require_session_mfa`     | bool/string | Enforce per-session MFA or PIV-hardware key restrictions on user login sessions |
+
+Example:
+
+```
+resource "teleport_role" "example" {
+  metadata = {
+    name = "example"
+  }
+  
+  spec = {
+    options = {
+      forward_agent           = false
+      max_session_ttl         = "7m"
+      port_forwarding         = false
+      client_idle_timeout     = "1h"
+      disconnect_expired_cert = true
+      permit_x11_forwarding   = false
+      request_access          = "denied"
+    }
+
+    allow = {
+      logins = ["example"]
+
+      rules = [{
+        resources = ["user", "role"]
+        verbs = ["list"]
+      }]
+
+      request = {
+        roles = ["example"]
+        claims_to_roles = [{
+          claim = "example"
+          value = "example"
+          roles = ["example"]
+        }]
+      }
+
+      node_labels = {
+        env = ["prod"]
+        example = ["a", "b"]
+      }
+    }
+
+    deny = {
+      logins = ["anonymous"]
+    }
+  }
+}
+```
 
 ## teleport_provision_token
 
