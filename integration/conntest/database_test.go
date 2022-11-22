@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -46,7 +47,7 @@ func startPostgresTestServer(t *testing.T, authServer *auth.Server) *postgres.Te
 
 	go func() {
 		t.Logf("Postgres Fake server running at %s port", postgresTestServer.Port())
-		require.NoError(t, postgresTestServer.Serve())
+		assert.NoError(t, postgresTestServer.Serve())
 	}()
 	t.Cleanup(func() {
 		postgresTestServer.Close()
@@ -205,12 +206,13 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 				DatabaseUser: tt.reqDBUser,
 				DatabaseName: tt.reqDBName,
 				// Default is 30 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
-				DialTimeout: time.Second,
+				DialTimeout:        time.Second,
+				InsecureSkipVerify: true,
 			}
-			diagnoseConnectionEndpoint := strings.Join([]string{"sites", "localhost", "diagnostics", "connections"}, "/")
+			diagnoseConnectionEndpoint := strings.Join([]string{"sites", "$site", "diagnostics", "connections"}, "/")
 			resp, err := webPack.DoRequest(http.MethodPost, diagnoseConnectionEndpoint, diagnoseReq)
 			require.NoError(t, err)
-			require.Equal(t, resp.StatusCode, http.StatusOK)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
 			defer resp.Body.Close()
 
 			var connectionDiagnostic ui.ConnectionDiagnostic
@@ -259,7 +261,7 @@ func waitForDatabases(t *testing.T, authServer *auth.Server, dbNames []string) {
 
 	require.Eventually(t, func() bool {
 		all, err := authServer.GetDatabaseServers(ctx, apidefaults.Namespace)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		if len(dbNames) > len(all) {
 			return false

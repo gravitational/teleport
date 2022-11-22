@@ -25,6 +25,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgerrcode"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -32,8 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 func TestPostgresErrors(t *testing.T) {
@@ -52,15 +55,19 @@ func TestPostgresErrors(t *testing.T) {
 			},
 		},
 		{
-			name:    "invalid database error",
-			pingErr: errors.New("failed to connect to `host=127.0.0.1 user=postgres database=postgre`: server error (FATAL: database \"postgre\" does not exist (SQLSTATE 3D000))"),
+			name: "invalid database error",
+			pingErr: &pgconn.PgError{
+				Code: pgerrcode.InvalidCatalogName,
+			},
 			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, p.IsInvalidDatabaseNameError(err))
 			},
 		},
 		{
-			name:    "invalid user error",
-			pingErr: errors.New("FATAL: role \"postgre\" does not exist (SQLSTATE 28000)"),
+			name: "invalid user error",
+			pingErr: &pgconn.PgError{
+				Code: pgerrcode.InvalidAuthorizationSpecification,
+			},
 			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, p.IsInvalidDatabaseUserError(err))
 			},
@@ -157,7 +164,7 @@ func TestPostgresPing(t *testing.T) {
 	require.NoError(t, err)
 
 	p := PostgresPinger{}
-	err = p.Ping(context.Background(), PingRequest{
+	err = p.Ping(context.Background(), Ping{
 		Host:     "localhost",
 		Port:     port,
 		Username: "someuser",

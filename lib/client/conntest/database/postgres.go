@@ -18,11 +18,13 @@ package database
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
+	"github.com/jackc/pgerrcode"
 	"github.com/sirupsen/logrus"
 )
 
@@ -35,17 +37,17 @@ const (
 type PostgresPinger struct{}
 
 // Ping connects to the database and issues a basic select statement to validate the connection.
-func (p PostgresPinger) Ping(ctx context.Context, req PingRequest) error {
-	if err := req.CheckAndSetDefaults(); err != nil {
+func (p PostgresPinger) Ping(ctx context.Context, ping Ping) error {
+	if err := ping.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
 	pgconnConfig, err := pgconn.ParseConfig(
 		fmt.Sprintf("postgres://%s@%s:%d/%s",
-			req.Username,
-			req.Host,
-			req.Port,
-			req.Database,
+			ping.Username,
+			ping.Host,
+			ping.Port,
+			ping.Database,
 		),
 	)
 	if err != nil {
@@ -69,9 +71,7 @@ func (p PostgresPinger) Ping(ctx context.Context, req PingRequest) error {
 	}
 
 	if len(result) != 1 {
-		if err != nil {
-			return trace.Errorf("unexpected length for result: %+v", result)
-		}
+		return trace.Errorf("unexpected length for result: %+v", result)
 	}
 
 	return nil
@@ -90,8 +90,11 @@ func (p PostgresPinger) IsConnectionRefusedError(err error) bool {
 // IsInvalidDatabaseUserError checks whether the error is of type invalid database user.
 // This can happen when the user doesn't exist.
 func (p PostgresPinger) IsInvalidDatabaseUserError(err error) bool {
-	if err == nil {
-		return false
+	var pge *pgconn.PgError
+	if errors.As(err, &pge) {
+		if pge.SQLState() == pgerrcode.InvalidAuthorizationSpecification {
+			return true
+		}
 	}
 
 	return strings.Contains(err.Error(), "does not exist (SQLSTATE 28000)")
@@ -100,8 +103,11 @@ func (p PostgresPinger) IsInvalidDatabaseUserError(err error) bool {
 // IsInvalidDatabaseNameError checks whether the error is of type invalid database name.
 // This can happen when the database doesn't exist.
 func (p PostgresPinger) IsInvalidDatabaseNameError(err error) bool {
-	if err == nil {
-		return false
+	var pge *pgconn.PgError
+	if errors.As(err, &pge) {
+		if pge.SQLState() == pgerrcode.InvalidCatalogName {
+			return true
+		}
 	}
 
 	return strings.Contains(err.Error(), "does not exist (SQLSTATE 3D000)")

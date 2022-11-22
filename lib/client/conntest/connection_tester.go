@@ -40,6 +40,9 @@ type TestConnectionRequest struct {
 	// DialTimeout when trying to connect to the destination host
 	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
 
+	// InsecureSkipTLSVerify turns off verification for x509 upstream ALPN proxy service certificate.
+	InsecureSkipVerify bool `json:"insecure_skip_verify,omitempty"`
+
 	// SSHPrincipal is the Linux username to use in a connection test.
 	// Specific to SSHTester.
 	SSHPrincipal string `json:"ssh_principal,omitempty"`

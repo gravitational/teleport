@@ -18,7 +18,6 @@ package conntest
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -27,12 +26,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest/database"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -40,15 +42,15 @@ import (
 type DatabasePinger interface {
 
 	// Ping tests the connection to the Database with a simple request.
-	Ping(ctx context.Context, req database.PingRequest) error
+	Ping(ctx context.Context, req database.Ping) error
 
-	// IsConnectionRefusedError returns whether the error is referring to a con.
+	// IsConnectionRefusedError returns whether the error is referring to a connection refused.
 	IsConnectionRefusedError(error) bool
 
 	// IsInvalidDatabaseUserError returns whether the error is referring to an invalid (non-existent) user.
 	IsInvalidDatabaseUserError(error) bool
 
-	// IsInvalidDatabaseNameError returns whether the error is referring to an invalid (non-existent) user.
+	// IsInvalidDatabaseNameError returns whether the error is referring to an invalid (non-existent) database name.
 	IsInvalidDatabaseNameError(error) bool
 }
 
@@ -57,9 +59,7 @@ type ClientDatabaseConnectionTester interface {
 	client.ALPNAuthTunnel
 
 	services.ConnectionsDiagnostic
-
-	// ListResoures returns a paginated list of resources.
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+	apiclient.ListResourcesClient
 }
 
 // DatabaseConnectionTesterConfig defines the config fields for DatabaseConnectionTester.
@@ -111,14 +111,6 @@ func (s *DatabaseConnectionTester) TestConnection(ctx context.Context, req TestC
 		return nil, trace.BadParameter("invalid value for ResourceKind, expected %q got %q", types.KindDatabase, req.ResourceKind)
 	}
 
-	if req.DatabaseUser == "" {
-		return nil, trace.BadParameter("missing required parameter Database User")
-	}
-
-	if req.DatabaseName == "" {
-		return nil, trace.BadParameter("missing required parameter Database Name")
-	}
-
 	connectionDiagnosticID := uuid.NewString()
 	connectionDiagnostic, err := types.NewConnectionDiagnosticV1(
 		connectionDiagnosticID,
@@ -143,7 +135,7 @@ func (s *DatabaseConnectionTester) TestConnection(ctx context.Context, req TestC
 	listResourcesResponse, err := s.cfg.UserClient.ListResources(ctx, proto.ListResourcesRequest{
 		PredicateExpression: fmt.Sprintf(`name == "%s"`, req.ResourceName),
 		ResourceType:        types.KindDatabaseServer,
-		Limit:               1,
+		Limit:               defaults.MaxIterationLimit,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -175,13 +167,13 @@ func (s *DatabaseConnectionTester) TestConnection(ctx context.Context, req TestC
 	databaseProtocol := databaseServer.GetDatabase().GetProtocol()
 	databaseServiceName := databaseServer.GetName()
 
-	var databasePinger DatabasePinger
+	databasePinger, err := getDatabaseConnTester(databaseProtocol)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	switch databaseProtocol {
-	case defaults.ProtocolPostgres:
-		databasePinger = database.PostgresPinger{}
-	default:
-		return nil, trace.Errorf("Database protocol not supported yet for Test Connection")
+	if err := checkDatabaseLogin(databaseProtocol, req.DatabaseUser, req.DatabaseName); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if _, err := s.appendDiagnosticTrace(ctx,
@@ -198,20 +190,14 @@ func (s *DatabaseConnectionTester) TestConnection(ctx context.Context, req TestC
 		return nil, trace.Wrap(err)
 	}
 
-	proxyMiddleware := client.NewALPNCertChecker().
-		WithIdentityCheckerFunc(func(identity *tlsca.Identity) error {
-			if req.DatabaseUser != identity.RouteToDatabase.Username {
-				msg := fmt.Sprintf("certificate subject is for user %s, but need %s", identity.RouteToDatabase.Username, req.DatabaseUser)
-				return trace.Wrap(errors.New(msg))
-			}
-
-			if req.DatabaseName != identity.RouteToDatabase.Database {
-				msg := fmt.Sprintf("certificate subject is for database name %s, but need %s", identity.RouteToDatabase.Database, req.DatabaseName)
-				return trace.Wrap(errors.New(msg))
-			}
-
-			return nil
+	proxyMiddleware := client.NewALPNCertChecker(func(lp *alpnproxy.LocalProxy) error {
+		return lp.CheckDBCerts(tlsca.RouteToDatabase{
+			Protocol:    databaseProtocol,
+			Username:    req.DatabaseUser,
+			Database:    req.DatabaseName,
+			ServiceName: databaseServiceName,
 		})
+	})
 
 	err = client.RunALPNAuthTunnel(ctx, client.RunALPNAuthTunnelRequest{
 		Client:                 s.cfg.UserClient,
@@ -226,36 +212,60 @@ func (s *DatabaseConnectionTester) TestConnection(ctx context.Context, req TestC
 			Database:    req.DatabaseName,
 			ServiceName: databaseServiceName,
 		},
-		Insecure: true, // TODO(marco): remove this
+		InsecureSkipVerify: req.InsecureSkipVerify,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	pingRequest, err := newPingRequest(list.Addr().String(), req.DatabaseUser, req.DatabaseName)
+	ping, err := newPing(list.Addr().String(), req.DatabaseUser, req.DatabaseName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := databasePinger.Ping(ctx, pingRequest); err != nil {
-		return s.handleErrFromPing(ctx, connectionDiagnosticID, err, databasePinger)
+	if err := databasePinger.Ping(ctx, ping); err != nil {
+		return s.handlePingError(ctx, connectionDiagnosticID, err, databasePinger)
 	}
 
-	return s.handlePingSuccess(ctx, connectionDiagnosticID, databasePinger)
+	return s.handlePingSuccess(ctx, connectionDiagnosticID)
 }
 
-func newPingRequest(alpnProxyAddr, databaseUser, databaseName string) (database.PingRequest, error) {
+func checkDatabaseLogin(protocol, databaseUser, databaseName string) error {
+	matchers := role.DatabaseRoleMatchers(protocol, databaseUser, databaseName)
+	needUser := false
+	needDatabase := false
+
+	for _, matcher := range matchers {
+		_, userMatcher := matcher.(*services.DatabaseUserMatcher)
+		needUser = needUser || userMatcher
+
+		_, nameMatcher := matcher.(*services.DatabaseNameMatcher)
+		needDatabase = needDatabase || nameMatcher
+	}
+
+	if needUser && databaseUser == "" {
+		return trace.BadParameter("missing required parameter Database User")
+	}
+
+	if needDatabase && databaseName == "" {
+		return trace.BadParameter("missing required parameter Database Name")
+	}
+
+	return nil
+}
+
+func newPing(alpnProxyAddr, databaseUser, databaseName string) (database.Ping, error) {
 	proxyHost, proxyPortStr, err := net.SplitHostPort(alpnProxyAddr)
 	if err != nil {
-		return database.PingRequest{}, trace.Wrap(err)
+		return database.Ping{}, trace.Wrap(err)
 	}
 
 	proxyPort, err := strconv.Atoi(proxyPortStr)
 	if err != nil {
-		return database.PingRequest{}, trace.Wrap(err)
+		return database.Ping{}, trace.Wrap(err)
 	}
 
-	return database.PingRequest{
+	return database.Ping{
 		Host:     proxyHost,
 		Port:     proxyPort,
 		Username: databaseUser,
@@ -263,7 +273,7 @@ func newPingRequest(alpnProxyAddr, databaseUser, databaseName string) (database.
 	}, nil
 }
 
-func (s DatabaseConnectionTester) handlePingSuccess(ctx context.Context, connectionDiagnosticID string, databasePinger DatabasePinger) (types.ConnectionDiagnostic, error) {
+func (s DatabaseConnectionTester) handlePingSuccess(ctx context.Context, connectionDiagnosticID string) (types.ConnectionDiagnostic, error) {
 	if _, err := s.appendDiagnosticTrace(ctx, connectionDiagnosticID,
 		types.ConnectionDiagnosticTrace_CONNECTIVITY,
 		"Database is accessible from the Database Agent.",
@@ -307,7 +317,7 @@ func (s DatabaseConnectionTester) handlePingSuccess(ctx context.Context, connect
 	return connDiag, nil
 }
 
-func (s DatabaseConnectionTester) handleErrFromPing(ctx context.Context, connectionDiagnosticID string, pingErr error, databasePinger DatabasePinger) (types.ConnectionDiagnostic, error) {
+func (s DatabaseConnectionTester) handlePingError(ctx context.Context, connectionDiagnosticID string, pingErr error, databasePinger DatabasePinger) (types.ConnectionDiagnostic, error) {
 	// If the requested DB User/Name can't be used per RBAC checks, the Database Agent returns an error which gets here.
 	// It must be ignored because there's already a Connection Diagnostic Trace written by the Database Agent (lib/srv/db/server.go)
 	if strings.Contains(pingErr.Error(), "access to db denied. User does not have permissions. Confirm database user and name.") {
@@ -391,4 +401,12 @@ func (s DatabaseConnectionTester) appendDiagnosticTrace(ctx context.Context, con
 	}
 
 	return connDiag, nil
+}
+
+func getDatabaseConnTester(protocol string) (DatabasePinger, error) {
+	switch protocol {
+	case defaults.ProtocolPostgres:
+		return database.PostgresPinger{}, nil
+	}
+	return nil, trace.Errorf("Database protocol not supported yet for Test Connection")
 }

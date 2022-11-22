@@ -25,14 +25,12 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -60,8 +58,8 @@ type RunALPNAuthTunnelRequest struct {
 	// Listener to be used to accept connections that will go trough the
 	Listener net.Listener
 
-	// Insecure turns off verification for x509 upstream ALPN proxy service certificate.
-	Insecure bool
+	// InsecureSkipTLSVerify turns off verification for x509 upstream ALPN proxy service certificate.
+	InsecureSkipVerify bool
 
 	// Protocol name
 	// Examples for databases: "postgres", "mysql"
@@ -91,14 +89,14 @@ func RunALPNAuthTunnel(ctx context.Context, req RunALPNAuthTunnelRequest) error 
 		return trace.Wrap(err)
 	}
 
-	protocols := []alpn.Protocol{alpnProtocol, alpn.Protocol(req.Protocol)}
+	protocols := []alpn.Protocol{alpnProtocol}
 	if alpn.HasPingSupport(alpnProtocol) {
 		protocols = append(alpn.ProtocolsWithPing(alpnProtocol), protocols...)
 	}
 
-	rootCAs := &x509.CertPool{}
+	rootCAs := x509.NewCertPool()
 
-	alpnUpgradeRequired := alpnproxy.IsALPNConnUpgradeRequired(req.WebProxyAddr, req.Insecure)
+	alpnUpgradeRequired := alpnproxy.IsALPNConnUpgradeRequired(req.WebProxyAddr, req.InsecureSkipVerify)
 
 	if alpnUpgradeRequired {
 		caCert, err := req.Client.GetClusterCACert(ctx)
@@ -143,7 +141,7 @@ func RunALPNAuthTunnel(ctx context.Context, req RunALPNAuthTunnelRequest) error 
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		InsecureSkipVerify:      req.Insecure,
+		InsecureSkipVerify:      req.InsecureSkipVerify,
 		RemoteProxyAddr:         req.WebProxyAddr,
 		Protocols:               protocols,
 		Listener:                req.Listener,
@@ -168,24 +166,17 @@ func RunALPNAuthTunnel(ctx context.Context, req RunALPNAuthTunnelRequest) error 
 	return nil
 }
 
-// IdentityCheckerFunc defines function that validates an Identity.
-type IdentityCheckerFunc func(*tlsca.Identity) error
-
 // ALPNCertChecker implements alpnproxy.LocalProxyMiddleware.
 // It has basic checks and supports adding custom checks based on the extracted Identity from the certificate.
 type ALPNCertChecker struct {
-	validators []IdentityCheckerFunc
+	checkCerts func(lp *alpnproxy.LocalProxy) error
 }
 
 // NewALPNCertChecker creates a new ALPNCertChecker.
-func NewALPNCertChecker() *ALPNCertChecker {
-	return &ALPNCertChecker{}
-}
-
-// WithIdentityCheckerFunc adds a new chcker func to the validation list.
-func (c *ALPNCertChecker) WithIdentityCheckerFunc(f IdentityCheckerFunc) *ALPNCertChecker {
-	c.validators = append(c.validators, f)
-	return c
+func NewALPNCertChecker(certChecker func(*alpnproxy.LocalProxy) error) *ALPNCertChecker {
+	return &ALPNCertChecker{
+		checkCerts: certChecker,
+	}
 }
 
 // OnNewConnection is a callback triggered when a new downstream connection is
@@ -197,37 +188,4 @@ func (c *ALPNCertChecker) OnNewConnection(ctx context.Context, lp *alpnproxy.Loc
 // OnStart is a callback triggered when the local proxy starts.
 func (c *ALPNCertChecker) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 	return trace.Wrap(c.checkCerts(lp))
-}
-
-// checkCerts checks if the local proxy TLS certs are configured and not expired
-// It also runs the validations added with WithIdentityCheckerFunc
-func (c *ALPNCertChecker) checkCerts(lp *alpnproxy.LocalProxy) error {
-	log.Debug("checking local proxy database certs")
-	certs := lp.GetCerts()
-	if len(certs) == 0 {
-		return trace.Wrap(trace.NotFound("local proxy has no TLS certificates configured"))
-	}
-
-	cert, err := utils.TLSCertToX509(certs[0])
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = utils.VerifyCertificateExpiry(cert, clockwork.NewRealClock())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	for _, v := range c.validators {
-		if err := v(identity); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
 }

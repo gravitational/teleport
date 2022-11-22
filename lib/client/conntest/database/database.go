@@ -16,18 +16,20 @@ limitations under the License.
 
 package database
 
-import "github.com/gravitational/trace"
+import (
+	"github.com/gravitational/trace"
+)
 
-// PingRequest contains the required fields necessary to test a Database Connection.
-type PingRequest struct {
+// Ping contains the required fields necessary to test a Database Connection.
+type Ping struct {
 	Host     string
 	Port     int
 	Username string
 	Database string
 }
 
-// CheckAndSetDefaults validates and set the default values for the PingRequest.
-func (req *PingRequest) CheckAndSetDefaults() error {
+// CheckAndSetDefaults validates and set the default values for the Ping.
+func (req *Ping) CheckAndSetDefaults() error {
 	if req.Database == "" {
 		return trace.BadParameter("missing required parameter Database")
 	}

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -29,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
+	"github.com/gravitational/teleport/lib/web/ui"
 )
 
 // WebClientPack is an authenticated HTTP Client for Teleport.
@@ -37,6 +39,7 @@ type WebClientPack struct {
 	host        string
 	webCookie   string
 	bearerToken string
+	clusterName string
 }
 
 // LoginWebClient receives the host url, the username and a password.
@@ -90,18 +93,30 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 	cookie := resp.Cookies()[0]
 	require.Equal(t, cookie.Name, web.CookieName)
 
-	return &WebClientPack{
+	webClient := &WebClientPack{
 		clt:         client,
 		host:        host,
 		webCookie:   cookie.Value,
 		bearerToken: csResp.Token,
 	}
+
+	resp, err = webClient.DoRequest(http.MethodGet, "sites", nil)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	var clusters []ui.Cluster
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&clusters))
+	require.NotEmpty(t, clusters)
+
+	webClient.clusterName = clusters[0].Name
+	return webClient
 }
 
 // DoRequest receives a method, endpoint and payload and sends an HTTP Request to the Teleport API.
 // The endpoint must not contain the host neither the base path ('/v1/webapi/').
 // Returns the http.Response.
 func (w *WebClientPack) DoRequest(method, endpoint string, payload any) (*http.Response, error) {
+	endpoint = strings.ReplaceAll(endpoint, "$site", w.clusterName)
 	u := url.URL{
 		Scheme: "https",
 		Host:   w.host,
