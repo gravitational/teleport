@@ -736,8 +736,8 @@ github.com/gravitational/predicate v1.2.1 h1:CXgXyZ90F2x4VHzOab1bBsBlpY2l+MGvb5R
 github.com/gravitational/predicate v1.2.1/go.mod h1:VipoNYXny6c8N381zGUWkjuuNHiRbeAZhE7Qm9c+2GA=
 github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf h1:MQ4e8XcxvZTeuOmRl7yE519vcWc2h/lyvYzsvt41cdY=
 github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf/go.mod h1:SlYgWuQ5SjCEi6WLHjHCa1yvBfUnHcTbrrZtXPKa29o=
-github.com/gravitational/redis/v9 v9.0.0-teleport.1 h1:vnuuevn12nA4CT4TvC5LbhD5U+eXSkN8gc3N3P0Y3qQ=
-github.com/gravitational/redis/v9 v9.0.0-teleport.1/go.mod h1:8et+z03j0l8N+DvsVnclzjf3Dl/pFHgRk+2Ct1qw66A=
+github.com/gravitational/redis/v9 v9.0.0-teleport.2 h1:cX6NjKFy8zcqS0RF+EsOuHBqv+XWAgNUTVxS1y6hg88=
+github.com/gravitational/redis/v9 v9.0.0-teleport.2/go.mod h1:8et+z03j0l8N+DvsVnclzjf3Dl/pFHgRk+2Ct1qw66A=
 github.com/gravitational/reporting v0.0.0-20210923183620-237377721140 h1:UACNXsuOXxe2dpjn3SA2g4YUgOoZTxQ6yf+QYAYcQMc=
 github.com/gravitational/reporting v0.0.0-20210923183620-237377721140/go.mod h1:rBJeI3JYVzbL7Yw2hYrp4QdKIkncb1pUHo95DyoEGns=
 github.com/gravitational/roundtrip v1.0.2 h1:eOCY0NEKKaB0ksJmvhO6lPMFz1pIIef+vyPBTBROQ5c=
