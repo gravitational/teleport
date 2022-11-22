@@ -2305,15 +2305,13 @@ func (h *Handler) siteNodeConnect(
 	return nil, nil
 }
 
-func (h *Handler) generateSession(ctx context.Context, clt AuthProvider, req *TerminalRequest, clusterName string) (session.Session, error) {
+func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, clusterName string) (session.Session, error) {
 	var (
 		host string
 		port int
 	)
 
-	// req.Server will be either an IP, hostname, or server UUID. If it correctly
-	// parses as a UUID then connect to `uuid:0` directly. This dramatically
-	// improves performance in large environments.
+	// req.Server will be either an IP, hostname, or server UUID.
 	_, err := uuid.Parse(req.Server)
 	if err != nil {
 		servers, err := clt.GetNodes(ctx, apidefaults.Namespace)
@@ -2325,7 +2323,19 @@ func (h *Handler) generateSession(ctx context.Context, clt AuthProvider, req *Te
 			return session.Session{}, trace.Wrap(err)
 		}
 	} else {
-		host = req.Server
+		// If the user has passed in a UUID then query for that node directly. We
+		// can connect to `uuid:0` directly. with `host = req.Server` however we will
+		// not have the proper hostname and the UI will display the UUID instead.
+		// This is why we have to query for the node. In a future update we can query
+		// for a uuid:hostname to dramatically improve performance in large environments.
+		server, err := clt.GetNode(ctx, apidefaults.Namespace, req.Server)
+		if err != nil {
+			return session.Session{}, trace.Wrap(err)
+		}
+		host, port, err = resolveServerHostPort(req.Server, append([]types.Server{}, server))
+		if err != nil {
+			return session.Session{}, trace.Wrap(err)
+		}
 	}
 
 	return session.Session{
