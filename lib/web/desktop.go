@@ -136,16 +136,17 @@ func (h *Handler) createDesktopConnection(
 
 	log.Debugf("Attempting to connect to desktop using username=%v, width=%v, height=%v\n", username, width, height)
 
-	// TODO(awly): trusted cluster support - if this request is for a different
-	// cluster, dial their proxy and forward the websocket request as is.
-
 	// Pick a random Windows desktop service as our gateway.
 	// When agent mode is implemented in the service, we'll have to filter out
 	// the services in agent mode.
 	//
 	// In the future, we may want to do something smarter like latency-based
 	// routing.
-	winDesktops, err := ctx.unsafeCachedAuthClient.GetWindowsDesktops(r.Context(),
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return sendTDPError(ws, trace.Wrap(err))
+	}
+	winDesktops, err := clt.GetWindowsDesktops(r.Context(),
 		types.WindowsDesktopFilter{Name: desktopName})
 	if err != nil {
 		return sendTDPError(ws, trace.Wrap(err, "cannot get Windows desktops"))
@@ -168,7 +169,7 @@ func (h *Handler) createDesktopConnection(
 
 	c := &connector{
 		log:      log,
-		clt:      ctx.clt,
+		clt:      clt,
 		site:     site,
 		userAddr: r.RemoteAddr,
 	}
@@ -279,7 +280,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 
 type connector struct {
 	log      *logrus.Entry
-	clt      *auth.Client
+	clt      auth.ClientI
 	site     reversetunnel.RemoteSite
 	userAddr string
 }

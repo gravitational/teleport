@@ -19,13 +19,19 @@ require (
 	go.opentelemetry.io/otel/sdk v1.11.1
 	go.opentelemetry.io/otel/trace v1.11.1
 	go.opentelemetry.io/proto/otlp v0.19.0
-	golang.org/x/crypto v0.1.0
-	golang.org/x/net v0.1.0
-	google.golang.org/genproto v0.0.0-20221107162902-2d387536bcdd
+	golang.org/x/exp v0.0.0-20221114191408-850992195362
+	golang.org/x/net v0.2.0
+	google.golang.org/genproto v0.0.0-20221116193143-41c2ba794472
 	google.golang.org/grpc v1.50.1
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/yaml.v2 v2.4.0
 )
+
+// DO NOT UPDATE crypto beyond v0.2.0, the commit below breaks compatibility
+// with OpenSSH <= 7.6.
+// We are working on landing a patch upstream.
+// https://github.com/golang/crypto/commit/6fad3dfc18918c2ac9c112e46b32473bd2e5e2f9
+require golang.org/x/crypto v0.2.0 // DO NOT UPDATE
 
 require (
 	cloud.google.com/go/compute/metadata v0.2.1 // indirect
@@ -42,8 +48,8 @@ require (
 	github.com/russellhaering/goxmldsig v1.2.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.11.1 // indirect
 	go.opentelemetry.io/otel/metric v0.33.0 // indirect
-	golang.org/x/sys v0.1.0 // indirect
-	golang.org/x/term v0.1.0 // indirect
+	golang.org/x/sys v0.2.0 // indirect
+	golang.org/x/term v0.2.0 // indirect
 	golang.org/x/text v0.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

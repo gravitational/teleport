@@ -59,7 +59,9 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/pam"
+	libproxy "github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -211,6 +213,18 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, nodeClient.Close()) })
 
+	lockWatcher := newLockWatcher(ctx, t, nodeClient)
+
+	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   nodeClient,
+		AccessPoint:  nodeClient,
+		LockEnforcer: lockWatcher,
+		Emitter:      nodeClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     nodeID,
+	})
+	require.NoError(t, err)
+
 	nodeDir := t.TempDir()
 	serverOptions := []ServerOption{
 		SetUUID(nodeID),
@@ -230,13 +244,15 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		SetBPF(&bpf.NOP{}),
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(clock),
-		SetLockWatcher(newLockWatcher(ctx, t, nodeClient)),
+		SetLockWatcher(lockWatcher),
 		SetX11ForwardingConfig(&x11.ServerConfig{}),
+		SetSessionController(sessionController),
 	}
 
 	serverOptions = append(serverOptions, sshOpts...)
 
 	sshSrv, err := New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		testServer.ClusterName(),
 		[]ssh.Signer{signer},
@@ -1383,7 +1399,27 @@ func TestProxyRoundRobin(t *testing.T) {
 	require.NoError(t, reverseTunnelServer.Start())
 	defer reverseTunnelServer.Close()
 
+	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+		ClusterName:         f.testSrv.ClusterName(),
+		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		RemoteClusterGetter: proxyClient,
+		SiteGetter:          reverseTunnelServer,
+		TracerProvider:      tracing.NoopProvider(),
+	})
+	require.NoError(t, err)
+
+	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   proxyClient,
+		AccessPoint:  proxyClient,
+		LockEnforcer: lockWatcher,
+		Emitter:      proxyClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     hostID,
+	})
+	require.NoError(t, err)
+
 	proxy, err := New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		f.testSrv.ClusterName(),
 		[]ssh.Signer{f.signer},
@@ -1392,7 +1428,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		"",
 		utils.NetAddr{},
 		proxyClient,
-		SetProxyMode("", reverseTunnelServer, proxyClient),
+		SetProxyMode("", reverseTunnelServer, proxyClient, router),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
@@ -1401,6 +1437,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetNodeWatcher(nodeWatcher),
+		SetSessionController(sessionController),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -1503,7 +1540,27 @@ func TestProxyDirectAccess(t *testing.T) {
 
 	nodeClient, _ := newNodeClient(t, f.testSrv)
 
+	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+		ClusterName:         f.testSrv.ClusterName(),
+		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		RemoteClusterGetter: proxyClient,
+		SiteGetter:          reverseTunnelServer,
+		TracerProvider:      tracing.NoopProvider(),
+	})
+	require.NoError(t, err)
+
+	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   nodeClient,
+		AccessPoint:  nodeClient,
+		LockEnforcer: lockWatcher,
+		Emitter:      nodeClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     hostID,
+	})
+	require.NoError(t, err)
+
 	proxy, err := New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		f.testSrv.ClusterName(),
 		[]ssh.Signer{f.signer},
@@ -1512,7 +1569,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		"",
 		utils.NetAddr{},
 		proxyClient,
-		SetProxyMode("", reverseTunnelServer, proxyClient),
+		SetProxyMode("", reverseTunnelServer, proxyClient, router),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
@@ -1521,6 +1578,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetNodeWatcher(nodeWatcher),
+		SetSessionController(sessionController),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -1671,8 +1729,22 @@ func TestLimiter(t *testing.T) {
 	require.NoError(t, err)
 
 	nodeClient, _ := newNodeClient(t, f.testSrv)
+
+	lockWatcher := newLockWatcher(ctx, t, nodeClient)
+
+	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   nodeClient,
+		AccessPoint:  nodeClient,
+		LockEnforcer: lockWatcher,
+		Emitter:      nodeClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     hostID,
+	})
+	require.NoError(t, err)
+
 	nodeStateDir := t.TempDir()
 	srv, err := New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		f.testSrv.ClusterName(),
 		[]ssh.Signer{f.signer},
@@ -1689,7 +1761,8 @@ func TestLimiter(t *testing.T) {
 		SetBPF(&bpf.NOP{}),
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),
-		SetLockWatcher(newLockWatcher(ctx, t, nodeClient)),
+		SetLockWatcher(lockWatcher),
+		SetSessionController(sessionController),
 	)
 	require.NoError(t, err)
 	require.NoError(t, srv.Start())
@@ -2233,7 +2306,27 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 
 	nodeClient, _ := newNodeClient(t, f.testSrv)
 
+	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+		ClusterName:         f.testSrv.ClusterName(),
+		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		RemoteClusterGetter: proxyClient,
+		SiteGetter:          reverseTunnelServer,
+		TracerProvider:      tracing.NoopProvider(),
+	})
+	require.NoError(t, err)
+
+	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   proxyClient,
+		AccessPoint:  proxyClient,
+		LockEnforcer: lockWatcher,
+		Emitter:      proxyClient,
+		Component:    teleport.ComponentProxy,
+		ServerID:     hostID,
+	})
+	require.NoError(t, err)
+
 	proxy, err := New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		f.testSrv.ClusterName(),
 		[]ssh.Signer{f.signer},
@@ -2242,7 +2335,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		"",
 		utils.NetAddr{},
 		proxyClient,
-		SetProxyMode("", reverseTunnelServer, proxyClient),
+		SetProxyMode("", reverseTunnelServer, proxyClient, router),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
@@ -2251,6 +2344,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetNodeWatcher(nodeWatcher),
+		SetSessionController(sessionController),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())

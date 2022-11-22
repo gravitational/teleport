@@ -31,7 +31,6 @@ import (
 )
 
 type Keygen struct {
-	clock clockwork.Clock
 	*native.Keygen
 }
 
@@ -43,7 +42,7 @@ func New() *Keygen {
 // NewWithClock creates a new key generator with the specified configuration
 func NewWithClock(clock clockwork.Clock) *Keygen {
 	inner := native.New(context.Background(), native.SetClock(clock))
-	return &Keygen{Keygen: inner, clock: clock}
+	return &Keygen{Keygen: inner}
 }
 
 // GeneratePrivateKey generates a new PrivateKey.
