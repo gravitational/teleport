@@ -22,11 +22,14 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/usageeve
 // banner is clicked.
 message UIBannerClickEvent {
   // The cluster alert name.
-  string alert = 2;
+  string alert = 1;
 }
 
 // UIOnboardGetStartedClickEvent
-message UIOnboardGetStartedClickEvent {}
+message UIOnboardGetStartedClickEvent {
+  // The event username. Not extracted from identity as this is pre-registration.
+  string username = 1;
+}
 
 // UIOnboardCompleteGoToDashboardClickEvent
 message UIOnboardCompleteGoToDashboardClickEvent {}
@@ -38,13 +41,22 @@ message UIOnboardAddFirstResourceClickEvent {}
 message UIOnboardAddFirstResourceLaterClickEvent {}
 
 // UIOnboardSetCredentialSubmitEvent
-message UIOnboardSetCredentialSubmitEvent {}
+message UIOnboardSetCredentialSubmitEvent {
+  // The event username. Not extracted from identity as this is pre-registration.
+  string username = 1;
+}
 
 // UIOnboardRegisterChallengeSubmitEvent
-message UIOnboardRegisterChallengeSubmitEvent {}
+message UIOnboardRegisterChallengeSubmitEvent {
+  // The event username. Not extracted from identity as this is pre-registration.
+  string username = 1;
+}
 
 // UIOnboardRecoveryCodesContinueClickEvent
-message UIOnboardRecoveryCodesContinueClickEvent {}
+message UIOnboardRecoveryCodesContinueClickEvent {
+  // The event username. Not extracted from identity as this is pre-registration.
+  string username = 1;
+}
 
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
