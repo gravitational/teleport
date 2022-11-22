@@ -156,7 +156,7 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, username string) (Usa
 		}, nil
 	case *usageevents.UsageEventOneOf_UiOnboardGetStartedClick:
 		return &UsageUIOnboardGetStartedClickEvent{
-			UserName: username,
+			UserName: e.UiOnboardGetStartedClick.Username,
 		}, nil
 	case *usageevents.UsageEventOneOf_UiOnboardCompleteGoToDashboardClick:
 		return &UsageUIOnboardCompleteGoToDashboardClickEvent{
@@ -172,15 +172,15 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, username string) (Usa
 		}, nil
 	case *usageevents.UsageEventOneOf_UiOnboardSetCredentialSubmit:
 		return &UsageUIOnboardSetCredentialSubmit{
-			UserName: username,
+			UserName: e.UiOnboardSetCredentialSubmit.Username,
 		}, nil
 	case *usageevents.UsageEventOneOf_UiOnboardRegisterChallengeSubmit:
 		return &UsageUIOnboardSetCredentialSubmit{
-			UserName: username,
+			UserName: e.UiOnboardRegisterChallengeSubmit.Username,
 		}, nil
 	case *usageevents.UsageEventOneOf_UiOnboardRecoveryCodesContinueClick:
 		return &UsageUIOnboardRecoveryCodesContinueClick{
-			UserName: username,
+			UserName: e.UiOnboardRecoveryCodesContinueClick.Username,
 		}, nil
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
