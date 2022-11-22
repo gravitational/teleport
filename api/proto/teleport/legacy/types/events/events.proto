@@ -3213,12 +3213,14 @@ message Identity {
     (gogoproto.jsontag) = "allowed_resource_ids,omitempty",
     (gogoproto.nullable) = false
   ];
-  // MFAVerifiedSessionExpires is the the hard deadline of a session when this Identity was
-  // confirmed immediately after an MFA check.
-  google.protobuf.Timestamp MFAVerifiedSessionExpires = 23 [
+  // PreviousIdentityExpires is the expiry time of the identity/cert that this
+  // identity/cert was derived from. It is used to determine a session's hard
+  // deadline in cases where both require_session_mfa and disconnect_expired_cert
+  // are enabled. See https://github.com/gravitational/teleport/issues/18544.
+  google.protobuf.Timestamp PreviousIdentityExpires = 23 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "mfa_verified_session_expires"
+    (gogoproto.jsontag) = "prev_identity_expires"
   ];
 }
 

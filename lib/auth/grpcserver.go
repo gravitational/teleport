@@ -2356,9 +2356,11 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 	return mfaDev, nil
 }
 
-// mfaVerifiedSessionExpires is the expiry of the user cert from which this single use cert is derived from.
-// See https://github.com/gravitational/teleport/issues/18544.
-func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req proto.UserCertsRequest, mfaDev *types.MFADevice, mfaVerifiedSessionExpires time.Time) (*proto.SingleUseUserCert, error) {
+// previousIdentityExpires is the expiry time of the identity/cert that this
+// identity/cert was derived from. It is used to determine a session's hard
+// deadline in cases where both require_session_mfa and disconnect_expired_cert
+// are enabled. See https://github.com/gravitational/teleport/issues/18544.
+func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req proto.UserCertsRequest, mfaDev *types.MFADevice, previousIdentityExpires time.Time) (*proto.SingleUseUserCert, error) {
 	// Get the client IP.
 	clientPeer, ok := peer.FromContext(ctx)
 	if !ok {
@@ -2370,7 +2372,7 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 	}
 
 	// Generate the cert.
-	certs, err := actx.generateUserCerts(ctx, req, certRequestMFAVerified(mfaDev.Id), certRequestMFAVerifiedSessionExpires(mfaVerifiedSessionExpires), certRequestClientIP(clientIP))
+	certs, err := actx.generateUserCerts(ctx, req, certRequestMFAVerified(mfaDev.Id), certRequestPreviousIdentityExpires(previousIdentityExpires), certRequestClientIP(clientIP))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

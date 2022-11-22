@@ -290,9 +290,9 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 	// This prevents downstream users from accidentally using the unmapped
 	// identity information and confusing who's accessing a resource.
 	expires := time.Now().Add(ttl)
-	var mfaVerifiedSessionExpires time.Time
+	var previousIdentityExpires time.Time
 	if u.Identity.MFAVerified != "" {
-		mfaVerifiedSessionExpires = expires
+		previousIdentityExpires = expires
 	}
 	identity := tlsca.Identity{
 		Username:         user.GetName(),
@@ -306,15 +306,15 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 
 		// These fields are for routing and restrictions, safe to re-use from
 		// unmapped identity.
-		Usage:                     u.Identity.Usage,
-		RouteToCluster:            u.Identity.RouteToCluster,
-		KubernetesCluster:         u.Identity.KubernetesCluster,
-		RouteToApp:                u.Identity.RouteToApp,
-		RouteToDatabase:           u.Identity.RouteToDatabase,
-		MFAVerified:               u.Identity.MFAVerified,
-		MFAVerifiedSessionExpires: mfaVerifiedSessionExpires,
-		ClientIP:                  u.Identity.ClientIP,
-		PrivateKeyPolicy:          u.Identity.PrivateKeyPolicy,
+		Usage:                   u.Identity.Usage,
+		RouteToCluster:          u.Identity.RouteToCluster,
+		KubernetesCluster:       u.Identity.KubernetesCluster,
+		RouteToApp:              u.Identity.RouteToApp,
+		RouteToDatabase:         u.Identity.RouteToDatabase,
+		MFAVerified:             u.Identity.MFAVerified,
+		PreviousIdentityExpires: previousIdentityExpires,
+		ClientIP:                u.Identity.ClientIP,
+		PrivateKeyPolicy:        u.Identity.PrivateKeyPolicy,
 	}
 
 	return &Context{
