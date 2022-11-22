@@ -14,5 +14,9 @@ jobs:
   test:
     name: Unit Tests (Operator)
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: none
+
     steps:
       - run: 'echo "No changes to verify"'

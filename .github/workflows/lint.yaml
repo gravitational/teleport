@@ -11,6 +11,9 @@ jobs:
     name: Lint (Go)
     runs-on: ubuntu-22.04-16core
 
+    permissions:
+      contents: read
+
     container:
       image: public.ecr.aws/gravitational/teleport-buildbox:teleport12
       env:

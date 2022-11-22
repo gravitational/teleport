@@ -11,6 +11,9 @@ jobs:
     name: Lint (Docs)
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+
     container:
       image: public.ecr.aws/gravitational/docs:latest
       volumes:

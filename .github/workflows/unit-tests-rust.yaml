@@ -15,6 +15,10 @@ jobs:
   test:
     name: Unit Tests (Rust)
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
     container:
       image: public.ecr.aws/gravitational/teleport-buildbox:teleport12
       options: --cap-add=SYS_ADMIN --privileged

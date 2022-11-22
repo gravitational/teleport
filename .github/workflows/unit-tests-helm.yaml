@@ -14,6 +14,9 @@ jobs:
     name: Unit Tests (Helm)
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+
     container:
       image: public.ecr.aws/gravitational/teleport-buildbox:teleport12
       env:
