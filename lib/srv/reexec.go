@@ -305,13 +305,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
-	defer func() {
-		for _, f := range cmd.ExtraFiles {
-			if err := f.Close(); err != nil {
-				log.WithError(err).Warn("Error closing extra file.")
-			}
-		}
-	}()
 
 	// Wait until the continue signal is received from Teleport signaling that
 	// the child process has been placed in a cgroup.
