@@ -1,0 +1,140 @@
+---
+title: "Teleport Session Recording"
+description: "An overview Teleport's session recording and its configuration."
+---
+
+This page provides an overview of how Teleport records sessions and the various
+configuration options that apply to session recordings.
+
+Teleport supports two different recording configurations: synchronous recording
+and asynchronous recording. Additionally, Teleport administrators can configure
+where the recording takes place: at the node or at the proxy.
+
+This results in 4 possible sesssion recording configurations:
+
+- `node-sync`: synchronous recording performed by the SSH node
+- `node`: asynchronous recording performed by the SSH node
+- `proxy-sync`: synchronous recording performed at the proxy
+- `proxy`: asynchronous recording performed at the proxy
+
+This is a cluster-wide configuration option and applies to the entire
+Teleport cluster. If you need to apply different recording configuration to
+different sets of resources, we recommend setting up Trusted Clusters with
+their own recording configurations.
+
+<Admonition type="note" title="Desktop Access>
+Desktop Sessions are always recorded at Teleport's Windows Desktop Service
+since there is no Teleport software running on the "node" (desktop).
+
+For this reason, Teleport Desktop Access treats `node` and `proxy` identically
+(perform synchronous desktop recording) and `node-sync` and `proxy-sync` identically
+(perform asynchronous desktop recording).
+</Admonition>
+
+## Record at Node
+
+By default, Teleport performs recording at the SSH node. This is because Teleport's
+Proxy Server cannot see the SSH traffic to the node, it is encrypted end-to-end
+(from the SSH client to the SSH server).
+
+## Record at Proxy
+
+In some cases, it is desirable to perform the recording at Teleport's Proxy Server.
+For example, sessions to non-Teleport servers (like OpenSSH's `sshd`) can only be
+recorded at the proxy. This is referred to as *Recording Proxy Mode*.
+
+In this mode, the Proxy Server terminates (decrypts) the SSH connection and establishes
+its own SSH connection to the destination server, effectively becoming an authorized
+"man in the middle."
+
+We consider this mode to be less secure, as it grants additional privileges to the
+Proxy Server. Since the proxy server needs credentials to decrypt the SSH connection,
+it must be properly secured and is a higher value target for an attacker than a proxy
+that cannot decrypt the data flowing through it.
+
+Additionally, the credentials that the proxy uses to decrypt the SSH connection are
+provided via SSH Agent Forwarding, so Agent Forwarding must be enabled to record at
+the Proxy Server.
+
+## Synchronous recording
+
+When synchronous recording is enabled, the Teleport component doing the recording (which may
+be the node or the proxy depending on your configuration) submits each recording event
+to Teleport's Auth Server as it occurs. In this mode, failure to emit a recording event
+is considered fatal - the session will be terminated if an event cannot be recorded.
+This makes synchronous recording best suited for highly regulated environments where
+you need to be confident that all data is recorded. This also means that you need a reliable
+and low-latency connection to the Auth Server for the duration of the session to ensure
+that the session isn't interrupted or terminated due to temporary connection loss.
+
+In synchronous recording modes, the Auth Server receives a stream of recording events
+and is responsible for assembling them into the final artifact and uploading it to 
+the storage backend. Since data is streamed directly to the Auth Server, Teleport 
+administrators don't need to be concerned with disk space on their nodes and proxies,
+as no recording data is written to those disks.
+
+## Asynchronous recording
+
+When asynchronous, recording events are written to the local filesystem
+during the session. When the session completes, Teleport assembles the parts into a
+complete recording and submits the entire recording to the Auth Server for storage.
+
+Since recording data is flushed to disk, administrators should be careful to ensure
+that the system has enough disk space to accomodate the expected number of Teleport sessions.
+Additionally, since recording data is temporarily stored on disk, there is a greater
+chance that it can be tampered with, deleted, or otherwise corrupted before the upload
+completes.
+
+The advantage of asynchronous recording is that it doesn't require a persistent connection
+to the Auth Server. For example, an SSH session can continue to operate even if Teleport's
+Auth Server goes down. When the session completes Teleport will attempt to upload the
+recording to the Auth Server. If the Auth Server is still unavailable, Teleport has built-in
+retry and backoff mechanisms that will upload the artifact when the Auth Server comes back
+online. Additionally, asynchronous recording is well-suited towards recording sessions
+that are extra chatty or in environments where the connection to the auth server is unreliable
+or high-latency.
+
+## Storage
+
+Session recordings are stored in Teleport's audit sessions backend, which is
+specified by the `audit_sessions_uri` field in the `teleport.yaml` configuration file.
+Teleport current supports the following session storage backends:
+
+- File: stores recordings on the local filesystem. Suitable for dev environments, demos,
+  and small home environments.
+- S3: stores recordings in an AWS S3 bucket, or S3-compatible storage.
+  Suitable for production deployments.
+- GCS: stores recordings in Google Cloud Storage. Suitable for production deployments.
+
+The Teleport Auth server is the only component that writes directly to the storage backend.
+
+Note that the session storage backend is distinct from Teleport's cluster state or
+audit log storage, which supports a different set of services (SQLite, DynamoDB, Firestore, etc)
+
+## Format
+
+A Teleport session recording is an ordered sequence of structured events associated
+with a session. Each event is an encoded [Protocol Buffer](https://developers.google.com/protocol-buffers)
+and the complete session is compressed with gzip before being written to the storage backend.
+
+These recordings have a `.tar` extension for backwards compatibility reason, but it
+should be noted that they are not TAR archives and cannot be read using the `tar` utility.
+
+## Playback
+
+SSH and Kubernetes sessions can be played in Teleport's Web UI or by using
+the `tsh play` command. Desktop session recordings can only be played back
+in the Web UI.
+
+In the Web UI, the session recordings page is populated by querying Teleport's
+audit log for session end events, which contain metadata about the recording.
+This is sometimes surprising to Teleport users, because even though the recordings
+and audit log are stored in separate backends, both need to be operational in
+order to play recordings.
+
+## Related Reading
+
+- [Recording Proxy Mode](../server-access/guides/recording-proxy-mode)
+- [SSH session recording](../architecture/nodes.mdx#ssh-session-recording)
+- [SSH recording modes](./audit.mdx#modes)
+- [Desktop Access recording](../desktop-access/reference/sessions)
