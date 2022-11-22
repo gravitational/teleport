@@ -54,40 +54,14 @@ type assignment struct {
 type state struct {
 	clauses     []node
 	assignments []assignment
-	watched     map[string][]node
 	enforce     []node
-	uprop       []node
 }
 
 func newState(clause node) *state {
 	clauses := []node{clause}
-	watched := make(map[string][]node)
-	enforce := make([]node, 0)
-	uprop := make([]node, 0)
-
-	for _, clause := range clauses {
-		a := pickLiteral(clause, func(x string) bool { return false })
-		if a == nil {
-			enforce = append(enforce, clause)
-			continue
-		}
-
-		b := pickLiteral(clause, func(x string) bool { return x != *a })
-		if b == nil {
-			uprop = append(uprop, clause)
-			continue
-		}
-
-		for _, lit := range []string{*a, *b} {
-			watched[lit] = append(watched[lit], clause)
-		}
-	}
 
 	return &state{
 		clauses: clauses,
-		watched: watched,
-		enforce: enforce,
-		uprop:   uprop,
 	}
 }
 
