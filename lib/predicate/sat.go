@@ -119,8 +119,71 @@ func pickLiteral(node node, isExcluded func(string) bool) *string {
 	}
 }
 
-func evalClause(state *state, clause node) int {
-	return dpllUnknown
+func evalNode(state *state, node node) int {
+	switch node := node.(type) {
+	case *nodeLiteral:
+		switch node.value {
+		case true:
+			return dpllSatisfied
+		case false:
+			return dpllUnsatisfied
+		}
+	case *nodeIdentifier:
+		assigned, value := isAssigned(state, node.key)
+		if assigned {
+			switch value {
+			case true:
+				return dpllSatisfied
+			case false:
+				return dpllUnsatisfied
+			}
+		}
+
+		return dpllUnknown
+	case *nodeNot:
+		switch evalNode(state, node.left) {
+		case dpllSatisfied:
+			return dpllUnsatisfied
+		case dpllUnsatisfied:
+			return dpllSatisfied
+		case dpllUnknown:
+			return dpllUnknown
+		}
+	case *nodeOr:
+		switch evalNode(state, node.left) {
+		case dpllSatisfied:
+			return dpllSatisfied
+		case dpllUnsatisfied:
+			return evalNode(state, node.right)
+		case dpllUnknown:
+			switch evalNode(state, node.right) {
+			case dpllSatisfied:
+				return dpllSatisfied
+			case dpllUnsatisfied:
+				return dpllUnknown
+			case dpllUnknown:
+				return dpllUnknown
+			}
+		}
+	case *nodeAnd:
+		switch evalNode(state, node.left) {
+		case dpllSatisfied:
+			return evalNode(state, node.right)
+		case dpllUnsatisfied:
+			return dpllUnsatisfied
+		case dpllUnknown:
+			switch evalNode(state, node.right) {
+			case dpllSatisfied:
+				return dpllUnknown
+			case dpllUnsatisfied:
+				return dpllUnsatisfied
+			case dpllUnknown:
+				return dpllUnknown
+			}
+		}
+	}
+
+	panic("unreachable")
 }
 
 func isAssigned(state *state, key string) (bool, bool) {
@@ -147,7 +210,7 @@ func pickUnassigned(state *state) *string {
 func backtrackAdjust(state *state, rem []assignment) bool {
 	satisfied := func() bool {
 		for _, clause := range state.clauses {
-			switch evalClause(state, clause) {
+			switch evalNode(state, clause) {
 			case dpllSatisfied, dpllUnknown:
 				continue
 			case dpllUnsatisfied:
@@ -158,7 +221,7 @@ func backtrackAdjust(state *state, rem []assignment) bool {
 		return true
 	}
 
-	recurse := func() bool { return satisfied() || backtrackAdjust(state, rem[1:]) }
+	recurse := func() bool { return satisfied() || (len(rem) != 0 && backtrackAdjust(state, rem[1:])) }
 
 	if recurse() {
 		return true
@@ -180,7 +243,7 @@ func backtrackAdjust(state *state, rem []assignment) bool {
 func dpll(state *state) bool {
 	// check that nonvariable clauses are satisfied
 	for _, clause := range state.enforce {
-		switch evalClause(state, clause) {
+		switch evalNode(state, clause) {
 		case dpllSatisfied:
 			continue
 		case dpllUnsatisfied:

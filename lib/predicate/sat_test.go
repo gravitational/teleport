@@ -42,8 +42,8 @@ func TestBasicSat(t *testing.T) {
 	}
 
 	require.True(t, dpll(state))
-	require.Equal(t, state.assignments, []assignment{
+	require.Equal(t, []assignment{
 		{key: "A", value: true},
 		{key: "B", value: false},
-	})
+	}, state.assignments)
 }
