@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -445,7 +446,7 @@ func GetDisconnectExpiredCertFromIdentity(
 		return time.Time{}
 	}
 
-	if !identity.PreviousIdentityExpires.IsZero() {
+	if identity.MFAVerified != "" && !identity.PreviousIdentityExpires.IsZero() {
 		// If this is a short-lived mfa verified cert, return the certificate extension
 		// that holds its' issuing cert's expiry value.
 		return identity.PreviousIdentityExpires
@@ -473,7 +474,7 @@ func getDisconnectExpiredCertFromIdentityContext(
 		return t
 	}
 
-	if !identity.PreviousIdentityExpires.IsZero() {
+	if identity.Certificate.Extensions[teleport.CertExtensionMFAVerified] != "" && !identity.PreviousIdentityExpires.IsZero() {
 		// If this is a short-lived mfa verified cert, return the certificate extension
 		// that holds its' issuing cert's expiry value.
 		return identity.PreviousIdentityExpires

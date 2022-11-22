@@ -247,6 +247,7 @@ func TestGetDisconnectExpiredCertFromIdentity(t *testing.T) {
 		name                    string
 		expires                 time.Time
 		previousIdentityExpires time.Time
+		mfaVerified             bool
 		disconnectExpiredCert   bool
 		expected                time.Time
 	}{
@@ -254,6 +255,7 @@ func TestGetDisconnectExpiredCertFromIdentity(t *testing.T) {
 			name:                    "mfa overrides expires when set",
 			expires:                 now,
 			previousIdentityExpires: inAnHour,
+			mfaVerified:             true,
 			disconnectExpiredCert:   true,
 			expected:                inAnHour,
 		},
@@ -261,6 +263,7 @@ func TestGetDisconnectExpiredCertFromIdentity(t *testing.T) {
 			name:                    "expires returned when mfa unset",
 			expires:                 now,
 			previousIdentityExpires: unset,
+			mfaVerified:             false,
 			disconnectExpiredCert:   true,
 			expected:                now,
 		},
@@ -268,14 +271,20 @@ func TestGetDisconnectExpiredCertFromIdentity(t *testing.T) {
 			name:                    "unset when disconnectExpiredCert is false",
 			expires:                 now,
 			previousIdentityExpires: inAnHour,
+			mfaVerified:             true,
 			disconnectExpiredCert:   false,
 			expected:                unset,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
+			var mfaVerified string
+			if test.mfaVerified {
+				mfaVerified = "1234"
+			}
 			identity := tlsca.Identity{
 				Expires:                 test.expires,
 				PreviousIdentityExpires: test.previousIdentityExpires,
+				MFAVerified:             mfaVerified,
 			}
 			disconnectExpiredCert = test.disconnectExpiredCert
 			got := GetDisconnectExpiredCertFromIdentity(checker, authPref, &identity)
