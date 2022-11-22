@@ -3,11 +3,11 @@ package web
 import (
 	"net/http"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	v1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/lib/httplib"
 )
 

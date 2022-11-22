@@ -17,10 +17,10 @@ limitations under the License.
 package services
 
 import (
-	prehogv1 "github.com/gravitational/prehog/gen/proto/prehog/v1alpha"
 	"github.com/gravitational/trace"
 
 	usageevents "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	prehogv1 "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -175,7 +175,7 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, username string) (Usa
 			UserName: e.UiOnboardSetCredentialSubmit.Username,
 		}, nil
 	case *usageevents.UsageEventOneOf_UiOnboardRegisterChallengeSubmit:
-		return &UsageUIOnboardSetCredentialSubmit{
+		return &UsageUIOnboardRegisterChallengeSubmit{
 			UserName: e.UiOnboardRegisterChallengeSubmit.Username,
 		}, nil
 	case *usageevents.UsageEventOneOf_UiOnboardRecoveryCodesContinueClick:

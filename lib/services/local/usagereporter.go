@@ -24,8 +24,6 @@ import (
 	"time"
 
 	"github.com/bufbuild/connect-go"
-	prehogapi "github.com/gravitational/prehog/gen/proto/prehog/v1alpha"
-	prehogclient "github.com/gravitational/prehog/gen/proto/prehog/v1alpha/prehogv1alphaconnect"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -36,6 +34,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	prehogapi "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha"
+	prehogclient "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha/prehogv1alphaconnect"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -43,26 +43,22 @@ import (
 const (
 	// usageReporterMinBatchSize determines the size at which a batch is sent
 	// regardless of elapsed time
-	//usageReporterMinBatchSize = 100
-	usageReporterMinBatchSize = 5
+	usageReporterMinBatchSize = 20
 
 	// usageReporterMaxBatchSize is the largest batch size that will be sent to
 	// the server; batches larger than this will be split into multiple
 	// requests.
-	//usageReporterMaxBatchSize = 500
-	usageReporterMaxBatchSize = 10
+	usageReporterMaxBatchSize = 100
 
 	// usageReporterMaxBatchAge is the maximum age a batch may reach before
 	// being flushed, regardless of the batch size
-	//usageReporterMaxBatchAge = time.Minute * 5
 	usageReporterMaxBatchAge = time.Second * 30
 
 	// usageReporterMaxBufferSize is the maximum size to which the event buffer
 	// may grow. Events submitted once this limit is reached will be discarded.
 	// Events that were in the submission queue that fail to submit may also be
 	// discarded when requeued.
-	//usageReporterMaxBufferSize = 1000
-	usageReporterMaxBufferSize = 20
+	usageReporterMaxBufferSize = 500
 
 	// usageReporterSubmitDelay is a mandatory delay added to each batch submission
 	// to avoid spamming the prehog instance.

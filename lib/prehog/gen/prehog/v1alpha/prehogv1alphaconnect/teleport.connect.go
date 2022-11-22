@@ -8,7 +8,7 @@ import (
 	context "context"
 	errors "errors"
 	connect_go "github.com/bufbuild/connect-go"
-	v1alpha "github.com/gravitational/prehog/gen/proto/prehog/v1alpha"
+	v1alpha "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha"
 	http "net/http"
 	strings "strings"
 )

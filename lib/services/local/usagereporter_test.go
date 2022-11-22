@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	prehogapi "github.com/gravitational/prehog/gen/proto/prehog/v1alpha"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -30,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	prehogapi "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
