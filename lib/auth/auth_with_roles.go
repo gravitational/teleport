@@ -639,7 +639,7 @@ func (a *ServerWithRoles) DeactivateCertAuthority(id types.CertAuthID) error {
 }
 
 // UpdateUserCARoleMap not implemented: can only be called locally.
-func (a *ServerWithRoles) UpdateUserCARoleMap(ctx context.Context, existingCluster, trustedCluster types.TrustedCluster) error {
+func (a *ServerWithRoles) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, activated bool) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 

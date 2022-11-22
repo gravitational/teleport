@@ -73,12 +73,14 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		return nil, trace.Wrap(err)
 	}
 
-	// change state
+	// Update role map
 	if existingCluster != nil && !cmp.Equal(existingCluster.GetRoleMap(), trustedCluster.GetRoleMap()) {
-		if err := a.UpdateUserCARoleMap(ctx, existingCluster, trustedCluster); err != nil {
+		if err := a.UpdateUserCARoleMap(ctx, existingCluster.GetName(), trustedCluster.GetRoleMap(),
+			existingCluster != nil && existingCluster.GetEnabled()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
+	// Create or update state
 	switch {
 	case existingCluster != nil && enable == true:
 		if existingCluster.GetEnabled() {

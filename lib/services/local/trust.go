@@ -114,15 +114,7 @@ func (s *CA) CompareAndSwapCertAuthority(new, expected types.CertAuthority) erro
 
 	actualItem, err := s.Get(context.TODO(), key)
 	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		// might be deactivated CA
-		key = backend.Key(authoritiesPrefix, deactivatedPrefix, string(new.GetType()), new.GetName())
-		actualItem, err = s.Get(context.TODO(), key)
-		if err != nil  {
-			return trace.Wrap(err)
-		}
+		return trace.Wrap(err)
 	}
 	actual, err := services.UnmarshalCertAuthority(actualItem.Value)
 	if err != nil {
@@ -302,32 +294,37 @@ func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, 
 }
 
 // UpdateUserCARoleMap updates the role map of the userCA of the specified existing cluster.
-func (s *CA) UpdateUserCARoleMap(ctx context.Context, name string, roleMap RoleMap, deactivated bool) error {
-	existingCertAuthority, err := s.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
-		DomainName: existingCluster.GetName(),
-	}, true)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		// CA may be deactivated.
-		item, err := s.Get(context.TODO(), backend.Key(authoritiesPrefix, deactivatedPrefix,
-			string(types.UserCA), existingCluster.GetName()))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		existingCertAuthority, err = services.UnmarshalCertAuthority(
-			item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		setSigningKeys(existingCertAuthority, true)
+func (s *CA) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, activated bool) error {
+	key := backend.Key(authoritiesPrefix, string(types.UserCA), name)
+	if !activated {
+		key = backend.Key(authoritiesPrefix, deactivatedPrefix, string(types.UserCA), name)
 	}
-	certAuthority := existingCertAuthority.Clone()
-	certAuthority.SetRoleMap(trustedCluster.GetRoleMap())
-	if err := s.CompareAndSwapCertAuthority(certAuthority, existingCertAuthority); err != nil {
+
+	actualItem, err := s.Get(context.TODO(), key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	actual, err := services.UnmarshalCertAuthority(actualItem.Value)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	actual.SetRoleMap(roleMap)
+
+	newValue, err := services.MarshalCertAuthority(actual)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	newItem := backend.Item{
+		Key:     key,
+		Value:   newValue,
+		Expires: actual.Expiry(),
+	}
+	_, err = s.CompareAndSwap(context.TODO(), *actualItem, newItem)
+	if err != nil {
+		if trace.IsCompareFailed(err) {
+			return trace.CompareFailed("cluster %v settings have been updated, try again", name)
+		}
 		return trace.Wrap(err)
 	}
 	return nil
