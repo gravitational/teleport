@@ -2325,7 +2325,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      description="Linux 64-bit (FedRAMP/FIPS)"
+      description="Linux 64-bit (RHEL/CentOS 6.x compatible)"
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
@@ -8163,6 +8163,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 808592214ff27466b7e3af6d4a4cf5d7203b4e0258f367709b90d9fcf56a445f
+hmac: f604eebfb27312e1c4e8b2e60c98e46d18a0c5b23178dadc2ea06add8bfa9d6d
 
 ...
