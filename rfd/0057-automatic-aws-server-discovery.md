@@ -163,7 +163,7 @@ SSM commands[3] for example:
             "Action": "ssm:GetDocument",
             "Effect": "Allow",
             "Resource": [ "*" ]
-        }		
+        }
     ]
 }
 ```
@@ -171,7 +171,7 @@ SSM commands[3] for example:
 The machines being discovered will need to allow recieving `ec2messages` in
 order to recieve the SSM commands:
 
-```js 
+```js
 {
 	"Statement": [
 		{
@@ -223,7 +223,7 @@ teleport node configure
 This will create generate a file with the following contents:
 
 ```yaml
-teleport: 
+teleport:
   nodename: "$accountID-$instanceID"
   auth_servers:
     - "auth-server.example.com:3025"
@@ -234,6 +234,151 @@ discovery_service:
   labels:
     teleport.dev/origin: "cloud"
 ```
+
+
+### Agentless installation
+
+In addition to supporting automatic Teleport agent installation, an agentless option
+will also be supported. This mode will update the OpenSSH CA to use the Teleport CA
+without installing the full Teleport Agent.
+
+The teleport ca and host keys will be generated and then uploaded to
+the the AWS Secret store where, for each node discovered a new secret
+will be created, each secret will have the following contents
+
+```json
+{
+	"ca_key": "...",
+	"host_key": "...",
+	"host_cert": "...",
+}
+```
+
+This will require changes to Teleport in order to support RBAC of OpenSSH based
+nodes and to support showing the nodes in tsh/web ui.
+
+This mode can be enabled by setting `agentless: true` in the matcher. When the
+matcher includes this, a predefined script for agentless installation will be used for
+the endpoint.
+
+Example agentless config:
+
+```yaml
+discovery_service:
+  enabled: "yes"
+  aws:
+  - types: ["ec2"]
+    regions: ["us-west-1"]
+    tags:
+      "teleport": "yes" # aws tags to match
+    install:
+      agentless: true
+      # default to this as a result of agentless: true
+      script_name: "default-agentless-installer"
+      sshd_config: "/etc/ssh/sshd_config" # default path
+    ssm:
+      # default to this as a result of agentless: true
+      document_name: "TeleportAgentlessDiscoveryInstaller"
+```
+
+
+An agentless specific SSM document will be required. The `teleport discovery bootstrap`
+command will need to be updated to create SSM documents appropriate for agentless discovery.
+
+Example SSM document:
+```yaml
+# name: TeleportAgentlessDiscoveryInstaller
+---
+schemaVersion: '2.2'
+description: aws:runShellScript
+parameters:
+  caKey:
+    types: String
+    description: "(Required) The Teleport CA to sshd will trust."
+  hostCert:
+    types: String
+    description: "(Required) The Teleport host cert to use."
+  sshdConfigPath:
+    types: String
+    description: "(Required) The path to the sshd config file."
+mainSteps:
+- action: aws:downloadContent
+  name: downloadContent
+  inputs:
+    sourceType: "HTTP"
+    destinationPath: "/tmp/installTeleport.sh"
+    sourceInfo:
+      url: "https://teleportcluster.xyz/webapi/scripts/default-agentless-installer"
+- action: aws:runShellScript
+  name: runShellScript
+  inputs:
+    timeoutSeconds: '300'
+    runCommand:
+      - export CERT_SECRETS='{{ secretName }}'
+      - export SSHD_CONFIG='{{ sshdConfigPath }}'
+      - /bin/sh /tmp/installTeleport.sh
+```
+
+Agentless mode will serve a different install script resource named
+`default-agentless-installer`. Which will be used to update and restart the sshd
+configuration.
+
+Possible agentless installer script:
+
+```bash
+(
+  flock -n 9 || exit 1
+
+  if grep -q 'TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub' "$SSHD_CONFIG"; then
+	exit 0
+  fi
+
+  if [ "$distro_id" = "debian" ] || [ "$distro_id" = "ubuntu" ]; then
+	sudo apt-get install -y awscli jq
+  elif [ "$distro_id" = "amzn" ] || [ "$distro_id" = "rhel" ]; then
+    sudo yum install -y awscli jq
+  fi
+
+  CA_KEY=$(aws secretsmanager get-secret-value --output=json --secret-id="$CERT_SECRETS" | jq -r '.["SecretString"] | fromjson."ca_key"')
+  HOST_KEY=$(aws secretsmanager get-secret-value --output=json --secret-id="$CERT_SECRETS" | jq -r '.["SecretString"] | fromjson."host_key"')
+  HOST_CERT=$(aws secretsmanager get-secret-value --output=json --secret-id="$CERT_SECRETS" | jq -r '.["SecretString"] | fromjson."host_cert"')
+
+  echo "$CA_KEY" > /etc/ssh/teleport_user_ca.pub
+  echo 'TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub' >> $SSHD_CONFIG
+
+  echo "$HOST_KEY" > /etc/ssh/teleport
+  chmod 0600 /etc/ssh/teleport
+  echo "$HOST_CERT" > /etc/ssh/teleport-cert.pub
+  chmod 0600 /etc/ssh/teleport-cert.pub
+
+  echo 'HostKey /etc/ssh/teleport' >> $SSHD_CONFIG
+  echo 'HostCertificate /etc/ssh/teleport-cert.pub' >> $SSHD_CONFIG
+
+  if ! sshd -t; then
+	echo "sshd_config is in a bad state, exiting without reloading"
+	exit 1
+  fi
+  systemctl restart sshd
+
+) 9>/var/lock/teleport_install.lock
+```
+
+The discovery agent will need CRUD permissions on `host_cert` resources as well as
+permission to create Node resources.
+
+
+### Including AWS Tags as Teleport labels
+
+The AWS tags on discovered EC2 instances will be included as Teleport labels on the
+discovered Nodes.
+
+The labels will be set by the discovery service after the node has successfully
+registered itself. After registration the discovery service will check hourly if the
+available EC2 instances need have their labels updated.
+
+Nodes that have been registered and include the 'teleport.dev/origin=cloud' label
+will have the labels in their heartbeats ignored and the discovery service will
+manage their labels.
 
 ## UX
 
@@ -345,36 +490,6 @@ Nodes being discovered will need permission to `GetMessages`
 
 
 ## Future work
-
-### Agentless installation
-
-In addition to supporting automatic Teleport agent installation, an agentless option
-will also be supported. This mode will update the OpenSSH CA to use the Teleport CA
-without installing the full Teleport Agent.
-
-This will require changes to Teleport in order to support RBAC of OpenSSH based
-nodes and to support showing the nodes in tsh/web ui.
-
-Agentless mode will be able to make use of the same script resource endpoint as is
-used when the agent is being installed to perform the CA updating.
-
-This mode can be enabled by setting `agentless: true` in the matcher. When the
-matcher includes this a predefined script for agentless updating will be used for the
-endpoint.
-
-Example agentless config:
-
-```yaml
-discovery_service:
-  enabled: "yes"
-  aws:
-  - types: ["ec2"]
-    regions: ["us-west-1"]
-    tags:
-      "teleport": "yes" # aws tags to match
-    ssm_command_document: ssm_command_document_name
-    agentless: true
-```
 
 ### Assume roles
 
