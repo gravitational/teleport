@@ -55,9 +55,7 @@ type state struct {
 	enforce     []node
 }
 
-func newState(clause node) *state {
-	clauses := []node{clause}
-
+func newState(clauses []node) *state {
 	return &state{
 		clauses: clauses,
 	}
@@ -213,7 +211,8 @@ func backtrackAdjust(state *state, rem []assignment) bool {
 }
 
 // opt: fast literal picks
-// opt: watch-literal based unit propagation (remember cnf conversion)
+// opt: unit propagation (remember cnf conversion)
+// opt: two watch literals
 func dpll(state *state) bool {
 	// check that nonvariable clauses are satisfied
 	for _, clause := range state.enforce {

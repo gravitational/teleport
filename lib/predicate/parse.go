@@ -28,7 +28,7 @@ func evaluatePredicate(s string) (bool, map[string]any) {
 		panic(err)
 	}
 
-	state := newState(clause)
+	state := newState([]node{clause})
 	sat := dpll(state)
 	if sat {
 		m := make(map[string]any)
