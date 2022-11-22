@@ -44,9 +44,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// ErrSAMLNotImplemented is the error returned by the SAML methods when not
+// ErrSAMLRequiresEnterprise is the error returned by the SAML methods when not
 // using the Enterprise edition of Teleport.
-var ErrSAMLNotImplemented = trace.AccessDenied("SAML is only available in enterprise subscriptions")
+var ErrSAMLRequiresEnterprise = trace.AccessDenied("SAML is only available in enterprise subscriptions")
 
 // SAMLService are the methods that the auth server delegates to a plugin for
 // implementing the SAML connector. These are the core functions of SAML
@@ -61,6 +61,12 @@ type SAMLService interface {
 
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
+	// Validate the SAML connector here, because even though Services.UpsertSAMLConnector
+	// also validates, it does not have a RoleGetter to use to validate the roles, so
+	// has to pass `nil` for the second argument.
+	if err := services.ValidateSAMLConnector(connector, a); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := a.Services.UpsertSAMLConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
@@ -105,7 +111,7 @@ func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorID string) er
 // or returns a NotImplemented error if not present.
 func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
 	if a.samlAuthService == nil {
-		return nil, ErrSAMLNotImplemented
+		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
 	rq, err := a.samlAuthService.CreateSAMLAuthRequest(ctx, req)
@@ -116,7 +122,7 @@ func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRe
 // or returns a NotImplemented error if not present.
 func (a *Server) ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error) {
 	if a.samlAuthService == nil {
-		return nil, ErrSAMLNotImplemented
+		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
 	resp, err := a.samlAuthService.ValidateSAMLResponse(ctx, re, connectorID)
