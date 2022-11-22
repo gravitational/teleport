@@ -275,7 +275,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 	ttl = checker.AdjustSessionTTL(ttl)
 	var previousIdentityExpires time.Time
 	if u.Identity.MFAVerified != "" {
-		prevIdentityTTL := time.Until(u.Identity.Expires)
+		prevIdentityTTL := time.Until(u.Identity.PreviousIdentityExpires)
 		prevIdentityTTL = checker.AdjustSessionTTL(prevIdentityTTL)
 		previousIdentityExpires = time.Now().Add(prevIdentityTTL)
 	}
