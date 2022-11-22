@@ -186,6 +186,9 @@ const (
 	// ElasticsearchRequestCode is the db.session.elasticsearch.request event code.
 	ElasticsearchRequestCode = "TES00I"
 
+	// DynamoDBRequestCode is the database-access DynamoDB request/response code.
+	DynamoDBRequestCode = "TDY01I"
+
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
 	// DatabaseUpdateCode is the db.update event code.
