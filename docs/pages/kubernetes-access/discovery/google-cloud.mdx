@@ -77,6 +77,7 @@ title: GKE Cluster Access Manager
 description: "Manage access to GKE clusters"
 stage: GA
 includedPermissions:
+- container.clusters.get
 - container.clusters.impersonate
 - container.pods.get
 - container.selfSubjectAccessReviews.create
@@ -148,7 +149,60 @@ $ gcloud projects add-iam-policy-binding ${PROJECT_ID?} \
 ```
 </Details>
 
-### Download a credentials file
+### Retrieve credentials for your Teleport services
+
+Now that you have created a Google Cloud service account and attached roles to
+it, associate your service account with the Teleport Kubernetes Service and
+Discovery Service.
+
+The process is different depending on whether you are deploying the Teleport
+Kubernetes Service and Discovery Service on Google Cloud or some other way
+(e.g., via Amazon EC2 or on a home network).
+
+<Tabs>
+<TabItem label="Google Cloud">
+
+Stop your VM so you can attach your service account to it:
+
+```code
+$ gcloud compute instances stop ${VM_NAME?}
+```
+
+Attach your service account to the instance:
+
+```code
+$ gcloud compute instances set-service-account ${VM_NAME?} \
+   --service-account teleport-discovery-kubernetes@${PROJECT_ID?}.iam.gserviceaccount.com  
+```
+
+<Details title="Running the Kubernetes and Discovery Services separately?">
+
+Stop each VM you plan to use to run the Teleport Kubernetes Service and
+Discovery Service.
+
+Attach your service account to the VM running the Kubernetes Service:
+
+```code
+$ gcloud compute instances set-service-account ${VM1_NAME?} \
+   --service-account teleport-kubernetes-service@${PROJECT_ID?}.iam.gserviceaccount.com  
+```
+
+Attach your service account to the VM running the Discovery Service:
+
+```code
+$ gcloud compute instances set-service-account ${VM2_NAME?} \
+   --service-account teleport-discovery-service@${PROJECT_ID?}.iam.gserviceaccount.com  
+```
+
+</Details>
+
+Once you have attached the service account, restart your VM:
+
+```code
+$ gcloud compute instances start VM_NAME
+```
+</TabItem>
+<TabItem label="Other Platform">
 
 Download a credentials file for the service account used by the Discovery
 Service and Kubernetes Service:
@@ -188,6 +242,9 @@ We will use these credentials files when running this services later in this
 guide.
 
 </Details>
+
+</TabItem>
+</Tabs>
 
 ## Step 2/3. Configure Teleport to discover GKE clusters
 
@@ -340,11 +397,36 @@ with the provided tag.
 ### Start the Kubernetes Service and Discovery Service 
 
 On the host where you will run the Kubernetes Service, execute the following
-command, depending on whether you installed Teleport using a package manager or
-via a TAR archive:
+command, depending on:
 
-<Tabs>
-<TabItem label="Package Manager">
+- Whether you installed Teleport using a package manager or via a TAR archive
+- Whether you are running the Discovery and Kubernetes Service on Google Cloud
+  or another platform
+
+<Tabs dropdownCaption="How your host is running:" 
+dropdownSelected="Google Cloud">
+<TabItem options="Google Cloud" label="Package Manager ">
+
+On the host where you will run the Teleport Kubernetes Service and Discovery
+Service, start the Teleport service:
+
+```code
+$ sudo systemctl start teleport
+```
+</TabItem>
+<TabItem options="Google Cloud" label="TAR Archive ">
+
+On the host where you will run the Teleport Kubernetes Service and Discovery
+Service, create a systemd service configuration for Teleport, enable the
+Teleport service, and start Teleport:
+
+```code
+$ sudo teleport install systemd -o /etc/systemd/system/teleport.service
+$ sudo systemctl enable teleport
+$ sudo systemctl start teleport
+```
+</TabItem>
+<TabItem options="Other Platform" label="Package Manager">
 
 When you installed Teleport via package manager, the installation process
 created a configuration for the init system `systemd` to run Teleport as a
@@ -367,17 +449,34 @@ Start the Teleport service:
 $ sudo systemctl start teleport
 ```
 </TabItem>
-<TabItem label="TAR Archive">
+<TabItem options="Other Platform" label="TAR Archive">
 
-To authenticate to Google Cloud, Teleport's built-in Google Cloud client reads
-the credentials file at the location given by the
-`GOOGLE_APPLICATION_CREDENTIALS` variable. Run Teleport with this variable
-assigned:
+On the host where you are running the Teleport Discovery Service and Kubernetes
+Service, create a systemd configuration that you can use to run Teleport in the
+background:
 
 ```code
-$ export GOOGLE_APPLICATION_CREDENTIALS="/var/lib/teleport/google-cloud-credentials.json"
-$ sudo -E teleport start
+$ sudo teleport install systemd -o /etc/systemd/system/teleport.service
+$ sudo systemctl enable teleport
 ```
+
+This service reads environment variables from a file at the path
+`/etc/default/teleport`. Teleport's built-in Google Cloud client reads the
+credentials file at the location given by the `GOOGLE_APPLICATION_CREDENTIALS`
+variable. 
+
+Ensure that `/etc/default/teleport` has the following content:
+
+```
+GOOGLE_APPLICATION_CREDENTIALS="/var/lib/teleport/google-cloud-credentials.json"
+```
+
+Start the Discovery Service and Kubernetes Service:
+
+```code
+$ sudo systemctl start teleport
+```
+
 </TabItem>
 </Tabs>
 
