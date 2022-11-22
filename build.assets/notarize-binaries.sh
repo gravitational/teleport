@@ -24,7 +24,7 @@ for BINARY in "$@"; do
     fi
 
     if [ "$(file \"$BINARY\" | grep -ic 'mach-o')" -eq 0 ]; then
-        echo "$BINARY is not a MacOS binary" 1>&2
+        echo "$BINARY is not a MacOS binary (file is of type $(file \"$BINARY\")" 1>&2
         exit 2
     fi
 done
