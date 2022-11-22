@@ -2300,7 +2300,7 @@ func (h *Handler) generateSession(ctx context.Context, clt AuthProvider, req *Te
 	)
 
 	// req.Server will be either an IP, hostname, or server UUID. If it correctly
-	// parses as a UUID then only fetch the single node. This dramatically
+	// parses as a UUID then connect to `uuid:0` directly. This dramatically
 	// improves performance in large environments.
 	_, err := uuid.Parse(req.Server)
 	if err != nil {

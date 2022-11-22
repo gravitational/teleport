@@ -102,7 +102,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 
 	if cfg.term.W <= 0 || cfg.term.H <= 0 ||
 		cfg.term.W >= 4096 || cfg.term.H >= 4096 {
-		return nil, trace.BadParameter("term: bad term dimensions")
+		return nil, trace.BadParameter("term: bad dimensions(%dx%d)", cfg.term.W, cfg.term.H)
 	}
 
 	return &TerminalHandler{
