@@ -233,9 +233,11 @@ type IdentityContext struct {
 	// access
 	AllowedResourceIDs []types.ResourceID
 
-	// MFAVerified is the the hard deadline of a session when this Identity was
-	// confirmed immediately after an MFA check.
-	MFAVerifiedSessionExpires time.Time
+	// PreviousIdentityExpires is the expiry time of the identity/cert that this
+	// identity/cert was derived from. It is used to determine a session's hard
+	// deadline in cases where both require_session_mfa and disconnect_expired_cert
+	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
+	PreviousIdentityExpires time.Time
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,

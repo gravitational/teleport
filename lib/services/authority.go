@@ -289,7 +289,7 @@ type UserCertParams struct {
 	MFAVerified string
 	// MFAVerified is the the hard deadline of a session when this Identity was
 	// confirmed immediately after an MFA check.
-	MFAVerifiedSessionExpires time.Time
+	PreviousIdentityExpires time.Time
 	// ClientIP is an IP of the client to embed in the certificate.
 	ClientIP string
 	// SourceIP is an IP that certificate should be pinned to.

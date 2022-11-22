@@ -153,9 +153,11 @@ type Identity struct {
 	// MFAVerified is the UUID of an MFA device when this Identity was
 	// confirmed immediately after an MFA check.
 	MFAVerified string
-	// MFAVerifiedSessionExpires is the the hard deadline of a session when this Identity was
-	// confirmed immediately after an MFA check.
-	MFAVerifiedSessionExpires time.Time
+	// PreviousIdentityExpires is the expiry time of the identity/cert that this
+	// identity/cert was derived from. It is used to determine a session's hard
+	// deadline in cases where both require_session_mfa and disconnect_expired_cert
+	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
+	PreviousIdentityExpires time.Time
 	// ClientIP is an observed IP of the client that this Identity represents.
 	ClientIP string
 	// AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
@@ -261,29 +263,29 @@ func (id *Identity) GetEventIdentity() events.Identity {
 	}
 
 	return events.Identity{
-		User:                      id.Username,
-		Impersonator:              id.Impersonator,
-		Roles:                     id.Groups,
-		Usage:                     id.Usage,
-		Logins:                    id.Principals,
-		KubernetesGroups:          id.KubernetesGroups,
-		KubernetesUsers:           id.KubernetesUsers,
-		Expires:                   id.Expires,
-		RouteToCluster:            id.RouteToCluster,
-		KubernetesCluster:         id.KubernetesCluster,
-		Traits:                    id.Traits,
-		RouteToApp:                routeToApp,
-		TeleportCluster:           id.TeleportCluster,
-		RouteToDatabase:           routeToDatabase,
-		DatabaseNames:             id.DatabaseNames,
-		DatabaseUsers:             id.DatabaseUsers,
-		MFADeviceUUID:             id.MFAVerified,
-		MFAVerifiedSessionExpires: id.MFAVerifiedSessionExpires,
-		ClientIP:                  id.ClientIP,
-		AWSRoleARNs:               id.AWSRoleARNs,
-		AccessRequests:            id.ActiveRequests,
-		DisallowReissue:           id.DisallowReissue,
-		AllowedResourceIDs:        events.ResourceIDs(id.AllowedResourceIDs),
+		User:                    id.Username,
+		Impersonator:            id.Impersonator,
+		Roles:                   id.Groups,
+		Usage:                   id.Usage,
+		Logins:                  id.Principals,
+		KubernetesGroups:        id.KubernetesGroups,
+		KubernetesUsers:         id.KubernetesUsers,
+		Expires:                 id.Expires,
+		RouteToCluster:          id.RouteToCluster,
+		KubernetesCluster:       id.KubernetesCluster,
+		Traits:                  id.Traits,
+		RouteToApp:              routeToApp,
+		TeleportCluster:         id.TeleportCluster,
+		RouteToDatabase:         routeToDatabase,
+		DatabaseNames:           id.DatabaseNames,
+		DatabaseUsers:           id.DatabaseUsers,
+		MFADeviceUUID:           id.MFAVerified,
+		PreviousIdentityExpires: id.PreviousIdentityExpires,
+		ClientIP:                id.ClientIP,
+		AWSRoleARNs:             id.AWSRoleARNs,
+		AccessRequests:          id.ActiveRequests,
+		DisallowReissue:         id.DisallowReissue,
+		AllowedResourceIDs:      events.ResourceIDs(id.AllowedResourceIDs),
 	}
 }
 
@@ -412,10 +414,10 @@ var (
 	// is specifically used for "multi-role" certs.
 	SystemRolesASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 11}
 
-	// MFAVerifiedSessionExpiresASN1ExtensionOID is the RFC3339 timestamp representing the hard
+	// PreviousIdentityExpiresASN1ExtensionOID is the RFC3339 timestamp representing the hard
 	// deadline of the session on a certificates issued after an MFA check.
 	// See https://github.com/gravitational/teleport/issues/18544.
-	MFAVerifiedSessionExpiresASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 12}
+	PreviousIdentityExpiresASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 12}
 )
 
 // Subject converts identity to X.509 subject name
@@ -536,11 +538,11 @@ func (id *Identity) Subject() (pkix.Name, error) {
 				Value: id.MFAVerified,
 			})
 	}
-	if !id.MFAVerifiedSessionExpires.IsZero() {
+	if !id.PreviousIdentityExpires.IsZero() {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
-				Type:  MFAVerifiedSessionExpiresASN1ExtensionOID,
-				Value: id.MFAVerifiedSessionExpires.Format(time.RFC3339),
+				Type:  PreviousIdentityExpiresASN1ExtensionOID,
+				Value: id.PreviousIdentityExpires.Format(time.RFC3339),
 			})
 	}
 	if id.ClientIP != "" {
@@ -743,14 +745,14 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.MFAVerified = val
 			}
-		case attr.Type.Equal(MFAVerifiedSessionExpiresASN1ExtensionOID):
+		case attr.Type.Equal(PreviousIdentityExpiresASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
 				asTime, err := time.Parse(time.RFC3339, val)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				id.MFAVerifiedSessionExpires = asTime
+				id.PreviousIdentityExpires = asTime
 			}
 		case attr.Type.Equal(ClientIPASN1ExtensionOID):
 			val, ok := attr.Value.(string)

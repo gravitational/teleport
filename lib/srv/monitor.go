@@ -435,21 +435,20 @@ func GetDisconnectExpiredCertFromIdentity(
 	identity *tlsca.Identity,
 ) time.Time {
 	// In the case where both disconnect_expired_cert and require_session_mfa are enabled,
-	// the MFAVerifiedSessionExpires value of the certificate will be used, which is the
+	// the PreviousIdentityExpires value of the certificate will be used, which is the
 	// expiry of the certificate used to issue the short lived MFA verified certificate.
 	//
 	// See https://github.com/gravitational/teleport/issues/18544
 
 	// If the session doesn't need to be disconnected on cert expiry just return the default value.
 	if !checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
-		var t time.Time
-		return t
+		return time.Time{}
 	}
 
-	if !identity.MFAVerifiedSessionExpires.IsZero() {
+	if !identity.PreviousIdentityExpires.IsZero() {
 		// If this is a short-lived mfa verified cert, return the certificate extension
 		// that holds its' issuing cert's expiry value.
-		return identity.MFAVerifiedSessionExpires
+		return identity.PreviousIdentityExpires
 	}
 
 	// Otherwise just return the current cert's expiration
@@ -463,7 +462,7 @@ func getDisconnectExpiredCertFromIdentityContext(
 	identity *IdentityContext,
 ) time.Time {
 	// In the case where both disconnect_expired_cert and require_session_mfa are enabled,
-	// the MFAVerifiedSessionExpires value of the certificate will be used, which is the
+	// the PreviousIdentityExpires value of the certificate will be used, which is the
 	// expiry of the certificate used to issue the short lived MFA verified certificate.
 	//
 	// See https://github.com/gravitational/teleport/issues/18544
@@ -474,10 +473,10 @@ func getDisconnectExpiredCertFromIdentityContext(
 		return t
 	}
 
-	if !identity.MFAVerifiedSessionExpires.IsZero() {
+	if !identity.PreviousIdentityExpires.IsZero() {
 		// If this is a short-lived mfa verified cert, return the certificate extension
 		// that holds its' issuing cert's expiry value.
-		return identity.MFAVerifiedSessionExpires
+		return identity.PreviousIdentityExpires
 	}
 
 	// Otherwise just return the current cert's expiration

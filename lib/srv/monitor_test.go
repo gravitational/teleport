@@ -244,38 +244,38 @@ func TestGetDisconnectExpiredCertFromIdentity(t *testing.T) {
 	authPref := &mockAuthPreference{}
 
 	for _, test := range []struct {
-		name                      string
-		expires                   time.Time
-		mfaVerifiedSessionExpires time.Time
-		disconnectExpiredCert     bool
-		expected                  time.Time
+		name                    string
+		expires                 time.Time
+		previousIdentityExpires time.Time
+		disconnectExpiredCert   bool
+		expected                time.Time
 	}{
 		{
-			name:                      "mfa overrides expires when set",
-			expires:                   now,
-			mfaVerifiedSessionExpires: inAnHour,
-			disconnectExpiredCert:     true,
-			expected:                  inAnHour,
+			name:                    "mfa overrides expires when set",
+			expires:                 now,
+			previousIdentityExpires: inAnHour,
+			disconnectExpiredCert:   true,
+			expected:                inAnHour,
 		},
 		{
-			name:                      "expires returned when mfa unset",
-			expires:                   now,
-			mfaVerifiedSessionExpires: unset,
-			disconnectExpiredCert:     true,
-			expected:                  now,
+			name:                    "expires returned when mfa unset",
+			expires:                 now,
+			previousIdentityExpires: unset,
+			disconnectExpiredCert:   true,
+			expected:                now,
 		},
 		{
-			name:                      "unset when disconnectExpiredCert is false",
-			expires:                   now,
-			mfaVerifiedSessionExpires: inAnHour,
-			disconnectExpiredCert:     false,
-			expected:                  unset,
+			name:                    "unset when disconnectExpiredCert is false",
+			expires:                 now,
+			previousIdentityExpires: inAnHour,
+			disconnectExpiredCert:   false,
+			expected:                unset,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			identity := tlsca.Identity{
-				Expires:                   test.expires,
-				MFAVerifiedSessionExpires: test.mfaVerifiedSessionExpires,
+				Expires:                 test.expires,
+				PreviousIdentityExpires: test.previousIdentityExpires,
 			}
 			disconnectExpiredCert = test.disconnectExpiredCert
 			got := GetDisconnectExpiredCertFromIdentity(checker, authPref, &identity)

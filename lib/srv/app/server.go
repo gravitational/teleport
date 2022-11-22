@@ -713,10 +713,10 @@ func (s *Server) monitorConn(ctx context.Context, tc *srv.TrackingReadConn, auth
 	certExpires := identity.Expires
 	var disconnectCertExpired time.Time
 	if checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
-		if !identity.MFAVerifiedSessionExpires.IsZero() {
-			// Cause MFA verified sessions to disconnect on issuing certs expiry
+		if !identity.PreviousIdentityExpires.IsZero() {
+			// Cause MFA verified sessions to disconnect on issuing cert's expiry
 			// (see https://github.com/gravitational/teleport/issues/18544).
-			disconnectCertExpired = identity.MFAVerifiedSessionExpires
+			disconnectCertExpired = identity.PreviousIdentityExpires
 		} else if !certExpires.IsZero() {
 			disconnectCertExpired = certExpires
 		}

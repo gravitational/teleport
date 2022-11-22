@@ -858,7 +858,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.NoError(t, err)
 
 					require.Equal(t, webDevID, cert.Extensions[teleport.CertExtensionMFAVerified])
-					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionMFAVerifiedSessionExpires])
+					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
 					require.Equal(t, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()), cert.ValidBefore)
 				},
@@ -887,7 +887,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.NoError(t, err)
 
 					require.Equal(t, webDevID, cert.Extensions[teleport.CertExtensionMFAVerified])
-					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionMFAVerifiedSessionExpires])
+					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
 					require.Equal(t, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()), cert.ValidBefore)
 				},
@@ -917,7 +917,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 					require.NoError(t, err)
 					require.Equal(t, webDevID, identity.MFAVerified)
-					require.Equal(t, userCertExpires, identity.MFAVerifiedSessionExpires)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
 					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
 					require.Equal(t, "kube-a", identity.KubernetesCluster)
@@ -950,7 +950,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 					require.NoError(t, err)
 					require.Equal(t, webDevID, identity.MFAVerified)
-					require.Equal(t, userCertExpires, identity.MFAVerifiedSessionExpires)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
 					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
 					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
