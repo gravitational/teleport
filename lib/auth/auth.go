@@ -1001,6 +1001,8 @@ type certRequest struct {
 	appName string
 	// awsRoleARN is the role ARN to generate certificate for.
 	awsRoleARN string
+	// azureIdentity is the Azure identity to generate certificate for.
+	azureIdentity string
 	// dbService identifies the name of the database service requests will
 	// be routed to.
 	dbService string
@@ -1118,6 +1120,8 @@ type AppTestCertRequest struct {
 	SessionID string
 	// AWSRoleARN is optional AWS role ARN a user wants to assume to encode.
 	AWSRoleARN string
+	// AzureIdentity is the optional Azure identity a user wants to assume to encode.
+	AzureIdentity string
 }
 
 // GenerateUserAppTestCert generates an application specific certificate, used
@@ -1158,6 +1162,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		appPublicAddr:  req.PublicAddr,
 		appClusterName: req.ClusterName,
 		awsRoleARN:     req.AWSRoleARN,
+		azureIdentity:  req.AzureIdentity,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1406,6 +1411,12 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// See which Azure identities this user is allowed to assume.
+	azureIdentities, err := req.checker.CheckAzureIdentities(sessionTTL, req.overrideRoleTTL)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
 	// generate TLS certificate
 	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ctx, userCA)
 	if err != nil {
@@ -1427,11 +1438,12 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		KubernetesGroups:  kubeGroups,
 		KubernetesUsers:   kubeUsers,
 		RouteToApp: tlsca.RouteToApp{
-			SessionID:   req.appSessionID,
-			PublicAddr:  req.appPublicAddr,
-			ClusterName: req.appClusterName,
-			Name:        req.appName,
-			AWSRoleARN:  req.awsRoleARN,
+			SessionID:     req.appSessionID,
+			PublicAddr:    req.appPublicAddr,
+			ClusterName:   req.appClusterName,
+			Name:          req.appName,
+			AWSRoleARN:    req.awsRoleARN,
+			AzureIdentity: req.azureIdentity,
 		},
 		TeleportCluster: clusterName,
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -1445,6 +1457,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		MFAVerified:        req.mfaVerified,
 		ClientIP:           req.clientIP,
 		AWSRoleARNs:        roleARNs,
+		AzureIdentities:    azureIdentities,
 		ActiveRequests:     req.activeRequests.AccessRequests,
 		DisallowReissue:    req.disallowReissue,
 		Renewable:          req.renewable,

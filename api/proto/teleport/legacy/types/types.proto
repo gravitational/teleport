@@ -689,6 +689,8 @@ message AppSpecV3 {
   Rewrite Rewrite = 5 [(gogoproto.jsontag) = "rewrite,omitempty"];
   // AWS contains additional options for AWS applications.
   AppAWS AWS = 6 [(gogoproto.jsontag) = "aws,omitempty"];
+  // Cloud identifies the cloud instance the app represents.
+  string Cloud = 7 [(gogoproto.jsontag) = "cloud,omitempty"];
 }
 
 // App is a specific application that a server proxies.
@@ -2241,6 +2243,9 @@ message RoleConditions {
   repeated string HostGroups = 21 [(gogoproto.jsontag) = "host_groups,omitempty"];
   // HostSudoers is a list of entries to include in a users sudoer file
   repeated string HostSudoers = 22 [(gogoproto.jsontag) = "host_sudoers,omitempty"];
+
+  // AzureIdentities is a list of Azure identities this role is allowed to assume.
+  repeated string AzureIdentities = 23 [(gogoproto.jsontag) = "azure_identities,omitempty"];
 }
 
 // SessionRequirePolicy a requirement policy that needs to be fulfilled to grant access.

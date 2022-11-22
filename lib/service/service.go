@@ -4479,6 +4479,7 @@ func (process *TeleportProcess) initApps() {
 				InsecureSkipVerify: app.InsecureSkipVerify,
 				Rewrite:            rewrite,
 				AWS:                aws,
+				Cloud:              app.Cloud,
 			})
 			if err != nil {
 				return trace.Wrap(err)

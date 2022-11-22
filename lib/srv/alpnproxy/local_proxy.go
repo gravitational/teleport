@@ -25,7 +25,6 @@ import (
 	"net/http/httputil"
 	"sync"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -34,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // LocalProxy allows upgrading incoming connection to TLS where custom TLS values are set SNI ALPN and
@@ -70,14 +68,14 @@ type LocalProxyConfig struct {
 	SSHTrustedCluster string
 	// Certs are the client certificates used to connect to the remote Teleport Proxy.
 	Certs []tls.Certificate
-	// AWSCredentials are AWS Credentials used by LocalProxy for request's signature verification.
-	AWSCredentials *credentials.Credentials
 	// RootCAs overwrites the root CAs used in tls.Config if specified.
 	RootCAs *x509.CertPool
 	// ALPNConnUpgradeRequired specifies if ALPN connection upgrade is required.
 	ALPNConnUpgradeRequired bool
 	// Middleware provides callback functions to the local proxy.
 	Middleware LocalProxyMiddleware
+	// Middleware provides callback functions to the local proxy running in HTTP mode.
+	HTTPMiddleware LocalProxyHTTPMiddleware
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 	// Log is the Logger.
@@ -92,6 +90,15 @@ type LocalProxyMiddleware interface {
 	OnNewConnection(ctx context.Context, lp *LocalProxy, conn net.Conn) error
 	// OnStart is a callback triggered when the local proxy starts.
 	OnStart(ctx context.Context, lp *LocalProxy) error
+}
+
+// LocalProxyHTTPMiddleware provides callback functions for LocalProxy in HTTP proxy mode.
+type LocalProxyHTTPMiddleware interface {
+	// OnStart is a callback triggered when the local proxy starts.
+	OnStart(ctx context.Context, lp *LocalProxy) error
+
+	// HandleRequest returns true if requests has been handled and must not be processed further, false otherwise.
+	HandleRequest(rw http.ResponseWriter, req *http.Request) bool
 }
 
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
@@ -227,8 +234,16 @@ func (l *LocalProxy) Close() error {
 	return nil
 }
 
-// StartAWSAccessProxy starts the local AWS CLI proxy.
-func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
+// StartHTTPAccessProxy starts the local HTTP access proxy.
+func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
+	if l.cfg.HTTPMiddleware == nil {
+		return trace.BadParameter("Missing HTTPMiddleware in configuration")
+	}
+
+	if err := l.cfg.HTTPMiddleware.OnStart(ctx, l); err != nil {
+		return trace.Wrap(err)
+	}
+
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			NextProtos:         l.cfg.GetProtocols(),
@@ -245,9 +260,7 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 		Transport: tr,
 	}
 	err := http.Serve(l.cfg.Listener, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		if err := aws.VerifyAWSSignature(req, l.cfg.AWSCredentials); err != nil {
-			l.cfg.Log.WithError(err).Error("AWS signature verification failed.")
-			rw.WriteHeader(http.StatusForbidden)
+		if l.cfg.HTTPMiddleware.HandleRequest(rw, req) {
 			return
 		}
 

@@ -560,6 +560,9 @@ type ProfileStatus struct {
 	// AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
 	AWSRolesARNs []string
 
+	// AzureIdentities is a list of allowed Azure identities user can assume.
+	AzureIdentities []string
+
 	// AllowedResourceIDs is a list of resources the user can access. An empty
 	// list means there are no resource-specific restrictions.
 	AllowedResourceIDs []types.ResourceID
@@ -907,6 +910,7 @@ func profileFromKey(key *Key, opts ProfileOptions) (*ProfileStatus, error) {
 		Databases:          databases,
 		Apps:               apps,
 		AWSRolesARNs:       tlsID.AWSRoleARNs,
+		AzureIdentities:    tlsID.AzureIdentities,
 		IsVirtual:          opts.IsVirtual,
 		AllowedResourceIDs: allowedResourceIDs,
 	}, nil

@@ -707,6 +707,43 @@ func onProxyCommandAWS(cf *CLIConf) error {
 	return nil
 }
 
+// onProxyCommandAzure creates local proxes for Azure apps.
+func onProxyCommandAzure(cf *CLIConf) error {
+	azApp, err := pickActiveAzureApp(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = azApp.StartLocalProxies()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer func() {
+		if err := azApp.Close(); err != nil {
+			log.WithError(err).Error("Failed to close Azure app.")
+		}
+	}()
+
+	envVars, err := azApp.GetEnvVars()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	templateData := map[string]interface{}{
+		"envVars":    envVars,
+		"format":     cf.Format,
+		"randomPort": cf.LocalProxyPort == "",
+	}
+
+	if err = azureHTTPSProxyTemplate.Execute(os.Stdout, templateData); err != nil {
+		return trace.Wrap(err)
+	}
+
+	<-cf.Context.Done()
+	return nil
+}
+
 // loadAppCertificate loads the app certificate for the provided app.
 func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certificate, error) {
 	key, err := tc.LocalAgent().GetKey(tc.SiteName, libclient.WithAppCerts{})
@@ -830,6 +867,25 @@ func envVarCommand(format, key, value string) (string, error) {
 var awsTemplateFuncs = template.FuncMap{
 	"envVarCommand": envVarCommand,
 }
+
+var azureTemplateFuncs = template.FuncMap{
+	"envVarCommand": envVarCommand,
+}
+
+// azureHTTPSProxyTemplate is the message that gets printed to a user when an
+// HTTPS proxy is started.
+var azureHTTPSProxyTemplate = template.Must(template.New("").Funcs(azureTemplateFuncs).Parse(
+	`Started Azure proxy on {{.envVars.HTTPS_PROXY}}.
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
+Use the following credentials and HTTPS proxy setting to connect to the proxy:
+
+{{- $fmt := .format }}
+{{ range $key, $value := .envVars}}
+  {{envVarCommand $fmt $key $value}}
+{{- end}}
+
+`))
 
 // awsHTTPSProxyTemplate is the message that gets printed to a user when an
 // HTTPS proxy is started.

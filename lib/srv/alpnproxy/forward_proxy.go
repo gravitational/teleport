@@ -30,7 +30,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
 
+	"github.com/gravitational/teleport/api/types"
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -163,6 +165,13 @@ func MatchAllRequests(req *http.Request) bool {
 // request.
 func MatchAWSRequests(req *http.Request) bool {
 	return awsapiutils.IsAWSEndpoint(req.Host)
+}
+
+// MatchAzureRequests is a MatchFunc that returns true if request is an Azure API
+// request.
+func MatchAzureRequests(req *http.Request) bool {
+	h := req.URL.Hostname()
+	return azure.IsAzureEndpoint(h) || types.TeleportAzureMSIEndpoint == h
 }
 
 // ForwardToHostHandler is a CONNECT request handler that forwards requests to

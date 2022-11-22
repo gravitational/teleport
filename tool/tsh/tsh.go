@@ -334,6 +334,11 @@ type CLIConf struct {
 	// proxy instead of an HTTPS proxy.
 	AWSEndpointURLMode bool
 
+	// AzureIdentity is Azure identity that will be used for Azure CLI access.
+	AzureIdentity string
+	// AzureCommandArgs contains arguments that will be forwarded to Azure CLI binary.
+	AzureCommandArgs []string
+
 	// Reason is the reason for starting an ssh or kube session.
 	Reason string
 
@@ -613,6 +618,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	aws.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").
 		Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 
+	azure := app.Command("az", "Access Azure API.").Interspersed(false)
+	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
+	azure.Flag("app", "Optional name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
+
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
 	lsApps := apps.Command("ls", "List available applications.")
@@ -626,6 +635,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
 	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
+	appLogin.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
 	appLogout := apps.Command("logout", "Remove app certificate.")
 	appLogout.Arg("app", "App to remove credentials for.").StringVar(&cf.AppName)
 	appConfig := apps.Command("config", "Print app connection information.")
@@ -661,11 +671,17 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
 	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
+
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
 	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
 	proxyAWS.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAWS.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").Short('e').BoolVar(&cf.AWSEndpointURLMode)
 	proxyAWS.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
+
+	proxyAzure := proxy.Command("azure", "Start local proxy for Azure access.")
+	proxyAzure.Flag("app", "Optional Name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
+	proxyAzure.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyAzure.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -1042,6 +1058,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onProxyCommandApp(&cf)
 	case proxyAWS.FullCommand():
 		err = onProxyCommandAWS(&cf)
+	case proxyAzure.FullCommand():
+		err = onProxyCommandAzure(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)
@@ -1079,6 +1097,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onConfig(&cf)
 	case aws.FullCommand():
 		err = onAWS(&cf)
+	case azure.FullCommand():
+		err = onAzure(&cf)
 	case daemonStart.FullCommand():
 		err = onDaemonStart(&cf)
 	case f2Diag.FullCommand():

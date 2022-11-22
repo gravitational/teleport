@@ -129,13 +129,18 @@ type Role interface {
 
 	// GetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
 	GetImpersonateConditions(rct RoleConditionType) ImpersonateConditions
-	// SetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
+	// SetImpersonateConditions sets conditions this role is allowed or denied to impersonate.
 	SetImpersonateConditions(rct RoleConditionType, cond ImpersonateConditions)
 
 	// GetAWSRoleARNs returns a list of AWS role ARNs this role is allowed to assume.
 	GetAWSRoleARNs(RoleConditionType) []string
-	// SetAWSRoleARNs returns a list of AWS role ARNs this role is allowed to assume.
+	// SetAWSRoleARNs sets a list of AWS role ARNs this role is allowed to assume.
 	SetAWSRoleARNs(RoleConditionType, []string)
+
+	// GetAzureIdentities returns a list of Azure identities this role is allowed to assume.
+	GetAzureIdentities(RoleConditionType) []string
+	// SetAzureIdentities sets a list of Azure identities this role is allowed to assume.
+	SetAzureIdentities(RoleConditionType, []string)
 
 	// GetWindowsDesktopLabels gets the Windows desktop labels this role
 	// is allowed or denied access to.
@@ -556,7 +561,7 @@ func (r *RoleV5) GetImpersonateConditions(rct RoleConditionType) ImpersonateCond
 	return *cond
 }
 
-// SetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
+// SetImpersonateConditions sets conditions this role is allowed or denied to impersonate.
 func (r *RoleV5) SetImpersonateConditions(rct RoleConditionType, cond ImpersonateConditions) {
 	if rct == Allow {
 		r.Spec.Allow.Impersonate = &cond
@@ -579,6 +584,23 @@ func (r *RoleV5) SetAWSRoleARNs(rct RoleConditionType, arns []string) {
 		r.Spec.Allow.AWSRoleARNs = arns
 	} else {
 		r.Spec.Deny.AWSRoleARNs = arns
+	}
+}
+
+// GetAzureIdentities returns a list of Azure identities this role is allowed to assume.
+func (r *RoleV5) GetAzureIdentities(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.AzureIdentities
+	}
+	return r.Spec.Deny.AzureIdentities
+}
+
+// SetAzureIdentities sets a list of Azure identities this role is allowed to assume.
+func (r *RoleV5) SetAzureIdentities(rct RoleConditionType, identities []string) {
+	if rct == Allow {
+		r.Spec.Allow.AzureIdentities = identities
+	} else {
+		r.Spec.Deny.AzureIdentities = identities
 	}
 }
 

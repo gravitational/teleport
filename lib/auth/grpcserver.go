@@ -1351,10 +1351,11 @@ func (g *GRPCServer) CreateAppSession(ctx context.Context, req *proto.CreateAppS
 	}
 
 	session, err := auth.CreateAppSession(ctx, types.CreateAppSessionRequest{
-		Username:    req.GetUsername(),
-		PublicAddr:  req.GetPublicAddr(),
-		ClusterName: req.GetClusterName(),
-		AWSRoleARN:  req.GetAWSRoleARN(),
+		Username:      req.GetUsername(),
+		PublicAddr:    req.GetPublicAddr(),
+		ClusterName:   req.GetClusterName(),
+		AWSRoleARN:    req.GetAWSRoleARN(),
+		AzureIdentity: req.GetAzureIdentity(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

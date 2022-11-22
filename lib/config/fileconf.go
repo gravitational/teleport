@@ -1627,6 +1627,9 @@ type App struct {
 
 	// AWS contains additional options for AWS applications.
 	AWS *AppAWS `yaml:"aws,omitempty"`
+
+	// Cloud identifies the cloud instance the app represents.
+	Cloud string `yaml:"cloud,omitempty"`
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.

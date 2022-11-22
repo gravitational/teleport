@@ -565,6 +565,10 @@ const (
 	// role ARNs for local accounts.
 	TraitInternalAWSRoleARNs = "{{internal.aws_role_arns}}"
 
+	// TraitInternalAzureIdentities is the variable used to store allowed
+	// Azure identities for local accounts.
+	TraitInternalAzureIdentities = "{{internal.azure_identities}}"
+
 	// TraitInternalJWTVariable is the variable used to store JWT token for
 	// app sessions.
 	TraitInternalJWTVariable = "{{internal.jwt}}"

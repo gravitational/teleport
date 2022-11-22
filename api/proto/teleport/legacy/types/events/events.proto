@@ -75,6 +75,9 @@ message UserMetadata {
   // AWSRoleARN is AWS IAM role user assumes when accessing AWS console.
   string AWSRoleARN = 4 [(gogoproto.jsontag) = "aws_role_arn,omitempty"];
 
+  // AzureIdentity is the Azure identity to assume when accessing Azure API.
+  string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity,omitempty"];
+
   // AccessRequests are the IDs of access requests created by the user
   repeated string AccessRequests = 5 [(gogoproto.jsontag) = "access_requests,omitempty"];
 }
@@ -3211,6 +3214,8 @@ message Identity {
     (gogoproto.jsontag) = "allowed_resource_ids,omitempty",
     (gogoproto.nullable) = false
   ];
+  // AzureIdentities is a list of allowed Azure identities user can assume.
+  repeated string AzureIdentities = 23 [(gogoproto.jsontag) = "azure_identities,omitempty"];
 }
 
 // RouteToApp contains parameters for application access certificate requests.
@@ -3225,6 +3230,8 @@ message RouteToApp {
   string ClusterName = 4 [(gogoproto.jsontag) = "cluster_name"];
   // AWSRoleARN is the AWS role to assume when accessing AWS API.
   string AWSRoleARN = 5 [(gogoproto.jsontag) = "aws_role_arn,omitempty"];
+  // Azureidentity is the Azure identity ot assume when accessing Azure API.
+  string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity,omitempty"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.

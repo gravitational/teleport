@@ -1081,6 +1081,9 @@ type App struct {
 
 	// AWS contains additional options for AWS applications.
 	AWS *AppAWS `yaml:"aws,omitempty"`
+
+	// Cloud identifies the cloud instance the app represents.
+	Cloud string
 }
 
 // CheckAndSetDefaults validates an application.
@@ -1089,7 +1092,11 @@ func (a *App) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing application name")
 	}
 	if a.URI == "" {
-		return trace.BadParameter("missing application %q URI", a.Name)
+		if a.Cloud != "" {
+			a.URI = fmt.Sprintf("cloud://%v", a.Cloud)
+		} else {
+			return trace.BadParameter("missing application %q URI", a.Name)
+		}
 	}
 	// Check if the application name is a valid subdomain. Don't allow names that
 	// are invalid subdomains because for trusted clusters the name is used to

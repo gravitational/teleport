@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// app package runs the application proxy process. It keeps dynamic labels
+// Package app runs the application proxy process. It keeps dynamic labels
 // updated, heart beats its presence, checks access controls, and forwards
 // connections between the tunnel and the target host.
 package app
@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
+	appazure "github.com/gravitational/teleport/lib/srv/app/azure"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -144,7 +145,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("tls config missing")
 	}
 	if len(c.CipherSuites) == 0 {
-		return trace.BadParameter("cipersuites missing")
+		return trace.BadParameter("ciphersuites missing")
 	}
 	if c.Hostname == "" {
 		return trace.BadParameter("hostname missing")
@@ -210,7 +211,8 @@ type Server struct {
 
 	cache *sessionChunkCache
 
-	awsSigner *appaws.SigningService
+	awsSigner    *appaws.SigningService
+	azureHandler *appazure.Forwarder
 
 	// watcher monitors changes to application resources.
 	watcher *services.AppWatcher
@@ -252,8 +254,23 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	closeContext, closeFunc := context.WithCancel(ctx)
+	// in case of errors cancel context to avoid context leak
+	callClose := true
+	defer func() {
+		if callClose {
+			closeFunc()
+		}
+	}()
+
 	awsSigner, err := appaws.NewSigningService(appaws.SigningServiceConfig{})
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	azureHandler, err := appazure.NewForwarder(closeContext, appazure.ForwarderConfig{})
+	if err != nil {
+		closeFunc()
 		return nil, trace.Wrap(err)
 	}
 
@@ -267,13 +284,14 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		apps:          make(map[string]types.Application),
 		connAuth:      make(map[net.Conn]error),
 		awsSigner:     awsSigner,
+		azureHandler:  azureHandler,
 		monitoredApps: monitoredApps{
 			static: c.Apps,
 		},
-		reconcileCh: make(chan struct{}),
+		reconcileCh:  make(chan struct{}),
+		closeFunc:    closeFunc,
+		closeContext: closeContext,
 	}
-
-	s.closeContext, s.closeFunc = context.WithCancel(ctx)
 
 	// Make copy of server's TLS configuration and update it with the specific
 	// functionality this server needs, like requiring client certificates.
@@ -302,6 +320,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	// Figure out the port the proxy is running on.
 	s.proxyPort = s.getProxyPort()
 
+	callClose = false
 	return s, nil
 }
 
@@ -598,7 +617,7 @@ func (s *Server) deleteConnAuth(conn net.Conn) {
 	delete(s.connAuth, conn)
 }
 
-// HandleConnection takes a connection and wraps it in a listener so it can
+// HandleConnection takes a connection and wraps it in a listener, so it can
 // be passed to http.Serve to process as a HTTP request.
 func (s *Server) HandleConnection(conn net.Conn) {
 	// Wrap conn in a CloserConn to detect when it is closed.
@@ -792,6 +811,9 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		// is not signed by SigV4.
 		return s.serveAWSWebConsole(w, r, &identity, app)
 
+	case app.IsAzureCloud():
+		return s.serveSession(w, r, &identity, app, s.withAzureForwarder)
+
 	default:
 		return s.serveSession(w, r, &identity, app, s.withJWTTokenForwarder)
 	}
@@ -890,6 +912,14 @@ func (s *Server) authorizeContext(ctx context.Context) (*auth.Context, types.App
 	if app.IsAWSConsole() {
 		matchers = append(matchers, &services.AWSRoleARNMatcher{
 			RoleARN: identity.RouteToApp.AWSRoleARN,
+		})
+	}
+
+	// When accessing Azure API, check permissions to assume
+	// requested Azure identity as well.
+	if app.IsAzureCloud() {
+		matchers = append(matchers, &services.AzureIdentityMatcher{
+			Identity: identity.RouteToApp.AzureIdentity,
 		})
 	}
 

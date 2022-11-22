@@ -308,6 +308,10 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		outRoleARNs := applyValueTraitsSlice(inRoleARNs, traits, "AWS role ARN")
 		r.SetAWSRoleARNs(condition, apiutils.Deduplicate(outRoleARNs))
 
+		inAzureIdentities := r.GetAzureIdentities(condition)
+		outAzureIdentities := applyValueTraitsSlice(inAzureIdentities, traits, "Azure identity")
+		r.SetAzureIdentities(condition, apiutils.Deduplicate(outAzureIdentities))
+
 		// apply templates to kubernetes groups
 		inKubeGroups := r.GetKubeGroups(condition)
 		outKubeGroups := applyValueTraitsSlice(inKubeGroups, traits, "kube group")
@@ -471,7 +475,8 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 		case constants.TraitLogins, constants.TraitWindowsLogins,
 			constants.TraitKubeGroups, constants.TraitKubeUsers,
 			constants.TraitDBNames, constants.TraitDBUsers,
-			constants.TraitAWSRoleARNs, teleport.TraitJWT:
+			constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
+			teleport.TraitJWT:
 		default:
 			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
 		}
@@ -993,6 +998,16 @@ func MatchAWSRoleARN(selectors []string, roleARN string) (bool, string) {
 	return false, fmt.Sprintf("no match, role selectors %v, role ARN: %v", selectors, roleARN)
 }
 
+// MatchAzureIdentity returns true if provided Azure identity matches selectors.
+func MatchAzureIdentity(selectors []string, identity string) (bool, string) {
+	for _, l := range selectors {
+		if l == identity {
+			return true, "matched"
+		}
+	}
+	return false, fmt.Sprintf("no match, role selectors %v, identity: %v", selectors, identity)
+}
+
 // MatchDatabaseName returns true if provided database name matches selectors.
 func MatchDatabaseName(selectors []string, name string) (bool, string) {
 	for _, n := range selectors {
@@ -1368,6 +1383,33 @@ func (set RoleSet) CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]stri
 	return utils.StringsSliceFromSet(arns), nil
 }
 
+// CheckAzureIdentities returns a list of Azure identities the user is allowed to assume.
+func (set RoleSet) CheckAzureIdentities(ttl time.Duration, overrideTTL bool) ([]string, error) {
+	identities := make(map[string]struct{})
+	var matchedTTL bool
+	for _, role := range set {
+		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
+		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
+			matchedTTL = true
+			for _, identity := range role.GetAzureIdentities(types.Allow) {
+				identities[identity] = struct{}{}
+			}
+		}
+	}
+	for _, role := range set {
+		for _, identity := range role.GetAzureIdentities(types.Deny) {
+			delete(identities, identity)
+		}
+	}
+	if !matchedTTL {
+		return nil, trace.AccessDenied("this user cannot access Azure API for %v", ttl)
+	}
+	if len(identities) == 0 {
+		return nil, trace.NotFound("this user cannot access Azure API, has no assigned identities")
+	}
+	return utils.StringsSliceFromSet(identities), nil
+}
+
 // CheckLoginDuration checks if role set can login up to given duration and
 // returns a combined list of allowed logins.
 func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
@@ -1507,6 +1549,22 @@ func (m *AWSRoleARNMatcher) Match(role types.Role, condition types.RoleCondition
 // String returns the matcher's string representation.
 func (m *AWSRoleARNMatcher) String() string {
 	return fmt.Sprintf("AWSRoleARNMatcher(RoleARN=%v)", m.RoleARN)
+}
+
+// AzureIdentityMatcher matches a role against Azure identity.
+type AzureIdentityMatcher struct {
+	Identity string
+}
+
+// Match matches database account name against provided role and condition.
+func (m *AzureIdentityMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	match, _ := MatchAzureIdentity(role.GetAzureIdentities(condition), m.Identity)
+	return match, nil
+}
+
+// String returns the matcher's string representation.
+func (m *AzureIdentityMatcher) String() string {
+	return fmt.Sprintf("AzureIdentityMatcher(Identity=%v)", m.Identity)
 }
 
 // CanImpersonateSomeone returns true if this checker has any impersonation rules
