@@ -174,8 +174,12 @@ func (c *Client) SendRequest(ctx context.Context, name string, wantReply bool, p
 	// Callers to SendRequest are expecting to receive the reason the request
 	// was rejected, so we need to propagate the rejectedError here.
 	if c.rejectedError != nil {
+		err := c.rejectedError
 		c.mu.RUnlock()
-		return false, nil, trace.Wrap(c.rejectedError)
+
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+		return false, nil, trace.Wrap(err)
 	}
 
 	capability := c.capability
@@ -258,6 +262,9 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 		c.rejectedError = nil
 		c.capability = tracingUnknown
 		c.mu.Unlock()
+
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -269,6 +276,9 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 		capability, err := isTracingSupported(c.Client)
 		if err != nil {
 			c.mu.Unlock()
+
+			span.SetStatus(codes.Error, err.Error())
+			span.RecordError(err)
 			return nil, trace.Wrap(err)
 		}
 		c.capability = capability
