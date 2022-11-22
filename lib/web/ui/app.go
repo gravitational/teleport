@@ -69,7 +69,7 @@ func MakeApps(c MakeAppsConfig) []App {
 		fqdn := AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, teleApp)
 		labels := []Label{}
 		for name, value := range teleApp.GetAllLabels() {
-			if strings.HasPrefix(name, "teleport.internal") {
+			if strings.HasPrefix(name, "teleport.internal/") {
 				continue
 			}
 

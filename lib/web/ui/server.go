@@ -75,7 +75,7 @@ func MakeServers(clusterName string, servers []types.Server, userRoles services.
 		uiLabels := []Label{}
 		serverLabels := server.GetStaticLabels()
 		for name, value := range serverLabels {
-			if strings.HasPrefix(name, "teleport.internal") {
+			if strings.HasPrefix(name, "teleport.internal/") {
 				continue
 			}
 
@@ -132,7 +132,7 @@ func MakeKubeClusters(clusters []types.KubeCluster, userRoles services.RoleSet) 
 		uiLabels := make([]Label, 0, len(staticLabels)+len(dynamicLabels))
 
 		for name, value := range staticLabels {
-			if strings.HasPrefix(name, "teleport.internal") {
+			if strings.HasPrefix(name, "teleport.internal/") {
 				continue
 			}
 
@@ -143,7 +143,7 @@ func MakeKubeClusters(clusters []types.KubeCluster, userRoles services.RoleSet) 
 		}
 
 		for name, cmd := range dynamicLabels {
-			if strings.HasPrefix(name, "teleport.internal") {
+			if strings.HasPrefix(name, "teleport.internal/") {
 				continue
 			}
 
@@ -254,7 +254,7 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 	uiLabels := []Label{}
 
 	for name, value := range database.GetAllLabels() {
-		if strings.HasPrefix(name, "teleport.internal") {
+		if strings.HasPrefix(name, "teleport.internal/") {
 			continue
 		}
 
@@ -315,7 +315,7 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
 	uiLabels := []Label{}
 
 	for name, value := range windowsDesktop.GetAllLabels() {
-		if strings.HasPrefix(name, "teleport.internal") {
+		if strings.HasPrefix(name, "teleport.internal/") {
 			continue
 		}
 
@@ -364,7 +364,7 @@ func MakeDesktopService(desktopService types.WindowsDesktopService) DesktopServi
 	uiLabels := []Label{}
 
 	for name, value := range desktopService.GetAllLabels() {
-		if strings.HasPrefix(name, "teleport.internal") {
+		if strings.HasPrefix(name, "teleport.internal/") {
 			continue
 		}
 
