@@ -119,6 +119,9 @@ func NewForwarder(ctx context.Context, config ForwarderConfig) (*Forwarder, erro
 		Clock:   config.Clock,
 		Context: ctx,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	svc := &Forwarder{
 		ForwarderConfig: config,
