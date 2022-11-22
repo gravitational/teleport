@@ -389,3 +389,35 @@ func TestCassandraAWSEndpoint(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+func TestDatabaseSelfHosted(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		inputURI string
+	}{
+		{
+			name:     "localhost",
+			inputURI: "localhost:5432",
+		},
+		{
+			name:     "ec2 hostname",
+			inputURI: "ec2-11-22-33-44.us-east-2.compute.amazonaws.com:5432",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			database, err := NewDatabaseV3(Metadata{
+				Name: "self-hosted-localhost",
+			}, DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      test.inputURI,
+			})
+			require.NoError(t, err)
+			require.Equal(t, DatabaseTypeSelfHosted, database.GetType())
+			require.False(t, database.IsCloudHosted())
+		})
+	}
+}
