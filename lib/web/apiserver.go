@@ -291,9 +291,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	}
 	h.sshPort = sshPort
 
-	// challengeLimiter is used to limit unauthenticated challenge generation for
-	// passwordless.
-	challengeLimiter, err := limiter.NewRateLimiter(limiter.Config{
+	// rateLimiter is used to limit unauthenticated challenge generation for
+	// passwordless and for unauthenticated metrics.
+	rateLimiter, err := limiter.NewRateLimiter(limiter.Config{
 		Rates: []limiter.Rate{
 			{
 				Period:  defaults.LimiterPasswordlessPeriod,
@@ -311,7 +311,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	if cfg.MinimalReverseTunnelRoutesOnly {
 		h.bindMinimalEndpoints()
 	} else {
-		h.bindDefaultEndpoints(challengeLimiter)
+		h.bindDefaultEndpoints(rateLimiter)
 	}
 
 	// if Web UI is enabled, check the assets dir:
@@ -629,7 +629,9 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	// Connection upgrades.
 	h.GET("/webapi/connectionupgrade", httplib.MakeHandler(h.connectionUpgrade))
 
-	// Capture/create user events.
+	// create user events.
+	h.POST("/webapi/precapture", h.withLimiter(challengeLimiter, h.createPreUserEventHandle))
+	// create authenticated user events.
 	h.POST("/webapi/capture", h.WithAuth(h.createUserEventHandle))
 }
 
