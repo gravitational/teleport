@@ -2270,7 +2270,7 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 	}
 
 	// Generate the cert
-	respCert, err := userSingleUseCertsGenerate(ctx, actx, *initReq, mfaDev, actx.Identity.GetIdentity().Expires)
+	respCert, err := userSingleUseCertsGenerate(ctx, actx, *initReq, mfaDev)
 	if err != nil {
 		g.Entry.Warningf("Failed to generate single-use cert: %v", err)
 		return trace.Wrap(err)
@@ -2356,7 +2356,7 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 	return mfaDev, nil
 }
 
-func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req proto.UserCertsRequest, mfaDev *types.MFADevice, previousIdentityExpires time.Time) (*proto.SingleUseUserCert, error) {
+func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req proto.UserCertsRequest, mfaDev *types.MFADevice) (*proto.SingleUseUserCert, error) {
 	// Get the client IP.
 	clientPeer, ok := peer.FromContext(ctx)
 	if !ok {
@@ -2368,6 +2368,7 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 	}
 
 	// Generate the cert.
+	previousIdentityExpires := actx.Identity.GetIdentity().Expires
 	certs, err := actx.generateUserCerts(ctx, req, certRequestMFAVerified(mfaDev.Id), certRequestPreviousIdentityExpires(previousIdentityExpires), certRequestClientIP(clientIP))
 	if err != nil {
 		return nil, trace.Wrap(err)
