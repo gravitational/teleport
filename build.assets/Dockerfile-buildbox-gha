@@ -33,6 +33,11 @@ RUN echo "aarch64-redhat-linux-gnu" > /etc/rpm/platform
 FROM platform-setup-$TARGETARCH AS minimal-buildbox
 ARG GOLANG_VERSION
 ARG RUST_VERSION
+ARG UID
+ARG GID
+
+RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
+     mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
 ENV LANGUAGE=en_US.UTF-8 \
     LANG=en_US.UTF-8 \
@@ -64,6 +69,7 @@ ENV GOPATH="/go" \
     PATH="$PATH:/opt/go/bin:/go/bin"
 
 # Install Rust.
+
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH \
@@ -71,6 +77,10 @@ ENV RUSTUP_HOME=/usr/local/rustup \
 
 RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
     mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+
+RUN chmod a-w /
+
+USER ci
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
     rustup --version && \
