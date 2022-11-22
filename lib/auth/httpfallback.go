@@ -18,9 +18,11 @@ package auth
 
 import (
 	"context"
+
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	"github.com/gravitational/trace"
 )
 
 // httpfallback.go holds endpoints that have been converted to gRPC

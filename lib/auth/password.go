@@ -17,7 +17,6 @@ package auth
 import (
 	"context"
 	"crypto/subtle"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"net/mail"
 
 	"github.com/gravitational/trace"
@@ -31,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
