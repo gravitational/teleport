@@ -521,10 +521,13 @@ func (s *Server) HandleConnection(conn net.Conn) {
 						if err := req.Reply(false, []byte(err.Error())); err != nil {
 							s.log.WithError(err).Warnf("failed to reply to request %s", req.Type)
 						}
+						wait = false
 					}
 				case firstChan := <-chans:
 					if firstChan != nil {
-						firstChan.Reject(ssh.Prohibited, err.Error())
+						if err := firstChan.Reject(ssh.Prohibited, err.Error()); err != nil {
+							s.log.WithError(err).Warnf("failed to reject channel %s", firstChan.ChannelType())
+						}
 					}
 					wait = false
 				case <-s.closeContext.Done():
