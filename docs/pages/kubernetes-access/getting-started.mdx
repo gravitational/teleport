@@ -63,7 +63,7 @@ $ helm repo add teleport https://charts.releases.teleport.dev
 $ helm repo update
 
 # Install Kubernetes agent. It dials back to the Teleport cluster at $PROXY_ADDR
-$ CLUSTER='cookie'
+$ CLUSTER=cookie
 $ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
   --set proxyAddr=${PROXY_ADDR?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
 ```
@@ -81,7 +81,7 @@ $ helm repo add teleport https://charts.releases.teleport.dev
 $ helm repo update
 
 # Install Kubernetes agent. It dials back to the Teleport cluster at $PROXY_ADDR
-$ CLUSTER='cookie'
+$ CLUSTER=cookie
 # Run the helm install specifying to match to the Teleport Cloud version of Teleport
 $ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
   --set proxyAddr=${PROXY_ADDR?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent \
@@ -92,8 +92,6 @@ $ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName
 </Tabs>
 
 ## Step 3/3 Access your Kubernetes cluster
-
-### Grant access to your Teleport user
 
 (!docs/pages/includes/kubernetes-access/rbac.mdx!)
 

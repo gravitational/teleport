@@ -53,35 +53,16 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindAppServer)
+	res, err := handleClusterAppsGet(clt, r, ui.MakeAppsConfig{
+		LocalClusterName:  h.auth.clusterName,
+		LocalProxyDNSName: h.proxyDNSName(),
+		AppClusterName:    appClusterName,
+		Identity:          identity,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	appServers, err := types.ResourcesWithLabels(resp.Resources).AsAppServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var apps types.Apps
-	for _, server := range appServers {
-		// Skip over TCP apps since they cannot be accessed through web UI.
-		if !server.GetApp().IsTCP() {
-			apps = append(apps, server.GetApp())
-		}
-	}
-
-	return listResourcesGetResponse{
-		Items: ui.MakeApps(ui.MakeAppsConfig{
-			LocalClusterName:  h.auth.clusterName,
-			LocalProxyDNSName: h.proxyDNSName(),
-			AppClusterName:    appClusterName,
-			Identity:          identity,
-			Apps:              apps,
-		}),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
-	}, nil
+	return res, nil
 }
 
 type GetAppFQDNRequest resolveAppParams
@@ -246,6 +227,23 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 // cache or a timeout occurs.
 func (h *Handler) waitForAppSession(ctx context.Context, sessionID, user string) error {
 	return auth.WaitForAppSession(ctx, sessionID, user, h.cfg.AccessPoint)
+}
+
+// extractAppsWithoutTCPEndpoint iterates over a list of app servers and extracts
+// its application without its URI prefixed with "tcp". It also keeps a
+// counter of how many TCP applications were excluded from the list (e.g. used to
+// subtract it from the TotalCount received from ListResources api).
+func extractAppsWithoutTCPEndpoint(appServers []types.AppServer) (apps types.Apps, numExcluded int) {
+	for _, server := range appServers {
+		// Skip over TCP apps since they cannot be accessed through web UI.
+		if !server.GetApp().IsTCP() {
+			apps = append(apps, server.GetApp())
+		} else {
+			numExcluded++
+		}
+	}
+
+	return apps, numExcluded
 }
 
 type resolveAppParams struct {

@@ -224,9 +224,9 @@ func TestUpdateWithExec(t *testing.T) {
 		TeleportClusterName: clusterName,
 		ClusterAddr:         clusterAddr,
 		Credentials:         creds,
+		KubeClusters:        []string{kubeCluster},
 		Exec: &ExecValues{
 			TshBinaryPath: tshPath,
-			KubeClusters:  []string{kubeCluster},
 			Env: map[string]string{
 				homeEnvVar: home,
 			},
@@ -248,7 +248,8 @@ func TestUpdateWithExec(t *testing.T) {
 		Exec: &clientcmdapi.ExecConfig{
 			APIVersion: "client.authentication.k8s.io/v1beta1",
 			Command:    tshPath,
-			Args: []string{"kube", "credentials",
+			Args: []string{
+				"kube", "credentials",
 				fmt.Sprintf("--kube-cluster=%s", kubeCluster),
 				fmt.Sprintf("--teleport-cluster=%s", clusterName),
 			},
@@ -267,6 +268,7 @@ func TestUpdateWithExec(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, wantConfig, config)
 }
+
 func TestUpdateWithExecAndProxy(t *testing.T) {
 	const (
 		clusterName = "teleport-cluster"
@@ -285,9 +287,9 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 		ClusterAddr:         clusterAddr,
 		Credentials:         creds,
 		ProxyAddr:           proxy,
+		KubeClusters:        []string{kubeCluster},
 		Exec: &ExecValues{
 			TshBinaryPath: tshPath,
-			KubeClusters:  []string{kubeCluster},
 			Env: map[string]string{
 				homeEnvVar: home,
 			},
@@ -309,7 +311,8 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 		Exec: &clientcmdapi.ExecConfig{
 			APIVersion: "client.authentication.k8s.io/v1beta1",
 			Command:    tshPath,
-			Args: []string{"kube", "credentials",
+			Args: []string{
+				"kube", "credentials",
 				fmt.Sprintf("--kube-cluster=%s", kubeCluster),
 				fmt.Sprintf("--teleport-cluster=%s", clusterName),
 				fmt.Sprintf("--proxy=%s", proxy),

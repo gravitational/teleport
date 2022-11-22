@@ -1034,11 +1034,10 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 		return v, nil
 	}
 
-	clusterNames := kubeClustersToStrings(kubeStatus.kubeClusters)
+	v.KubeClusters = kubeClustersToStrings(kubeStatus.kubeClusters)
 	v.Exec = &kubeconfig.ExecValues{
 		TshBinaryPath:     cf.executablePath,
 		TshBinaryInsecure: cf.InsecureSkipVerify,
-		KubeClusters:      clusterNames,
 		Env:               make(map[string]string),
 	}
 
@@ -1048,10 +1047,10 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 
 	// Only switch the current context if kube-cluster is explicitly set on the command line.
 	if cf.KubernetesCluster != "" {
-		if !apiutils.SliceContainsStr(clusterNames, cf.KubernetesCluster) {
+		if !apiutils.SliceContainsStr(v.KubeClusters, cf.KubernetesCluster) {
 			return nil, trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'.", cf.KubernetesCluster)
 		}
-		v.Exec.SelectCluster = cf.KubernetesCluster
+		v.SelectCluster = cf.KubernetesCluster
 	}
 	return v, nil
 }
@@ -1079,7 +1078,11 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 		return trace.Wrap(err)
 	}
 
-	if path == "" {
+	// cf.kubeConfigPath is used in tests to allow Teleport to run tsh login commands
+	// in parallel. If defined, it should take precedence over kubeconfig.PathFromEnv().
+	if path == "" && cf.kubeConfigPath != "" {
+		path = cf.kubeConfigPath
+	} else if path == "" {
 		path = kubeconfig.PathFromEnv()
 	}
 
@@ -1093,7 +1096,7 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 		if !strings.Contains(path, cf.KubernetesCluster) {
 			return trace.BadParameter("profile specific kubeconfig is in use, run 'eval $(tsh env --unset)' to switch contexts to another kube cluster")
 		}
-		values.Exec.KubeClusters = []string{cf.KubernetesCluster}
+		values.KubeClusters = []string{cf.KubernetesCluster}
 	}
 
 	return trace.Wrap(kubeconfig.Update(path, *values, tc.LoadAllCAs))

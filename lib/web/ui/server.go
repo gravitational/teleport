@@ -216,6 +216,46 @@ func ConnectionDiagnosticTraceUIFromTypes(traces []*types.ConnectionDiagnosticTr
 	return ret
 }
 
+func MakeLegacyKubeClusters(servers []types.Server) []KubeCluster {
+	seenClusters := map[string]struct{}{}
+	uiKubeClusters := make([]KubeCluster, 0)
+
+	// Get unique kube clusters
+	for _, server := range servers {
+		for _, cluster := range server.GetKubernetesClusters() {
+			if _, seen := seenClusters[cluster.Name]; seen {
+				continue
+			}
+
+			seenClusters[cluster.Name] = struct{}{}
+			uiLabels := []Label{}
+
+			for name, value := range cluster.StaticLabels {
+				uiLabels = append(uiLabels, Label{
+					Name:  name,
+					Value: value,
+				})
+			}
+
+			for name, cmd := range cluster.DynamicLabels {
+				uiLabels = append(uiLabels, Label{
+					Name:  name,
+					Value: cmd.GetResult(),
+				})
+			}
+
+			sort.Sort(sortedLabels(uiLabels))
+
+			uiKubeClusters = append(uiKubeClusters, KubeCluster{
+				Name:   cluster.Name,
+				Labels: uiLabels,
+			})
+		}
+	}
+
+	return uiKubeClusters
+}
+
 // Database describes a database server.
 type Database struct {
 	// Name is the name of the database.

@@ -269,6 +269,8 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		apps = config.Apps
 	}
 
+	discard := events.NewDiscardEmitter()
+
 	s.appServer, err = New(s.closeContext, &Config{
 		Clock:            s.clock,
 		DataDir:          s.dataDir,
@@ -285,6 +287,8 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		Cloud:            &testCloud{},
 		ResourceMatchers: config.ResourceMatchers,
 		OnReconcile:      config.OnReconcile,
+		LockWatcher:      lockWatcher,
+		Emitter:          discard,
 	})
 	require.NoError(t, err)
 
