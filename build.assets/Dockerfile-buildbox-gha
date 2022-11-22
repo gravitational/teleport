@@ -73,7 +73,7 @@ RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
     mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
 
 # disable `lib2git` use in `cargo` as this seems to be running ridiculously slow.
-RUN echo "\n[net]\ngit-fetch-with-cli = true\n" >> $CARGO_HOME/config.toml
+RUN echo $'\n[net]\ngit-fetch-with-cli = true\n' >> $CARGO_HOME/config.toml
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
     rustup --version && \
