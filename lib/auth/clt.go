@@ -477,7 +477,7 @@ func (c *Client) DeactivateCertAuthority(id types.CertAuthID) error {
 }
 
 // UpdateUserCARoleMap not implemented: can only be called locally.
-func (c *Client) UpdateUserCARoleMap(ctx context.Context, existingCluster, trustedCluster types.TrustedCluster) error {
+func (c *Client) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, activated bool) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
