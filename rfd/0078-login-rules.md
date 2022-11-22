@@ -51,8 +51,12 @@ metadata:
   name: example
 spec:
   # priority can be used to order the evaluation of multiple login rules within
-  # a cluster. Lower priorities will be evaluated first. Login rules with the
-  # same priority will be ordered by a lexicographical sort by their names.
+  # a cluster.
+  #
+  # Login rules with lower numbered priorities will be applied first, followed
+  # by rules with priorities in increasing order. In case of a tie, login rules
+  # with the same priority will be ordered by a lexicographical sort of their
+  # names.
   priority: 0
 
   # traits is a single predicate expression which must return a dict which will
@@ -67,7 +71,8 @@ spec:
         set(
           "ubuntu",
           ifelse(external.username.contains("nic@goteleport.com"), "root", ""),
-          ifelse(external.organization.contains("teleport"), "teleporters", "external"))))
+          ifelse(external.organization.contains("teleport"), "teleporters", "external"),
+        ).remove("")))
 
   # eventually login_rules could also return the desired teleport roles for the
   # user to allow custom logic, but this will be out of scope for the initial
@@ -94,7 +99,6 @@ which may be better names (such as `if` or `select`) must unfortunately be avoid
 Duplicates are not possible and will be filtered out on creation of the set if
 they are passed in.
 All items must be strings.
-As a special case, the empty string will not be included in the set.
 
 #### `set.contains(value)`
 
@@ -102,15 +106,16 @@ As a special case, the empty string will not be included in the set.
 for `value`, else it returns `false`.
 `set("a", "b").contains("b")` returns `true`.
 
-#### `set.add(value)`
+#### `set.add(...values)`
 
-`set.add(value)` returns a copy of the set with `value` added.
-`set("a", "b").add("c")` returns `("a", "b", "c")`.
+`set.add(...values)` returns a copy of the set with `values` added.
+All values must be strings.
+`set("a", "b").add("c").add("d", "e")` returns `("a", "b", "c", "d", "e")`.
 
-#### `set.remove(value)`
+#### `set.remove(...values)`
 
-`set.remove(value)` returns a copy of the set with `value` removed.
-`set("a", "b", "c").remove("c")` returns `("a", "b")`.
+`set.remove(...values)` returns a copy of the set with `values` removed.
+`set("a", "b", "c", "d").remove("d").remove("c", "b")` returns `("a")`.
 
 #### `dict(...pairs)`
 
@@ -132,20 +137,21 @@ returns
 }
 ```
 
-Arguments must be pairs, the first element will be the key,
-and the second element will be the value.
+Arguments must be pairs, the first element will be the key, and the second
+element will be the value.
+The key must be a string and the value must be a set (of strings).
 
 #### `dict.add_values(key, ...values)`
 
-`dict.add_values(key, ...values)` returns a copy of the dict with the given values
-added to the set at `dict[key]`.
+`dict.add_values(key, ...values)` returns a copy of the dict with the given
+values added to the set at `dict[key]`.
 If `dict[key]` is empty or it does not exist, it will be added with `values` as
 its only elements.
 
 ```
 dict(
   pair("fruits", set("apple")),
-).add_values("fruits", "banana").add("vegetables", "asparagus", "brocolli")
+).add_values("fruits", "banana").add_values("vegetables", "asparagus", "brocolli")
 ```
 
 returns
@@ -157,16 +163,16 @@ returns
 }
 ```
 
-#### `dict.remove_keys(...keys)`
+#### `dict.remove(...keys)`
 
-`dict.remove_keys(...keys)` returns a copy of the dict with the given keys
+`dict.remove(...keys)` returns a copy of the dict with the given keys
 removed.
 
 ```
 dict(
   pair("fruits", set("apple", "banana")),
   pair("vegetables", set("asparagus", "brocolli")),
-).remove_keys("vegetables")
+).remove("vegetables")
 ```
 
 returns
@@ -177,16 +183,18 @@ returns
 }
 ```
 
-#### `dict.overwrite(key, values)`
+#### `dict.put(key, value)`
 
-`dict.overwrite(key, values)` returns a copy of the dict with the given `key` set
-to `values`.
+`dict.put(key, value)` returns a copy of the dict with the given `key` set
+to `value`.
+Dictionary keys are always strings and the value must always be a set, else an
+error will be returned when the expression is evaluated.
 
 ```
 dict(
   pair("fruits", set("apple", "banana")),
   pair("vegetables", set("asparagus", "brocolli")),
-).overwrite("vegetables", set("carrot")).overwrite("trees", set("aspen"))
+).put("vegetables", set("carrot")).put("trees", set("aspen"))
 ```
 
 returns
@@ -207,6 +215,10 @@ evaluates to `true`, else it returns `value_if_false`.
 returns
 `("b", "c")`.
 
+Note: this would ideally be called just `if` but `ast.ParseExpr` used by our
+parser does not accept Go keywords which are normally part of statements rather
+than expressions.
+
 #### `choose(...options)`
 
 `choose(...options)` returns the value of the first `option` for which the
@@ -223,10 +235,19 @@ Use an option with the condition hardcoded to `true` to set a default value.
 `choose(option(set("a").contains("b"), "foo"), option(true, "default"))`
 returns `"default"`.
 
-#### `strings.replace(input, match, replacement)`
+The same could always be accomplished with a series of `ifelse` expressions, but
+with the function syntax this would require deep nesting when there are many
+options.
 
-Finds all matches of `match` in `input`, and replaces them with `replacement`.
-`strings.replace("user-nic", "-", "_")` returns `"user_nic"`.
+Note: this would ideally be called `select(...case)` but `ast.ParseExpr` used by
+our parser does not accept Go keywords which are normally part of statements
+rather than expressions.
+
+#### `strings.replaceall(input, match, replacement)`
+
+Finds all literal string matches of `match` in `input`, and replaces them with
+`replacement`.
+`strings.replaceall("user-nic", "-", "_")` returns `"user_nic"`.
 `input` can be a string or a set of strings, in which case the replacement will
 be applied to all strings in the set.
 
@@ -247,7 +268,7 @@ set will be converted to lowercase.
 ### Modifications to predicate
 
 The predicate language currently does not support "methods" on objects such as
-`dict.remove_keys` or `set.contains` as described above.
+`dict.remove` or `set.contains` as described above.
 We will need to add support for these in our
 [gravitational/predicate](https://github.com/gravitational/predicate)
 fork.
@@ -446,13 +467,17 @@ spec:
 
 ### Future Work
 
-The existing `claims_to_roles` and `attributes_to_roles` offer only a simple
-static mapping.
-This could also be factored out of the SAML and OIDC connecter specifications
-into the login rule in order to leverage the predicate language to create more
-powerful expressions to determine which roles a user should receive.
+The existing `claims_to_roles` and `attributes_to_roles` in our SAML and OIDC
+connectors offer only a simple static mapping of traits to roles.
+This could also be factored out of the connecter specifications into the login
+rule in order to leverage the predicate language to create more powerful
+expressions to determine which roles a user should receive.
 This will give us a complete system for solving the problem of incomplete data
-coming from identity providers
+coming from identity providers.
+
+This could use a new field in the currenlty proposed login rule yaml spec.
+We would need to figure out how to merge roles coming from multiple login rules
+and from SAML and OIDC connectors before adding this.
 
 ## Extra Examples
 
@@ -466,11 +491,12 @@ metadata:
 spec:
   priority: 0
   traits: >
-    external.overwrite("allow-env",
+    external.put("allow-env",
       choose(
         option(external.group.contains("dev"), set("dev", "staging")),
         option(external.group.contains("qa"), set("qa", "staging")),
-        option(external.group.contains("admin"), set("dev", "qa", "staging", "prod")))
+        option(external.group.contains("admin"), set("dev", "qa", "staging", "prod")),
+        option(true, set()))
 ```
 
 ### Use only specific traits provided by the OIDC/SAML provider
@@ -502,10 +528,10 @@ metadata:
 spec:
   priority: 0
   traits: >
-    external.remove_keys("big-trait")
+    external.remove("big-trait")
 ```
 
-### Extend a specific trait with an extra value
+### Extend a specific trait extra values
 
 ```yaml
 kind: login_rule
@@ -515,7 +541,7 @@ metadata:
 spec:
   priority: 0
   traits: >
-    external.add_values("logins", "ec2-user")
+    external.add_values("logins", "ubuntu", "ec2-user")
 ```
 
 ### Use the output of 1 login rule in another rule
@@ -528,10 +554,10 @@ metadata:
 spec:
   priority: 0
   traits: >
-    external.add_values("groups",
+    external.put("groups",
       ifelse(external.groups.contains("admins"),
-        "superusers",
-        ""))
+        external["groups"].add("superusers"),
+        external["groups"]))
 ---
 kind: login_rule
 version: v1
@@ -540,8 +566,8 @@ metadata:
 spec:
   priority: 1
   traits: >
-    external.add_values("logins",
+    external.put("logins",
       ifelse(external.groups.contains("superusers"),
-        "root",
-        ""))
+        external["logins"].add("root"),
+        external["logins"]))
 ```
