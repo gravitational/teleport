@@ -539,7 +539,8 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	case awsutils.IsRedshiftServerlessEndpoint(d.Spec.URI):
 		details, err := awsutils.ParseRedshiftServerlessEndpoint(d.Spec.URI)
 		if err != nil {
-			return trace.Wrap(err)
+			logrus.WithError(err).Warnf("Failed to parse Redshift Serverless endpoint %v.", d.Spec.URI)
+			break
 		}
 		if d.Spec.AWS.RedshiftServerless.WorkgroupName == "" {
 			d.Spec.AWS.RedshiftServerless.WorkgroupName = details.WorkgroupName
@@ -552,9 +553,6 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 		if d.Spec.AWS.Region == "" {
 			d.Spec.AWS.Region = details.Region
-		}
-		if d.Spec.AWS.RedshiftServerless.EndpointName != "" && d.Spec.AWS.RedshiftServerless.WorkgroupName == "" {
-			return trace.BadParameter("missing workgroup name for endpoint %v", d.Spec.AWS.RedshiftServerless.EndpointName)
 		}
 	case awsutils.IsElastiCacheEndpoint(d.Spec.URI):
 		endpointInfo, err := awsutils.ParseElastiCacheEndpoint(d.Spec.URI)
