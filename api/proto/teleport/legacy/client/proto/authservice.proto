@@ -341,7 +341,7 @@ message ChangePasswordRequest {
   bytes OldPassword = 2 [(gogoproto.jsontag) = "old_password"];
   bytes NewPassword = 3 [(gogoproto.jsontag) = "new_password"];
   string SecondFactorToken = 4 [(gogoproto.jsontag) = "second_factor_token"];
-  webauthn.CredentialAssertionResponse Webauthn = 5 [(gogoproto.jsontag) = "webauthn_response"];
+  webauthn.CredentialAssertionResponse Webauthn = 5 [(gogoproto.jsontag) = "webauthn"];
 }
 
 // AccessRequests is a collection of AccessRequest values.
