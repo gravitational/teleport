@@ -3,11 +3,14 @@ title: Kubernetes Access from a Standalone Teleport Cluster
 description: Connecting standalone Teleport installations to Kubernetes clusters.
 ---
 
-Teleport can connect to a Kubernetes cluster without using the Teleport Helm
-chart or running a pod inside of the Kubernetes cluster. To do this, you can run
-the Teleport Kubernetes Service on a Linux host. The Teleport Kubernetes Service
-uses a `kubeconfig` file to authenticate to the API server of your chosen
-Kubernetes cluster.
+While you can register a Kubernetes cluster with Teleport by running the
+Teleport Kubernetes Service [on that cluster](../getting-started.mdx), you can
+also run the Teleport Kubernetes Service on a Linux host outside the cluster.
+This is useful if you want to decouple your Teleport deployment from the
+Kubernetes clusters you want to manage access to.
+
+In this setup, the Teleport Kubernetes Service uses a `kubeconfig` file to
+authenticate to the API server of your chosen Kubernetes cluster.
 
 (!docs/pages/includes/permission-warning.mdx!)
 
@@ -56,7 +59,7 @@ will use to generate the `kubeconfig` file:
 
 ```code
 $ curl -OL \
-https://raw.githubusercontent.com/gravitational/teleport/master/examples/k8s-auth/get-kubeconfig.sh
+https://raw.githubusercontent.com/gravitational/teleport/v(=teleport.version=)/examples/k8s-auth/get-kubeconfig.sh
 ```
 
 `get-kubeconfig.sh` creates a service account for the Teleport Kubernetes
@@ -201,8 +204,11 @@ $ sudo systemctl start teleport
 ```
 </TabItem>
 <TabItem label="TAR archive">
+
 ```code
-$ sudo teleport start
+$ sudo teleport install systemd --output=/etc/systemd/system/teleport.service;
+$ sudo systemctl enable teleport; 
+$ sudo systemctl start teleport; 
 ```
 </TabItem>
 </Tabs>
