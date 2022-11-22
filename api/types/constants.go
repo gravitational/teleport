@@ -321,6 +321,14 @@ const (
 	// VerbRotate is used to rotate certificate authorities
 	// used only internally
 	VerbRotate = "rotate"
+
+	// VerbCreateEnrollToken allows the creation of device enrollment tokens.
+	// Device Trust is a Teleport Enterprise feature.
+	VerbCreateEnrollToken = "create_enroll_token"
+
+	// VerbEnroll allows enrollment of trusted devices.
+	// Device Trust is a Teleport Enterprise feature.
+	VerbEnroll = "enroll"
 )
 
 const (

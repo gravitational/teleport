@@ -26,8 +26,8 @@ import (
 
 	"github.com/go-redis/redis/v9"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -205,7 +205,7 @@ func (e *Engine) processAuth(ctx context.Context, cmd *redis.Cmd) error {
 		}
 
 		// For Teleport managed users, bypass the passwords sent here.
-		if apiutils.SliceContainsStr(e.sessionCtx.Database.GetManagedUsers(), e.sessionCtx.DatabaseUser) {
+		if slices.Contains(e.sessionCtx.Database.GetManagedUsers(), e.sessionCtx.DatabaseUser) {
 			return trace.Wrap(e.sendToClient([]string{
 				"OK",
 				fmt.Sprintf("Please note that AUTH commands are ignored for Teleport managed user '%s'.", e.sessionCtx.DatabaseUser),

@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -235,13 +236,13 @@ func simplifyMatchers(matchers []services.AzureMatcher) []services.AzureMatcher 
 		groups := apiutils.Deduplicate(m.ResourceGroups)
 		regions := apiutils.Deduplicate(m.Regions)
 		ts := apiutils.Deduplicate(m.Types)
-		if len(subs) == 0 || apiutils.SliceContainsStr(subs, types.Wildcard) {
+		if len(subs) == 0 || slices.Contains(subs, types.Wildcard) {
 			subs = []string{types.Wildcard}
 		}
-		if len(groups) == 0 || apiutils.SliceContainsStr(groups, types.Wildcard) {
+		if len(groups) == 0 || slices.Contains(groups, types.Wildcard) {
 			groups = []string{types.Wildcard}
 		}
-		if len(regions) == 0 || apiutils.SliceContainsStr(regions, types.Wildcard) {
+		if len(regions) == 0 || slices.Contains(regions, types.Wildcard) {
 			regions = []string{types.Wildcard}
 		} else {
 			for i, region := range regions {
