@@ -15,5 +15,9 @@
 package main
 
 func publishReleasePipeline() pipeline {
-	return relcliPipeline(triggerPromote, "publish-rlz", "Publish in Release API", "relcli auto_publish -f -v 6")
+	p := relcliPipeline(triggerPromote, "publish-rlz", "Publish in Release API", "relcli auto_publish -f -v 6")
+
+	p.DependsOn = []string{"promote-build"} // Manually written pipeline
+
+	return p
 }
