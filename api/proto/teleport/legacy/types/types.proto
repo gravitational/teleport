@@ -467,6 +467,8 @@ message RedshiftServerless {
   string WorkgroupName = 1 [(gogoproto.jsontag) = "workgroup_name,omitempty"];
   // EndpointName is the VPC endpoint name.
   string EndpointName = 2 [(gogoproto.jsontag) = "endpoint_name,omitempty"];
+  // WorkgroupID is the workgroup ID.
+  string WorkgroupID = 3 [(gogoproto.jsontag) = "workgroup_id,omitempty"];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.

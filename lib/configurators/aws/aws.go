@@ -80,7 +80,13 @@ var (
 	redshiftActions = []string{"redshift:DescribeClusters"}
 	// redshiftServerlessActions is a list of actions used for Redshift
 	// Serverless auto-discovery.
-	redshiftServerlessActions = []string{"redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"}
+	redshiftServerlessActions = []string{
+		"redshift-serverless:GetEndpointAccess",
+		"redshift-serverless:GetWorkgroup",
+		"redshift-serverless:ListWorkgroups",
+		"redshift-serverless:ListEndpointAccess",
+		"redshift-serverless:ListTagsForResource",
+	}
 	// elastiCacheActions is a list of actions used for ElastiCache
 	// auto-discovery and metadata update.
 	elastiCacheActions = []string{

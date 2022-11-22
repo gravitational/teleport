@@ -37,6 +37,8 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/gravitational/teleport/api/types"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
@@ -560,7 +562,7 @@ func NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.E
 		return nil, trace.BadParameter("missing endpoint")
 	}
 
-	metadata, err := MetadataFromRedshiftServerlessVPCEndpoint(endpoint)
+	metadata, err := MetadataFromRedshiftServerlessVPCEndpoint(endpoint, workgroup)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -728,13 +730,14 @@ func MetadataFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workg
 		AccountID: parsedARN.AccountID,
 		RedshiftServerless: types.RedshiftServerless{
 			WorkgroupName: aws.StringValue(workgroup.WorkgroupName),
+			WorkgroupID:   aws.StringValue(workgroup.WorkgroupId),
 		},
 	}, nil
 }
 
 // MetadataFromRedshiftServerlessVPCEndpoint creates AWS metadata for the
 // providec Redshift Serverless VPC endpoint.
-func MetadataFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.EndpointAccess) (*types.AWS, error) {
+func MetadataFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.EndpointAccess, workgroup *redshiftserverless.Workgroup) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(endpoint.EndpointArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -746,6 +749,7 @@ func MetadataFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.Endp
 		RedshiftServerless: types.RedshiftServerless{
 			WorkgroupName: aws.StringValue(endpoint.WorkgroupName),
 			EndpointName:  aws.StringValue(endpoint.EndpointName),
+			WorkgroupID:   aws.StringValue(workgroup.WorkgroupId),
 		},
 	}, nil
 }
@@ -909,7 +913,7 @@ func labelsFromRedshiftCluster(cluster *redshift.Cluster, meta *types.AWS) map[s
 
 func labelsFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workgroup, meta *types.AWS, tags []*redshiftserverless.Tag) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
-	labels[labelEndpointType] = "workgroup"
+	labels[labelEndpointType] = RedshiftServerlessWorkgroupEndpoint
 	labels[labelNamespace] = aws.StringValue(workgroup.NamespaceName)
 	if workgroup.Endpoint != nil && len(workgroup.Endpoint.VpcEndpoints) > 0 {
 		labels[labelVPCID] = aws.StringValue(workgroup.Endpoint.VpcEndpoints[0].VpcId)
@@ -919,7 +923,7 @@ func labelsFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workgro
 
 func labelsFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.EndpointAccess, workgroup *redshiftserverless.Workgroup, meta *types.AWS, tags []*redshiftserverless.Tag) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
-	labels[labelEndpointType] = "vpc-endpoint"
+	labels[labelEndpointType] = RedshiftServerlessVPCEndpoint
 	labels[labelWorkgroup] = aws.StringValue(endpoint.WorkgroupName)
 	labels[labelNamespace] = aws.StringValue(workgroup.NamespaceName)
 	if endpoint.VpcEndpoint != nil {
@@ -1213,7 +1217,7 @@ func ReadableAWSResourceName(r interface{}) string {
 	case *rds.DBProxy:
 		return fmt.Sprintf("RDS Proxy %q", aws.StringValue(v.DBProxyName))
 	case *rds.DBProxyEndpoint:
-		return fmt.Sprintf("RDS Proxy Endpoint %q (Proxy %q)", aws.StringValue(v.DBProxyEndpointName), aws.StringValue(v.DBProxyName))
+		return fmt.Sprintf("RDS Proxy endpoint %q (proxy %q)", aws.StringValue(v.DBProxyEndpointName), aws.StringValue(v.DBProxyName))
 	case *memorydb.Cluster:
 		return fmt.Sprintf("MemoryDB %q", aws.StringValue(v.Name))
 	case *elasticache.ReplicationGroup:
@@ -1221,9 +1225,9 @@ func ReadableAWSResourceName(r interface{}) string {
 	case *redshift.Cluster:
 		return fmt.Sprintf("Redshift cluster %q", aws.StringValue(v.ClusterIdentifier))
 	case *redshiftserverless.Workgroup:
-		return fmt.Sprintf("Redshift Serverless Workgroup %q (Namespace %q)", aws.StringValue(v.WorkgroupName), aws.StringValue(v.NamespaceName))
+		return fmt.Sprintf("Redshift Serverless workgroup %q (namespace %q)", aws.StringValue(v.WorkgroupName), aws.StringValue(v.NamespaceName))
 	case *redshiftserverless.EndpointAccess:
-		return fmt.Sprintf("Redshift Serverless Endpoint %q (Workgroup %q)", aws.StringValue(v.EndpointName), aws.StringValue(v.WorkgroupName))
+		return fmt.Sprintf("Redshift Serverless endpoint %q (workgroup %q)", aws.StringValue(v.EndpointName), aws.StringValue(v.WorkgroupName))
 
 	default:
 		value := reflect.Indirect(reflect.ValueOf(r))
@@ -1233,10 +1237,9 @@ func ReadableAWSResourceName(r interface{}) string {
 
 func guessAWSResourceType(v reflect.Value) string {
 	resourceType := v.Type().Name()
-
 	if pkgPath := v.Type().PkgPath(); pkgPath != "" {
-		pkgName := path.Base(pkgPath)
-		return fmt.Sprintf("%s %s", strings.Title(pkgName), resourceType)
+		pkgName := cases.Title(language.Und).String(path.Base(pkgPath))
+		return fmt.Sprintf("%s %s", pkgName, resourceType)
 	}
 	return resourceType
 }
@@ -1246,6 +1249,11 @@ func guessAWSResourceName(v reflect.Value) string {
 		return "<unknown>"
 	}
 
+	// Try a few attributes to find the name. For example, if resource type is
+	// service.DBCluster, try:
+	// - service.DBCluster.Name
+	// - service.DBCluster.DBClusterName
+	// - service.DBCluster.DBClusterIdentifier
 	resourceType := v.Type().Name()
 	tryFieldNames := []string{
 		"Name",
@@ -1335,6 +1343,13 @@ const (
 	AzureEngineMySQL = "Microsoft.DBforMySQL/servers"
 	// AzureEnginePostgres is the Azure engine name for PostgreSQL single-server instances
 	AzureEnginePostgres = "Microsoft.DBforPostgreSQL/servers"
+)
+
+const (
+	// RedshiftServerlessWorkgroupEndpoint is the endpoint type for workgroups.
+	RedshiftServerlessWorkgroupEndpoint = "workgroup"
+	// RedshiftServerlessVPCEndpoint is the endpoint type for VCP endpoints.
+	RedshiftServerlessVPCEndpoint = "vpc-endpoint"
 )
 
 const (

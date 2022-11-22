@@ -28,7 +28,7 @@ import (
 func TestLabelsToTags(t *testing.T) {
 	t.Parallel()
 
-	labels := map[string]string{
+	inputLabels := map[string]string{
 		"labelB": "valueB",
 		"labelA": "valueA",
 	}
@@ -44,14 +44,14 @@ func TestLabelsToTags(t *testing.T) {
 		},
 	}
 
-	actualTags := LabelsToTags[elasticache.Tag](labels)
+	actualTags := LabelsToTags[elasticache.Tag](inputLabels)
 	require.Equal(t, expectTags, actualTags)
 }
 
 func TestTagsToLabels(t *testing.T) {
 	t.Parallel()
 
-	rdsTags := []*rds.Tag{
+	inputTags := []*rds.Tag{
 		{
 			Key:   aws.String("Env"),
 			Value: aws.String("dev"),
@@ -66,10 +66,12 @@ func TestTagsToLabels(t *testing.T) {
 		},
 	}
 
-	labels := TagsToLabels(rdsTags)
-	require.Equal(t, map[string]string{
+	expectLabels := map[string]string{
 		"Name":                        "test",
 		"Env":                         "dev",
 		"aws:cloudformation:stack-id": "some-id",
-	}, labels)
+	}
+
+	actuallabels := TagsToLabels(inputTags)
+	require.Equal(t, expectLabels, actuallabels)
 }

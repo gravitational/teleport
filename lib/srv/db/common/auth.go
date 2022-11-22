@@ -228,6 +228,10 @@ propagate):
 
 // GetRedshiftServerlessAuthToken generates Redshift Serverless auth token.
 func (a *dbAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error) {
+	// Redshift Serverless maps IAM users/roles to database users. For example,
+	// an IAM role "arn:aws:iam::1234567890:role/my-role-name" will be mapped
+	// to a Postgres user "IAMR:my-role-name" inside the database. So we first
+	// need to assume another IAM role before getting auth token.
 	awsMetadata := sessionCtx.Database.GetAWS()
 	roleARN := UsernameToAWSRoleARN(sessionCtx.Database, sessionCtx.DatabaseUser)
 	client, err := a.cfg.Clients.GetAWSRedshiftServerlessClientForRole(ctx, awsMetadata.Region, roleARN)
@@ -236,25 +240,29 @@ func (a *dbAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx 
 
   %v
 
-Make sure that IAM role %q has a trust relationship
-with Teleport database agent's IAM identity.
+Make sure that IAM role %q has a trust relationship with Teleport database agent's IAM identity.
 `, err, roleARN)
 	}
 
+	// Now make the API call to generate the temporary credentials.
 	a.cfg.Log.Debugf("Generating Redshift Serverless auth token for %s.", sessionCtx)
 	resp, err := client.GetCredentialsWithContext(ctx, &redshiftserverless.GetCredentialsInput{
 		WorkgroupName: aws.String(awsMetadata.RedshiftServerless.WorkgroupName),
 		DbName:        aws.String(sessionCtx.DatabaseName),
 	})
 	if err != nil {
+		policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocumentForAssumedRole(sessionCtx.Database)
+		if getPolicyErr != nil {
+			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
+		}
 		return "", "", trace.AccessDenied(`Could not generate Redshift Serverless auth token:
 
   %v
 
-Make sure that IAM role %q is allowed to perform
-"redshift-serverless:GetCredentials" action on this Redshift Serverless
-workgroup.
-`, err, roleARN)
+Make sure that IAM role %q has permissions to generate credentials. Here is sample IAM policy:
+
+%v
+`, err, roleARN, policy)
 	}
 	return aws.StringValue(resp.DbUser), aws.StringValue(resp.DbPassword), nil
 }

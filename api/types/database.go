@@ -404,7 +404,7 @@ func (d *DatabaseV3) getAWSType() (string, bool) {
 	if aws.Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift, true
 	}
-	if aws.RedshiftServerless.WorkgroupName != "" {
+	if aws.RedshiftServerless.WorkgroupName != "" || aws.RedshiftServerless.EndpointName != "" {
 		return DatabaseTypeRedshiftServerless, true
 	}
 	if aws.ElastiCache.ReplicationGroupID != "" {
@@ -655,7 +655,7 @@ const (
 	DatabaseTypeRDSProxy = "rdsproxy"
 	// DatabaseTypeRedshift is AWS Redshift database.
 	DatabaseTypeRedshift = "redshift"
-	// DatabaseTypeRedshift is AWS Redshift Serverless database.
+	// DatabaseTypeRedshiftServerless is AWS Redshift Serverless database.
 	DatabaseTypeRedshiftServerless = "redshift-serverless"
 	// DatabaseTypeCloudSQL is GCP-hosted Cloud SQL database.
 	DatabaseTypeCloudSQL = "gcp"

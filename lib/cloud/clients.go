@@ -210,11 +210,13 @@ func (c *cloudClients) GetAWSSessionForRole(ctx context.Context, region, roleARN
 		return nil, trace.Wrap(err)
 	}
 
+	// Make a credentials with AssumeRoleProvider and test it out.
 	cred := stscreds.NewCredentials(defaultSession, roleARN)
 	if _, err := cred.GetWithContext(ctx); err != nil {
 		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 	}
 
+	// Create the session with the credentials and the provided AWS region.
 	config := aws.NewConfig().WithCredentials(cred).WithRegion(region)
 	roleSession, err := session.NewSession(config)
 	if err != nil {

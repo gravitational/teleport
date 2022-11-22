@@ -349,7 +349,7 @@ func TestWatcher(t *testing.T) {
 				},
 			},
 			clients: &clients.TestCloudClients{
-				RedshiftServerless: cloudtest.RedshiftServerlessMock{
+				RedshiftServerless: &cloudtest.RedshiftServerlessMock{
 					Workgroups: []*redshiftserverless.Workgroup{redshiftserverlessWorkgroupProd, redshiftserverlessWorkgroupDev},
 					Endpoints:  []*redshiftserverless.EndpointAccess{redshiftserverlessEndpointProd},
 					TagsByARN:  redshiftserverlessTags,

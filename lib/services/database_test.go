@@ -1369,6 +1369,7 @@ func TestDatabaseFromRedshiftServerlessWorkgroup(t *testing.T) {
 			Region:    "eu-west-2",
 			RedshiftServerless: types.RedshiftServerless{
 				WorkgroupName: "my-workgroup",
+				WorkgroupID:   "some-uuid-for-my-workgroup",
 			},
 		},
 	})
@@ -1405,6 +1406,7 @@ func TestDatabaseFromRedshiftServerlessVPCEndpoint(t *testing.T) {
 			RedshiftServerless: types.RedshiftServerless{
 				WorkgroupName: "my-workgroup",
 				EndpointName:  "my-endpoint",
+				WorkgroupID:   "some-uuid-for-my-workgroup",
 			},
 		},
 		TLS: types.DatabaseTLS{

@@ -617,14 +617,14 @@ func TestAWSIAMDocuments(t *testing.T) {
 				{
 					Effect:    awslib.EffectAllow,
 					Resources: awslib.SliceOrString{"*"},
-					Actions:   awslib.SliceOrString{"redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
+					Actions:   awslib.SliceOrString{"redshift-serverless:GetEndpointAccess", "redshift-serverless:GetWorkgroup", "redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
 				},
 			},
 			boundaryStatements: []*awslib.Statement{
 				{
 					Effect:    awslib.EffectAllow,
 					Resources: awslib.SliceOrString{"*"},
-					Actions:   awslib.SliceOrString{"redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
+					Actions:   awslib.SliceOrString{"redshift-serverless:GetEndpointAccess", "redshift-serverless:GetWorkgroup", "redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
 				},
 			},
 		},
@@ -645,14 +645,14 @@ func TestAWSIAMDocuments(t *testing.T) {
 				{
 					Effect:    awslib.EffectAllow,
 					Resources: awslib.SliceOrString{"*"},
-					Actions:   awslib.SliceOrString{"redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
+					Actions:   awslib.SliceOrString{"redshift-serverless:GetEndpointAccess", "redshift-serverless:GetWorkgroup", "redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
 				},
 			},
 			boundaryStatements: []*awslib.Statement{
 				{
 					Effect:    awslib.EffectAllow,
 					Resources: awslib.SliceOrString{"*"},
-					Actions:   awslib.SliceOrString{"redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
+					Actions:   awslib.SliceOrString{"redshift-serverless:GetEndpointAccess", "redshift-serverless:GetWorkgroup", "redshift-serverless:ListWorkgroups", "redshift-serverless:ListEndpointAccess", "redshift-serverless:ListTagsForResource"},
 				},
 			},
 		},

@@ -122,15 +122,3 @@ func (b *BufferSyncPool) Get() *bytes.Buffer {
 func (b *BufferSyncPool) Size() int64 {
 	return b.size
 }
-
-// FindFirstInSlice finds the first item in the slice that meets the provided
-// check function.
-func FindFirstInSlice[T any](s []T, check func(t T) bool) (T, bool) {
-	for _, t := range s {
-		if check(t) {
-			return t, true
-		}
-	}
-	var zero T
-	return zero, false
-}

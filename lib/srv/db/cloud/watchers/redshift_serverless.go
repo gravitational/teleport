@@ -21,17 +21,15 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless/redshiftserverlessiface"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // redshiftServerlessFetcherConfig is the Redshift Serverless databases fetcher
@@ -109,12 +107,11 @@ func (f *redshiftServerlessFetcher) String() string {
 }
 
 func (f *redshiftServerlessFetcher) getDatabasesFromWorkgroups(ctx context.Context) (types.Databases, []*redshiftserverless.Workgroup, error) {
-	pages, err := getAWSPages(ctx, f.cfg.Client.ListWorkgroupsPagesWithContext, &redshiftserverless.ListWorkgroupsInput{})
+	workgroups, err := f.getWorkgroups(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	workgroups := pagesToItems(pages, pageToRedshiftWorkgroups)
 	var databases types.Databases
 	for _, workgroup := range workgroups {
 		if !services.IsAWSResourceAvailable(workgroup, workgroup.Status) {
@@ -142,16 +139,14 @@ func (f *redshiftServerlessFetcher) getDatabasesFromWorkgroups(ctx context.Conte
 }
 
 func (f *redshiftServerlessFetcher) getDatabasesFromVPCEndpoints(ctx context.Context, workgroups []*redshiftserverless.Workgroup) (types.Databases, error) {
-	pages, err := getAWSPages(ctx, f.cfg.Client.ListEndpointAccessPagesWithContext, &redshiftserverless.ListEndpointAccessInput{})
+	endpoints, err := f.getVPCEndpoints(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var databases types.Databases
-	for _, endpoint := range pagesToItems(pages, pageToRedshiftEndpoints) {
-		workgroup, found := utils.FindFirstInSlice(workgroups, func(workgroup *redshiftserverless.Workgroup) bool {
-			return aws.StringValue(workgroup.WorkgroupName) == aws.StringValue(endpoint.WorkgroupName)
-		})
+	for _, endpoint := range endpoints {
+		workgroup, found := findWorkgroupWithName(workgroups, aws.StringValue(endpoint.WorkgroupName))
 		if !found {
 			f.log.Debugf("Could not find workgroup for %v. Skipping.", services.ReadableAWSResourceName(endpoint))
 			continue
@@ -186,35 +181,41 @@ func (f *redshiftServerlessFetcher) getResourceTags(ctx context.Context, arn *st
 		ResourceArn: arn,
 	})
 	if err != nil {
-		return nil, awslib.ConvertRequestFailureError(err)
+		return nil, libcloudaws.ConvertRequestFailureError(err)
 	}
 	return output.Tags, nil
 }
 
-func pageToRedshiftWorkgroups(page *redshiftserverless.ListWorkgroupsOutput) (workgroups []*redshiftserverless.Workgroup) {
-	return page.Workgroups
-}
-
-func pageToRedshiftEndpoints(page *redshiftserverless.ListEndpointAccessOutput) (endpoints []*redshiftserverless.EndpointAccess) {
-	return page.Endpoints
-}
-
-type awsPagesAPI[Input, Page any] func(aws.Context, *Input, func(*Page, bool) bool, ...request.Option) error
-
-func getAWSPages[Input, Page any](ctx context.Context, api awsPagesAPI[Input, Page], input *Input) ([]*Page, error) {
-	var pageNum int
-	var pages []*Page
-	err := api(ctx, input, func(page *Page, _ bool) bool {
-		pageNum++
-		pages = append(pages, page)
-		return pageNum <= common.MaxPages
+func (f *redshiftServerlessFetcher) getWorkgroups(ctx context.Context) ([]*redshiftserverless.Workgroup, error) {
+	var pages [][]*redshiftserverless.Workgroup
+	err := f.cfg.Client.ListWorkgroupsPagesWithContext(ctx, nil, func(page *redshiftserverless.ListWorkgroupsOutput, lastPage bool) bool {
+		pages = append(pages, page.Workgroups)
+		return len(pages) <= common.MaxPages
 	})
-	return pages, awslib.ConvertRequestFailureError(err)
+	return flatten(pages), libcloudaws.ConvertRequestFailureError(err)
 }
 
-func pagesToItems[Page, Item any](pages []*Page, pageToItems func(*Page) []Item) (items []Item) {
-	for _, page := range pages {
-		items = append(items, pageToItems(page)...)
+func (f *redshiftServerlessFetcher) getVPCEndpoints(ctx context.Context) ([]*redshiftserverless.EndpointAccess, error) {
+	var pages [][]*redshiftserverless.EndpointAccess
+	err := f.cfg.Client.ListEndpointAccessPagesWithContext(ctx, nil, func(page *redshiftserverless.ListEndpointAccessOutput, lastPage bool) bool {
+		pages = append(pages, page.Endpoints)
+		return len(pages) <= common.MaxPages
+	})
+	return flatten(pages), libcloudaws.ConvertRequestFailureError(err)
+}
+
+func findWorkgroupWithName(workgroups []*redshiftserverless.Workgroup, name string) (*redshiftserverless.Workgroup, bool) {
+	for _, workgroup := range workgroups {
+		if aws.StringValue(workgroup.WorkgroupName) == name {
+			return workgroup, true
+		}
 	}
-	return items
+	return nil, false
+}
+
+func flatten[T any](s [][]T) (result []T) {
+	for i := range s {
+		result = append(result, s[i]...)
+	}
+	return
 }

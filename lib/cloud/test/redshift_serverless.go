@@ -37,6 +37,22 @@ type RedshiftServerlessMock struct {
 	GetCredentialsOutput *redshiftserverless.GetCredentialsOutput
 }
 
+func (m RedshiftServerlessMock) GetWorkgroupWithContext(_ aws.Context, input *redshiftserverless.GetWorkgroupInput, _ ...request.Option) (*redshiftserverless.GetWorkgroupOutput, error) {
+	for _, workgroup := range m.Workgroups {
+		if aws.StringValue(workgroup.WorkgroupName) == aws.StringValue(input.WorkgroupName) {
+			return new(redshiftserverless.GetWorkgroupOutput).SetWorkgroup(workgroup), nil
+		}
+	}
+	return nil, trace.NotFound("not found")
+}
+func (m *RedshiftServerlessMock) GetEndpointAccessWithContext(_ aws.Context, input *redshiftserverless.GetEndpointAccessInput, _ ...request.Option) (*redshiftserverless.GetEndpointAccessOutput, error) {
+	for _, endpoint := range m.Endpoints {
+		if aws.StringValue(endpoint.EndpointName) == aws.StringValue(input.EndpointName) {
+			return new(redshiftserverless.GetEndpointAccessOutput).SetEndpoint(endpoint), nil
+		}
+	}
+	return nil, trace.NotFound("not found")
+}
 func (m RedshiftServerlessMock) ListWorkgroupsPagesWithContext(_ aws.Context, input *redshiftserverless.ListWorkgroupsInput, fn func(*redshiftserverless.ListWorkgroupsOutput, bool) bool, _ ...request.Option) error {
 	fn(&redshiftserverless.ListWorkgroupsOutput{
 		Workgroups: m.Workgroups,
@@ -84,8 +100,8 @@ func RedshiftServerlessWorkgroup(name, region string) *redshiftserverless.Workgr
 		NamespaceName:      aws.String("my-namespace"),
 		PubliclyAccessible: aws.Bool(true),
 		Status:             aws.String("AVAILABLE"),
-		WorkgroupArn:       aws.String(fmt.Sprintf("arn:aws:redshift-serverless:%v:1234567890:workgroup/%v", region, name)),
-		WorkgroupId:        aws.String("some-random-id"),
+		WorkgroupArn:       aws.String(fmt.Sprintf("arn:aws:redshift-serverless:%v:1234567890:workgroup/some-uuid-for-%v", region, name)),
+		WorkgroupId:        aws.String(fmt.Sprintf("some-uuid-for-%v", name)),
 		WorkgroupName:      aws.String(name),
 	}
 }
@@ -94,13 +110,13 @@ func RedshiftServerlessWorkgroup(name, region string) *redshiftserverless.Workgr
 func RedshiftServerlessEndpointAccess(workgroup *redshiftserverless.Workgroup, name, region string) *redshiftserverless.EndpointAccess {
 	return &redshiftserverless.EndpointAccess{
 		Address:            aws.String(fmt.Sprintf("%s-xxxyyyzzz.1234567890.%s.redshift-serverless.amazonaws.com", name, region)),
-		EndpointArn:        aws.String(fmt.Sprintf("arn:aws:redshift-serverless:%s:1234567890:managedvpcendpoint/%v", region, name)),
+		EndpointArn:        aws.String(fmt.Sprintf("arn:aws:redshift-serverless:%s:1234567890:managedvpcendpoint/some-uuid-for-%v", region, name)),
 		EndpointCreateTime: aws.Time(sampleTime),
 		EndpointName:       aws.String(name),
 		EndpointStatus:     aws.String("AVAILABLE"),
 		Port:               aws.Int64(5439),
 		VpcEndpoint: &redshiftserverless.VpcEndpoint{
-			VpcEndpointId: aws.String("vpc-endpoint-id"),
+			VpcEndpointId: aws.String("vpce-id"),
 			VpcId:         aws.String("vpc-id"),
 		},
 		WorkgroupName: workgroup.WorkgroupName,
