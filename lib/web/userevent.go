@@ -80,7 +80,7 @@ func (h *Handler) createPreUserEventHandle(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	client := h.cfg.ProxyClient()
+	client := h.cfg.ProxyClient
 
 	typedEvent := v1.UsageEventOneOf{}
 	switch req.Event {
