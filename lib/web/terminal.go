@@ -382,7 +382,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	}
 	clientConfig.Host = t.sessionData.ServerHostname
 	clientConfig.HostPort = t.sessionData.ServerHostPort
-	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: string(t.sessionData.ID.String())}
+	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: t.sessionData.ID.String()}
 	clientConfig.ClientAddr = r.RemoteAddr
 	clientConfig.Tracer = tracing.DefaultProvider().Tracer("TerminalHandler")
 
