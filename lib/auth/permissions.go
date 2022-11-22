@@ -22,15 +22,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/vulcand/predicate/builder"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
+	"github.com/vulcand/predicate/builder"
 )
 
 // NewAdminContext returns new admin auth context
@@ -296,26 +295,26 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 	// This prevents downstream users from accidentally using the unmapped
 	// identity information and confusing who's accessing a resource.
 	identity := tlsca.Identity{
-		Username:         user.GetName(),
-		Groups:           user.GetRoles(),
-		Traits:           accessInfo.Traits,
-		Principals:       principals,
-		KubernetesGroups: kubeGroups,
-		KubernetesUsers:  kubeUsers,
-		TeleportCluster:  a.clusterName,
-		Expires:          time.Now().Add(ttl),
+		Username:                user.GetName(),
+		Groups:                  user.GetRoles(),
+		Traits:                  accessInfo.Traits,
+		Principals:              principals,
+		KubernetesGroups:        kubeGroups,
+		KubernetesUsers:         kubeUsers,
+		TeleportCluster:         a.clusterName,
+		Expires:                 time.Now().Add(ttl),
+		PreviousIdentityExpires: previousIdentityExpires,
 
 		// These fields are for routing and restrictions, safe to re-use from
 		// unmapped identity.
-		Usage:                   u.Identity.Usage,
-		RouteToCluster:          u.Identity.RouteToCluster,
-		KubernetesCluster:       u.Identity.KubernetesCluster,
-		RouteToApp:              u.Identity.RouteToApp,
-		RouteToDatabase:         u.Identity.RouteToDatabase,
-		MFAVerified:             u.Identity.MFAVerified,
-		PreviousIdentityExpires: previousIdentityExpires,
-		ClientIP:                u.Identity.ClientIP,
-		PrivateKeyPolicy:        u.Identity.PrivateKeyPolicy,
+		Usage:             u.Identity.Usage,
+		RouteToCluster:    u.Identity.RouteToCluster,
+		KubernetesCluster: u.Identity.KubernetesCluster,
+		RouteToApp:        u.Identity.RouteToApp,
+		RouteToDatabase:   u.Identity.RouteToDatabase,
+		MFAVerified:       u.Identity.MFAVerified,
+		ClientIP:          u.Identity.ClientIP,
+		PrivateKeyPolicy:  u.Identity.PrivateKeyPolicy,
 	}
 
 	return &Context{
