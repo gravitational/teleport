@@ -19,6 +19,7 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -779,6 +780,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			Protocols:          []alpncommon.Protocol{alpncommon.ProtocolMySQL},
 			InsecureSkipVerify: true,
 			Middleware:         libclient.NewDBCertChecker(tc, routeToDatabase, fakeClock),
+			Clock:              fakeClock,
 		})
 
 		client, err := mysql.MakeTestClientWithoutTLS(lp.GetAddr(), routeToDatabase)
@@ -791,19 +793,15 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 
 		// Disconnect.
 		require.NoError(t, client.Close())
-		certs := lp.GetCerts()
-		require.NotEmpty(t, certs)
-		cert1, err := utils.TLSCertToX509(certs[0])
-		require.NoError(t, err)
-		// sanity check that cert equality check works
-		require.Equal(t, cert1, cert1, "cert should be equal to itself")
 
-		// mock db cert expiration (as far as the middleware thinks anyway)
-		// Unfortunately, mocking cert expiration by advancing a fake clock
-		// does not cause an invalid certificate error even if no cert renewal is done by the middleware,
-		// because TLS handshakes are done with real system time.
-		require.Greater(t, cert1.NotAfter, fakeClock.Now())
-		fakeClock.Advance(cert1.NotAfter.Sub(fakeClock.Now()) + time.Second)
+		// advance the fake clock and verify that the local proxy thinks its cert expired.
+		fakeClock.Advance(time.Hour * 48)
+		err = lp.CheckDBCerts(routeToDatabase)
+		require.Error(t, err)
+		var x509Err x509.CertificateInvalidError
+		require.ErrorAs(t, err, &x509Err)
+		require.Equal(t, x509Err.Reason, x509.Expired)
+		require.Contains(t, x509Err.Detail, "is after")
 
 		// Open a new connection
 		client, err = mysql.MakeTestClientWithoutTLS(lp.GetAddr(), routeToDatabase)
@@ -816,11 +814,6 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 
 		// Disconnect.
 		require.NoError(t, client.Close())
-		certs = lp.GetCerts()
-		require.NotEmpty(t, certs)
-		cert2, err := utils.TLSCertToX509(certs[0])
-		require.NoError(t, err)
-		require.NotEqual(t, cert1, cert2, "cert should have been renewed by middleware")
 	})
 }
 
@@ -1143,7 +1136,6 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	log.Info("Starting Root Cluster...")
 	err = rc.Start()
 	require.NoError(t, err)
-	defer rc.StopAll()
 
 	// Create and start http_proxy server.
 	log.Info("Creating HTTP Proxy server...")
@@ -1163,19 +1155,24 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	t.Setenv("http_proxy", helpers.MakeProxyAddr(user, pass, proxyURL.Host))
 
 	rcProxyAddr := net.JoinHostPort(rcAddr, helpers.PortStr(t, rc.Web))
-	require.Zero(t, ph.Count())
 	nodeCfg := makeNodeConfig("node1", rcProxyAddr)
 	nodeCfg.Log = log
-	_, err = rc.StartNode(nodeCfg)
-	require.Error(t, err)
 
 	timeout := time.Second * 60
+	startErrC := make(chan error)
+	// start the node but don't block waiting for it while it attempts to connect to the auth server.
+	go func() {
+		_, err := rc.StartNode(nodeCfg)
+		startErrC <- err
+	}()
 	require.ErrorIs(t, authorizer.WaitForRequest(timeout), trace.AccessDenied("bad credentials"))
 	require.Zero(t, ph.Count())
 
+	// set the auth credentials to match our environment
 	authorizer.SetCredentials(user, pass)
-	require.NoError(t, authorizer.WaitForRequest(timeout))
-	require.Greater(t, ph.Count(), 0)
+
 	// with env set correctly and authorized, the node should register.
+	require.NoError(t, <-startErrC)
 	require.NoError(t, helpers.WaitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 1))
+	require.Greater(t, ph.Count(), 0)
 }

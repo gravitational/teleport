@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package proxy
+package peer
 
 import (
 	"net"
@@ -91,7 +91,7 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 	streamConn := newStreamConn(stream, source, destination)
 
 	sent, received, err := pipeConn(stream.Context(), streamConn, nodeConn)
-	log.Debugf("Closing dial request from peer. sent: %d reveived %d", sent, received)
+	log.Debugf("Closing dial request from peer. sent: %d received %d", sent, received)
 	return trace.Wrap(err)
 }
 

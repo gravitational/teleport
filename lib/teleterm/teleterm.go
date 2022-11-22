@@ -62,6 +62,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		HostAddr:        cfg.Addr,
 		Daemon:          daemonService,
 		TshdServerCreds: grpcCredentials.tshd,
+		ListeningC:      cfg.ListeningC,
 	})
 	if err != nil {
 		return trace.Wrap(err)

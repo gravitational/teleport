@@ -1881,10 +1881,10 @@ func TestKubeConfigUpdate(t *testing.T) {
 				Credentials:         creds,
 				ClusterAddr:         "https://a.example.com:3026",
 				TeleportClusterName: "a.example.com",
+				KubeClusters:        []string{"dev"},
+				SelectCluster:       "dev",
 				Exec: &kubeconfig.ExecValues{
 					TshBinaryPath: "/bin/tsh",
-					KubeClusters:  []string{"dev"},
-					SelectCluster: "dev",
 					Env:           make(map[string]string),
 				},
 			},
@@ -1925,10 +1925,10 @@ func TestKubeConfigUpdate(t *testing.T) {
 				Impersonate:         "user1",
 				ImpersonateGroups:   []string{"group1", "group2"},
 				Namespace:           "namespace1",
+				KubeClusters:        []string{"dev"},
+				SelectCluster:       "dev",
 				Exec: &kubeconfig.ExecValues{
 					TshBinaryPath: "/bin/tsh",
-					KubeClusters:  []string{"dev"},
-					SelectCluster: "dev",
 					Env:           make(map[string]string),
 				},
 			},
@@ -1961,10 +1961,10 @@ func TestKubeConfigUpdate(t *testing.T) {
 				Credentials:         creds,
 				ClusterAddr:         "https://a.example.com:3026",
 				TeleportClusterName: "a.example.com",
+				KubeClusters:        []string{"dev", "prod"},
+				SelectCluster:       "",
 				Exec: &kubeconfig.ExecValues{
 					TshBinaryPath: "/bin/tsh",
-					KubeClusters:  []string{"dev", "prod"},
-					SelectCluster: "",
 					Env:           make(map[string]string),
 				},
 			},
@@ -2046,6 +2046,7 @@ func TestKubeConfigUpdate(t *testing.T) {
 				ClusterAddr:         "https://a.example.com:3026",
 				TeleportClusterName: "a.example.com",
 				Exec:                nil,
+				SelectCluster:       "dev",
 			},
 		},
 	}
@@ -2560,6 +2561,13 @@ func setHomePath(path string) cliOption {
 	}
 }
 
+func setKubeConfigPath(path string) cliOption {
+	return func(cf *CLIConf) error {
+		cf.kubeConfigPath = path
+		return nil
+	}
+}
+
 func setIdentity(path string) cliOption {
 	return func(cf *CLIConf) error {
 		cf.IdentityFileIn = path
@@ -2681,7 +2689,7 @@ func TestSerializeAppConfig(t *testing.T) {
 }
 
 func TestSerializeDatabases(t *testing.T) {
-	expected := `
+	expectedFmt := `
 	[{
     "kind": "db",
     "version": "v3",
@@ -2732,7 +2740,7 @@ func TestSerializeDatabases(t *testing.T) {
       "azure": {
 	    "redis": {}
 	  }
-    }
+    }%v
   }]
 	`
 	db, err := types.NewDatabaseV3(types.Metadata{
@@ -2744,14 +2752,137 @@ func TestSerializeDatabases(t *testing.T) {
 		URI:      "mongodb://example.com",
 	})
 	require.NoError(t, err)
-	testSerialization(t, expected, func(f string) (string, error) {
-		return serializeDatabases([]types.Database{db}, f)
-	})
+
+	tests := []struct {
+		name        string
+		dbUsersData string
+		roles       services.RoleSet
+	}{
+		{
+			name: "without db users",
+		},
+		{
+			name: "with wildcard in allowed db users",
+			dbUsersData: `,
+    "users": {
+      "allowed": [
+        "*",
+        "bar",
+        "foo"
+      ],
+      "denied": [
+        "baz",
+        "qux"
+      ]
+     }`,
+			roles: services.RoleSet{
+				&types.RoleV5{
+					Metadata: types.Metadata{Name: "role1", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							Namespaces:     []string{apidefaults.Namespace},
+							DatabaseLabels: types.Labels{"*": []string{"*"}},
+							DatabaseUsers:  []string{"foo", "bar", "*"},
+						},
+						Deny: types.RoleConditions{
+							Namespaces:    []string{apidefaults.Namespace},
+							DatabaseUsers: []string{"baz", "qux"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "without wildcard in allowed db users",
+			dbUsersData: `,
+    "users": {
+      "allowed": [
+        "bar",
+        "foo"
+      ]
+     }`,
+			roles: services.RoleSet{
+				&types.RoleV5{
+					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							Namespaces:     []string{apidefaults.Namespace},
+							DatabaseLabels: types.Labels{"*": []string{"*"}},
+							DatabaseUsers:  []string{"foo", "bar"},
+						},
+						Deny: types.RoleConditions{
+							Namespaces:    []string{apidefaults.Namespace},
+							DatabaseUsers: []string{"baz", "qux"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "with no denied db users",
+			dbUsersData: `,
+    "users": {
+      "allowed": [
+        "*",
+        "bar",
+        "foo"
+      ]
+     }`,
+			roles: services.RoleSet{
+				&types.RoleV5{
+					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							Namespaces:     []string{apidefaults.Namespace},
+							DatabaseLabels: types.Labels{"*": []string{"*"}},
+							DatabaseUsers:  []string{"*", "foo", "bar"},
+						},
+						Deny: types.RoleConditions{
+							Namespaces:    []string{apidefaults.Namespace},
+							DatabaseUsers: []string{},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "with no allowed db users",
+			dbUsersData: `,
+    "users": {}`,
+			roles: services.RoleSet{
+				&types.RoleV5{
+					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							Namespaces:     []string{apidefaults.Namespace},
+							DatabaseLabels: types.Labels{"*": []string{"*"}},
+							DatabaseUsers:  []string{},
+						},
+						Deny: types.RoleConditions{
+							Namespaces:    []string{apidefaults.Namespace},
+							DatabaseUsers: []string{"baz", "qux"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			expected := fmt.Sprintf(expectedFmt, tt.dbUsersData)
+			testSerialization(t, expected, func(f string) (string, error) {
+				return serializeDatabases([]types.Database{db}, f, tt.roles)
+			})
+		})
+	}
 }
 
 func TestSerializeDatabasesEmpty(t *testing.T) {
 	testSerialization(t, "[]", func(f string) (string, error) {
-		return serializeDatabases(nil, f)
+		return serializeDatabases(nil, f, nil)
 	})
 }
 
@@ -3261,7 +3392,8 @@ func TestSerializeMFADevices(t *testing.T) {
 	})
 }
 
-func Test_getUsersForDb(t *testing.T) {
+func TestListDatabasesWithUsers(t *testing.T) {
+	t.Parallel()
 	dbStage, err := types.NewDatabaseV3(types.Metadata{
 		Name:   "stage",
 		Labels: map[string]string{"env": "stage"},
@@ -3305,60 +3437,76 @@ func Test_getUsersForDb(t *testing.T) {
 		},
 	}
 
-	testCases := []struct {
-		name     string
-		roles    services.RoleSet
-		database types.Database
-		result   string
+	tests := []struct {
+		name      string
+		roles     services.RoleSet
+		database  types.Database
+		wantUsers *dbUsers
+		wantText  string
 	}{
 		{
 			name:     "developer allowed any username in stage database except superuser",
 			roles:    services.RoleSet{roleDevStage, roleDevProd},
 			database: dbStage,
-			result:   "[* dev], except: [superuser]",
+			wantUsers: &dbUsers{
+				Allowed: []string{"*", "dev"},
+				Denied:  []string{"superuser"},
+			},
+			wantText: "[* dev], except: [superuser]",
 		},
 		{
 			name:     "developer allowed only specific username/database in prod database",
 			roles:    services.RoleSet{roleDevStage, roleDevProd},
 			database: dbProd,
-			result:   "[dev]",
+			wantUsers: &dbUsers{
+				Allowed: []string{"dev"},
+			},
+			wantText: "[dev]",
 		},
 		{
 			name:     "roleDevStage x dbStage",
 			roles:    services.RoleSet{roleDevStage},
 			database: dbStage,
-			result:   "[*], except: [superuser]",
+			wantUsers: &dbUsers{
+				Allowed: []string{"*"},
+				Denied:  []string{"superuser"},
+			},
+			wantText: "[*], except: [superuser]",
 		},
 		{
-			name:     "roleDevStage x dbProd",
-			roles:    services.RoleSet{roleDevStage},
-			database: dbProd,
-			result:   "(none)",
+			name:      "roleDevStage x dbProd",
+			roles:     services.RoleSet{roleDevStage},
+			database:  dbProd,
+			wantUsers: &dbUsers{},
+			wantText:  "(none)",
 		},
 		{
-			name:     "roleDevProd x dbStage",
-			roles:    services.RoleSet{roleDevProd},
-			database: dbStage,
-			result:   "(none)",
+			name:      "roleDevProd x dbStage",
+			roles:     services.RoleSet{roleDevProd},
+			database:  dbStage,
+			wantUsers: &dbUsers{},
+			wantText:  "(none)",
 		},
 		{
 			name:     "roleDevProd x dbProd",
 			roles:    services.RoleSet{roleDevProd},
 			database: dbProd,
-			result:   "[dev]",
-		},
-		{
-			name:     "no role set",
-			roles:    nil,
-			database: dbProd,
-			result:   "(unknown)",
+			wantUsers: &dbUsers{
+				Allowed: []string{"dev"},
+			},
+			wantText: "[dev]",
 		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := getUsersForDb(tc.database, tc.roles)
-			require.Equal(t, tc.result, got)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			gotUsers := getDBUsers(tt.database, tt.roles)
+			require.Equal(t, tt.wantUsers, gotUsers)
+
+			gotText := formatUsersForDB(tt.database, tt.roles)
+			require.Equal(t, tt.wantText, gotText)
 		})
 	}
 }
