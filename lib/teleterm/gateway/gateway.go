@@ -65,6 +65,8 @@ func New(cfg Config) (*Gateway, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	cfg.LocalPort = port
+
 	protocol, err := alpncommon.ToALPNProtocol(cfg.Protocol)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -80,7 +82,7 @@ func New(cfg Config) (*Gateway, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	localProxy, err := alpn.NewLocalProxy(alpn.LocalProxyConfig{
+	localProxyConfig := alpn.LocalProxyConfig{
 		InsecureSkipVerify: cfg.Insecure,
 		RemoteProxyAddr:    cfg.WebProxyAddr,
 		Protocols:          []alpncommon.Protocol{protocol},
@@ -88,12 +90,22 @@ func New(cfg Config) (*Gateway, error) {
 		ParentContext:      closeContext,
 		SNI:                address.Host(),
 		Certs:              []tls.Certificate{tlsCert},
-	})
+		Clock:              cfg.Clock,
+	}
+
+	localProxyMiddleware := &localProxyMiddleware{
+		log:     cfg.Log,
+		dbRoute: cfg.RouteToDatabase(),
+	}
+
+	if cfg.OnExpiredCert != nil {
+		localProxyConfig.Middleware = localProxyMiddleware
+	}
+
+	localProxy, err := alpn.NewLocalProxy(localProxyConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	cfg.LocalPort = port
 
 	gateway := &Gateway{
 		cfg:          &cfg,
@@ -102,13 +114,20 @@ func New(cfg Config) (*Gateway, error) {
 		localProxy:   localProxy,
 	}
 
+	if cfg.OnExpiredCert != nil {
+		localProxyMiddleware.onExpiredCert = func(ctx context.Context) error {
+			err := cfg.OnExpiredCert(ctx, gateway)
+			return trace.Wrap(err)
+		}
+	}
+
 	ok = true
 	return gateway, nil
 }
 
 // NewWithLocalPort initializes a copy of an existing gateway which has all config fields identical
 // to the existing gateway with the exception of the local port.
-func NewWithLocalPort(gateway Gateway, port string) (*Gateway, error) {
+func NewWithLocalPort(gateway *Gateway, port string) (*Gateway, error) {
 	if port == gateway.LocalPort() {
 		return nil, trace.BadParameter("port is already set to %s", port)
 	}
@@ -205,6 +224,24 @@ func (g *Gateway) CLICommand() (string, error) {
 	}
 
 	return cliCommand, nil
+}
+
+// ReloadCert loads the key pair from cfg.CertPath & cfg.KeyPath and updates the cert of the running
+// local proxy. This is typically done after the cert is reissued and saved to disk.
+//
+// In the future, we're probably going to make this method accept the cert as an arg rather than
+// reading from disk.
+func (g *Gateway) ReloadCert() error {
+	g.cfg.Log.Debug("Reloading cert")
+
+	tlsCert, err := keys.LoadX509KeyPair(g.cfg.CertPath, g.cfg.KeyPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	g.localProxy.SetCerts([]tls.Certificate{tlsCert})
+
+	return nil
 }
 
 // Gateway describes local proxy that creates a gateway to the remote Teleport resource.
