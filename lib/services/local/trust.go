@@ -302,7 +302,7 @@ func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, 
 }
 
 // UpdateUserCARoleMap updates the role map of the userCA of the specified existing cluster.
-func (s *CA) UpdateUserCARoleMap(ctx context.Context, existingCluster, trustedCluster types.TrustedCluster) error {
+func (s *CA) UpdateUserCARoleMap(ctx context.Context, name string, roleMap RoleMap, deactivated bool) error {
 	existingCertAuthority, err := s.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: existingCluster.GetName(),
