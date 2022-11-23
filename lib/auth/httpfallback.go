@@ -28,7 +28,7 @@ import (
 // httpfallback.go holds endpoints that have been converted to gRPC
 // but still need http fallback logic in the old client.
 
-// REMOVE IN 13.0.0
+// DELETE IN 13.0.0
 type legacyChangePasswordReq struct {
 	// User is user ID
 	User string
