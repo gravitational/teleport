@@ -32,7 +32,7 @@ done
 
 for BINARY in "$@"; do
     echo "Notarizing $BINARY..."
-    notarize "$BINARY" "$TEAMID" "$TSH_BUNDLEID" || echo "test skip"
+    notarize "$BINARY" "$TEAMID" "$TSH_BUNDLEID"
 done
 
 echo "Finished notarizing $# binaries"

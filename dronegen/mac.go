@@ -500,7 +500,13 @@ func buildMacArtifactsStep(workspacePath string, b buildType, toolchainConfig to
 			"WORKSPACE_DIR":     {raw: workspacePath},
 			"BUILDBOX_PASSWORD": {fromSecret: "BUILDBOX_PASSWORD"},
 		},
-		Commands: darwinBuildCommands(toolchainConfig, artifactConfig),
+		Commands: darwinBuildCommands(toolchainConfig, artifactConfig, b),
+	}
+
+	// Add env vars for signing binaries if needed
+	if !b.unsigned {
+		step.Environment["APPLE_USERNAME"] = value{fromSecret: "APPLE_USERNAME"}
+		step.Environment["APPLE_PASSWORD"] = value{fromSecret: "APPLE_PASSWORD"}
 	}
 
 	var artifactDesc string
@@ -525,7 +531,7 @@ func buildMacArtifactsStep(workspacePath string, b buildType, toolchainConfig to
 	return step
 }
 
-func darwinBuildCommands(toolchainConfig toolchainConfig, artifactConfig darwinArtifactConfig) []string {
+func darwinBuildCommands(toolchainConfig toolchainConfig, artifactConfig darwinArtifactConfig, b buildType) []string {
 	commands := []string{
 		`set -u`,
 	}
@@ -537,7 +543,7 @@ func darwinBuildCommands(toolchainConfig toolchainConfig, artifactConfig darwinA
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 			`build.assets/build-fido2-macos.sh build`,
 			`export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"`,
-			`make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes PIV=yes`,
+			fmt.Sprintf(`make clean %s OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes PIV=yes`, releaseMakefileTarget(b)),
 		)
 	}
 

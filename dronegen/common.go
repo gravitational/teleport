@@ -276,7 +276,7 @@ func releaseMakefileTarget(b buildType) string {
 		if b.unsigned {
 			makefileTarget = "release-darwin-unsigned"
 		} else {
-			makefileTarget = "release-darin"
+			makefileTarget = "release-darwin"
 		}
 	}
 
