@@ -402,31 +402,21 @@ release-amd64-fips:
 release-386:
 	$(MAKE) release ARCH=386
 
-.PHONY: release-arm
-release-arm: RESOLVED_BUILDBOX_NAME ?= $(BUILDBOX_ARM)
-release-arm:
-	docker run --platform linux/arm $(DOCKERFLAGS) -i $(NOROOT) $(RESOLVED_BUILDBOX_NAME) \
-		make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+.PHONY: release-arm-oss
+release-arm-oss:
+	make full -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
-.PHONY: release-arm64
-release-arm64: RESOLVED_BUILDBOX_NAME ?= $(BUILDBOX_ARM)
-release-arm64:
-	docker run --platform linux/arm64 $(DOCKERFLAGS) -i $(NOROOT) $(RESOLVED_BUILDBOX_NAME) \
-		make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+.PHONY: release-arm-enterprise
+release-arm-enterprise:
+	make -C ../e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
-.PHONY: release-amd64-centos7
-release-amd64-centos7: BUILDBOX ?= BUILDBOX_ARM
-release-amd64-centos7:
-	$(MAKE) release-centos7 ARCH=amd64 FIDO2=yes PIV=yes
+.PHONY: release-arm64-oss
+release-arm64-oss:
+	make full -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
-.PHONY: release-amd64-centos7-fips
-release-amd64-centos7-fips: buildbox-centos7-fips
-	$(MAKE) release-centos7-fips ARCH=amd64 FIPS=yes
-
-.PHONY:release-arm-centos7
-release-arm-centos7: 
-	docker run --platform linux/arm/v7 $(DOCKERFLAGS) -i $(NOROOT)  \
-		make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+.PHONY: release-arm64-enterprise
+release-arm64-enterprise:
+	make -C ../e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
 #
 # Create a Teleport FIPS package using the build container.
