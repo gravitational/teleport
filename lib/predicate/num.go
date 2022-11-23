@@ -14,30 +14,35 @@
 
 package predicate
 
+import "fmt"
+
 const bitCount = 4
 
 type numTheory struct {
 	counter   int
 	clauses   []clause
 	vars      set[int]
+	var_names map[int]string
 	var_true  int
 	var_false int
 }
 
 func newNumTheory() *numTheory {
 	t := &numTheory{
-		vars: make(set[int]),
+		vars:      make(set[int]),
+		var_names: make(map[int]string),
 	}
 
-	t.var_true = t.addVar()
-	t.var_false = t.addVar()
+	t.var_true = t.addVar("true")
+	t.var_false = t.addVar("false")
 	return t
 }
 
-func (t *numTheory) addVar() int {
+func (t *numTheory) addVar(name string) int {
 	v := t.counter
 	t.vars[v] = struct{}{}
 	t.counter++
+	t.var_names[v] = name
 	return v
 }
 
@@ -53,10 +58,10 @@ type integerS struct {
 	bits []int
 }
 
-func integer(theory *numTheory) *integerS {
+func integer(theory *numTheory, name string) *integerS {
 	bits := make([]int, 0)
 	for i := 0; i < bitCount; i++ {
-		bits = append(bits, theory.addVar())
+		bits = append(bits, theory.addVar(fmt.Sprintf("%s.%d", name, i)))
 	}
 
 	return &integerS{bits}
@@ -85,9 +90,9 @@ type additionS struct {
 	carries *integerS
 }
 
-func addition(theory *numTheory, a *integerS, b *integerS) *additionS {
-	bits := integer(theory)
-	carries := integer(theory)
+func add(theory *numTheory, a *integerS, b *integerS) *additionS {
+	bits := integer(theory, "add.out")
+	carries := integer(theory, "add.carry")
 
 	previous_carry := theory.var_false
 	for j := 0; j < bitCount; j++ {
@@ -119,11 +124,11 @@ func and_gate(theory *numTheory, a int, b int, out int) {
 }
 
 func full_adder(theory *numTheory, a int, b int, c int, out int, carry_out int) {
-	fa0 := theory.addVar()
+	fa0 := theory.addVar("fa.0")
 	xor_gate(theory, a, b, fa0)
 	xor_gate(theory, c, fa0, out)
-	fa1 := theory.addVar()
-	fa2 := theory.addVar()
+	fa1 := theory.addVar("fa.1")
+	fa2 := theory.addVar("fa.2")
 	and_gate(theory, a, b, fa1)
 	and_gate(theory, c, fa0, fa2)
 	or_gate(theory, fa1, fa2, carry_out)
