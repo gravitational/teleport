@@ -15,14 +15,20 @@
 package gatewaytest
 
 import (
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"net"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/lib/srv/alpnproxytest"
 )
 
 const timeout = time.Second * 5
@@ -127,4 +133,51 @@ func (m *MockListener) Addr() net.Addr {
 
 func (m *MockListener) RealAddr() net.Addr {
 	return m.realListener.Addr()
+}
+
+type KeyPairPaths struct {
+	CertPath string
+	KeyPath  string
+}
+
+func MustGenAndSaveCert(t *testing.T, opts ...alpnproxytest.SignOptionsFunc) KeyPairPaths {
+	t.Helper()
+
+	dir := t.TempDir()
+
+	ca := alpnproxytest.MustGenSelfSignedCert(t)
+
+	tlsCert := alpnproxytest.MustGenCertSignedWithCA(t, ca, opts...)
+
+	privateKey, ok := tlsCert.PrivateKey.(*rsa.PrivateKey)
+	if !ok {
+		t.Fatal("Failed to cast tlsCert.PrivateKey")
+	}
+
+	// Save the cert.
+
+	certFile, err := os.CreateTemp(dir, "cert")
+	require.NoError(t, err)
+
+	pemCert := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: tlsCert.Certificate[0]})
+
+	_, err = certFile.Write(pemCert)
+	require.NoError(t, err)
+	require.NoError(t, certFile.Close())
+
+	// Save the private key.
+
+	keyFile, err := os.CreateTemp(dir, "key")
+	require.NoError(t, err)
+
+	pemPrivateKey := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)})
+
+	_, err = keyFile.Write(pemPrivateKey)
+	require.NoError(t, err)
+	require.NoError(t, keyFile.Close())
+
+	return KeyPairPaths{
+		CertPath: certFile.Name(),
+		KeyPath:  keyFile.Name(),
+	}
 }
