@@ -46,7 +46,7 @@ import (
 
 // ErrSAMLRequiresEnterprise is the error returned by the SAML methods when not
 // using the Enterprise edition of Teleport.
-var ErrSAMLRequiresEnterprise = trace.AccessDenied("SAML is only available in enterprise subscriptions")
+var ErrSAMLRequiresEnterprise = fmt.Errorf("SAML: %w", ErrRequiresEnterprise)
 
 // SAMLService are the methods that the auth server delegates to a plugin for
 // implementing the SAML connector. These are the core functions of SAML
