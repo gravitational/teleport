@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -96,29 +97,24 @@ func TestLocks(t *testing.T) {
 func TestOverwriteFile(t *testing.T) {
 	have := []byte("Sensitive Information")
 
-	tmpFile, err := os.CreateTemp("", "teleport-overwrite-file-test-")
+	f, err := os.Create(filepath.Join(t.TempDir(), "teleport-overwrite-file-test"))
 	if err != nil {
 		t.Fatalf("Unable to create tmp file: %s\n", err)
 	}
-	t.Cleanup(func() {
-		if err := os.Remove(tmpFile.Name()); err != nil {
-			t.Fatalf("Error calling os.Remove: %s\n", err)
-		}
-	})
 
-	if _, err := tmpFile.Write(have); err != nil {
-		tmpFile.Close()
+	if _, err := f.Write(have); err != nil {
+		f.Close()
 		t.Fatalf("Error writing to tmp file: %s\n", err)
 	}
-	if err := tmpFile.Close(); err != nil {
+	if err := f.Close(); err != nil {
 		t.Fatalf("Unable to close tmp file: %s\n", err)
 	}
 
-	if err := overwriteFile(tmpFile.Name()); err != nil {
+	if err := overwriteFile(f.Name()); err != nil {
 		t.Fatalf("Unable to overwrite tmp file: %s\n", err)
 	}
 
-	contents, err := os.ReadFile(tmpFile.Name())
+	contents, err := os.ReadFile(f.Name())
 	if err != nil {
 		t.Fatalf("Unable to read tmp file: %s\n", err)
 	}
@@ -129,17 +125,17 @@ func TestOverwriteFile(t *testing.T) {
 }
 
 func TestRemoveSecure(t *testing.T) {
-	tmpFile, err := os.CreateTemp("", "teleport-remove-secure-test-")
+	f, err := os.Create(filepath.Join(t.TempDir(), "teleport-remove-secure-test"))
 	if err != nil {
 		t.Fatalf("Unable to create tmp file: %s\n", err)
 	}
-	if err := tmpFile.Close(); err != nil {
+	if err := f.Close(); err != nil {
 		t.Fatalf("Unable to close tmp file: %s\n", err)
 	}
-	if err := RemoveSecure(tmpFile.Name(), 0); !trace.IsBadParameter(err) {
+	if err := RemoveSecure(f.Name(), 0); !trace.IsBadParameter(err) {
 		t.Fatalf("RemoveSecure(filePath, 0) = %v; expected trace.BadParameterError\n", err)
 	}
-	if err := RemoveSecure(tmpFile.Name(), 1); err != nil {
+	if err := RemoveSecure(f.Name(), 1); err != nil {
 		t.Fatalf("RemoveSecure(filePath, 1) = %v; expected nil\n", err)
 	}
 }
