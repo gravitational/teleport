@@ -76,7 +76,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 	// Update role map
 	if existingCluster != nil && !cmp.Equal(existingCluster.GetRoleMap(), trustedCluster.GetRoleMap()) {
 		if err := a.UpdateUserCARoleMap(ctx, existingCluster.GetName(), trustedCluster.GetRoleMap(),
-			existingCluster != nil && existingCluster.GetEnabled()); err != nil {
+			existingCluster.GetEnabled()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
