@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -251,17 +252,13 @@ func overwriteFile(filePath string) error {
 		return trace.Wrap(err)
 	}
 
-	b := make([]byte, 4096)
-	var size int64
-	for size < fi.Size() {
-		if _, err := rand.Read(b); err != nil {
-			return trace.Wrap(err)
-		}
-		n, err := f.Write(b)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		size += int64(n)
+	// Rounding up to 4k to hide the original file size. 4k was chosen because it's a common block size.
+	var block int64 = 4096
+	size := fi.Size() / block * block
+	if fi.Size()%block != 0 {
+		size += block
 	}
-	return nil
+
+	_, err = io.CopyN(f, rand.Reader, size)
+	return trace.Wrap(err)
 }
