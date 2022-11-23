@@ -17,7 +17,6 @@ limitations under the License.
 package utils
 
 import (
-	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -96,46 +95,20 @@ func TestLocks(t *testing.T) {
 
 func TestOverwriteFile(t *testing.T) {
 	have := []byte("Sensitive Information")
+	fName := filepath.Join(t.TempDir(), "teleport-overwrite-file-test")
 
-	f, err := os.Create(filepath.Join(t.TempDir(), "teleport-overwrite-file-test"))
-	if err != nil {
-		t.Fatalf("Unable to create tmp file: %s\n", err)
-	}
+	require.NoError(t, os.WriteFile(fName, have, 0600))
+	require.NoError(t, overwriteFile(fName))
 
-	if _, err := f.Write(have); err != nil {
-		f.Close()
-		t.Fatalf("Error writing to tmp file: %s\n", err)
-	}
-	if err := f.Close(); err != nil {
-		t.Fatalf("Unable to close tmp file: %s\n", err)
-	}
-
-	if err := overwriteFile(f.Name()); err != nil {
-		t.Fatalf("Unable to overwrite tmp file: %s\n", err)
-	}
-
-	contents, err := os.ReadFile(f.Name())
-	if err != nil {
-		t.Fatalf("Unable to read tmp file: %s\n", err)
-	}
-
-	if bytes.Contains(contents, have) {
-		t.Fatal("File contents were not overwritten")
-	}
+	contents, err := os.ReadFile(fName)
+	require.NoError(t, err)
+	require.NotContains(t, contents, have, "File contents were not overwritten")
 }
 
 func TestRemoveSecure(t *testing.T) {
 	f, err := os.Create(filepath.Join(t.TempDir(), "teleport-remove-secure-test"))
-	if err != nil {
-		t.Fatalf("Unable to create tmp file: %s\n", err)
-	}
-	if err := f.Close(); err != nil {
-		t.Fatalf("Unable to close tmp file: %s\n", err)
-	}
-	if err := RemoveSecure(f.Name(), 0); !trace.IsBadParameter(err) {
-		t.Fatalf("RemoveSecure(filePath, 0) = %v; expected trace.BadParameterError\n", err)
-	}
-	if err := RemoveSecure(f.Name(), 1); err != nil {
-		t.Fatalf("RemoveSecure(filePath, 1) = %v; expected nil\n", err)
-	}
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+	require.True(t, trace.IsBadParameter(RemoveSecure(f.Name(), 0)))
+	require.NoError(t, RemoveSecure(f.Name(), 1))
 }
