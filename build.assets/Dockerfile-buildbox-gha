@@ -36,6 +36,8 @@ ARG RUST_VERSION
 ARG UID
 ARG GID
 
+RUN uname --all
+
 RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
