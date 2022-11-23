@@ -2923,7 +2923,7 @@ func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 }
 
 func (a *Server) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
-	caps, err := services.CalculateAccessCapabilities(ctx, a, req)
+	caps, err := services.CalculateAccessCapabilities(ctx, a.clock, a, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

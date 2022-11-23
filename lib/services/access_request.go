@@ -146,11 +146,11 @@ type DynamicAccessOracle interface {
 
 // CalculateAccessCapabilities aggregates the requested capabilities using the supplied getter
 // to load relevant resources.
-func CalculateAccessCapabilities(ctx context.Context, clt RequestValidatorGetter, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
+func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt RequestValidatorGetter, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
 	var caps types.AccessCapabilities
 	// all capabilities require use of a request validator.  calculating suggested reviewers
 	// requires that the validator be configured for variable expansion.
-	v, err := NewRequestValidator(ctx, clt, req.User, ExpandVars(req.SuggestedReviewers))
+	v, err := NewRequestValidator(ctx, clock, clt, req.User, ExpandVars(req.SuggestedReviewers))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -840,6 +840,7 @@ func (c *ReviewPermissionChecker) push(role types.Role) error {
 // a set of simple Allow/Deny datastructures.  These, in turn,
 // are used to validate and expand the access request.
 type RequestValidator struct {
+	clock         clockwork.Clock
 	getter        RequestValidatorGetter
 	user          types.User
 	requireReason bool
@@ -861,13 +862,14 @@ type RequestValidator struct {
 }
 
 // NewRequestValidator configures a new RequestValidor for the specified user.
-func NewRequestValidator(ctx context.Context, getter RequestValidatorGetter, username string, opts ...ValidateRequestOption) (RequestValidator, error) {
+func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, username string, opts ...ValidateRequestOption) (RequestValidator, error) {
 	user, err := getter.GetUser(username, false)
 	if err != nil {
 		return RequestValidator{}, trace.Wrap(err)
 	}
 
 	m := RequestValidator{
+		clock:  clock,
 		getter: getter,
 		user:   user,
 	}
@@ -898,7 +900,7 @@ func NewRequestValidator(ctx context.Context, getter RequestValidatorGetter, use
 
 // Validate validates an access request and potentially modifies it depending on how
 // the validator was configured.
-func (m *RequestValidator) Validate(ctx context.Context, clock clockwork.Clock, req types.AccessRequest, identity tlsca.Identity) error {
+func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) error {
 	if m.user.GetName() != req.GetUser() {
 		return trace.BadParameter("request validator configured for different user (this is a bug)")
 	}
@@ -991,13 +993,13 @@ func (m *RequestValidator) Validate(ctx context.Context, clock clockwork.Clock, 
 
 	}
 
-	now := clock.Now().UTC()
+	now := m.clock.Now().UTC()
 
 	// Calculate expiration of the Access Request.
 	//
 	// This is how long the Access Request will hang around for approval. In
 	// other words, the TTL on the types.AccessRequest resource itself.
-	ttl, err := resourceTTL(ctx, clock, identity.Expires, m.getter, req)
+	ttl, err := resourceTTL(ctx, m.clock, identity.Expires, m.getter, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1007,7 +1009,7 @@ func (m *RequestValidator) Validate(ctx context.Context, clock clockwork.Clock, 
 	//
 	// This is the expiration time of the elevated certificate that will
 	// be issued if the Access Request is approved.
-	ttl, err = elevatedTTL(ctx, clock, identity.Expires, m.getter, req)
+	ttl, err = elevatedTTL(ctx, m.clock, identity.Expires, m.getter, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1290,11 +1292,11 @@ func ExpandVars(expand bool) ValidateRequestOption {
 // requests, setting their role list to include all roles the user is allowed to request.
 // Expansion should be performed before an access request is initially placed in the backend.
 func ValidateAccessRequestForUser(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, req types.AccessRequest, identity tlsca.Identity, opts ...ValidateRequestOption) error {
-	v, err := NewRequestValidator(ctx, getter, req.GetUser(), opts...)
+	v, err := NewRequestValidator(ctx, clock, getter, req.GetUser(), opts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(v.Validate(ctx, clock, req, identity))
+	return trace.Wrap(v.Validate(ctx, req, identity))
 }
 
 // UnmarshalAccessRequest unmarshals the AccessRequest resource from JSON.
