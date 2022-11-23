@@ -3,16 +3,16 @@ title: Teleport Core Concepts
 description: Learn the the key architectural components that make up Teleport.
 ---
 
-Here are the core concepts describe a Teleport deployment. You will see these
-terms often when setting up and managing Teleport, so you should get familiar
-with them before following other pages in the documentation.
+Here are the core concepts that describe a Teleport deployment. You will see
+these terms often when setting up and managing Teleport, so you should get
+familiar with them before following other pages in the documentation.
 
 ## Teleport cluster
 
 The key concept of Teleport's architecture is the **cluster**. A Teleport
-cluster consists of the **Teleport Auth Service** and **Teleport Proxy Service**,
-plus several **Teleport Services** that manage traffic to resources within your
-infrastructure, such as Kubernetes clusters and Windows desktops.
+cluster consists of the **Teleport Auth Service** and **Teleport Proxy
+Service**, plus the **Teleport Services** that manage traffic to resources
+within your infrastructure, such as Kubernetes clusters and Windows desktops.
 
 A minimal Teleport cluster consists of the **Teleport Auth Service** and
 **Teleport Proxy Service**. In a demo environment, you can run these two
@@ -25,16 +25,6 @@ The **Teleport Auth Service** manages **local users** and **configuration
 resources** within a **Teleport cluster**. It maintains certificate authorities
 that enable users and services to authenticate to your cluster. The Auth Service
 issues certificates to clients and maintains an audit log.
-
-<Figure
-  align="center"
-  bordered="false"
-  caption="Auth service"
->
-
-![Auth service](../img/architecture/auth.png)
-
-</Figure>
 
 The Auth Service is the only component of a cluster that has to be connected to
 a backend, which it uses to store **configuration resources** and the
@@ -55,16 +45,6 @@ It establishes reverse tunnels to the **Teleport Auth Service** and **Teleport
 Services**, which can run in private networks. This means that, in the Proxy
 Service's minimal configuration, you can expose only port `443` to the internet
 and run the rest of your infrastructure in private networks.
-
-<Figure
-  align="center"
-  bordered="false"
-  caption="Proxy service"
->
-
-![Proxy service](../img/architecture/proxy.png)
-
-</Figure>
 
 You can also configure clients to bypass Proxy Service instances and connect to
 resources with Teleport-issued certificates directly. 
@@ -138,10 +118,9 @@ Read more in our [Machine ID guide](./machine-id/introduction.mdx).
 ### Agent
 
 An instance of a **Teleport Service** is called an **agent**. For all Teleport
-Services besides the **Teleport SSH Service**, an agent  and can enable access
-to multiple resources, and can run on a separate host from the resources it
-enables access to. All agents must run in the same network as their target
-resources.
+Services besides the **Teleport SSH Service**, an agent can enable access to
+multiple resources, and can run on a separate host from the resources it enables
+access to. All agents must run in the same network as their target resources.
 
 ## Teleport editions
 
