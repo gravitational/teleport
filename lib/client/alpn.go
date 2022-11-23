@@ -91,7 +91,7 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 		protocols = append(alpn.ProtocolsWithPing(alpnProtocol), protocols...)
 	}
 
-	pool := x509.NewCertPool()
+	var pool *x509.CertPool
 
 	alpnUpgradeRequired := alpnproxy.IsALPNConnUpgradeRequired(cfg.WebProxyAddr, cfg.InsecureSkipVerify)
 
@@ -101,6 +101,7 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 			return trace.Wrap(err)
 		}
 
+		pool = x509.NewCertPool()
 		if ok := pool.AppendCertsFromPEM(caCert.GetTLSCA()); !ok {
 			return fmt.Errorf("failed to append cert from cluster's TLS CA Cert")
 		}
