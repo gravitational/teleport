@@ -23,10 +23,10 @@ import (
 	"regexp"
 	"runtime"
 
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
-	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // KernelVersion parses /proc/sys/kernel/osrelease and returns the kernel

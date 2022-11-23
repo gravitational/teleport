@@ -30,14 +30,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/trace"
-
 	"github.com/pkg/sftp"
 	"github.com/schollz/progressbar/v3"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/sshutils/scp"
 )
 
 // Options control aspects of a file transfer
