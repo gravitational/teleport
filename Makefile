@@ -437,6 +437,10 @@ build-archive:
 release-unix: clean full build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
+.PHONY: release-unix-only
+release-unix-only:
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+
 #
 # make release-windows-unsigned - Produces a binary release archive containing only tsh.
 #
