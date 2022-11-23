@@ -24,8 +24,8 @@ const (
 	teleportSrc       = `/go/src/github.com/gravitational/teleport`
 	webappsSrc        = `/go/src/github.com/gravitational/webapps`
 
-	relcliURL    = `https://cdn.teleport.dev/relcli-v1.1.75-windows.exe`
-	relcliSha256 = `664a48f349791b51c3fb5610ff282b050d5c3d74523730bb229256d2cc9ea0d7`
+	relcliURL    = `https://cdn.teleport.dev/relcli-v1.1.76-windows.exe`
+	relcliSha256 = `56dfdd9d1a09aac892fcd48eba035072dc6c151eaa2e1b21cf54786bb3c09520`
 )
 
 func newWindowsPipeline(name string) pipeline {
