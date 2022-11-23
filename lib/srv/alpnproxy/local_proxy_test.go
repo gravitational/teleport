@@ -42,6 +42,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/srv/alpnproxytest"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -375,13 +376,13 @@ func TestCheckDBCerts(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			tlsCert := mustGenCertSignedWithCA(t, suite.ca,
-				withIdentity(tlsca.Identity{
+			tlsCert := alpnproxytest.MustGenCertSignedWithCA(t, suite.ca,
+				alpnproxytest.WithIdentity(tlsca.Identity{
 					Username:        "test-user",
 					Groups:          []string{"test-group"},
 					RouteToDatabase: dbRouteInCert,
 				}),
-				withClock(tt.clock),
+				alpnproxytest.WithClock(tt.clock),
 			)
 			lp.SetCerts([]tls.Certificate{tlsCert})
 			tt.errAssertFn(t, lp.CheckDBCerts(tt.dbRoute))

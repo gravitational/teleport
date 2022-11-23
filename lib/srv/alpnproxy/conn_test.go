@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/srv/alpnproxytest"
 )
 
 func TestPingConnection(t *testing.T) {
@@ -337,7 +339,9 @@ func makeTLSConn(t *testing.T, server, client net.Conn) (*tls.Conn, *tls.Conn) {
 	// Server
 	go func() {
 		tlsConn := tls.Server(server, &tls.Config{
-			Certificates: []tls.Certificate{mustGenCertSignedWithCA(t, mustGenSelfSignedCert(t))},
+			Certificates: []tls.Certificate{
+				alpnproxytest.MustGenCertSignedWithCA(t, alpnproxytest.MustGenSelfSignedCert(t)),
+			},
 		})
 		tlsConnChan <- struct {
 			*tls.Conn

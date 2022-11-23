@@ -18,12 +18,8 @@ package alpnproxy
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
 	"fmt"
 	"io"
 	"net"
@@ -38,8 +34,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/srv/alpnproxytest"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -53,7 +49,7 @@ type Suite struct {
 }
 
 func NewSuite(t *testing.T) *Suite {
-	ca := mustGenSelfSignedCert(t)
+	ca := alpnproxytest.MustGenSelfSignedCert(t)
 	pool := x509.NewCertPool()
 	pool.AddCert(ca.Cert)
 	l, err := net.Listen("tcp", "127.0.0.1:0")
@@ -108,7 +104,7 @@ func (s *Suite) GetCertPool() *x509.CertPool {
 }
 
 func (s *Suite) CreateProxyServer(t *testing.T) *Proxy {
-	serverCert := mustGenCertSignedWithCA(t, s.ca)
+	serverCert := alpnproxytest.MustGenCertSignedWithCA(t, s.ca)
 	tlsConfig := &tls.Config{
 		NextProtos: common.ProtocolsToString(common.SupportedProtocols),
 		ClientAuth: tls.VerifyClientCertIfGiven,
@@ -147,68 +143,6 @@ func (s *Suite) Start(t *testing.T) {
 		err := svr.Close()
 		require.NoError(t, err)
 	})
-}
-
-func mustGenSelfSignedCert(t *testing.T) *tlsca.CertAuthority {
-	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
-		CommonName: "localhost",
-	}, []string{"localhost"}, defaults.CATTL)
-	require.NoError(t, err)
-
-	ca, err := tlsca.FromKeys(caCert, caKey)
-	require.NoError(t, err)
-	return ca
-}
-
-type signOptions struct {
-	identity tlsca.Identity
-	clock    clockwork.Clock
-}
-
-func withIdentity(identity tlsca.Identity) signOptionsFunc {
-	return func(o *signOptions) {
-		o.identity = identity
-	}
-}
-
-func withClock(clock clockwork.Clock) signOptionsFunc {
-	return func(o *signOptions) {
-		o.clock = clock
-	}
-}
-
-type signOptionsFunc func(o *signOptions)
-
-func mustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, opts ...signOptionsFunc) tls.Certificate {
-	options := signOptions{
-		identity: tlsca.Identity{Username: "test-user"},
-		clock:    clockwork.NewRealClock(),
-	}
-
-	for _, opt := range opts {
-		opt(&options)
-	}
-
-	subj, err := options.identity.Subject()
-	require.NoError(t, err)
-
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
-
-	tlsCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
-		Clock:     options.clock,
-		PublicKey: privateKey.Public(),
-		Subject:   subj,
-		NotAfter:  options.clock.Now().UTC().Add(time.Minute),
-		DNSNames:  []string{"localhost", "*.localhost"},
-	})
-	require.NoError(t, err)
-
-	keyRaw := x509.MarshalPKCS1PrivateKey(privateKey)
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyRaw})
-	cert, err := tls.X509KeyPair(tlsCert, keyPEM)
-	require.NoError(t, err)
-	return cert
 }
 
 func mustReadFromConnection(t *testing.T, conn net.Conn, want string) {
