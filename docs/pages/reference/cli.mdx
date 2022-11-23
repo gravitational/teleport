@@ -351,6 +351,67 @@ $ tsh proxy --port 10700 app grafana &
 $ curl http://127.0.0.1:10700/api/users
 ```
 
+### tsh proxy azure
+
+Starts a local proxy server that provides secure access to an Azure managed
+service identity endpoint. This is useful for managing access to Azure from
+custom client applications. The local proxy forwards traffic to the Teleport
+Application Service, which uses an Azure managed identity to fetch an
+authentication token from Azure.
+
+```code
+$ tsh proxy azure [<flags>]
+```
+
+The command will print the address of the local proxy server along with `export`
+commands for environment variables required to connect:
+
+```text
+Started Azure proxy on http://127.0.0.1:54330.
+To avoid port randomization, you can choose the listening port using the --port flag.
+
+Use the following credentials and HTTPS proxy setting to connect to the proxy:
+
+  export AZURE_CONFIG_DIR=/Users/myuser/.azure-teleport
+  export HTTPS_PROXY=http://127.0.0.1:54330
+  export HTTP_PROXY=http://127.0.0.1:54330
+  export MSI_ENDPOINT=https://azure-msi.teleport.dev
+  export REQUESTS_CA_BUNDLE=/Users/myuser/.tsh/keys/teleport.example.com/myuser-app/teleport.example.com/azure-cli-localca.pem
+```
+
+<Notice type="tip">
+
+`tsh proxy azure` runs the local proxy in the foreground, so don't interrupt
+the process or exit the terminal where you ran the command until you're ready
+to close the local proxy.
+
+</Notice>
+
+Copy the `export` commands and paste them into a second terminal.
+
+To run the local proxy server, one of the user's roles must include the
+`spec.allow.azure_identities` field with one of the identities used by the
+Application Service. To learn how to set up secure access to Azure via
+Teleport, read [Protect the Azure CLI with Teleport Application
+Access](../application-access/guides/azure.mdx).
+
+#### Arguments
+
+This command does not accept any arguments.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--app` | none | string | Name of the Teleport application representing Azure (i.e., based on `tsh apps ls`). Use this flag if your Teleport user has access to multiple Azure applications. | 
+| `--port` | none | port number | The port on `localhost` where the local proxy will listen for connections. |
+| `--format` | `powershell` if on Windows, `unix` otherwise | `text`, `unix`, `command-prompt`, or `powershell` | The format to use for listing environment variables for Azure client applications connecting to the local proxy. |
+
+#### [Global Flags](#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+
 ### tsh scp
 
 Copies files from source to dest:
@@ -1096,13 +1157,23 @@ $ tctl users update [<flags>] <account>
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--set-roles` | none | a role name | Comma-separated list of roles for the user to assume, replaces current roles |
+| `--set-roles` | none | Comma-separated list of roles for the user to assume. | Assigns the user's roles to the ones provided, replacing the user's current roles. |
+| `--set-azure-identities` | none | Comma-separated list of allowed Azure identity URIs. |  Assigns the user's allowed Azure identities to the ones provided, replacing the user's currently allowed Azure identities. |
 
 #### Examples
 
+Set the user `joe`'s roles to `access` and `editor`:
+
 ```code
 $ tctl users update joe --set-roles=access,editor
-# Assigns roles "access" and "editor" to user "joe"
+```
+
+Set the user `priya`'s Azure identities to `developer` and `dba`:
+
+```code
+$ tctl users update priya --set-azure-identities \
+ `/subscriptions/${SUBSCRIPTION_ID?}/resourceGroups/${MY_RESOURCE_GROUP?}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/developer,\
+ `/subscriptions/${SUBSCRIPTION_ID?}/resourceGroups/${MY_RESOURCE_GROUP?}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dba
 ```
 
 ### tctl users ls

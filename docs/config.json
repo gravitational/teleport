@@ -581,6 +581,10 @@
               "slug": "/application-access/guides/aws-console/"
             },
             {
+              "title": "Azure CLI Access",
+              "slug": "/application-access/guides/azure/"
+            },
+            {
               "title": "Dynamic Registration",
               "slug": "/application-access/guides/dynamic-registration/"
             }

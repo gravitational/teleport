@@ -1,0 +1,554 @@
+---
+title: "Protect the Azure CLI with Teleport Application Access"
+description: How to enable secure access to the Azure CLI.
+---
+
+You can use Teleport Application Access to manage the commands that your users
+can run via the Azure CLI. This lets you control access to your
+infrastructure's management APIs using the same RBAC system that you use to
+protect your infrastructure itself.
+
+The Teleport Application Service runs on an Azure VM and proxies requests from
+end users to Azure's APIs. Teleport users can then execute requests via the
+Azure CLI through Teleport as long as one of their roles allows access to an
+appropriate Azure managed identity. 
+
+You can run the Application Service VM in a private network to prevent
+unauthorized access to your organization's Azure credentials. 
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- The `az` CLI tool installed on your workstation. Teleport's `tsh` client uses
+  the `az` binary to execute commands. See the [Azure
+  documentation](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli)
+  for how to install the `az` CLI on your operating system.
+
+- An Azure VM where you will run the Teleport Application Service. The Azure VM
+  must be running a Linux distribution.
+
+- The Managed Identity Contributor, Managed Identity Operator, and Virtual
+  Machine Contributor role assignments in your Azure account. In this guide, we
+  will create a user-assigned Azure managed identity and attach it to your VM,
+  and Azure requires these three role assignments in order to do this. 
+
+  <Admonition type="tip" title="Using existing identities">
+
+  In this guide, we will create a user-assigned managed identity to demonstrate
+  Azure CLI access with Teleport. 
+
+  If you have another identity you would like users of the Azure CLI to assume
+  via Teleport, you can use that instead. In this case, you will not need the
+  Managed Identity Contributor role assignment.
+
+  </Admonition>
+
+(!docs/pages/includes/tctl.mdx!)
+
+## Step 1/4. Grant an identity to your VM
+
+In this step, we will create an Azure managed identity and assign it to your
+Azure VM. The identity we will create will be called `teleport-azure`, and will
+have permissions to view resources in your Azure account.
+
+You can enable Teleport to grant access to the Azure CLI under any Azure
+identity. If you have another one you intend to use, you can skip the creation
+of a new identity.
+
+### Create an Azure managed identity
+
+Visit the [Managed
+Identities](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.ManagedIdentity%2FuserAssignedIdentities)
+view in Azure Portal.
+
+Click **Create**.
+
+Under **Subscription**, **Resource group**, and **Region**, choose the ones that
+your VM belongs to.
+
+In the **Name** field, enter `teleport-azure`.
+
+![Creating an Azure managed
+identity](../../../img/application-access/azure/create-identity.png)
+
+Click **Review + create**, then **Create**.
+
+Once creation finishes, click **Go to resource**. On the page for the new
+identity, click **JSON View**. At the top of the right sidebar, you will see a
+field called **Resource ID** with a value resmmbling the following:
+
+```
+/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure
+```
+
+Copy this and paste it somewhere safe. We will use this later in the
+guide.
+
+### Allow the `teleport-azure` identity to view resources
+
+Once you create an Azure identity, authorize it to access resources in your
+account. In this case, we will authorize your new Azure identity to view
+resources in its resource group.
+
+Enter the name of your Azure resource group in the Azure Portal search box and
+visit the page for that resource group. On the left navigation sidebar, click
+the **Access control (IAM)** tab. In the row of buttons at the top of the
+**Access control (IAM)** panel, click **Add > Add role assignment**.
+
+Within the **Add role assignment** screen, click **Reader**, a built-in role
+with view-only access to resources. 
+
+![Add a role
+assignment](../../../img/application-access/azure/add-role-assignment.png)
+
+Scroll to the bottom of the screen and click **Next**.
+
+Within the **Members** tab, in the **Assign access to** field, choose **Managed
+identity**. Click **Select members**.
+
+On the right sidebar, find the **Managed identity** dropdown menu and select
+**User-assigned managed identity**. Choose the `teleport-azure` identity you
+created earlier. 
+
+![Select managed
+identities](../../../img/application-access/azure/select-managed-identities.png)
+
+Click **Select**, then **Review + assign**.
+
+Verify that your **Role** is "Reader", the **Scope** matches your chosen
+resource group, and the **Members** field includes the `teleport-azure` managed
+identity you created earlier.
+
+Click **Review + assign** again.
+
+### Attach an identity to your Azure VM
+
+Now that you have created a managed identity and assigned it a role, attach the
+identity to your Azure VM so the Teleport Application Service can assume the
+identity in order to proxy Azure CLI traffic.
+
+In the [Virtual machines
+view](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Compute%2FVirtualMachines)
+of Azure Portal, click on the name of the VM you are using to host the Teleport
+Application Service. 
+
+On the right side panel, click the **Identity** tab, then within the
+**Identity** view, click the **User assigned** tab. Click **+Add**, then select
+the `teleport-azure` identity. Click **Add**.
+
+![Add an identity to a
+VM](../../../img/application-access/azure/vm-identity.png)
+
+## Step 2/4. Deploy the Teleport Application Service
+
+In this step, you will run the Teleport Application Service on the Azure VM you
+assigned the `teleport-azure` identity to. The Teleport Application Service
+assumes this identity in order to proxy Azure CLI traffic, making it possible to
+use Teleport to manage access to administrative tasks in Azure.
+
+### Get a join token
+
+Establish trust between your Teleport cluster and your new Application Service
+instance by creating a join token:
+
+```code
+$ tctl nodes add --roles=app
+The invite token: (=presets.tokens.first=)
+This token will expire in 30 minutes.
+Run this on the new node to join the cluster:
+> teleport start \
+   --roles=app \
+   --token=(=presets.tokens.first=) \
+   --ca-pin=(=presets.ca_pin=) \
+   --auth-server=192.0.2.255:3025
+Please note:
+  - This invitation token will expire in 30 minutes
+  - 192.0.2.255:3025 must be reachable from the new node
+```
+
+On the host where you are running the Teleport Application Service, create a
+file called `/tmp/token` that consists only of your token:
+
+```code
+$ echo <Var name="join-token" /> | sudo tee /tmp/token
+```
+
+### Install the Teleport Application Service
+
+Run the following commands on the host where you will install the Teleport
+Application Service:
+
+<Tabs dropdownView dropdownCaption="Teleport Edition">
+<TabItem label="Self-Hosted" scope={["oss", "enterprise"]}>
+
+(!docs/pages/includes/install-linux.mdx!)
+
+</TabItem>
+<TabItem label="Teleport Cloud" scope="cloud">
+
+(!docs/pages/includes/install-agent-cloud.mdx service="the Teleport Kubernetes Service"!)
+
+</TabItem>
+</Tabs>
+
+### Configure the Teleport Application Service
+
+On the host where you will run the Teleport Application Service, create a file
+at `/etc/teleport.yaml` with the following content:
+
+```yaml
+version: v3
+teleport:
+  join_params:
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: "teleport.example.com:3080"
+auth_service:
+  enabled: off
+proxy_service:
+  enabled: off
+ssh_service:
+  enabled: off
+app_service:
+  enabled: true
+  apps:
+  - name: azure-cli
+    cloud: Azure
+```
+
+Edit `/etc/teleport.yaml` to replace `teleport.example.com:3080` with the host
+and port of your Teleport Proxy Service or Teleport Cloud tenant, e.g.,
+`mytenant.teleport.sh:443`.
+
+The `app_service` field configures the Teleport Application Service. Each item
+within `app_service.apps` is an application configuration. 
+
+In this example, we have enabled Azure CLI access by setting `cloud` to `Azure`.
+With this setting configured, the Application Service will proxy user commands
+from the Azure CLI by requesting access to the Azure API under the user's chosen
+identity, which works as long as the identity is one of the ones attached to the
+Application Service host.
+
+### Run the Teleport Application Service
+
+On the host where you will run the Teleport Application Service, execute the
+following command, depending on whether you installed Teleport using a package
+manager or via a TAR archive:
+
+<Tabs>
+<TabItem label="Package Manager">
+
+```code
+$ sudo systemctl start teleport
+```
+</TabItem>
+<TabItem label="TAR archive">
+
+```code
+$ sudo teleport install systemd --output=/etc/systemd/system/teleport.service;
+$ sudo systemctl enable teleport; 
+$ sudo systemctl start teleport; 
+```
+</TabItem>
+</Tabs>
+
+## Step 3/4. Enable your user to access the Azure CLI
+
+The next step is to authorize your Teleport user to assume an Azure identity and
+execute Azure CLI commands via Teleport. You will protect access to this
+identity using Teleport's RBAC system, where a user's roles determine which
+Azure managed identities (if any) they can access.
+
+Create a file called `azure-cli-access.yaml` with the following content:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: azure-cli-access
+spec:
+  allow:
+    app_labels:
+      '*': '*'
+    azure_identities:
+      - /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure
+
+```
+
+This role grants a user access to any Teleport-registered application, such as
+the `azure-cli` application we defined earlier, and allows that user to assume
+the `teleport-azure` identity you created earlier.
+
+Edit the identity URI in the `azure_identities` field to match the one you
+copied earlier.
+
+Create the role:
+
+```code
+$ tctl create -f azure-cli-access.yaml
+```
+
+Assign this role to your Teleport user by running the following commands,
+depending on whether you authenticate as a local Teleport user or via the
+`github`, `saml`, or `oidc` authentication connectors: 
+
+<Tabs>
+<TabItem label="Local User">
+
+Retrieve your local user's configuration resource:
+
+```code
+$ tctl get users/$(tsh status -f json | jq -r '.active.username') > out.yaml
+```
+
+Edit `out.yaml`, adding `azure-cli-access` to the list of
+existing roles.
+
+Apply your changes:
+
+```code
+$ tctl create -f out.yaml
+```
+</TabItem>
+<TabItem label="GitHub">
+
+Retrieve your `github`  configuration resource:
+
+```code
+$ tctl get github/github > github.yaml
+```
+
+Edit `github.yaml`, adding `azure-cli-access` to the `teams_to_roles` section.
+The team you will map to this role will depend on how you have designed your
+organization's RBAC, but it should be the smallest team possible within your
+organization. This team must also include your user.
+
+Here is an example:
+
+```diff
+  teams_to_roles:
+    - organization: octocats 
+      team: admins 
+      roles:
+        - access
++       - azure-cli-access
+```
+
+Apply your changes:
+
+```code
+$ tctl create -f github.yaml
+```
+</TabItem>
+<TabItem label="SAML">
+
+Retrieve your `saml`  configuration resource:
+
+```code
+$ tctl get saml/mysaml > saml.yaml
+```
+
+Edit `saml.yaml`, adding `azure-cli-access` to the `attributes_to_roles`
+section. The attribute you will map to this role will depend on how you have
+designed your organization's RBAC, but it should be the smallest group possible
+within your organization. This group must also include your user.
+
+Here is an example:
+
+```diff
+  attributes_to_roles:
+    - name: "groups" 
+      value: "my-group" 
+      roles:
+        - access
++       - azure-cli-access
+```
+
+Apply your changes:
+
+```code
+$ tctl create -f saml.yaml
+```
+</TabItem>
+<TabItem label="OIDC">
+
+Retrieve your `oidc`  configuration resource:
+
+```code
+$ tctl get oidc/myoidc > oidc.yaml
+```
+
+Edit `oidc.yaml`, adding `azure-cli-access` to the `claims_to_roles` section.
+The claim you will map to this role will depend on how you have designed your
+organization's RBAC, but it should be the smallest group possible within your
+organization. This group must also include your user.
+
+Here is an example:
+
+```diff
+  claims_to_roles:
+    - name: "groups" 
+      value: "my-group" 
+      roles:
+        - access
++       - azure-cli-access
+```
+
+Apply your changes:
+
+```code
+$ tctl create -f saml.yaml
+```
+</TabItem>
+</Tabs>
+
+Log out of your Teleport cluster and log in again to assume the new role.
+
+<Details title="Configuring Azure identities per user">
+
+The instructions above show you how to define a role with access to specific
+Azure identities, which means that Teleport users who assume this role can use
+those (and only those) identites to execute commands via the Azure CLI. Another
+approach is to define a user's permitted Azure identities by configuring each
+user separately.
+
+To do so, modify the `azure-cli-access` role you defined above to include the
+following:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: azure-cli-access
+spec:
+  allow:
+    app_labels:
+      '*': '*'
+    azure_identities:
+      - '{{internal.azure_identities}}'
+```
+
+In this case, when a user authenticates to the Azure CLI via Teleport, the
+Teleport Auth Service populates the `{{internal.azure_identities}}` template
+variable with any Azure identities you have assigned to the user.
+
+To assign Azure identities to a user, run a `tctl users update` command similar
+to the following:
+
+```code
+$ TELEPORT_USER=myuser;
+$ ID1=one_id;
+$ ID2=another_id;
+$ SUBSCRIPTION_ID=00000000-0000-0000-0000-000000000000;
+$ RESOURCE_GROUP="my-resource-group";
+$ tctl users update ${TELEPORT_USER?} --set-azure-identities \
+ `/subscriptions/${SUBSCRIPTION_ID?}/resourceGroups/${MY_RESOURCE_GROUP?}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/${ID1?},\
+ `/subscriptions/${SUBSCRIPTION_ID?}/resourceGroups/${MY_RESOURCE_GROUP?}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/${ID2?}
+```
+
+This command uses the `--set-azure-identities` flag to add Azure identities to a
+user. The value of this flag is a comma-separated list of Azure identity URIs.
+
+You must attach all identities you would like users to access to the Azure VM
+running the Application Service so the Application Service can make requests to
+the Azure API using those identities.
+
+</Details>
+
+## Step 4/4. Use the Azure CLI with Teleport
+
+Now that you have authorized your Teleport user to assume the `teleport-azure`
+identity, you can use Teleport to authenticate to the Azure API and execute
+commands against it via the `az` CLI.
+
+### List your Azure CLI application
+
+Verify that your Teleport user can see the `azure-cli` application you
+registered earlier:
+
+```code
+$ tsh apps ls
+Application Description Type Public Address                 Labels
+----------- ----------- ---- ------------------------------ -------------------
+azure-cli               HTTP azure-cli.teleport.example.com teleport.dev/origin
+```
+
+### Log in to use the Azure CLI
+
+Log in to the application, specifying that you would like to assume the
+`teleport-azure` identity:
+
+```code
+$ tsh app login azure-cli --azure-identity teleport-azure
+```
+
+This command validates the value of the `--azure-identity` flag against the ones
+the user is authorized to assume. The value of the flag can either be the full
+URI of the identity (e.g., the URI you copied earlier in this guide) or the name
+of the identity, e.g., `teleport-azure`. 
+
+A user can leave the `--azure-identity` flag blank if they are only authorized
+to access a single Azure identity, but otherwise an empty `--azure-identity`
+will result in an error.
+
+If the command succeeds, you will see information about the user's chosen Azure
+identity similar to the following:
+
+```text
+Logged into Azure app "azure-cli".
+Your identity: /subscriptions/0000000000000-0000-0000-000000000000/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure
+Example Azure CLI command: tsh az vm list
+
+[
+  {
+    "environmentName": "AzureCloud",
+    "homeTenantId": "00000000-0000-0000-0000-000000000000",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "isDefault": true,
+    "managedByTenants": [],
+    "name": "Microsoft Azure Sponsorship",
+    "state": "Enabled",
+    "tenantId": "00000000-0000-0000-0000-000000000000",
+    "user": {
+      "assignedIdentityInfo": "MSIResource-/subscriptions/0000000000000-0000-0000-000000000000/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
+      "name": "userAssignedIdentity",
+      "type": "servicePrincipal"
+    }
+  }
+]
+```
+
+### Execute Azure CLI commands
+
+At this point, you can run `az` commands using the Teleport Application Service
+by prefixing them with `tsh`. To list VMs running in your Azure resource group,
+for example, run the following command:
+
+```code
+$ tsh az vm list;
+```
+
+<Notice type="tip">
+
+If you're not seeing the expected VMs at this point, double-check that your
+Azure managed identity is assigned the "Reader" role at the scope of your
+resource group.
+
+</Notice>
+
+## Next steps
+
+- Now that you know how to protect Azure CLI access using Teleport, ensure that
+  your Teleport users can only manage Azure resources temporarily, with no
+  longstanding admin roles for attackers to hijack. View our documentation on
+  [Role Access
+  Requests](../../access-controls/access-requests/role-requests.mdx) and
+  [Access Request plugins](../../access-controls/access-request-plugins/index.mdx).
+- Consult the Azure documentation for information about [Azure managed
+  identities](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
+  and how to [manage user-assigned managed
+  identities](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/how-manage-user-assigned-managed-identities).
+- See the [Azure
+  documentation](https://learn.microsoft.com/en-us/cli/azure/reference-index?view=azure-cli-latest)
+  for the full list of `az` CLI commands.
