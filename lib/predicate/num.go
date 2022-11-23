@@ -14,7 +14,7 @@
 
 package predicate
 
-const bitCount = 8
+const bitCount = 4
 
 type numTheory struct {
 	counter   int
@@ -49,20 +49,20 @@ func (t *numTheory) finish() []clause {
 	return t.clauses
 }
 
-type integer struct {
+type integerS struct {
 	bits []int
 }
 
-func newInteger(theory *numTheory) *integer {
+func integer(theory *numTheory) *integerS {
 	bits := make([]int, 0)
 	for i := 0; i < bitCount; i++ {
 		bits = append(bits, theory.addVar())
 	}
 
-	return &integer{bits}
+	return &integerS{bits}
 }
 
-func constantEquals(theory *numTheory, x *integer, value int) {
+func constantEquals(theory *numTheory, x *integerS, value int) {
 	for j := 0; j < bitCount; j++ {
 		bit := (value >> j) & 1
 		if bit == 1 {
@@ -73,21 +73,21 @@ func constantEquals(theory *numTheory, x *integer, value int) {
 	}
 }
 
-func equals(theory *numTheory, x *integer, y *integer) {
+func equals(theory *numTheory, x *integerS, y *integerS) {
 	for j := 0; j < bitCount; j++ {
 		theory.addClause(newSet([]int{x.bits[j]}), newSet([]int{y.bits[j]}))
 		theory.addClause(newSet([]int{y.bits[j]}), newSet([]int{x.bits[j]}))
 	}
 }
 
-type addition struct {
-	carries *integer
-	bits    *integer
+type additionS struct {
+	out     *integerS
+	carries *integerS
 }
 
-func newAddition(theory *numTheory, a *integer, b *integer) *addition {
-	carries := newInteger(theory)
-	bits := newInteger(theory)
+func addition(theory *numTheory, a *integerS, b *integerS) *additionS {
+	bits := integer(theory)
+	carries := integer(theory)
 
 	previous_carry := theory.var_false
 	for j := 0; j < bitCount; j++ {
@@ -96,7 +96,7 @@ func newAddition(theory *numTheory, a *integer, b *integer) *addition {
 		previous_carry = current_carry
 	}
 
-	return &addition{carries, bits}
+	return &additionS{bits, carries}
 }
 
 func xor_gate(theory *numTheory, a int, b int, out int) {

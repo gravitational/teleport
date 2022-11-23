@@ -38,10 +38,12 @@ func TestSATSimple(t *testing.T) {
 
 func TestSATIntEq(t *testing.T) {
 	theory := newNumTheory()
-	r1 := newInteger(theory)
+	r1 := integer(theory)
 	constantEquals(theory, r1, 5)
-	r2 := newInteger(theory)
-	equals(theory, r1, r2)
+	r3 := integer(theory)
+	constantEquals(theory, r3, 9)
+	r2 := integer(theory)
+	equals(theory, addition(theory, r1, r3).out, r2)
 
 	clauses := theory.finish()
 	instance := newInstance(clauses)
