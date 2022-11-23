@@ -376,6 +376,21 @@ func TestCassandraAWSEndpoint(t *testing.T) {
 		require.Equal(t, "us-west-1", database.GetAWS().Region)
 	})
 
+	t.Run("aws cassandra custom fips uri", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "test",
+		}, DatabaseSpecV3{
+			Protocol: "cassandra",
+			URI:      "cassandra-fips.us-west-2.amazonaws.com:9142",
+			AWS: AWS{
+				AccountID: "12345",
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "cassandra-fips.us-west-2.amazonaws.com:9142", database.GetURI())
+		require.Equal(t, "us-west-2", database.GetAWS().Region)
+	})
+
 	t.Run("aws cassandra missing AccountID", func(t *testing.T) {
 		_, err := NewDatabaseV3(Metadata{
 			Name: "test",
