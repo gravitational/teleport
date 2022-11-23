@@ -26,7 +26,6 @@ import (
 )
 
 func TestString(t *testing.T) {
-	t.Parallel()
 	tests := []struct {
 		in  uri.ResourceURI
 		out string
@@ -46,10 +45,7 @@ func TestString(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(fmt.Sprintf("%v", tt.in), func(t *testing.T) {
-			t.Parallel()
-
 			out := tt.in.String()
 			require.Equal(t, tt.out, out)
 		})
@@ -57,7 +53,6 @@ func TestString(t *testing.T) {
 }
 
 func TestParseClusterURI(t *testing.T) {
-	t.Parallel()
 	tests := []struct {
 		in  string
 		out uri.ResourceURI
@@ -81,10 +76,7 @@ func TestParseClusterURI(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.in, func(t *testing.T) {
-			t.Parallel()
-
 			out, err := uri.ParseClusterURI(tt.in)
 			require.NoError(t, err)
 			require.Equal(t, tt.out, out)
