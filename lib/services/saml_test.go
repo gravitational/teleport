@@ -96,14 +96,6 @@ func TestValidateRoles(t *testing.T) {
 			roles: []string{"foo", "$1", "$baz", "admin_${baz}"},
 		},
 		{
-			desc:  "dollar literal",
-			roles: []string{"big$$"},
-		},
-		{
-			desc:  "dollar literal and expansion",
-			roles: []string{"big$$${baz}"},
-		},
-		{
 			desc:        "missing role",
 			roles:       []string{"baz"},
 			expectedErr: trace.BadParameter(`role "baz" specified in attributes_to_roles not found`),
