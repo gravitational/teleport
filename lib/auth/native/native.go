@@ -22,8 +22,7 @@ import (
 	"crypto/x509"
 	_ "embed"
 	"encoding/pem"
-	rand2 "math/rand"
-	"os"
+	mathrand "math/rand"
 	"sync"
 	"time"
 
@@ -34,9 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/keys"
 )
-
-//go:embed testdata/keys.pem
-var keysRaw []byte
 
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentKeyGen,
@@ -117,7 +113,7 @@ func precomputeTestKeys() {
 	}
 
 	for {
-		rand2.Shuffle(len(testKeys), func(i, j int) {
+		mathrand.Shuffle(len(testKeys), func(i, j int) {
 			testKeys[i], testKeys[j] = testKeys[j], testKeys[i]
 		})
 
@@ -125,36 +121,38 @@ func precomputeTestKeys() {
 			precomputedKeys <- k
 		}
 	}
-
 }
 
+const generateTestKeys = 25
+
 func loadTestKeys() ([]*rsa.PrivateKey, error) {
-	keysBytes, err := os.ReadFile("keys.pem")
-	if err != nil {
-		keysBytes = keysRaw
-		//return nil, trace.Wrap(err)
-	}
+	privateKeys := make([]*rsa.PrivateKey, 0, generateTestKeys)
+	keysChan := make(chan *rsa.PrivateKey)
+	errs := make(chan error)
 
-	privKeys := make([]*rsa.PrivateKey, 0)
-	rest := keysBytes
-
-	for len(rest) != 0 {
-		var block *pem.Block
-		block, rest = pem.Decode(rest)
-
-		if block.Type != keys.PKCS1PrivateKeyType {
-			log.Warn("wrong key type, skipping")
-			continue
+	go func() {
+		for i := 0; i < generateTestKeys; i++ {
+			go func() {
+				private, err := generateRSAPrivateKey()
+				if err != nil {
+					errs <- trace.Wrap(err)
+					return
+				}
+				keysChan <- private
+			}()
 		}
-		private, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-		if err != nil {
+	}()
+
+	for i := 0; i < generateTestKeys; i++ {
+		select {
+		case err := <-errs:
 			return nil, trace.Wrap(err)
+		case privKey := <-keysChan:
+			privateKeys = append(privateKeys, privKey)
 		}
-
-		privKeys = append(privKeys, private)
 	}
 
-	return privKeys, nil
+	return privateKeys, nil
 }
 
 // PrecomputeKeys sets this package into a mode where a small backlog of keys are
