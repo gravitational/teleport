@@ -129,7 +129,7 @@ function Install-Node {
         Expand-Archive -Path $NodeZipfile -DestinationPath $ToolchainDir
         Rename-Item -Path "$ToolchainDir/node-v$NodeVersion-win-x64" -NewName "$ToolchainDir/node"
         Enable-Node -ToolchainDir $ToolchainDir
-        npm config set msvs_version 2017
+        npm config set msvs_version 2022
         corepack enable yarn
     }
 }
@@ -169,6 +169,23 @@ function Format-FileHashes {
     }
 }
 
+function Save-Role {
+    <#
+    .SYNOPSIS
+        Assume an AWS role and save the session to the supplied file
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $RoleArn,
+        [string] $RoleSessionName,
+        [string] $FilePath
+    )
+    begin {
+        $RoleCreds = (Use-STSRole -RoleArn $RoleArn -RoleSessionName $RoleSessionName).Credentials
+        "[default]`r`naws_access_key_id = {0}`r`naws_secret_access_key = {1}`r`naws_session_token = {2}" -f $RoleCreds.AccessKeyId, $RoleCreds.SecretAccessKey, $RoleCreds.SessionToken | Out-File -FilePath $FilePath
+    }
+}
+
 function Copy-Artifacts {
     <#
     .SYNOPSIS
@@ -176,15 +193,16 @@ function Copy-Artifacts {
     #>
     [CmdletBinding()]
     param(
+        [string] $ProfileLocation,
         [string] $Path,
         [string] $Bucket,
-        [string] $DstRoot 
+        [string] $DstRoot
     )
     begin {
         foreach ($file in $(Get-ChildItem $Path)) {
             Write-Output "Uploading $($file.Name)"
             $Key = "$DstRoot/$($file.Name)"
-            Write-S3Object -File $file.FullName -Bucket $Bucket -Key $Key 
+            Write-S3Object -ProfileLocation $ProfileLocation -File $file.FullName -Bucket $Bucket -Key $Key
         }
     }
 }
@@ -198,6 +216,45 @@ function Convert-Base64 {
     begin {
         $bytes = [Convert]::FromBase64String($Data)
         Set-Content -Encoding Byte -Path $FilePath -Value $bytes
+    }
+}
+
+function Get-Relcli {
+    <#
+    .SYNOPSIS
+        Downloads relcli
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $Url,
+        [string] $Sha256,
+        [string] $Workspace
+    )
+    begin {
+        Invoke-WebRequest $url -UseBasicParsing -OutFile "$Workspace\relcli.exe"
+        $gotSha256 = (Get-FileHash "$Workspace\relcli.exe").hash
+        if ($gotSha256 -ne $Sha256) {
+            Write-Output "sha256 mismatch: $gotSha256 != $Sha256"
+        }
+    }
+}
+
+function Register-Artifacts {
+    <#
+    .SYNOPSIS
+        Invokes relcli to automatically upload built artifacts
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $Workspace,
+        [string] $OutputsDir
+    )
+    begin {
+        $certPath = "$Workspace/releases.crt"
+        $keyPath = "$Workspace/releases.key"
+        Convert-Base64 -Data $Env:RELEASES_CERT -FilePath $certPath
+        Convert-Base64 -Data $Env:RELEASES_KEY -FilePath $keyPath
+        & "$Workspace\relcli.exe" --cert $certPath --key $keyPath auto_upload -f -v 6 $OutputsDir
     }
 }
 

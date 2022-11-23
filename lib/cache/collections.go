@@ -20,10 +20,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/gravitational/trace"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-
-	"github.com/gravitational/trace"
 )
 
 // collection is responsible for managing collection
@@ -147,12 +147,7 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			switch resourceKind.version {
-			case types.V2:
-				collections[resourceKind] = &appServerV2{watch: watch, Cache: c}
-			default:
-				collections[resourceKind] = &appServerV3{watch: watch, Cache: c}
-			}
+			collections[resourceKind] = &appServerV3{watch: watch, Cache: c}
 		case types.KindWebSession:
 			switch watch.SubKind {
 			case types.KindAppSession:
@@ -201,6 +196,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter Databases")
 			}
 			collections[resourceKind] = &database{watch: watch, Cache: c}
+		case types.KindKubernetesCluster:
+			if c.Kubernetes == nil {
+				return nil, trace.BadParameter("missing parameter Kubernetes")
+			}
+			collections[resourceKind] = &kubeCluster{watch: watch, Cache: c}
 		case types.KindNetworkRestrictions:
 			if c.Restrictions == nil {
 				return nil, trace.BadParameter("missing parameter Restrictions")
@@ -1542,70 +1542,6 @@ func (s *appServerV3) watchKind() types.WatchKind {
 	return s.watch
 }
 
-// DELETE IN 9.0. Deprecated, use appServerV3.
-type appServerV2 struct {
-	*Cache
-	watch types.WatchKind
-}
-
-// erase erases all data in the collection
-func (a *appServerV2) erase(ctx context.Context) error {
-	if err := a.presenceCache.DeleteAllAppServers(ctx, apidefaults.Namespace); err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
-func (a *appServerV2) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := a.Presence.GetAppServers(ctx, apidefaults.Namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return func(ctx context.Context) error {
-		if err := a.erase(ctx); err != nil {
-			return trace.Wrap(err)
-		}
-		for _, resource := range resources {
-			if _, err := a.presenceCache.UpsertAppServer(ctx, resource); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		return nil
-	}, nil
-}
-
-func (a *appServerV2) processEvent(ctx context.Context, event types.Event) error {
-	switch event.Type {
-	case types.OpDelete:
-		err := a.presenceCache.DeleteAppServer(ctx, event.Resource.GetMetadata().Namespace, event.Resource.GetName())
-		if err != nil {
-			// Resource could be missing in the cache expired or not created, if the
-			// first consumed event is delete.
-			if !trace.IsNotFound(err) {
-				a.Warningf("Failed to delete resource %v.", err)
-				return trace.Wrap(err)
-			}
-		}
-	case types.OpPut:
-		resource, ok := event.Resource.(types.Server)
-		if !ok {
-			return trace.BadParameter("unexpected type %T", event.Resource)
-		}
-		if _, err := a.presenceCache.UpsertAppServer(ctx, resource); err != nil {
-			return trace.Wrap(err)
-		}
-	default:
-		a.Warningf("Skipping unsupported event type %v.", event.Type)
-	}
-	return nil
-}
-
-func (a *appServerV2) watchKind() types.WatchKind {
-	return a.watch
-}
-
 type appSession struct {
 	*Cache
 	watch types.WatchKind
@@ -2553,4 +2489,75 @@ func (c *windowsDesktops) processEvent(ctx context.Context, event types.Event) e
 
 func (c *windowsDesktops) watchKind() types.WatchKind {
 	return c.watch
+}
+
+type kubeCluster struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (s *kubeCluster) erase(ctx context.Context) error {
+	err := s.kubernetesCache.DeleteAllKubernetesClusters(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *kubeCluster) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := s.Kubernetes.GetKubernetesClusters(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return func(ctx context.Context) error {
+		if err := s.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		for _, resource := range resources {
+			if err := s.kubernetesCache.CreateKubernetesCluster(ctx, resource); err != nil {
+				if !trace.IsAlreadyExists(err) {
+					return trace.Wrap(err)
+				}
+				if err := s.kubernetesCache.UpdateKubernetesCluster(ctx, resource); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (s *kubeCluster) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := s.kubernetesCache.DeleteKubernetesCluster(ctx, event.Resource.GetName())
+		if err != nil {
+			// Resource could be missing in the cache expired or not created,
+			// if the first consumed event is delete.
+			if !trace.IsNotFound(err) {
+				s.WithError(err).Warn("Failed to delete resource.")
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.KubeCluster)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if err := s.kubernetesCache.CreateKubernetesCluster(ctx, resource); err != nil {
+			if !trace.IsAlreadyExists(err) {
+				return trace.Wrap(err)
+			}
+			if err := s.kubernetesCache.UpdateKubernetesCluster(ctx, resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	default:
+		s.Warnf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (s *kubeCluster) watchKind() types.WatchKind {
+	return s.watch
 }

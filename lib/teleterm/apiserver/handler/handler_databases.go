@@ -18,27 +18,51 @@ import (
 	"context"
 	"sort"
 
+	"github.com/gravitational/trace"
+
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
-
-	"github.com/gravitational/trace"
 )
 
-// ListDatabases lists databases
-func (s *Handler) ListDatabases(ctx context.Context, req *api.ListDatabasesRequest) (*api.ListDatabasesResponse, error) {
+// GetAllDatabases gets all databases with no pagination
+func (s *Handler) GetAllDatabases(ctx context.Context, req *api.GetAllDatabasesRequest) (*api.GetAllDatabasesResponse, error) {
 	cluster, err := s.DaemonService.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	dbs, err := cluster.GetDatabases(ctx)
+	dbs, err := cluster.GetAllDatabases(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response := &api.ListDatabasesResponse{}
+	response := &api.GetAllDatabasesResponse{}
 	for _, db := range dbs {
 		response.Databases = append(response.Databases, newAPIDatabase(db))
+	}
+
+	return response, nil
+}
+
+// GetDatabases gets databses with filters and returns paginated results
+func (s *Handler) GetDatabases(ctx context.Context, req *api.GetDatabasesRequest) (*api.GetDatabasesResponse, error) {
+	cluster, err := s.DaemonService.ResolveCluster(req.ClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := cluster.GetDatabases(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response := &api.GetDatabasesResponse{
+		StartKey:   resp.StartKey,
+		TotalCount: int32(resp.TotalCount),
+	}
+
+	for _, database := range resp.Databases {
+		response.Agents = append(response.Agents, newAPIDatabase(database))
 	}
 
 	return response, nil

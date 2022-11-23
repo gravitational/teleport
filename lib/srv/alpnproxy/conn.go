@@ -25,8 +25,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // newBufferedConn creates new instance of bufferedConn.
@@ -42,36 +43,41 @@ func newBufferedConn(conn net.Conn, header io.Reader) *bufferedConn {
 //
 // Example: Prepend Read buff to the connection.
 // conn, err := conn.Read(buff)
-// if err != nil {
-//    return err
-// }
+//
+//	if err != nil {
+//	   return err
+//	}
+//
 // Now the client can peek at buff read by conn.Read call.
 //
 // But to not alter the connection the buff can be prepended to the connection and
 // the buffered connection should be sued for further operations.
 // conn = newBufferedConn(conn, bytes.NewReader(buff))
-// if err := handleConnection(conn); err != nil {
-//    return err
-// }
+//
+//	if err := handleConnection(conn); err != nil {
+//	   return err
+//	}
 //
 // The bufferedConn is useful in more complex cases when connection Read call is done in an external library
 // Example: Reading the client TLS Hello message TLS termination.
 // var hello *tls.ClientHelloInfo
 // buff := new(bytes.Buffer)
-// tlsConn := tls.Server(readOnlyConn{reader: io.TeeReader(conn, buff)}, &tls.Config{
-// 	 GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
-// 	    hello = info
-// 	    return nil, nil
-// 	 },
-// })
+//
+//	tlsConn := tls.Server(readOnlyConn{reader: io.TeeReader(conn, buff)}, &tls.Config{
+//		 GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
+//		    hello = info
+//		    return nil, nil
+//		 },
+//	})
+//
 // err := tlsConn.Handshake()
-// if hello == nil {
-//    return trace.Wrap(err)
-// }
+//
+//	if hello == nil {
+//	   return trace.Wrap(err)
+//	}
 //
 // Create the bufferedConn with prepended buff obtained from TLS Handshake.
 // conn := newBufferedConn(conn, buff)
-//
 type bufferedConn struct {
 	net.Conn
 	r io.Reader
@@ -126,7 +132,7 @@ func (c *PingConn) Read(p []byte) (int, error) {
 
 	err := c.discardPingReads()
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return 0, err
 	}
 
 	// Check if the current size is larger than the provided buffer.
@@ -155,7 +161,7 @@ func (c *PingConn) discardPingReads() error {
 	for c.currentSize == 0 {
 		err := binary.Read(c.Conn, binary.BigEndian, &c.currentSize)
 		if err != nil {
-			return trace.Wrap(err)
+			return err
 		}
 	}
 

@@ -23,11 +23,11 @@ import (
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
@@ -81,6 +81,11 @@ func TestRegistrationFlow_BeginFinish(t *testing.T) {
 			require.Equal(t, webRegistration.Webauthn.RPID, credentialCreation.Response.RelyingParty.ID)
 			// Are we using the correct authenticator selection settings?
 			require.Equal(t, test.wantResidentKey, *credentialCreation.Response.AuthenticatorSelection.RequireResidentKey)
+			if test.wantResidentKey {
+				require.Equal(t, protocol.ResidentKeyRequirementRequired, credentialCreation.Response.AuthenticatorSelection.ResidentKey)
+			} else {
+				require.Equal(t, protocol.ResidentKeyRequirementDiscouraged, credentialCreation.Response.AuthenticatorSelection.ResidentKey)
+			}
 			require.Equal(t, test.wantUserVerification, credentialCreation.Response.AuthenticatorSelection.UserVerification)
 			// Did we record the SessionData in storage?
 			require.NotEmpty(t, identity.SessionData)

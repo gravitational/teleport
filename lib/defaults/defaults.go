@@ -25,14 +25,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"golang.org/x/exp/slices"
+	"gopkg.in/square/go-jose.v2"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/jonboulle/clockwork"
-
-	"github.com/gravitational/trace"
-	"gopkg.in/square/go-jose.v2"
 )
 
 // Default port numbers used by all teleport tools
@@ -188,10 +189,6 @@ const (
 	// value is used.
 	ProvisioningTokenTTL = 30 * time.Minute
 
-	// HOTPFirstTokensRange is amount of lookahead tokens we remember
-	// for sync purposes
-	HOTPFirstTokensRange = 4
-
 	// MinPasswordLength is minimum password length
 	MinPasswordLength = 6
 
@@ -294,11 +291,6 @@ const (
 	// abandoned uploads which need to be completed.
 	AbandonedUploadPollingRate = defaults.SessionTrackerTTL / 6
 
-	// UploadGracePeriod is a period after which non-completed
-	// upload is considered abandoned and will be completed by the reconciler
-	// DELETE IN 11.0.0
-	UploadGracePeriod = 24 * time.Hour
-
 	// ProxyPingInterval is the interval ping messages are going to be sent.
 	// This is only applicable for TLS routing protocols that support ping
 	// wrapping.
@@ -383,6 +375,9 @@ var (
 	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
 	WindowsDesktopQueueSize = 128
 
+	// DiscoveryQueueSize is discovery service queue size.
+	DiscoveryQueueSize = 128
+
 	// SessionControlTimeout is the maximum amount of time a controlled session
 	// may persist after contact with the auth server is lost (sessctl semaphore
 	// leases are refreshed at a rate of ~1/2 this duration).
@@ -461,6 +456,8 @@ const (
 	RoleDatabase = "db"
 	// RoleWindowsDesktop is a Windows desktop service.
 	RoleWindowsDesktop = "windowsdesktop"
+	// RoleDiscovery is a discovery service
+	RoleDiscovery = "discovery"
 )
 
 const (
@@ -482,6 +479,10 @@ const (
 	ProtocolSQLServer = "sqlserver"
 	// ProtocolSnowflake is the Snowflake REST database protocol.
 	ProtocolSnowflake = "snowflake"
+	// ProtocolCassandra is the Cassandra database protocol.
+	ProtocolCassandra = "cassandra"
+	// ProtocolElasticsearch is the Elasticsearch database protocol.
+	ProtocolElasticsearch = "elasticsearch"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -493,6 +494,8 @@ var DatabaseProtocols = []string{
 	ProtocolRedis,
 	ProtocolSnowflake,
 	ProtocolSQLServer,
+	ProtocolCassandra,
+	ProtocolElasticsearch,
 }
 
 // ReadableDatabaseProtocol returns a more human readable string of the
@@ -511,8 +514,12 @@ func ReadableDatabaseProtocol(p string) string {
 		return "Redis"
 	case ProtocolSnowflake:
 		return "Snowflake"
+	case ProtocolElasticsearch:
+		return "Elasticsearch"
 	case ProtocolSQLServer:
 		return "Microsoft SQL Server"
+	case ProtocolCassandra:
+		return "Cassandra"
 	default:
 		// Unknown protocol. Return original string.
 		return p
@@ -749,24 +756,15 @@ var (
 	}
 )
 
-// CheckPasswordLimiter creates a rate limit that can be used to slow down
-// requests that come to the check password endpoint.
-func CheckPasswordLimiter() *limiter.Limiter {
-	limiter, err := limiter.NewLimiter(limiter.Config{
-		MaxConnections:   LimiterMaxConnections,
-		MaxNumberOfUsers: LimiterMaxConcurrentUsers,
-		Rates: []limiter.Rate{
-			{
-				Period:  1 * time.Second,
-				Average: 10,
-				Burst:   10,
-			},
-		},
-	})
+// Transport returns a new http.Client with sensible defaults.
+func HTTPClient() (*http.Client, error) {
+	transport, err := Transport()
 	if err != nil {
-		panic(fmt.Sprintf("Failed to create limiter: %v.", err))
+		return nil, trace.Wrap(err)
 	}
-	return limiter
+	return &http.Client{
+		Transport: transport,
+	}, nil
 }
 
 // Transport returns a new http.RoundTripper with sensible defaults.
@@ -798,7 +796,26 @@ const (
 	TeleportConfigVersionV1 string = "v1"
 	// TeleportConfigVersionV2 is the teleport proxy configuration v2 version.
 	TeleportConfigVersionV2 string = "v2"
+	// TeleportConfigVersionV3 is the teleport proxy configuration v3 version.
+	TeleportConfigVersionV3 string = "v3"
 )
+
+// TeleportConfigVersions is an exported slice of the allowed versions in the config file,
+// for convenience (looping through, etc)
+var TeleportConfigVersions = []string{
+	TeleportConfigVersionV1,
+	TeleportConfigVersionV2,
+	TeleportConfigVersionV3,
+}
+
+func ValidateConfigVersion(version string) error {
+	hasVersion := slices.Contains(TeleportConfigVersions, version)
+	if !hasVersion {
+		return trace.BadParameter("version must be one of %s", strings.Join(TeleportConfigVersions, ", "))
+	}
+
+	return nil
+}
 
 // Default values for tsh and tctl commands.
 const (

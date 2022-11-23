@@ -17,14 +17,14 @@ limitations under the License.
 package events
 
 import (
+	"encoding/json"
+
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"encoding/json"
 )
 
 // FromEventFields converts from the typed dynamic representation
@@ -151,6 +151,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AppSessionChunk{}
 	case AppSessionRequestEvent:
 		e = &events.AppSessionRequest{}
+	case AppSessionDynamoDBRequestEvent:
+		e = &events.AppSessionDynamoDBRequest{}
 	case AppCreateEvent:
 		e = &events.AppCreate{}
 	case AppUpdateEvent:
@@ -211,6 +213,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.MySQLRefresh{}
 	case DatabaseSessionSQLServerRPCRequestEvent:
 		e = &events.SQLServerRPCRequest{}
+	case DatabaseSessionElasticsearchRequestEvent:
+		e = &events.ElasticsearchRequest{}
 	case KubeRequestEvent:
 		e = &events.KubeRequest{}
 	case MFADeviceAddEvent:
@@ -251,8 +255,33 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.UpgradeWindowStartUpdate{}
 	case SessionRecordingAccessEvent:
 		e = &events.SessionRecordingAccess{}
+	case SSMRunEvent:
+		e = &events.SSMRun{}
+	case KubernetesClusterCreateEvent:
+		e = &events.KubernetesClusterCreate{}
+	case KubernetesClusterUpdateEvent:
+		e = &events.KubernetesClusterUpdate{}
+	case KubernetesClusterDeleteEvent:
+		e = &events.KubernetesClusterDelete{}
+	case DesktopSharedDirectoryStartEvent:
+		e = &events.DesktopSharedDirectoryStart{}
+	case DesktopSharedDirectoryReadEvent:
+		e = &events.DesktopSharedDirectoryRead{}
+	case DesktopSharedDirectoryWriteEvent:
+		e = &events.DesktopSharedDirectoryWrite{}
 	case UnknownEvent:
 		e = &events.Unknown{}
+
+	// Cassandra events.
+	case CassandraBatchEventCode:
+		e = &events.CassandraBatch{}
+	case CassandraRegisterEventCode:
+		e = &events.CassandraRegister{}
+	case CassandraPrepareEventCode:
+		e = &events.CassandraPrepare{}
+	case CassandraExecuteEventCode:
+		e = &events.CassandraExecute{}
+
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", eventType)
 		unknown := &events.Unknown{}

@@ -20,11 +20,12 @@ import (
 	"context"
 	"io"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
 )
 
 // Announcer specifies interface responsible for announcing presence
@@ -55,11 +56,6 @@ type Announcer interface {
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
-
-	// UpsertAppServer adds an application server.
-	//
-	// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
-	UpsertAppServer(context.Context, types.Server) (*types.KeepAlive, error)
 
 	// UpsertApplicationServer registers an application server.
 	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
@@ -94,6 +90,9 @@ type accessPoint interface {
 
 	// GenerateCertAuthorityCRL returns an empty CRL for a CA.
 	GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error)
+
+	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
+	services.ConnectionDiagnosticTraceAppender
 }
 
 // ReadNodeAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -225,11 +224,6 @@ type ReadProxyAccessPoint interface {
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 
-	// GetAppServers gets all application servers.
-	//
-	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
-	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
-
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
 
@@ -277,6 +271,11 @@ type ReadProxyAccessPoint interface {
 	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
 	// GetWindowsDesktopService returns a windows desktop host by name.
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
+
+	// GetKubernetesClusters returns all kubernetes cluster resources.
+	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	// GetKubernetesCluster returns the specified kubernetes cluster resource.
+	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
@@ -362,11 +361,6 @@ type ReadRemoteProxyAccessPoint interface {
 	// GetTunnelConnections returns tunnel connections for a given cluster
 	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
 
-	// GetAppServers gets all application servers.
-	//
-	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
-	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
-
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 
@@ -450,6 +444,11 @@ type ReadKubernetesAccessPoint interface {
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
+
+	// GetKubernetesClusters returns all kubernetes cluster resources.
+	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	// GetKubernetesCluster returns the specified kubernetes cluster resource.
+	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
 
 // KubernetesAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -663,6 +662,57 @@ type WindowsDesktopAccessPoint interface {
 	accessPoint
 }
 
+// ReadDiscoveryAccessPoint is a read only API interface to be
+// used by a teleport.ComponentDiscovery.
+//
+// NOTE: This interface must match the resources replicated in cache.ForDiscovery.
+type ReadDiscoveryAccessPoint interface {
+	// Closer closes all the resources
+	io.Closer
+
+	// NewWatcher returns a new event watcher.
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+
+	// GetCertAuthority returns cert authority by id
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+
+	// GetCertAuthorities returns a list of cert authorities
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+
+	// GetClusterName gets the name of the cluster from the backend.
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
+
+	// GetNodes returns a list of registered servers for this cluster.
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+	// GetKubernetesCluster returns a kubernetes cluster resource identified by name.
+	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
+	// GetKubernetesClusters returns all kubernetes cluster resources.
+	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+}
+
+// DiscoveryAccessPoint is an API interface implemented by a certificate authority (CA) to be
+// used by a teleport.ComponentDiscovery
+type DiscoveryAccessPoint interface {
+	// ReadDiscoveryAccessPoint provides methods to read data
+	ReadDiscoveryAccessPoint
+
+	// accessPoint provides common access point functionality
+	accessPoint
+
+	// CreateKubernetesCluster creates a new kubernetes cluster resource.
+	CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error
+	// UpdateKubernetesCluster updates existing kubernetes cluster resource.
+	UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error
+	// DeleteKubernetesCluster deletes specified kubernetes cluster resource.
+	DeleteKubernetesCluster(ctx context.Context, name string) error
+}
+
 // AccessCache is a subset of the interface working on the certificate authorities
 type AccessCache interface {
 	// GetCertAuthority returns cert authority by id
@@ -753,11 +803,6 @@ type Cache interface {
 	// GetTunnelConnections returns tunnel connections for a given cluster
 	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
 
-	// GetAppServers gets all application servers.
-	//
-	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
-	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
-
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
 
@@ -839,12 +884,19 @@ type Cache interface {
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 	// ListWindowsDesktops returns a paginated list of windows desktops.
 	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
+	// ListWindowsDesktopServices returns a paginated list of windows desktops.
+	ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error)
 
 	// GetInstaller gets installer resource for this cluster
 	GetInstaller(ctx context.Context, name string) (types.Installer, error)
 
 	// GetInstallers gets all the installer resources.
 	GetInstallers(ctx context.Context) ([]types.Installer, error)
+
+	// GetKubernetesClusters returns all kubernetes cluster resources.
+	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	// GetKubernetesCluster returns the specified kubernetes cluster resource.
+	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
 
 type NodeWrapper struct {
@@ -991,6 +1043,42 @@ func NewWindowsDesktopWrapper(base WindowsDesktopAccessPoint, cache ReadWindowsD
 func (w *WindowsDesktopWrapper) Close() error {
 	err := w.NoCache.Close()
 	err2 := w.ReadWindowsDesktopAccessPoint.Close()
+	return trace.NewAggregate(err, err2)
+}
+
+type DiscoveryWrapper struct {
+	ReadDiscoveryAccessPoint
+	accessPoint
+	NoCache DiscoveryAccessPoint
+}
+
+func NewDiscoveryWrapper(base DiscoveryAccessPoint, cache ReadDiscoveryAccessPoint) DiscoveryAccessPoint {
+	return &DiscoveryWrapper{
+		NoCache:                  base,
+		accessPoint:              base,
+		ReadDiscoveryAccessPoint: cache,
+	}
+}
+
+// CreateKubernetesCluster creates a new kubernetes cluster resource.
+func (w *DiscoveryWrapper) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	return w.NoCache.CreateKubernetesCluster(ctx, cluster)
+}
+
+// UpdateKubernetesCluster updates existing kubernetes cluster resource.
+func (w *DiscoveryWrapper) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	return w.NoCache.UpdateKubernetesCluster(ctx, cluster)
+}
+
+// DeleteKubernetesCluster deletes specified kubernetes cluster resource.
+func (w *DiscoveryWrapper) DeleteKubernetesCluster(ctx context.Context, name string) error {
+	return w.NoCache.DeleteKubernetesCluster(ctx, name)
+}
+
+// Close closes all associated resources
+func (w *DiscoveryWrapper) Close() error {
+	err := w.NoCache.Close()
+	err2 := w.ReadDiscoveryAccessPoint.Close()
 	return trace.NewAggregate(err, err2)
 }
 

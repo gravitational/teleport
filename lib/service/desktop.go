@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -86,9 +87,9 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	// Filter out cases where both listen_addr and tunnel are set or both are
 	// not set.
 	case useTunnel && !cfg.WindowsDesktop.ListenAddr.IsEmpty():
-		return trace.BadParameter("either set windows_desktop_service.listen_addr if this process can be reached from a teleport proxy or point teleport.auth_servers to a proxy to dial out, but don't set both")
+		return trace.BadParameter("either set windows_desktop_service.listen_addr if this process can be reached from a teleport proxy or point teleport.proxy_server to a proxy to dial out, but don't set both")
 	case !useTunnel && cfg.WindowsDesktop.ListenAddr.IsEmpty():
-		return trace.BadParameter("set windows_desktop_service.listen_addr if this process can be reached from a teleport proxy or point teleport.auth_servers to a proxy to dial out")
+		return trace.BadParameter("set windows_desktop_service.listen_addr if this process can be reached from a teleport proxy or point teleport.proxy_server to a proxy to dial out")
 
 	// Start a local listener and let proxies dial in.
 	case !useTunnel && !cfg.WindowsDesktop.ListenAddr.IsEmpty():
@@ -206,6 +207,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		ConnLimiter:  connLimiter,
 		LockWatcher:  lockWatcher,
 		AuthClient:   conn.Client,
+		Labels:       cfg.WindowsDesktop.Labels,
 		HostLabelsFn: cfg.WindowsDesktop.HostLabels.LabelsForHost,
 		Heartbeat: desktop.HeartbeatConfig{
 			HostUUID:    cfg.HostUUID,
@@ -213,7 +215,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 			StaticHosts: cfg.WindowsDesktop.Hosts,
 			OnHeartbeat: process.onHeartbeat(teleport.ComponentWindowsDesktop),
 		},
-		LDAPConfig:                   desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		LDAPConfig:                   windows.LDAPConfig(cfg.WindowsDesktop.LDAP),
 		DiscoveryBaseDN:              cfg.WindowsDesktop.Discovery.BaseDN,
 		DiscoveryLDAPFilters:         cfg.WindowsDesktop.Discovery.Filters,
 		DiscoveryLDAPAttributeLabels: cfg.WindowsDesktop.Discovery.LabelAttributes,

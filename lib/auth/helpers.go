@@ -38,6 +38,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -74,6 +75,8 @@ type TestAuthServerConfig struct {
 	AuditLog events.IAuditLog
 	// TraceClient allows a test to configure the trace client
 	TraceClient otlptrace.Client
+	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
+	AuthPreferenceSpec *types.AuthPreferenceSpecV2
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -89,6 +92,12 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 	}
 	if len(cfg.CipherSuites) == 0 {
 		cfg.CipherSuites = utils.DefaultCipherSuites()
+	}
+	if cfg.AuthPreferenceSpec == nil {
+		cfg.AuthPreferenceSpec = &types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOff,
+		}
 	}
 	return nil
 }
@@ -247,6 +256,11 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		SkipPeriodicOperations: true,
 		Emitter:                emitter,
 		TraceClient:            cfg.TraceClient,
+		KeyStoreConfig: keystore.Config{
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
+		},
 	}, WithClock(cfg.Clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -283,10 +297,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	authPreference, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOff,
-	})
+	authPreference, err := types.NewAuthPreferenceFromConfigFile(*cfg.AuthPreferenceSpec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

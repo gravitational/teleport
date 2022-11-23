@@ -26,19 +26,16 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/creack/pty"
+	"github.com/gravitational/trace"
+	"github.com/moby/term"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
-
-	"github.com/creack/pty"
-	"github.com/moby/term"
-	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/trace"
 )
 
 // LookupUser is used to mock the value returned by user.Lookup(string).
@@ -171,10 +168,8 @@ func (t *terminal) AddParty(delta int) {
 }
 
 // Run will run the terminal.
-func (t *terminal) Run(ctx context.Context) error {
+func (t *terminal) Run(_ context.Context) error {
 	var err error
-	defer t.closeTTY()
-
 	// Create the command that will actually execute.
 	t.cmd, err = ConfigureCommand(t.ctx)
 	if err != nil {
@@ -227,7 +222,9 @@ func (t *terminal) Wait() (*ExecResult, error) {
 // Continue will resume execution of the process after it completes its
 // pre-processing routine (placed in a cgroup).
 func (t *terminal) Continue() {
-	t.ctx.contw.Close()
+	if err := t.ctx.contw.Close(); err != nil {
+		t.log.Warnf("failed to close server context")
+	}
 }
 
 // Kill will force kill the terminal.
@@ -272,10 +269,14 @@ func (t *terminal) Close() error {
 }
 
 func (t *terminal) closeTTY() error {
+	t.log.Debugf("Closing TTY")
+	defer t.log.Debugf("Closed TTY")
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	if t.tty == nil {
+		t.log.Debugf("TTY already closed")
 		return nil
 	}
 
@@ -290,14 +291,21 @@ func (t *terminal) closeTTY() error {
 }
 
 func (t *terminal) closePTY() {
+	defer t.log.Debugf("Closed PTY")
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	defer t.log.Debugf("Closed PTY")
 
 	// wait until all copying is over (all participants have left)
 	t.wg.Wait()
 
-	t.pty.Close()
+	if t.pty == nil {
+		return
+	}
+
+	if err := t.pty.Close(); err != nil {
+		t.log.Warnf("Failed to close PTY: %v", err)
+	}
 	t.pty = nil
 }
 
@@ -461,7 +469,7 @@ func (b *ptyBuffer) Write(p []byte) (n int, err error) {
 }
 
 func (t *remoteTerminal) Run(ctx context.Context) error {
-	// prepare the remote remote session by setting environment variables
+	// prepare the remote session by setting environment variables
 	t.prepareRemoteSession(ctx, t.session, t.ctx)
 
 	// combine stdout and stderr
@@ -491,10 +499,10 @@ func (t *remoteTerminal) Run(ctx context.Context) error {
 	}
 
 	// we want to run a "exec" command within a pty
-	if t.ctx.ExecRequest.GetCommand() != "" {
+	if execRequest, err := t.ctx.GetExecRequest(); err == nil && execRequest.GetCommand() != "" {
 		t.log.Debugf("Running exec request within a PTY")
 
-		if err := t.session.Start(ctx, t.ctx.ExecRequest.GetCommand()); err != nil {
+		if err := t.session.Start(ctx, execRequest.GetCommand()); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -510,24 +518,29 @@ func (t *remoteTerminal) Run(ctx context.Context) error {
 }
 
 func (t *remoteTerminal) Wait() (*ExecResult, error) {
-	err := t.session.Wait()
+	execRequest, err := t.ctx.GetExecRequest()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = t.session.Wait()
 	if err != nil {
 		if exitErr, ok := err.(*ssh.ExitError); ok {
 			return &ExecResult{
 				Code:    exitErr.ExitStatus(),
-				Command: t.ctx.ExecRequest.GetCommand(),
+				Command: execRequest.GetCommand(),
 			}, err
 		}
 
 		return &ExecResult{
 			Code:    teleport.RemoteCommandFailure,
-			Command: t.ctx.ExecRequest.GetCommand(),
+			Command: execRequest.GetCommand(),
 		}, err
 	}
 
 	return &ExecResult{
 		Code:    teleport.RemoteCommandSuccess,
-		Command: t.ctx.ExecRequest.GetCommand(),
+		Command: execRequest.GetCommand(),
 	}, nil
 }
 
@@ -558,6 +571,7 @@ func (t *remoteTerminal) PID() int {
 }
 
 func (t *remoteTerminal) Close() error {
+	t.wg.Wait()
 	// this closes the underlying stdin,stdout,stderr which is what ptyBuffer is
 	// hooked to directly
 	err := t.session.Close()
@@ -614,20 +628,7 @@ func (t *remoteTerminal) SetTerminalModes(termModes ssh.TerminalModes) {
 }
 
 func (t *remoteTerminal) windowChange(ctx context.Context, w int, h int) error {
-	type windowChangeRequest struct {
-		W   uint32
-		H   uint32
-		Wpx uint32
-		Hpx uint32
-	}
-	req := windowChangeRequest{
-		W:   uint32(w),
-		H:   uint32(h),
-		Wpx: uint32(w * 8),
-		Hpx: uint32(h * 8),
-	}
-	_, err := t.session.SendRequest(ctx, sshutils.WindowChangeRequest, false, ssh.Marshal(&req))
-	return err
+	return trace.Wrap(t.session.WindowChange(ctx, h, w))
 }
 
 // prepareRemoteSession prepares the more session for execution.

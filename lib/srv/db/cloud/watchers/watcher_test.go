@@ -22,8 +22,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -35,6 +38,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
@@ -49,15 +53,19 @@ func TestWatcher(t *testing.T) {
 	rdsInstance2, _ := makeRDSInstance(t, "instance-2", "us-east-2", map[string]string{"env": "prod"})
 	rdsInstance3, _ := makeRDSInstance(t, "instance-3", "us-east-1", map[string]string{"env": "dev"})
 	rdsInstance4, rdsDatabase4 := makeRDSInstance(t, "instance-4", "us-west-1", nil)
+	rdsInstance5, rdsDatabase5 := makeRDSInstance(t, "instance-5", "us-east-2", map[string]string{"env": "dev"})
 	rdsInstanceUnavailable, _ := makeRDSInstance(t, "instance-5", "us-west-1", nil, withRDSInstanceStatus("stopped"))
 	rdsInstanceUnknownStatus, rdsDatabaseUnknownStatus := makeRDSInstance(t, "instance-5", "us-west-6", nil, withRDSInstanceStatus("status-does-not-exist"))
+	auroraMySQLEngine := &rds.DBEngineVersion{Engine: aws.String(services.RDSEngineAuroraMySQL)}
+	postgresEngine := &rds.DBEngineVersion{Engine: aws.String(services.RDSEnginePostgres)}
 
 	auroraCluster1, auroraDatabase1 := makeRDSCluster(t, "cluster-1", "us-east-1", map[string]string{"env": "prod"})
-	auroraCluster2, auroraDatabases2 := makeRDSClusterWithExtraEndpoints(t, "cluster-2", "us-east-2", map[string]string{"env": "dev"})
+	auroraCluster2, auroraDatabases2 := makeRDSClusterWithExtraEndpoints(t, "cluster-2", "us-east-2", map[string]string{"env": "dev"}, true)
 	auroraCluster3, _ := makeRDSCluster(t, "cluster-3", "us-east-2", map[string]string{"env": "prod"})
 	auroraClusterUnsupported, _ := makeRDSCluster(t, "serverless", "us-east-1", nil, withRDSClusterEngineMode("serverless"))
 	auroraClusterUnavailable, _ := makeRDSCluster(t, "cluster-4", "us-east-1", nil, withRDSClusterStatus("creating"))
 	auroraClusterUnknownStatus, auroraDatabaseUnknownStatus := makeRDSCluster(t, "cluster-5", "us-east-1", nil, withRDSClusterStatus("status-does-not-exist"))
+	auroraClusterNoWriter, auroraDatabasesNoWriter := makeRDSClusterWithExtraEndpoints(t, "cluster-6", "us-east-1", map[string]string{"env": "dev"}, false)
 
 	redshiftUse1Prod, redshiftDatabaseUse1Prod := makeRedshiftCluster(t, "us-east-1", "prod")
 	redshiftUse1Dev, _ := makeRedshiftCluster(t, "us-east-1", "dev")
@@ -96,6 +104,11 @@ func TestWatcher(t *testing.T) {
 		aws.StringValue(memorydbUnsupported.ARN): memorydbUnsupportedTags,
 	}
 
+	rdsProxyVpc1, rdsProxyDatabaseVpc1 := makeRDSProxy(t, "rds-proxy-1", "us-east-1", "vpc1")
+	rdsProxyVpc2, _ := makeRDSProxy(t, "rds-proxy-2", "us-east-1", "vpc2")
+	rdsProxyEndpointVpc1, rdsProxyEndpointDatabaseVpc1 := makeRDSProxyCustomEndpoint(t, rdsProxyVpc1, "endpoint-1", "us-east-1")
+	rdsProxyEndpointVpc2, _ := makeRDSProxyCustomEndpoint(t, rdsProxyVpc2, "endpoint-2", "us-east-1")
+
 	const (
 		group1        = "group1"
 		group2        = "group2"
@@ -128,6 +141,12 @@ func TestWatcher(t *testing.T) {
 	azPostgresServerDisabledState, _ := makeAzurePostgresServer(t, "server-8", subscription1, group1, eastus, nil, withAzurePostgresState(string(armpostgresql.ServerStateDisabled)))
 	azPostgresServerUnknownState, azPostgresDBUnknownState := makeAzurePostgresServer(t, "server-9", subscription1, group1, eastus, nil, withAzurePostgresState("unknown"))
 
+	// Note that the Azure Redis APIs may return location in their display
+	// names (eg. "East US"). The Azure fetcher should normalize location names
+	// so region matcher "eastus" will match "East US".
+	azRedisServer, azRedisDB := makeAzureRedisServer(t, "redis", subscription1, group1, "East US", map[string]string{"env": "prod"})
+	azRedisEnterpriseCluster, azRedisEnterpriseDatabase, azRedisEnterpriseDB := makeAzureRedisEnterpriseCluster(t, "redis-enterprise", subscription1, group1, eastus, map[string]string{"env": "prod"})
+
 	tests := []struct {
 		name              string
 		awsMatchers       []services.AWSMatcher
@@ -152,16 +171,48 @@ func TestWatcher(t *testing.T) {
 			clients: &clients.TestCloudClients{
 				RDSPerRegion: map[string]rdsiface.RDSAPI{
 					"us-east-1": &cloud.RDSMock{
-						DBInstances: []*rds.DBInstance{rdsInstance1, rdsInstance3},
-						DBClusters:  []*rds.DBCluster{auroraCluster1},
+						DBInstances:      []*rds.DBInstance{rdsInstance1, rdsInstance3},
+						DBClusters:       []*rds.DBCluster{auroraCluster1},
+						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine, postgresEngine},
 					},
 					"us-east-2": &cloud.RDSMock{
-						DBInstances: []*rds.DBInstance{rdsInstance2},
-						DBClusters:  []*rds.DBCluster{auroraCluster2, auroraCluster3},
+						DBInstances:      []*rds.DBInstance{rdsInstance2},
+						DBClusters:       []*rds.DBCluster{auroraCluster2, auroraCluster3},
+						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine, postgresEngine},
 					},
 				},
 			},
 			expectedDatabases: append(types.Databases{rdsDatabase1, auroraDatabase1}, auroraDatabases2...),
+		},
+		{
+			name: "RDS unrecognized engines are skipped",
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types:   []string{services.AWSMatcherRDS},
+					Regions: []string{"us-east-1"},
+					Tags:    types.Labels{"env": []string{"prod"}},
+				},
+				{
+					Types:   []string{services.AWSMatcherRDS},
+					Regions: []string{"us-east-2"},
+					Tags:    types.Labels{"env": []string{"dev"}},
+				},
+			},
+			clients: &clients.TestCloudClients{
+				RDSPerRegion: map[string]rdsiface.RDSAPI{
+					"us-east-1": &cloud.RDSMock{
+						DBInstances:      []*rds.DBInstance{rdsInstance1, rdsInstance3},
+						DBClusters:       []*rds.DBCluster{auroraCluster1},
+						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine},
+					},
+					"us-east-2": &cloud.RDSMock{
+						DBInstances:      []*rds.DBInstance{rdsInstance5},
+						DBClusters:       []*rds.DBCluster{auroraCluster2, auroraCluster3},
+						DBEngineVersions: []*rds.DBEngineVersion{postgresEngine},
+					},
+				},
+			},
+			expectedDatabases: types.Databases{auroraDatabase1, rdsDatabase5},
 		},
 		{
 			name: "RDS unsupported databases are skipped",
@@ -173,7 +224,8 @@ func TestWatcher(t *testing.T) {
 			clients: &clients.TestCloudClients{
 				RDSPerRegion: map[string]rdsiface.RDSAPI{
 					"us-east-1": &cloud.RDSMock{
-						DBClusters: []*rds.DBCluster{auroraCluster1, auroraClusterUnsupported},
+						DBClusters:       []*rds.DBCluster{auroraCluster1, auroraClusterUnsupported},
+						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine},
 					},
 				},
 			},
@@ -188,11 +240,27 @@ func TestWatcher(t *testing.T) {
 			}},
 			clients: &clients.TestCloudClients{
 				RDS: &cloud.RDSMock{
-					DBInstances: []*rds.DBInstance{rdsInstance1, rdsInstanceUnavailable, rdsInstanceUnknownStatus},
-					DBClusters:  []*rds.DBCluster{auroraCluster1, auroraClusterUnavailable, auroraClusterUnknownStatus},
+					DBInstances:      []*rds.DBInstance{rdsInstance1, rdsInstanceUnavailable, rdsInstanceUnknownStatus},
+					DBClusters:       []*rds.DBCluster{auroraCluster1, auroraClusterUnavailable, auroraClusterUnknownStatus},
+					DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine, postgresEngine},
 				},
 			},
 			expectedDatabases: types.Databases{rdsDatabase1, rdsDatabaseUnknownStatus, auroraDatabase1, auroraDatabaseUnknownStatus},
+		},
+		{
+			name: "RDS Aurora cluster no writer",
+			awsMatchers: []services.AWSMatcher{{
+				Types:   []string{services.AWSMatcherRDS},
+				Regions: []string{"us-east-1"},
+				Tags:    types.Labels{"*": []string{"*"}},
+			}},
+			clients: &clients.TestCloudClients{
+				RDS: &cloud.RDSMock{
+					DBClusters:       []*rds.DBCluster{auroraClusterNoWriter},
+					DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine},
+				},
+			},
+			expectedDatabases: auroraDatabasesNoWriter,
 		},
 		{
 			name: "skip access denied errors",
@@ -205,12 +273,20 @@ func TestWatcher(t *testing.T) {
 				RDSPerRegion: map[string]rdsiface.RDSAPI{
 					"ca-central-1": &cloud.RDSMockUnauth{},
 					"us-west-1": &cloud.RDSMockByDBType{
-						DBInstances: &cloud.RDSMock{DBInstances: []*rds.DBInstance{rdsInstance4}},
-						DBClusters:  &cloud.RDSMockUnauth{},
+						DBInstances: &cloud.RDSMock{
+							DBInstances:      []*rds.DBInstance{rdsInstance4},
+							DBEngineVersions: []*rds.DBEngineVersion{postgresEngine},
+						},
+						DBClusters: &cloud.RDSMockUnauth{},
+						DBProxies:  &cloud.RDSMockUnauth{},
 					},
 					"us-east-1": &cloud.RDSMockByDBType{
 						DBInstances: &cloud.RDSMockUnauth{},
-						DBClusters:  &cloud.RDSMock{DBClusters: []*rds.DBCluster{auroraCluster1}},
+						DBClusters: &cloud.RDSMock{
+							DBClusters:       []*rds.DBCluster{auroraCluster1},
+							DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine},
+						},
+						DBProxies: &cloud.RDSMockUnauth{},
 					},
 				},
 			},
@@ -294,6 +370,22 @@ func TestWatcher(t *testing.T) {
 			expectedDatabases: types.Databases{memorydbDatabaseProd},
 		},
 		{
+			name: "RDS Proxy",
+			awsMatchers: []services.AWSMatcher{{
+				Types:   []string{services.AWSMatcherRDSProxy},
+				Regions: []string{"us-east-1"},
+				Tags:    types.Labels{"vpc-id": []string{"vpc1"}},
+			}},
+			clients: &clients.TestCloudClients{
+				RDS: &cloud.RDSMock{
+					DBProxies:         []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
+					DBProxyEndpoints:  []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
+					DBProxyTargetPort: 9999,
+				},
+			},
+			expectedDatabases: types.Databases{rdsProxyDatabaseVpc1, rdsProxyEndpointDatabaseVpc1},
+		},
+		{
 			name: "matcher with multiple types",
 			awsMatchers: []services.AWSMatcher{
 				{
@@ -309,7 +401,8 @@ func TestWatcher(t *testing.T) {
 			},
 			clients: &clients.TestCloudClients{
 				RDS: &cloud.RDSMock{
-					DBClusters: []*rds.DBCluster{auroraCluster1},
+					DBClusters:       []*rds.DBCluster{auroraCluster1},
+					DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine},
 				},
 				Redshift: &cloud.RedshiftMock{
 					Clusters: []*redshift.Cluster{redshiftUse1Prod},
@@ -512,6 +605,33 @@ func TestWatcher(t *testing.T) {
 			expectedDatabases: types.Databases{azMySQLDB1, azPostgresDB1},
 		},
 		{
+			name: "Azure Redis",
+			azureMatchers: []services.AzureMatcher{
+				{
+					Types:        []string{services.AzureMatcherRedis},
+					ResourceTags: types.Labels{"env": []string{"prod"}},
+					Regions:      []string{eastus},
+				},
+			},
+			clients: &clients.TestCloudClients{
+				AzureSubscriptionClient: azure.NewSubscriptionClient(&azure.ARMSubscriptionsMock{
+					Subscriptions: []*armsubscription.Subscription{azureSub1},
+				}),
+				AzureRedis: azure.NewRedisClientByAPI(&azure.ARMRedisMock{
+					Servers: []*armredis.ResourceInfo{azRedisServer},
+				}),
+				AzureRedisEnterprise: azure.NewRedisEnterpriseClientByAPI(
+					&azure.ARMRedisEnterpriseClusterMock{
+						Clusters: []*armredisenterprise.Cluster{azRedisEnterpriseCluster},
+					},
+					&azure.ARMRedisEnterpriseDatabaseMock{
+						Databases: []*armredisenterprise.Database{azRedisEnterpriseDatabase},
+					},
+				),
+			},
+			expectedDatabases: types.Databases{azRedisDB, azRedisEnterpriseDB},
+		},
+		{
 			name: "multiple cloud matchers",
 			awsMatchers: []services.AWSMatcher{
 				{
@@ -539,7 +659,8 @@ func TestWatcher(t *testing.T) {
 			},
 			clients: &clients.TestCloudClients{
 				RDS: &cloud.RDSMock{
-					DBClusters: []*rds.DBCluster{auroraCluster1},
+					DBClusters:       []*rds.DBCluster{auroraCluster1},
+					DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine},
 				},
 				Redshift: &cloud.RedshiftMock{
 					Clusters: []*redshift.Cluster{redshiftUse1Prod},
@@ -668,7 +789,7 @@ func makeAzureMySQLServer(t *testing.T, name, subscription, group, region string
 		name,
 	)
 
-	fqdn := name + ".mysql" + types.AzureEndpointSuffix
+	fqdn := name + ".mysql" + azureutils.DatabaseEndpointSuffix
 	state := armmysql.ServerStateReady
 	version := armmysql.ServerVersionFive7
 	server := &armmysql.Server{
@@ -697,6 +818,7 @@ func makeAzureMySQLServer(t *testing.T, name, subscription, group, region string
 func makeAzureSubscription(t *testing.T, subID string) *armsubscription.Subscription {
 	return &armsubscription.Subscription{
 		SubscriptionID: &subID,
+		State:          to.Ptr(armsubscription.SubscriptionStateEnabled),
 	}
 }
 
@@ -709,7 +831,7 @@ func makeAzurePostgresServer(t *testing.T, name, subscription, group, region str
 		name,
 	)
 
-	fqdn := name + ".postgres" + types.AzureEndpointSuffix
+	fqdn := name + ".postgres" + azureutils.DatabaseEndpointSuffix
 	state := armpostgresql.ServerStateReady
 	version := armpostgresql.ServerVersionEleven
 	server := &armpostgresql.Server{
@@ -733,6 +855,50 @@ func makeAzurePostgresServer(t *testing.T, name, subscription, group, region str
 	database, err := services.NewDatabaseFromAzureServer(azureDBServer)
 	require.NoError(t, err)
 	return server, database
+}
+
+func makeAzureRedisServer(t *testing.T, name, subscription, group, region string, labels map[string]string) (*armredis.ResourceInfo, types.Database) {
+	resourceInfo := &armredis.ResourceInfo{
+		Name:     to.Ptr(name),
+		ID:       to.Ptr(fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Cache/Redis/%v", subscription, group, name)),
+		Location: to.Ptr(region),
+		Tags:     labelsToAzureTags(labels),
+		Properties: &armredis.Properties{
+			HostName:          to.Ptr(fmt.Sprintf("%v.redis.cache.windows.net", name)),
+			SSLPort:           to.Ptr(int32(6380)),
+			ProvisioningState: to.Ptr(armredis.ProvisioningStateSucceeded),
+		},
+	}
+
+	database, err := services.NewDatabaseFromAzureRedis(resourceInfo)
+	require.NoError(t, err)
+	return resourceInfo, database
+}
+
+func makeAzureRedisEnterpriseCluster(t *testing.T, cluster, subscription, group, region string, labels map[string]string) (*armredisenterprise.Cluster, *armredisenterprise.Database, types.Database) {
+	armCluster := &armredisenterprise.Cluster{
+		Name:     to.Ptr(cluster),
+		ID:       to.Ptr(fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Cache/redisEnterprise/%v", subscription, group, cluster)),
+		Location: to.Ptr(region),
+		Tags:     labelsToAzureTags(labels),
+		Properties: &armredisenterprise.ClusterProperties{
+			HostName: to.Ptr(fmt.Sprintf("%v.%v.redisenterprise.cache.azure.net", cluster, region)),
+		},
+	}
+	armDatabase := &armredisenterprise.Database{
+		Name: to.Ptr("default"),
+		ID:   to.Ptr(fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Cache/redisEnterprise/%v/databases/default", subscription, group, cluster)),
+		Properties: &armredisenterprise.DatabaseProperties{
+			ProvisioningState: to.Ptr(armredisenterprise.ProvisioningStateSucceeded),
+			Port:              to.Ptr(int32(10000)),
+			ClusteringPolicy:  to.Ptr(armredisenterprise.ClusteringPolicyOSSCluster),
+			ClientProtocol:    to.Ptr(armredisenterprise.ProtocolEncrypted),
+		},
+	}
+
+	database, err := services.NewDatabaseFromAzureRedisEnterprise(armCluster, armDatabase)
+	require.NoError(t, err)
+	return armCluster, armDatabase, database
 }
 
 // withAzureMySQLState returns an option function to makeARMMySQLServer to overwrite state.
@@ -800,6 +966,9 @@ func makeRDSCluster(t *testing.T, name, region string, labels map[string]string,
 		Endpoint:            aws.String("localhost"),
 		Port:                aws.Int64(3306),
 		TagList:             labelsToTags(labels),
+		DBClusterMembers: []*rds.DBClusterMember{&rds.DBClusterMember{
+			IsClusterWriter: aws.Bool(true), // Only one writer.
+		}},
 	}
 	for _, opt := range opts {
 		opt(cluster)
@@ -833,7 +1002,7 @@ func makeRedshiftCluster(t *testing.T, region, env string, opts ...func(*redshif
 	return cluster, database
 }
 
-func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels map[string]string) (*rds.DBCluster, types.Databases) {
+func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels map[string]string, hasWriter bool) (*rds.DBCluster, types.Databases) {
 	cluster := &rds.DBCluster{
 		DBClusterArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:1234567890:cluster:%v", region, name)),
 		DBClusterIdentifier: aws.String(name),
@@ -845,23 +1014,36 @@ func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels 
 		ReaderEndpoint:      aws.String("reader.host"),
 		Port:                aws.Int64(3306),
 		TagList:             labelsToTags(labels),
-		DBClusterMembers:    []*rds.DBClusterMember{&rds.DBClusterMember{}, &rds.DBClusterMember{}},
+		DBClusterMembers: []*rds.DBClusterMember{&rds.DBClusterMember{
+			IsClusterWriter: aws.Bool(false), // Add reader by default. Writer is added below based on hasWriter.
+		}},
 		CustomEndpoints: []*string{
 			aws.String("custom1.cluster-custom-example.us-east-1.rds.amazonaws.com"),
 			aws.String("custom2.cluster-custom-example.us-east-1.rds.amazonaws.com"),
 		},
 	}
 
-	primaryDatabase, err := services.NewDatabaseFromRDSCluster(cluster)
-	require.NoError(t, err)
+	var databases types.Databases
+
+	if hasWriter {
+		cluster.DBClusterMembers = append(cluster.DBClusterMembers, &rds.DBClusterMember{
+			IsClusterWriter: aws.Bool(true), // Add writer.
+		})
+
+		primaryDatabase, err := services.NewDatabaseFromRDSCluster(cluster)
+		require.NoError(t, err)
+		databases = append(databases, primaryDatabase)
+	}
 
 	readerDatabase, err := services.NewDatabaseFromRDSClusterReaderEndpoint(cluster)
 	require.NoError(t, err)
+	databases = append(databases, readerDatabase)
 
 	customDatabases, err := services.NewDatabasesFromRDSClusterCustomEndpoints(cluster)
 	require.NoError(t, err)
+	databases = append(databases, customDatabases...)
 
-	return cluster, append(types.Databases{primaryDatabase, readerDatabase}, customDatabases...)
+	return cluster, databases
 }
 
 func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func(*elasticache.ReplicationGroup)) (*elasticache.ReplicationGroup, types.Database, []*elasticache.Tag) {
@@ -927,6 +1109,36 @@ func makeMemoryDBCluster(t *testing.T, name, region, env string, opts ...func(*m
 	database, err := services.NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
 	require.NoError(t, err)
 	return cluster, database, tags
+}
+
+func makeRDSProxy(t *testing.T, name, region, vpcID string) (*rds.DBProxy, types.Database) {
+	rdsProxy := &rds.DBProxy{
+		DBProxyArn:   aws.String(fmt.Sprintf("arn:aws:rds:%s:1234567890:db-proxy:prx-%s", region, name)),
+		DBProxyName:  aws.String(name),
+		EngineFamily: aws.String(rds.EngineFamilyMysql),
+		Endpoint:     aws.String("localhost"),
+		VpcId:        aws.String(vpcID),
+		RequireTLS:   aws.Bool(true),
+		Status:       aws.String("available"),
+	}
+
+	rdsProxyDatabase, err := services.NewDatabaseFromRDSProxy(rdsProxy, 9999, nil)
+	require.NoError(t, err)
+	return rdsProxy, rdsProxyDatabase
+}
+
+func makeRDSProxyCustomEndpoint(t *testing.T, rdsProxy *rds.DBProxy, name, region string) (*rds.DBProxyEndpoint, types.Database) {
+	rdsProxyEndpoint := &rds.DBProxyEndpoint{
+		Endpoint:            aws.String("localhost"),
+		DBProxyEndpointName: aws.String(name),
+		DBProxyName:         rdsProxy.DBProxyName,
+		DBProxyEndpointArn:  aws.String(fmt.Sprintf("arn:aws:rds:%v:123456:db-proxy-endpoint:prx-endpoint-%v", region, name)),
+		TargetRole:          aws.String(rds.DBProxyEndpointTargetRoleReadOnly),
+		Status:              aws.String("available"),
+	}
+	rdsProxyEndpointDatabase, err := services.NewDatabaseFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyEndpoint, 9999, nil)
+	require.NoError(t, err)
+	return rdsProxyEndpoint, rdsProxyEndpointDatabase
 }
 
 // withRDSInstanceStatus returns an option function for makeRDSInstance to overwrite status.

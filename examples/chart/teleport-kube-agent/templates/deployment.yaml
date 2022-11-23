@@ -75,7 +75,7 @@ spec:
       {{- end }}
 {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
-{{ toYaml .Values.imagePullSecrets | indent 6 }}
+  {{- toYaml .Values.imagePullSecrets | nindent 6 }}
 {{- end }}
 {{- if .Values.initContainers }}
       initContainers: {{- toYaml .Values.initContainers | nindent 6 }}
@@ -208,5 +208,5 @@ spec:
 {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
 {{- end }}
-      serviceAccountName: {{ .Values.serviceAccountName | default .Release.Name }}
+      serviceAccountName: {{ template "teleport.serviceAccountName" . }}
 {{- end }}

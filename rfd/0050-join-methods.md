@@ -36,7 +36,7 @@ PKI.
 
 #### Auth `POST /tokens/register`
 
-**Join methods:** token, EC2  
+**Join methods:** token, EC2, github, circleci
 **Server trust:** CA pins
 
 This is the main token register endpoint on the Auth server. Accepts tokens or
@@ -53,7 +53,7 @@ certificate used for the mTLS connection.
 
 #### Proxy `POST /webapi/host/credentials`
 
-**Join methods:** token, EC2  
+**Join methods:** token, EC2, github, circleci
 **Server trust:** PKI
 
 This is the proxy endpoint for registering IoT nodes that don't have a direct

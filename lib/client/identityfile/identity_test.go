@@ -19,11 +19,14 @@ import (
 	"crypto"
 	"crypto/x509/pkix"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/utils/keypaths"
@@ -34,8 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/stretchr/testify/require"
 )
 
 func newSelfSignedCA(priv crypto.Signer) (*tlsca.CertAuthority, auth.TrustedCerts, error) {
@@ -155,6 +156,38 @@ func TestWrite(t *testing.T) {
 	_, err = Write(cfg)
 	require.NoError(t, err)
 	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "far.away.cluster", cfg.KubeTLSServerName)
+}
+
+func TestWriteAllFormats(t *testing.T) {
+	for _, format := range KnownFileFormats {
+		t.Run(string(format), func(t *testing.T) {
+			key := newClientKey(t)
+
+			cfg := WriteConfig{
+				OutputPath: path.Join(t.TempDir(), "identity"),
+				Key:        key,
+				Format:     format,
+			}
+
+			// extra fields for kubernetes
+			if format == FormatKubernetes {
+				cfg.KubeProxyAddr = "far.away.cluster"
+				cfg.KubeTLSServerName = "kube.far.away.cluster"
+			}
+
+			// for cockroach, output path should be a directory
+			if format == FormatCockroach {
+				cfg.OutputPath = t.TempDir()
+			}
+
+			files, err := Write(cfg)
+			require.NoError(t, err)
+			for _, file := range files {
+				require.True(t, strings.HasPrefix(file, cfg.OutputPath))
+			}
+			require.True(t, len(files) > 0)
+		})
+	}
 }
 
 func TestKubeconfigOverwrite(t *testing.T) {

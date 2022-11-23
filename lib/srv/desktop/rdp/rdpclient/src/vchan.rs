@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::errors::invalid_data_error;
-use crate::Payload;
+use crate::{errors::invalid_data_error, Message, Messages};
+use crate::{Encode, Payload};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rdp::core::tpkt;
@@ -54,6 +54,7 @@ impl Client {
     pub fn read(&mut self, raw_payload: tpkt::Payload) -> RdpResult<Option<Payload>> {
         let mut raw_payload = try_let!(tpkt::Payload::Raw, raw_payload)?;
         let channel_pdu_header = ChannelPDUHeader::decode(&mut raw_payload)?;
+        debug!("got RDP: {:?}", channel_pdu_header);
 
         raw_payload.read_to_end(&mut self.data)?;
 
@@ -75,8 +76,8 @@ impl Client {
     pub fn add_header_and_chunkify(
         &self,
         channel_flags: Option<ChannelPDUFlags>,
-        payload: Vec<u8>,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+        payload: Message,
+    ) -> RdpResult<Messages> {
         let mut inner = payload;
         let total_len = inner.len() as u32;
 
@@ -168,7 +169,10 @@ impl ChannelPDUHeader {
                 .ok_or_else(|| invalid_data_error("invalid flags in ChannelPDUHeader"))?,
         })
     }
-    pub fn encode(&self) -> RdpResult<Vec<u8>> {
+}
+
+impl Encode for ChannelPDUHeader {
+    fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.length)?;
         w.write_u32::<LittleEndian>(self.flags.bits())?;

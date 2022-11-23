@@ -21,9 +21,9 @@ resource "aws_autoscaling_group" "proxy" {
     aws_lb_target_group.proxy_kube.arn,
     aws_lb_target_group.proxy_mysql.arn,
     aws_lb_target_group.proxy_postgres.arn,
-    aws_lb_target_group.proxy_mongodb.arn,    
+    aws_lb_target_group.proxy_mongodb.arn,
   ]
-  count             = var.use_acm ? 0 : 1
+  count = var.use_acm ? 0 : 1
 
   tag {
     key                 = "TeleportCluster"
@@ -68,9 +68,9 @@ resource "aws_autoscaling_group" "proxy_acm" {
     aws_lb_target_group.proxy_kube.arn,
     aws_lb_target_group.proxy_mysql.arn,
     aws_lb_target_group.proxy_postgres.arn,
-    aws_lb_target_group.proxy_mongodb.arn,    
+    aws_lb_target_group.proxy_mongodb.arn,
   ]
-  count             = var.use_acm ? 1 : 0
+  count = var.use_acm ? 1 : 0
 
   tag {
     key                 = "TeleportCluster"
@@ -95,14 +95,16 @@ resource "aws_autoscaling_group" "proxy_acm" {
   }
 }
 
+// Needs to have a public IP
+// tfsec:ignore:aws-ec2-no-public-ip
 resource "aws_launch_configuration" "proxy" {
   lifecycle {
     create_before_destroy = true
   }
-  name_prefix                 = "${var.cluster_name}-proxy-"
-  image_id                    = data.aws_ami.base.id
-  instance_type               = var.proxy_instance_type
-  user_data                   = templatefile(
+  name_prefix   = "${var.cluster_name}-proxy-"
+  image_id      = data.aws_ami.base.id
+  instance_type = var.proxy_instance_type
+  user_data = templatefile(
     "${path.module}/proxy-user-data.tpl",
     {
       region                   = data.aws_region.current.name
@@ -121,10 +123,15 @@ resource "aws_launch_configuration" "proxy" {
       use_acm                  = var.use_acm
     }
   )
+  metadata_options {
+    http_tokens = "required"
+  }
+  root_block_device {
+    encrypted = true
+  }
   key_name                    = var.key_name
   ebs_optimized               = true
   associate_public_ip_address = true
   security_groups             = [aws_security_group.proxy.id]
   iam_instance_profile        = aws_iam_instance_profile.proxy.id
 }
-

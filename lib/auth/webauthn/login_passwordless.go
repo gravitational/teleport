@@ -20,7 +20,6 @@ import (
 	"errors"
 
 	"github.com/gravitational/teleport/api/types"
-
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 )
 

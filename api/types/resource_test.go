@@ -282,7 +282,9 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 			name:             "desktop service",
 			searchNotDefined: true,
 			newResource: func() ResourceWithLabels {
-				desktopService, err := NewWindowsDesktopServiceV3("_", WindowsDesktopServiceSpecV3{
+				desktopService, err := NewWindowsDesktopServiceV3(Metadata{
+					Name: "foo",
+				}, WindowsDesktopServiceSpecV3{
 					Addr:            "_",
 					TeleportVersion: "_",
 				})

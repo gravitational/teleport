@@ -19,8 +19,7 @@ package inventory
 import (
 	"hash/maphash"
 	"sync"
-
-	"go.uber.org/atomic"
+	"sync/atomic"
 )
 
 const SHARDS = 128
@@ -118,7 +117,7 @@ func newShard() *shard {
 type entry struct {
 	// ct is atomically incremented as a means to pseudorandomly distribute
 	// load for instances that have multiple handles registered.
-	ct      *atomic.Uint64
+	ct      atomic.Uint64
 	handles []UpstreamHandle
 }
 
@@ -129,7 +128,7 @@ func (s *shard) get(serverID string) (handle UpstreamHandle, ok bool) {
 	if !ok {
 		return nil, false
 	}
-	idx := entry.ct.Inc() % uint64(len(entry.handles))
+	idx := entry.ct.Add(1) % uint64(len(entry.handles))
 	handle = entry.handles[int(idx)]
 	return handle, true
 }
@@ -138,7 +137,7 @@ func (s *shard) iter(fn func(UpstreamHandle)) {
 	s.rw.RLock()
 	defer s.rw.RUnlock()
 	for _, entry := range s.m {
-		idx := entry.ct.Inc() % uint64(len(entry.handles))
+		idx := entry.ct.Add(1) % uint64(len(entry.handles))
 		handle := entry.handles[int(idx)]
 		fn(handle)
 	}
@@ -149,9 +148,7 @@ func (s *shard) insert(handle UpstreamHandle) {
 	defer s.rw.Unlock()
 	e, ok := s.m[handle.Hello().ServerID]
 	if !ok {
-		e = &entry{
-			ct: atomic.NewUint64(0),
-		}
+		e = &entry{}
 		s.m[handle.Hello().ServerID] = e
 	}
 	e.handles = append(e.handles, handle)

@@ -19,13 +19,15 @@ package services
 import (
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // AccessChecker interface checks access to resources based on roles, traits,
@@ -142,10 +144,11 @@ type AccessChecker interface {
 	// CertificateExtensions returns the list of extensions for each role in the RoleSet
 	CertificateExtensions() []*types.CertExtension
 
-	// GetSearchAsRoles returns the list of roles which the checker should be able to
-	// "assume" while searching for resources, and should be able to request with a
-	// search-based access request.
-	GetSearchAsRoles() []string
+	// GetAllowedSearchAsRoles returns all of the allowed SearchAsRoles.
+	GetAllowedSearchAsRoles() []string
+
+	// GetAllowedPreviewAsRoles returns all of the allowed PreviewAsRoles.
+	GetAllowedPreviewAsRoles() []string
 
 	// MaxConnections returns the maximum number of concurrent ssh connections
 	// allowed.  If MaxConnections is zero then no maximum was defined and the
@@ -177,6 +180,13 @@ type AccessChecker interface {
 
 	// PinSourceIP forces the same client IP for certificate generation and SSH usage
 	PinSourceIP() bool
+
+	// MFAParams returns MFA params for the given use given their roles, the cluster
+	// auth preference, and whether mfa has been verified.
+	MFAParams(authPrefMFARequirement types.RequireMFAType) AccessMFAParams
+	// PrivateKeyPolicy returns the enforced private key policy for this role set,
+	// or the provided defaultPolicy - whichever is stricter.
+	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
@@ -210,13 +220,13 @@ type accessChecker struct {
 // NewAccessChecker returns a new AccessChecker which can be used to check
 // access to resources.
 // Args:
-// - `info *AccessInfo` should hold the roles, traits, and allowed resource IDs
-//   for the identity.
-// - `localCluster string` should be the name of the local cluster in which
-//   access will be checked. You cannot check for access to resources in remote
-//   clusters.
-// - `access RoleGetter` should be a RoleGetter which will be used to fetch the
-//   full RoleSet
+//   - `info *AccessInfo` should hold the roles, traits, and allowed resource IDs
+//     for the identity.
+//   - `localCluster string` should be the name of the local cluster in which
+//     access will be checked. You cannot check for access to resources in remote
+//     clusters.
+//   - `access RoleGetter` should be a RoleGetter which will be used to fetch the
+//     full RoleSet
 func NewAccessChecker(info *AccessInfo, localCluster string, access RoleGetter) (AccessChecker, error) {
 	roleSet, err := FetchRoles(info.Roles, access, info.Traits)
 	if err != nil {
@@ -290,18 +300,6 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matc
 // there are no resource-specific restrictions.
 func (a *accessChecker) GetAllowedResourceIDs() []types.ResourceID {
 	return a.info.AllowedResourceIDs
-}
-
-// GetSearchAsRoles returns the list of roles which the AccessChecker should be
-// able to "assume" while searching for resources, and should be able to request
-// with a search-based access request.
-func (a *accessChecker) GetSearchAsRoles() []string {
-	if len(a.info.AllowedResourceIDs) > 0 {
-		// cannot search with extended roles while already logged in the
-		// search-based access request.
-		return nil
-	}
-	return a.RoleSet.GetSearchAsRoles()
 }
 
 // AccessInfoFromLocalCertificate returns a new AccessInfo populated from the

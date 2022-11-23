@@ -48,7 +48,7 @@ func (p *proxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxyS
 	}
 
 	switch p.cfg.Version {
-	case defaults.TeleportConfigVersionV2:
+	case defaults.TeleportConfigVersionV2, defaults.TeleportConfigVersionV3:
 		return p.buildProxySettingsV2(resp.GetProxyListenerMode()), nil
 	default:
 		return p.buildProxySettings(resp.GetProxyListenerMode()), nil

@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -316,14 +317,14 @@ func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 		Method: events.LoginMethodOIDC,
 	}
 
-	diagCtx := a.newSSODiagContext(types.KindOIDC)
+	diagCtx := NewSSODiagContext(types.KindOIDC, a)
 
 	auth, err := a.validateOIDCAuthCallback(ctx, diagCtx, q)
-	diagCtx.info.Error = trace.UserMessage(err)
+	diagCtx.Info.Error = trace.UserMessage(err)
 
-	diagCtx.writeToBackend(ctx)
+	diagCtx.WriteToBackend(ctx)
 
-	claims := diagCtx.info.OIDCClaims
+	claims := diagCtx.Info.OIDCClaims
 	if claims != nil {
 		attributes, err := apievents.EncodeMap(claims)
 		if err != nil {
@@ -336,7 +337,7 @@ func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 
 	if err != nil {
 		event.Code = events.UserSSOLoginFailureCode
-		if diagCtx.info.TestFlow {
+		if diagCtx.Info.TestFlow {
 			event.Code = events.UserSSOTestFlowLoginFailureCode
 		}
 		event.Status.Success = false
@@ -351,7 +352,7 @@ func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 	}
 
 	event.Code = events.UserSSOLoginCode
-	if diagCtx.info.TestFlow {
+	if diagCtx.Info.TestFlow {
 		event.Code = events.UserSSOTestFlowLoginCode
 	}
 	event.User = auth.Username
@@ -397,15 +398,15 @@ func checkEmailVerifiedClaim(claims jose.Claims) error {
 	return nil
 }
 
-func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*OIDCAuthResponse, error) {
+func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*OIDCAuthResponse, error) {
 	if errParam := q.Get("error"); errParam != "" {
 		// try to find request so the error gets logged against it.
 		state := q.Get("state")
 		if state != "" {
-			diagCtx.requestID = state
+			diagCtx.RequestID = state
 			req, err := a.GetOIDCAuthRequest(ctx, state)
 			if err == nil {
-				diagCtx.info.TestFlow = req.SSOTestFlow
+				diagCtx.Info.TestFlow = req.SSOTestFlow
 			}
 		}
 
@@ -425,13 +426,13 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 		return nil, trace.OAuth2(
 			oauth2.ErrorInvalidRequest, "missing state query param", q).AddUserMessage("Invalid parameters received from OIDC provider.")
 	}
-	diagCtx.requestID = stateToken
+	diagCtx.RequestID = stateToken
 
 	req, err := a.GetOIDCAuthRequest(ctx, stateToken)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to get OIDC Auth Request.")
 	}
-	diagCtx.info.TestFlow = req.SSOTestFlow
+	diagCtx.Info.TestFlow = req.SSOTestFlow
 
 	// ensure prompt removal of OIDC client in test flows. does nothing in regular flows.
 	ctxC, cancel := context.WithCancel(ctx)
@@ -452,7 +453,7 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 
 		return nil, trace.Wrap(err, "Failed to extract OIDC claims. This may indicate need to set 'provider' flag in connector definition. See: https://goteleport.com/docs/enterprise/sso/#provider-specific-workarounds")
 	}
-	diagCtx.info.OIDCClaims = types.OIDCClaims(claims)
+	diagCtx.Info.OIDCClaims = types.OIDCClaims(claims)
 
 	log.Debugf("OIDC claims: %v.", claims)
 	if !connector.GetAllowUnverifiedEmail() {
@@ -476,7 +477,7 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 		return nil, trace.OAuth2(
 			oauth2.ErrorUnsupportedResponseType, "unable to convert claims to identity", q)
 	}
-	diagCtx.info.OIDCIdentity = &types.OIDCIdentity{
+	diagCtx.Info.OIDCIdentity = &types.OIDCIdentity{
 		ID:        ident.ID,
 		Name:      ident.Name,
 		Email:     ident.Email,
@@ -489,7 +490,7 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 			AddUserMessage("Claims-to-roles mapping is empty, SSO user will never have any roles.")
 	}
 	log.Debugf("Applying %v OIDC claims to roles mappings.", len(connector.GetClaimsToRoles()))
-	diagCtx.info.OIDCClaimsToRoles = connector.GetClaimsToRoles()
+	diagCtx.Info.OIDCClaimsToRoles = connector.GetClaimsToRoles()
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
@@ -498,14 +499,14 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
 	}
 
-	diagCtx.info.CreateUserParams = &types.CreateUserParams{
-		ConnectorName: params.connectorName,
-		Username:      params.username,
-		KubeGroups:    params.kubeGroups,
-		KubeUsers:     params.kubeUsers,
-		Roles:         params.roles,
-		Traits:        params.traits,
-		SessionTTL:    types.Duration(params.sessionTTL),
+	diagCtx.Info.CreateUserParams = &types.CreateUserParams{
+		ConnectorName: params.ConnectorName,
+		Username:      params.Username,
+		KubeGroups:    params.KubeGroups,
+		KubeUsers:     params.KubeUsers,
+		Roles:         params.Roles,
+		Traits:        params.Traits,
+		SessionTTL:    types.Duration(params.SessionTTL),
 	}
 
 	user, err := a.createOIDCUser(params, req.SSOTestFlow)
@@ -515,17 +516,17 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 
 	// Auth was successful, return session, certificate, etc. to caller.
 	auth := &OIDCAuthResponse{
-		Req: *req,
+		Req: OIDCAuthRequestFromProto(req),
 		Identity: types.ExternalIdentity{
-			ConnectorID: params.connectorName,
-			Username:    params.username,
+			ConnectorID: params.ConnectorName,
+			Username:    params.Username,
 		},
 		Username: user.GetName(),
 	}
 
 	// In test flow skip signing and creating web sessions.
 	if req.SSOTestFlow {
-		diagCtx.info.Success = true
+		diagCtx.Info.Success = true
 		return auth, nil
 	}
 
@@ -535,11 +536,11 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
-		session, err := a.createWebSession(ctx, types.NewWebSessionRequest{
+		session, err := a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
 			User:       user.GetName(),
 			Roles:      user.GetRoles(),
 			Traits:     user.GetTraits(),
-			SessionTTL: params.sessionTTL,
+			SessionTTL: params.SessionTTL,
 			LoginTime:  a.clock.Now().UTC(),
 		})
 		if err != nil {
@@ -550,7 +551,8 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 
 	// If a public key was provided, sign it and return a certificate.
 	if len(req.PublicKey) != 0 {
-		sshCert, tlsCert, err := a.createSessionCert(user, params.sessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster, req.KubernetesCluster)
+		sshCert, tlsCert, err := a.CreateSessionCert(user, params.SessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster,
+			req.KubernetesCluster, keys.AttestationStatementFromProto(req.AttestationStatement))
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")
 		}
@@ -590,37 +592,71 @@ type OIDCAuthResponse struct {
 	// TLSCert is PEM encoded TLS certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
 	// Req is original oidc auth request
-	Req types.OIDCAuthRequest `json:"req"`
+	Req OIDCAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
 }
 
-func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *types.OIDCAuthRequest) (*createUserParams, error) {
+// OIDCAuthRequest is an OIDC auth request that supports standard json marshaling.
+type OIDCAuthRequest struct {
+	// ConnectorID is ID of OIDC connector this request uses
+	ConnectorID string `json:"connector_id"`
+	// CSRFToken is associated with user web session token
+	CSRFToken string `json:"csrf_token"`
+	// PublicKey is an optional public key, users want these
+	// keys to be signed by auth servers user CA in case
+	// of successful auth
+	PublicKey []byte `json:"public_key"`
+	// CreateWebSession indicates if user wants to generate a web
+	// session after successful authentication
+	CreateWebSession bool `json:"create_web_session"`
+	// ClientRedirectURL is a URL client wants to be redirected
+	// after successful authentication
+	ClientRedirectURL string `json:"client_redirect_url"`
+}
+
+// OIDCAuthRequestFromProto converts the types.OIDCAuthRequest to OIDCAuthRequest.
+func OIDCAuthRequestFromProto(req *types.OIDCAuthRequest) OIDCAuthRequest {
+	return OIDCAuthRequest{
+		ConnectorID:       req.ConnectorID,
+		PublicKey:         req.PublicKey,
+		CSRFToken:         req.CSRFToken,
+		CreateWebSession:  req.CreateWebSession,
+		ClientRedirectURL: req.ClientRedirectURL,
+	}
+}
+
+func (a *Server) calculateOIDCUser(diagCtx *SSODiagContext, connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *types.OIDCAuthRequest) (*CreateUserParams, error) {
 	var err error
 
-	p := createUserParams{
-		connectorName: connector.GetName(),
-		username:      ident.Email,
+	username, err := usernameFromClaims(connector, claims, ident)
+	if err != nil {
+		return nil, err
 	}
 
-	p.traits = services.OIDCClaimsToTraits(claims)
+	p := CreateUserParams{
+		ConnectorName: connector.GetName(),
+		Username:      username,
+	}
 
-	diagCtx.info.OIDCTraitsFromClaims = p.traits
-	diagCtx.info.OIDCConnectorTraitMapping = connector.GetTraitMappings()
+	p.Traits = services.OIDCClaimsToTraits(claims)
+
+	diagCtx.Info.OIDCTraitsFromClaims = p.Traits
+	diagCtx.Info.OIDCConnectorTraitMapping = connector.GetTraitMappings()
 
 	var warnings []string
-	warnings, p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
-	if len(p.roles) == 0 {
+	warnings, p.Roles = services.TraitsToRoles(connector.GetTraitMappings(), p.Traits)
+	if len(p.Roles) == 0 {
 		if len(warnings) != 0 {
 			log.WithField("connector", connector).Warnf("No roles mapped from claims. Warnings: %q", warnings)
-			diagCtx.info.OIDCClaimsToRolesWarnings = &types.SSOWarnings{
+			diagCtx.Info.OIDCClaimsToRolesWarnings = &types.SSOWarnings{
 				Message:  "No roles mapped for the user",
 				Warnings: warnings,
 			}
 		} else {
 			log.WithField("connector", connector).Warnf("No roles mapped from claims.")
-			diagCtx.info.OIDCClaimsToRolesWarnings = &types.SSOWarnings{
+			diagCtx.Info.OIDCClaimsToRolesWarnings = &types.SSOWarnings{
 				Message: "No roles mapped for the user. The mappings may contain typos.",
 			}
 		}
@@ -628,35 +664,35 @@ func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDC
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
-	roles, err := services.FetchRoles(p.roles, a, p.traits)
+	roles, err := services.FetchRoles(p.Roles, a, p.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	roleTTL := roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
-	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
+	p.SessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
 
 	return &p, nil
 }
 
-func (a *Server) createOIDCUser(p *createUserParams, dryRun bool) (types.User, error) {
-	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
+func (a *Server) createOIDCUser(p *CreateUserParams, dryRun bool) (types.User, error) {
+	expires := a.GetClock().Now().UTC().Add(p.SessionTTL)
 
-	log.Debugf("Generating dynamic OIDC identity %v/%v with roles: %v. Dry run: %v.", p.connectorName, p.username, p.roles, dryRun)
+	log.Debugf("Generating dynamic OIDC identity %v/%v with roles: %v. Dry run: %v.", p.ConnectorName, p.Username, p.Roles, dryRun)
 	user := &types.UserV2{
 		Kind:    types.KindUser,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      p.username,
+			Name:      p.Username,
 			Namespace: apidefaults.Namespace,
 			Expires:   &expires,
 		},
 		Spec: types.UserSpecV2{
-			Roles:  p.roles,
-			Traits: p.traits,
+			Roles:  p.Roles,
+			Traits: p.Traits,
 			OIDCIdentities: []types.ExternalIdentity{
 				{
-					ConnectorID: p.connectorName,
-					Username:    p.username,
+					ConnectorID: p.ConnectorName,
+					Username:    p.Username,
 				},
 			},
 			CreatedBy: types.CreatedBy{
@@ -664,8 +700,8 @@ func (a *Server) createOIDCUser(p *createUserParams, dryRun bool) (types.User, e
 				Time: a.clock.Now().UTC(),
 				Connector: &types.ConnectorRef{
 					Type:     constants.OIDC,
-					ID:       p.connectorName,
-					Identity: p.username,
+					ID:       p.ConnectorName,
+					Identity: p.Username,
 				},
 			},
 		},
@@ -676,7 +712,7 @@ func (a *Server) createOIDCUser(p *createUserParams, dryRun bool) (types.User, e
 	}
 
 	// Get the user to check if it already exists or not.
-	existingUser, err := a.Services.GetUser(p.username, false)
+	existingUser, err := a.Services.GetUser(p.Username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -706,6 +742,25 @@ func (a *Server) createOIDCUser(p *createUserParams, dryRun bool) (types.User, e
 	}
 
 	return user, nil
+}
+
+// usernameFromClaims gets the username of the OIDC user based on the claims received. The `username_claim` field in the OIDC
+// config specifies which claim from the OIDC provider to use as the user's username. If it isn't specified, the email will be used
+// as the username. If it is specified but specifies a claim that doesn't exist, an error is returned.
+func usernameFromClaims(connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity) (string, error) {
+	usernameClaim := connector.GetUsernameClaim()
+	if usernameClaim == "" {
+		return ident.Email, nil
+	}
+
+	username, ok, err := claims.StringClaim(usernameClaim)
+	if err != nil {
+		return "", err
+	} else if !ok {
+		return "", trace.BadParameter("The configured username_claim of %q was not received from the IdP. Please update the username_claim in connector %q.", usernameClaim, connector.GetName())
+	}
+
+	return username, nil
 }
 
 // claimsFromIDToken extracts claims from the ID token.

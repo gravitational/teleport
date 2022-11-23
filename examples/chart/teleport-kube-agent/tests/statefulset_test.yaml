@@ -222,6 +222,23 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should mount auth token if token is provided
+    values:
+      - ../.lint/join-params-token.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-secrets
+            name: auth-token
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+
   - it: should set imagePullPolicy when set in values
     values:
       - ../.lint/stateful.yaml

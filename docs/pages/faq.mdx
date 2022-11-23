@@ -98,7 +98,7 @@ Here is a detailed breakdown of the differences between Teleport's editions.
 ||Open Source|Enterprise|Cloud|
 |---|---|---|---|
 |[Recording Proxy Mode](./server-access/guides/recording-proxy-mode.mdx)|&#10004;|&#10004;|&#10006;|
-|[Enhanced Session Recording](./server-access/guides/bpf-session-recording.mdx)|&#10004;|&#10004;|&#10006;|
+|[Enhanced Session Recording](./server-access/guides/bpf-session-recording.mdx)|&#10004;|&#10004;|&#10004;|
 
 ### Compliance
 
@@ -134,25 +134,32 @@ Here is a detailed breakdown of the differences between Teleport's editions.
 |License|Apache 2|Commercial|Commercial|
 |Usage tracking|&#10006;|&#10006;|Enables you to track the number of users per protocol.|
 
-
 ## Which version of Teleport is supported?
 
-Teleport provides security-critical support for the current and two previous releases. With our typical release cadence, this means a release is usually supported for 9 months.
+Teleport provides security-critical support for the current and two previous
+releases. With our typical release cadence, this means a release is usually
+supported for 9 months.
+
+### Supported versions
+
+Here are the major versions of Teleport and their support windows:
+
+| Release | Release Date     | EOL          | Minimum `tsh` version|
+|---------|------------------|--------------|----------------------|
+| v11.0   | October 24, 2022 | July 2023    | v10.x.x              |
+| v10.0   | July 8, 2022     | April 2023   | v9.x.x               |
+| v9.0    | March 11, 2022   | January 2023 | v8.x.x               |
 
 See our [Upgrading](./management/operations/upgrading.mdx) guide for more
 information.
 
+### Version compatibility
+
+(!docs/pages/includes/compatibility.mdx!)
+
 ## Does the Web UI support copy and paste?
 
-Yes. You can copy and paste using a mouse. If you prefer a keyboard, Teleport employs
-`tmux`-like "prefix" mode. To enter prefix mode, use the `Ctrl`+`A` keyboard shortcut.
-
-While in prefix mode, you can press `Ctrl`+`V` to paste, or enter text selection
-mode by pressing `[`. When in text selection mode:
-
-- Move around using the keys `h`, `j`, `k`, and `l`.
-- Select text by toggling `space`.
-- And, copy it via `Ctrl`+`C`.
+Yes. You can copy and paste using a mouse.
 
 ## What TCP ports does Teleport use?
 

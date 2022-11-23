@@ -18,14 +18,12 @@ package resources
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/mitchellh/mapstructure"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -47,11 +45,12 @@ var teleportUserGVK = schema.GroupVersionKind{
 
 func TestUserCreation(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(t)
+	setup := setupTestEnv(t)
 	userName := validRandomResourceName("user-")
 
-	teleportCreateDummyRole(ctx, t, "a", setup.tClient)
-	teleportCreateDummyRole(ctx, t, "b", setup.tClient)
+	require.NoError(t, teleportCreateDummyRole(ctx, "a", setup.tClient))
+	require.NoError(t, teleportCreateDummyRole(ctx, "b", setup.tClient))
+
 	// The user is created in K8S
 	k8sCreateDummyUser(ctx, t, setup.k8sClient, setup.namespace.Name, userName)
 
@@ -78,10 +77,11 @@ func TestUserCreation(t *testing.T) {
 		return trace.IsNotFound(err)
 	})
 }
+
 func TestUserCreationFromYAML(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(t)
-	teleportCreateDummyRole(ctx, t, "a", setup.tClient)
+	setup := setupTestEnv(t)
+	require.NoError(t, teleportCreateDummyRole(ctx, "a", setup.tClient))
 	tests := []struct {
 		name         string
 		userSpecYAML string
@@ -145,6 +145,7 @@ traits:
 	}
 
 	for _, tc := range tests {
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			// Creating the Kubernetes resource. We are using an untyped client to be able to create invalid resources.
@@ -192,6 +193,7 @@ traits:
 					require.Equal(t, tUser.GetName(), userName)
 					require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
 					require.Equal(t, tUser.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+					require.Equal(t, setup.operatorName, tUser.GetCreatedBy().User.Name)
 					expectedUser := &types.UserV2{
 						Metadata: types.Metadata{},
 						Spec:     *tc.expectedSpec,
@@ -217,23 +219,29 @@ traits:
 }
 
 func compareUserSpecs(t *testing.T, expectedUser, actualUser types.User) {
-	expectedJSON, _ := json.Marshal(expectedUser)
-	expected := make(map[string]interface{})
-	_ = json.Unmarshal(expectedJSON, &expected)
-	actualJSON, _ := json.Marshal(actualUser)
-	actual := make(map[string]interface{})
-	_ = json.Unmarshal(actualJSON, &actual)
+	expected, err := teleportResourceToMap(expectedUser)
+	require.NoError(t, err)
+	actual, err := teleportResourceToMap(actualUser)
+	require.NoError(t, err)
+
+	// We don't want compare spec.created_by and metadata as they were tested before and are not 100%
+	// managed by the operator
+	delete(expected["spec"].(map[string]interface{}), "created_by")
+	delete(actual["spec"].(map[string]interface{}), "created_by")
 
 	require.Equal(t, expected["spec"], actual["spec"])
 }
 
+// TestUserDeletionDrift tests how the Kubernetes operator reacts when it is asked to delete a user that was
+// already deleted in Teleport
 func TestUserDeletionDrift(t *testing.T) {
+	// Setup section: start the operator, and create a user
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(t)
+	setup := setupTestEnv(t)
 	userName := validRandomResourceName("user-")
 
-	teleportCreateDummyRole(ctx, t, "a", setup.tClient)
-	teleportCreateDummyRole(ctx, t, "b", setup.tClient)
+	require.NoError(t, teleportCreateDummyRole(ctx, "a", setup.tClient))
+	require.NoError(t, teleportCreateDummyRole(ctx, "b", setup.tClient))
 
 	// The user is created in K8S
 	k8sCreateDummyUser(ctx, t, setup.k8sClient, setup.namespace.Name, userName)
@@ -252,6 +260,9 @@ func TestUserDeletionDrift(t *testing.T) {
 
 		return true
 	})
+	// We cause a drift by altering the Teleport resource.
+	// To make sure the operator does not reconcile while we're finished we suspend the operator
+	setup.stopKubernetesOperator()
 
 	err := setup.tClient.DeleteUser(ctx, userName)
 	require.NoError(t, err)
@@ -260,9 +271,13 @@ func TestUserDeletionDrift(t *testing.T) {
 		return trace.IsNotFound(err)
 	})
 
-	// The role is deleted in K8S
+	// We flag the role for deletion in Kubernetes (it won't be fully remopved until the operator has processed it and removed the finalizer)
 	k8sDeleteUser(ctx, t, setup.k8sClient, userName, setup.namespace.Name)
 
+	// Test section: We resume the operator, it should reconcile and recover from the drift
+	setup.startKubernetesOperator(t)
+
+	// The operator should handle the failed Teleport deletion gracefully and unlock the Kubernetes resource deletion
 	var k8sUser resourcesv2.TeleportUser
 	fastEventually(t, func() bool {
 		err = setup.k8sClient.Get(ctx, kclient.ObjectKey{
@@ -275,12 +290,12 @@ func TestUserDeletionDrift(t *testing.T) {
 
 func TestUserUpdate(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(t)
-	teleportCreateDummyRole(ctx, t, "a", setup.tClient)
-	teleportCreateDummyRole(ctx, t, "b", setup.tClient)
-	teleportCreateDummyRole(ctx, t, "x", setup.tClient)
-	teleportCreateDummyRole(ctx, t, "y", setup.tClient)
-	teleportCreateDummyRole(ctx, t, "z", setup.tClient)
+	setup := setupTestEnv(t)
+	require.NoError(t, teleportCreateDummyRole(ctx, "a", setup.tClient))
+	require.NoError(t, teleportCreateDummyRole(ctx, "b", setup.tClient))
+	require.NoError(t, teleportCreateDummyRole(ctx, "x", setup.tClient))
+	require.NoError(t, teleportCreateDummyRole(ctx, "y", setup.tClient))
+	require.NoError(t, teleportCreateDummyRole(ctx, "z", setup.tClient))
 
 	userName := validRandomResourceName("user-")
 

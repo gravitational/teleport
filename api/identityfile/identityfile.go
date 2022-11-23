@@ -27,12 +27,12 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -261,7 +261,7 @@ func decodeIdentityFile(idFile io.Reader) (*IdentityFile, error) {
 	// are copied out of the scanner's buffer.  All others are ignored.
 	for scanln() {
 		switch {
-		case hasPrefix("ssh"):
+		case isSSHCert(line):
 			ident.Certs.SSH = cloneln()
 		case hasPrefix("@cert-authority"):
 			ident.CACerts.SSH = append(ident.CACerts.SSH, cloneln())
@@ -300,4 +300,10 @@ func decodeIdentityFile(idFile io.Reader) (*IdentityFile, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &ident, nil
+}
+
+// Check if the given data has an ssh cert type prefix as it's first part.
+func isSSHCert(data []byte) bool {
+	sshCertType := bytes.Split(data, []byte(" "))[0]
+	return sshutils.IsSSHCertType(string(sshCertType))
 }

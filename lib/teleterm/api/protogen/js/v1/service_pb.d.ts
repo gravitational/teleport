@@ -5,6 +5,7 @@
 /* eslint-disable */
 
 import * as jspb from "google-protobuf";
+import * as v1_access_request_pb from "../v1/access_request_pb";
 import * as v1_app_pb from "../v1/app_pb";
 import * as v1_auth_settings_pb from "../v1/auth_settings_pb";
 import * as v1_cluster_pb from "../v1/cluster_pb";
@@ -12,6 +13,23 @@ import * as v1_database_pb from "../v1/database_pb";
 import * as v1_gateway_pb from "../v1/gateway_pb";
 import * as v1_kube_pb from "../v1/kube_pb";
 import * as v1_server_pb from "../v1/server_pb";
+
+export class EmptyResponse extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): EmptyResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: EmptyResponse): EmptyResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: EmptyResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): EmptyResponse;
+    static deserializeBinaryFromReader(message: EmptyResponse, reader: jspb.BinaryReader): EmptyResponse;
+}
+
+export namespace EmptyResponse {
+    export type AsObject = {
+    }
+}
 
 export class RemoveClusterRequest extends jspb.Message { 
     getClusterUri(): string;
@@ -73,6 +91,331 @@ export class LogoutRequest extends jspb.Message {
 export namespace LogoutRequest {
     export type AsObject = {
         clusterUri: string,
+    }
+}
+
+export class GetAccessRequestRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): GetAccessRequestRequest;
+
+    getAccessRequestId(): string;
+    setAccessRequestId(value: string): GetAccessRequestRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetAccessRequestRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetAccessRequestRequest): GetAccessRequestRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetAccessRequestRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetAccessRequestRequest;
+    static deserializeBinaryFromReader(message: GetAccessRequestRequest, reader: jspb.BinaryReader): GetAccessRequestRequest;
+}
+
+export namespace GetAccessRequestRequest {
+    export type AsObject = {
+        clusterUri: string,
+        accessRequestId: string,
+    }
+}
+
+export class GetAccessRequestsRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): GetAccessRequestsRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetAccessRequestsRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetAccessRequestsRequest): GetAccessRequestsRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetAccessRequestsRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetAccessRequestsRequest;
+    static deserializeBinaryFromReader(message: GetAccessRequestsRequest, reader: jspb.BinaryReader): GetAccessRequestsRequest;
+}
+
+export namespace GetAccessRequestsRequest {
+    export type AsObject = {
+        clusterUri: string,
+    }
+}
+
+export class GetAccessRequestResponse extends jspb.Message { 
+
+    hasRequest(): boolean;
+    clearRequest(): void;
+    getRequest(): v1_access_request_pb.AccessRequest | undefined;
+    setRequest(value?: v1_access_request_pb.AccessRequest): GetAccessRequestResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetAccessRequestResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetAccessRequestResponse): GetAccessRequestResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetAccessRequestResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetAccessRequestResponse;
+    static deserializeBinaryFromReader(message: GetAccessRequestResponse, reader: jspb.BinaryReader): GetAccessRequestResponse;
+}
+
+export namespace GetAccessRequestResponse {
+    export type AsObject = {
+        request?: v1_access_request_pb.AccessRequest.AsObject,
+    }
+}
+
+export class GetAccessRequestsResponse extends jspb.Message { 
+    clearRequestsList(): void;
+    getRequestsList(): Array<v1_access_request_pb.AccessRequest>;
+    setRequestsList(value: Array<v1_access_request_pb.AccessRequest>): GetAccessRequestsResponse;
+    addRequests(value?: v1_access_request_pb.AccessRequest, index?: number): v1_access_request_pb.AccessRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetAccessRequestsResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetAccessRequestsResponse): GetAccessRequestsResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetAccessRequestsResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetAccessRequestsResponse;
+    static deserializeBinaryFromReader(message: GetAccessRequestsResponse, reader: jspb.BinaryReader): GetAccessRequestsResponse;
+}
+
+export namespace GetAccessRequestsResponse {
+    export type AsObject = {
+        requestsList: Array<v1_access_request_pb.AccessRequest.AsObject>,
+    }
+}
+
+export class DeleteAccessRequestRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): DeleteAccessRequestRequest;
+
+    getAccessRequestId(): string;
+    setAccessRequestId(value: string): DeleteAccessRequestRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DeleteAccessRequestRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: DeleteAccessRequestRequest): DeleteAccessRequestRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DeleteAccessRequestRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DeleteAccessRequestRequest;
+    static deserializeBinaryFromReader(message: DeleteAccessRequestRequest, reader: jspb.BinaryReader): DeleteAccessRequestRequest;
+}
+
+export namespace DeleteAccessRequestRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+        accessRequestId: string,
+    }
+}
+
+export class CreateAccessRequestRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): CreateAccessRequestRequest;
+
+    getReason(): string;
+    setReason(value: string): CreateAccessRequestRequest;
+
+    clearRolesList(): void;
+    getRolesList(): Array<string>;
+    setRolesList(value: Array<string>): CreateAccessRequestRequest;
+    addRoles(value: string, index?: number): string;
+
+    clearSuggestedReviewersList(): void;
+    getSuggestedReviewersList(): Array<string>;
+    setSuggestedReviewersList(value: Array<string>): CreateAccessRequestRequest;
+    addSuggestedReviewers(value: string, index?: number): string;
+
+    clearResourceIdsList(): void;
+    getResourceIdsList(): Array<v1_access_request_pb.ResourceID>;
+    setResourceIdsList(value: Array<v1_access_request_pb.ResourceID>): CreateAccessRequestRequest;
+    addResourceIds(value?: v1_access_request_pb.ResourceID, index?: number): v1_access_request_pb.ResourceID;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): CreateAccessRequestRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: CreateAccessRequestRequest): CreateAccessRequestRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: CreateAccessRequestRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): CreateAccessRequestRequest;
+    static deserializeBinaryFromReader(message: CreateAccessRequestRequest, reader: jspb.BinaryReader): CreateAccessRequestRequest;
+}
+
+export namespace CreateAccessRequestRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+        reason: string,
+        rolesList: Array<string>,
+        suggestedReviewersList: Array<string>,
+        resourceIdsList: Array<v1_access_request_pb.ResourceID.AsObject>,
+    }
+}
+
+export class CreateAccessRequestResponse extends jspb.Message { 
+
+    hasRequest(): boolean;
+    clearRequest(): void;
+    getRequest(): v1_access_request_pb.AccessRequest | undefined;
+    setRequest(value?: v1_access_request_pb.AccessRequest): CreateAccessRequestResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): CreateAccessRequestResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: CreateAccessRequestResponse): CreateAccessRequestResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: CreateAccessRequestResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): CreateAccessRequestResponse;
+    static deserializeBinaryFromReader(message: CreateAccessRequestResponse, reader: jspb.BinaryReader): CreateAccessRequestResponse;
+}
+
+export namespace CreateAccessRequestResponse {
+    export type AsObject = {
+        request?: v1_access_request_pb.AccessRequest.AsObject,
+    }
+}
+
+export class AssumeRoleRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): AssumeRoleRequest;
+
+    clearAccessRequestIdsList(): void;
+    getAccessRequestIdsList(): Array<string>;
+    setAccessRequestIdsList(value: Array<string>): AssumeRoleRequest;
+    addAccessRequestIds(value: string, index?: number): string;
+
+    clearDropRequestIdsList(): void;
+    getDropRequestIdsList(): Array<string>;
+    setDropRequestIdsList(value: Array<string>): AssumeRoleRequest;
+    addDropRequestIds(value: string, index?: number): string;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AssumeRoleRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: AssumeRoleRequest): AssumeRoleRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AssumeRoleRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AssumeRoleRequest;
+    static deserializeBinaryFromReader(message: AssumeRoleRequest, reader: jspb.BinaryReader): AssumeRoleRequest;
+}
+
+export namespace AssumeRoleRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+        accessRequestIdsList: Array<string>,
+        dropRequestIdsList: Array<string>,
+    }
+}
+
+export class GetRequestableRolesRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): GetRequestableRolesRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetRequestableRolesRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetRequestableRolesRequest): GetRequestableRolesRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetRequestableRolesRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetRequestableRolesRequest;
+    static deserializeBinaryFromReader(message: GetRequestableRolesRequest, reader: jspb.BinaryReader): GetRequestableRolesRequest;
+}
+
+export namespace GetRequestableRolesRequest {
+    export type AsObject = {
+        clusterUri: string,
+    }
+}
+
+export class GetRequestableRolesResponse extends jspb.Message { 
+    clearRolesList(): void;
+    getRolesList(): Array<string>;
+    setRolesList(value: Array<string>): GetRequestableRolesResponse;
+    addRoles(value: string, index?: number): string;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetRequestableRolesResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetRequestableRolesResponse): GetRequestableRolesResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetRequestableRolesResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetRequestableRolesResponse;
+    static deserializeBinaryFromReader(message: GetRequestableRolesResponse, reader: jspb.BinaryReader): GetRequestableRolesResponse;
+}
+
+export namespace GetRequestableRolesResponse {
+    export type AsObject = {
+        rolesList: Array<string>,
+    }
+}
+
+export class ReviewAccessRequestRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): ReviewAccessRequestRequest;
+
+    getState(): string;
+    setState(value: string): ReviewAccessRequestRequest;
+
+    getReason(): string;
+    setReason(value: string): ReviewAccessRequestRequest;
+
+    clearRolesList(): void;
+    getRolesList(): Array<string>;
+    setRolesList(value: Array<string>): ReviewAccessRequestRequest;
+    addRoles(value: string, index?: number): string;
+
+    getAccessRequestId(): string;
+    setAccessRequestId(value: string): ReviewAccessRequestRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ReviewAccessRequestRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: ReviewAccessRequestRequest): ReviewAccessRequestRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ReviewAccessRequestRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ReviewAccessRequestRequest;
+    static deserializeBinaryFromReader(message: ReviewAccessRequestRequest, reader: jspb.BinaryReader): ReviewAccessRequestRequest;
+}
+
+export namespace ReviewAccessRequestRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+        state: string,
+        reason: string,
+        rolesList: Array<string>,
+        accessRequestId: string,
+    }
+}
+
+export class ReviewAccessRequestResponse extends jspb.Message { 
+
+    hasRequest(): boolean;
+    clearRequest(): void;
+    getRequest(): v1_access_request_pb.AccessRequest | undefined;
+    setRequest(value?: v1_access_request_pb.AccessRequest): ReviewAccessRequestResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ReviewAccessRequestResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: ReviewAccessRequestResponse): ReviewAccessRequestResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ReviewAccessRequestResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ReviewAccessRequestResponse;
+    static deserializeBinaryFromReader(message: ReviewAccessRequestResponse, reader: jspb.BinaryReader): ReviewAccessRequestResponse;
+}
+
+export namespace ReviewAccessRequestResponse {
+    export type AsObject = {
+        request?: v1_access_request_pb.AccessRequest.AsObject,
     }
 }
 
@@ -241,6 +584,68 @@ export namespace LoginPasswordlessRequest {
 
 }
 
+export class FileTransferRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): FileTransferRequest;
+
+    getLogin(): string;
+    setLogin(value: string): FileTransferRequest;
+
+    getHostname(): string;
+    setHostname(value: string): FileTransferRequest;
+
+    getSource(): string;
+    setSource(value: string): FileTransferRequest;
+
+    getDestination(): string;
+    setDestination(value: string): FileTransferRequest;
+
+    getDirection(): FileTransferDirection;
+    setDirection(value: FileTransferDirection): FileTransferRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): FileTransferRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: FileTransferRequest): FileTransferRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: FileTransferRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): FileTransferRequest;
+    static deserializeBinaryFromReader(message: FileTransferRequest, reader: jspb.BinaryReader): FileTransferRequest;
+}
+
+export namespace FileTransferRequest {
+    export type AsObject = {
+        clusterUri: string,
+        login: string,
+        hostname: string,
+        source: string,
+        destination: string,
+        direction: FileTransferDirection,
+    }
+}
+
+export class FileTransferProgress extends jspb.Message { 
+    getPercentage(): number;
+    setPercentage(value: number): FileTransferProgress;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): FileTransferProgress.AsObject;
+    static toObject(includeInstance: boolean, msg: FileTransferProgress): FileTransferProgress.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: FileTransferProgress, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): FileTransferProgress;
+    static deserializeBinaryFromReader(message: FileTransferProgress, reader: jspb.BinaryReader): FileTransferProgress;
+}
+
+export namespace FileTransferProgress {
+    export type AsObject = {
+        percentage: number,
+    }
+}
+
 export class LoginRequest extends jspb.Message { 
     getClusterUri(): string;
     setClusterUri(value: string): LoginRequest;
@@ -365,27 +770,6 @@ export namespace AddClusterRequest {
     }
 }
 
-export class ListKubesRequest extends jspb.Message { 
-    getClusterUri(): string;
-    setClusterUri(value: string): ListKubesRequest;
-
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): ListKubesRequest.AsObject;
-    static toObject(includeInstance: boolean, msg: ListKubesRequest): ListKubesRequest.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: ListKubesRequest, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): ListKubesRequest;
-    static deserializeBinaryFromReader(message: ListKubesRequest, reader: jspb.BinaryReader): ListKubesRequest;
-}
-
-export namespace ListKubesRequest {
-    export type AsObject = {
-        clusterUri: string,
-    }
-}
-
 export class ListAppsRequest extends jspb.Message { 
     getClusterUri(): string;
     setClusterUri(value: string): ListAppsRequest;
@@ -447,24 +831,69 @@ export namespace ListClustersResponse {
     }
 }
 
-export class ListDatabasesRequest extends jspb.Message { 
+export class GetAllDatabasesRequest extends jspb.Message { 
     getClusterUri(): string;
-    setClusterUri(value: string): ListDatabasesRequest;
+    setClusterUri(value: string): GetAllDatabasesRequest;
 
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): ListDatabasesRequest.AsObject;
-    static toObject(includeInstance: boolean, msg: ListDatabasesRequest): ListDatabasesRequest.AsObject;
+    toObject(includeInstance?: boolean): GetAllDatabasesRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetAllDatabasesRequest): GetAllDatabasesRequest.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: ListDatabasesRequest, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): ListDatabasesRequest;
-    static deserializeBinaryFromReader(message: ListDatabasesRequest, reader: jspb.BinaryReader): ListDatabasesRequest;
+    static serializeBinaryToWriter(message: GetAllDatabasesRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetAllDatabasesRequest;
+    static deserializeBinaryFromReader(message: GetAllDatabasesRequest, reader: jspb.BinaryReader): GetAllDatabasesRequest;
 }
 
-export namespace ListDatabasesRequest {
+export namespace GetAllDatabasesRequest {
     export type AsObject = {
         clusterUri: string,
+    }
+}
+
+export class GetDatabasesRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): GetDatabasesRequest;
+
+    getLimit(): number;
+    setLimit(value: number): GetDatabasesRequest;
+
+    getStartKey(): string;
+    setStartKey(value: string): GetDatabasesRequest;
+
+    getSearch(): string;
+    setSearch(value: string): GetDatabasesRequest;
+
+    getQuery(): string;
+    setQuery(value: string): GetDatabasesRequest;
+
+    getSortBy(): string;
+    setSortBy(value: string): GetDatabasesRequest;
+
+    getSearchAsRoles(): string;
+    setSearchAsRoles(value: string): GetDatabasesRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetDatabasesRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetDatabasesRequest): GetDatabasesRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetDatabasesRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetDatabasesRequest;
+    static deserializeBinaryFromReader(message: GetDatabasesRequest, reader: jspb.BinaryReader): GetDatabasesRequest;
+}
+
+export namespace GetDatabasesRequest {
+    export type AsObject = {
+        clusterUri: string,
+        limit: number,
+        startKey: string,
+        search: string,
+        query: string,
+        sortBy: string,
+        searchAsRoles: string,
     }
 }
 
@@ -489,24 +918,24 @@ export namespace ListLeafClustersRequest {
     }
 }
 
-export class ListDatabasesResponse extends jspb.Message { 
+export class GetAllDatabasesResponse extends jspb.Message { 
     clearDatabasesList(): void;
     getDatabasesList(): Array<v1_database_pb.Database>;
-    setDatabasesList(value: Array<v1_database_pb.Database>): ListDatabasesResponse;
+    setDatabasesList(value: Array<v1_database_pb.Database>): GetAllDatabasesResponse;
     addDatabases(value?: v1_database_pb.Database, index?: number): v1_database_pb.Database;
 
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): ListDatabasesResponse.AsObject;
-    static toObject(includeInstance: boolean, msg: ListDatabasesResponse): ListDatabasesResponse.AsObject;
+    toObject(includeInstance?: boolean): GetAllDatabasesResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetAllDatabasesResponse): GetAllDatabasesResponse.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: ListDatabasesResponse, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): ListDatabasesResponse;
-    static deserializeBinaryFromReader(message: ListDatabasesResponse, reader: jspb.BinaryReader): ListDatabasesResponse;
+    static serializeBinaryToWriter(message: GetAllDatabasesResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetAllDatabasesResponse;
+    static deserializeBinaryFromReader(message: GetAllDatabasesResponse, reader: jspb.BinaryReader): GetAllDatabasesResponse;
 }
 
-export namespace ListDatabasesResponse {
+export namespace GetAllDatabasesResponse {
     export type AsObject = {
         databasesList: Array<v1_database_pb.Database.AsObject>,
     }
@@ -727,70 +1156,274 @@ export namespace SetGatewayLocalPortRequest {
     }
 }
 
-export class ListServersRequest extends jspb.Message { 
+export class GetAllServersRequest extends jspb.Message { 
     getClusterUri(): string;
-    setClusterUri(value: string): ListServersRequest;
+    setClusterUri(value: string): GetAllServersRequest;
 
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): ListServersRequest.AsObject;
-    static toObject(includeInstance: boolean, msg: ListServersRequest): ListServersRequest.AsObject;
+    toObject(includeInstance?: boolean): GetAllServersRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetAllServersRequest): GetAllServersRequest.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: ListServersRequest, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): ListServersRequest;
-    static deserializeBinaryFromReader(message: ListServersRequest, reader: jspb.BinaryReader): ListServersRequest;
+    static serializeBinaryToWriter(message: GetAllServersRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetAllServersRequest;
+    static deserializeBinaryFromReader(message: GetAllServersRequest, reader: jspb.BinaryReader): GetAllServersRequest;
 }
 
-export namespace ListServersRequest {
+export namespace GetAllServersRequest {
     export type AsObject = {
         clusterUri: string,
     }
 }
 
-export class ListServersResponse extends jspb.Message { 
+export class GetAllServersResponse extends jspb.Message { 
     clearServersList(): void;
     getServersList(): Array<v1_server_pb.Server>;
-    setServersList(value: Array<v1_server_pb.Server>): ListServersResponse;
+    setServersList(value: Array<v1_server_pb.Server>): GetAllServersResponse;
     addServers(value?: v1_server_pb.Server, index?: number): v1_server_pb.Server;
 
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): ListServersResponse.AsObject;
-    static toObject(includeInstance: boolean, msg: ListServersResponse): ListServersResponse.AsObject;
+    toObject(includeInstance?: boolean): GetAllServersResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetAllServersResponse): GetAllServersResponse.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: ListServersResponse, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): ListServersResponse;
-    static deserializeBinaryFromReader(message: ListServersResponse, reader: jspb.BinaryReader): ListServersResponse;
+    static serializeBinaryToWriter(message: GetAllServersResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetAllServersResponse;
+    static deserializeBinaryFromReader(message: GetAllServersResponse, reader: jspb.BinaryReader): GetAllServersResponse;
 }
 
-export namespace ListServersResponse {
+export namespace GetAllServersResponse {
     export type AsObject = {
         serversList: Array<v1_server_pb.Server.AsObject>,
     }
 }
 
-export class ListKubesResponse extends jspb.Message { 
+export class GetServersRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): GetServersRequest;
+
+    getLimit(): number;
+    setLimit(value: number): GetServersRequest;
+
+    getStartKey(): string;
+    setStartKey(value: string): GetServersRequest;
+
+    getSearch(): string;
+    setSearch(value: string): GetServersRequest;
+
+    getQuery(): string;
+    setQuery(value: string): GetServersRequest;
+
+    getSortBy(): string;
+    setSortBy(value: string): GetServersRequest;
+
+    getSearchAsRoles(): string;
+    setSearchAsRoles(value: string): GetServersRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetServersRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetServersRequest): GetServersRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetServersRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetServersRequest;
+    static deserializeBinaryFromReader(message: GetServersRequest, reader: jspb.BinaryReader): GetServersRequest;
+}
+
+export namespace GetServersRequest {
+    export type AsObject = {
+        clusterUri: string,
+        limit: number,
+        startKey: string,
+        search: string,
+        query: string,
+        sortBy: string,
+        searchAsRoles: string,
+    }
+}
+
+export class GetServersResponse extends jspb.Message { 
+    clearAgentsList(): void;
+    getAgentsList(): Array<v1_server_pb.Server>;
+    setAgentsList(value: Array<v1_server_pb.Server>): GetServersResponse;
+    addAgents(value?: v1_server_pb.Server, index?: number): v1_server_pb.Server;
+
+    getTotalCount(): number;
+    setTotalCount(value: number): GetServersResponse;
+
+    getStartKey(): string;
+    setStartKey(value: string): GetServersResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetServersResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetServersResponse): GetServersResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetServersResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetServersResponse;
+    static deserializeBinaryFromReader(message: GetServersResponse, reader: jspb.BinaryReader): GetServersResponse;
+}
+
+export namespace GetServersResponse {
+    export type AsObject = {
+        agentsList: Array<v1_server_pb.Server.AsObject>,
+        totalCount: number,
+        startKey: string,
+    }
+}
+
+export class GetDatabasesResponse extends jspb.Message { 
+    clearAgentsList(): void;
+    getAgentsList(): Array<v1_database_pb.Database>;
+    setAgentsList(value: Array<v1_database_pb.Database>): GetDatabasesResponse;
+    addAgents(value?: v1_database_pb.Database, index?: number): v1_database_pb.Database;
+
+    getTotalCount(): number;
+    setTotalCount(value: number): GetDatabasesResponse;
+
+    getStartKey(): string;
+    setStartKey(value: string): GetDatabasesResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetDatabasesResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetDatabasesResponse): GetDatabasesResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetDatabasesResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetDatabasesResponse;
+    static deserializeBinaryFromReader(message: GetDatabasesResponse, reader: jspb.BinaryReader): GetDatabasesResponse;
+}
+
+export namespace GetDatabasesResponse {
+    export type AsObject = {
+        agentsList: Array<v1_database_pb.Database.AsObject>,
+        totalCount: number,
+        startKey: string,
+    }
+}
+
+export class GetAllKubesRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): GetAllKubesRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetAllKubesRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetAllKubesRequest): GetAllKubesRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetAllKubesRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetAllKubesRequest;
+    static deserializeBinaryFromReader(message: GetAllKubesRequest, reader: jspb.BinaryReader): GetAllKubesRequest;
+}
+
+export namespace GetAllKubesRequest {
+    export type AsObject = {
+        clusterUri: string,
+    }
+}
+
+export class GetAllKubesResponse extends jspb.Message { 
     clearKubesList(): void;
     getKubesList(): Array<v1_kube_pb.Kube>;
-    setKubesList(value: Array<v1_kube_pb.Kube>): ListKubesResponse;
+    setKubesList(value: Array<v1_kube_pb.Kube>): GetAllKubesResponse;
     addKubes(value?: v1_kube_pb.Kube, index?: number): v1_kube_pb.Kube;
 
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): ListKubesResponse.AsObject;
-    static toObject(includeInstance: boolean, msg: ListKubesResponse): ListKubesResponse.AsObject;
+    toObject(includeInstance?: boolean): GetAllKubesResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetAllKubesResponse): GetAllKubesResponse.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: ListKubesResponse, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): ListKubesResponse;
-    static deserializeBinaryFromReader(message: ListKubesResponse, reader: jspb.BinaryReader): ListKubesResponse;
+    static serializeBinaryToWriter(message: GetAllKubesResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetAllKubesResponse;
+    static deserializeBinaryFromReader(message: GetAllKubesResponse, reader: jspb.BinaryReader): GetAllKubesResponse;
 }
 
-export namespace ListKubesResponse {
+export namespace GetAllKubesResponse {
     export type AsObject = {
         kubesList: Array<v1_kube_pb.Kube.AsObject>,
+    }
+}
+
+export class GetKubesRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): GetKubesRequest;
+
+    getLimit(): number;
+    setLimit(value: number): GetKubesRequest;
+
+    getStartKey(): string;
+    setStartKey(value: string): GetKubesRequest;
+
+    getSearch(): string;
+    setSearch(value: string): GetKubesRequest;
+
+    getQuery(): string;
+    setQuery(value: string): GetKubesRequest;
+
+    getSortBy(): string;
+    setSortBy(value: string): GetKubesRequest;
+
+    getSearchAsRoles(): string;
+    setSearchAsRoles(value: string): GetKubesRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetKubesRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetKubesRequest): GetKubesRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetKubesRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetKubesRequest;
+    static deserializeBinaryFromReader(message: GetKubesRequest, reader: jspb.BinaryReader): GetKubesRequest;
+}
+
+export namespace GetKubesRequest {
+    export type AsObject = {
+        clusterUri: string,
+        limit: number,
+        startKey: string,
+        search: string,
+        query: string,
+        sortBy: string,
+        searchAsRoles: string,
+    }
+}
+
+export class GetKubesResponse extends jspb.Message { 
+    clearAgentsList(): void;
+    getAgentsList(): Array<v1_kube_pb.Kube>;
+    setAgentsList(value: Array<v1_kube_pb.Kube>): GetKubesResponse;
+    addAgents(value?: v1_kube_pb.Kube, index?: number): v1_kube_pb.Kube;
+
+    getTotalCount(): number;
+    setTotalCount(value: number): GetKubesResponse;
+
+    getStartKey(): string;
+    setStartKey(value: string): GetKubesResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetKubesResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetKubesResponse): GetKubesResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetKubesResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetKubesResponse;
+    static deserializeBinaryFromReader(message: GetKubesResponse, reader: jspb.BinaryReader): GetKubesResponse;
+}
+
+export namespace GetKubesResponse {
+    export type AsObject = {
+        agentsList: Array<v1_kube_pb.Kube.AsObject>,
+        totalCount: number,
+        startKey: string,
     }
 }
 
@@ -838,19 +1471,40 @@ export namespace GetAuthSettingsRequest {
     }
 }
 
-export class EmptyResponse extends jspb.Message { 
+export class UpdateTshdEventsServerAddressRequest extends jspb.Message { 
+    getAddress(): string;
+    setAddress(value: string): UpdateTshdEventsServerAddressRequest;
+
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): EmptyResponse.AsObject;
-    static toObject(includeInstance: boolean, msg: EmptyResponse): EmptyResponse.AsObject;
+    toObject(includeInstance?: boolean): UpdateTshdEventsServerAddressRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: UpdateTshdEventsServerAddressRequest): UpdateTshdEventsServerAddressRequest.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: EmptyResponse, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): EmptyResponse;
-    static deserializeBinaryFromReader(message: EmptyResponse, reader: jspb.BinaryReader): EmptyResponse;
+    static serializeBinaryToWriter(message: UpdateTshdEventsServerAddressRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UpdateTshdEventsServerAddressRequest;
+    static deserializeBinaryFromReader(message: UpdateTshdEventsServerAddressRequest, reader: jspb.BinaryReader): UpdateTshdEventsServerAddressRequest;
 }
 
-export namespace EmptyResponse {
+export namespace UpdateTshdEventsServerAddressRequest {
+    export type AsObject = {
+        address: string,
+    }
+}
+
+export class UpdateTshdEventsServerAddressResponse extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UpdateTshdEventsServerAddressResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: UpdateTshdEventsServerAddressResponse): UpdateTshdEventsServerAddressResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UpdateTshdEventsServerAddressResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UpdateTshdEventsServerAddressResponse;
+    static deserializeBinaryFromReader(message: UpdateTshdEventsServerAddressResponse, reader: jspb.BinaryReader): UpdateTshdEventsServerAddressResponse;
+}
+
+export namespace UpdateTshdEventsServerAddressResponse {
     export type AsObject = {
     }
 }
@@ -860,4 +1514,10 @@ export enum PasswordlessPrompt {
     PASSWORDLESS_PROMPT_PIN = 1,
     PASSWORDLESS_PROMPT_TAP = 2,
     PASSWORDLESS_PROMPT_CREDENTIAL = 3,
+}
+
+export enum FileTransferDirection {
+    FILE_TRANSFER_DIRECTION_UNSPECIFIED = 0,
+    FILE_TRANSFER_DIRECTION_DOWNLOAD = 1,
+    FILE_TRANSFER_DIRECTION_UPLOAD = 2,
 }

@@ -6,6 +6,7 @@
 
 import * as grpc from "grpc";
 import * as v1_service_pb from "../v1/service_pb";
+import * as v1_access_request_pb from "../v1/access_request_pb";
 import * as v1_app_pb from "../v1/app_pb";
 import * as v1_auth_settings_pb from "../v1/auth_settings_pb";
 import * as v1_cluster_pb from "../v1/cluster_pb";
@@ -15,12 +16,23 @@ import * as v1_kube_pb from "../v1/kube_pb";
 import * as v1_server_pb from "../v1/server_pb";
 
 interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedServiceImplementation> {
+    updateTshdEventsServerAddress: ITerminalServiceService_IUpdateTshdEventsServerAddress;
     listRootClusters: ITerminalServiceService_IListRootClusters;
     listLeafClusters: ITerminalServiceService_IListLeafClusters;
-    listDatabases: ITerminalServiceService_IListDatabases;
+    getAllDatabases: ITerminalServiceService_IGetAllDatabases;
+    getDatabases: ITerminalServiceService_IGetDatabases;
     listDatabaseUsers: ITerminalServiceService_IListDatabaseUsers;
-    listServers: ITerminalServiceService_IListServers;
-    listKubes: ITerminalServiceService_IListKubes;
+    getAllServers: ITerminalServiceService_IGetAllServers;
+    getServers: ITerminalServiceService_IGetServers;
+    getAccessRequests: ITerminalServiceService_IGetAccessRequests;
+    getAccessRequest: ITerminalServiceService_IGetAccessRequest;
+    deleteAccessRequest: ITerminalServiceService_IDeleteAccessRequest;
+    createAccessRequest: ITerminalServiceService_ICreateAccessRequest;
+    reviewAccessRequest: ITerminalServiceService_IReviewAccessRequest;
+    getRequestableRoles: ITerminalServiceService_IGetRequestableRoles;
+    assumeRole: ITerminalServiceService_IAssumeRole;
+    getAllKubes: ITerminalServiceService_IGetAllKubes;
+    getKubes: ITerminalServiceService_IGetKubes;
     listApps: ITerminalServiceService_IListApps;
     addCluster: ITerminalServiceService_IAddCluster;
     removeCluster: ITerminalServiceService_IRemoveCluster;
@@ -35,8 +47,18 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     login: ITerminalServiceService_ILogin;
     loginPasswordless: ITerminalServiceService_ILoginPasswordless;
     logout: ITerminalServiceService_ILogout;
+    transferFile: ITerminalServiceService_ITransferFile;
 }
 
+interface ITerminalServiceService_IUpdateTshdEventsServerAddress extends grpc.MethodDefinition<v1_service_pb.UpdateTshdEventsServerAddressRequest, v1_service_pb.UpdateTshdEventsServerAddressResponse> {
+    path: "/teleport.terminal.v1.TerminalService/UpdateTshdEventsServerAddress";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<v1_service_pb.UpdateTshdEventsServerAddressRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.UpdateTshdEventsServerAddressRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.UpdateTshdEventsServerAddressResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.UpdateTshdEventsServerAddressResponse>;
+}
 interface ITerminalServiceService_IListRootClusters extends grpc.MethodDefinition<v1_service_pb.ListClustersRequest, v1_service_pb.ListClustersResponse> {
     path: "/teleport.terminal.v1.TerminalService/ListRootClusters";
     requestStream: false;
@@ -55,14 +77,23 @@ interface ITerminalServiceService_IListLeafClusters extends grpc.MethodDefinitio
     responseSerialize: grpc.serialize<v1_service_pb.ListClustersResponse>;
     responseDeserialize: grpc.deserialize<v1_service_pb.ListClustersResponse>;
 }
-interface ITerminalServiceService_IListDatabases extends grpc.MethodDefinition<v1_service_pb.ListDatabasesRequest, v1_service_pb.ListDatabasesResponse> {
-    path: "/teleport.terminal.v1.TerminalService/ListDatabases";
+interface ITerminalServiceService_IGetAllDatabases extends grpc.MethodDefinition<v1_service_pb.GetAllDatabasesRequest, v1_service_pb.GetAllDatabasesResponse> {
+    path: "/teleport.terminal.v1.TerminalService/GetAllDatabases";
     requestStream: false;
     responseStream: false;
-    requestSerialize: grpc.serialize<v1_service_pb.ListDatabasesRequest>;
-    requestDeserialize: grpc.deserialize<v1_service_pb.ListDatabasesRequest>;
-    responseSerialize: grpc.serialize<v1_service_pb.ListDatabasesResponse>;
-    responseDeserialize: grpc.deserialize<v1_service_pb.ListDatabasesResponse>;
+    requestSerialize: grpc.serialize<v1_service_pb.GetAllDatabasesRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.GetAllDatabasesRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.GetAllDatabasesResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.GetAllDatabasesResponse>;
+}
+interface ITerminalServiceService_IGetDatabases extends grpc.MethodDefinition<v1_service_pb.GetDatabasesRequest, v1_service_pb.GetDatabasesResponse> {
+    path: "/teleport.terminal.v1.TerminalService/GetDatabases";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<v1_service_pb.GetDatabasesRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.GetDatabasesRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.GetDatabasesResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.GetDatabasesResponse>;
 }
 interface ITerminalServiceService_IListDatabaseUsers extends grpc.MethodDefinition<v1_service_pb.ListDatabaseUsersRequest, v1_service_pb.ListDatabaseUsersResponse> {
     path: "/teleport.terminal.v1.TerminalService/ListDatabaseUsers";
@@ -73,23 +104,104 @@ interface ITerminalServiceService_IListDatabaseUsers extends grpc.MethodDefiniti
     responseSerialize: grpc.serialize<v1_service_pb.ListDatabaseUsersResponse>;
     responseDeserialize: grpc.deserialize<v1_service_pb.ListDatabaseUsersResponse>;
 }
-interface ITerminalServiceService_IListServers extends grpc.MethodDefinition<v1_service_pb.ListServersRequest, v1_service_pb.ListServersResponse> {
-    path: "/teleport.terminal.v1.TerminalService/ListServers";
+interface ITerminalServiceService_IGetAllServers extends grpc.MethodDefinition<v1_service_pb.GetAllServersRequest, v1_service_pb.GetAllServersResponse> {
+    path: "/teleport.terminal.v1.TerminalService/GetAllServers";
     requestStream: false;
     responseStream: false;
-    requestSerialize: grpc.serialize<v1_service_pb.ListServersRequest>;
-    requestDeserialize: grpc.deserialize<v1_service_pb.ListServersRequest>;
-    responseSerialize: grpc.serialize<v1_service_pb.ListServersResponse>;
-    responseDeserialize: grpc.deserialize<v1_service_pb.ListServersResponse>;
+    requestSerialize: grpc.serialize<v1_service_pb.GetAllServersRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.GetAllServersRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.GetAllServersResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.GetAllServersResponse>;
 }
-interface ITerminalServiceService_IListKubes extends grpc.MethodDefinition<v1_service_pb.ListKubesRequest, v1_service_pb.ListKubesResponse> {
-    path: "/teleport.terminal.v1.TerminalService/ListKubes";
+interface ITerminalServiceService_IGetServers extends grpc.MethodDefinition<v1_service_pb.GetServersRequest, v1_service_pb.GetServersResponse> {
+    path: "/teleport.terminal.v1.TerminalService/GetServers";
     requestStream: false;
     responseStream: false;
-    requestSerialize: grpc.serialize<v1_service_pb.ListKubesRequest>;
-    requestDeserialize: grpc.deserialize<v1_service_pb.ListKubesRequest>;
-    responseSerialize: grpc.serialize<v1_service_pb.ListKubesResponse>;
-    responseDeserialize: grpc.deserialize<v1_service_pb.ListKubesResponse>;
+    requestSerialize: grpc.serialize<v1_service_pb.GetServersRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.GetServersRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.GetServersResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.GetServersResponse>;
+}
+interface ITerminalServiceService_IGetAccessRequests extends grpc.MethodDefinition<v1_service_pb.GetAccessRequestsRequest, v1_service_pb.GetAccessRequestsResponse> {
+    path: "/teleport.terminal.v1.TerminalService/GetAccessRequests";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<v1_service_pb.GetAccessRequestsRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.GetAccessRequestsRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.GetAccessRequestsResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.GetAccessRequestsResponse>;
+}
+interface ITerminalServiceService_IGetAccessRequest extends grpc.MethodDefinition<v1_service_pb.GetAccessRequestRequest, v1_service_pb.GetAccessRequestResponse> {
+    path: "/teleport.terminal.v1.TerminalService/GetAccessRequest";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<v1_service_pb.GetAccessRequestRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.GetAccessRequestRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.GetAccessRequestResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.GetAccessRequestResponse>;
+}
+interface ITerminalServiceService_IDeleteAccessRequest extends grpc.MethodDefinition<v1_service_pb.DeleteAccessRequestRequest, v1_service_pb.EmptyResponse> {
+    path: "/teleport.terminal.v1.TerminalService/DeleteAccessRequest";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<v1_service_pb.DeleteAccessRequestRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.DeleteAccessRequestRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.EmptyResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.EmptyResponse>;
+}
+interface ITerminalServiceService_ICreateAccessRequest extends grpc.MethodDefinition<v1_service_pb.CreateAccessRequestRequest, v1_service_pb.CreateAccessRequestResponse> {
+    path: "/teleport.terminal.v1.TerminalService/CreateAccessRequest";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<v1_service_pb.CreateAccessRequestRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.CreateAccessRequestRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.CreateAccessRequestResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.CreateAccessRequestResponse>;
+}
+interface ITerminalServiceService_IReviewAccessRequest extends grpc.MethodDefinition<v1_service_pb.ReviewAccessRequestRequest, v1_service_pb.ReviewAccessRequestResponse> {
+    path: "/teleport.terminal.v1.TerminalService/ReviewAccessRequest";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<v1_service_pb.ReviewAccessRequestRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.ReviewAccessRequestRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.ReviewAccessRequestResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.ReviewAccessRequestResponse>;
+}
+interface ITerminalServiceService_IGetRequestableRoles extends grpc.MethodDefinition<v1_service_pb.GetRequestableRolesRequest, v1_service_pb.GetRequestableRolesResponse> {
+    path: "/teleport.terminal.v1.TerminalService/GetRequestableRoles";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<v1_service_pb.GetRequestableRolesRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.GetRequestableRolesRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.GetRequestableRolesResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.GetRequestableRolesResponse>;
+}
+interface ITerminalServiceService_IAssumeRole extends grpc.MethodDefinition<v1_service_pb.AssumeRoleRequest, v1_service_pb.EmptyResponse> {
+    path: "/teleport.terminal.v1.TerminalService/AssumeRole";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<v1_service_pb.AssumeRoleRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.AssumeRoleRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.EmptyResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.EmptyResponse>;
+}
+interface ITerminalServiceService_IGetAllKubes extends grpc.MethodDefinition<v1_service_pb.GetAllKubesRequest, v1_service_pb.GetAllKubesResponse> {
+    path: "/teleport.terminal.v1.TerminalService/GetAllKubes";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<v1_service_pb.GetAllKubesRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.GetAllKubesRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.GetAllKubesResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.GetAllKubesResponse>;
+}
+interface ITerminalServiceService_IGetKubes extends grpc.MethodDefinition<v1_service_pb.GetKubesRequest, v1_service_pb.GetKubesResponse> {
+    path: "/teleport.terminal.v1.TerminalService/GetKubes";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<v1_service_pb.GetKubesRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.GetKubesRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.GetKubesResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.GetKubesResponse>;
 }
 interface ITerminalServiceService_IListApps extends grpc.MethodDefinition<v1_service_pb.ListAppsRequest, v1_service_pb.ListAppsResponse> {
     path: "/teleport.terminal.v1.TerminalService/ListApps";
@@ -217,16 +329,36 @@ interface ITerminalServiceService_ILogout extends grpc.MethodDefinition<v1_servi
     responseSerialize: grpc.serialize<v1_service_pb.EmptyResponse>;
     responseDeserialize: grpc.deserialize<v1_service_pb.EmptyResponse>;
 }
+interface ITerminalServiceService_ITransferFile extends grpc.MethodDefinition<v1_service_pb.FileTransferRequest, v1_service_pb.FileTransferProgress> {
+    path: "/teleport.terminal.v1.TerminalService/TransferFile";
+    requestStream: false;
+    responseStream: true;
+    requestSerialize: grpc.serialize<v1_service_pb.FileTransferRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.FileTransferRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.FileTransferProgress>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.FileTransferProgress>;
+}
 
 export const TerminalServiceService: ITerminalServiceService;
 
 export interface ITerminalServiceServer {
+    updateTshdEventsServerAddress: grpc.handleUnaryCall<v1_service_pb.UpdateTshdEventsServerAddressRequest, v1_service_pb.UpdateTshdEventsServerAddressResponse>;
     listRootClusters: grpc.handleUnaryCall<v1_service_pb.ListClustersRequest, v1_service_pb.ListClustersResponse>;
     listLeafClusters: grpc.handleUnaryCall<v1_service_pb.ListLeafClustersRequest, v1_service_pb.ListClustersResponse>;
-    listDatabases: grpc.handleUnaryCall<v1_service_pb.ListDatabasesRequest, v1_service_pb.ListDatabasesResponse>;
+    getAllDatabases: grpc.handleUnaryCall<v1_service_pb.GetAllDatabasesRequest, v1_service_pb.GetAllDatabasesResponse>;
+    getDatabases: grpc.handleUnaryCall<v1_service_pb.GetDatabasesRequest, v1_service_pb.GetDatabasesResponse>;
     listDatabaseUsers: grpc.handleUnaryCall<v1_service_pb.ListDatabaseUsersRequest, v1_service_pb.ListDatabaseUsersResponse>;
-    listServers: grpc.handleUnaryCall<v1_service_pb.ListServersRequest, v1_service_pb.ListServersResponse>;
-    listKubes: grpc.handleUnaryCall<v1_service_pb.ListKubesRequest, v1_service_pb.ListKubesResponse>;
+    getAllServers: grpc.handleUnaryCall<v1_service_pb.GetAllServersRequest, v1_service_pb.GetAllServersResponse>;
+    getServers: grpc.handleUnaryCall<v1_service_pb.GetServersRequest, v1_service_pb.GetServersResponse>;
+    getAccessRequests: grpc.handleUnaryCall<v1_service_pb.GetAccessRequestsRequest, v1_service_pb.GetAccessRequestsResponse>;
+    getAccessRequest: grpc.handleUnaryCall<v1_service_pb.GetAccessRequestRequest, v1_service_pb.GetAccessRequestResponse>;
+    deleteAccessRequest: grpc.handleUnaryCall<v1_service_pb.DeleteAccessRequestRequest, v1_service_pb.EmptyResponse>;
+    createAccessRequest: grpc.handleUnaryCall<v1_service_pb.CreateAccessRequestRequest, v1_service_pb.CreateAccessRequestResponse>;
+    reviewAccessRequest: grpc.handleUnaryCall<v1_service_pb.ReviewAccessRequestRequest, v1_service_pb.ReviewAccessRequestResponse>;
+    getRequestableRoles: grpc.handleUnaryCall<v1_service_pb.GetRequestableRolesRequest, v1_service_pb.GetRequestableRolesResponse>;
+    assumeRole: grpc.handleUnaryCall<v1_service_pb.AssumeRoleRequest, v1_service_pb.EmptyResponse>;
+    getAllKubes: grpc.handleUnaryCall<v1_service_pb.GetAllKubesRequest, v1_service_pb.GetAllKubesResponse>;
+    getKubes: grpc.handleUnaryCall<v1_service_pb.GetKubesRequest, v1_service_pb.GetKubesResponse>;
     listApps: grpc.handleUnaryCall<v1_service_pb.ListAppsRequest, v1_service_pb.ListAppsResponse>;
     addCluster: grpc.handleUnaryCall<v1_service_pb.AddClusterRequest, v1_cluster_pb.Cluster>;
     removeCluster: grpc.handleUnaryCall<v1_service_pb.RemoveClusterRequest, v1_service_pb.EmptyResponse>;
@@ -241,27 +373,61 @@ export interface ITerminalServiceServer {
     login: grpc.handleUnaryCall<v1_service_pb.LoginRequest, v1_service_pb.EmptyResponse>;
     loginPasswordless: grpc.handleBidiStreamingCall<v1_service_pb.LoginPasswordlessRequest, v1_service_pb.LoginPasswordlessResponse>;
     logout: grpc.handleUnaryCall<v1_service_pb.LogoutRequest, v1_service_pb.EmptyResponse>;
+    transferFile: grpc.handleServerStreamingCall<v1_service_pb.FileTransferRequest, v1_service_pb.FileTransferProgress>;
 }
 
 export interface ITerminalServiceClient {
+    updateTshdEventsServerAddress(request: v1_service_pb.UpdateTshdEventsServerAddressRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.UpdateTshdEventsServerAddressResponse) => void): grpc.ClientUnaryCall;
+    updateTshdEventsServerAddress(request: v1_service_pb.UpdateTshdEventsServerAddressRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.UpdateTshdEventsServerAddressResponse) => void): grpc.ClientUnaryCall;
+    updateTshdEventsServerAddress(request: v1_service_pb.UpdateTshdEventsServerAddressRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.UpdateTshdEventsServerAddressResponse) => void): grpc.ClientUnaryCall;
     listRootClusters(request: v1_service_pb.ListClustersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
     listRootClusters(request: v1_service_pb.ListClustersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
     listRootClusters(request: v1_service_pb.ListClustersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
     listLeafClusters(request: v1_service_pb.ListLeafClustersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
     listLeafClusters(request: v1_service_pb.ListLeafClustersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
     listLeafClusters(request: v1_service_pb.ListLeafClustersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
-    listDatabases(request: v1_service_pb.ListDatabasesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabasesResponse) => void): grpc.ClientUnaryCall;
-    listDatabases(request: v1_service_pb.ListDatabasesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabasesResponse) => void): grpc.ClientUnaryCall;
-    listDatabases(request: v1_service_pb.ListDatabasesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabasesResponse) => void): grpc.ClientUnaryCall;
+    getAllDatabases(request: v1_service_pb.GetAllDatabasesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllDatabasesResponse) => void): grpc.ClientUnaryCall;
+    getAllDatabases(request: v1_service_pb.GetAllDatabasesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllDatabasesResponse) => void): grpc.ClientUnaryCall;
+    getAllDatabases(request: v1_service_pb.GetAllDatabasesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllDatabasesResponse) => void): grpc.ClientUnaryCall;
+    getDatabases(request: v1_service_pb.GetDatabasesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetDatabasesResponse) => void): grpc.ClientUnaryCall;
+    getDatabases(request: v1_service_pb.GetDatabasesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetDatabasesResponse) => void): grpc.ClientUnaryCall;
+    getDatabases(request: v1_service_pb.GetDatabasesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetDatabasesResponse) => void): grpc.ClientUnaryCall;
     listDatabaseUsers(request: v1_service_pb.ListDatabaseUsersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabaseUsersResponse) => void): grpc.ClientUnaryCall;
     listDatabaseUsers(request: v1_service_pb.ListDatabaseUsersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabaseUsersResponse) => void): grpc.ClientUnaryCall;
     listDatabaseUsers(request: v1_service_pb.ListDatabaseUsersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabaseUsersResponse) => void): grpc.ClientUnaryCall;
-    listServers(request: v1_service_pb.ListServersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListServersResponse) => void): grpc.ClientUnaryCall;
-    listServers(request: v1_service_pb.ListServersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListServersResponse) => void): grpc.ClientUnaryCall;
-    listServers(request: v1_service_pb.ListServersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListServersResponse) => void): grpc.ClientUnaryCall;
-    listKubes(request: v1_service_pb.ListKubesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListKubesResponse) => void): grpc.ClientUnaryCall;
-    listKubes(request: v1_service_pb.ListKubesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListKubesResponse) => void): grpc.ClientUnaryCall;
-    listKubes(request: v1_service_pb.ListKubesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListKubesResponse) => void): grpc.ClientUnaryCall;
+    getAllServers(request: v1_service_pb.GetAllServersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllServersResponse) => void): grpc.ClientUnaryCall;
+    getAllServers(request: v1_service_pb.GetAllServersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllServersResponse) => void): grpc.ClientUnaryCall;
+    getAllServers(request: v1_service_pb.GetAllServersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllServersResponse) => void): grpc.ClientUnaryCall;
+    getServers(request: v1_service_pb.GetServersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetServersResponse) => void): grpc.ClientUnaryCall;
+    getServers(request: v1_service_pb.GetServersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetServersResponse) => void): grpc.ClientUnaryCall;
+    getServers(request: v1_service_pb.GetServersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetServersResponse) => void): grpc.ClientUnaryCall;
+    getAccessRequests(request: v1_service_pb.GetAccessRequestsRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAccessRequestsResponse) => void): grpc.ClientUnaryCall;
+    getAccessRequests(request: v1_service_pb.GetAccessRequestsRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAccessRequestsResponse) => void): grpc.ClientUnaryCall;
+    getAccessRequests(request: v1_service_pb.GetAccessRequestsRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAccessRequestsResponse) => void): grpc.ClientUnaryCall;
+    getAccessRequest(request: v1_service_pb.GetAccessRequestRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    getAccessRequest(request: v1_service_pb.GetAccessRequestRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    getAccessRequest(request: v1_service_pb.GetAccessRequestRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    deleteAccessRequest(request: v1_service_pb.DeleteAccessRequestRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    deleteAccessRequest(request: v1_service_pb.DeleteAccessRequestRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    deleteAccessRequest(request: v1_service_pb.DeleteAccessRequestRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    createAccessRequest(request: v1_service_pb.CreateAccessRequestRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.CreateAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    createAccessRequest(request: v1_service_pb.CreateAccessRequestRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.CreateAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    createAccessRequest(request: v1_service_pb.CreateAccessRequestRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.CreateAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    reviewAccessRequest(request: v1_service_pb.ReviewAccessRequestRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ReviewAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    reviewAccessRequest(request: v1_service_pb.ReviewAccessRequestRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ReviewAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    reviewAccessRequest(request: v1_service_pb.ReviewAccessRequestRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ReviewAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    getRequestableRoles(request: v1_service_pb.GetRequestableRolesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetRequestableRolesResponse) => void): grpc.ClientUnaryCall;
+    getRequestableRoles(request: v1_service_pb.GetRequestableRolesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetRequestableRolesResponse) => void): grpc.ClientUnaryCall;
+    getRequestableRoles(request: v1_service_pb.GetRequestableRolesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetRequestableRolesResponse) => void): grpc.ClientUnaryCall;
+    assumeRole(request: v1_service_pb.AssumeRoleRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    assumeRole(request: v1_service_pb.AssumeRoleRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    assumeRole(request: v1_service_pb.AssumeRoleRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    getAllKubes(request: v1_service_pb.GetAllKubesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllKubesResponse) => void): grpc.ClientUnaryCall;
+    getAllKubes(request: v1_service_pb.GetAllKubesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllKubesResponse) => void): grpc.ClientUnaryCall;
+    getAllKubes(request: v1_service_pb.GetAllKubesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllKubesResponse) => void): grpc.ClientUnaryCall;
+    getKubes(request: v1_service_pb.GetKubesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
+    getKubes(request: v1_service_pb.GetKubesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
+    getKubes(request: v1_service_pb.GetKubesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
     listApps(request: v1_service_pb.ListAppsRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListAppsResponse) => void): grpc.ClientUnaryCall;
     listApps(request: v1_service_pb.ListAppsRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListAppsResponse) => void): grpc.ClientUnaryCall;
     listApps(request: v1_service_pb.ListAppsRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListAppsResponse) => void): grpc.ClientUnaryCall;
@@ -304,28 +470,63 @@ export interface ITerminalServiceClient {
     logout(request: v1_service_pb.LogoutRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     logout(request: v1_service_pb.LogoutRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     logout(request: v1_service_pb.LogoutRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    transferFile(request: v1_service_pb.FileTransferRequest, options?: Partial<grpc.CallOptions>): grpc.ClientReadableStream<v1_service_pb.FileTransferProgress>;
+    transferFile(request: v1_service_pb.FileTransferRequest, metadata?: grpc.Metadata, options?: Partial<grpc.CallOptions>): grpc.ClientReadableStream<v1_service_pb.FileTransferProgress>;
 }
 
 export class TerminalServiceClient extends grpc.Client implements ITerminalServiceClient {
     constructor(address: string, credentials: grpc.ChannelCredentials, options?: object);
+    public updateTshdEventsServerAddress(request: v1_service_pb.UpdateTshdEventsServerAddressRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.UpdateTshdEventsServerAddressResponse) => void): grpc.ClientUnaryCall;
+    public updateTshdEventsServerAddress(request: v1_service_pb.UpdateTshdEventsServerAddressRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.UpdateTshdEventsServerAddressResponse) => void): grpc.ClientUnaryCall;
+    public updateTshdEventsServerAddress(request: v1_service_pb.UpdateTshdEventsServerAddressRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.UpdateTshdEventsServerAddressResponse) => void): grpc.ClientUnaryCall;
     public listRootClusters(request: v1_service_pb.ListClustersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
     public listRootClusters(request: v1_service_pb.ListClustersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
     public listRootClusters(request: v1_service_pb.ListClustersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
     public listLeafClusters(request: v1_service_pb.ListLeafClustersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
     public listLeafClusters(request: v1_service_pb.ListLeafClustersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
     public listLeafClusters(request: v1_service_pb.ListLeafClustersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListClustersResponse) => void): grpc.ClientUnaryCall;
-    public listDatabases(request: v1_service_pb.ListDatabasesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabasesResponse) => void): grpc.ClientUnaryCall;
-    public listDatabases(request: v1_service_pb.ListDatabasesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabasesResponse) => void): grpc.ClientUnaryCall;
-    public listDatabases(request: v1_service_pb.ListDatabasesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabasesResponse) => void): grpc.ClientUnaryCall;
+    public getAllDatabases(request: v1_service_pb.GetAllDatabasesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllDatabasesResponse) => void): grpc.ClientUnaryCall;
+    public getAllDatabases(request: v1_service_pb.GetAllDatabasesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllDatabasesResponse) => void): grpc.ClientUnaryCall;
+    public getAllDatabases(request: v1_service_pb.GetAllDatabasesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllDatabasesResponse) => void): grpc.ClientUnaryCall;
+    public getDatabases(request: v1_service_pb.GetDatabasesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetDatabasesResponse) => void): grpc.ClientUnaryCall;
+    public getDatabases(request: v1_service_pb.GetDatabasesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetDatabasesResponse) => void): grpc.ClientUnaryCall;
+    public getDatabases(request: v1_service_pb.GetDatabasesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetDatabasesResponse) => void): grpc.ClientUnaryCall;
     public listDatabaseUsers(request: v1_service_pb.ListDatabaseUsersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabaseUsersResponse) => void): grpc.ClientUnaryCall;
     public listDatabaseUsers(request: v1_service_pb.ListDatabaseUsersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabaseUsersResponse) => void): grpc.ClientUnaryCall;
     public listDatabaseUsers(request: v1_service_pb.ListDatabaseUsersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabaseUsersResponse) => void): grpc.ClientUnaryCall;
-    public listServers(request: v1_service_pb.ListServersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListServersResponse) => void): grpc.ClientUnaryCall;
-    public listServers(request: v1_service_pb.ListServersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListServersResponse) => void): grpc.ClientUnaryCall;
-    public listServers(request: v1_service_pb.ListServersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListServersResponse) => void): grpc.ClientUnaryCall;
-    public listKubes(request: v1_service_pb.ListKubesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListKubesResponse) => void): grpc.ClientUnaryCall;
-    public listKubes(request: v1_service_pb.ListKubesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListKubesResponse) => void): grpc.ClientUnaryCall;
-    public listKubes(request: v1_service_pb.ListKubesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListKubesResponse) => void): grpc.ClientUnaryCall;
+    public getAllServers(request: v1_service_pb.GetAllServersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllServersResponse) => void): grpc.ClientUnaryCall;
+    public getAllServers(request: v1_service_pb.GetAllServersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllServersResponse) => void): grpc.ClientUnaryCall;
+    public getAllServers(request: v1_service_pb.GetAllServersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllServersResponse) => void): grpc.ClientUnaryCall;
+    public getServers(request: v1_service_pb.GetServersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetServersResponse) => void): grpc.ClientUnaryCall;
+    public getServers(request: v1_service_pb.GetServersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetServersResponse) => void): grpc.ClientUnaryCall;
+    public getServers(request: v1_service_pb.GetServersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetServersResponse) => void): grpc.ClientUnaryCall;
+    public getAccessRequests(request: v1_service_pb.GetAccessRequestsRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAccessRequestsResponse) => void): grpc.ClientUnaryCall;
+    public getAccessRequests(request: v1_service_pb.GetAccessRequestsRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAccessRequestsResponse) => void): grpc.ClientUnaryCall;
+    public getAccessRequests(request: v1_service_pb.GetAccessRequestsRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAccessRequestsResponse) => void): grpc.ClientUnaryCall;
+    public getAccessRequest(request: v1_service_pb.GetAccessRequestRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    public getAccessRequest(request: v1_service_pb.GetAccessRequestRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    public getAccessRequest(request: v1_service_pb.GetAccessRequestRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    public deleteAccessRequest(request: v1_service_pb.DeleteAccessRequestRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    public deleteAccessRequest(request: v1_service_pb.DeleteAccessRequestRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    public deleteAccessRequest(request: v1_service_pb.DeleteAccessRequestRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    public createAccessRequest(request: v1_service_pb.CreateAccessRequestRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.CreateAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    public createAccessRequest(request: v1_service_pb.CreateAccessRequestRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.CreateAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    public createAccessRequest(request: v1_service_pb.CreateAccessRequestRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.CreateAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    public reviewAccessRequest(request: v1_service_pb.ReviewAccessRequestRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ReviewAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    public reviewAccessRequest(request: v1_service_pb.ReviewAccessRequestRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ReviewAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    public reviewAccessRequest(request: v1_service_pb.ReviewAccessRequestRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ReviewAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    public getRequestableRoles(request: v1_service_pb.GetRequestableRolesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetRequestableRolesResponse) => void): grpc.ClientUnaryCall;
+    public getRequestableRoles(request: v1_service_pb.GetRequestableRolesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetRequestableRolesResponse) => void): grpc.ClientUnaryCall;
+    public getRequestableRoles(request: v1_service_pb.GetRequestableRolesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetRequestableRolesResponse) => void): grpc.ClientUnaryCall;
+    public assumeRole(request: v1_service_pb.AssumeRoleRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    public assumeRole(request: v1_service_pb.AssumeRoleRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    public assumeRole(request: v1_service_pb.AssumeRoleRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    public getAllKubes(request: v1_service_pb.GetAllKubesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllKubesResponse) => void): grpc.ClientUnaryCall;
+    public getAllKubes(request: v1_service_pb.GetAllKubesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllKubesResponse) => void): grpc.ClientUnaryCall;
+    public getAllKubes(request: v1_service_pb.GetAllKubesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllKubesResponse) => void): grpc.ClientUnaryCall;
+    public getKubes(request: v1_service_pb.GetKubesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
+    public getKubes(request: v1_service_pb.GetKubesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
+    public getKubes(request: v1_service_pb.GetKubesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
     public listApps(request: v1_service_pb.ListAppsRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListAppsResponse) => void): grpc.ClientUnaryCall;
     public listApps(request: v1_service_pb.ListAppsRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListAppsResponse) => void): grpc.ClientUnaryCall;
     public listApps(request: v1_service_pb.ListAppsRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListAppsResponse) => void): grpc.ClientUnaryCall;
@@ -367,4 +568,6 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public logout(request: v1_service_pb.LogoutRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public logout(request: v1_service_pb.LogoutRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public logout(request: v1_service_pb.LogoutRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    public transferFile(request: v1_service_pb.FileTransferRequest, options?: Partial<grpc.CallOptions>): grpc.ClientReadableStream<v1_service_pb.FileTransferProgress>;
+    public transferFile(request: v1_service_pb.FileTransferRequest, metadata?: grpc.Metadata, options?: Partial<grpc.CallOptions>): grpc.ClientReadableStream<v1_service_pb.FileTransferProgress>;
 }

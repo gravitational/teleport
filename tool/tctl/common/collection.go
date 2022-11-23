@@ -20,9 +20,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -31,8 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 type ResourceCollection interface {
@@ -918,6 +919,46 @@ func (c *kubeServerCollection) writeJSON(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
+type kubeClusterCollection struct {
+	clusters []types.KubeCluster
+	verbose  bool
+}
+
+func (c *kubeClusterCollection) resources() (r []types.Resource) {
+	for _, resource := range c.clusters {
+		r = append(r, resource)
+	}
+	return r
+}
+
+// writeText formats the dynamic kube clusters into a table and writes them into w.
+// Name          Labels
+// ------------- ----------------------------------------------------------------------------------------------------------
+// cluster1      region=eastus,resource-group=cluster1,subscription-id=subID
+// cluster2      region=westeurope,resource-group=cluster2,subscription-id=subID
+// cluster3      region=northcentralus,resource-group=cluster3,subscription-id=subID
+// cluster4      owner=cluster4,region=southcentralus,resource-group=cluster4,subscription-id=subID
+// If verbose is disabled, labels column can be truncated to fit into the console.
+func (c *kubeClusterCollection) writeText(w io.Writer) error {
+	sort.Sort(types.KubeClusters(c.clusters))
+	var rows [][]string
+	for _, cluster := range c.clusters {
+		labels := stripInternalTeleportLabels(c.verbose, cluster.GetAllLabels())
+		rows = append(rows, []string{
+			cluster.GetName(), labels,
+		})
+	}
+	headers := []string{"Name", "Labels"}
+	var t asciitable.Table
+	if c.verbose {
+		t = asciitable.MakeTable(headers, rows...)
+	} else {
+		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
 type installerCollection struct {
 	installers []types.Installer
 }
@@ -931,12 +972,16 @@ func (c *installerCollection) resources() []types.Resource {
 }
 
 func (c *installerCollection) writeText(w io.Writer) error {
-	t := asciitable.MakeTable([]string{"Script"})
 	for _, inst := range c.installers {
-		t.AddRow([]string{
-			inst.GetScript(),
-		})
+		if _, err := fmt.Fprintf(w, "Script: %s\n----------\n", inst.GetName()); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := fmt.Fprintln(w, inst.GetScript()); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := fmt.Fprintln(w, "----------"); err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
+	return nil
 }

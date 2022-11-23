@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 )
 
 func (id *ResourceID) CheckAndSetDefaults() error {
@@ -32,7 +32,7 @@ func (id *ResourceID) CheckAndSetDefaults() error {
 	if len(id.Kind) == 0 {
 		return trace.BadParameter("ResourceID must include Kind")
 	}
-	if !utils.SliceContainsStr(RequestableResourceKinds, id.Kind) {
+	if !slices.Contains(RequestableResourceKinds, id.Kind) {
 		return trace.BadParameter("Resource kind %q is invalid or unsupported", id.Kind)
 	}
 	if len(id.Name) == 0 {

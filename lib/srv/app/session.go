@@ -23,10 +23,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/oxy/forward"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -34,15 +39,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/oxy/forward"
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
-
-	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 )
 
 // sessionChunkCloseTimeout is the default timeout used for sessionChunk.closeTimeout
@@ -66,8 +65,10 @@ type sessionChunk struct {
 	id string
 	// fwd can rewrite and forward requests to the target application.
 	fwd *forward.Forwarder
-	// streamWriter can emit events to the audit log.
-	streamWriter events.StreamWriter
+	// streamCloser closes the session chunk stream.
+	streamCloser utils.WriteContextCloser
+	// sessionCtx contains common context parameters for an App session.
+	sessionCtx *common.SessionContext
 
 	// inflightCond protects and signals change of inflight
 	inflightCond *sync.Cond
@@ -106,15 +107,29 @@ func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, 
 
 	// Create a session tracker so that other services, such as the
 	// session upload completer, can track the session chunk's lifetime.
-	if err := s.createTracker(sess, identity); err != nil {
+	if err := s.createTracker(sess, identity, app.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Create the stream writer that will write this chunk to the audit log.
-	var err error
-	sess.streamWriter, err = s.newStreamWriter(identity, app, sess.id)
+	streamWriter, err := s.newStreamWriter(app, sess.id)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	sess.streamCloser = streamWriter
+
+	// Create session context.
+	audit, err := common.NewAudit(common.AuditConfig{
+		Emitter: streamWriter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess.sessionCtx = &common.SessionContext{
+		Identity: identity,
+		App:      app,
+		ChunkID:  sess.id,
+		Audit:    audit,
 	}
 
 	for _, opt := range opts {
@@ -131,6 +146,10 @@ func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, 
 		return nil, trace.Wrap(err)
 	}
 
+	// only emit a session chunk if we didnt get an error making the new session chunk
+	if err := sess.sessionCtx.Audit.OnSessionChunk(ctx, sess.sessionCtx, s.c.HostID); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return sess, nil
 }
 
@@ -141,6 +160,7 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 	jwt, err := s.c.AuthClient.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
 		Username: identity.Username,
 		Roles:    identity.Groups,
+		Traits:   identity.Traits,
 		URI:      app.GetURI(),
 		Expires:  identity.Expires,
 	})
@@ -158,7 +178,7 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(s.closeContext,
 		&transportConfig{
-			w:            sess.streamWriter,
+			audit:        sess.sessionCtx.Audit,
 			app:          app,
 			publicPort:   s.proxyPort,
 			cipherSuites: s.c.CipherSuites,
@@ -171,12 +191,14 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 		return trace.Wrap(err)
 	}
 
+	delegate := forward.NewHeaderRewriter()
 	sess.fwd, err = forward.New(
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
 		forward.Logger(logrus.StandardLogger()),
-		forward.WebsocketRewriter(transport.ws),
+		forward.WebsocketRewriter(common.NewHeaderRewriter(transport.ws, delegate)),
 		forward.WebsocketDial(transport.ws.dialer),
+		forward.Rewriter(common.NewHeaderRewriter(delegate)),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -239,7 +261,7 @@ func (s *sessionChunk) close(ctx context.Context) error {
 	s.inflightCond.L.Unlock()
 	close(s.closeC)
 	s.log.Debugf("Closed session chunk %s", s.id)
-	err := s.streamWriter.Close(ctx)
+	err := s.streamCloser.Close(ctx)
 	return trace.Wrap(err)
 }
 
@@ -252,7 +274,7 @@ func (s *Server) closeSession(sess *sessionChunk) {
 // newStreamWriter creates a session stream that will be used to record
 // requests that occur within this session chunk and upload the recording
 // to the Auth server.
-func (s *Server) newStreamWriter(identity *tlsca.Identity, app types.Application, chunkID string) (events.StreamWriter, error) {
+func (s *Server) newStreamWriter(app types.Application, chunkID string) (events.StreamWriter, error) {
 	recConfig, err := s.c.AccessPoint.GetSessionRecordingConfig(s.closeContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -264,7 +286,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity, app types.Application
 	}
 
 	// Create a sync or async streamer depending on configuration of cluster.
-	streamer, err := s.newStreamer(s.closeContext, chunkID, recConfig)
+	streamer, err := s.newStreamer(app, chunkID, recConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -285,33 +307,6 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity, app types.Application
 		return nil, trace.Wrap(err)
 	}
 
-	// Emit an event to the Audit Log that a new session chunk has been created.
-	appSessionChunkEvent := &apievents.AppSessionChunk{
-		Metadata: apievents.Metadata{
-			Type:        events.AppSessionChunkEvent,
-			Code:        events.AppSessionChunkCode,
-			ClusterName: identity.RouteToApp.ClusterName,
-		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        s.c.HostID,
-			ServerNamespace: apidefaults.Namespace,
-		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: identity.RouteToApp.SessionID,
-			WithMFA:   identity.MFAVerified,
-		},
-		UserMetadata: identity.GetUserMetadata(),
-		AppMetadata: apievents.AppMetadata{
-			AppURI:        app.GetURI(),
-			AppPublicAddr: app.GetPublicAddr(),
-			AppName:       app.GetName(),
-		},
-		SessionChunkID: chunkID,
-	}
-	if err := s.c.AuthClient.EmitAuditEvent(s.closeContext, appSessionChunkEvent); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return streamWriter, nil
 }
 
@@ -319,7 +314,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity, app types.Application
 // of the server and the session, sync streamer sends the events
 // directly to the auth server and blocks if the events can not be received,
 // async streamer buffers the events to disk and uploads the events later
-func (s *Server) newStreamer(ctx context.Context, chunkID string, recConfig types.SessionRecordingConfig) (events.Streamer, error) {
+func (s *Server) newStreamer(app types.Application, chunkID string, recConfig types.SessionRecordingConfig) (events.Streamer, error) {
 	if services.IsRecordSync(recConfig.GetMode()) {
 		s.log.Debugf("Using sync streamer for session chunk %v.", chunkID)
 		return s.c.AuthClient, nil
@@ -334,17 +329,16 @@ func (s *Server) newStreamer(ctx context.Context, chunkID string, recConfig type
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return fileStreamer, nil
+	return events.NewTeeStreamer(fileStreamer, s.c.Emitter), nil
 }
 
 // createTracker creates a new session tracker for the session chunk.
-func (s *Server) createTracker(sess *sessionChunk, identity *tlsca.Identity) error {
+func (s *Server) createTracker(sess *sessionChunk, identity *tlsca.Identity, appName string) error {
 	trackerSpec := types.SessionTrackerSpecV1{
 		SessionID:   sess.id,
 		Kind:        string(types.AppSessionKind),
 		State:       types.SessionState_SessionStateRunning,
 		Hostname:    s.c.HostID,
-		AppName:     identity.RouteToApp.Name,
 		ClusterName: identity.RouteToApp.ClusterName,
 		Login:       identity.GetUserMetadata().Login,
 		Participants: []types.Participant{{
@@ -352,21 +346,13 @@ func (s *Server) createTracker(sess *sessionChunk, identity *tlsca.Identity) err
 		}},
 		HostUser:     identity.Username,
 		Created:      s.c.Clock.Now(),
+		AppName:      appName, // app name is only present in RouteToApp for CLI sessions
 		AppSessionID: identity.RouteToApp.SessionID,
 	}
 
 	s.log.Debugf("Creating tracker for session chunk %v", sess.id)
 	tracker, err := srv.NewSessionTracker(s.closeContext, trackerSpec, s.c.AuthClient)
-	switch {
-	case err == nil:
-	case trace.IsAccessDenied(err):
-		// Ignore access denied errors, which we may get if the auth
-		// server is v9.2.3 or earlier, since only node, proxy, and
-		// kube roles had permission to create session trackers.
-		// DELETE IN 11.0.0
-		s.log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session chunk %v", sess.id)
-		return nil
-	default: // aka err != nil
+	if err != nil {
 		return trace.Wrap(err)
 	}
 

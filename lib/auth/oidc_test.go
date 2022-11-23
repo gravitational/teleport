@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -78,6 +79,11 @@ func setUpSuite(t *testing.T) *OIDCSuite {
 		Backend:                s.b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
+		},
 	}
 	s.a, err = NewServer(authConfig)
 	require.NoError(t, err)
@@ -106,11 +112,11 @@ func TestCreateOIDCUser(t *testing.T) {
 	s := setUpSuite(t)
 
 	// Dry-run creation of OIDC user.
-	user, err := s.a.createOIDCUser(&createUserParams{
-		connectorName: "oidcService",
-		username:      "foo@example.com",
-		roles:         []string{"admin"},
-		sessionTTL:    1 * time.Minute,
+	user, err := s.a.createOIDCUser(&CreateUserParams{
+		ConnectorName: "oidcService",
+		Username:      "foo@example.com",
+		Roles:         []string{"admin"},
+		SessionTTL:    1 * time.Minute,
 	}, true)
 	require.NoError(t, err)
 	require.Equal(t, "foo@example.com", user.GetName())
@@ -120,11 +126,11 @@ func TestCreateOIDCUser(t *testing.T) {
 	require.Error(t, err)
 
 	// Create OIDC user with 1 minute expiry.
-	_, err = s.a.createOIDCUser(&createUserParams{
-		connectorName: "oidcService",
-		username:      "foo@example.com",
-		roles:         []string{"admin"},
-		sessionTTL:    1 * time.Minute,
+	_, err = s.a.createOIDCUser(&CreateUserParams{
+		ConnectorName: "oidcService",
+		Username:      "foo@example.com",
+		Roles:         []string{"admin"},
+		SessionTTL:    1 * time.Minute,
 	}, false)
 	require.NoError(t, err)
 
@@ -293,10 +299,10 @@ func TestSSODiagnostic(t *testing.T) {
 					ConnectorID: "-sso-test-okta",
 					Username:    "superuser@example.com",
 				},
-				Req: *request,
+				Req: OIDCAuthRequestFromProto(request),
 			}, resp)
 
-			diagCtx := ssoDiagContext{}
+			diagCtx := SSODiagContext{}
 
 			resp, err = s.a.validateOIDCAuthCallback(ctx, &diagCtx, values)
 			require.NoError(t, err)
@@ -307,7 +313,7 @@ func TestSSODiagnostic(t *testing.T) {
 					ConnectorID: "-sso-test-okta",
 					Username:    "superuser@example.com",
 				},
-				Req: *request,
+				Req: OIDCAuthRequestFromProto(request),
 			}, resp)
 			require.Equal(t, types.SSODiagnosticInfo{
 				TestFlow: true,
@@ -345,7 +351,7 @@ func TestSSODiagnostic(t *testing.T) {
 					ID:        "00001234abcd",
 					Name:      "",
 					Email:     "superuser@example.com",
-					ExpiresAt: diagCtx.info.OIDCIdentity.ExpiresAt,
+					ExpiresAt: diagCtx.Info.OIDCIdentity.ExpiresAt,
 				},
 				OIDCTraitsFromClaims: map[string][]string{
 					"email":  {"superuser@example.com"},
@@ -359,7 +365,7 @@ func TestSSODiagnostic(t *testing.T) {
 						Roles: []string{"access"},
 					},
 				},
-			}, diagCtx.info)
+			}, diagCtx.Info)
 		})
 	}
 }
@@ -780,5 +786,107 @@ func TestEmailVerifiedClaim(t *testing.T) {
 		} else {
 			require.ErrorContains(t, err, test.expectedError)
 		}
+	}
+}
+
+// TestUsernameClaim ensures that the `username_claim` field in an OIDC config is handled correctly.
+func TestUsernameClaim(t *testing.T) {
+	ctx := context.Background()
+	s := setUpSuite(t)
+	idp := newFakeIDP(t, false)
+
+	diagCtx := SSODiagContext{}
+
+	// Create role that will be mapped to the user.
+	role, err := types.NewRole("access", types.RoleSpecV5{
+		Allow: types.RoleConditions{},
+	})
+	require.NoError(t, err)
+	err = s.a.CreateRole(ctx, role)
+	require.NoError(t, err)
+
+	// Create claims with "preferred_username" field.
+	claims := map[string]interface{}{
+		"email_verified":     true,
+		"groups":             []string{"everyone"},
+		"email":              "test-user@example.com",
+		"sub":                "00001234abcd",
+		"exp":                1652091713.0,
+		"preferred_username": "Teleport_TestUser",
+	}
+
+	// Create identity from the claims.
+	ident, err := oidc.IdentityFromClaims(claims)
+	require.NoError(t, err)
+
+	tests := []struct {
+		desc             string
+		spec             types.OIDCConnectorSpecV3
+		expectedUsername string
+		expectedError    string
+	}{
+		{
+			desc: "username_claim specified with correct claim",
+			spec: types.OIDCConnectorSpecV3{
+				IssuerURL:     idp.s.URL,
+				ClientID:      "000",
+				ClientSecret:  "0000",
+				ClaimsToRoles: []types.ClaimMapping{{Claim: "groups", Value: "everyone", Roles: []string{"access"}}},
+				RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+				UsernameClaim: "preferred_username",
+			},
+			expectedUsername: "Teleport_TestUser",
+		},
+		{
+			desc: "username_claim specified with incorrect claim",
+			spec: types.OIDCConnectorSpecV3{
+				IssuerURL:     idp.s.URL,
+				ClientID:      "000",
+				ClientSecret:  "0000",
+				ClaimsToRoles: []types.ClaimMapping{{Claim: "groups", Value: "everyone", Roles: []string{"access"}}},
+				RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+				UsernameClaim: "prefred_usrnam",
+			},
+			expectedError: "The configured username_claim of \"prefred_usrnam\" was not received from the IdP. Please update the username_claim in connector \"okta-oidc\".",
+		},
+		{
+			desc: "no username_claim specified, default to using email",
+			spec: types.OIDCConnectorSpecV3{
+				IssuerURL:     idp.s.URL,
+				ClientID:      "000",
+				ClientSecret:  "0000",
+				ClaimsToRoles: []types.ClaimMapping{{Claim: "groups", Value: "everyone", Roles: []string{"access"}}},
+				RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+			},
+			expectedUsername: "test-user@example.com",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			// Create OIDC connector with UsernameClaim specified.
+			connector, err := types.NewOIDCConnector("okta-oidc", tc.spec)
+			require.NoError(t, err)
+
+			// Create OIDC request.
+			oidcRequest := types.OIDCAuthRequest{
+				ConnectorID:   "okta-oidc",
+				Type:          constants.OIDC,
+				CertTTL:       defaults.OIDCAuthRequestTTL,
+				SSOTestFlow:   true,
+				ConnectorSpec: &tc.spec,
+			}
+			request, err := s.a.CreateOIDCAuthRequest(ctx, oidcRequest)
+			require.NoError(t, err)
+
+			// Generate the userCreateParams for the OIDC user.
+			createUserParams, err := s.a.calculateOIDCUser(&diagCtx, connector, claims, ident, request)
+			if tc.expectedError != "" {
+				require.ErrorContains(t, err, tc.expectedError)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedUsername, createUserParams.Username)
+			}
+		})
 	}
 }

@@ -82,3 +82,35 @@ func TestAlertSorting(t *testing.T) {
 		require.Equal(t, fmt.Sprintf("%d", i), a.Metadata.Labels["p"])
 	}
 }
+
+// TestCheckAndSetDefaults verifies that only valid URLs are set on the link label.
+func TestCheckAndSetDefaultsWithLink(t *testing.T) {
+	tests := []struct {
+		link   string
+		assert require.ErrorAssertionFunc
+	}{
+		{
+			link:   "https://goteleport.com/docs",
+			assert: require.NoError,
+		},
+		{
+			link:   "h{t}tps://goteleport.com/docs",
+			assert: require.Error,
+		},
+		{
+			link:   "https://google.com",
+			assert: require.Error,
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(tt.link, func(t *testing.T) {
+			_, err := NewClusterAlert(
+				fmt.Sprintf("name-%d", i),
+				fmt.Sprintf("message-%d", i),
+				WithAlertLabel(AlertLink, tt.link),
+			)
+			tt.assert(t, err)
+		})
+	}
+}

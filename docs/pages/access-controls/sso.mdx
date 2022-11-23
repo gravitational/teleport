@@ -63,6 +63,7 @@ $ tctl get users/<username>
 $ tsh login --proxy=mytenant.teleport.sh --user=myuser
 $ tctl get users
 ```
+
 </ScopedBlock>
 
 Here is an example of a temporary `user` resource created when the GitHub user
@@ -214,9 +215,9 @@ The following authentication connectors are supported:
 
 |Type|Description|
 |---|---|
-|None|If no authentication connector is created, Teleport will use local authentication based user information stored in the Auth Service backend. You can manage user data via the `tctl users` command. |
+|None|If no authentication connector is created, Teleport will use local authentication based user information stored<br/> in the Auth Service backend. You can manage user data via the `tctl users` command. |
 |`saml`| The SAML connector type uses the [SAML protocol](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language) to authenticate users and query their group membership.|
-|`oidc`| The OIDC connector type uses the [OpenID Connect protocol](https://en.wikipedia.org/wiki/OpenID_Connect) to authenticate users and query their group membership.|
+|`oidc`| The OIDC connector type uses the [OpenID Connect protocol](https://en.wikipedia.org/wiki/OpenID_Connect) to authenticate users<br/> and query their group membership.|
 |`github`| The GitHub connector uses GitHub SSO to authenticate users and query their group membership.|
 
 </ScopedBlock>
@@ -249,6 +250,8 @@ or </ScopedBlock>create a `cluster_auth_preference` resource.
       # Set as saml, oidc, or github
       type: saml|oidc|github
   ```
+
+  (!docs/pages/includes/sso/idp-initiated.mdx!)
   </TabItem>
   <TabItem scope={["cloud"]} label="Dynamic Resources (All Editions)">
   Create a file called `cap.yaml`:
@@ -257,9 +260,8 @@ or </ScopedBlock>create a `cluster_auth_preference` resource.
   metadata:
     name: cluster-auth-preference
   spec:
-    authentication:
-      # Set as saml, oidc, or github
-      type: saml|oidc|github
+    # Set as saml, oidc, or github
+    type: saml|oidc|github
   version: v2
   ```
 
@@ -284,6 +286,7 @@ or </ScopedBlock>create a `cluster_auth_preference` resource.
   ```
 
   </ScopedBlock>
+  (!docs/pages/includes/sso/idp-initiated.mdx!)
   </TabItem>
 </Tabs>
 
@@ -328,7 +331,12 @@ spec:
   # in the Web interface
   display: "Okta"
 
-  acs: https://teleport-proxy.example.com:3080/v1/webapi/saml/acs
+  # enables/disables idp-initiated saml login
+  allow_idp_initiated: false
+
+  # The last segment of the URL must be identical to the connector metadata name
+  # when IdP-initiated login is enabled.
+  acs: https://teleport-proxy.example.com:3080/v1/webapi/saml/acs/corporate
   attributes_to_roles:
     - {name: "groups", value: "okta-admin", roles: ["access"]}
     - {name: "groups", value: "okta-dev", roles: ["dev"]}
@@ -343,6 +351,8 @@ spec:
   entity_descriptor: |
     <paste SAML XML contents here>
 ```
+
+(!docs/pages/includes/sso/idp-initiated.mdx!)
 
 </TabItem>
 <TabItem label="OneLogin">
@@ -378,6 +388,8 @@ spec:
 ```yaml
 (!/examples/resources/saml-connector.yaml!)
 ```
+
+(!docs/pages/includes/sso/idp-initiated.mdx!)
 
 </TabItem>
 <TabItem label="GitHub">
@@ -434,8 +446,6 @@ spec:
       '*': '*'
 ```
 
-<ScopedBlock scope={["cloud", "enterprise"]}>
-
 ### Provider-Specific Workarounds
 
 Certain SSO providers may require or benefit from changes to Teleport's SSO
@@ -452,8 +462,6 @@ values to match your identity provider:
 - `okta` (OIDC): Required when using Okta as an OIDC provider.
 
 At this time, the `spec.provider` field should not be set for any other identity providers.
-
-</ScopedBlock>
 
 ## Working with an external email identity
 

@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -24,14 +25,16 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"text/template"
 	"time"
+
+	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/trace"
-
-	"github.com/stretchr/testify/require"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 )
 
 func responseFromAWSIdentity(id awsIdentity) string {
@@ -55,52 +58,64 @@ func (c *mockClient) Do(req *http.Request) (*http.Response, error) {
 	}, nil
 }
 
-const identityRequestTemplate = `POST / HTTP/1.1
-Host: sts.amazonaws.com
+var identityRequestTemplate = template.Must(template.New("sts-request").Parse(`POST / HTTP/1.1
+Host: {{.Host}}
 User-Agent: aws-sdk-go/1.37.17 (go1.17.1; darwin; amd64)
 Content-Length: 43
 Accept: application/json
-Authorization: AWS4-HMAC-SHA256 Credential=AAAAAAAAAAAAAAAAAAAA/20211102/us-east-1/sts/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date;x-amz-security-token;x-teleport-challenge, Signature=111
+Authorization: AWS4-HMAC-SHA256 Credential=AAAAAAAAAAAAAAAAAAAA/20211102/us-east-1/sts/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date;x-amz-security-token;{{.SignedHeader}}, Signature=111
 Content-Type: application/x-www-form-urlencoded; charset=utf-8
 X-Amz-Date: 20211102T204300Z
 X-Amz-Security-Token: aaa
-X-Teleport-Challenge: %s
+X-Teleport-Challenge: {{.Challenge}}
 
-Action=GetCallerIdentity&Version=2011-06-15`
+Action=GetCallerIdentity&Version=2011-06-15`))
 
-const wrongHostTemplate = `POST / HTTP/1.1
-Host: sts.example.com
-User-Agent: aws-sdk-go/1.37.17 (go1.17.1; darwin; amd64)
-Content-Length: 43
-Accept: application/json
-Authorization: AWS4-HMAC-SHA256 Credential=AAAAAAAAAAAAAAAAAAAA/20211102/us-east-1/sts/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date;x-amz-security-token;x-teleport-challenge, Signature=111
-Content-Type: application/x-www-form-urlencoded; charset=utf-8
-X-Amz-Date: 20211102T204300Z
-X-Amz-Security-Token: aaa
-X-Teleport-Challenge: %s
+type identityRequestTemplateInput struct {
+	Host         string
+	SignedHeader string
+	Challenge    string
+}
 
-Action=GetCallerIdentity&Version=2011-06-15`
+func defaultIdentityRequestTemplateInput(challenge string) identityRequestTemplateInput {
+	return identityRequestTemplateInput{
+		Host:         "sts.amazonaws.com",
+		SignedHeader: "x-teleport-challenge;",
+		Challenge:    challenge,
+	}
+}
 
-const unsignedChallengeTemplate = `POST / HTTP/1.1
-Host: sts.amazonaws.com
-User-Agent: aws-sdk-go/1.37.17 (go1.17.1; darwin; amd64)
-Content-Length: 43
-Accept: application/json
-Authorization: AWS4-HMAC-SHA256 Credential=AAAAAAAAAAAAAAAAAAAA/20211102/us-east-1/sts/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date;x-amz-security-token, Signature=111
-Content-Type: application/x-www-form-urlencoded; charset=utf-8
-X-Amz-Date: 20211102T204300Z
-X-Amz-Security-Token: aaa
-X-Teleport-Challenge: %s
+type challengeResponseOption func(*identityRequestTemplateInput)
 
-Action=GetCallerIdentity&Version=2011-06-15`
+func withHost(host string) challengeResponseOption {
+	return func(templateInput *identityRequestTemplateInput) {
+		templateInput.Host = host
+	}
+}
+
+func withSignedHeader(signedHeader string) challengeResponseOption {
+	return func(templateInput *identityRequestTemplateInput) {
+		templateInput.SignedHeader = signedHeader
+	}
+}
+
+func withChallenge(challenge string) challengeResponseOption {
+	return func(templateInput *identityRequestTemplateInput) {
+		templateInput.Challenge = challenge
+	}
+}
 
 func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 	a := p.a
 
-	sshPrivateKey, sshPublicKey, err := native.GenerateKeyPair()
+	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
@@ -114,15 +129,15 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 	}
 
 	testCases := []struct {
-		desc                      string
-		tokenName                 string
-		requestTokenName          string
-		tokenSpec                 types.ProvisionTokenSpecV2
-		stsClient                 stsClient
-		challengeResponseOverride string
-		requestTemplate           string
-		challengeResponseErr      error
-		assertError               require.ErrorAssertionFunc
+		desc                     string
+		tokenName                string
+		requestTokenName         string
+		tokenSpec                types.ProvisionTokenSpecV2
+		stsClient                stsClient
+		iamRegisterOptions       []iamRegisterOption
+		challengeResponseOptions []challengeResponseOption
+		challengeResponseErr     error
+		assertError              require.ErrorAssertionFunc
 	}{
 		{
 			desc:             "basic passing case",
@@ -145,8 +160,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 					Arn:     "arn:aws::1111",
 				}),
 			},
-			requestTemplate: identityRequestTemplate,
-			assertError:     require.NoError,
+			assertError: require.NoError,
 		},
 		{
 			desc:             "wildcard arn 1",
@@ -169,8 +183,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 					Arn:     "arn:aws::role/admins-test",
 				}),
 			},
-			requestTemplate: identityRequestTemplate,
-			assertError:     require.NoError,
+			assertError: require.NoError,
 		},
 		{
 			desc:             "wildcard arn 2",
@@ -193,8 +206,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 					Arn:     "arn:aws::role/admins-123",
 				}),
 			},
-			requestTemplate: identityRequestTemplate,
-			assertError:     require.NoError,
+			assertError: require.NoError,
 		},
 		{
 			desc:             "wrong token",
@@ -217,8 +229,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 					Arn:     "arn:aws::1111",
 				}),
 			},
-			requestTemplate: identityRequestTemplate,
-			assertError:     isAccessDenied,
+			assertError: isAccessDenied,
 		},
 		{
 			desc:             "challenge response error",
@@ -241,7 +252,6 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 					Arn:     "arn:aws::1111",
 				}),
 			},
-			requestTemplate:      identityRequestTemplate,
 			challengeResponseErr: trace.BadParameter("test error"),
 			assertError:          isBadParameter,
 		},
@@ -266,8 +276,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 					Arn:     "arn:aws::role/admins-1234",
 				}),
 			},
-			requestTemplate: identityRequestTemplate,
-			assertError:     isAccessDenied,
+			assertError: isAccessDenied,
 		},
 		{
 			desc:             "wrong challenge",
@@ -290,9 +299,10 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 					Arn:     "arn:aws::1111",
 				}),
 			},
-			challengeResponseOverride: "wrong-challenge",
-			requestTemplate:           identityRequestTemplate,
-			assertError:               isAccessDenied,
+			challengeResponseOptions: []challengeResponseOption{
+				withChallenge("wrong-challenge"),
+			},
+			assertError: isAccessDenied,
 		},
 		{
 			desc:             "wrong account",
@@ -315,8 +325,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 					Arn:     "arn:aws::1111",
 				}),
 			},
-			requestTemplate: identityRequestTemplate,
-			assertError:     isAccessDenied,
+			assertError: isAccessDenied,
 		},
 		{
 			desc:             "sts api error",
@@ -336,8 +345,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 				respStatusCode: http.StatusForbidden,
 				respBody:       "access denied",
 			},
-			requestTemplate: identityRequestTemplate,
-			assertError:     isAccessDenied,
+			assertError: isAccessDenied,
 		},
 		{
 			desc:             "wrong sts host",
@@ -360,8 +368,36 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 					Arn:     "arn:aws::1111",
 				}),
 			},
-			requestTemplate: wrongHostTemplate,
-			assertError:     isAccessDenied,
+			challengeResponseOptions: []challengeResponseOption{
+				withHost("sts.wrong-host.amazonaws.com"),
+			},
+			assertError: isAccessDenied,
+		},
+		{
+			desc:             "regional sts endpoint",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: "1234",
+						AWSARN:     "arn:aws::1111",
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1111",
+				}),
+			},
+			challengeResponseOptions: []challengeResponseOption{
+				withHost("sts.us-west-2.amazonaws.com"),
+			},
+			assertError: require.NoError,
 		},
 		{
 			desc:             "unsigned challenge header",
@@ -384,8 +420,100 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 					Arn:     "arn:aws::1111",
 				}),
 			},
-			requestTemplate: unsignedChallengeTemplate,
-			assertError:     isAccessDenied,
+			challengeResponseOptions: []challengeResponseOption{
+				withSignedHeader(""),
+			},
+			assertError: isAccessDenied,
+		},
+		{
+			desc:             "fips pass",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: "1234",
+						AWSARN:     "arn:aws::1111",
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1111",
+				}),
+			},
+			iamRegisterOptions: []iamRegisterOption{
+				withFips(true),
+				withAuthVersion(&semver.Version{Major: 12}),
+			},
+			challengeResponseOptions: []challengeResponseOption{
+				withHost("sts-fips.us-east-1.amazonaws.com"),
+			},
+			assertError: require.NoError,
+		},
+		{
+			desc:             "non-fips client pass v11",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: "1234",
+						AWSARN:     "arn:aws::1111",
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1111",
+				}),
+			},
+			iamRegisterOptions: []iamRegisterOption{
+				withFips(true),
+				withAuthVersion(&semver.Version{Major: 11}),
+			},
+			challengeResponseOptions: []challengeResponseOption{
+				withHost("sts.us-east-1.amazonaws.com"),
+			},
+			assertError: require.NoError,
+		},
+		{
+			desc:             "non-fips client fail v12",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: "1234",
+						AWSARN:     "arn:aws::1111",
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1111",
+				}),
+			},
+			iamRegisterOptions: []iamRegisterOption{
+				withFips(true),
+				withAuthVersion(&semver.Version{Major: 12}),
+			},
+			challengeResponseOptions: []challengeResponseOption{
+				withHost("sts.us-east-1.amazonaws.com"),
+			},
+			assertError: isAccessDenied,
 		},
 	}
 
@@ -398,17 +526,22 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 				tc.tokenSpec)
 			require.NoError(t, err)
 			require.NoError(t, a.UpsertToken(ctx, token))
-			t.Cleanup(func() { require.NoError(t, a.DeleteToken(ctx, token.GetName())) })
+			defer func() {
+				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
+			}()
 
 			requestContext := context.Background()
 			requestContext = context.WithValue(requestContext, ContextClientAddr, &net.IPAddr{})
 			requestContext = context.WithValue(requestContext, stsClientKey{}, tc.stsClient)
 
 			_, err = a.RegisterUsingIAMMethod(requestContext, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
-				if tc.challengeResponseOverride != "" {
-					challenge = tc.challengeResponseOverride
+				templateInput := defaultIdentityRequestTemplateInput(challenge)
+				for _, opt := range tc.challengeResponseOptions {
+					opt(&templateInput)
 				}
-				identityRequest := []byte(fmt.Sprintf(tc.requestTemplate, challenge))
+				var identityRequest bytes.Buffer
+				require.NoError(t, identityRequestTemplate.Execute(&identityRequest, templateInput))
+
 				req := &proto.RegisterUsingIAMMethodRequest{
 					RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
 						Token:        tc.requestTokenName,
@@ -417,10 +550,10 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 						PublicSSHKey: sshPublicKey,
 						PublicTLSKey: tlsPublicKey,
 					},
-					StsIdentityRequest: identityRequest,
+					StsIdentityRequest: identityRequest.Bytes(),
 				}
 				return req, tc.challengeResponseErr
-			})
+			}, tc.iamRegisterOptions...)
 			tc.assertError(t, err)
 		})
 	}

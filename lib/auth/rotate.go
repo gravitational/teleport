@@ -135,8 +135,8 @@ type rotationReq struct {
 //
 // Here are the supported rotation states:
 //
-//  * Standby - the cluster is in standby mode and ready to take action.
-//  * In-progress - cluster CA rotation is in progress.
+//   - Standby - the cluster is in standby mode and ready to take action.
+//   - In-progress - cluster CA rotation is in progress.
 //
 // In-progress state is split into multiple phases and the cluster
 // can traverse between phases using supported transitions.
@@ -183,7 +183,7 @@ type rotationReq struct {
 // reload again, but the "new" CA is discarded and is no longer trusted,
 // cluster goes back to the original state.
 //
-// Rotation modes
+// # Rotation modes
 //
 // There are two rotation modes supported - manual or automatic.
 //
@@ -200,7 +200,6 @@ type rotationReq struct {
 //
 // It is possible to switch from automatic to manual by setting the phase
 // to the rollback phase.
-//
 func (a *Server) RotateCertAuthority(ctx context.Context, req RotateRequest) error {
 	if err := req.CheckAndSetDefaults(a.clock); err != nil {
 		return trace.Wrap(err)
@@ -224,7 +223,7 @@ func (a *Server) RotateCertAuthority(ctx context.Context, req RotateRequest) err
 			return trace.BadParameter("CAs list doesn't contain %q certificate", caType)
 		}
 
-		rotated, err := a.processRotationRequest(rotationReq{
+		rotated, err := a.processRotationRequest(ctx, rotationReq{
 			ca:          existing,
 			clock:       a.clock,
 			targetPhase: req.TargetPhase,
@@ -325,7 +324,7 @@ func (a *Server) autoRotateCertAuthorities(ctx context.Context) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := a.autoRotate(ca); err != nil {
+		if err := a.autoRotate(ctx, ca); err != nil {
 			return trace.Wrap(err)
 		}
 		// make sure there are local AdditionalKeys during init phase of rotation
@@ -338,7 +337,7 @@ func (a *Server) autoRotateCertAuthorities(ctx context.Context) error {
 	return nil
 }
 
-func (a *Server) autoRotate(ca types.CertAuthority) error {
+func (a *Server) autoRotate(ctx context.Context, ca types.CertAuthority) error {
 	rotation := ca.GetRotation()
 	// rotation mode is not automatic, nothing to do
 	if rotation.Mode != types.RotationModeAuto {
@@ -391,7 +390,7 @@ func (a *Server) autoRotate(ca types.CertAuthority) error {
 		return trace.BadParameter("phase is not supported: %q", rotation.Phase)
 	}
 	logger.Infof("Setting rotation phase to %q", req.targetPhase)
-	rotated, err := a.processRotationRequest(*req)
+	rotated, err := a.processRotationRequest(ctx, *req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -498,7 +497,7 @@ func findDuplicatedCertificates(caTypes []types.CertAuthType, allCerts CertAutho
 
 // processRotationRequest processes rotation request based on the target and
 // current phase and state.
-func (a *Server) processRotationRequest(req rotationReq) (types.CertAuthority, error) {
+func (a *Server) processRotationRequest(ctx context.Context, req rotationReq) (types.CertAuthority, error) {
 	rotation := req.ca.GetRotation()
 	ca := req.ca.Clone()
 
@@ -511,7 +510,7 @@ func (a *Server) processRotationRequest(req rotationReq) (types.CertAuthority, e
 		default:
 			return nil, trace.BadParameter("can not initiate rotation while another is in progress")
 		}
-		if err := a.startNewRotation(req, ca); err != nil {
+		if err := a.startNewRotation(ctx, req, ca); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return ca, nil
@@ -576,7 +575,7 @@ func (a *Server) processRotationRequest(req rotationReq) (types.CertAuthority, e
 // startNewRotation starts new rotation. In this phase requests will continue
 // to be signed by the old CAKeySet, but a new CAKeySet will be added. This new
 // CA can be used to verify requests.
-func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error {
+func (a *Server) startNewRotation(ctx context.Context, req rotationReq, ca types.CertAuthority) error {
 	clock := req.clock
 	gracePeriod := req.gracePeriod
 
@@ -651,14 +650,18 @@ func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error
 			// invalidating the current Admin identity.
 			newKeys = additionalKeys.Clone()
 		}
-		if !a.keyStore.HasLocalAdditionalKeys(ca) {
-			// This auth server has no local AdditionalTrustedKeys in this CA.
+		hasUsableAdditionalKeys, err := a.keyStore.HasUsableAdditionalKeys(ctx, ca)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !hasUsableAdditionalKeys {
+			// This auth server has no usable AdditionalTrustedKeys in this CA.
 			// This is one of 2 cases:
 			// 1. There are no AdditionalTrustedKeys at all.
 			// 2. There are AdditionalTrustedKeys which were added by a
-			//    different auth server.
+			//    different HSM-enabled auth server.
 			// In either case, we need to add newly generated local keys.
-			newLocalKeys, err := newKeySet(a.keyStore, ca.GetID())
+			newLocalKeys, err := newKeySet(ctx, a.keyStore, ca.GetID())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -699,10 +702,10 @@ func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error
 
 // updateClients swaps old and new CA key sets.
 //
-// * Old CAs continue to be trusted, but are no longer used for signing.
-// * New CAs are used for signing.
-// * Remote components will reload with new certificates used for client
-//   connections.
+//   - Old CAs continue to be trusted, but are no longer used for signing.
+//   - New CAs are used for signing.
+//   - Remote components will reload with new certificates used for client
+//     connections.
 func updateClients(ca types.CertAuthority, mode string) error {
 	oldActive, oldTrusted := ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()
 	if err := ca.SetActiveKeys(oldTrusted); err != nil {

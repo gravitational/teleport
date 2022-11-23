@@ -20,11 +20,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // CertAuthority is a host or user certificate authority that
@@ -71,8 +71,8 @@ type CertAuthority interface {
 	GetRotation() Rotation
 	// SetRotation sets rotation state.
 	SetRotation(Rotation)
-	// AllKeyTypesMatch returns true if all keys in the CA are of the same type.
-	AllKeyTypesMatch() bool
+	// AllKeyTypes returns the set of all different key types in the CA.
+	AllKeyTypes() []string
 	// Clone returns a copy of the cert authority object.
 	Clone() CertAuthority
 }
@@ -168,16 +168,6 @@ func RemoveCASecrets(ca CertAuthority) {
 	if !ok {
 		return
 	}
-	cav2.Spec.SigningKeys = nil
-
-	for i := range cav2.Spec.TLSKeyPairs {
-		cav2.Spec.TLSKeyPairs[i].Key = nil
-	}
-
-	for i := range cav2.Spec.JWTKeyPairs {
-		cav2.Spec.JWTKeyPairs[i].PrivateKey = nil
-	}
-
 	cav2.Spec.ActiveKeys = cav2.Spec.ActiveKeys.WithoutSecrets()
 	cav2.Spec.AdditionalTrustedKeys = cav2.Spec.AdditionalTrustedKeys.WithoutSecrets()
 }
@@ -259,38 +249,8 @@ func (ca *CertAuthorityV2) ID() *CertAuthID {
 	return &CertAuthID{DomainName: ca.Spec.ClusterName, Type: ca.Spec.Type}
 }
 
-func (ca *CertAuthorityV2) getOldKeySet(index int) (keySet CAKeySet) {
-	// in the "old" CA schema, index 0 contains the active keys and index 1 the
-	// additional trusted keys
-	if index < 0 || index > 1 {
-		return
-	}
-	if len(ca.Spec.CheckingKeys) > index {
-		kp := &SSHKeyPair{
-			PrivateKeyType: PrivateKeyType_RAW,
-			PublicKey:      utils.CopyByteSlice(ca.Spec.CheckingKeys[index]),
-		}
-		if len(ca.Spec.SigningKeys) > index {
-			kp.PrivateKey = utils.CopyByteSlice(ca.Spec.SigningKeys[index])
-		}
-		keySet.SSH = []*SSHKeyPair{kp}
-	}
-	if len(ca.Spec.TLSKeyPairs) > index {
-		keySet.TLS = []*TLSKeyPair{ca.Spec.TLSKeyPairs[index].Clone()}
-	}
-	if len(ca.Spec.JWTKeyPairs) > index {
-		keySet.JWT = []*JWTKeyPair{ca.Spec.JWTKeyPairs[index].Clone()}
-	}
-	return keySet
-}
-
 func (ca *CertAuthorityV2) GetActiveKeys() CAKeySet {
-	haveNewCAKeys := len(ca.Spec.ActiveKeys.SSH) > 0 || len(ca.Spec.ActiveKeys.TLS) > 0 || len(ca.Spec.ActiveKeys.JWT) > 0
-	if haveNewCAKeys {
-		return ca.Spec.ActiveKeys
-	}
-	// fall back to old schema
-	return ca.getOldKeySet(0)
+	return ca.Spec.ActiveKeys
 }
 
 func (ca *CertAuthorityV2) SetActiveKeys(ks CAKeySet) error {
@@ -302,12 +262,7 @@ func (ca *CertAuthorityV2) SetActiveKeys(ks CAKeySet) error {
 }
 
 func (ca *CertAuthorityV2) GetAdditionalTrustedKeys() CAKeySet {
-	haveNewCAKeys := len(ca.Spec.AdditionalTrustedKeys.SSH) > 0 || len(ca.Spec.AdditionalTrustedKeys.TLS) > 0 || len(ca.Spec.AdditionalTrustedKeys.JWT) > 0
-	if haveNewCAKeys {
-		return ca.Spec.AdditionalTrustedKeys
-	}
-	// fall back to old schema
-	return ca.getOldKeySet(1)
+	return ca.Spec.AdditionalTrustedKeys
 }
 
 func (ca *CertAuthorityV2) SetAdditionalTrustedKeys(ks CAKeySet) error {
@@ -395,8 +350,8 @@ func (ca *CertAuthorityV2) CheckAndSetDefaults() error {
 	return nil
 }
 
-// AllKeyTypesMatch returns true if all private keys in the given CA are of the same type.
-func (ca *CertAuthorityV2) AllKeyTypesMatch() bool {
+// AllKeyTypes returns the set of all different key types in the CA.
+func (ca *CertAuthorityV2) AllKeyTypes() []string {
 	keyTypes := make(map[PrivateKeyType]struct{})
 	for _, keySet := range []CAKeySet{ca.Spec.ActiveKeys, ca.Spec.AdditionalTrustedKeys} {
 		for _, keyPair := range keySet.SSH {
@@ -409,7 +364,11 @@ func (ca *CertAuthorityV2) AllKeyTypesMatch() bool {
 			keyTypes[keyPair.PrivateKeyType] = struct{}{}
 		}
 	}
-	return len(keyTypes) == 1
+	var strs []string
+	for k := range keyTypes {
+		strs = append(strs, k.String())
+	}
+	return strs
 }
 
 const (
@@ -461,6 +420,16 @@ var RotatePhases = []string{
 // all fields to be the same.
 func (r *Rotation) Matches(rotation Rotation) bool {
 	return r.CurrentID == rotation.CurrentID && r.State == rotation.State && r.Phase == rotation.Phase
+}
+
+// IsZero checks if this is the zero value of Rotation. Works on nil and non-nil rotation
+// values.
+func (r *Rotation) IsZero() bool {
+	if r == nil {
+		return true
+	}
+
+	return r.Matches(Rotation{})
 }
 
 // LastRotatedDescription returns human friendly description.
@@ -589,8 +558,8 @@ type CertRoles struct {
 func (k *TLSKeyPair) Clone() *TLSKeyPair {
 	return &TLSKeyPair{
 		KeyType: k.KeyType,
-		Key:     utils.CopyByteSlice(k.Key),
-		Cert:    utils.CopyByteSlice(k.Cert),
+		Key:     slices.Clone(k.Key),
+		Cert:    slices.Clone(k.Cert),
 	}
 }
 
@@ -599,8 +568,8 @@ func (k *TLSKeyPair) Clone() *TLSKeyPair {
 func (k *JWTKeyPair) Clone() *JWTKeyPair {
 	return &JWTKeyPair{
 		PrivateKeyType: k.PrivateKeyType,
-		PrivateKey:     utils.CopyByteSlice(k.PrivateKey),
-		PublicKey:      utils.CopyByteSlice(k.PublicKey),
+		PrivateKey:     slices.Clone(k.PrivateKey),
+		PublicKey:      slices.Clone(k.PublicKey),
 	}
 }
 
@@ -609,8 +578,8 @@ func (k *JWTKeyPair) Clone() *JWTKeyPair {
 func (k *SSHKeyPair) Clone() *SSHKeyPair {
 	return &SSHKeyPair{
 		PrivateKeyType: k.PrivateKeyType,
-		PrivateKey:     utils.CopyByteSlice(k.PrivateKey),
-		PublicKey:      utils.CopyByteSlice(k.PublicKey),
+		PrivateKey:     slices.Clone(k.PrivateKey),
+		PublicKey:      slices.Clone(k.PublicKey),
 	}
 }
 

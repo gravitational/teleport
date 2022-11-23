@@ -28,6 +28,7 @@ metadata:
 spec:
   {{- if not (eq .Values.chartMode "standalone") }}
   replicas: {{ .Values.highAvailability.replicaCount }}
+  minReadySeconds: {{ .Values.highAvailability.minReadySeconds }}
   {{- else }}
   replicas: 1
   {{- end }}
@@ -194,11 +195,11 @@ spec:
         - mountPath: /etc/teleport-tls
           name: "teleport-tls"
           readOnly: true
-        {{- if .Values.tls.existingCASecretName }}
+{{- end }}
+{{- if .Values.tls.existingCASecretName }}
         - mountPath: /etc/teleport-tls-ca
           name: "teleport-tls-ca"
           readOnly: true
-        {{- end }}
 {{- end }}
         - mountPath: /etc/teleport
           name: "config"
@@ -250,7 +251,7 @@ spec:
         secret:
           secretName: "license"
 {{- end }}
-{{- if .Values.gcp.credentialSecretName }}
+{{- if (eq .Values.chartMode "gcp") }}
       - name: gcp-credentials
         secret:
           secretName: {{ required "gcp.credentialSecretName is required in chart values" .Values.gcp.credentialSecretName }}
@@ -263,11 +264,11 @@ spec:
       - name: teleport-tls
         secret:
           secretName: {{ .Values.tls.existingSecretName }}
-      {{- if .Values.tls.existingCASecretName }}
+{{- end }}
+{{- if .Values.tls.existingCASecretName }}
       - name: teleport-tls-ca
         secret:
           secretName: {{ .Values.tls.existingCASecretName }}
-      {{- end }}
 {{- end }}
       - name: "config"
         configMap:
@@ -285,4 +286,4 @@ spec:
 {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
 {{- end }}
-      serviceAccountName: {{ .Release.Name }}
+      serviceAccountName: {{ template "teleport.serviceAccountName" . }}

@@ -31,10 +31,21 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
+	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
+	"golang.org/x/net/http/httpguts"
+	"k8s.io/apimachinery/pkg/util/validation"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
@@ -55,16 +66,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
-	"go.opentelemetry.io/otel/attribute"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/net/http/httpguts"
-	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // Rate describes a rate ratio, i.e. the number of "events" that happen over
@@ -90,10 +91,8 @@ type Config struct {
 	// JoinMethod is the method the instance will use to join the auth server
 	JoinMethod types.JoinMethod
 
-	// AuthServers is a list of auth servers, proxies and peer auth servers to
-	// connect to. Yes, this is not just auth servers, the field name is
-	// misleading.
-	AuthServers []utils.NetAddr
+	// ProxyServer is the address of the proxy
+	ProxyServer utils.NetAddr
 
 	// Identities is an optional list of pre-generated key pairs
 	// for teleport roles, this is helpful when server is preconfigured
@@ -128,6 +127,9 @@ type Config struct {
 
 	// WindowsDesktop defines the Windows desktop service configuration.
 	WindowsDesktop WindowsDesktopConfig
+
+	// Discovery defines the discovery service configuration.
+	Discovery DiscoveryConfig
 
 	// Tracing defines the tracing service configuration.
 	Tracing TracingConfig
@@ -266,6 +268,49 @@ type Config struct {
 	// This is private to avoid external packages reading the value - the value should be obtained
 	// using Token()
 	token string
+
+	// v1, v2 -
+	// AuthServers is a list of auth servers, proxies and peer auth servers to
+	// connect to. Yes, this is not just auth servers, the field name is
+	// misleading.
+	// v3 -
+	// AuthServers contains a single address that is set by `auth_server` in the config
+	// A proxy address would be specified separately, so this no longer contains both
+	// auth servers and proxies.
+	//
+	// In order to keep backwards compatibility between v3 and v2/v1, this is now private
+	// and the value is retrieved via AuthServerAddresses() and set via SetAuthServerAddresses()
+	// as we still need to keep multiple addresses and return them for older config versions.
+	authServers []utils.NetAddr
+}
+
+// AuthServerAddresses returns the value of authServers for config versions v1 and v2 and
+// will return just the first (as only one should be set) address for config versions v3
+// onwards.
+func (cfg *Config) AuthServerAddresses() []utils.NetAddr {
+	return cfg.authServers
+}
+
+// SetAuthServerAddresses sets the value of authServers
+// If the config version is v1 or v2, it will set the value to all the given addresses (as
+// multiple can be specified).
+// If the config version is v3 or onwards, it'll error if more than one address is given.
+func (cfg *Config) SetAuthServerAddresses(addrs []utils.NetAddr) error {
+	// from config v3 onwards, we will error if more than one address is given
+	if cfg.Version != defaults.TeleportConfigVersionV1 && cfg.Version != defaults.TeleportConfigVersionV2 {
+		if len(addrs) > 1 {
+			return trace.BadParameter("only one auth server address should be set from config v3 onwards")
+		}
+	}
+
+	cfg.authServers = addrs
+
+	return nil
+}
+
+// SetAuthServerAddress sets the value of authServers to a single value
+func (cfg *Config) SetAuthServerAddress(addr utils.NetAddr) {
+	cfg.authServers = []utils.NetAddr{addr}
 }
 
 // Token returns token needed to join the auth server
@@ -326,7 +371,7 @@ func (cfg *Config) RoleConfig() RoleConfig {
 		DataDir:     cfg.DataDir,
 		HostUUID:    cfg.HostUUID,
 		HostName:    cfg.Hostname,
-		AuthServers: cfg.AuthServers,
+		AuthServers: cfg.AuthServerAddresses(),
 		Auth:        cfg.Auth,
 		Console:     cfg.Console,
 	}
@@ -613,6 +658,10 @@ type AuthConfig struct {
 
 	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
 	KeyStore keystore.Config
+
+	// LoadAllCAs sends the host CAs of all clusters to SSH clients logging in when enabled,
+	// instead of just the host CA for the current cluster.
+	LoadAllCAs bool
 }
 
 // SSHConfig configures SSH server node role
@@ -656,9 +705,6 @@ type SSHConfig struct {
 	// DisableCreateHostUser disables automatic user provisioning on this
 	// SSH node.
 	DisableCreateHostUser bool
-
-	// AWSMatchers are used to match EC2 instances for auto enrollment.
-	AWSMatchers []services.AWSMatcher
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -691,6 +737,9 @@ type KubeConfig struct {
 	// CheckImpersonationPermissions is an optional override to the default
 	// impersonation permissions check, for use in testing.
 	CheckImpersonationPermissions proxy.ImpersonationPermissionsChecker
+
+	// ResourceMatchers match dynamic kube_cluster resources.
+	ResourceMatchers []services.ResourceMatcher
 }
 
 // DatabasesConfig configures the database proxy service.
@@ -733,6 +782,8 @@ type Database struct {
 	GCP DatabaseGCP
 	// AD contains Active Directory configuration for database.
 	AD DatabaseAD
+	// Azure contains Azure database configuration.
+	Azure DatabaseAzure
 }
 
 // TLSMode defines all possible database verification modes.
@@ -808,6 +859,8 @@ type DatabaseAWS struct {
 	MemoryDB DatabaseAWSMemoryDB
 	// SecretStore contains settings for managing secrets.
 	SecretStore DatabaseAWSSecretStore
+	// AccountID is the AWS account ID.
+	AccountID string
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -864,6 +917,17 @@ type DatabaseAD struct {
 	SPN string
 }
 
+// IsEmpty returns true if the database AD configuration is empty.
+func (d *DatabaseAD) IsEmpty() bool {
+	return d.KeytabFile == "" && d.Krb5File == "" && d.Domain == "" && d.SPN == ""
+}
+
+// DatabaseAzure contains Azure database configuration.
+type DatabaseAzure struct {
+	// ResourceID is the Azure fully qualified ID for the resource.
+	ResourceID string `yaml:"resource_id,omitempty"`
+}
+
 // CheckAndSetDefaults validates database Active Directory configuration.
 func (d *DatabaseAD) CheckAndSetDefaults(name string) error {
 	if d.KeytabFile == "" {
@@ -892,7 +956,7 @@ func (d *Database) CheckAndSetDefaults() error {
 	if errs := validation.IsDNS1035Label(d.Name); len(errs) > 0 {
 		return trace.BadParameter("invalid database %q name: %v", d.Name, errs)
 	}
-	if !apiutils.SliceContainsStr(defaults.DatabaseProtocols, d.Protocol) {
+	if !slices.Contains(defaults.DatabaseProtocols, d.Protocol) {
 		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v",
 			d.Name, d.Protocol, defaults.DatabaseProtocols)
 	}
@@ -927,10 +991,13 @@ func (d *Database) CheckAndSetDefaults() error {
 		if !strings.Contains(d.URI, defaults.SnowflakeURL) {
 			return trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
 		}
+	} else if d.Protocol == defaults.ProtocolCassandra && d.AWS.Region != "" && d.AWS.AccountID != "" {
+		// In case of cloud hosted Cassandra doesn't require URI validation.
 	} else if _, _, err := net.SplitHostPort(d.URI); err != nil {
 		return trace.BadParameter("invalid database %q address %q: %v",
 			d.Name, d.URI, err)
 	}
+
 	if len(d.TLS.CACert) != 0 {
 		if _, err := tlsca.ParseCertificatePEM(d.TLS.CACert); err != nil {
 			return trace.BadParameter("provided database %q CA doesn't appear to be a valid x509 certificate: %v",
@@ -949,8 +1016,13 @@ func (d *Database) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.Name)
 	}
 
-	// For SQL Server we only support Kerberos auth with Active Directory at the moment.
-	if d.Protocol == defaults.ProtocolSQLServer {
+	// We support Azure AD authentication and Kerberos auth with AD for SQL
+	// Server. The first method doesn't require additional configuration since
+	// it assumes the environment’s Azure credentials
+	// (https://learn.microsoft.com/en-us/azure/developer/go/azure-sdk-authentication).
+	// The second method requires additional information, validated by
+	// DatabaseAD.
+	if d.Protocol == defaults.ProtocolSQLServer && (d.AD.Domain != "" || !strings.Contains(d.URI, azureutils.MSSQLEndpointSuffix)) {
 		if err := d.AD.CheckAndSetDefaults(d.Name); err != nil {
 			return trace.Wrap(err)
 		}
@@ -972,6 +1044,10 @@ type AppsConfig struct {
 
 	// ResourceMatchers match cluster database resources.
 	ResourceMatchers []services.ResourceMatcher
+
+	// MonitorCloseChannel will be signaled when a monitor closes a connection.
+	// Used only for testing. Optional.
+	MonitorCloseChannel chan struct{}
 }
 
 // App is the specific application that will be proxied by the application
@@ -1169,6 +1245,7 @@ type WindowsDesktopConfig struct {
 	ConnLimiter limiter.Config
 	// HostLabels specifies rules that are used to apply labels to Windows hosts.
 	HostLabels HostLabelRules
+	Labels     map[string]string
 }
 
 type LDAPDiscoveryConfig struct {
@@ -1224,6 +1301,8 @@ type LDAPConfig struct {
 	Username string
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool
+	// ServerName is the name of the LDAP server for TLS.
+	ServerName string
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
 	CA *x509.Certificate
 }
@@ -1242,6 +1321,22 @@ type Header struct {
 	Name string
 	// Value is the http header value.
 	Value string
+}
+
+type DiscoveryConfig struct {
+	Enabled bool
+	// AWSMatchers are used to match EC2 instances for auto enrollment.
+	AWSMatchers []services.AWSMatcher
+	// AzureMatchers are used to match resources for auto enrollment.
+	AzureMatchers []services.AzureMatcher
+	// GCPMatchers are used to match GCP resources for auto discovery.
+	GCPMatchers []services.GCPMatcher
+}
+
+// IsEmpty validates if the Discovery Service config has no cloud matchers.
+func (d DiscoveryConfig) IsEmpty() bool {
+	return len(d.AWSMatchers) == 0 &&
+		len(d.AzureMatchers) == 0 && len(d.GCPMatchers) == 0
 }
 
 // ParseHeader parses the provided string as a http header.
@@ -1295,6 +1390,8 @@ func ApplyDefaults(cfg *Config) {
 	// golang.org/x/crypto/ssh default config.
 	var sc ssh.Config
 	sc.SetDefaults()
+
+	cfg.Version = defaults.TeleportConfigVersionV1
 
 	if cfg.Log == nil {
 		cfg.Log = utils.NewLogger()

@@ -25,9 +25,10 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 var upgrader = websocket.Upgrader{}
@@ -100,8 +101,12 @@ func TestPingPong(t *testing.T) {
 	defer server.Close()
 
 	url := "ws" + strings.TrimPrefix(server.URL, "http")
-	ws, _, err := websocket.DefaultDialer.Dial(url, nil)
+	ws, resp, err := websocket.DefaultDialer.Dial(url, nil)
 	require.NoError(t, err)
+
+	// Always drain/close the body.
+	io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
 
 	go func() {
 		defer ws.Close()

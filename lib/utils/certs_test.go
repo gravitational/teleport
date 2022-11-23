@@ -17,31 +17,26 @@ limitations under the License.
 package utils
 
 import (
-	"os"
 	"runtime"
 	"testing"
 
-	"github.com/gravitational/teleport/api/constants"
-
 	"github.com/gravitational/trace"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 func TestRejectsInvalidPEMData(t *testing.T) {
 	t.Parallel()
 
-	_, err := ReadCertificateChain([]byte("no data"))
+	_, err := ReadCertificates([]byte("no data"))
 	require.IsType(t, trace.Unwrap(err), &trace.NotFoundError{})
 }
 
 func TestRejectsSelfSignedCertificate(t *testing.T) {
 	t.Parallel()
 
-	certificateChainBytes, err := os.ReadFile("../../fixtures/certs/ca.pem")
-	require.NoError(t, err)
-
-	certificateChain, err := ReadCertificateChain(certificateChainBytes)
+	certificateChain, err := ReadCertificatesFromPath("../../fixtures/certs/ca.pem")
 	require.NoError(t, err)
 
 	err = VerifyCertificateChain(certificateChain)
@@ -51,4 +46,13 @@ func TestRejectsSelfSignedCertificate(t *testing.T) {
 	default:
 		require.ErrorContains(t, err, "x509: certificate signed by unknown authority")
 	}
+}
+
+func TestNewCertPoolFromPath(t *testing.T) {
+	t.Parallel()
+
+	pool, err := NewCertPoolFromPath("../../fixtures/certs/ca.pem")
+	require.NoError(t, err)
+	//nolint:staticcheck // Pool not returned by SystemCertPool
+	require.Len(t, pool.Subjects(), 1)
 }
