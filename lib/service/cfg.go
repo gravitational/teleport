@@ -34,11 +34,8 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"golang.org/x/net/http/httpguts"
 	"k8s.io/apimachinery/pkg/util/validation"
 
@@ -61,10 +58,8 @@ import (
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
-	"github.com/gravitational/teleport/lib/srv/db/redis/connection"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -947,73 +942,15 @@ func (d *DatabaseAD) CheckAndSetDefaults(name string) error {
 
 // CheckAndSetDefaults validates the database proxy configuration.
 func (d *Database) CheckAndSetDefaults() error {
-	if d.Name == "" {
-		return trace.BadParameter("empty database name")
-	}
-	// Unlike application access proxy, database proxy name doesn't necessarily
-	// need to be a valid subdomain but use the same validation logic for the
-	// simplicity and consistency.
-	if errs := validation.IsDNS1035Label(d.Name); len(errs) > 0 {
-		return trace.BadParameter("invalid database %q name: %v", d.Name, errs)
-	}
-	if !slices.Contains(defaults.DatabaseProtocols, d.Protocol) {
-		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v",
-			d.Name, d.Protocol, defaults.DatabaseProtocols)
-	}
 	// Mark the database as coming from the static configuration.
 	if d.StaticLabels == nil {
 		d.StaticLabels = make(map[string]string)
 	}
 	d.StaticLabels[types.OriginLabel] = types.OriginConfigFile
-	// For MongoDB we support specifying either server address or connection
-	// string in the URI which is useful when connecting to a replica set.
-	if d.Protocol == defaults.ProtocolMongoDB &&
-		(strings.HasPrefix(d.URI, connstring.SchemeMongoDB+"://") ||
-			strings.HasPrefix(d.URI, connstring.SchemeMongoDBSRV+"://")) {
-		connString, err := connstring.ParseAndValidate(d.URI)
-		if err != nil {
-			return trace.BadParameter("invalid MongoDB database %q connection string %q: %v",
-				d.Name, d.URI, err)
-		}
-		// Validate read preference to catch typos early.
-		if connString.ReadPreference != "" {
-			if _, err := readpref.ModeFromString(connString.ReadPreference); err != nil {
-				return trace.BadParameter("invalid MongoDB database %q read preference %q",
-					d.Name, connString.ReadPreference)
-			}
-		}
-	} else if d.Protocol == defaults.ProtocolRedis {
-		_, err := connection.ParseRedisAddress(d.URI)
-		if err != nil {
-			return trace.BadParameter("invalid Redis database %q address: %q, error: %v", d.Name, d.URI, err)
-		}
-	} else if d.Protocol == defaults.ProtocolSnowflake {
-		if !strings.Contains(d.URI, defaults.SnowflakeURL) {
-			return trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
-		}
-	} else if d.Protocol == defaults.ProtocolCassandra && d.AWS.Region != "" && d.AWS.AccountID != "" {
-		// In case of cloud hosted Cassandra doesn't require URI validation.
-	} else if _, _, err := net.SplitHostPort(d.URI); err != nil {
-		return trace.BadParameter("invalid database %q address %q: %v",
-			d.Name, d.URI, err)
-	}
 
-	if len(d.TLS.CACert) != 0 {
-		if _, err := tlsca.ParseCertificatePEM(d.TLS.CACert); err != nil {
-			return trace.BadParameter("provided database %q CA doesn't appear to be a valid x509 certificate: %v",
-				d.Name, err)
-		}
-	}
+	// Check and set defaults for TLS mode.
 	if err := d.TLS.Mode.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-
-	// Validate Cloud SQL specific configuration.
-	switch {
-	case d.GCP.ProjectID != "" && d.GCP.InstanceID == "":
-		return trace.BadParameter("missing Cloud SQL instance ID for database %q", d.Name)
-	case d.GCP.ProjectID == "" && d.GCP.InstanceID != "":
-		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.Name)
 	}
 
 	// We support Azure AD authentication and Kerberos auth with AD for SQL
@@ -1028,7 +965,68 @@ func (d *Database) CheckAndSetDefaults() error {
 		}
 	}
 
-	return nil
+	// Do a test run with extra validations.
+	db, err := d.ToDatabase()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(services.ValidateDatabase(db))
+}
+
+// ToDatabase converts Database to types.Database.
+func (d Database) ToDatabase() (types.Database, error) {
+	return types.NewDatabaseV3(types.Metadata{
+		Name:        d.Name,
+		Description: d.Description,
+		Labels:      d.StaticLabels,
+	}, types.DatabaseSpecV3{
+		Protocol: d.Protocol,
+		URI:      d.URI,
+		CACert:   string(d.TLS.CACert),
+		TLS: types.DatabaseTLS{
+			CACert:     string(d.TLS.CACert),
+			ServerName: d.TLS.ServerName,
+			Mode:       d.TLS.Mode.ToProto(),
+		},
+		MySQL: types.MySQLOptions{
+			ServerVersion: d.MySQL.ServerVersion,
+		},
+		AWS: types.AWS{
+			AccountID: d.AWS.AccountID,
+			Region:    d.AWS.Region,
+			Redshift: types.Redshift{
+				ClusterID: d.AWS.Redshift.ClusterID,
+			},
+			RDS: types.RDS{
+				InstanceID: d.AWS.RDS.InstanceID,
+				ClusterID:  d.AWS.RDS.ClusterID,
+			},
+			ElastiCache: types.ElastiCache{
+				ReplicationGroupID: d.AWS.ElastiCache.ReplicationGroupID,
+			},
+			MemoryDB: types.MemoryDB{
+				ClusterName: d.AWS.MemoryDB.ClusterName,
+			},
+			SecretStore: types.SecretStore{
+				KeyPrefix: d.AWS.SecretStore.KeyPrefix,
+				KMSKeyID:  d.AWS.SecretStore.KMSKeyID,
+			},
+		},
+		GCP: types.GCPCloudSQL{
+			ProjectID:  d.GCP.ProjectID,
+			InstanceID: d.GCP.InstanceID,
+		},
+		DynamicLabels: types.LabelsToV2(d.DynamicLabels),
+		AD: types.AD{
+			KeytabFile: d.AD.KeytabFile,
+			Krb5File:   d.AD.Krb5File,
+			Domain:     d.AD.Domain,
+			SPN:        d.AD.SPN,
+		},
+		Azure: types.Azure{
+			ResourceID: d.Azure.ResourceID,
+		},
+	})
 }
 
 // AppsConfig configures application proxy service.
