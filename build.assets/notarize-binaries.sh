@@ -18,6 +18,8 @@ if [ "$#" -eq 0 ]; then
 fi
 
 for BINARY in "$@"; do
+    ls -laht
+    ls -laht "$BINARY"
     if [ ! -f "$BINARY" ]; then
         echo "$BINARY does not exist." 1>&2
         exit 2
