@@ -107,7 +107,6 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
 					// Role is a template so we cannot check for existence of that literal name.
 					continue
 				}
-				role = strings.ReplaceAll(role, "$$", "$")
 				_, err := rg.GetRole(context.Background(), role)
 				switch {
 				case trace.IsNotFound(err):
