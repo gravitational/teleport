@@ -46,11 +46,11 @@ type AccessRequest interface {
 	GetCreationTime() time.Time
 	// SetCreationTime sets the creation time of the request.
 	SetCreationTime(time.Time)
-	// GetAccessExpiry gets the TTL for the elevated certificate that will be
-	// issued if the Access Request is approved.
+	// GetAccessExpiry gets the expiration time for the elevated certificate
+	// that will be issued if the Access Request is approved.
 	GetAccessExpiry() time.Time
-	// SetAccessExpiry sets the TTL for the elevated certificate that will be
-	// issued if the Access Request is approved.
+	// SetAccessExpiry sets the expiration time for the elevated certificate
+	// that will be issued if the Access Request is approved.
 	SetAccessExpiry(time.Time)
 	// GetRequestReason gets the reason for the request's creation.
 	GetRequestReason() string

@@ -401,6 +401,12 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 			"[+]",
 			"Requested resources truncated, use the `tctl requests get` subcommand to view the full list")
 		table.AddColumn(asciitable.Column{Title: "Created At (UTC)"})
+		// TODO(russjones): From nklassen:
+		// I don't think it's going to be clear to users whether this is the access ttl or
+		// the current resource ttl. And I'm not sure which is more relevant to show here,
+		// maybe just the access expiry in the table view and both in the detail view? I
+		// think there's also the question about whether we really want to mix timestamps
+		// and TTLs in this table, or just show the expiry time
 		table.AddColumn(asciitable.Column{Title: "TTL"})
 		table.AddColumn(asciitable.Column{Title: "Status"})
 		table.AddColumn(asciitable.Column{

@@ -529,6 +529,21 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		return trace.BadParameter("invalid flag, perhaps you want to use this flag as tsh ssh -o?")
 	}).String()
 
+	// TODO(russjones): From nklassen:
+	//			I don't think it's clear from this help string what this TTL represents for
+	//		access requests.
+	//
+	//		I believe this is meant to set the TTL of the access request while it is in the
+	//		pending state (when it transitions to approved or denied, it will be reset to
+	//		the access ttl).
+	//
+	//		I'd suggest a --pending-ttl flag specific to the tsh request create command
+	//		with a more descriptive help string
+	//
+	//		It may be useful to have an --access-ttl flag as well for any users who may
+	//		wish to purposefully limit the duration of their elevated access, but that's
+	//		really a separate issue.
+
 	app.Flag("ttl", "Time-to-live for SSH session or Access Request").StringVar(&cf.RawTTL)
 	app.Flag("identity", "Identity file").Short('i').StringVar(&cf.IdentityFileIn)
 	app.Flag("compat", "OpenSSH compatibility flag").Hidden().StringVar(&cf.Compatibility)
@@ -4136,7 +4151,7 @@ func parseTTL(rawTTL string) (time.Duration, error) {
 	if err != nil {
 		d, err := strconv.ParseInt(rawTTL, 10, 0)
 		if err != nil {
-			return 0, trace.BadParameter("failed to parse TTL value: %v", err)
+			return 0, trace.BadParameter("failed to parse TTL value %q: %v", rawTTL, err)
 		}
 		ttl = time.Duration(d) * time.Minute
 	}

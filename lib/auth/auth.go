@@ -2100,7 +2100,6 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		traits = user.GetTraits()
 
 	} else if req.AccessRequestID != "" {
-		fmt.Printf("--> identity.Expires: %v\n", identity.Expires)
 		accessRequest, err := a.getValidatedAccessRequest(ctx, identity, req.User, req.AccessRequestID)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2123,7 +2122,6 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		// Let session expire with the shortest expiry time.
 		if expiresAt.After(accessRequest.GetAccessExpiry()) {
 			expiresAt = accessRequest.GetAccessExpiry()
-			fmt.Printf("--> expiresAt: %v\n", expiresAt)
 		}
 	} else if req.Switchback {
 		if prevSession.GetLoginTime().IsZero() {

@@ -1325,8 +1325,6 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 
 	tt := setupAuthContext(ctx, t)
 
-	fmt.Printf("--> now: %v\n", tt.clock.Now())
-
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, clt.Close()) })
@@ -1421,10 +1419,8 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 				PrevSessionID:   sess.GetName(),
 				AccessRequestID: request.GetMetadata().Name,
 			})
-			fmt.Printf("--> here 1: %v\n", err)
 			require.NoError(t, err)
 			newClt, err := tt.server.NewClientFromWebSession(newSess)
-			fmt.Printf("--> here 2: %v\n", err)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, newClt.Close()) })
 			return newClt, newSess
@@ -1522,7 +1518,6 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
-			fmt.Printf("--> START\n")
 			clt, sess := baseWebClient, baseWebSession
 			for _, extendSession := range tc.steps {
 				clt, sess = extendSession(t, clt, sess)
@@ -1719,7 +1714,6 @@ func TestGetCertAuthority(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 	for _, keyPair := range ca.GetActiveKeys().TLS {
-		fmt.Printf("--> keyPair.Key: %v.\n", keyPair)
 		require.Nil(t, keyPair.Key)
 	}
 	for _, keyPair := range ca.GetActiveKeys().SSH {

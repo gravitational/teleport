@@ -1011,7 +1011,6 @@ func (m *RequestValidator) Validate(ctx context.Context, clock clockwork.Clock, 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("--> elevatedTTL: %v\n", ttl)
 	req.SetAccessExpiry(now.Add(ttl))
 
 	return nil
@@ -1597,7 +1596,6 @@ func elevatedTTL(ctx context.Context, clock clockwork.Clock, identityExpires tim
 // truncateTTL will truncate given expiration by identity expiration and
 // shortest session TTL of any role.
 func truncateTTL(ctx context.Context, clock clockwork.Clock, identityExpires time.Time, getter RequestValidatorGetter, expiry time.Time, roles []string) (time.Duration, error) {
-	// Start with the maximum certificate duration Teleport supports.
 	ttl := apidefaults.MaxCertDuration
 
 	// Reduce by remaining TTL on requesting certificate (identity).

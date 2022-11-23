@@ -19,7 +19,6 @@ package service
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -1204,7 +1203,6 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 		}...)
 	}
 
-	fmt.Printf("--> authServers: %v\n", authServers)
 	clt, err := auth.NewClient(apiclient.Config{
 		Context: process.ExitContext(),
 		Addrs:   utils.NetAddrsToStrings(authServers),

@@ -662,6 +662,11 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 //		},
 //	}
 //
+// TODO(russjones): From zmb3: I realize we're already in a subtest, so
+// maybe this is a bad idea, but I would still probably put the body of
+// this loop in a t.Run, otherwise it will be hard to tell which specific
+// test is failing if one of these assertions fails.
+//
 //	for _, tt := range tests {
 //		r, err := services.NewAccessRequest("operator", "admins")
 //		require.NoError(t, err)
