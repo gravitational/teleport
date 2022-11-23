@@ -237,13 +237,13 @@ func RemoveSecure(filePath string, iterations int) error {
 			return trace.Wrap(err)
 		}
 	}
-	return trace.Wrap(os.Remove(filePath))
+	return trace.ConvertSystemError(os.Remove(filePath))
 }
 
 func overwriteFile(filePath string) error {
 	f, err := os.OpenFile(filePath, os.O_WRONLY, 0)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.ConvertSystemError(err)
 	}
 	defer f.Close()
 
