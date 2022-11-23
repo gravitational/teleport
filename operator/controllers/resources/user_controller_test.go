@@ -18,7 +18,6 @@ package resources
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -50,8 +49,9 @@ func TestUserCreation(t *testing.T) {
 	setup := setupTestEnv(t)
 	userName := validRandomResourceName("user-")
 
-	teleportCreateDummyRole(ctx, t, "a", setup.tClient)
-	teleportCreateDummyRole(ctx, t, "b", setup.tClient)
+	require.NoError(t, teleportCreateDummyRole(ctx, "a", setup.tClient))
+	require.NoError(t, teleportCreateDummyRole(ctx, "b", setup.tClient))
+
 	// The user is created in K8S
 	k8sCreateDummyUser(ctx, t, setup.k8sClient, setup.namespace.Name, userName)
 
@@ -78,10 +78,11 @@ func TestUserCreation(t *testing.T) {
 		return trace.IsNotFound(err)
 	})
 }
+
 func TestUserCreationFromYAML(t *testing.T) {
 	ctx := context.Background()
 	setup := setupTestEnv(t)
-	teleportCreateDummyRole(ctx, t, "a", setup.tClient)
+	require.NoError(t, teleportCreateDummyRole(ctx, "a", setup.tClient))
 	tests := []struct {
 		name         string
 		userSpecYAML string
@@ -219,12 +220,10 @@ traits:
 }
 
 func compareUserSpecs(t *testing.T, expectedUser, actualUser types.User) {
-	expectedJSON, _ := json.Marshal(expectedUser)
-	expected := make(map[string]interface{})
-	_ = json.Unmarshal(expectedJSON, &expected)
-	actualJSON, _ := json.Marshal(actualUser)
-	actual := make(map[string]interface{})
-	_ = json.Unmarshal(actualJSON, &actual)
+	expected, err := teleportResourceToMap(expectedUser)
+	require.NoError(t, err)
+	actual, err := teleportResourceToMap(actualUser)
+	require.NoError(t, err)
 
 	// We don't want compare spec.created_by and metadata as they were tested before and are not 100%
 	// managed by the operator
@@ -242,8 +241,8 @@ func TestUserDeletionDrift(t *testing.T) {
 	setup := setupTestEnv(t)
 	userName := validRandomResourceName("user-")
 
-	teleportCreateDummyRole(ctx, t, "a", setup.tClient)
-	teleportCreateDummyRole(ctx, t, "b", setup.tClient)
+	require.NoError(t, teleportCreateDummyRole(ctx, "a", setup.tClient))
+	require.NoError(t, teleportCreateDummyRole(ctx, "b", setup.tClient))
 
 	// The user is created in K8S
 	k8sCreateDummyUser(ctx, t, setup.k8sClient, setup.namespace.Name, userName)
@@ -293,11 +292,11 @@ func TestUserDeletionDrift(t *testing.T) {
 func TestUserUpdate(t *testing.T) {
 	ctx := context.Background()
 	setup := setupTestEnv(t)
-	teleportCreateDummyRole(ctx, t, "a", setup.tClient)
-	teleportCreateDummyRole(ctx, t, "b", setup.tClient)
-	teleportCreateDummyRole(ctx, t, "x", setup.tClient)
-	teleportCreateDummyRole(ctx, t, "y", setup.tClient)
-	teleportCreateDummyRole(ctx, t, "z", setup.tClient)
+	require.NoError(t, teleportCreateDummyRole(ctx, "a", setup.tClient))
+	require.NoError(t, teleportCreateDummyRole(ctx, "b", setup.tClient))
+	require.NoError(t, teleportCreateDummyRole(ctx, "x", setup.tClient))
+	require.NoError(t, teleportCreateDummyRole(ctx, "y", setup.tClient))
+	require.NoError(t, teleportCreateDummyRole(ctx, "z", setup.tClient))
 
 	userName := validRandomResourceName("user-")
 
