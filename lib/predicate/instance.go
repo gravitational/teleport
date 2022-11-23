@@ -14,6 +14,8 @@
 
 package predicate
 
+import "fmt"
+
 type instance struct {
 	clauses     []clause
 	assignments map[int]bool
@@ -23,35 +25,55 @@ func newInstance(clauses []clause) *instance {
 	return &instance{clauses, make(map[int]bool)}
 }
 
-func (i *instance) propagate() {
+func (i *instance) propagate() clauseError {
 	for {
-		for i.unitPropagateOnce() {
+		for {
+			changed, err := i.unitPropagateOnce()
+			if err != clauseNoError {
+				return err
+			}
+
+			if !changed {
+				break
+			}
 		}
 
 		if !i.pureLiteralEliminateOnce() {
 			break
 		}
 	}
+
+	return clauseNoError
 }
 
-func (i *instance) unitPropagateOnce() bool {
+func (i *instance) unitPropagateOnce() (bool, clauseError) {
 	for _, clause := range i.clauses {
 		if clause.isUnit() {
 			if len(clause.positive) > 0 {
 				for v := range clause.positive {
-					i.applySubst(v, true)
+					err := i.applySubst(v, true)
+					if err != clauseNoError {
+						return false, err
+					}
+
+					break
 				}
 			} else {
 				for v := range clause.negative {
-					i.applySubst(v, false)
+					err := i.applySubst(v, false)
+					if err != clauseNoError {
+						return false, err
+					}
+
+					break
 				}
 			}
 
-			return true
+			return true, clauseNoError
 		}
 	}
 
-	return false
+	return false, clauseNoError
 }
 
 func (i *instance) pureLiteralEliminateOnce() bool {
@@ -118,7 +140,10 @@ type pick struct {
 }
 
 func (i *instance) solveInner() ([]pick, clauseError) {
-	i.propagate()
+	err := i.propagate()
+	if err != clauseNoError {
+		return nil, err
+	}
 
 	if len(i.clauses) == 0 {
 		picks := make([]pick, 0)
@@ -128,15 +153,9 @@ func (i *instance) solveInner() ([]pick, clauseError) {
 		return picks, clauseNoError
 	}
 
-	for _, c := range i.clauses {
-		if c.isEmpty() {
-			return nil, clauseUnsatisfiable
-		}
-	}
-
 	v, truth := i.pickBranchAssignment()
 	copy := i.copy()
-	err := i.applySubst(v, truth)
+	err = i.applySubst(v, truth)
 	if err != clauseNoError {
 		return nil, err
 	}
@@ -160,10 +179,10 @@ func (i *instance) solveInner() ([]pick, clauseError) {
 }
 
 func (i *instance) solve() (map[int]bool, clauseError) {
+	fmt.Printf("solving instance with %d clauses\n", len(i.clauses))
 	state := i.copy()
 	state.clauses = nil
 
-	// eliminate trivial input clauses
 	for _, clause := range i.clauses {
 		if len(intersect(clause.positive, clause.negative)) > 0 {
 			continue
