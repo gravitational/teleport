@@ -66,6 +66,8 @@ type CommandLineFlags struct {
 	AuthServerAddr []string
 	// --token flag
 	AuthToken string
+	// --join-method flag
+	JoinMethod string
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
 	CAPins []string
 	// --listen-ip flag
@@ -164,6 +166,17 @@ type CommandLineFlags struct {
 	// DatabaseMySQLServerVersion is the MySQL server version reported to a client
 	// if the value cannot be obtained from the database.
 	DatabaseMySQLServerVersion string
+
+	// ProxyServer is the url of the proxy server to connect to
+	ProxyServer string
+	// OpenSSHConfigPath is the path of the file to write agentless configuration to
+	OpenSSHConfigPath string
+	// OpenSSHKeysPath is the path to write teleport keys and certs into
+	OpenSSHKeysPath string
+	// AdditionalPrincipals are a list of extra prinicpals to include when generating host keys.
+	AdditionalPrincipals string
+	// RestartOpenSSH indicates whether openssh should be restarted or not.
+	RestartOpenSSH bool
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -1159,9 +1172,11 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) {
 				Regions: matcher.Regions,
 				Tags:    matcher.Tags,
 				Params: services.InstallerParams{
-					JoinMethod: matcher.InstallParams.JoinParams.Method,
-					JoinToken:  matcher.InstallParams.JoinParams.TokenName,
-					ScriptName: matcher.InstallParams.ScriptName,
+					JoinMethod:      matcher.InstallParams.JoinParams.Method,
+					JoinToken:       matcher.InstallParams.JoinParams.TokenName,
+					ScriptName:      matcher.InstallParams.ScriptName,
+					InstallTeleport: matcher.InstallParams.InstallTeleport,
+					SSHDConfig:      matcher.InstallParams.SSHDConfig,
 				},
 				SSM: &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
 			})
