@@ -33,6 +33,24 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+type stubUser struct {
+	gid      string
+	uid      string
+	groupIDS []string
+}
+
+func (s *stubUser) Gid() string {
+	return s.gid
+}
+
+func (s *stubUser) Uid() string {
+	return s.uid
+}
+
+func (s *stubUser) GroupIds() ([]string, error) {
+	return s.groupIDS, nil
+}
+
 func TestStartNewParker(t *testing.T) {
 	currentUser, err := user.Current()
 	require.NoError(t, err)
@@ -46,7 +64,7 @@ func TestStartNewParker(t *testing.T) {
 	type args struct {
 		credential  *syscall.Credential
 		loginAsUser string
-		localUser   *user.User
+		localUser   *stubUser
 	}
 	tests := []struct {
 		name      string
@@ -90,6 +108,11 @@ func TestStartNewParker(t *testing.T) {
 			},
 			args: args{
 				credential: &syscall.Credential{Gid: 1000},
+				localUser: &stubUser{
+					uid:      "1001",
+					gid:      "1003",
+					groupIDS: []string{"1003"},
+				},
 			},
 		},
 		{
@@ -125,9 +148,10 @@ func TestStartNewParker(t *testing.T) {
 					// to be returned when creating the park process.
 					NoSetGroups: true,
 				},
-				localUser: &user.User{
-					Uid: currentUser.Uid,
-					Gid: currentUser.Gid,
+				localUser: &stubUser{
+					uid:      currentUser.Uid,
+					gid:      currentUser.Gid,
+					groupIDS: []string{currentUser.Gid},
 				},
 			},
 		},

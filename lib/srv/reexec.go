@@ -320,7 +320,8 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	defer parkerCancel()
 
 	osPack := newOsWrapper()
-	if err := osPack.startNewParker(parkerCtx, cmd.SysProcAttr.Credential, c.Login, localUser); err != nil {
+	if err := osPack.startNewParker(parkerCtx, cmd.SysProcAttr.Credential,
+		c.Login, &systemUser{u: localUser}); err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
@@ -428,10 +429,34 @@ func newOsWrapper() *osWrapper {
 	}
 }
 
+// userInfo wraps user.User data into an interface, so we can override
+// returned results in tests.
+type userInfo interface {
+	Gid() string
+	Uid() string
+	GroupIds() ([]string, error)
+}
+
+type systemUser struct {
+	u *user.User
+}
+
+func (s *systemUser) Gid() string {
+	return s.u.Gid
+}
+
+func (s *systemUser) Uid() string {
+	return s.u.Uid
+}
+
+func (s *systemUser) GroupIds() ([]string, error) {
+	return s.u.GroupIds()
+}
+
 // startNewParker starts a new parker process only if the requested user has been created
 // by Teleport. Otherwise, does nothing.
 func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Credential,
-	loginAsUser string, localUser *user.User,
+	loginAsUser string, localUser userInfo,
 ) error {
 	if credential == nil {
 		// Empty credential, no reason to start the parker.
@@ -447,12 +472,20 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 		return trace.Wrap(err)
 	}
 
-	guid, err := strconv.ParseUint(group.Gid, 10, 32)
+	groups, err := localUser.GroupIds()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if uint64(credential.Gid) != guid {
+	found := false
+	for _, localUserGroup := range groups {
+		if localUserGroup == group.Gid {
+			found = true
+			break
+		}
+	}
+
+	if !found {
 		// Check if the new user guid matches the TeleportServiceGroup. If not
 		// this user hasn't been created by Teleport, and we don't need the parker.
 		return nil
@@ -466,7 +499,7 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if localUser.Uid != localUserCheck.Uid || localUser.Gid != localUserCheck.Gid {
+	if localUser.Uid() != localUserCheck.Uid || localUser.Gid() != localUserCheck.Gid {
 		return trace.BadParameter("user %q has been changed", loginAsUser)
 	}
 
