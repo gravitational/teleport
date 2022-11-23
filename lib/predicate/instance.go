@@ -14,8 +14,6 @@
 
 package predicate
 
-import "fmt"
-
 type instance struct {
 	clauses     []clause
 	assignments map[int]bool
@@ -179,7 +177,6 @@ func (i *instance) solveInner() ([]pick, clauseError) {
 }
 
 func (i *instance) solve() (map[int]bool, clauseError) {
-	fmt.Printf("solving instance with %d clauses\n", len(i.clauses))
 	state := i.copy()
 	state.clauses = nil
 

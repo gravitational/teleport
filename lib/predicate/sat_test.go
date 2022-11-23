@@ -66,23 +66,27 @@ func TestUnsatIntEq(t *testing.T) {
 	require.Equal(t, clauseUnsatisfiable, err)
 }
 
-func TestSATForwardMul(t *testing.T) {
+var out int
+
+func BenchmarkSatIntAdd(b *testing.B) {
 	theory := newNumTheory()
 	r1 := integer(theory, "r1")
-	constantEquals(theory, r1, 3)
-	r2 := integer(theory, "r2")
-	constantEquals(theory, r2, 3)
+	constantEquals(theory, r1, 4)
 	r3 := integer(theory, "r3")
-	equals(theory, mul(theory, r1, r2), r3)
+	constantEquals(theory, r3, 15)
+	r2 := integer(theory, "r2")
+	equals(theory, add(theory, r1, r2), r3)
 
 	clauses := theory.finish()
 	instance := newInstance(clauses)
-	assignments, err := instance.solve()
-	require.Equal(t, clauseNoError, err)
-	mapped := make(map[string]bool)
-	for k, v := range assignments {
-		mapped[theory.var_names[k]] = v
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		assignments, err := instance.solve()
+		if err != clauseNoError {
+			b.Fatal(err)
+		}
+
+		out = r2.assignedValue(assignments)
 	}
-	require.Equal(t, map[string]bool{}, mapped)
-	require.Equal(t, 9, r3.assignedValue(assignments))
 }

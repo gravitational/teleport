@@ -16,7 +16,7 @@ package predicate
 
 import "fmt"
 
-const bitCount = 8
+const bitCount = 32
 
 type numTheory struct {
 	counter   int
@@ -107,39 +107,6 @@ func add(theory *numTheory, a, b *integerS) *integerS {
 	}
 
 	return bits
-}
-
-func and(theory *numTheory, a, b *integerS) *integerS {
-	bits := integer(theory, "and.out")
-	for j := 0; j < bitCount; j++ {
-		and_gate(theory, a.bits[j], b.bits[j], bits.bits[j])
-	}
-	return bits
-}
-
-func mul(theory *numTheory, a, b *integerS) *integerS {
-	intermediate := make([]*integerS, bitCount)
-	repeat := func(bit int) *integerS {
-		bits := []int{bit}
-		for i := 1; i < bitCount; i++ {
-			bits = append(bits, bit)
-		}
-		return &integerS{bits}
-	}
-
-	constant_lshift := func(v *integerS, i int) *integerS {
-		bits := make([]int, 0)
-		bits = append(bits, v.bits[:i]...)
-		bits = append(bits, v.bits[i:]...)
-		return &integerS{bits}
-	}
-
-	intermediate[0] = and(theory, repeat(a.bits[0]), b)
-	for j := 1; j < bitCount; j++ {
-		intermediate[j] = add(theory, intermediate[j-1], constant_lshift(and(theory, repeat(a.bits[j]), b), j))
-	}
-
-	return intermediate[bitCount-1]
 }
 
 func xor_gate(theory *numTheory, a, b, out int) {
