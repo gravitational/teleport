@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -390,6 +391,13 @@ func (p *Pack) makeTLSConfig(t *testing.T, publicAddr, clusterName string) *tls.
 		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
+
+	// Make sure the session ID can be seen in the backend before we continue onward.
+	backendKey := backend.Key("apps", "sessions", ws.GetMetadata().Name)
+	require.Eventually(t, func() bool {
+		_, err := p.rootCluster.Process.GetBackend().Get(context.Background(), backendKey)
+		return err == nil
+	}, 5*time.Second, 100*time.Millisecond)
 
 	certificate, err := p.rootCluster.Process.GetAuthServer().GenerateUserAppTestCert(
 		auth.AppTestCertRequest{
