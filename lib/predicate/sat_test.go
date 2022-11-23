@@ -20,52 +20,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testCase struct {
-	clause      string
-	sat         bool
-	assignments map[string]any
-}
+func TestSATSimple(t *testing.T) {
+	// 1 or 2
+	clause1 := newClause(newSet([]int{1, 2}), make(set[int], 0))
 
-func TestBoolAssign(t *testing.T) {
-	cases := []testCase{
-		{
-			clause: "(a | b) & (!a | !b) & a",
-			sat:    true,
-			assignments: map[string]any{
-				"a": true,
-				"b": false,
-			},
-		},
-		{
-			clause: "(a | b) & (!a | !b) & b",
-			sat:    true,
-			assignments: map[string]any{
-				"a": false,
-				"b": true,
-			},
-		},
-		{
-			clause: "a & !a",
-			sat:    false,
-		},
-	}
+	// !1 or !2
+	clause2 := newClause(make(set[int], 0), newSet([]int{1, 2}))
 
-	for _, c := range cases {
-		t.Run(c.clause, func(t *testing.T) {
-			sat, assignments := evaluatePredicate(c.clause)
+	// 2
+	clause3 := newClause(newSet([]int{2}), make(set[int], 0))
 
-			if sat {
-				require.Equal(t, c.assignments, assignments)
-			}
-		})
-	}
-}
-
-var sat bool
-var assignments map[string]any
-
-func BenchmarkSimpleBoolAssign(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		sat, assignments = evaluatePredicate("(a | b) & (!a | !b) & a")
-	}
+	instance := newInstance([]clause{clause1, clause2, clause3})
+	assignments, err := instance.solve()
+	require.Equal(t, clauseNoError, err)
+	require.Equal(t, map[int]bool{1: false, 2: true}, assignments)
 }
