@@ -167,12 +167,11 @@ func makeFetchers(ctx context.Context, config *WatcherConfig) (result []Fetcher,
 func makeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (result []Fetcher, err error) {
 	type makeFetcherFunc func(cloud.Clients, string, types.Labels) (Fetcher, error)
 	makeFetcherFuncs := map[string][]makeFetcherFunc{
-		services.AWSMatcherRDS:                {makeRDSInstanceFetcher, makeRDSAuroraFetcher},
-		services.AWSMatcherRDSProxy:           {makeRDSProxyFetcher},
-		services.AWSMatcherRedshift:           {makeRedshiftFetcher},
-		services.AWSMatcherRedshiftServerless: {makeRedshiftServerlessFetcher},
-		services.AWSMatcherElastiCache:        {makeElastiCacheFetcher},
-		services.AWSMatcherMemoryDB:           {makeMemoryDBFetcher},
+		services.AWSMatcherRDS:         {makeRDSInstanceFetcher, makeRDSAuroraFetcher},
+		services.AWSMatcherRDSProxy:    {makeRDSProxyFetcher},
+		services.AWSMatcherRedshift:    {makeRedshiftFetcher},
+		services.AWSMatcherElastiCache: {makeElastiCacheFetcher},
+		services.AWSMatcherMemoryDB:    {makeMemoryDBFetcher},
 	}
 
 	for _, matcher := range matchers {
@@ -318,20 +317,6 @@ func makeMemoryDBFetcher(clients cloud.Clients, region string, tags types.Labels
 		Region:   region,
 		Labels:   tags,
 		MemoryDB: memorydb,
-	})
-}
-
-// makeRedshiftServerlessFetcher returns Redshift Serverless fetcher for the
-// provided region and tags.
-func makeRedshiftServerlessFetcher(clients cloud.Clients, region string, tags types.Labels) (Fetcher, error) {
-	client, err := clients.GetAWSRedshiftServerlessClient(region)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return newRedshiftServerlessFetcher(redshiftServerlessFetcherConfig{
-		Region: region,
-		Labels: tags,
-		Client: client,
 	})
 }
 
