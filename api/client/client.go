@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -587,15 +586,6 @@ func (c *Client) WithCallOptions(opts ...grpc.CallOption) *Client {
 	clt := *c
 	clt.callOpts = append(clt.callOpts, opts...)
 	return &clt
-}
-
-// DevicesClient returns an unadorned Device Trust client, using the underlying
-// Auth gRPC connection.
-// Clients connecting to non-Enterprise clusters, or older Teleport versions,
-// still get a devices client when calling this method, but all RPCs will return
-// "not implemented" errors (as per the default gRPC behavior).
-func (c *Client) DevicesClient() devicepb.DeviceTrustServiceClient {
-	return devicepb.NewDeviceTrustServiceClient(c.conn)
 }
 
 // Ping gets basic info about the auth server.
