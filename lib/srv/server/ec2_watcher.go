@@ -65,19 +65,24 @@ func NewEC2Watcher(ctx context.Context, matchers []services.AWSMatcher, clients 
 		fetchInterval: time.Minute,
 		InstancesC:    make(chan Instances),
 	}
+
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
-			cl, err := clients.GetAWSEC2Client(region)
+			ec2Client, err := clients.GetAWSEC2Client(region)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			fetcher := newEC2InstanceFetcher(ec2FetcherConfig{
+
+			fetcher, err := newEC2InstanceFetcher(ec2FetcherConfig{
 				Matcher:   matcher,
 				Region:    region,
 				Document:  matcher.SSM.DocumentName,
-				EC2Client: cl,
+				EC2Client: ec2Client,
 				Labels:    matcher.Tags,
 			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			watcher.fetchers = append(watcher.fetchers, fetcher)
 		}
 	}
@@ -98,9 +103,10 @@ type ec2InstanceFetcher struct {
 	Region       string
 	DocumentName string
 	Parameters   map[string]string
+	handler      func(*ec2InstanceFetcher, *ec2.Reservation, []Instances)
 }
 
-func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
+func newEC2InstanceFetcher(cfg ec2FetcherConfig) (*ec2InstanceFetcher, error) {
 	tagFilters := []*ec2.Filter{{
 		Name:   aws.String(AWSInstanceStateName),
 		Values: aws.StringSlice([]string{ec2.InstanceStateNameRunning}),
@@ -116,18 +122,28 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 	} else {
 		log.Debug("Not setting any tag filters as there is a '*:...' tag present and AWS doesnt allow globbing on keys")
 	}
+	var parameters map[string]string
+	if cfg.Matcher.Params.InstallTeleport {
+		parameters = map[string]string{
+			"token":      cfg.Matcher.Params.JoinToken,
+			"scriptName": cfg.Matcher.Params.ScriptName,
+		}
+	} else {
+		parameters = map[string]string{
+			"token":          cfg.Matcher.Params.JoinToken,
+			"scriptName":     cfg.Matcher.Params.ScriptName,
+			"sshdConfigPath": cfg.Matcher.Params.SSHDConfig,
+		}
+	}
 
 	fetcherConfig := ec2InstanceFetcher{
 		EC2:          cfg.EC2Client,
 		Filters:      tagFilters,
 		Region:       cfg.Region,
 		DocumentName: cfg.Document,
-		Parameters: map[string]string{
-			"token":      cfg.Matcher.Params.JoinToken,
-			"scriptName": cfg.Matcher.Params.ScriptName,
-		},
+		Parameters:   parameters,
 	}
-	return &fetcherConfig
+	return &fetcherConfig, nil
 }
 
 // GetInstances fetches all EC2 instances matching configured filters.

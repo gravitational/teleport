@@ -19,8 +19,10 @@ package common
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/user"
 	"path"
 	"path/filepath"
@@ -29,10 +31,16 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/go-uuid"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -40,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -84,6 +93,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	status := app.Command("status", "Print the status of the current SSH session.")
 	dump := app.Command("configure", "Generate a simple config file to get started.")
 	ver := app.Command("version", "Print the version of your teleport binary.")
+	join := app.Command("join", "Download the Teleport CA and SSH host keys and update the SSH config to use them")
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
 	sftp := app.Command("sftp", "Server-side implementation of SFTP.").Hidden()
 	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
@@ -388,6 +398,16 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	kubeState := app.Command("kube-state", "Used internally by Teleport to operate Kubernetes Secrets where Teleport stores its state.").Hidden()
 	kubeStateDelete := kubeState.Command("delete", "Used internally to delete Kubernetes states when the helm chart is uninstalled.").Hidden()
 
+	// teleport join --proxy-server=proxy.example.com --token=aws-join-token [--openssh-config=/path/to/sshd.conf] [--restart-sshd=true]
+	join.Flag("proxy-server", "Address of the proxy server.").StringVar(&ccf.ProxyServer)
+	join.Flag("token", "Invitation token to register with an auth server.").StringVar(&ccf.AuthToken)
+	join.Flag("join-method", "Method to use to join the cluster (token, iam, ec2)").EnumVar(&ccf.JoinMethod, "token", "iam", "ec2")
+	join.Flag("openssh-config", "Path to the OpenSSH config file").Default("/etc/ssh/sshd_config").StringVar(&ccf.OpenSSHConfigPath)
+	join.Flag("openssh-keys-path", "Path to the place teleport keys and certs").Default("/etc/ssh").StringVar(&ccf.OpenSSHKeysPath)
+	join.Flag("restart-sshd", "Restart OpenSSH").Default("true").BoolVar(&ccf.RestartOpenSSH)
+	join.Flag("insecure", "Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
+	join.Flag("additional-principals", "Comma separated list of host names the node can be accessed by").StringVar(&ccf.AdditionalPrincipals)
+
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
 	command, err := app.Parse(options.Args)
@@ -465,6 +485,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case discoveryBootstrapCmd.FullCommand():
 		configureDiscoveryBootstrapFlags.config.DiscoveryService = true
 		err = onConfigureDiscoveryBootstrap(configureDiscoveryBootstrapFlags)
+	case join.FullCommand():
+		err = onJoin(ccf)
 	}
 	if err != nil {
 		utils.FatalError(err)
@@ -487,6 +509,163 @@ func OnStart(clf config.CommandLineFlags, config *service.Config) error {
 		config.Log.Infof("Starting Teleport v%s with a config file located at %q", teleport.Version, configFileUsed)
 	}
 	return service.Run(context.TODO(), *config, nil)
+}
+
+// GenerateKeys generates TLS and SSH keypairs.
+func GenerateKeys() (private, sshpub, tlspub []byte, err error) {
+	privateKey, publicKey, err := native.GenerateKeyPair()
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
+	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
+	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
+	return privateKey, publicKey, tlsPublicKey, nil
+}
+
+func onJoin(clf config.CommandLineFlags) error {
+	addr, err := utils.ParseAddr(clf.ProxyServer)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	privateKey, sshPublicKey, tlsPublicKey, err := GenerateKeys()
+	if err != nil {
+		return trace.Wrap(err, "unable to generate new keypairs")
+	}
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO(amk) get uuid from a cli argument once agentless inventory management is implemented to allow tsh ssh access via uuid
+	uuid, err := uuid.GenerateUUID()
+	_ = err
+	principals := append(strings.Split(clf.AdditionalPrincipals, ","), uuid)
+
+	certs, err := auth.Register(
+		auth.RegisterParams{
+			Token:                clf.AuthToken,
+			AdditionalPrincipals: principals,
+			JoinMethod:           types.JoinMethod(clf.JoinMethod),
+			ID: auth.IdentityID{
+				Role:     types.RoleNode,
+				NodeName: hostname,
+				HostUUID: uuid,
+			},
+			ProxyServer:        *addr,
+			PublicTLSKey:       tlsPublicKey,
+			PublicSSHKey:       sshPublicKey,
+			GetHostCredentials: client.HostCredentials,
+		},
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("Writing Teleport keys to %s\n", clf.OpenSSHKeysPath)
+	if err := writeKeys(clf.OpenSSHKeysPath, privateKey, certs); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("Updating OpenSSH config")
+	if err := updateSSHDConfig(clf.OpenSSHKeysPath, clf.OpenSSHConfigPath); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("Restarting the OpenSSH daemon")
+	if err := restartSSHD(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func writeKeys(sshdConfigDir string, private []byte, certs *proto.Certs) error {
+	if err := os.WriteFile(filepath.Join(sshdConfigDir, "teleport"), private, 0600); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(sshdConfigDir, "teleport-cert.pub"), certs.SSH, 0600); err != nil {
+		return trace.Wrap(err)
+	}
+
+	certsFile, err := os.Create(filepath.Join(sshdConfigDir, "teleport_user_ca.pub"))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer certsFile.Close()
+	for _, cert := range certs.SSHUserCACerts {
+		if _, err := certsFile.Write(cert); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := certsFile.WriteString("\n"); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func updateSSHDConfig(keyDir, sshdConfigPath string) error {
+	// has to write to the beginning of the sshd_config file as
+	// openssh takes the first occurance of a setting
+	sshdConfig, err := os.OpenFile(sshdConfigPath, os.O_RDONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer sshdConfig.Close()
+
+	configUpdate := fmt.Sprintf(`
+### Section created by 'teleport  join'
+TrustedUserCaKeys %s
+HostKey %s
+HostCertificate %s
+### Section end
+`,
+		filepath.Join(keyDir, "teleport_user_ca.pub"),
+		filepath.Join(keyDir, "teleport"),
+		filepath.Join(keyDir, "teleport-cert.pub"),
+	)
+	sshdConfigTmp, err := os.CreateTemp(keyDir, "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer sshdConfigTmp.Close()
+	if _, err := sshdConfigTmp.Write([]byte(configUpdate)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := io.Copy(sshdConfigTmp, sshdConfig); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := os.Rename(sshdConfigTmp.Name(), sshdConfigPath); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func restartSSHD() error {
+	cmd := exec.Command("sshd", "-t")
+	if err := cmd.Run(); err != nil {
+		return trace.Wrap(err, "teleport generated an invalid ssh config file")
+	}
+
+	cmd = exec.Command("systemctl", "restart", "sshd")
+	if err := cmd.Run(); err != nil {
+		return trace.Wrap(err, "teleport failed to restart the sshd service")
+	}
+	return nil
 }
 
 // onStatus is the handler for "status" CLI command

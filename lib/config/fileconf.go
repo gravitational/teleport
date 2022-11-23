@@ -526,17 +526,26 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 			} else if method != types.JoinMethodIAM {
 				return trace.BadParameter("only IAM joining is supported for EC2 auto-discovery")
 			}
+
 			if token := matcher.InstallParams.JoinParams.TokenName; token == "" {
 				matcher.InstallParams.JoinParams.TokenName = defaults.IAMInviteTokenName
 			}
 
 			if installer := matcher.InstallParams.ScriptName; installer == "" {
-				matcher.InstallParams.ScriptName = installers.InstallerScriptName
+				if matcher.InstallParams.InstallTeleport {
+					matcher.InstallParams.ScriptName = installers.InstallerScriptName
+				} else {
+					matcher.InstallParams.ScriptName = installers.InstallerScriptNameAgentless
+				}
 			}
 		}
 
 		if matcher.SSM.DocumentName == "" {
-			matcher.SSM.DocumentName = defaults.AWSInstallerDocument
+			if matcher.InstallParams.InstallTeleport {
+				matcher.SSM.DocumentName = defaults.AWSInstallerDocument
+			} else {
+				matcher.SSM.DocumentName = defaults.AWSAgentlessInstallerDocument
+			}
 		}
 	}
 	return nil
@@ -1505,6 +1514,10 @@ type InstallParams struct {
 	// ScriptName is the name of the teleport installer script
 	// resource for the EC2 instance to execute
 	ScriptName string `yaml:"script_name,omitempty"`
+	// InstallTeleport disables agentless discovery
+	InstallTeleport bool `yaml:"install_teleport"`
+	// SSHDConfig provides the path to write sshd configuration changes
+	SSHDConfig string `yaml:"sshd_config,omitempty"`
 }
 
 // AWSSSM provides options to use when executing SSM documents

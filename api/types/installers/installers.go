@@ -25,13 +25,24 @@ import (
 //go:embed installer.sh.tmpl
 var defaultInstallScript string
 
+//go:embed agentless-installer.sh.tmpl
+var defaultAgentlessInstallScript string
+
 // InstallerScriptName is the name of the by default populated, EC2
 // installer script
 const InstallerScriptName = "default-installer"
 
+// InstallerScriptName is the name of the by default populated, EC2
+// installer script when agentless mode is enabled for a matcher
+const InstallerScriptNameAgentless = "default-agentless-installer"
+
 // DefaultInstaller represents a the default installer script provided
 // by teleport
 var DefaultInstaller = types.MustNewInstallerV1(InstallerScriptName, defaultInstallScript)
+
+// DefaultAgentlessInstaller represents a the default agentless installer script provided
+// by teleport
+var DefaultAgentlessInstaller = types.MustNewInstallerV1(InstallerScriptNameAgentless, defaultAgentlessInstallScript)
 
 // Template is used to fill proxy address and version information into
 // the installer script
