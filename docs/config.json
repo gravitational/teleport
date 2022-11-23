@@ -239,7 +239,8 @@
           "entries": [
             {
               "title": "GitHub SSO",
-              "slug": "/access-controls/sso/github-sso/"
+              "slug": "/access-controls/sso/github-sso/",
+              "forScopes": ["enterprise", "cloud", "oss"]
             },
             {
               "title": "Azure Active Directory (AD)",
