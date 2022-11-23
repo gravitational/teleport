@@ -18,15 +18,14 @@ if [ "$#" -eq 0 ]; then
 fi
 
 for BINARY in "$@"; do
-    ls -laht
-    ls -laht "$BINARY"
     if [ ! -f "$BINARY" ]; then
         echo "$BINARY does not exist." 1>&2
         exit 2
     fi
 
-    if [ "$(file \"$BINARY\" | grep -ic 'mach-o')" -eq 0 ]; then
-        echo "$BINARY is not a MacOS binary (file is of type $(file \"$BINARY\")" 1>&2
+    FILE_TYPE="$(file $BINARY)"
+    if [ "$(echo $FILE_TYPE | grep -ic 'mach-o')" -eq 0 ]; then
+        echo "$BINARY is not a MacOS binary (file is of type $FILE_TYPE)" 1>&2
         exit 2
     fi
 done
