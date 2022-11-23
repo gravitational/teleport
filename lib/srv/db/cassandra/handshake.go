@@ -30,6 +30,7 @@ import (
 	"github.com/gocql/gocql"
 	"github.com/gravitational/trace"
 
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
