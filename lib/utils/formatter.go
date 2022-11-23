@@ -22,7 +22,6 @@ package utils
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -30,9 +29,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 )
 
 type TextFormatter struct {
@@ -80,12 +79,6 @@ func NewDefaultTextFormatter(enableColors bool) *TextFormatter {
 	}
 }
 
-func NewTestTextFormatter() *TextFormatter {
-	formatter := NewDefaultTextFormatter(trace.IsTerminal(os.Stderr))
-	formatter.timestampEnabled = true
-	return formatter
-}
-
 // CheckAndSetDefaults checks and sets log format configuration
 func (tf *TextFormatter) CheckAndSetDefaults() error {
 	// set padding
@@ -108,11 +101,11 @@ func (tf *TextFormatter) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if utils.SliceContainsStr(res, timestampField) {
+	if slices.Contains(res, timestampField) {
 		tf.timestampEnabled = true
 	}
 
-	if utils.SliceContainsStr(res, callerField) {
+	if slices.Contains(res, callerField) {
 		tf.callerEnabled = true
 	}
 
@@ -216,15 +209,15 @@ func (j *JSONFormatter) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if utils.SliceContainsStr(res, timestampField) {
+	if slices.Contains(res, timestampField) {
 		j.JSONFormatter.DisableTimestamp = true
 	}
 
-	if utils.SliceContainsStr(res, callerField) {
+	if slices.Contains(res, callerField) {
 		j.callerEnabled = true
 	}
 
-	if utils.SliceContainsStr(res, componentField) {
+	if slices.Contains(res, componentField) {
 		j.componentEnabled = true
 	}
 
@@ -254,6 +247,14 @@ func (j *JSONFormatter) Format(e *log.Entry) ([]byte, error) {
 	delete(e.Data, trace.Component)
 
 	return j.JSONFormatter.Format(e)
+}
+
+func NewTestJSONFormatter() *JSONFormatter {
+	formatter := &JSONFormatter{}
+	if err := formatter.CheckAndSetDefaults(); err != nil {
+		panic(err)
+	}
+	return formatter
 }
 
 func (w *writer) writeError(value interface{}) {

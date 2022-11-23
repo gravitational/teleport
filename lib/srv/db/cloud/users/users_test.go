@@ -25,16 +25,16 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	clients "github.com/gravitational/teleport/lib/cloud"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 	libsecrets "github.com/gravitational/teleport/lib/srv/db/secrets"
-	"github.com/gravitational/trace"
 )
 
 var managedTags = map[string]string{
@@ -72,7 +72,7 @@ func TestUsers(t *testing.T) {
 	db6 := mustCreateMemoryDBDatabase(t, "db6", "acl1")
 
 	users, err := NewUsers(Config{
-		Clients: &common.TestCloudClients{
+		Clients: &clients.TestCloudClients{
 			ElastiCache:    ecMock,
 			MemoryDB:       mdbMock,
 			SecretsManager: smMock,

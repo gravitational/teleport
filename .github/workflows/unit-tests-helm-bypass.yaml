@@ -1,0 +1,19 @@
+# https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/defining-the-mergeability-of-pull-requests/troubleshooting-required-status-checks#handling-skipped-but-required-checks
+name: Unit Tests (Helm)
+run-name: Unit Tests (Helm) - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'examples/chart/**'
+
+jobs:
+  test:
+    name: Unit Tests (Helm)
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: none
+
+    steps:
+      - run: 'echo "No changes to verify"'

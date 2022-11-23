@@ -16,22 +16,18 @@ limitations under the License.
 
 package bpf
 
-// #cgo LDFLAGS: -ldl
-// #include <dlfcn.h>
-// #include <stdlib.h>
 import "C"
 
 import (
 	"context"
 
+	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"github.com/coreos/go-semver/semver"
 )
 
 // BPF implements an interface to open and close a recording session.
@@ -131,12 +127,12 @@ func (s *NOP) Close() error {
 }
 
 // OpenSession opens a NOP session. Note this function does nothing.
-func (s *NOP) OpenSession(ctx *SessionContext) (uint64, error) {
+func (s *NOP) OpenSession(_ *SessionContext) (uint64, error) {
 	return 0, nil
 }
 
 // CloseSession closes a NOP session. Note this function does nothing.
-func (s *NOP) CloseSession(ctx *SessionContext) error {
+func (s *NOP) CloseSession(_ *SessionContext) error {
 	return nil
 }
 

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package changes implements a script to analyse the changes between
+// Package changes implements a script to analyze the changes between
 // a commit and a given branch. It is designed for use when comparing
 // the tip of a PR against the merge target
 package changes
@@ -29,11 +29,20 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Changes describes the kind of changes found in the analysed workspace.
+// Changes describes the kind of changes found in the analyzed workspace.
 type Changes struct {
+	CI         bool
 	Docs       bool
 	Code       bool
 	Enterprise bool
+	Helm       bool
+	Operator   bool
+	Rust       bool
+}
+
+// HasCodeChanges returns true if the changeset includes code changes.
+func (c Changes) HasCodeChanges() bool {
+	return c.Code || c.Helm || c.CI || c.Rust || c.Operator
 }
 
 // Analyze examines the workspace for specific changes using its git history,
@@ -64,6 +73,18 @@ func Analyze(workspaceDir string, targetBranch string, commitSHA string) (Change
 		case isDocChange(path):
 			report.Docs = true
 
+		case isHelmChange(path):
+			report.Helm = true
+
+		case isRustChange(path):
+			report.Rust = true
+
+		case isCIChange(path):
+			report.CI = true
+
+		case isOperatorChange(path):
+			report.Operator = true
+
 		default:
 			report.Code = true
 		}
@@ -78,12 +99,41 @@ func Analyze(workspaceDir string, targetBranch string, commitSHA string) (Change
 	return report, nil
 }
 
+func isCIChange(path string) bool {
+	path = strings.ToLower(path)
+	return strings.HasPrefix(path, ".cloudbuild/scripts")
+}
+
+func isOperatorChange(path string) bool {
+	path = strings.ToLower(path)
+	// dependency updates can impact CRD generation,
+	// so ensure that operator tests are run when
+	// dependencies change
+	return path == "go.mod" ||
+		path == "go.sum" ||
+		strings.HasPrefix(path, "operator/") ||
+		strings.HasPrefix(path, "api/types") || // the operator uses directly Teleport types
+		strings.HasPrefix(path, "lib/tbot") // the operator embeds a tbot instance
+}
+
 func isDocChange(path string) bool {
 	path = strings.ToLower(path)
 	return strings.HasPrefix(path, "docs/") ||
 		strings.HasSuffix(path, ".mdx") ||
 		strings.HasSuffix(path, ".md") ||
 		strings.HasPrefix(path, "rfd/")
+}
+
+func isRustChange(path string) bool {
+	path = strings.ToLower(path)
+	return strings.HasSuffix(path, ".rs") ||
+		strings.HasSuffix(path, "Cargo.toml") ||
+		strings.HasSuffix(path, "Cargo.lock")
+}
+
+func isHelmChange(path string) bool {
+	path = strings.ToLower(path)
+	return strings.HasPrefix(path, "examples/chart/")
 }
 
 // getChanges resolves the head of target branch and compares the trees at the

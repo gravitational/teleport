@@ -66,22 +66,23 @@ func ValidatePatterns(workspace string, patterns []string) ([]string, error) {
 // so be wary of including multiple artifacts with the same name.
 //
 // For example, given a directory tree that looks like
-//   /
-//   ├── mystery-machine.yaml
-//   ├── dogs
-//   │   └── scooby.yaml
-//   └── people
-//       └── shaggy.yaml
+//
+//	/
+//	├── mystery-machine.yaml
+//	├── dogs
+//	│   └── scooby.yaml
+//	└── people
+//	    └── shaggy.yaml
 //
 // calling
-//   Upload(ctx, "bucket-name", "build-unique-id", []string{"/**/*.yaml"}))
+//
+//	Upload(ctx, "bucket-name", "build-unique-id", []string{"/**/*.yaml"}))
 //
 // will result in a bucket with the added objects
 //
 // - "build-unique-id/mystery-machine.yaml"
 // - "build-unique-id/scooby.yaml"
 // - "build-unique-id/shaggy.yaml"
-//
 func FindAndUpload(ctx context.Context, bucketName, objectPrefix string, artifactPatterns []string) error {
 	artifacts := find(artifactPatterns)
 
@@ -141,14 +142,13 @@ func find(artifactPatterns []string) []string {
 	return artifacts
 }
 
-// upload uploads a set of files to the indicated artefact bucket with the
+// upload uploads a set of files to the indicated artifact bucket with the
 // supplied prefix.
 //
 // Note that artifacts from various paths will be aggregated into one place in
 // the bucket under the supplied prefix, using the file's base name to
 // disambiguate. Be wary of including multiple artifacts with the same name, as
 // later object may clobber earlier ones.
-//
 func upload(ctx context.Context, bucket bucketHandle, prefix string, files []string) error {
 	var uploadErrors *multierror.Error
 

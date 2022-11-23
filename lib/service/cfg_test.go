@@ -22,13 +22,13 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -74,7 +74,7 @@ func TestDefaultConfig(t *testing.T) {
 
 	// auth section
 	auth := config.Auth
-	require.Equal(t, auth.SSHAddr, localAuthAddr)
+	require.Equal(t, auth.ListenAddr, localAuthAddr)
 	require.Equal(t, auth.Limiter.MaxConnections, int64(defaults.LimiterMaxConnections))
 	require.Equal(t, auth.Limiter.MaxNumberOfUsers, defaults.LimiterMaxConcurrentUsers)
 	require.Equal(t, config.Auth.StorageConfig.Type, lite.GetName())
@@ -93,8 +93,6 @@ func TestDefaultConfig(t *testing.T) {
 
 	// Misc levers and dials
 	require.Equal(t, config.RotationConnectionInterval, defaults.HighResPollingPeriod)
-	require.Equal(t, config.RestartThreshold.Amount, defaults.MaxConnectionErrorsBeforeRestart)
-	require.Equal(t, config.RestartThreshold.Time, defaults.ConnectionErrorMeasurementPeriod)
 }
 
 // TestCheckApp validates application configuration.

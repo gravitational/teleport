@@ -25,16 +25,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils/sshutils"
-
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
 // TestChConn validates that reads from the channel connection can be
 // canceled by setting a read deadline.
 func TestChConn(t *testing.T) {
+	t.Parallel()
+
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { listener.Close() })

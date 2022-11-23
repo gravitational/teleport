@@ -24,10 +24,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gravitational/teleport/api/profile"
-
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v2"
+
+	"github.com/gravitational/teleport/api/profile"
 )
 
 // .tsh config must go in a subdir as all .yaml files in .tsh get
@@ -45,6 +45,8 @@ type TshConfig struct {
 	ExtraHeaders []ExtraProxyHeaders `yaml:"add_headers,omitempty"`
 	// ProxyTemplates describe rules for parsing out proxy out of full hostnames.
 	ProxyTemplates ProxyTemplates `yaml:"proxy_templates,omitempty"`
+	// Aliases are custom commands extending baseline tsh functionality.
+	Aliases map[string]string `yaml:"aliases,omitempty"`
 }
 
 // Check validates the tsh config.
@@ -80,6 +82,14 @@ func (config *TshConfig) Merge(otherConfig *TshConfig) TshConfig {
 	newConfig := TshConfig{}
 	newConfig.ExtraHeaders = append(otherConfig.ExtraHeaders, baseConfig.ExtraHeaders...)
 	newConfig.ProxyTemplates = append(otherConfig.ProxyTemplates, baseConfig.ProxyTemplates...)
+
+	newConfig.Aliases = map[string]string{}
+	for key, value := range baseConfig.Aliases {
+		newConfig.Aliases[key] = value
+	}
+	for key, value := range otherConfig.Aliases {
+		newConfig.Aliases[key] = value
+	}
 
 	return newConfig
 }

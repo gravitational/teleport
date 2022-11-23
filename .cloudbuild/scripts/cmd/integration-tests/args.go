@@ -20,9 +20,10 @@ import (
 	"flag"
 	"path/filepath"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/artifacts"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/customflag"
-	"github.com/gravitational/trace"
 )
 
 type commandlineArgs struct {
@@ -68,7 +69,7 @@ func (args *commandlineArgs) validate() error {
 
 		args.artifactSearchPatterns, err = artifacts.ValidatePatterns(args.workspace, args.artifactSearchPatterns)
 		if err != nil {
-			return trace.Wrap(err, "Bad artefact search path")
+			return trace.Wrap(err, "Bad artifact search path")
 		}
 	}
 

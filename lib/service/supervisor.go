@@ -20,11 +20,12 @@ import (
 	"context"
 	"fmt"
 	"sync"
-
-	"github.com/gravitational/teleport"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
 )
 
 // Supervisor implements the simple service logic - registering
@@ -65,14 +66,20 @@ type Supervisor interface {
 	// subscribed parties.
 	BroadcastEvent(Event)
 
-	// WaitForEvent arranges for eventC to receive events with the specified name if
-	// none was broadcasted already; if the event was already broadcasted, eventC
-	// will only receive the latest value immediately.
-	WaitForEvent(ctx context.Context, name string, eventC chan<- Event)
+	// WaitForEvent waits for one event with the specified name (returns the
+	// latest such event if at least one has been broadcasted already, ignoring
+	// the context). Returns an error if the context is canceled before an event
+	// is received.
+	WaitForEvent(ctx context.Context, name string) (Event, error)
+
+	// WaitForEventTimeout waits for one event with the specified name (returns the
+	// latest such event if at least one has been broadcasted already). Returns
+	// an error if the timeout triggers before an event is received.
+	WaitForEventTimeout(timeout time.Duration, name string) (Event, error)
 
 	// ListenForEvents arranges for eventC to receive events with the specified
 	// name; if the event was already broadcasted, eventC will receive the latest
-	// value immediately.
+	// value immediately. The broadcasting will stop when the context is done.
 	ListenForEvents(ctx context.Context, name string, eventC chan<- Event)
 
 	// RegisterEventMapping registers event mapping -
@@ -413,25 +420,36 @@ func (s *LocalSupervisor) RegisterEventMapping(m EventMapping) {
 	s.eventMappings = append(s.eventMappings, m)
 }
 
-// WaitForEvent arranges for eventC to receive events with the specified name if
-// none was broadcasted already; if the event was already broadcasted, eventC
-// will only receive the latest value immediately.
-func (s *LocalSupervisor) WaitForEvent(ctx context.Context, name string, eventC chan<- Event) {
+func (s *LocalSupervisor) WaitForEvent(ctx context.Context, name string) (Event, error) {
 	s.Lock()
-	defer s.Unlock()
 
-	waiter := &waiter{eventC: eventC, context: ctx}
-	event, ok := s.events[name]
-	if ok {
-		go waiter.notify(event)
-		return
+	if event, ok := s.events[name]; ok {
+		s.Unlock()
+		return event, nil
 	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	eventC := make(chan Event)
+	waiter := &waiter{eventC: eventC, context: ctx}
 	s.eventWaiters[name] = append(s.eventWaiters[name], waiter)
+	s.Unlock()
+
+	select {
+	case event := <-eventC:
+		return event, nil
+	case <-ctx.Done():
+		return Event{}, trace.Wrap(ctx.Err())
+	}
 }
 
-// ListenForEvents arranges for eventC to receive events with the specified
-// name; if the event was already broadcasted, eventC will receive the latest
-// value immediately.
+func (s *LocalSupervisor) WaitForEventTimeout(timeout time.Duration, name string) (Event, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return s.WaitForEvent(ctx, name)
+}
+
 func (s *LocalSupervisor) ListenForEvents(ctx context.Context, name string, eventC chan<- Event) {
 	s.Lock()
 	defer s.Unlock()

@@ -22,11 +22,12 @@ import (
 	"strings"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/trace"
+	"github.com/vulcand/predicate"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/vulcand/predicate"
 )
 
 var MinSupportedModeratedSessionsVersion = semver.New(utils.VersionBeforeAlpha("9.0.0"))
@@ -43,14 +44,16 @@ type SessionAccessEvaluator struct {
 	kind        types.SessionKind
 	policySets  []*types.SessionTrackerPolicySet
 	isModerated bool
+	owner       string
 }
 
 // NewSessionAccessEvaluator creates a new session access evaluator for a given session kind
 // and a set of roles attached to the host user.
-func NewSessionAccessEvaluator(policySets []*types.SessionTrackerPolicySet, kind types.SessionKind) SessionAccessEvaluator {
+func NewSessionAccessEvaluator(policySets []*types.SessionTrackerPolicySet, kind types.SessionKind, owner string) SessionAccessEvaluator {
 	e := SessionAccessEvaluator{
 		kind:       kind,
 		policySets: policySets,
+		owner:      owner,
 	}
 
 	for _, policySet := range policySets {
@@ -95,7 +98,15 @@ type SessionAccessContext struct {
 func (ctx *SessionAccessContext) GetIdentifier(fields []string) (interface{}, error) {
 	if fields[0] == "user" {
 		if len(fields) == 2 || len(fields) == 3 {
-			switch fields[1] {
+			checkedFieldIdx := 1
+			// Unify the format. Moderated session originally skipped the spec field (user.roles was used instead of
+			// user.spec.roles) which was not aligned with how our roles filtering works.
+			// Here we try support both cases. We don't want to modify the original fields slice,
+			// as that would change the reported error message (see return below).
+			if len(fields) == 3 && fields[1] == "spec" {
+				checkedFieldIdx = 2
+			}
+			switch fields[checkedFieldIdx] {
 			case "name":
 				return ctx.Username, nil
 			case "roles":
@@ -187,6 +198,11 @@ func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) []types.Sess
 	// If we don't support session access controls, return the default mode set that was supported prior to Moderated Sessions.
 	if !HasV5Role(user.Roles) {
 		return preAccessControlsModes(e.kind)
+	}
+
+	// Session owners can always join their own sessions.
+	if user.Username == e.owner {
+		return []types.SessionParticipantMode{types.SessionPeerMode, types.SessionModeratorMode, types.SessionObserverMode}
 	}
 
 	var modes []types.SessionParticipantMode

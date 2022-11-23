@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
@@ -35,6 +36,16 @@ func ValidateUser(u types.User) error {
 	}
 	if localAuth := u.GetLocalAuth(); localAuth != nil {
 		if err := ValidateLocalAuthSecrets(localAuth); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// ValidateUserRoles checks that all the roles in the user exist
+func ValidateUserRoles(ctx context.Context, u types.User, roleGetter RoleGetter) error {
+	for _, role := range u.GetRoles() {
+		if _, err := roleGetter.GetRole(ctx, role); err != nil {
 			return trace.Wrap(err)
 		}
 	}

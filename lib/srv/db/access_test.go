@@ -28,10 +28,12 @@ import (
 	"testing"
 	"time"
 
+	cqlclient "github.com/datastax/go-cassandra-native-protocol/client"
 	mssql "github.com/denisenkom/go-mssqldb"
+	elastic "github.com/elastic/go-elasticsearch/v8"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	mysqllib "github.com/go-mysql-org/go-mysql/mysql"
-	goredis "github.com/go-redis/redis/v8"
+	goredis "github.com/go-redis/redis/v9"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
@@ -48,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -58,8 +61,10 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -997,7 +1002,7 @@ func TestRedisPubSub(t *testing.T) {
 			require.NoError(t, err)
 
 			var fooSub *goredis.PubSub
-			// Create a synchronisation channel between publisher and subscriber
+			// Create a synchronization channel between publisher and subscriber
 			syncChan := make(chan bool)
 
 			go func() {
@@ -1060,10 +1065,6 @@ func TestRedisPipeline(t *testing.T) {
 	})
 
 	pipeliner := redisClient.Pipeline()
-	t.Cleanup(func() {
-		err = pipeliner.Close()
-		require.NoError(t, err)
-	})
 
 	// Set multiple keys using pipelining.
 	for i := 0; i < 10; i++ {
@@ -1151,7 +1152,7 @@ func TestRedisTransaction(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	// use just 2 concurrent connections as we want to test our proxy/protocol behaviour not Redis concurrency.
+	// use just 2 concurrent connections as we want to test our proxy/protocol behavior not Redis concurrency.
 	const concurrentConnections = 2
 
 	// Create a channel for potential transaction errors, as testify require package cannot be used from a goroutine.
@@ -1229,6 +1230,10 @@ type testContext struct {
 	sqlServer map[string]testSQLServer
 	// snowflake is a collection of Snowflake databases the test uses.
 	snowflake map[string]testSnowflake
+	// cassandra is a collection of Cassandra databases the test uses.
+	cassandra map[string]testCassandra
+	// elasticsearch is a collection of Elasticsearch databases the test uses.
+	elasticsearch map[string]testElasticsearch
 	// clock to override clock in tests.
 	clock clockwork.FakeClock
 }
@@ -1277,6 +1282,21 @@ type testSnowflake struct {
 	// db is the test Snowflake database server.
 	db *snowflake.TestServer
 	// resource is the resource representing this Snowflake database.
+	resource types.Database
+}
+
+// testCassandra represents a single proxied Cassandra database.
+type testCassandra struct {
+	// db is the test Cassandra database server.
+	db *cassandra.TestServer
+	// resource is the resource representing this Cassandra database.
+	resource types.Database
+}
+
+type testElasticsearch struct {
+	// db is the test elasticsearch database server.
+	db *elasticsearch.TestServer
+	// resource is the resource representing this elasticsearch database.
 	resource types.Database
 }
 
@@ -1538,16 +1558,75 @@ func (c *testContext) sqlServerClient(ctx context.Context, teleportUser, dbServi
 	return client, proxy, nil
 }
 
+// cassandraClient connects to test Cassandra through database access as a specified Teleport user and database account.
+func (c *testContext) cassandraClient(ctx context.Context, teleportUser, dbService, dbUser string, opts ...cassandra.ClientOptions) (*cassandra.Session, error) {
+	return c.cassandraClientWithAddr(ctx, c.webListener.Addr().String(), teleportUser, dbService, dbUser, opts...)
+}
+
+// cassandraRawClient connects to test Cassandra through using a raw connection that
+// allows to send/receive a native Cassandra protocol frames.
+func (c *testContext) cassandraRawClient(ctx context.Context, teleportUser, dbService, dbUser string, opts ...cassandra.ClientOptions) (*cqlclient.CqlClientConnection, error) {
+	options := cassandra.ClientOptionsParams{
+		Username: "cassandra",
+	}
+	for _, opt := range opts {
+		opt(&options)
+	}
+	cc := cqlclient.NewCqlClient(c.webListener.Addr().String(), &cqlclient.AuthCredentials{
+		Username: options.Username,
+		Password: "cassandra",
+	})
+	cc.ReadTimeout = time.Hour
+	cc.ConnectTimeout = time.Hour
+	tlsConfig, err := common.MakeTestClientTLSConfig(common.TestClientConfig{
+		AuthClient: c.authClient,
+		AuthServer: c.authServer,
+		Address:    c.webListener.Addr().String(),
+		Cluster:    c.clusterName,
+		Username:   teleportUser,
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: dbService,
+			Protocol:    defaults.ProtocolCassandra,
+			Username:    dbUser,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cc.TLSConfig = tlsConfig
+	pp, err := cc.Connect(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return pp, nil
+}
+
+// cassandraClientWithAddr is like cassandraClient but allows overriding connection address.
+func (c *testContext) cassandraClientWithAddr(ctx context.Context, proxyAddress, teleportUser, dbService, dbUser string, opts ...cassandra.ClientOptions) (*cassandra.Session, error) {
+	return cassandra.MakeTestClient(ctx, common.TestClientConfig{
+		AuthClient: c.authClient,
+		AuthServer: c.authServer,
+		Address:    proxyAddress,
+		Cluster:    c.clusterName,
+		Username:   teleportUser,
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: dbService,
+			Protocol:    defaults.ProtocolCassandra,
+			Username:    dbUser,
+		},
+	}, opts...)
+}
+
 // startLocalALPNProxy starts local ALPN proxy for the specified database.
 func (c *testContext) startLocalALPNProxy(ctx context.Context, proxyAddr, teleportUser string, route tlsca.RouteToDatabase) (*alpnproxy.LocalProxy, error) {
-	key, err := client.NewKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	clientCert, err := c.authServer.GenerateDatabaseTestCert(
 		auth.DatabaseTestCertRequest{
-			PublicKey:       key.Pub,
+			PublicKey:       key.MarshalSSHPublicKey(),
 			Cluster:         c.clusterName,
 			Username:        teleportUser,
 			RouteToDatabase: route,
@@ -1556,7 +1635,7 @@ func (c *testContext) startLocalALPNProxy(ctx context.Context, proxyAddr, telepo
 		return nil, trace.Wrap(err)
 	}
 
-	tlsCert, err := tls.X509KeyPair(clientCert, key.Priv)
+	tlsCert, err := key.TLSCertificate(clientCert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1603,6 +1682,34 @@ func (c *testContext) snowflakeClient(ctx context.Context, teleportUser, dbServi
 	}
 
 	db, err := snowflake.MakeTestClient(ctx, common.TestClientConfig{
+		AuthClient:      c.authClient,
+		AuthServer:      c.authServer,
+		Address:         proxy.GetAddr(),
+		Cluster:         c.clusterName,
+		Username:        teleportUser,
+		RouteToDatabase: route,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return db, proxy, nil
+}
+
+// elasticsearchClient returns an Elasticsearch test DB client.
+func (c *testContext) elasticsearchClient(ctx context.Context, teleportUser, dbService, dbUser string) (*elastic.Client, *alpnproxy.LocalProxy, error) {
+	route := tlsca.RouteToDatabase{
+		ServiceName: dbService,
+		Protocol:    defaults.ProtocolElasticsearch,
+		Username:    dbUser,
+	}
+
+	proxy, err := c.startLocalALPNProxy(ctx, c.webListener.Addr().String(), teleportUser, route)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	db, err := elasticsearch.MakeTestClient(ctx, common.TestClientConfig{
 		AuthClient:      c.authClient,
 		AuthServer:      c.authServer,
 		Address:         proxy.GetAddr(),
@@ -1669,15 +1776,17 @@ func init() {
 
 func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDatabaseOption) *testContext {
 	testCtx := &testContext{
-		clusterName: "root.example.com",
-		hostID:      uuid.New().String(),
-		postgres:    make(map[string]testPostgres),
-		mysql:       make(map[string]testMySQL),
-		mongo:       make(map[string]testMongoDB),
-		redis:       make(map[string]testRedis),
-		sqlServer:   make(map[string]testSQLServer),
-		snowflake:   make(map[string]testSnowflake),
-		clock:       clockwork.NewFakeClockAt(time.Now()),
+		clusterName:   "root.example.com",
+		hostID:        uuid.New().String(),
+		postgres:      make(map[string]testPostgres),
+		mysql:         make(map[string]testMySQL),
+		mongo:         make(map[string]testMongoDB),
+		redis:         make(map[string]testRedis),
+		sqlServer:     make(map[string]testSQLServer),
+		snowflake:     make(map[string]testSnowflake),
+		elasticsearch: make(map[string]testElasticsearch),
+		cassandra:     make(map[string]testCassandra),
+		clock:         clockwork.NewFakeClockAt(time.Now()),
 	}
 	t.Cleanup(func() { testCtx.Close() })
 
@@ -1859,7 +1968,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 	// Create test database auth tokens generator.
 	testAuth, err := newTestAuth(common.AuthConfig{
 		AuthClient: c.authClient,
-		Clients:    &common.TestCloudClients{},
+		Clients:    &clients.TestCloudClients{},
 		Clock:      c.clock,
 	})
 	require.NoError(t, err)
@@ -1881,6 +1990,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		TLSConfig:        tlsConfig,
 		Limiter:          connLimiter,
 		Auth:             testAuth,
+		Emitter:          c.emitter,
 		Databases:        p.Databases,
 		OnHeartbeat:      p.OnHeartbeat,
 		ResourceMatchers: p.ResourceMatchers,
@@ -1900,7 +2010,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		},
 		OnReconcile: p.OnReconcile,
 		LockWatcher: lockWatcher,
-		CloudClients: &common.TestCloudClients{
+		CloudClients: &clients.TestCloudClients{
 			STS:            &cloud.STSMock{},
 			RDS:            &cloud.RDSMock{},
 			Redshift:       &cloud.RedshiftMock{},
@@ -1969,7 +2079,9 @@ func withRDSPostgres(name, authToken string) withDatabaseOption {
 				Region: testAWSRegion,
 			},
 			// Set CA cert, otherwise we will attempt to download RDS roots.
-			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			TLS: types.DatabaseTLS{
+				CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			},
 		})
 		require.NoError(t, err)
 		testCtx.postgres[name] = testPostgres{
@@ -2001,7 +2113,9 @@ func withRedshiftPostgres(name, authToken string) withDatabaseOption {
 				Redshift: types.Redshift{ClusterID: "redshift-cluster-1"},
 			},
 			// Set CA cert, otherwise we will attempt to download Redshift roots.
-			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			TLS: types.DatabaseTLS{
+				CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			},
 		})
 		require.NoError(t, err)
 		testCtx.postgres[name] = testPostgres{
@@ -2036,7 +2150,9 @@ func withCloudSQLPostgres(name, authToken string) withDatabaseOption {
 				InstanceID: "instance-1",
 			},
 			// Set CA cert to pass cert validation.
-			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			TLS: types.DatabaseTLS{
+				CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			},
 		})
 		require.NoError(t, err)
 		testCtx.postgres[name] = testPostgres{
@@ -2067,7 +2183,9 @@ func withAzurePostgres(name, authToken string) withDatabaseOption {
 				Name: name,
 			},
 			// Set CA cert, otherwise we will attempt to download RDS roots.
-			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			TLS: types.DatabaseTLS{
+				CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			},
 		})
 		require.NoError(t, err)
 		testCtx.postgres[name] = testPostgres{
@@ -2315,6 +2433,38 @@ func withSQLServer(name string) withDatabaseOption {
 		require.NoError(t, err)
 		testCtx.sqlServer[name] = testSQLServer{
 			db:       sqlServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
+func withAzureRedis(name string, token string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+		}, redis.TestServerPassword(token))
+		require.NoError(t, err)
+
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolRedis,
+			URI:           fmt.Sprintf("rediss://%s", net.JoinHostPort("localhost", redisServer.Port())),
+			DynamicLabels: dynamicLabels,
+			Azure: types.Azure{
+				Name:       name,
+				ResourceID: "/subscriptions/sub-id/resourceGroups/group-name/providers/Microsoft.Cache/Redis/example-teleport",
+			},
+			// Set CA cert to pass cert validation.
+			TLS: types.DatabaseTLS{
+				CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			},
+		})
+		require.NoError(t, err)
+		testCtx.redis[name] = testRedis{
+			db:       redisServer,
 			resource: database,
 		}
 		return database

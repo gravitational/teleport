@@ -21,22 +21,25 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/reversetunnel/track"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/reversetunnel/track"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type mockSSHClient struct {
-	MockSendRequest       func(name string, wantReply bool, payload []byte) (bool, []byte, error)
-	MockOpenChannel       func(name string, data []byte) (ssh.Channel, <-chan *ssh.Request, error)
+	MockSendRequest       func(ctx context.Context, name string, wantReply bool, payload []byte) (bool, []byte, error)
+	MockOpenChannel       func(ctx context.Context, name string, data []byte) (*tracessh.Channel, <-chan *ssh.Request, error)
 	MockClose             func() error
 	MockReply             func(*ssh.Request, bool, []byte) error
 	MockPrincipals        []string
@@ -56,16 +59,16 @@ func (m *mockSSHClient) RemoteAddr() net.Addr { return nil }
 
 func (m *mockSSHClient) LocalAddr() net.Addr { return nil }
 
-func (m *mockSSHClient) SendRequest(name string, wantReply bool, payload []byte) (bool, []byte, error) {
+func (m *mockSSHClient) SendRequest(ctx context.Context, name string, wantReply bool, payload []byte) (bool, []byte, error) {
 	if m.MockSendRequest != nil {
-		return m.MockSendRequest(name, wantReply, payload)
+		return m.MockSendRequest(ctx, name, wantReply, payload)
 	}
 	return false, nil, trace.NotImplemented("")
 }
 
-func (m *mockSSHClient) OpenChannel(name string, data []byte) (ssh.Channel, <-chan *ssh.Request, error) {
+func (m *mockSSHClient) OpenChannel(ctx context.Context, name string, data []byte) (*tracessh.Channel, <-chan *ssh.Request, error) {
 	if m.MockOpenChannel != nil {
-		return m.MockOpenChannel(name, data)
+		return m.MockOpenChannel(ctx, name, data)
 	}
 	return nil, nil, trace.NotImplemented("")
 }
@@ -134,7 +137,7 @@ type mockAgentInjection struct {
 	client SSHClient
 }
 
-func (m *mockAgentInjection) transport(context.Context, ssh.Channel, <-chan *ssh.Request, ssh.Conn) *transport {
+func (m *mockAgentInjection) transport(context.Context, ssh.Channel, <-chan *ssh.Request, sshutils.Conn) *transport {
 	return &transport{}
 }
 
@@ -153,7 +156,9 @@ func testAgent(t *testing.T) (*agent, *mockSSHClient) {
 	require.NoError(t, err)
 
 	addr := utils.NetAddr{Addr: "test-proxy-addr"}
+
 	tracker.Start()
+	t.Cleanup(tracker.StopAll)
 
 	lease := <-tracker.Acquire()
 
@@ -235,7 +240,11 @@ func TestAgentFailedToClaimLease(t *testing.T) {
 	agent.tracker.Claim(claimedProxy)
 
 	client.MockPrincipals = []string{claimedProxy}
-	err := agent.Start(context.Background())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	err := agent.Start(ctx)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "Failed to claim proxy", "Expected failed to claim proxy error.")
 
@@ -254,8 +263,9 @@ func TestAgentStart(t *testing.T) {
 	callback := newCallback()
 	agent.stateCallback = callback.callback
 
-	openChannels := 0
-	sentPings := 0
+	openChannels := new(int32)
+	sentPings := new(int32)
+	versionReplies := new(int32)
 
 	waitForVersion := make(chan struct{})
 	go func() {
@@ -264,39 +274,48 @@ func TestAgentStart(t *testing.T) {
 		}
 	}()
 
-	client.MockOpenChannel = func(name string, data []byte) (ssh.Channel, <-chan *ssh.Request, error) {
+	client.MockOpenChannel = func(ctx context.Context, name string, data []byte) (*tracessh.Channel, <-chan *ssh.Request, error) {
 		// Block until the version request is handled to ensure we handle
 		// global requests during startup.
 		<-waitForVersion
 
-		openChannels++
+		atomic.AddInt32(openChannels, 1)
 		assert.Equal(t, name, chanHeartbeat, "Unexpected channel opened during startup.")
-		return &mockSSHChannel{MockSendRequest: func(name string, wantReply bool, payload []byte) (bool, error) {
-			sentPings++
+		return tracessh.NewTraceChannel(
+				&mockSSHChannel{
+					MockSendRequest: func(name string, wantReply bool, payload []byte) (bool, error) {
+						atomic.AddInt32(sentPings, 1)
 
-			assert.Equal(t, name, "ping", "Unexpected request name.")
-			assert.False(t, wantReply, "Expected no reply wanted.")
-			return true, nil
-		}}, make(<-chan *ssh.Request), nil
+						assert.Equal(t, name, "ping", "Unexpected request name.")
+						assert.False(t, wantReply, "Expected no reply wanted.")
+						return true, nil
+					},
+				},
+			),
+			make(<-chan *ssh.Request),
+			nil
 	}
 
-	versionReplies := 0
 	client.MockReply = func(r *ssh.Request, b1 bool, b2 []byte) error {
+		atomic.AddInt32(versionReplies, 1)
+
 		// Unblock once we receive a version reply.
 		close(waitForVersion)
-		versionReplies++
 
 		assert.Equal(t, versionRequest, r.Type, "Unexpected request type.")
 		assert.Equal(t, teleport.Version, string(b2), "Unexpected version.")
 		return nil
 	}
 
-	err := agent.Start(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	err := agent.Start(ctx)
 
 	require.NoError(t, err)
-	require.Equal(t, 1, openChannels, "Expected only heartbeat channel to be opened.")
-	require.GreaterOrEqual(t, 1, sentPings, "Expected at least 1 ping to be sent.")
-	require.Equal(t, 1, versionReplies, "Expected 1 version reply.")
+	require.Equal(t, 1, int(atomic.LoadInt32(openChannels)), "Expected only heartbeat channel to be opened.")
+	require.GreaterOrEqual(t, 1, int(atomic.LoadInt32(sentPings)), "Expected at least 1 ping to be sent.")
+	require.Equal(t, 1, int(atomic.LoadInt32(versionReplies)), "Expected 1 version reply.")
 
 	callback.waitForCount(t, 2)
 	require.Contains(t, callback.states, AgentConnecting)

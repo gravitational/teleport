@@ -17,25 +17,24 @@ limitations under the License.
 package service
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 func (process *TeleportProcess) shouldInitDatabases() bool {
 	databasesCfg := len(process.Config.Databases.Databases) > 0
 	resourceMatchersCfg := len(process.Config.Databases.ResourceMatchers) > 0
 	awsMatchersCfg := len(process.Config.Databases.AWSMatchers) > 0
-	anyCfg := databasesCfg || resourceMatchersCfg || awsMatchersCfg
+	azureMatchersCfg := len(process.Config.Databases.AzureMatchers) > 0
+	anyCfg := databasesCfg || resourceMatchersCfg || awsMatchersCfg || azureMatchersCfg
 
 	return process.Config.Databases.Enabled && anyCfg
 }
@@ -49,22 +48,11 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	log := process.log.WithField(trace.Component, teleport.Component(
 		teleport.ComponentDatabase, process.id))
 
-	eventsCh := make(chan Event)
-	process.WaitForEvent(process.ExitContext(), DatabasesIdentityEvent, eventsCh)
-
-	var event Event
-	select {
-	case event = <-eventsCh:
-		log.Debugf("Received event %q.", event.Name)
-	case <-process.ExitContext().Done():
-		log.Debug("Process is exiting.")
-		return nil
+	conn, err := process.waitForConnector(DatabasesIdentityEvent, log)
+	if conn == nil {
+		return trace.Wrap(err)
 	}
 
-	conn, ok := (event.Payload).(*Connector)
-	if !ok {
-		return trace.BadParameter("unsupported event payload type %q", event.Payload)
-	}
 	accessPoint, err := process.newLocalCacheForDatabase(conn.Client, []string{teleport.ComponentDatabase})
 	if err != nil {
 		return trace.Wrap(err)
@@ -77,20 +65,12 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	tunnelAddrResolver := conn.TunnelProxyResolver()
 	if tunnelAddrResolver == nil {
 		tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
-	}
 
-	// Start uploader that will scan a path on disk and upload completed
-	// sessions to the auth server.
-	uploaderCfg := filesessions.UploaderConfig{
-		Streamer: accessPoint,
-		AuditLog: conn.Client,
-	}
-	completerCfg := events.UploadCompleterConfig{
-		SessionTracker: conn.Client,
-	}
-	err = process.initUploaderService(uploaderCfg, completerCfg)
-	if err != nil {
-		return trace.Wrap(err)
+		// run the resolver. this will check configuration for errors.
+		_, _, err := tunnelAddrResolver(process.ExitContext())
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Create database resources from databases defined in the static configuration.
@@ -115,7 +95,8 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					ServerVersion: db.MySQL.ServerVersion,
 				},
 				AWS: types.AWS{
-					Region: db.AWS.Region,
+					AccountID: db.AWS.AccountID,
+					Region:    db.AWS.Region,
 					Redshift: types.Redshift{
 						ClusterID: db.AWS.Redshift.ClusterID,
 					},
@@ -145,14 +126,15 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					Domain:     db.AD.Domain,
 					SPN:        db.AD.SPN,
 				},
+				Azure: types.Azure{
+					ResourceID: db.Azure.ResourceID,
+				},
 			})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		databases = append(databases, db)
 	}
-
-	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -165,6 +147,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
+	clusterName := conn.ServerIdentity.ClusterName
 	authorizer, err := auth.NewAuthorizer(clusterName, accessPoint, lockWatcher)
 	if err != nil {
 		return trace.Wrap(err)
@@ -220,6 +203,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		CloudLabels:          process.cloudLabels,
 		ResourceMatchers:     process.Config.Databases.ResourceMatchers,
 		AWSMatchers:          process.Config.Databases.AWSMatchers,
+		AzureMatchers:        process.Config.Databases.AzureMatchers,
 		OnHeartbeat:          process.onHeartbeat(teleport.ComponentDatabase),
 		LockWatcher:          lockWatcher,
 		ConnectedProxyGetter: proxyGetter,

@@ -17,11 +17,13 @@ limitations under the License.
 package config
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
 )
 
@@ -61,7 +63,10 @@ func TestConfigCLIOnlySample(t *testing.T) {
 	require.Equal(t, cf.AuthServer, cfg.AuthServer)
 
 	require.NotNil(t, cfg.Onboarding)
-	require.Equal(t, cf.Token, cfg.Onboarding.Token)
+
+	token, err := cfg.Onboarding.Token()
+	require.NoError(t, err)
+	require.Equal(t, cf.Token, token)
 	require.Equal(t, cf.CAPins, cfg.Onboarding.CAPins)
 
 	// Storage is still default
@@ -89,14 +94,18 @@ func TestConfigCLIOnlySample(t *testing.T) {
 }
 
 func TestConfigFile(t *testing.T) {
-	cfg, err := ReadConfig(strings.NewReader(exampleConfigFile))
+	configData := fmt.Sprintf(exampleConfigFile, "foo")
+	cfg, err := ReadConfig(strings.NewReader(configData))
 	require.NoError(t, err)
 
 	require.Equal(t, "auth.example.com", cfg.AuthServer)
 	require.Equal(t, time.Minute*5, cfg.RenewalInterval)
 
 	require.NotNil(t, cfg.Onboarding)
-	require.Equal(t, "foo", cfg.Onboarding.Token)
+
+	token, err := cfg.Onboarding.Token()
+	require.NoError(t, err)
+	require.Equal(t, "foo", token)
 	require.ElementsMatch(t, []string{"sha256:abc123"}, cfg.Onboarding.CAPins)
 
 	storage, err := cfg.Storage.GetDestination()
@@ -123,55 +132,25 @@ func TestConfigFile(t *testing.T) {
 	require.Equal(t, "/tmp/foo", destImplReal.Path)
 }
 
-func TestParseSSHVersion(t *testing.T) {
-	tests := []struct {
-		str     string
-		version *semver.Version
-		err     bool
-	}{
-		{
-			str:     "OpenSSH_8.2p1 Ubuntu-4ubuntu0.4, OpenSSL 1.1.1f  31 Mar 2020",
-			version: semver.New("8.2.1"),
-		},
-		{
-			str:     "OpenSSH_8.8p1, OpenSSL 1.1.1m  14 Dec 2021",
-			version: semver.New("8.8.1"),
-		},
-		{
-			str:     "OpenSSH_7.5p1, OpenSSL 1.0.2s-freebsd  28 May 2019",
-			version: semver.New("7.5.1"),
-		},
-		{
-			str:     "OpenSSH_7.9p1 Raspbian-10+deb10u2, OpenSSL 1.1.1d  10 Sep 2019",
-			version: semver.New("7.9.1"),
-		},
-		{
-			// Couldn't find a full example but in theory patch is optional:
-			str:     "OpenSSH_8.1 foo",
-			version: semver.New("8.1.0"),
-		},
-		{
-			str: "Teleport v8.0.0-dev.40 git:v8.0.0-dev.40-0-ge9194c256 go1.17.2",
-			err: true,
-		},
-	}
+func TestLoadTokenFromFile(t *testing.T) {
+	tokenDir := t.TempDir()
+	tokenFile := filepath.Join(tokenDir, "token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("xxxyyy"), 0660))
 
-	for _, test := range tests {
-		version, err := parseSSHVersion(test.str)
-		if test.err {
-			require.Error(t, err)
-		} else {
-			require.NoError(t, err)
-			require.True(t, version.Equal(*test.version), "got version = %v, want = %v", version, test.version)
-		}
-	}
+	configData := fmt.Sprintf(exampleConfigFile, tokenFile)
+	cfg, err := ReadConfig(strings.NewReader(configData))
+	require.NoError(t, err)
+
+	token, err := cfg.Onboarding.Token()
+	require.NoError(t, err)
+	require.Equal(t, token, "xxxyyy")
 }
 
 const exampleConfigFile = `
 auth_server: auth.example.com
 renewal_interval: 5m
 onboarding:
-  token: foo
+  token: %s
   ca_pins:
     - sha256:abc123
 storage:

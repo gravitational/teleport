@@ -18,10 +18,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func Test_formatString(t *testing.T) {
@@ -91,6 +91,7 @@ options:
   forward_agent: false
   pin_source_ip: false
   record_session: null
+  ssh_file_copy: null
 `,
 		},
 	}
@@ -135,7 +136,8 @@ func Test_formatJSON(t *testing.T) {
         "desktop_clipboard": null,
         "desktop_directory_sharing": null,
         "create_host_user": null,
-        "pin_source_ip": false
+        "pin_source_ip": false,
+        "ssh_file_copy": null
     },
     "allow": {
         "logins": [

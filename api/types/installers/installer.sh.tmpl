@@ -1,0 +1,46 @@
+#!/bin/sh
+(
+  flock -n 9 || exit 1
+  if test -f /usr/local/bin/teleport; then
+    exit 0
+  fi
+
+  distro_id="$(awk -F= '$1 == "ID" { print tolower($2) }' /etc/os-release | xargs echo)"
+  if [ "$distro_id" = "debian" ] || [ "$distro_id" = "ubuntu" ]; then
+    sudo curl https://deb.releases.teleport.dev/teleport-pubkey.asc \
+      -o /usr/share/keyrings/teleport-archive-keyring.asc
+	. /etc/os-release
+    echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/{{ .MajorVersion }}" |
+      sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
+    sudo apt-get update
+    sudo apt-get install -y teleport jq
+  elif [ "$distro_id" = "amzn" ] || [ "$distro_id" = "rhel" ]; then
+    . /etc/os-release
+    sudo yum-config-manager --add-repo \
+      "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/{{ .MajorVersion }}/teleport.repo")"
+    sudo yum install -y teleport jq
+  else
+    echo "Unsupported distro: $distro_id"
+    exit 1
+  fi
+
+  IMDS_TOKEN=$(curl -m5 -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+  INSTANCE_INFO=$(curl -m5 -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" http://169.254.169.254/latest/dynamic/instance-identity/document)
+
+  ACCOUNT_ID="$(echo "$INSTANCE_INFO" | jq -r .accountId)"
+  INSTANCE_ID="$(echo "$INSTANCE_INFO" | jq -r .instanceId)"
+
+  # generate teleport ssh config
+  # token is read as a parameter from the AWS ssm script run and
+  # passed as the first argument to the script
+  sudo /usr/local/bin/teleport node configure \
+    --proxy="{{ .PublicProxyAddr }}" \
+    --join-method=iam \
+    --token="$1" \
+    --output=file \
+    --labels="teleport.dev/instance-id=${INSTANCE_ID},teleport.dev/account-id=${ACCOUNT_ID}"
+
+  # enable and start teleport service
+  sudo systemctl enable --now teleport
+
+) 9>/var/lock/teleport_install.lock

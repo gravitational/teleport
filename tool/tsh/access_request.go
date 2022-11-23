@@ -23,18 +23,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
 )
 
 var requestLoginHint = "use 'tsh login --request-id=<request-id>' to login with an approved request"
@@ -333,16 +332,30 @@ func showRequestTable(reqs []types.AccessRequest) error {
 		return reqs[i].GetCreationTime().After(reqs[j].GetCreationTime())
 	})
 
-	table := asciitable.MakeTable([]string{"ID", "User", "Roles", "Created (UTC)", "Status"})
+	table := asciitable.MakeTable([]string{"ID", "User", "Roles"})
+	table.AddColumn(asciitable.Column{
+		Title:         "Resources",
+		MaxCellLength: 20,
+		FootnoteLabel: "[+]",
+	})
+	table.AddFootnote("[+]",
+		"Requested resources truncated, use `tsh request show <request-id>` to view the full list")
+	table.AddColumn(asciitable.Column{Title: "Created At (UTC)"})
+	table.AddColumn(asciitable.Column{Title: "Status"})
 	now := time.Now()
 	for _, req := range reqs {
 		if now.After(req.GetAccessExpiry()) {
 			continue
 		}
+		resourceIDsString, err := types.ResourceIDsToString(req.GetRequestedResourceIDs())
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		table.AddRow([]string{
 			req.GetName(),
 			req.GetUser(),
 			strings.Join(req.GetRoles(), ","),
+			resourceIDsString,
 			req.GetCreationTime().UTC().Format(time.RFC822),
 			req.GetState().String(),
 		})
@@ -366,19 +379,10 @@ func onRequestSearch(cf *CLIConf) error {
 	}
 	defer proxyClient.Close()
 
-	authClient, err := proxyClient.CurrentClusterAccessPoint(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	clusterNameResource, err := authClient.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	clusterName := clusterNameResource.GetClusterName()
+	authClient := proxyClient.CurrentCluster()
 
 	req := proto.ListResourcesRequest{
-		ResourceType:        searchKindFixup(cf.ResourceKind),
+		ResourceType:        services.MapResourceKindToListResourcesType(cf.ResourceKind),
 		Labels:              tc.Labels,
 		PredicateExpression: cf.PredicateExpression,
 		SearchKeywords:      tc.SearchKeywords,
@@ -392,18 +396,18 @@ func onRequestSearch(cf *CLIConf) error {
 
 	var resources types.ResourcesWithLabels
 	for _, result := range results {
-		fixedResources, err := resultKindFixup(result, cf.ResourceKind)
+		leafResources, err := services.MapListResourcesResultToLeafResource(result, cf.ResourceKind)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		resources = append(resources, fixedResources...)
+		resources = append(resources, leafResources...)
 	}
 
-	rows := [][]string{}
+	var rows [][]string
 	var resourceIDs []string
 	for _, resource := range resources {
 		resourceID := types.ResourceIDToString(types.ResourceID{
-			ClusterName: clusterName,
+			ClusterName: proxyClient.ClusterName(),
 			Kind:        resource.GetKind(),
 			Name:        resource.GetName(),
 		})
@@ -437,43 +441,19 @@ To request access to these resources, run
 	return nil
 }
 
-func searchKindFixup(kind string) string {
-	// Some resource kinds don't support search directly, run the search on the
-	// parent kind instead.
-	switch kind {
-	case types.KindApp:
-		return types.KindAppServer
-	case types.KindDatabase:
-		return types.KindDatabaseServer
-	case types.KindKubernetesCluster:
-		return types.KindKubeService
-	default:
-		return kind
+func onRequestDrop(cf *CLIConf) error {
+	tc, err := makeClient(cf, false /* useProfileLogin */)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-}
 
-func resultKindFixup(resource types.ResourceWithLabels, hint string) (types.ResourcesWithLabels, error) {
-	// The inverse of searchKindFixup, after the search map the result back to
-	// the kind we really want.
-	switch r := resource.(type) {
-	case types.AppServer:
-		return types.ResourcesWithLabels{r.GetApp()}, nil
-	case types.DatabaseServer:
-		return types.ResourcesWithLabels{r.GetDatabase()}, nil
-	case types.Server:
-		if hint == types.KindKubernetesCluster {
-			kubeClusters := r.GetKubernetesClusters()
-			resources := make(types.ResourcesWithLabels, 0, len(kubeClusters))
-			for _, kubeCluster := range kubeClusters {
-				resource, err := types.NewKubernetesClusterV3FromLegacyCluster(apidefaults.Namespace, kubeCluster)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				resources = append(resources, resource)
-			}
-			return resources, nil
-		}
-	default:
+	if len(cf.RequestIDs) == 1 && cf.RequestIDs[0] == "*" {
+		fmt.Fprintf(os.Stdout, "Dropping all active access requests...\n\n")
+	} else {
+		fmt.Fprintf(os.Stdout, "Dropping access request(s): %s...\n\n", strings.Join(cf.RequestIDs, ", "))
 	}
-	return types.ResourcesWithLabels{resource}, nil
+	if err := reissueWithRequests(cf, tc, nil /*newRequests*/, cf.RequestIDs); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(onStatus(cf))
 }

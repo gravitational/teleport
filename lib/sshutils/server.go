@@ -22,6 +22,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -29,15 +31,20 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -86,6 +93,13 @@ type Server struct {
 	// fips means Teleport started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
 	fips bool
+
+	// tracerProvider is used to create tracers capable
+	// of starting spans.
+	tracerProvider oteltrace.TracerProvider
+
+	// clock is used to control time.
+	clock clockwork.Clock
 }
 
 const (
@@ -139,6 +153,22 @@ func SetInsecureSkipHostValidation() ServerOption {
 	}
 }
 
+// SetTracerProvider sets the tracer provider for the server.
+func SetTracerProvider(provider oteltrace.TracerProvider) ServerOption {
+	return func(s *Server) error {
+		s.tracerProvider = provider
+		return nil
+	}
+}
+
+// SetClock sets the server's clock.
+func SetClock(clock clockwork.Clock) ServerOption {
+	return func(s *Server) error {
+		s.clock = clock
+		return nil
+	}
+}
+
 func NewServer(
 	component string,
 	a utils.NetAddr,
@@ -147,7 +177,7 @@ func NewServer(
 	ah AuthMethods,
 	opts ...ServerOption,
 ) (*Server, error) {
-	err := utils.RegisterPrometheusCollectors(proxyConnectionLimitHitCount)
+	err := metrics.RegisterPrometheusCollectors(proxyConnectionLimitHitCount)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -176,6 +206,11 @@ func NewServer(
 	if s.shutdownPollPeriod == 0 {
 		s.shutdownPollPeriod = defaults.ShutdownPollPeriod
 	}
+
+	if s.tracerProvider == nil {
+		s.tracerProvider = tracing.DefaultProvider()
+	}
+
 	err = s.checkArguments(a, h, hostSigners, ah)
 	if err != nil {
 		return nil, err
@@ -328,8 +363,8 @@ func (s *Server) Shutdown(ctx context.Context) error {
 				lastReport = time.Now()
 			}
 		case <-ctx.Done():
-			s.log.Infof("Context cancelled wait, returning.")
-			return trace.ConnectionProblem(err, "context cancelled")
+			s.log.Infof("Context canceled wait, returning.")
+			return trace.ConnectionProblem(err, "context canceled")
 		}
 	}
 }
@@ -384,7 +419,6 @@ func (s *Server) trackUserConnections(delta int32) int32 {
 //
 // this is the foundation of all SSH connections in Teleport (between clients
 // and proxies, proxies and servers, servers and auth, etc).
-//
 func (s *Server) HandleConnection(conn net.Conn) {
 	// initiate an SSH connection, note that we don't need to close the conn here
 	// in case of error as ssh server takes care of this
@@ -417,6 +451,13 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	wrappedConn := wrapConnection(wconn, s.log)
 	sconn, chans, reqs, err := ssh.NewServerConn(wrappedConn, &s.cfg)
 	if err != nil {
+		// Ignore EOF as these are triggered by loadbalancer health checks
+		if !errors.Is(err, io.EOF) {
+			s.log.
+				WithError(err).
+				WithField("remote_addr", conn.RemoteAddr()).
+				Warn("Error occurred in handshake for new SSH conn")
+		}
 		conn.SetDeadline(time.Time{})
 		return
 	}
@@ -459,7 +500,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// closeContext field is used to trigger starvation on cancellation by halting
 	// the acceptance of new connections; it is not intended to halt in-progress
 	// connection handling, and is therefore orthogonal to the role of ConnectionContext.
-	ctx, ccx := NewConnectionContext(ctx, wconn, sconn)
+	ctx, ccx := NewConnectionContext(ctx, wconn, sconn, SetConnectionContextClock(s.clock))
 	defer ccx.Close()
 
 	if s.newConnHandler != nil {
@@ -471,19 +512,43 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			s.log.Warnf("Dropping inbound ssh connection due to error: %v", err)
 			// Immediately dropping the ssh connection results in an
 			// EOF error for the client.  We therefore wait briefly
-			// to see if the client opens a channel, which will give
-			// us the opportunity to respond with a human-readable
-			// error.
-			select {
-			case firstChan := <-chans:
-				if firstChan != nil {
-					firstChan.Reject(ssh.Prohibited, err.Error())
+			// to see if the client opens a channel or sends any global
+			// requests, which will give us the opportunity to respond
+			// with a human-readable error.
+			waitCtx, waitCancel := context.WithTimeout(s.closeContext, time.Second)
+			defer waitCancel()
+			for {
+				select {
+				case req := <-reqs:
+					// wait for a request that wants a reply to send the error
+					if !req.WantReply {
+						continue
+					}
+
+					if err := req.Reply(false, []byte(err.Error())); err != nil {
+						s.log.WithError(err).Warnf("failed to reply to request %s", req.Type)
+					}
+				case firstChan := <-chans:
+					// channel was closed, terminate the connection
+					if firstChan == nil {
+						break
+					}
+
+					if err := firstChan.Reject(ssh.Prohibited, err.Error()); err != nil {
+						s.log.WithError(err).Warnf("failed to reject channel %s", firstChan.ChannelType())
+					}
+				case <-waitCtx.Done():
 				}
-			case <-s.closeContext.Done():
-			case <-time.After(time.Second * 1):
+
+				break
 			}
-			sconn.Close()
-			conn.Close()
+
+			if err := sconn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+				s.log.WithError(err).Warn("failed to close ssh server connection")
+			}
+			if err := conn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+				s.log.WithError(err).Warn("failed to close ssh client connection")
+			}
 			return
 		}
 	}
@@ -497,8 +562,26 @@ func (s *Server) HandleConnection(conn net.Conn) {
 				return
 			}
 			s.log.Debugf("Received out-of-band request: %+v.", req)
+
+			reqCtx := tracessh.ContextFromRequest(req)
+			ctx, span := s.tracerProvider.Tracer("ssh").Start(
+				oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(reqCtx)),
+				fmt.Sprintf("ssh.GlobalRequest/%s", req.Type),
+				oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+				oteltrace.WithAttributes(
+					semconv.RPCServiceKey.String("ssh.Server"),
+					semconv.RPCMethodKey.String("GlobalRequest"),
+					semconv.RPCSystemKey.String("ssh"),
+				),
+			)
+
 			if s.reqHandler != nil {
-				go s.reqHandler.HandleRequest(ctx, req)
+				go func(span oteltrace.Span) {
+					defer span.End()
+					s.reqHandler.HandleRequest(ctx, req)
+				}(span)
+			} else {
+				span.End()
 			}
 			// handle channels:
 		case nch := <-chans:
@@ -506,7 +589,41 @@ func (s *Server) HandleConnection(conn net.Conn) {
 				connClosed()
 				return
 			}
-			go s.newChanHandler.HandleNewChan(ctx, ccx, nch)
+
+			// This is a request from clients to determine if tracing is enabled.
+			// Handle here so that we always alert clients that we can handle tracing envelopes.
+			if nch.ChannelType() == tracessh.TracingChannel {
+				ch, _, err := nch.Accept()
+				if err != nil {
+					s.log.Warnf("Unable to accept channel: %v", err)
+					if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
+						s.log.Warnf("Failed to reject channel: %v", err)
+					}
+					continue
+				}
+
+				if err := ch.Close(); err != nil {
+					s.log.Warnf("Unable to close %q channel: %v", nch.ChannelType(), err)
+				}
+				continue
+			}
+
+			chanCtx, nch := tracessh.ContextFromNewChannel(nch)
+			ctx, span := s.tracerProvider.Tracer("ssh").Start(
+				oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(chanCtx)),
+				fmt.Sprintf("ssh.OpenChannel/%s", nch.ChannelType()),
+				oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+				oteltrace.WithAttributes(
+					semconv.RPCServiceKey.String("ssh.Server"),
+					semconv.RPCMethodKey.String("OpenChannel"),
+					semconv.RPCSystemKey.String("ssh"),
+				),
+			)
+
+			go func(span oteltrace.Span) {
+				defer span.End()
+				s.newChanHandler.HandleNewChan(ctx, ccx, nch)
+			}(span)
 			// send keepalive pings to the clients
 		case <-keepAliveTick.C:
 			const wantReply = true
@@ -604,6 +721,12 @@ type (
 	PublicKeyFunc func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error)
 	PasswordFunc  func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error)
 )
+
+// ClusterDetails specifies information about a cluster
+type ClusterDetails struct {
+	RecordingProxy bool
+	FIPSEnabled    bool
+}
 
 // connectionWrapper allows the SSH server to perform custom handshake which
 // lets teleport proxy servers to relay a true remote client IP address

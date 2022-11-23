@@ -22,15 +22,17 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
+
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -45,7 +47,6 @@ const (
 func main() {
 	if err := Run(os.Args[1:], os.Stdout); err != nil {
 		utils.FatalError(err)
-		trace.DebugReport(err)
 	}
 }
 
@@ -58,17 +59,22 @@ func Run(args []string, stdout io.Writer) error {
 	app.Flag("config", "Path to a configuration file.").Short('c').StringVar(&cf.ConfigPath)
 	app.HelpFlag.Short('h')
 
+	joinMethodList := fmt.Sprintf(
+		"(%s)",
+		strings.Join(config.SupportedJoinMethods, ", "),
+	)
+
 	versionCmd := app.Command("version", "Print the version of your tbot binary")
 
 	startCmd := app.Command("start", "Starts the renewal bot, writing certificates to the data dir at a set interval.")
-	startCmd.Flag("auth-server", "Address of the Teleport Auth Server (On-Prem installs) or Proxy Server (Cloud installs).").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
+	startCmd.Flag("auth-server", "Address of the Teleport Auth Server or Proxy Server.").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
 	startCmd.Flag("token", "A bot join token, if attempting to onboard a new bot; used on first connect.").Envar(tokenEnvVar).StringVar(&cf.Token)
 	startCmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&cf.CAPins)
 	startCmd.Flag("data-dir", "Directory to store internal bot data. Access to this directory should be limited.").StringVar(&cf.DataDir)
 	startCmd.Flag("destination-dir", "Directory to write short-lived machine certificates.").StringVar(&cf.DestinationDir)
-	startCmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").Default("60m").DurationVar(&cf.CertificateTTL)
+	startCmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").DurationVar(&cf.CertificateTTL)
 	startCmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewalInterval)
-	startCmd.Flag("join-method", "Method to use to join the cluster, can be \"token\" or \"iam\".").Default(config.DefaultJoinMethod).EnumVar(&cf.JoinMethod, "token", "iam")
+	startCmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).Default(config.DefaultJoinMethod).EnumVar(&cf.JoinMethod, config.SupportedJoinMethods...)
 	startCmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&cf.Oneshot)
 
 	initCmd := app.Command("init", "Initialize a certificate destination directory for writes from a separate bot user.")
@@ -84,7 +90,7 @@ func Run(args []string, stdout io.Writer) error {
 	configureCmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&cf.CAPins)
 	configureCmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").Default("60m").DurationVar(&cf.CertificateTTL)
 	configureCmd.Flag("data-dir", "Directory to store internal bot data. Access to this directory should be limited.").StringVar(&cf.DataDir)
-	configureCmd.Flag("join-method", "Method to use to join the cluster, can be \"token\" or \"iam\".").Default(config.DefaultJoinMethod).EnumVar(&cf.JoinMethod, "token", "iam")
+	configureCmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).Default(config.DefaultJoinMethod).EnumVar(&cf.JoinMethod, config.SupportedJoinMethods...)
 	configureCmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&cf.Oneshot)
 	configureCmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewalInterval)
 	configureCmd.Flag("token", "A bot join token, if attempting to onboard a new bot; used on first connect.").Envar(tokenEnvVar).StringVar(&cf.Token)
@@ -109,6 +115,10 @@ func Run(args []string, stdout io.Writer) error {
 		"args",
 		"Arguments to `tsh proxy ...`; prefix with `-- ` to ensure flags are passed correctly.",
 	))
+
+	kubeCmd := app.Command("kube", "Kubernetes helpers").Hidden()
+	kubeCredentialsCmd := kubeCmd.Command("credentials", "Get credentials for kubectl access").Hidden()
+	kubeCredentialsCmd.Flag("destination-dir", "The destination directory with which to generate Kubernetes credentials").Required().StringVar(&cf.DestinationDir)
 
 	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
@@ -151,6 +161,8 @@ func Run(args []string, stdout io.Writer) error {
 		err = onDBCommand(botConfig, &cf)
 	case proxyCmd.FullCommand():
 		err = onProxyCommand(botConfig, &cf)
+	case kubeCredentialsCmd.FullCommand():
+		err = onKubeCredentialsCommand(botConfig, &cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
@@ -230,7 +242,7 @@ func handleSignals(log logrus.FieldLogger, reload chan struct{}, cancel context.
 	for signal := range signals {
 		switch signal {
 		case syscall.SIGINT:
-			log.Info("Received interrupt, cancelling...")
+			log.Info("Received interrupt, canceling...")
 			cancel()
 			return
 		case syscall.SIGHUP, syscall.SIGUSR1:

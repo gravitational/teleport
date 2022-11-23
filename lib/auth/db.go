@@ -27,6 +27,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -37,8 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/gravitational/trace"
 )
 
 // GenerateDatabaseCert generates client certificate used by a database
@@ -69,7 +69,7 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 			return nil, trace.Wrap(err)
 		}
 	}
-	caCert, signer, err := getCAandSigner(s.GetKeyStore(), databaseCA, req)
+	caCert, signer, err := getCAandSigner(ctx, s.GetKeyStore(), databaseCA, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -101,14 +101,14 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 // This function covers the database CA rotation scenario when on rotation init phase additional/new TLS
 // key should be used to sign the database CA. Otherwise, the trust chain will break after the old CA is
 // removed - standby phase.
-func getCAandSigner(keyStore keystore.KeyStore, databaseCA types.CertAuthority, req *proto.DatabaseCertRequest,
+func getCAandSigner(ctx context.Context, keyStore *keystore.Manager, databaseCA types.CertAuthority, req *proto.DatabaseCertRequest,
 ) ([]byte, crypto.Signer, error) {
 	if req.RequesterName == proto.DatabaseCertRequest_TCTL &&
 		databaseCA.GetRotation().Phase == types.RotationPhaseInit {
-		return keyStore.GetAdditionalTrustedTLSCertAndSigner(databaseCA)
+		return keyStore.GetAdditionalTrustedTLSCertAndSigner(ctx, databaseCA)
 	}
 
-	return keyStore.GetTLSCertAndSigner(databaseCA)
+	return keyStore.GetTLSCertAndSigner(ctx, databaseCA)
 }
 
 // getServerNames returns deduplicated list of server names from signing request.
@@ -185,7 +185,7 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	}
 
 	// Generate the TLS certificate.
-	ca, err := s.Trust.GetCertAuthority(ctx, types.CertAuthID{
+	ca, err := s.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       caType,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
@@ -193,7 +193,7 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 		return nil, trace.Wrap(err)
 	}
 
-	cert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ca)
+	cert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -225,17 +225,11 @@ func (s *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
 	}
 
-	accnName := strings.ToUpper(req.AccountName)
-	userName := strings.ToUpper(req.UserName)
-	log.Debugf("Signing database JWT token for %s %s", accnName, userName)
-
-	subject := fmt.Sprintf("%s.%s", accnName, userName)
-
 	clusterName, err := s.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := s.Trust.GetCertAuthority(ctx, types.CertAuthID{
+	ca, err := s.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.DatabaseCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
@@ -263,13 +257,10 @@ func (s *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keyFp := sha256.Sum256(pubKey)
-	keyFpStr := base64.StdEncoding.EncodeToString(keyFp[:])
 
-	// Generate issuer name in the Snowflake required format.
-	issuer := fmt.Sprintf("%s.%s.SHA256:%s", accnName, userName, keyFpStr)
+	subject, issuer := getSnowflakeJWTParams(req.AccountName, req.UserName, pubKey)
 
-	_, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ca)
+	_, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -288,4 +279,29 @@ func (s *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 	return &proto.SnowflakeJWTResponse{
 		Token: token,
 	}, nil
+}
+
+func getSnowflakeJWTParams(accountName, userName string, publicKey []byte) (string, string) {
+	// Use only the first part of the account name to generate JWT
+	// Based on:
+	// https://github.com/snowflakedb/snowflake-connector-python/blob/f2f7e6f35a162484328399c8a50a5015825a5573/src/snowflake/connector/auth_keypair.py#L83
+	accNameSeparator := "."
+	if strings.Contains(accountName, ".global") {
+		accNameSeparator = "-"
+	}
+
+	accnToken, _, _ := strings.Cut(accountName, accNameSeparator)
+	accnTokenCap := strings.ToUpper(accnToken)
+	userNameCap := strings.ToUpper(userName)
+	log.Debugf("Signing database JWT token for %s %s", accnTokenCap, userNameCap)
+
+	subject := fmt.Sprintf("%s.%s", accnTokenCap, userNameCap)
+
+	keyFp := sha256.Sum256(publicKey)
+	keyFpStr := base64.StdEncoding.EncodeToString(keyFp[:])
+
+	// Generate issuer name in the Snowflake required format.
+	issuer := fmt.Sprintf("%s.%s.SHA256:%s", accnTokenCap, userNameCap, keyFpStr)
+
+	return subject, issuer
 }

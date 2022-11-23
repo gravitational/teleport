@@ -16,6 +16,7 @@ limitations under the License.
 
 package db
 
+//nolint:goimports
 import (
 	"context"
 	"crypto/tls"
@@ -23,10 +24,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/labels"
@@ -34,28 +42,24 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	// Import to register Cassandra engine.
+	_ "github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/cloud/users"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/srv/db/mysql"
-	"github.com/gravitational/teleport/lib/utils"
-
+	// Import to register Elasticsearch engine.
+	_ "github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	// Import to register MongoDB engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/mongodb"
-	// Import to register MySQL engine.
-	_ "github.com/gravitational/teleport/lib/srv/db/mysql"
+	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	// Import to register Postgres engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/postgres"
 	// Import to register Snowflake engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/snowflake"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// Config is the configuration for an database proxy server.
+// Config is the configuration for a database proxy server.
 type Config struct {
 	// Clock used to control time.
 	Clock clockwork.Clock
@@ -65,6 +69,8 @@ type Config struct {
 	AuthClient *auth.Client
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint auth.DatabaseAccessPoint
+	// Emitter is used to emit audit events.
+	Emitter apievents.Emitter
 	// StreamEmitter is a non-blocking audit events emitter.
 	StreamEmitter events.StreamEmitter
 	// NewAudit allows to override audit logger in tests.
@@ -87,6 +93,8 @@ type Config struct {
 	ResourceMatchers []services.ResourceMatcher
 	// AWSMatchers is a list of AWS databases matchers.
 	AWSMatchers []services.AWSMatcher
+	// AzureMatchers is a list of Azure databases matchers.
+	AzureMatchers []services.AzureMatcher
 	// Databases is a list of proxied databases from static configuration.
 	Databases types.Databases
 	// CloudLabels is a service that imports labels from a cloud provider. The labels are shared
@@ -103,7 +111,7 @@ type Config struct {
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
 	// CloudClients creates cloud API clients.
-	CloudClients common.CloudClients
+	CloudClients clients.Clients
 	// CloudMeta fetches cloud metadata for cloud hosted databases.
 	CloudMeta *cloud.Metadata
 	// CloudIAM configures IAM for cloud hosted databases.
@@ -135,6 +143,9 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.StreamEmitter == nil {
 		return trace.BadParameter("missing StreamEmitter")
 	}
+	if c.Emitter == nil {
+		c.Emitter = c.AuthClient
+	}
 	if c.NewAudit == nil {
 		c.NewAudit = common.NewAudit
 	}
@@ -163,13 +174,13 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		return trace.BadParameter("missing GetRotation")
 	}
 	if c.CADownloader == nil {
-		c.CADownloader = NewRealDownloader(c.DataDir)
+		c.CADownloader = NewRealDownloader()
 	}
 	if c.LockWatcher == nil {
 		return trace.BadParameter("missing LockWatcher")
 	}
 	if c.CloudClients == nil {
-		c.CloudClients = common.NewCloudClients()
+		c.CloudClients = clients.NewClients()
 	}
 	if c.CloudMeta == nil {
 		c.CloudMeta, err = cloud.NewMetadata(cloud.MetadataConfig{
@@ -775,7 +786,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		serverID:     s.cfg.HostID,
 		authClient:   s.cfg.AuthClient,
 		teleportUser: sessionCtx.Identity.Username,
-		emitter:      s.cfg.AuthClient,
+		emitter:      s.cfg.Emitter,
 		log:          s.log,
 		ctx:          s.closeContext,
 	})
@@ -897,7 +908,7 @@ func fetchMySQLVersion(ctx context.Context, database types.Database) error {
 	}
 
 	// Try to extract the engine version for AWS metadata labels.
-	if database.IsRDS() {
+	if database.IsRDS() || database.IsAzure() {
 		version := services.GetMySQLEngineVersion(database.GetMetadata().Labels)
 		if version != "" {
 			database.SetMySQLServerVersion(version)
@@ -928,7 +939,7 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 		Kind:         string(types.DatabaseSessionKind),
 		State:        types.SessionState_SessionStateRunning,
 		Hostname:     sessionCtx.HostID,
-		DatabaseName: sessionCtx.DatabaseName,
+		DatabaseName: sessionCtx.Database.GetName(),
 		ClusterName:  sessionCtx.ClusterName,
 		Login:        sessionCtx.Identity.GetUserMetadata().Login,
 		Participants: []types.Participant{{
@@ -940,22 +951,13 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 
 	s.log.Debugf("Creating tracker for session %v", sessionCtx.ID)
 	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, s.cfg.AuthClient)
-	switch {
-	case err == nil:
-	case trace.IsAccessDenied(err):
-		// Ignore access denied errors, which we may get if the auth
-		// server is v9.2.3 or earlier, since only node, proxy, and
-		// kube roles had permission to create session trackers.
-		// DELETE IN 11.0.0
-		s.log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session %v", sessionCtx.ID)
-		return nil
-	default: // aka err != nil
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	go func() {
 		if err := tracker.UpdateExpirationLoop(ctx, s.cfg.Clock); err != nil {
-			s.log.WithError(err).Debugf("Failed to update session tracker expiration for session %v", sessionCtx.ID)
+			s.log.WithError(err).Warnf("Failed to update session tracker expiration for session %v", sessionCtx.ID)
 		}
 	}()
 

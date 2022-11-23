@@ -22,19 +22,23 @@ package reversetunnel
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/lib/reversetunnel/track"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/constants"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/reversetunnel/track"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type AgentState string
@@ -58,7 +62,7 @@ type AgentStateCallback func(AgentState)
 // transporter handles the creation of new transports over ssh.
 type transporter interface {
 	// Transport creates a new transport.
-	transport(context.Context, ssh.Channel, <-chan *ssh.Request, ssh.Conn) *transport
+	transport(context.Context, ssh.Channel, <-chan *ssh.Request, sshutils.Conn) *transport
 }
 
 // sshDialer is an ssh dialer that returns an SSHClient
@@ -74,7 +78,11 @@ type versionGetter interface {
 
 // SSHClient is a client for an ssh connection.
 type SSHClient interface {
-	ssh.Conn
+	ssh.ConnMetadata
+	io.Closer
+	Wait() error
+	OpenChannel(ctx context.Context, name string, data []byte) (*tracessh.Channel, <-chan *ssh.Request, error)
+	SendRequest(ctx context.Context, name string, wantReply bool, payload []byte) (bool, []byte, error)
 	Principals() []string
 	GlobalRequests() <-chan *ssh.Request
 	HandleChannelOpen(channelType string) <-chan ssh.NewChannel
@@ -156,7 +164,7 @@ type agent struct {
 	// an agent is connecting and protects wait groups from being waited on early.
 	doneConnecting chan struct{}
 	// hbChannel is the channel heartbeats are sent over.
-	hbChannel ssh.Channel
+	hbChannel *tracessh.Channel
 	// hbRequests are requests going over the heartbeat channel.
 	hbRequests <-chan *ssh.Request
 	// discoveryC receives new discovery channels.
@@ -241,7 +249,7 @@ func proxyIDFromPrincipals(principals []string) (string, bool) {
 func (a *agent) updateState(state AgentState) (AgentState, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	errMsg := "invalid state transitation: %s -> %s"
+	errMsg := "invalid state transition: %s -> %s"
 
 	// Once closed no state transitions are allowed.
 	if a.state == AgentClosed {
@@ -388,7 +396,7 @@ func (a *agent) connect() error {
 // sendFirstHeartbeat opens the heartbeat channel and sends the first
 // heartbeat.
 func (a *agent) sendFirstHeartbeat(ctx context.Context) error {
-	channel, requests, err := a.client.OpenChannel(chanHeartbeat, nil)
+	channel, requests, err := a.client.OpenChannel(ctx, chanHeartbeat, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -397,7 +405,7 @@ func (a *agent) sendFirstHeartbeat(ctx context.Context) error {
 	a.hbRequests = requests
 
 	// Send the first ping right away.
-	if _, err := a.hbChannel.SendRequest("ping", false, nil); err != nil {
+	if _, err := a.hbChannel.SendRequest(ctx, "ping", false, nil); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -459,7 +467,7 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 					continue
 				}
 			case reconnectRequest:
-				a.log.Debugf("Receieved reconnect advisory request from proxy.")
+				a.log.Debugf("Received reconnect advisory request from proxy.")
 				if r.WantReply {
 					err := a.client.Reply(r, true, nil)
 					if err != nil {
@@ -471,7 +479,7 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 				// context is canceled to allow the agent to drain.
 				go a.Stop()
 			default:
-				// This handles keep-alive messages and matches the behaviour of OpenSSH.
+				// This handles keep-alive messages and matches the behavior of OpenSSH.
 				err := a.client.Reply(r, false, nil)
 				if err != nil {
 					a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
@@ -540,7 +548,7 @@ func (a *agent) handleDrainChannels() error {
 				continue
 			}
 			bytes, _ := a.clock.Now().UTC().MarshalText()
-			_, err := a.hbChannel.SendRequest("ping", false, bytes)
+			_, err := a.hbChannel.SendRequest(a.ctx, "ping", false, bytes)
 			if err != nil {
 				a.log.Error(err)
 				return trace.Wrap(err)
@@ -630,17 +638,14 @@ func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 				a.log.Infof("Connection closed, returning")
 				return
 			}
-			r, err := unmarshalDiscoveryRequest(req.Payload)
-			if err != nil {
-				a.log.Warningf("Bad payload: %v.", err)
+
+			var r discoveryRequest
+			if err := json.Unmarshal(req.Payload, &r); err != nil {
+				a.log.WithError(err).Warn("Bad payload")
 				return
 			}
 
-			var proxies []string
-			for _, proxy := range r.Proxies {
-				proxies = append(proxies, proxy.GetName())
-			}
-
+			proxies := r.ProxyNames()
 			a.log.Debugf("Received discovery request: %v", proxies)
 			a.tracker.TrackExpected(proxies...)
 		}

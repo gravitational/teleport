@@ -20,16 +20,16 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-
-	"github.com/gravitational/trace"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // Auth is an interface representing the subset of the auth API that must be made available
@@ -164,7 +164,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	keepAliveInterval := interval.New(interval.Config{
 		Duration:      c.serverKeepAlive,
 		FirstDuration: utils.HalfJitter(c.serverKeepAlive),
-		Jitter:        utils.NewSeventhJitter(),
+		Jitter:        retryutils.NewSeventhJitter(),
 	})
 	defer keepAliveInterval.Stop()
 
@@ -257,6 +257,12 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 	}
 	if sshServer.GetName() != handle.Hello().ServerID {
 		return trace.AccessDenied("incorrect ssh server ID (expected %q, got %q)", handle.Hello().ServerID, sshServer.GetName())
+	}
+
+	// if a peer address is available in the context, use it to override zero-value addresses from
+	// the server heartbeat.
+	if handle.PeerAddr() != "" {
+		sshServer.SetAddr(utils.ReplaceLocalhost(sshServer.GetAddr(), handle.PeerAddr()))
 	}
 
 	sshServer.SetExpiry(time.Now().Add(c.serverTTL).UTC())

@@ -1,9 +1,0 @@
-name: teleport-auto-trustedcluster
-apiVersion: v2
-version: 0.0.9
-appVersion: "6"
-description: "[deprecated] Teleport trusted cluster installation which automatically joins itself back to the provided root cluster."
-icon: https://goteleport.com/images/logos/logo-teleport-square.svg
-keywords:
-  - Teleport Enterprise
-deprecated: true

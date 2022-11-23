@@ -18,17 +18,61 @@ kubeClusterName: ""
 # Version of teleport image, if different from chart version in Chart.yaml.
 teleportVersionOverride: ""
 
-# Default authentication type. Possible values are 'local' and 'github' for OSS, plus 'oidc' and 'saml' for Enterprise.
-# 'false' is required for FedRAMP / FIPS; see https://gravitational.com/teleport/docs/enterprise/ssh-kubernetes-fedramp/
-authenticationType: local
+authentication:
+  # Default authentication type. Possible values are 'local' and 'github' for OSS, plus 'oidc' and 'saml' for Enterprise.
+  type: local
 
-authenticationSecondFactor:
+  # Sets the authenticator connector for SSO or the default connector for "local" authentication.
+  # See SSO for Enterprise (https://goteleport.com/docs/enterprise/sso/).
+  # See Passwordless for local
+  # (http://goteleport.com/docs/access-controls/guides/passwordless/#optional-enable-passwordless-by-default).
+  # Defaults to "local".
+  connectorName: ""
+
+  # Enable/disable local authentication by setting `authentication.local_auth` in `teleport.yaml`.
+  # Disabling local auth is required for FedRAMP / FIPS; see https://gravitational.com/teleport/docs/enterprise/ssh-kubernetes-fedramp/
+  localAuth: true
+
+  # Controls the locking mode: in case of network split should Teleport guarantee availability or integrity ?
+  # Possible values are "best_effort" and "strict". When not defined, Teleport defaults to "best_effort".
+  # See https://goteleport.com/docs/access-controls/guides/locking/#next-steps-locking-modes.
+  lockingMode: ""
+
+  # Second factor requirements for users of the Teleport cluster.
+  # Controls the `auth_config.authentication.second_factor` field in `teleport.yaml`.
+  # Possible values are 'off', 'on', 'otp', 'optional' and 'webauthn'.
   secondFactor: "otp"
+
+  # (Optional) When using webauthn this allows to restrict which vendor and key models can be used.
+  # webauthn:
+  #   attestationAllowedCas:
+  #     - /path/to/allowed_ca.pem
+  #     - |
+  #       -----BEGIN CERTIFICATE-----
+  #       ...
+  #       -----END CERTIFICATE-----
+  #   attestationDeniedCas:
+  #     - /path/to/denied_ca.pem
+  #     - |
+  #       -----BEGIN CERTIFICATE-----
+  #       ...
+  #       -----END CERTIFICATE-----
+
+# Deprecated way to set the authentication type, `authentication.type` should be preferred.
+# authenticationType: local
+
+# Deprecated way to set the authentication second factor, `authentication.secondFactor` should be preferred.
+# authenticationSecondFactor:
+#   secondFactor: "otp"
 
 # Teleport supports TLS routing. In this mode, all client connections are wrapped in TLS and multiplexed on one Teleport proxy port.
 # Default mode will not utilize TLS routing and operate in backwards-compatibility mode.
 # Possible values are 'multiplex'
 proxyListenerMode: ""
+
+# Optional setting for configuring session recording.
+# See `session_recording` under https://goteleport.com/docs/setup/reference/config/#teleportyaml
+sessionRecording: ""
 
 # By default, Teleport will multiplex Postgres and MongoDB database connections on the same port as the proxy's web listener (443)
 # Setting either of these values to true will separate the listeners out onto a separate port (5432 for Postgres, 27017 for MongoDB)
@@ -36,6 +80,28 @@ proxyListenerMode: ""
 # These settings will not apply if proxyListenerMode is set to "multiplex".
 separatePostgresListener: false
 separateMongoListener: false
+
+# Do not set any of these values unless you explicitly need to. Teleport always uses the cluster name by default.
+# Public cluster addresses, including port. Defaults to `clusterName` on 443 port.
+publicAddr: []
+# Public cluster kube addresses, including port. Defaults to `publicAddr` on 3026 port.
+# Only used when `proxyListenerMode` is not 'multiplex'.
+kubePublicAddr: []
+# Public cluster mongo listener addresses, including port. Defaults to `publicAddr` on 27017 port.
+# Only used when `proxyListenerMode` is not 'multiplex' and `separateMongoListener` is true.
+mongoPublicAddr: []
+# Public cluster MySQL addresses, including port. Defaults to `publicAddr` on 3036 port.
+# Only used when `proxyListenerMode` is not 'multiplex'.
+mysqlPublicAddr: []
+# Public cluster postgres listener addresses, including port. Defaults to `publicAddr` on 5432 port.
+# Only used when `proxyListenerMode` is not 'multiplex' and `separatePostgresListener` is true.
+postgresPublicAddr: []
+# Public cluster SSH addresses, including port. Defaults to `publicAddr` on 3023 port.
+# Only used when `proxyListenerMode` is not 'multiplex'.
+sshPublicAddr: []
+# Public cluster tunnel SSH addresses, including port. Defaults to `publicAddr` on 3024 port.
+# Only used when `proxyListenerMode` is not 'multiplex'.
+tunnelPublicAddr: []
 
 # ACME is a protocol for getting Web X.509 certificates
 # Note: ACME can only be used for single-instance clusters. It is not suitable for use in HA configurations.
@@ -54,8 +120,29 @@ acmeURI: ""
 # kubectl -n ${TELEPORT_NAMESPACE?} create secret generic license --from-file=/path/to/downloaded/license.pem
 enterprise: false
 
+# CRDs are installed by default when the operator is enabled. This manual override allows to disable CRD installation
+# when deploying multiple releases in the same cluster.
+# installCRDs:
+
+# Configuration of the optional Teleport operator
+operator:
+  # Set enabled to true to add the Kubernetes Teleport Operator
+  enabled: false
+  # Kubernetes Teleport Operator image
+  image: public.ecr.aws/gravitational/teleport-operator
+  # Resources to request for the operator container
+  # https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+  resources: {}
+  #  requests:
+  #    cpu: "0.5"
+  #    memory: "1Gi"
+  #  limits:
+  #    memory: "1Gi"
+
+
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
+# Note: the PSP won't be deployed if Kubernetes does not support the resource (Kubernetes >= 1.25)
 podSecurityPolicy:
   enabled: true
 
@@ -76,6 +163,9 @@ chartMode: standalone
 
 ######################################################################
 # Persistence settings (only used in "standalone" and "custom" modes)
+# NOTE: Changes in Kubernetes 1.23+ mean that persistent volumes will not automatically be provisioned in AWS EKS clusters
+# without additional configuration. See https://docs.aws.amazon.com/eks/latest/userguide/ebs-csi.html for more details.
+# This driver addon must be configured to use persistent volumes in EKS clusters after Kubernetes 1.23.
 ######################################################################
 persistence:
   # Enable persistence using a PersistentVolumeClaim
@@ -107,6 +197,20 @@ aws:
   sessionRecordingBucket: ""
   # Whether or not to turn on DynamoDB backups
   backups: false
+
+  # Whether Teleport should configure DynamoDB's autoscaling.
+  # Requires additional statements in the IAM Teleport Policy to be allowed to configure the autoscaling.
+  # See https://goteleport.com/docs/setup/reference/backends/#dynamodb-autoscaling
+  dynamoAutoScaling: false
+
+  # DynamoDB autoscaling settings. Required if `dynamoAutoScaling` is `true`.
+  # See https://goteleport.com/docs/setup/reference/backends/#dynamodb-autoscaling
+  readMinCapacity: null      # Integer
+  readMaxCapacity: null      # Integer
+  readTargetValue: null      # Float
+  writeMinCapacity: null     # Integer
+  writeMaxCapacity: null     # Integer
+  writeTargetValue: null     # Float
 
 ##################################################
 # GCP-specific settings (only used in "gcp" mode)
@@ -168,6 +272,9 @@ highAvailability:
     # Group of Issuer that cert-manager should look for.
     # This defaults to 'cert-manager.io' which is the default Issuer group.
     issuerGroup: cert-manager.io
+  # Injects delay when performing pod rollouts to mitigate the loss of all agent tunnels at the same time
+  # See https://github.com/gravitational/teleport/issues/13129
+  minReadySeconds: 15
 
 # Settings for mounting your own TLS keypair to secure Teleport's web UI.
 # These settings are mutually exclusive with the "highAvailability.certManager" and "acme" values above.
@@ -188,9 +295,9 @@ tls:
 ##################################################
 
 # Container image for the cluster.
-image: quay.io/gravitational/teleport
+image: public.ecr.aws/gravitational/teleport
 # Enterprise version of the image
-enterpriseImage: quay.io/gravitational/teleport-ent
+enterpriseImage: public.ecr.aws/gravitational/teleport-ent
 # Teleport logging configuration
 log:
   # Log level for the Teleport process.
@@ -235,6 +342,16 @@ annotations:
   # highAvailability.certManager.enabled is true
   certSecret: {}
 
+# Kubernetes service account to create/use.
+serviceAccount:
+  # Specifies whether a ServiceAccount should be created
+  create: true
+  # The name of the ServiceAccount to use.
+  # If not set and serviceAccount.create is true, the name is generated using the release name.
+  # If create is false, the name will be used to reference an existing service account.
+  name: ""
+  # To set annotations on the service account, use the annotations.serviceAccount value.
+
 # Options for the Teleport service
 service:
   type: LoadBalancer
@@ -251,14 +368,14 @@ extraEnv: []
 # Extra volumes to mount into the Teleport pods
 # https://kubernetes.io/docs/concepts/storage/volumes/
 extraVolumes: []
-#- name: myvolume
-#  secret:
-#    secretName: testSecret
+# - name: myvolume
+#   secret:
+#     secretName: testSecret
 
 # Extra volume mounts corresponding to the volumes mounted above
 extraVolumeMounts: []
-#- name: myvolume
-#  mountPath: /path/on/host
+# - name: myvolume
+#   mountPath: /path/on/host
 
 # Allow the imagePullPolicy to be overridden
 imagePullPolicy: IfNotPresent
@@ -266,16 +383,16 @@ imagePullPolicy: IfNotPresent
 # A list of initContainers to run before each Teleport pod starts
 # https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
 initContainers: []
-#- name: "teleport-init"
-#  image: "alpine"
-#  args: ["echo test"]
+# - name: "teleport-init"
+#   image: "alpine"
+#   args: ["echo test"]
 
 # If set, will run the command as a postStart handler
 # https://kubernetes.io/docs/tasks/configure-pod-container/attach-handler-lifecycle-event/
 postStart:
   command: []
 
-# Resources to request for each pod in the deployment
+# Resources to request for the teleport container
 # https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
 resources: {}
 #  requests:

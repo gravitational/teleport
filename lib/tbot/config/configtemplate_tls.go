@@ -19,13 +19,13 @@ package config
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/client/identityfile"
-	"github.com/gravitational/teleport/lib/tbot/destination"
-	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/identity"
 )
 
 const defaultTLSPrefix = "tls"
@@ -95,7 +95,7 @@ func (t *TemplateTLS) Name() string {
 	return TemplateTLSName
 }
 
-func (t *TemplateTLS) Describe(destination destination.Destination) []FileDescription {
+func (t *TemplateTLS) Describe(destination bot.Destination) []FileDescription {
 	return []FileDescription{
 		{
 			Name: t.Prefix + ".key",
@@ -109,13 +109,18 @@ func (t *TemplateTLS) Describe(destination destination.Destination) []FileDescri
 	}
 }
 
-func (t *TemplateTLS) Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (t *TemplateTLS) Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	cas, err := authClient.GetCertAuthorities(ctx, types.CertAuthType(t.CACertType), false)
+	cas, err := bot.GetCertAuthorities(ctx, types.CertAuthType(t.CACertType))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	key, err := newClientKey(currentIdentity, cas)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -125,7 +130,7 @@ func (t *TemplateTLS) Render(ctx context.Context, authClient auth.ClientI, curre
 		Writer: &BotConfigWriter{
 			dest: dest,
 		},
-		Key:    newClientKey(currentIdentity, cas),
+		Key:    key,
 		Format: identityfile.FormatTLS,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.

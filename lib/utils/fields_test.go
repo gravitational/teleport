@@ -27,6 +27,7 @@ import (
 
 func TestFields(t *testing.T) {
 	t.Parallel()
+
 	now := time.Now().Round(time.Minute)
 
 	sliceString := []string{"test", "string", "slice"}

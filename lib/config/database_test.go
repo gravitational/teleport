@@ -25,11 +25,11 @@ import (
 func TestMakeDatabaseConfig(t *testing.T) {
 	t.Run("Global", func(t *testing.T) {
 		flags := DatabaseSampleFlags{
-			NodeName:        "testlocal",
-			DataDir:         "/var/lib/data",
-			AuthServersAddr: []string{"localhost:3080"},
-			AuthToken:       "/tmp/token.txt",
-			CAPins:          []string{"pin-1", "pin-2"},
+			NodeName:    "testlocal",
+			DataDir:     "/var/lib/data",
+			ProxyServer: "localhost:3080",
+			AuthToken:   "/tmp/token.txt",
+			CAPins:      []string{"pin-1", "pin-2"},
 		}
 
 		configString, err := MakeDatabaseAgentConfigString(flags)
@@ -40,7 +40,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 
 		require.Equal(t, flags.NodeName, fileConfig.NodeName)
 		require.Equal(t, flags.DataDir, fileConfig.DataDir)
-		require.ElementsMatch(t, flags.AuthServersAddr, fileConfig.AuthServers)
+		require.Equal(t, flags.ProxyServer, fileConfig.ProxyServer)
 		require.Equal(t, flags.AuthToken, fileConfig.AuthToken)
 		require.ElementsMatch(t, flags.CAPins, fileConfig.CAPin)
 	})
@@ -56,6 +56,17 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.ElementsMatch(t, flags.RDSDiscoveryRegions, databases.AWSMatchers[0].Regions)
 	})
 
+	t.Run("RDSProxyAutoDiscovery", func(t *testing.T) {
+		flags := DatabaseSampleFlags{
+			RDSProxyDiscoveryRegions: []string{"us-west-1", "us-west-2"},
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AWSMatchers, 1)
+		require.ElementsMatch(t, []string{"rdsproxy"}, databases.AWSMatchers[0].Types)
+		require.ElementsMatch(t, flags.RDSProxyDiscoveryRegions, databases.AWSMatchers[0].Regions)
+	})
+
 	t.Run("RedshiftAutoDiscovery", func(t *testing.T) {
 		flags := DatabaseSampleFlags{
 			RedshiftDiscoveryRegions: []string{"us-west-1", "us-west-2"},
@@ -67,12 +78,42 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.ElementsMatch(t, flags.RedshiftDiscoveryRegions, databases.AWSMatchers[0].Regions)
 	})
 
+	t.Run("AzureMySQLAutoDiscovery", func(t *testing.T) {
+		flags := DatabaseSampleFlags{
+			AzureMySQLDiscoveryRegions: []string{"eastus", "eastus2"},
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AzureMatchers, 1)
+		require.ElementsMatch(t, []string{"mysql"}, databases.AzureMatchers[0].Types)
+		require.ElementsMatch(t, flags.AzureMySQLDiscoveryRegions, databases.AzureMatchers[0].Regions)
+	})
+
+	t.Run("AzurePostgresAutoDiscovery", func(t *testing.T) {
+		flags := DatabaseSampleFlags{
+			AzurePostgresDiscoveryRegions: []string{"eastus", "eastus2"},
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AzureMatchers, 1)
+		require.ElementsMatch(t, []string{"postgres"}, databases.AzureMatchers[0].Types)
+		require.ElementsMatch(t, flags.AzurePostgresDiscoveryRegions, databases.AzureMatchers[0].Regions)
+	})
+
 	t.Run("StaticDatabase", func(t *testing.T) {
 		flags := DatabaseSampleFlags{
-			StaticDatabaseName:      "sample",
-			StaticDatabaseProtocol:  "postgres",
-			StaticDatabaseURI:       "postgres://localhost:5432",
-			StaticDatabaseRawLabels: `env=prod,arch=[5m2s:/bin/uname -m "p1 p2"]`,
+			StaticDatabaseName:           "sample",
+			StaticDatabaseProtocol:       "postgres",
+			StaticDatabaseURI:            "postgres://localhost:5432",
+			StaticDatabaseRawLabels:      `env=prod,arch=[5m2s:/bin/uname -m "p1 p2"]`,
+			DatabaseAWSRegion:            "us-west-1",
+			DatabaseAWSRedshiftClusterID: "redshift-cluster-1",
+			DatabaseADDomain:             "EXAMPLE.com",
+			DatabaseADSPN:                "MSSQLSvc/ec2amaz-4kn05du.dbadir.teleportdemo.net:1433",
+			DatabaseADKeytabFile:         "/path/to/keytab",
+			DatabaseGCPProjectID:         "xxx-1234",
+			DatabaseGCPInstanceID:        "example",
+			DatabaseCACertFile:           "/path/to/pem",
 		}
 
 		databases := generateAndParseConfig(t, flags)
@@ -81,6 +122,14 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.Equal(t, flags.StaticDatabaseProtocol, databases.Databases[0].Protocol)
 		require.Equal(t, flags.StaticDatabaseURI, databases.Databases[0].URI)
 		require.Equal(t, map[string]string{"env": "prod"}, databases.Databases[0].StaticLabels)
+		require.Equal(t, flags.DatabaseAWSRegion, databases.Databases[0].AWS.Region)
+		require.Equal(t, flags.DatabaseAWSRedshiftClusterID, databases.Databases[0].AWS.Redshift.ClusterID)
+		require.Equal(t, flags.DatabaseADDomain, databases.Databases[0].AD.Domain)
+		require.Equal(t, flags.DatabaseADSPN, databases.Databases[0].AD.SPN)
+		require.Equal(t, flags.DatabaseADKeytabFile, databases.Databases[0].AD.KeytabFile)
+		require.Equal(t, flags.DatabaseGCPProjectID, databases.Databases[0].GCP.ProjectID)
+		require.Equal(t, flags.DatabaseGCPInstanceID, databases.Databases[0].GCP.InstanceID)
+		require.Equal(t, flags.DatabaseCACertFile, databases.Databases[0].TLS.CACertFile)
 
 		require.Len(t, databases.Databases[0].DynamicLabels, 1)
 		require.ElementsMatch(t, []CommandLabel{

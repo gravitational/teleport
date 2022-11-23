@@ -19,7 +19,30 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"path"
 	"strings"
+)
+
+const (
+	// StagingRegistry is the staging registry images are pushed to before being promoted to the production registry.
+	StagingRegistry = "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+
+	// ProductionRegistry is the production image registry that hosts are customer facing container images.
+	ProductionRegistry = "public.ecr.aws"
+
+	// ProductionRegistryQuay is the production image registry that hosts images on quay.io. Will be deprecated in the future.
+	// See RFD 73 - https://github.com/gravitational/teleport/blob/c18c09f5d562dd46a509154eab4295ad39decc3c/rfd/0073-public-image-registry.md
+	ProductionRegistryQuay = "quay.io"
+
+	// Go version used by internal tools
+	GoVersion = "1.18"
+
+	// The name of this service must match k8s.io/apimachinery/pkg/util/validation `IsDNS1123Subdomain`
+	// so that it is resolvable
+	// See https://github.com/drone-runners/drone-runner-kube/blob/master/engine/compiler/compiler.go#L398
+	// for details
+	LocalRegistryHostname string = "drone-docker-registry"
+	LocalRegistrySocket   string = LocalRegistryHostname + ":5000"
 )
 
 var (
@@ -43,6 +66,10 @@ var (
 		Name: "dockersock",
 		Temp: &volumeTemp{},
 	}
+	volumeRefDocker = volumeRef{
+		Name: "dockersock",
+		Path: "/var/run",
+	}
 	volumeTmpfs = volume{
 		Name: "tmpfs",
 		Temp: &volumeTemp{Medium: "memory"},
@@ -51,9 +78,13 @@ var (
 		Name: "tmpfs",
 		Path: "/tmpfs",
 	}
-	volumeRefDocker = volumeRef{
-		Name: "dockersock",
-		Path: "/var/run",
+	volumeAwsConfig = volume{
+		Name: "awsconfig",
+		Temp: &volumeTemp{},
+	}
+	volumeRefAwsConfig = volumeRef{
+		Name: "awsconfig",
+		Path: "/root/.aws",
 	}
 )
 
@@ -84,6 +115,24 @@ func pushTriggerForBranch(branches ...string) trigger {
 	return t
 }
 
+func cronTrigger(cronJobNames []string) trigger {
+	return trigger{
+		Cron: triggerRef{Include: cronJobNames},
+		Repo: triggerRef{Include: []string{"gravitational/teleport"}},
+	}
+}
+
+func cloneRepoCommands(cloneDirectory, commit string) []string {
+	return []string{
+		fmt.Sprintf("mkdir -pv %q", cloneDirectory),
+		fmt.Sprintf("cd %q", cloneDirectory),
+		"git init",
+		"git remote add origin ${DRONE_REMOTE_URL}",
+		"git fetch origin --tags",
+		fmt.Sprintf("git checkout -qf %q", commit),
+	}
+}
+
 type buildType struct {
 	os              string
 	arch            string
@@ -93,9 +142,10 @@ type buildType struct {
 }
 
 // Description provides a human-facing description of the artifact, e.g.:
-//   Windows 64-bit (tsh client only)
-//   Linux ARMv7 (32-bit)
-//   MacOS Intel .pkg installer
+//
+//	Windows 64-bit (tsh client only)
+//	Linux ARMv7 (32-bit)
+//	MacOS Intel .pkg installer
 func (b *buildType) Description(packageType string, extraQualifications ...string) string {
 	var result string
 
@@ -168,7 +218,8 @@ func (b *buildType) Description(packageType string, extraQualifications ...strin
 }
 
 func (b *buildType) hasTeleportConnect() bool {
-	return b.os == "darwin" && b.arch == "amd64"
+	return (b.os == "darwin" && b.arch == "amd64") ||
+		(b.os == "linux" && b.arch == "amd64" && !b.centos7 && !b.fips)
 }
 
 // dockerService generates a docker:dind service
@@ -179,6 +230,15 @@ func dockerService(v ...volumeRef) service {
 		Image:      "docker:dind",
 		Privileged: true,
 		Volumes:    append(v, volumeRefDocker),
+	}
+}
+
+// Starts a container registry service at `LocalRegistrySocket`
+// This can be pushed/pulled to via `docker push/pull <LocalRegistrySocket>:5000/image:tag`
+func dockerRegistryService() service {
+	return service{
+		Name:  LocalRegistryHostname,
+		Image: "registry:2",
 	}
 }
 
@@ -197,7 +257,8 @@ func dockerVolumeRefs(v ...volumeRef) []volumeRef {
 // releaseMakefileTarget gets the correct Makefile target for a given arch/fips/centos combo
 func releaseMakefileTarget(b buildType) string {
 	makefileTarget := fmt.Sprintf("release-%s", b.arch)
-	if b.centos7 {
+	// All x86_64 binaries are built on CentOS 7 now for better glibc compatibility.
+	if b.centos7 || b.arch == "amd64" {
 		makefileTarget += "-centos7"
 	}
 	if b.fips {
@@ -225,6 +286,68 @@ func waitForDockerStep() step {
 		Commands: []string{
 			`timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'`,
 		},
-		Volumes: dockerVolumeRefs(),
+		Volumes: []volumeRef{volumeRefDocker},
 	}
+}
+
+// waitForDockerStep returns a step which checks that the Docker registry is ready
+func waitForDockerRegistryStep() step {
+	return step{
+		Name:  "Wait for docker registry",
+		Image: "alpine",
+		Commands: []string{
+			"apk add curl",
+			fmt.Sprintf(`timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %%{http_code} http://%s/)" != "200" ]; do sleep 1; done'`, LocalRegistrySocket),
+		},
+	}
+}
+
+func verifyTaggedStep() step {
+	return step{
+		Name:  "Verify build is tagged",
+		Image: "alpine:latest",
+		Commands: []string{
+			"[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)",
+		},
+	}
+}
+
+// Note that tags are also valid here as a tag refers to a specific commit
+func cloneRepoStep(clonePath, commit string) step {
+	return step{
+		Name:     "Check out code",
+		Image:    "alpine/git:latest",
+		Commands: cloneRepoCommands(clonePath, commit),
+	}
+}
+
+func verifyNotPrereleaseStep() step {
+	clonePath := "/tmp/repo"
+	commands := []string{
+		"apk add git",
+	}
+	commands = append(commands, cloneRepoCommands(clonePath, "${DRONE_TAG}")...)
+	commands = append(commands,
+		fmt.Sprintf("cd %q", path.Join(clonePath, "build.assets", "tooling")),
+		"go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)",
+	)
+
+	return step{
+		Name:     "Check if tag is prerelease",
+		Image:    fmt.Sprintf("golang:%s-alpine", GoVersion),
+		Commands: commands,
+	}
+}
+
+func sliceSelect[T, V any](slice []T, selector func(T) V) []V {
+	selectedValues := make([]V, len(slice))
+	for i, entry := range slice {
+		selectedValues[i] = selector(entry)
+	}
+
+	return selectedValues
+}
+
+func getStepNames(steps []step) []string {
+	return sliceSelect(steps, func(s step) string { return s.Name })
 }

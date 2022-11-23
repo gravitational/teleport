@@ -29,6 +29,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
+	"github.com/gravitational/teleport/api/observability/tracing"
 )
 
 type raceResult struct {
@@ -57,13 +59,13 @@ func raceRequest(ctx context.Context, cli *http.Client, addr string, waitgroup *
 
 	rsp, err := cli.Do(request)
 	if err != nil {
-		log.WithError(err).Debug("Race request failed")
+		log.WithError(err).Debug("Proxy address test failed")
 		results <- raceResult{addr: addr, err: err}
 		return
 	}
 	defer rsp.Body.Close()
 
-	// NB: `ReadAll()` will time out (or be cancelled) according to the
+	// NB: `ReadAll()` will time out (or be canceled) according to the
 	//     context originally supplied to the request that initiated this
 	//     response, so no need to have an independent reading timeout
 	//     here.
@@ -77,7 +79,7 @@ func raceRequest(ctx context.Context, cli *http.Client, addr string, waitgroup *
 	// to treat this as a failure and return an error to the race
 	// aggregator.
 	if rsp.StatusCode != http.StatusOK {
-		err = trace.BadParameter("Racer received non-OK response: %03d", rsp.StatusCode)
+		err = trace.BadParameter("Proxy address test received non-OK response: %03d", rsp.StatusCode)
 		log.Debugf("%v, response body: %s ", err, string(resBody))
 
 		results <- raceResult{addr: addr, err: err}
@@ -112,11 +114,14 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 	}
 
 	httpClient := &http.Client{
-		Transport: otelhttp.NewTransport(&http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: insecure,
+		Transport: otelhttp.NewTransport(
+			&http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: insecure,
+				},
 			},
-		}),
+			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+		),
 	}
 
 	// NOTE: We rely on a specific order of deferred function execution in
@@ -128,7 +133,7 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 	// properly in error conditions.
 	var racersInFlight sync.WaitGroup
 	defer func() {
-		log.Debug("Waiting for all in-flight racers to finish")
+		log.Debug("Waiting for all in-flight proxy address tests to finish")
 		racersInFlight.Wait()
 	}()
 
@@ -156,10 +161,11 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
 
+	var errors []error
 	for {
 		select {
 		case <-ctx.Done():
-			// We've timed out or been cancelled. Bail out ASAP. Remember that returning
+			// We've timed out or been canceled. Bail out ASAP. Remember that returning
 			// will implicitly cancel all the already-started racers.
 			return "", ctx.Err()
 
@@ -182,6 +188,7 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 				log.Debugf("Address %s succeeded. Selected as canonical proxy address", r.addr)
 				return r.addr, nil
 			}
+			errors = append(errors, r.err)
 
 			// the ping failed. This could be for any number of reasons. All we
 			// really care about is whether _all_ of the ping attempts have
@@ -192,10 +199,11 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 				// to decide what it should do next. This is not so much the case for other
 				// types of error.
 				overallError := ctx.Err()
-				if overallError == nil {
-					overallError = r.err
+				if overallError != nil {
+					return "", overallError
 				}
-				return "", overallError
+
+				return "", trace.NewAggregate(errors...)
 			}
 		}
 	}

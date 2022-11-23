@@ -2,13 +2,16 @@
     "$schema": "http://json-schema.org/draft-07/schema",
     "type": "object",
     "required": [
-        "authToken",
         "proxyAddr",
         "roles",
+        "joinParams",
         "kubeClusterName",
         "apps",
+        "appResources",
         "awsDatabases",
+        "azureDatabases",
         "databases",
+        "databaseResources",
         "teleportVersionOverride",
         "insecureSkipProxyTLSVerify",
         "existingDataVolume",
@@ -17,6 +20,8 @@
         "image",
         "clusterRoleName",
         "clusterRoleBindingName",
+        "roleName",
+        "roleBindingName",
         "serviceAccountName",
         "secretName",
         "log",
@@ -46,6 +51,24 @@
             "type": "string",
             "default": "kube"
         },
+        "joinParams": {
+            "$id": "#/properties/joinParams",
+            "type": "object",
+            "required": ["method"],
+            "properties": {
+                "tokenName": {
+                    "$id": "#/properties/joinParams/tokenName",
+                    "type": "string",
+                    "default": ""
+                },
+                "method": {
+                    "$id": "#/properties/joinParams/method",
+                    "type": "string",
+                    "default": "token"
+                },
+                "additionalProperties": false
+            }
+        },
         "kubeClusterName": {
             "$id": "#/properties/kubeClusterName",
             "type": "string",
@@ -71,6 +94,21 @@
                     "default": ""
                 },
                 "additionalProperties": true
+            }
+        },
+        "appResources": {
+            "$id": "#/properties/appResources",
+            "type": "array",
+            "default": [],
+            "required": [
+                "labels"
+            ],
+            "properties": {
+                "labels": {
+                    "$id": "#/properties/appResources/labels",
+                    "type": "object"
+                },
+                "additionalProperties": false
             }
         },
         "awsDatabases": {
@@ -101,20 +139,123 @@
                 "additionalProperties": false
             }
         },
+        "azureDatabases": {
+            "$id": "#/properties/azureDatabases",
+            "type": "array",
+            "default": [],
+            "items": {
+                "type": "object",
+                "default": {},
+                "required": [
+                    "types",
+                    "tags"
+                ],
+                "properties": {
+                    "types": {
+                        "$id": "#/properties/azureDatabases/types",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "default": []
+                    },
+                    "tags": {
+                        "$id": "#/properties/azureDatabases/tags",
+                        "type": "object",
+                        "default": {},
+                        "additionalProperties": {
+                            "oneOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "subscriptions": {
+                        "$id": "#/properties/azureDatabases/subscriptions",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "default": []
+                    },
+                    "regions": {
+                        "$id": "#/properties/azureDatabases/regions",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "default": []
+                    },
+                    "resource_groups": {
+                        "$id": "#/properties/azureDatabases/resource_groups",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "default": []
+                    },
+                    "additionalProperties": false
+                }
+            }
+        },
         "databases": {
             "$id": "#/properties/databases",
             "type": "array",
             "default": []
+        },
+        "databaseResources": {
+            "$id": "#/properties/databaseResources",
+            "type": "array",
+            "default": [],
+            "required": [
+                "labels"
+            ],
+            "properties": {
+                "labels": {
+                    "$id": "#/properties/databaseResources/labels",
+                    "type": "object"
+                },
+                "additionalProperties": false
+            }
         },
         "teleportVersionOverride": {
             "$id": "#/properties/teleportVersionOverride",
             "type": "string",
             "default": ""
         },
+        "caPin": {
+            "$id": "#/properties/caPin",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
         "insecureSkipProxyTLSVerify": {
             "$id": "#/properties/insecureSkipProxyTLSVerify",
             "type": "boolean",
             "default": false
+        },
+        "tls": {
+            "$id": "#/properties/tls",
+            "type": "object",
+            "required": [
+                "existingCASecretName"
+            ],
+            "properties": {
+                "existingCASecretName": {
+                    "$id": "#/properties/tls/properties/existingCASecretName",
+                    "type": "string",
+                    "default": ""
+                }
+            }
         },
         "existingDataVolume": {
             "$id": "#/properties/existingDataVolume",
@@ -143,7 +284,7 @@
         "image": {
             "$id": "#/properties/image",
             "type": "string",
-            "default": "quay.io/gravitational/teleport"
+            "default": "public.ecr.aws/gravitational/teleport"
         },
         "imagePullSecrets": {
             "$id": "#/properties/imagePullSecrets",
@@ -162,6 +303,16 @@
         },
         "clusterRoleBindingName": {
             "$id": "#/properties/clusterRoleBindingName",
+            "type": "string",
+            "default": ""
+        },
+        "roleName": {
+            "$id": "#/properties/roleName",
+            "type": "string",
+            "default": ""
+        },
+        "roleBindingName": {
+            "$id": "#/properties/roleBindingName",
             "type": "string",
             "default": ""
         },
@@ -275,6 +426,16 @@
                 },
                 "clusterRoleBinding": {
                     "$id": "#/properties/extraLabels/properties/clusterRoleBinding",
+                    "type": "object",
+                    "default": {}
+                },
+                "role": {
+                    "$id": "#/properties/extraLabels/properties/role",
+                    "type": "object",
+                    "default": {}
+                },
+                "roleBinding": {
+                    "$id": "#/properties/extraLabels/properties/roleBinding",
                     "type": "object",
                     "default": {}
                 },

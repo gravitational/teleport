@@ -71,7 +71,7 @@ func TestCreateResetPasswordToken(t *testing.T) {
 	require.Equal(t, event.(*apievents.UserTokenCreate).User, teleport.UserSystem)
 
 	// verify that user has no MFA devices
-	devs, err := srv.Auth().Identity.GetMFADevices(ctx, username, false)
+	devs, err := srv.Auth().Services.GetMFADevices(ctx, username, false)
 	require.NoError(t, err)
 	require.Empty(t, devs)
 
@@ -246,7 +246,7 @@ func TestUserTokenSecretsCreationSettings(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	secrets, err := srv.Auth().Identity.GetUserTokenSecrets(ctx, token.GetName())
+	secrets, err := srv.Auth().GetUserTokenSecrets(ctx, token.GetName())
 	require.NoError(t, err)
 
 	require.NoError(t, err)
@@ -277,7 +277,6 @@ func TestUserTokenCreationSettings(t *testing.T) {
 	require.Equal(t, token.GetURL(), "https://<proxyhost>:3080/web/invite/"+token.GetName())
 	require.NotEmpty(t, token.GetCreated())
 	require.NotEmpty(t, token.GetMetadata().Expires)
-
 }
 
 // DELETE IN 9.0: remove legacy prefix and fallbacks.

@@ -14,7 +14,7 @@ AWS_REGION ?= us-west-2
 # This must be a _released_ version of Teleport, i.e. one which has binaries
 # available for download on https://gravitational.com/teleport/download
 # Unreleased versions will fail to build.
-TELEPORT_VERSION ?= 9.3.5
+TELEPORT_VERSION ?= 11.0.3
 
 # Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
@@ -38,7 +38,7 @@ TELEGRAF_VERSION ?= 1.9.3
 INFLUXDB_VERSION ?= 1.8.5
 
 # Grafana version
-GRAFANA_VERSION ?= 5.4.3
+GRAFANA_VERSION ?= 9.0.7
 
 # AWS account ID which hosts the public Teleport AMIs
 AWS_ACCOUNT_ID ?= 126027368216

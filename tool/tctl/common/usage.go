@@ -30,10 +30,10 @@ const (
 
 Examples:
 
-  > tctl users add --roles=admin,dba joe
+  > tctl users add --roles=editor,dba joe
 
-  This creates a Teleport account 'joe' who will assume the roles 'admin' and 'dba'
-  To see the permissions of 'admin' role, execute 'tctl get role/admin'
+  This creates a Teleport account 'joe' who will assume the roles 'editor' and 'dba'
+  To see the permissions of 'editor' role, execute 'tctl get role/editor'
 `
 
 	AddNodeHelp = `Notes:

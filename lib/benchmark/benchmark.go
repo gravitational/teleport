@@ -28,14 +28,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/HdrHistogram/hdrhistogram-go"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/HdrHistogram/hdrhistogram-go"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -155,7 +155,7 @@ func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, v
 
 // Benchmark connects to remote server and executes requests in parallel according
 // to benchmark spec. It returns benchmark result when completed.
-// This is a blocking function that can be cancelled via context argument.
+// This is a blocking function that can be canceled via context argument.
 func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Result, error) {
 	tc.Stdout = io.Discard
 	tc.Stderr = io.Discard

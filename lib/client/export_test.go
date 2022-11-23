@@ -1,4 +1,4 @@
-// Copyright 2021 Gravitational, Inc
+// Copyright 2022 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,4 +14,4 @@
 
 package client
 
-var PromptWebauthn = &promptWebauthn
+var HasTouchIDCredentials = &hasTouchIDCredentials

@@ -20,11 +20,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
-
-	"github.com/gravitational/trace"
 )
 
 // NewMultiLog returns a new instance of a multi logger
@@ -78,10 +78,7 @@ func (m *MultiLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes
 // Returns all events that happen during a session sorted by time
 // (oldest first).
 //
-// after tells to use only return events after a specified cursor Id
-//
-// This function is usually used in conjunction with GetSessionReader to
-// replay recorded session streams.
+// after is used to return events after a specified cursor ID
 func (m *MultiLog) GetSessionEvents(namespace string, sid session.ID, after int, fetchPrintEvents bool) (events []EventFields, err error) {
 	for _, log := range m.loggers {
 		events, err = log.GetSessionEvents(namespace, sid, after, fetchPrintEvents)
@@ -116,9 +113,9 @@ func (m *MultiLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, even
 //
 // Event types to filter can be specified and pagination is handled by an iterator key that allows
 // a query to be resumed.
-func (m *MultiLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) (events []apievents.AuditEvent, lastKey string, err error) {
+func (m *MultiLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) (events []apievents.AuditEvent, lastKey string, err error) {
 	for _, log := range m.loggers {
-		events, lastKey, err = log.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond)
+		events, lastKey, err = log.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
 		if !trace.IsNotImplemented(err) {
 			return events, lastKey, err
 		}

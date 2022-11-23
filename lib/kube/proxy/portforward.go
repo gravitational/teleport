@@ -26,13 +26,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/events"
-
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/events"
 )
 
 // portForwardRequest is a request that specifies port forwarding
@@ -127,7 +127,7 @@ func httpStreamReceived(ctx context.Context, streams chan httpstream.Stream) fun
 		case streams <- stream:
 			return nil
 		case <-ctx.Done():
-			return trace.BadParameter("request has been cancelled")
+			return trace.BadParameter("request has been canceled")
 		}
 	}
 }

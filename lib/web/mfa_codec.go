@@ -21,12 +21,13 @@ import (
 	"encoding/json"
 
 	proto "github.com/gogo/protobuf/proto"
+	"github.com/gravitational/trace"
+
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/web/mfajson"
-	"github.com/gravitational/trace"
 )
 
 // mfaCodec converts MFA challenges/responses between their native types and a format
@@ -89,7 +90,10 @@ func (tdpMFACodec) encode(chal *client.MFAAuthenticateChallenge, envelopeType st
 }
 
 func (tdpMFACodec) decode(buf []byte, envelopeType string) (*authproto.MFAAuthenticateResponse, error) {
-	msg, err := tdp.DecodeMFA(bytes.NewReader(buf))
+	if len(buf) == 0 || tdp.MessageType(buf[0]) != tdp.TypeMFA {
+		return nil, trace.BadParameter("expected MFA message type %v, got %v", tdp.TypeMFA, buf[0])
+	}
+	msg, err := tdp.DecodeMFA(bytes.NewReader(buf[1:]))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

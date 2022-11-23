@@ -24,7 +24,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
+	"os"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -34,23 +36,52 @@ import (
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	log "github.com/sirupsen/logrus"
 )
 
 var (
 	ErrCredentialNotFound = errors.New("credential not found")
 	ErrNotAvailable       = errors.New("touch ID not available")
+
+	// PromptPlatformMessage is the message shown before Touch ID prompts.
+	PromptPlatformMessage = "Using platform authenticator, follow the OS prompt"
+	// PromptWriter is the writer used for prompt messages.
+	PromptWriter io.Writer = os.Stderr
 )
+
+func promptPlatform() {
+	if PromptPlatformMessage != "" {
+		fmt.Fprintln(PromptWriter, PromptPlatformMessage)
+	}
+}
+
+// AuthContext is an optional, shared authentication context.
+// Allows reusing a single authentication prompt/gesture between different
+// functions, provided the functions are invoked in a short time interval.
+// Only used by native touchid implementations.
+type AuthContext interface {
+	// Guard guards the invocation of fn behind an authentication check.
+	Guard(fn func()) error
+	// Close closes the context, releasing any held resources.
+	Close()
+}
 
 // nativeTID represents the native Touch ID interface.
 // Implementors must provide a global variable called `native`.
 type nativeTID interface {
 	Diag() (*DiagResult, error)
 
+	// NewAuthContext creates a new AuthContext.
+	NewAuthContext() AuthContext
+
+	// Register creates a new credential in the Secure Enclave.
 	Register(rpID, user string, userHandle []byte) (*CredentialInfo, error)
-	Authenticate(credentialID string, digest []byte) ([]byte, error)
+
+	// Authenticate authenticates using the specified credential.
+	// Requires user interaction.
+	Authenticate(actx AuthContext, credentialID string, digest []byte) ([]byte, error)
 
 	// FindCredentials finds credentials without user interaction.
 	// An empty user means "all users".
@@ -82,16 +113,21 @@ type DiagResult struct {
 
 // CredentialInfo holds information about a Secure Enclave credential.
 type CredentialInfo struct {
-	UserHandle   []byte
 	CredentialID string
 	RPID         string
-	User         string
+	User         UserInfo
 	PublicKey    *ecdsa.PublicKey
 	CreateTime   time.Time
 
 	// publicKeyRaw is used internally to return public key data from native
 	// register requests.
 	publicKeyRaw []byte
+}
+
+// UserInfo holds information about a credential owner.
+type UserInfo struct {
+	UserHandle []byte
+	Name       string
 }
 
 var (
@@ -177,6 +213,13 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 		return nil, ErrNotAvailable
 	}
 
+	if origin == "" {
+		return nil, trace.BadParameter("origin required")
+	}
+	if err := cc.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Ignored cc fields:
 	// - Timeout - we don't control touch ID timeouts (also the server is free to
 	//   enforce it)
@@ -185,23 +228,9 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 	// - Extensions - none supported
 	// - Attestation - we always to our best (packed/self-attestation).
 	//   The server is free to ignore/reject.
-	switch {
-	case origin == "":
-		return nil, errors.New("origin required")
-	case cc == nil:
-		return nil, errors.New("credential creation required")
-	case len(cc.Response.Challenge) == 0:
-		return nil, errors.New("challenge required")
-	// Note: we don't need other RelyingParty fields, but technically they would
-	// be required as well.
-	case cc.Response.RelyingParty.ID == "":
-		return nil, errors.New("relying party ID required")
-	case len(cc.Response.User.ID) == 0:
-		return nil, errors.New("user ID required")
-	case cc.Response.User.Name == "":
-		return nil, errors.New("user name required")
-	case cc.Response.AuthenticatorSelection.AuthenticatorAttachment == protocol.CrossPlatform:
-		return nil, fmt.Errorf("cannot fulfil authenticator attachment %q", cc.Response.AuthenticatorSelection.AuthenticatorAttachment)
+
+	if cc.Response.AuthenticatorSelection.AuthenticatorAttachment == protocol.CrossPlatform {
+		return nil, fmt.Errorf("cannot fulfill authenticator attachment %q", cc.Response.AuthenticatorSelection.AuthenticatorAttachment)
 	}
 	ok := false
 	for _, param := range cc.Response.Parameters {
@@ -212,7 +241,7 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 		}
 	}
 	if !ok {
-		return nil, errors.New("cannot fulfil credential parameters, only ES256 are supported")
+		return nil, errors.New("cannot fulfill credential parameters, only ES256 are supported")
 	}
 
 	rpID := cc.Response.RelyingParty.ID
@@ -263,7 +292,8 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 		return nil, trace.Wrap(err)
 	}
 
-	sig, err := native.Authenticate(credentialID, attData.digest)
+	promptPlatform()
+	sig, err := native.Authenticate(nil /* actx */, credentialID, attData.digest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -299,6 +329,24 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 		CCR:          ccr,
 		credentialID: credentialID,
 	}, nil
+}
+
+// HasCredentials checks if there are any credentials registered for given user.
+// If user is empty it checks if there are credentials registered for any user.
+// It does not require user interactions.
+func HasCredentials(rpid, user string) bool {
+	if !IsAvailable() {
+		return false
+	}
+	if rpid == "" {
+		return false
+	}
+	creds, err := native.FindCredentials(rpid, user)
+	if err != nil {
+		log.WithError(err).Debug("Touch ID: Could not find credentials")
+		return false
+	}
+	return len(creds) > 0
 }
 
 func pubKeyFromRawAppleKey(pubKeyRaw []byte) (*ecdsa.PublicKey, error) {
@@ -391,12 +439,29 @@ func makeAttestationData(ceremony protocol.CeremonyType, origin, rpID string, ch
 	}, nil
 }
 
+// CredentialPicker allows users to choose a credential for login.
+type CredentialPicker interface {
+	// PromptCredential prompts the user to pick a credential from the list.
+	// Prompts only happen if there is more than one credential to choose from.
+	// Must return one of the pointers from the slice or an error.
+	PromptCredential(creds []*CredentialInfo) (*CredentialInfo, error)
+}
+
 // Login authenticates using a Secure Enclave-backed biometric credential.
 // It returns the assertion response and the user that owns the credential to
 // sign it.
-func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.CredentialAssertionResponse, string, error) {
+func Login(origin, user string, assertion *wanlib.CredentialAssertion, picker CredentialPicker) (*wanlib.CredentialAssertionResponse, string, error) {
 	if !IsAvailable() {
 		return nil, "", ErrNotAvailable
+	}
+	switch {
+	case origin == "":
+		return nil, "", trace.BadParameter("origin required")
+	case picker == nil:
+		return nil, "", trace.BadParameter("picker required")
+	}
+	if err := assertion.Validate(); err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 
 	// Ignored assertion fields:
@@ -404,19 +469,7 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 	//   enforce it)
 	// - UserVerification - always performed
 	// - Extensions - none supported
-	switch {
-	case origin == "":
-		return nil, "", errors.New("origin required")
-	case assertion == nil:
-		return nil, "", errors.New("assertion required")
-	case len(assertion.Response.Challenge) == 0:
-		return nil, "", errors.New("challenge required")
-	case assertion.Response.RelyingPartyID == "":
-		return nil, "", errors.New("relying party ID required")
-	}
 
-	// TODO(codingllama): Share the same LAContext between search and
-	//  authentication, so we can protect both with user interaction.
 	rpID := assertion.Response.RelyingPartyID
 	infos, err := native.FindCredentials(rpID, user)
 	switch {
@@ -434,32 +487,35 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 		return i1.CreateTime.After(i2.CreateTime)
 	})
 
-	// Verify infos against allowed credentials, if any.
-	var cred *CredentialInfo
-	if len(assertion.Response.AllowedCredentials) > 0 {
-		for _, info := range infos {
-			for _, allowedCred := range assertion.Response.AllowedCredentials {
-				if info.CredentialID == string(allowedCred.CredentialID) {
-					cred = &info
-					break
-				}
-			}
+	// Prepare authentication context and prompt for the credential picker.
+	actx := native.NewAuthContext()
+	defer actx.Close()
+
+	var prompted bool
+	promptOnce := func() {
+		if prompted {
+			return
 		}
-	} else {
-		cred = &infos[0]
+		promptPlatform()
+		prompted = true
 	}
-	if cred == nil {
-		return nil, "", ErrCredentialNotFound
+
+	cred, err := pickCredential(
+		actx,
+		infos, assertion.Response.AllowedCredentials,
+		picker, promptOnce, user != "" /* userRequested */)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
 	}
-	log.Debugf("Using Touch ID credential %q", cred.CredentialID)
+	log.Debugf("Touch ID: using credential %q", cred.CredentialID)
 
 	attData, err := makeAttestationData(protocol.AssertCeremony, origin, rpID, assertion.Response.Challenge, nil /* cred */)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	log.Debug("Prompting for Touch ID")
-	sig, err := native.Authenticate(cred.CredentialID, attData.digest)
+	promptOnce() // In case the picker prompt didn't happen.
+	sig, err := native.Authenticate(actx, cred.CredentialID, attData.digest)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -478,9 +534,73 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 			},
 			AuthenticatorData: attData.rawAuthData,
 			Signature:         sig,
-			UserHandle:        cred.UserHandle,
+			UserHandle:        cred.User.UserHandle,
 		},
-	}, cred.User, nil
+	}, cred.User.Name, nil
+}
+
+func pickCredential(
+	actx AuthContext,
+	infos []CredentialInfo, allowedCredentials []protocol.CredentialDescriptor,
+	picker CredentialPicker, promptOnce func(), userRequested bool) (*CredentialInfo, error) {
+	// Handle early exits.
+	switch l := len(infos); {
+	// MFA.
+	case len(allowedCredentials) > 0:
+		for _, info := range infos {
+			for _, cred := range allowedCredentials {
+				if info.CredentialID == string(cred.CredentialID) {
+					return &info, nil
+				}
+			}
+		}
+		return nil, ErrCredentialNotFound
+
+	// Single credential or specific user requested.
+	// A requested user means that all credentials are for that user, so there
+	// would be nothing to pick.
+	case l == 1 || userRequested:
+		return &infos[0], nil
+	}
+
+	// Dedup users to avoid confusion.
+	// This assumes credentials are sorted from most to less preferred.
+	knownUsers := make(map[string]struct{})
+	deduped := make([]*CredentialInfo, 0, len(infos))
+	for _, c := range infos {
+		if _, ok := knownUsers[c.User.Name]; ok {
+			continue
+		}
+		knownUsers[c.User.Name] = struct{}{}
+
+		c := c // Avoid capture-by-reference errors
+		deduped = append(deduped, &c)
+	}
+	if len(deduped) == 1 {
+		return deduped[0], nil
+	}
+
+	promptOnce()
+	var choice *CredentialInfo
+	var choiceErr error
+	if err := actx.Guard(func() {
+		choice, choiceErr = picker.PromptCredential(deduped)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if choiceErr != nil {
+		return nil, trace.Wrap(choiceErr)
+	}
+
+	// Is choice a pointer within the slice?
+	// We could work around this requirement, but it seems better to constrain the
+	// picker API from the start.
+	for _, c := range deduped {
+		if c == choice {
+			return choice, nil
+		}
+	}
+	return nil, fmt.Errorf("picker returned invalid credential: %#v", choice)
 }
 
 // ListCredentials lists all registered Secure Enclave credentials.
@@ -490,6 +610,7 @@ func ListCredentials() ([]CredentialInfo, error) {
 		return nil, ErrNotAvailable
 	}
 
+	promptPlatform()
 	infos, err := native.ListCredentials()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -516,5 +637,6 @@ func DeleteCredential(credentialID string) error {
 		return ErrNotAvailable
 	}
 
+	promptPlatform()
 	return native.DeleteCredential(credentialID)
 }

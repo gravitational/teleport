@@ -13,9 +13,6 @@ export class Cluster extends jspb.Message {
     getName(): string;
     setName(value: string): Cluster;
 
-    getActualName(): string;
-    setActualName(value: string): Cluster;
-
     getProxyHost(): string;
     setProxyHost(value: string): Cluster;
 
@@ -32,6 +29,12 @@ export class Cluster extends jspb.Message {
     setLoggedInUser(value?: LoggedInUser): Cluster;
 
 
+    hasFeatures(): boolean;
+    clearFeatures(): void;
+    getFeatures(): Features | undefined;
+    setFeatures(value?: Features): Cluster;
+
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Cluster.AsObject;
     static toObject(includeInstance: boolean, msg: Cluster): Cluster.AsObject;
@@ -46,11 +49,11 @@ export namespace Cluster {
     export type AsObject = {
         uri: string,
         name: string,
-        actualName: string,
         proxyHost: string,
         connected: boolean,
         leaf: boolean,
         loggedInUser?: LoggedInUser.AsObject,
+        features?: Features.AsObject,
     }
 }
 
@@ -74,6 +77,11 @@ export class LoggedInUser extends jspb.Message {
     getAcl(): ACL | undefined;
     setAcl(value?: ACL): LoggedInUser;
 
+    clearActiveRequestsList(): void;
+    getActiveRequestsList(): Array<string>;
+    setActiveRequestsList(value: Array<string>): LoggedInUser;
+    addActiveRequests(value: string, index?: number): string;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): LoggedInUser.AsObject;
@@ -91,6 +99,7 @@ export namespace LoggedInUser {
         rolesList: Array<string>,
         sshLoginsList: Array<string>,
         acl?: ACL.AsObject,
+        activeRequestsList: Array<string>,
     }
 }
 
@@ -229,5 +238,26 @@ export namespace ResourceAccess {
         edit: boolean,
         create: boolean,
         pb_delete: boolean,
+    }
+}
+
+export class Features extends jspb.Message { 
+    getAdvancedAccessWorkflows(): boolean;
+    setAdvancedAccessWorkflows(value: boolean): Features;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): Features.AsObject;
+    static toObject(includeInstance: boolean, msg: Features): Features.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: Features, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): Features;
+    static deserializeBinaryFromReader(message: Features, reader: jspb.BinaryReader): Features;
+}
+
+export namespace Features {
+    export type AsObject = {
+        advancedAccessWorkflows: boolean,
     }
 }

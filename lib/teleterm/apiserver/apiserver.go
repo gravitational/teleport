@@ -15,15 +15,16 @@
 package apiserver
 
 import (
+	"fmt"
 	"net"
-	"net/url"
+
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver/handler"
-
-	"github.com/gravitational/trace"
-
-	"google.golang.org/grpc"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // New creates an instance of API Server
@@ -31,6 +32,18 @@ func New(cfg Config) (*APIServer, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Create the listener, set up the server.
+
+	ls, err := newListener(cfg.HostAddr, cfg.ListeningC)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	grpcServer := grpc.NewServer(cfg.TshdServerCreds,
+		grpc.ChainUnaryInterceptor(withErrorHandling(cfg.Log)))
+
+	// Create Terminal service.
 
 	serviceHandler, err := handler.New(
 		handler.Config{
@@ -40,15 +53,6 @@ func New(cfg Config) (*APIServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	ls, err := newListener(cfg.HostAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	grpcServer := grpc.NewServer(grpc.Creds(nil), grpc.ChainUnaryInterceptor(
-		withErrorHandling(cfg.Log),
-	))
 
 	api.RegisterTerminalServiceServer(grpcServer, serviceHandler)
 
@@ -65,23 +69,32 @@ func (s *APIServer) Stop() {
 	s.grpcServer.GracefulStop()
 }
 
-func newListener(hostAddr string) (net.Listener, error) {
-	uri, err := url.Parse(hostAddr)
+func newListener(hostAddr string, listeningC chan<- utils.NetAddr) (net.Listener, error) {
+	uri, err := utils.ParseAddr(hostAddr)
 
 	if err != nil {
 		return nil, trace.BadParameter("invalid host address: %s", hostAddr)
 	}
 
-	if uri.Scheme != "unix" {
-		return nil, trace.BadParameter("invalid unix socket address: %s", hostAddr)
-	}
-
-	lis, err := net.Listen(uri.Scheme, uri.Path)
+	lis, err := net.Listen(uri.Network(), uri.Addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	addr := utils.FromAddr(lis.Addr())
+	sendBoundNetworkPortToStdout(addr)
+	if listeningC != nil {
+		listeningC <- addr
+	}
+
+	log.Infof("tsh daemon is listening on %v.", addr.FullAddress())
+
 	return lis, nil
+}
+
+func sendBoundNetworkPortToStdout(addr utils.NetAddr) {
+	// Connect needs this message to know which port has been assigned to the server.
+	fmt.Printf("{CONNECT_GRPC_PORT: %v}\n", addr.Port(1))
 }
 
 // Server is a combination of the underlying grpc.Server and its RuntimeOpts.

@@ -17,12 +17,12 @@ package webauthncli
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/flynn/u2f/u2fhid"
 	"github.com/flynn/u2f/u2ftoken"
 	"github.com/gravitational/trace"
-
 	log "github.com/sirupsen/logrus"
 )
 
@@ -61,7 +61,7 @@ type deviceKey struct {
 
 // RunOnU2FDevices polls for new U2F/CTAP1 devices and invokes the callbacks
 // against them in regular intervals, running until either one callback succeeds
-// or the context is cancelled.
+// or the context is canceled.
 // Typically, each callback represents a {credential,rpid} pair to check against
 // the device.
 // Calling this method using a context without a cancel or deadline means it
@@ -77,7 +77,12 @@ func RunOnU2FDevices(ctx context.Context, runCredentials ...func(Token) error) e
 		case errors.Is(err, errKeyMissingOrNotVerified):
 			// This is expected to happen a few times.
 		case err != nil:
-			log.WithError(err).Debug("Error interacting with U2F devices")
+			errMsg := err.Error()
+			// suppress error spam, this error doesnt prevent u2f from working
+			if !strings.Contains(errMsg, "hid: privilege violation") &&
+				!strings.Contains(errMsg, "hid: not permitted") {
+				log.WithError(err).Debug("Error interacting with U2F devices")
+			}
 		default: // OK, success.
 			return nil
 		}

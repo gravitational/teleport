@@ -19,11 +19,12 @@ import (
 	"os/user"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -50,7 +51,8 @@ func NewFixture(t *testing.T) *Fixture {
 	require.NoError(t, err)
 
 	// Find AllocatePortsNum free listening ports to use.
-	fixture.Me, _ = user.Current()
+	fixture.Me, err = user.Current()
+	require.NoError(t, err)
 
 	// close & re-open stdin because 'go test' runs with os.stdin connected to /dev/null
 	stdin, err := os.Open("/dev/tty")
@@ -73,7 +75,7 @@ func NewFixture(t *testing.T) *Fixture {
 // Teleport instance with the passed in user, instance secrets, and Teleport
 // configuration.
 func (s *Fixture) NewTeleportWithConfig(t *testing.T, logins []string, instanceSecrets []*InstanceSecrets, teleportConfig *service.Config) *TeleInstance {
-	teleport := s.NewTeleportInstance()
+	teleport := s.NewTeleportInstance(t)
 
 	// use passed logins, but use suite's default login if nothing was passed
 	if len(logins) == 0 {
@@ -95,18 +97,19 @@ func (s *Fixture) NewTeleportWithConfig(t *testing.T, logins []string, instanceS
 	return teleport
 }
 
-func (s *Fixture) NewTeleportInstance() *TeleInstance {
-	return NewInstance(s.DefaultInstanceConfig())
+func (s *Fixture) NewTeleportInstance(t *testing.T) *TeleInstance {
+	return NewInstance(t, s.DefaultInstanceConfig(t))
 }
 
-func (s *Fixture) DefaultInstanceConfig() InstanceConfig {
-	return InstanceConfig{
+func (s *Fixture) DefaultInstanceConfig(t *testing.T) InstanceConfig {
+	cfg := InstanceConfig{
 		ClusterName: Site,
 		HostID:      HostID,
 		NodeName:    Host,
 		Priv:        s.Priv,
 		Pub:         s.Pub,
 		Log:         s.Log,
-		Ports:       StandardPortSetup(),
 	}
+	cfg.Listeners = StandardListenerSetup(t, &cfg.Fds)
+	return cfg
 }

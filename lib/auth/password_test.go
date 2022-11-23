@@ -26,26 +26,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/pquerna/otp/totp"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
-	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/trace"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/pquerna/otp/totp"
 )
 
 type passwordSuite struct {
@@ -56,9 +56,18 @@ type passwordSuite struct {
 
 func setupPasswordSuite(t *testing.T) *passwordSuite {
 	s := passwordSuite{}
+
+	ctx := context.Background()
+	clock := clockwork.NewFakeClockAt(time.Now())
+
 	var err error
-	s.bk, err = lite.New(context.TODO(), backend.Params{"path": t.TempDir()})
+
+	s.bk, err = memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
 	require.NoError(t, err)
+
 	// set cluster name
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
@@ -69,6 +78,11 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 		Backend:                s.bk,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
+		},
 	}
 	s.a, err = NewServer(authConfig)
 	require.NoError(t, err)
@@ -90,6 +104,8 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 }
 
 func TestPasswordTimingAttack(t *testing.T) {
+	t.Parallel()
+
 	s := setupPasswordSuite(t)
 	username := "foo"
 	password := "barbaz"
@@ -168,6 +184,7 @@ func TestPasswordTimingAttack(t *testing.T) {
 
 func TestUserNotFound(t *testing.T) {
 	t.Parallel()
+
 	s := setupPasswordSuite(t)
 	username := "unknown-user"
 	password := "barbaz"
@@ -180,6 +197,7 @@ func TestUserNotFound(t *testing.T) {
 
 func TestChangePassword(t *testing.T) {
 	t.Parallel()
+
 	s := setupPasswordSuite(t)
 	req, err := s.prepareForPasswordChange("user1", []byte("abc123"), constants.SecondFactorOff)
 	require.NoError(t, err)
@@ -204,6 +222,7 @@ func TestChangePassword(t *testing.T) {
 
 func TestChangePasswordWithOTP(t *testing.T) {
 	t.Parallel()
+
 	s := setupPasswordSuite(t)
 	req, err := s.prepareForPasswordChange("user2", []byte("abc123"), constants.SecondFactorOTP)
 	require.NoError(t, err)
@@ -242,6 +261,7 @@ func TestChangePasswordWithOTP(t *testing.T) {
 
 func TestServer_ChangePassword(t *testing.T) {
 	t.Parallel()
+
 	srv := newTestTLSServer(t)
 
 	mfa := configureForMFA(t, srv)
@@ -310,6 +330,7 @@ func TestServer_ChangePassword(t *testing.T) {
 
 func TestChangeUserAuthentication(t *testing.T) {
 	t.Parallel()
+
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
@@ -528,7 +549,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 
 			// Test device was registered.
 			if validReq.NewMFARegisterResponse != nil {
-				devs, err := srv.Auth().Identity.GetMFADevices(ctx, username, false /* without secrets*/)
+				devs, err := srv.Auth().Services.GetMFADevices(ctx, username, false /* without secrets*/)
 				require.NoError(t, err)
 				require.Len(t, devs, 1)
 
@@ -551,6 +572,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 
 func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 	t.Parallel()
+
 	s := setupPasswordSuite(t)
 	ctx := context.Background()
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{

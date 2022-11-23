@@ -1,6 +1,6 @@
 ---
 authors: Przemko Robakowski(przemko.robakowski@goteleport.com)
-state: draft
+state: implemented (Teleport 10.0.0)
 ---
 
 # RFD 66 - IP-based validation
@@ -12,8 +12,9 @@ state: draft
 
 ## What
 
-Additional validation based on client IP for creating and using certificates. Certificate can be used only with the same
-client IP as the one used to generate it.
+IP-based validation is an enterprise-only feature that embeds the source IP
+in SSH certificates. When enabled, SSH certificates can only be used to connect
+to resources from the same source IP that was issued the certificate.
 
 ## Why
 

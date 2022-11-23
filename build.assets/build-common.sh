@@ -101,11 +101,14 @@ notarize() {
   fi
 
   # XCode 12.
-  local goncfg=''
-  goncfg="$(mktemp)"
+  local gondir=''
+  gondir="$(mktemp -d)"
   # Early expansion on purpose.
   #shellcheck disable=SC2064
-  trap "rm -f '$goncfg'" EXIT
+  trap "rm -fr '$gondir'" EXIT
+
+  # Gon configuration file needs a proper extension.
+  local goncfg="$gondir/gon.json"
   cat >"$goncfg" <<EOF
 {
   "notarize": [{

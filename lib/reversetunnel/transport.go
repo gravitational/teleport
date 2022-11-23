@@ -25,10 +25,11 @@ import (
 	"net"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -37,10 +38,6 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
-
-	"github.com/gravitational/trace"
-
-	"github.com/sirupsen/logrus"
 )
 
 // NewTunnelAuthDialer creates a new instance of TunnelAuthDialer
@@ -85,20 +82,13 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 		proxy.WithInsecureSkipTLSVerify(t.InsecureSkipTLSVerify),
 	}
 
-	addr, err := t.Resolver(ctx)
+	addr, mode, err := t.Resolver(ctx)
 	if err != nil {
-		t.Log.Errorf("Failed to resolve tunnel address %v", err)
+		t.Log.Errorf("Failed to resolve tunnel address: %v", err)
 		return nil, trace.Wrap(err)
 	}
 
-	// Check if t.ProxyAddr is ProxyWebPort and remote Proxy supports TLS ALPNSNIListener.
-	resp, err := webclient.Find(
-		&webclient.Config{Context: ctx, ProxyAddr: addr.Addr, Insecure: t.InsecureSkipTLSVerify})
-	if err != nil {
-		// If TLS Routing is disabled the address is the proxy reverse tunnel
-		// address thus the ping call will always fail.
-		t.Log.Debugf("Failed to ping web proxy %q addr: %v", addr.Addr, err)
-	} else if resp.Proxy.TLSRoutingEnabled {
+	if mode == types.ProxyListenerMode_Multiplex {
 		opts = append(opts, proxy.WithALPNDialer(&tls.Config{
 			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
 		}))
@@ -112,12 +102,15 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 
 	// Build a net.Conn over the tunnel. Make this an exclusive connection:
 	// close the net.Conn as well as the channel upon close.
-	conn, _, err := sshutils.ConnectProxyTransport(sconn.Conn, &sshutils.DialReq{
-		Address: RemoteAuthServer,
-	}, true)
+	conn, _, err := sshutils.ConnectProxyTransport(
+		sconn.Conn,
+		&sshutils.DialReq{
+			Address: RemoteAuthServer,
+		},
+		true,
+	)
 	if err != nil {
-		err2 := sconn.Close()
-		return nil, trace.NewAggregate(err, err2)
+		return nil, trace.NewAggregate(err, sconn.Close())
 	}
 	return conn, nil
 }
@@ -155,7 +148,7 @@ type transport struct {
 	kubeDialAddr utils.NetAddr
 
 	// sconn is a SSH connection to the remote host. Used for dial back nodes.
-	sconn ssh.Conn
+	sconn sshutils.Conn
 
 	// reverseTunnelServer holds all reverse tunnel connections.
 	reverseTunnelServer Server

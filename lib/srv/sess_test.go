@@ -19,27 +19,34 @@ package srv
 import (
 	"context"
 	"io"
+	"os/user"
+	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
+	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestParseAccessRequestIDs(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		input     string
 		comment   string
@@ -82,6 +89,8 @@ func TestParseAccessRequestIDs(t *testing.T) {
 }
 
 func TestSession_newRecorder(t *testing.T) {
+	t.Parallel()
+
 	proxyRecording, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxy,
 	})
@@ -200,20 +209,20 @@ func TestSession_newRecorder(t *testing.T) {
 					component: teleport.ComponentNode,
 				},
 				Identity: IdentityContext{
-					AccessChecker: services.NewAccessChecker(&services.AccessInfo{
-						RoleSet: services.RoleSet{
-							&types.RoleV5{
-								Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
-								Spec: types.RoleSpecV5{
-									Options: types.RoleOptions{
-										RecordSession: &types.RecordSession{
-											SSH: constants.SessionRecordingModeStrict,
-										},
+					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+						Roles: []string{"dev"},
+					}, "test", services.RoleSet{
+						&types.RoleV5{
+							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+							Spec: types.RoleSpecV5{
+								Options: types.RoleOptions{
+									RecordSession: &types.RecordSession{
+										SSH: constants.SessionRecordingModeStrict,
 									},
 								},
 							},
 						},
-					}, "test"),
+					}),
 				},
 			},
 			errAssertion: require.Error,
@@ -239,20 +248,20 @@ func TestSession_newRecorder(t *testing.T) {
 					component: teleport.ComponentNode,
 				},
 				Identity: IdentityContext{
-					AccessChecker: services.NewAccessChecker(&services.AccessInfo{
-						RoleSet: services.RoleSet{
-							&types.RoleV5{
-								Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
-								Spec: types.RoleSpecV5{
-									Options: types.RoleOptions{
-										RecordSession: &types.RecordSession{
-											SSH: constants.SessionRecordingModeBestEffort,
-										},
+					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+						Roles: []string{"dev"},
+					}, "test", services.RoleSet{
+						&types.RoleV5{
+							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+							Spec: types.RoleSpecV5{
+								Options: types.RoleOptions{
+									RecordSession: &types.RecordSession{
+										SSH: constants.SessionRecordingModeBestEffort,
 									},
 								},
 							},
 						},
-					}, "test"),
+					}),
 				},
 			},
 			errAssertion: require.NoError,
@@ -303,6 +312,8 @@ func TestSession_newRecorder(t *testing.T) {
 }
 
 func TestSession_emitAuditEvent(t *testing.T) {
+	t.Parallel()
+
 	logger := logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentAuth,
 	})
@@ -374,9 +385,51 @@ func TestInteractiveSession(t *testing.T) {
 	})
 }
 
+// TestStopUnstarted tests that a session may be stopped before it launches.
+func TestStopUnstarted(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	srv := newMockServer(t)
+	srv.component = teleport.ComponentNode
+
+	reg, err := NewSessionRegistry(SessionRegistryConfig{
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { reg.Close() })
+
+	role, err := types.NewRole("access", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			RequireSessionJoin: []*types.SessionRequirePolicy{{
+				Name:   "foo",
+				Filter: "contains(user.roles, 'auditor')",
+				Kinds:  []string{string(types.SSHSessionKind)},
+				Modes:  []string{string(types.SessionPeerMode)},
+				Count:  999,
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	roles := services.NewRoleSet(role)
+	sess, _ := testOpenSession(t, reg, roles)
+
+	// Stopping the session should trigger the session
+	// to end and cleanup in the background
+	sess.Stop()
+
+	sessionClosed := func() bool {
+		_, found := reg.findSession(sess.id)
+		return !found
+	}
+	require.Eventually(t, sessionClosed, time.Second*15, time.Millisecond*500)
+}
+
 // TestParties tests the party mechanisms within an interactive session,
 // including party leave, party disconnect, and empty session lingerAndDie.
 func TestParties(t *testing.T) {
+	t.Parallel()
+
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
 
@@ -459,11 +512,13 @@ func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err := reg.OpenSession(sshChanOpen, scx)
+	err := reg.OpenSession(context.Background(), sshChanOpen, scx)
 	require.NoError(t, err)
 }
 
 func TestSessionRecordingModes(t *testing.T) {
+	t.Parallel()
+
 	for _, tt := range []struct {
 		desc                 string
 		sessionRecordingMode constants.SessionRecordingMode
@@ -559,7 +614,7 @@ func testOpenSession(t *testing.T, reg *SessionRegistry, roleSet services.RoleSe
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err := reg.OpenSession(sshChanOpen, scx)
+	err := reg.OpenSession(context.Background(), sshChanOpen, scx)
 	require.NoError(t, err)
 
 	require.NotNil(t, scx.session)
@@ -578,4 +633,157 @@ func (m *mockRecorder) Done() <-chan struct{} {
 	}
 
 	return ch
+}
+
+type trackerService struct {
+	created     atomic.Int32
+	createError error
+	services.SessionTrackerService
+}
+
+func (t *trackerService) CreatedCount() int {
+	return int(t.created.Load())
+}
+
+func (t *trackerService) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
+	t.created.Add(1)
+
+	if t.createError != nil {
+		return nil, t.createError
+	}
+
+	return t.SessionTrackerService.CreateSessionTracker(ctx, tracker)
+}
+
+type sessionEvaluator struct {
+	moderated bool
+	SessionAccessEvaluator
+}
+
+func (s sessionEvaluator) IsModerated() bool {
+	return s.moderated
+}
+
+func TestTrackingSession(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	me, err := user.Current()
+	require.NoError(t, err)
+
+	cases := []struct {
+		name            string
+		component       string
+		recordingMode   string
+		createError     error
+		moderated       bool
+		assertion       require.ErrorAssertionFunc
+		createAssertion func(t *testing.T, count int)
+	}{
+		{
+			name:          "node with proxy recording mode",
+			component:     teleport.ComponentNode,
+			recordingMode: types.RecordAtProxy,
+			assertion:     require.NoError,
+			createAssertion: func(t *testing.T, count int) {
+				require.Equal(t, 0, count)
+			},
+		},
+		{
+			name:          "node with node recording mode",
+			component:     teleport.ComponentNode,
+			recordingMode: types.RecordAtNode,
+			assertion:     require.NoError,
+			createAssertion: func(t *testing.T, count int) {
+				require.Equal(t, 1, count)
+			},
+		},
+		{
+			name:          "proxy with proxy recording mode",
+			component:     teleport.ComponentProxy,
+			recordingMode: types.RecordAtProxy,
+			assertion:     require.NoError,
+			createAssertion: func(t *testing.T, count int) {
+				require.Equal(t, 1, count)
+			},
+		},
+		{
+			name:          "proxy with node recording mode",
+			component:     teleport.ComponentProxy,
+			recordingMode: types.RecordAtNode,
+			assertion:     require.NoError,
+			createAssertion: func(t *testing.T, count int) {
+				require.Equal(t, 0, count)
+			},
+		},
+		{
+			name:          "auth outage for non moderated session",
+			component:     teleport.ComponentNode,
+			recordingMode: types.RecordAtNodeSync,
+			assertion:     require.NoError,
+			createError:   trace.ConnectionProblem(context.DeadlineExceeded, ""),
+			createAssertion: func(t *testing.T, count int) {
+				require.Equal(t, 1, count)
+			},
+		},
+		{
+			name:          "auth outage for moderated session",
+			component:     teleport.ComponentNode,
+			recordingMode: types.RecordAtNodeSync,
+			moderated:     true,
+			assertion:     require.Error,
+			createError:   trace.ConnectionProblem(context.DeadlineExceeded, ""),
+			createAssertion: func(t *testing.T, count int) {
+				require.Equal(t, 1, count)
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newMockServer(t)
+			srv.component = tt.component
+
+			trackingService := &trackerService{
+				SessionTrackerService: &mockSessiontrackerService{
+					trackers: make(map[string]types.SessionTracker),
+				},
+				createError: tt.createError,
+			}
+
+			scx := newTestServerContext(t, srv, nil)
+			scx.SessionRecordingConfig = &types.SessionRecordingConfigV2{
+				Kind:    types.KindSessionRecordingConfig,
+				Version: types.V2,
+				Spec: types.SessionRecordingConfigSpecV2{
+					Mode: tt.recordingMode,
+				},
+			}
+
+			sess := &session{
+				id:  rsession.NewID(),
+				log: utils.NewLoggerForTests().WithField(trace.Component, "test-session"),
+				registry: &SessionRegistry{
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv:                   srv,
+						SessionTrackerService: trackingService,
+						clock:                 clockwork.NewFakeClock(), //use a fake clock to prevent the update loop from running
+					},
+				},
+				serverMeta: apievents.ServerMetadata{
+					ServerHostname: "test",
+					ServerID:       "123",
+				},
+				scx:       scx,
+				serverCtx: ctx,
+				login:     me.Name,
+				access:    sessionEvaluator{moderated: tt.moderated},
+			}
+
+			err = sess.trackSession(ctx, me.Name, nil)
+			tt.assertion(t, err)
+			tt.createAssertion(t, trackingService.CreatedCount())
+		})
+	}
+
 }

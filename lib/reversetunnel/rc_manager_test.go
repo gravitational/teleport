@@ -19,26 +19,26 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/stretchr/testify/require"
 )
 
 func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 	t.Parallel()
 
 	resolverFn := func(addr string) Resolver {
-		return func(context.Context) (*utils.NetAddr, error) {
+		return func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
 			return &utils.NetAddr{
 				Addr:        addr,
 				AddrNetwork: "tcp",
 				Path:        "",
-			}, nil
+			}, types.ProxyListenerMode_Separate, nil
 		}
 	}
 
@@ -160,9 +160,9 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 				// Tweaks to get comparison working with our complex types.
 				cmp.AllowUnexported(remoteClusterKey{}),
 				cmp.Comparer(func(a, b *AgentPool) bool {
-					aAddr, aErr := a.AgentPoolConfig.Resolver(context.Background())
-					bAddr, bErr := b.AgentPoolConfig.Resolver(context.Background())
-					if aAddr != bAddr && aErr != bErr {
+					aAddr, aMode, aErr := a.AgentPoolConfig.Resolver(context.Background())
+					bAddr, bMode, bErr := b.AgentPoolConfig.Resolver(context.Background())
+					if aAddr != bAddr && aMode != bMode && aErr != bErr {
 						return false
 					}
 

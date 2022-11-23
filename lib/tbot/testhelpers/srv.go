@@ -23,6 +23,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -33,13 +35,12 @@ import (
 	botconfig "github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
 )
 
 // from lib/service/listeners.go
 // TODO(espadolini): have the constants exported
 const (
-	listenerAuthSSH     = "auth"
+	listenerAuth        = "auth"
 	listenerProxySSH    = "proxy:ssh"
 	listenerProxyWeb    = "proxy:web"
 	listenerProxyTunnel = "proxy:tunnel"
@@ -74,7 +75,7 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []service.FileDescriptor) 
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: newListener(t, listenerAuthSSH, &fds),
+				ListenAddress: newListener(t, listenerAuth, &fds),
 			},
 		},
 	}
@@ -118,14 +119,14 @@ func newListener(t *testing.T, ty string, fds *[]service.FileDescriptor) string 
 }
 
 // MakeAndRunTestAuthServer creates an auth server useful for testing purposes.
-func MakeAndRunTestAuthServer(t *testing.T, fc *config.FileConfig, fds []service.FileDescriptor) (auth *service.TeleportProcess) {
+func MakeAndRunTestAuthServer(t *testing.T, log utils.Logger, fc *config.FileConfig, fds []service.FileDescriptor) (auth *service.TeleportProcess) {
 	t.Helper()
 
 	var err error
 	cfg := service.MakeDefaultConfig()
 	require.NoError(t, config.ApplyFileConfig(fc, cfg))
 	cfg.FileDescriptors = fds
-	cfg.Log = utils.NewLoggerForTests()
+	cfg.Log = log
 
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
@@ -134,18 +135,15 @@ func MakeAndRunTestAuthServer(t *testing.T, fc *config.FileConfig, fds []service
 	require.NoError(t, auth.Start())
 
 	t.Cleanup(func() {
+		cfg.Log.Info("Cleaning up Auth Server.")
 		auth.Close()
 	})
 
-	eventCh := make(chan service.Event, 1)
-	auth.WaitForEvent(auth.ExitContext(), service.AuthTLSReady, eventCh)
-	select {
-	case <-eventCh:
-	case <-time.After(30 * time.Second):
-		// in reality, the auth server should start *much* sooner than this.  we use a very large
-		// timeout here because this isn't the kind of problem that this test is meant to catch.
-		t.Fatal("auth server didn't start after 30s")
-	}
+	_, err = auth.WaitForEventTimeout(30*time.Second, service.AuthTLSReady)
+	// in reality, the auth server should start *much* sooner than this.  we use a very large
+	// timeout here because this isn't the kind of problem that this test is meant to catch.
+	require.NoError(t, err, "auth server didn't start after 30s")
+
 	return auth
 }
 
@@ -161,7 +159,7 @@ func MakeBotAuthClient(t *testing.T, fc *config.FileConfig, ident *identity.Iden
 	authConfig.TLS, err = ident.TLSConfig(cfg.CipherSuites)
 	require.NoError(t, err)
 
-	authConfig.AuthServers = cfg.AuthServers
+	authConfig.AuthServers = cfg.AuthServerAddresses()
 	authConfig.Log = cfg.Log
 
 	client, err := authclient.Connect(context.Background(), authConfig)
@@ -173,7 +171,7 @@ func MakeBotAuthClient(t *testing.T, fc *config.FileConfig, ident *identity.Iden
 // MakeDefaultAuthClient reimplements the bare minimum needed to create a
 // default root-level auth client for a Teleport server started by
 // MakeAndRunTestAuthServer.
-func MakeDefaultAuthClient(t *testing.T, fc *config.FileConfig) auth.ClientI {
+func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig) auth.ClientI {
 	t.Helper()
 
 	cfg := service.MakeDefaultConfig()
@@ -190,8 +188,8 @@ func MakeDefaultAuthClient(t *testing.T, fc *config.FileConfig) auth.ClientI {
 	authConfig.TLS, err = identity.TLSConfig(cfg.CipherSuites)
 	require.NoError(t, err)
 
-	authConfig.AuthServers = cfg.AuthServers
-	authConfig.Log = cfg.Log
+	authConfig.AuthServers = cfg.AuthServerAddresses()
+	authConfig.Log = log
 
 	client, err := authclient.Connect(context.Background(), authConfig)
 	require.NoError(t, err)
@@ -241,10 +239,9 @@ func MakeMemoryBotConfig(t *testing.T, fc *config.FileConfig, botParams *proto.C
 	require.NoError(t, err)
 
 	cfg := &botconfig.BotConfig{
-		AuthServer: authCfg.AuthServers[0].String(),
+		AuthServer: authCfg.AuthServerAddresses()[0].String(),
 		Onboarding: &botconfig.OnboardingConfig{
 			JoinMethod: botParams.JoinMethod,
-			Token:      botParams.TokenID,
 		},
 		Storage: &botconfig.StorageConfig{
 			DestinationMixin: botconfig.DestinationMixin{
@@ -259,6 +256,9 @@ func MakeMemoryBotConfig(t *testing.T, fc *config.FileConfig, botParams *proto.C
 			},
 		},
 	}
+
+	cfg.Onboarding.SetToken(botParams.TokenID)
+
 	require.NoError(t, cfg.CheckAndSetDefaults())
 
 	return cfg

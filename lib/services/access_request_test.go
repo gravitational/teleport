@@ -18,26 +18,29 @@ package services
 
 import (
 	"context"
+	"strings"
 	"testing"
-
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/fixtures"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/fixtures"
 )
 
 // mockGetter mocks the UserAndRoleGetter interface.
 type mockGetter struct {
-	users        map[string]types.User
-	roles        map[string]types.Role
-	nodes        map[string]types.Server
-	kubeServices []types.Server
-	dbs          map[string]types.Database
-	apps         map[string]types.Application
-	desktops     map[string]types.WindowsDesktop
+	users       map[string]types.User
+	roles       map[string]types.Role
+	nodes       map[string]types.Server
+	kubeServers map[string]types.Server
+	dbServers   map[string]types.DatabaseServer
+	appServers  map[string]types.AppServer
+	desktops    map[string]types.WindowsDesktop
+	clusterName string
 }
 
 // user inserts a new user with the specified roles and returns the username.
@@ -78,40 +81,44 @@ func (m *mockGetter) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return roles, nil
 }
 
-func (m *mockGetter) GetNode(ctx context.Context, namespace string, name string) (types.Server, error) {
-	node, ok := m.nodes[name]
-	if !ok {
-		return nil, trace.NotFound("no such node: %q", name)
+// ListResources is a very dumb implementation for the mockGetter that just
+// returns all resources which have names matching the request
+// PredicateExpression.
+func (m *mockGetter) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	resp := &types.ListResourcesResponse{}
+	for nodeName, node := range m.nodes {
+		if strings.Contains(req.PredicateExpression, nodeName) {
+			resp.Resources = append(resp.Resources, types.ResourceWithLabels(node))
+		}
 	}
-	return node, nil
+	for kubeName, kubeService := range m.kubeServers {
+		if strings.Contains(req.PredicateExpression, kubeName) {
+			resp.Resources = append(resp.Resources, types.ResourceWithLabels(kubeService))
+		}
+	}
+	for dbName, dbServer := range m.dbServers {
+		if strings.Contains(req.PredicateExpression, dbName) {
+			resp.Resources = append(resp.Resources, dbServer)
+		}
+	}
+	for appName, appServer := range m.appServers {
+		if strings.Contains(req.PredicateExpression, appName) {
+			resp.Resources = append(resp.Resources, appServer)
+		}
+	}
+	for desktopName, desktop := range m.desktops {
+		if strings.Contains(req.PredicateExpression, desktopName) {
+			resp.Resources = append(resp.Resources, desktop)
+		}
+	}
+	return resp, nil
 }
 
-func (m *mockGetter) GetKubeServices(ctx context.Context) ([]types.Server, error) {
-	return append([]types.Server{}, m.kubeServices...), nil
-}
-
-func (m *mockGetter) GetDatabase(ctx context.Context, name string) (types.Database, error) {
-	db, ok := m.dbs[name]
-	if !ok {
-		return nil, trace.NotFound("no such db: %q", name)
-	}
-	return db, nil
-}
-
-func (m *mockGetter) GetApp(ctx context.Context, name string) (types.Application, error) {
-	app, ok := m.apps[name]
-	if !ok {
-		return nil, trace.NotFound("no such app: %q", name)
-	}
-	return app, nil
-}
-
-func (m *mockGetter) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
-	desktop, ok := m.desktops[filter.Name]
-	if !ok {
-		return nil, trace.NotFound("no such desktop: %q", filter.Name)
-	}
-	return []types.WindowsDesktop{desktop}, nil
+func (m *mockGetter) GetClusterName(opts ...MarshalOption) (types.ClusterName, error) {
+	return types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: m.clusterName,
+		ClusterID:   "testid",
+	})
 }
 
 // TestReviewThresholds tests various review threshold scenarios
@@ -590,20 +597,20 @@ func TestThresholdReviewFilter(t *testing.T) {
 				Reviewer: reviewAuthorContext{
 					Roles: []string{"dev"},
 					Traits: map[string][]string{
-						"teams": []string{"staging-admin"},
+						"teams": {"staging-admin"},
 					},
 				},
 				Review: reviewParamsContext{
 					Reason: "ok",
 					Annotations: map[string][]string{
-						"constraints": []string{"no-admin"},
+						"constraints": {"no-admin"},
 					},
 				},
 				Request: reviewRequestContext{
 					Roles:  []string{"dev"},
 					Reason: "plz",
 					SystemAnnotations: map[string][]string{
-						"teams": []string{"staging-dev"},
+						"teams": {"staging-dev"},
 					},
 				},
 			},
@@ -886,42 +893,42 @@ func TestRequestFilterConversion(t *testing.T) {
 func TestRolesForResourceRequest(t *testing.T) {
 	// set up test roles
 	roleDesc := map[string]types.RoleSpecV5{
-		"db-admins": types.RoleSpecV5{
+		"db-admins": {
 			Allow: types.RoleConditions{
 				NodeLabels: types.Labels{
 					"owner": {"db-admins"},
 				},
 			},
 		},
-		"db-response-team": types.RoleSpecV5{
+		"db-response-team": {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					SearchAsRoles: []string{"db-admins"},
 				},
 			},
 		},
-		"deny-db-request": types.RoleSpecV5{
+		"deny-db-request": {
 			Deny: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					Roles: []string{"db-admins"},
 				},
 			},
 		},
-		"deny-db-search": types.RoleSpecV5{
+		"deny-db-search": {
 			Deny: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					SearchAsRoles: []string{"db-admins"},
 				},
 			},
 		},
-		"splunk-admins": types.RoleSpecV5{
+		"splunk-admins": {
 			Allow: types.RoleConditions{
 				NodeLabels: types.Labels{
 					"owner": {"splunk-admins"},
 				},
 			},
 		},
-		"splunk-response-team": types.RoleSpecV5{
+		"splunk-response-team": {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					SearchAsRoles: []string{"splunk-admins", "splunk-super-admins"},
@@ -1018,8 +1025,9 @@ func TestRolesForResourceRequest(t *testing.T) {
 			}
 
 			g := &mockGetter{
-				roles: roles,
-				users: users,
+				roles:       roles,
+				users:       users,
+				clusterName: "my-cluster",
 			}
 
 			req, err := types.NewAccessRequestWithResources(
@@ -1043,18 +1051,22 @@ func TestRolesForResourceRequest(t *testing.T) {
 func TestPruneRequestRoles(t *testing.T) {
 	ctx := context.Background()
 
+	clusterName := "my-cluster"
+
 	g := &mockGetter{
-		roles:    make(map[string]types.Role),
-		users:    make(map[string]types.User),
-		nodes:    make(map[string]types.Server),
-		dbs:      make(map[string]types.Database),
-		apps:     make(map[string]types.Application),
-		desktops: make(map[string]types.WindowsDesktop),
+		roles:       make(map[string]types.Role),
+		users:       make(map[string]types.User),
+		nodes:       make(map[string]types.Server),
+		kubeServers: make(map[string]types.Server),
+		dbServers:   make(map[string]types.DatabaseServer),
+		appServers:  make(map[string]types.AppServer),
+		desktops:    make(map[string]types.WindowsDesktop),
+		clusterName: clusterName,
 	}
 
 	// set up test roles
 	roleDesc := map[string]types.RoleSpecV5{
-		"response-team": types.RoleSpecV5{
+		"response-team": {
 			// By default has access to nothing, but can request many types of
 			// resources.
 			Allow: types.RoleConditions{
@@ -1071,7 +1083,7 @@ func TestPruneRequestRoles(t *testing.T) {
 				},
 			},
 		},
-		"node-access": types.RoleSpecV5{
+		"node-access": {
 			// Grants access with user's own login
 			Allow: types.RoleConditions{
 				NodeLabels: types.Labels{
@@ -1080,7 +1092,7 @@ func TestPruneRequestRoles(t *testing.T) {
 				Logins: []string{"{{internal.logins}}"},
 			},
 		},
-		"node-admins": types.RoleSpecV5{
+		"node-admins": {
 			// Grants root access to specific nodes.
 			Allow: types.RoleConditions{
 				NodeLabels: types.Labels{
@@ -1089,35 +1101,35 @@ func TestPruneRequestRoles(t *testing.T) {
 				Logins: []string{"{{internal.logins}}", "root"},
 			},
 		},
-		"kube-admins": types.RoleSpecV5{
+		"kube-admins": {
 			Allow: types.RoleConditions{
 				KubernetesLabels: types.Labels{
 					"*": {"*"},
 				},
 			},
 		},
-		"db-admins": types.RoleSpecV5{
+		"db-admins": {
 			Allow: types.RoleConditions{
 				DatabaseLabels: types.Labels{
 					"*": {"*"},
 				},
 			},
 		},
-		"app-admins": types.RoleSpecV5{
+		"app-admins": {
 			Allow: types.RoleConditions{
 				AppLabels: types.Labels{
 					"*": {"*"},
 				},
 			},
 		},
-		"windows-admins": types.RoleSpecV5{
+		"windows-admins": {
 			Allow: types.RoleConditions{
 				WindowsDesktopLabels: types.Labels{
 					"*": {"*"},
 				},
 			},
 		},
-		"empty": types.RoleSpecV5{
+		"empty": {
 			// Grants access to nothing, should never be requested.
 		},
 	}
@@ -1129,7 +1141,7 @@ func TestPruneRequestRoles(t *testing.T) {
 
 	user := g.user(t, "response-team")
 	g.users[user].SetTraits(map[string][]string{
-		"logins": []string{"responder"},
+		"logins": {"responder"},
 	})
 
 	nodeDesc := []struct {
@@ -1138,6 +1150,12 @@ func TestPruneRequestRoles(t *testing.T) {
 	}{
 		{
 			name: "admins-node",
+			labels: map[string]string{
+				"owner": "node-admins",
+			},
+		},
+		{
+			name: "admins-node-2",
 			labels: map[string]string{
 				"owner": "node-admins",
 			},
@@ -1154,14 +1172,14 @@ func TestPruneRequestRoles(t *testing.T) {
 
 	kube, err := types.NewServerWithLabels("kube", types.KindKubeService, types.ServerSpecV2{
 		KubernetesClusters: []*types.KubernetesCluster{
-			&types.KubernetesCluster{
+			{
 				Name:         "kube",
 				StaticLabels: nil,
 			},
 		},
 	}, nil)
 	require.NoError(t, err)
-	g.kubeServices = append(g.kubeServices, kube)
+	g.kubeServers[kube.GetName()] = kube
 
 	db, err := types.NewDatabaseV3(types.Metadata{
 		Name: "db",
@@ -1170,7 +1188,15 @@ func TestPruneRequestRoles(t *testing.T) {
 		URI:      "example.com:3000",
 	})
 	require.NoError(t, err)
-	g.dbs[db.GetName()] = db
+	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: db.GetName(),
+	}, types.DatabaseServerSpecV3{
+		HostID:   "db-server",
+		Hostname: "db-server",
+		Database: db,
+	})
+	require.NoError(t, err)
+	g.dbServers[dbServer.GetName()] = dbServer
 
 	app, err := types.NewAppV3(types.Metadata{
 		Name: "app",
@@ -1178,15 +1204,15 @@ func TestPruneRequestRoles(t *testing.T) {
 		URI: "example.com:3000",
 	})
 	require.NoError(t, err)
-	g.apps[app.GetName()] = app
+	appServer, err := types.NewAppServerV3FromApp(app, "app-server", "app-server")
+	require.NoError(t, err)
+	g.appServers[app.GetName()] = appServer
 
 	desktop, err := types.NewWindowsDesktopV3("windows", nil, types.WindowsDesktopSpecV3{
 		Addr: "example.com:3001",
 	})
 	require.NoError(t, err)
 	g.desktops[desktop.GetName()] = desktop
-
-	clusterName := "my-cluster"
 
 	testCases := []struct {
 		desc               string
@@ -1216,6 +1242,24 @@ func TestPruneRequestRoles(t *testing.T) {
 					ClusterName: clusterName,
 					Kind:        types.KindNode,
 					Name:        "admins-node",
+				},
+			},
+			loginHint: "responder",
+			// With "responder" login hint, only request node-access.
+			expectRoles: []string{"node-access"},
+		},
+		{
+			desc: "multiple nodes",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindNode,
+					Name:        "admins-node",
+				},
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindNode,
+					Name:        "admins-node-2",
 				},
 			},
 			loginHint: "responder",
@@ -1349,18 +1393,25 @@ func TestPruneRequestRoles(t *testing.T) {
 
 			req.SetLoginHint(tc.loginHint)
 
-			err = ValidateAccessRequestForUser(ctx, g, req, ExpandVars(true))
+			accessCaps, err := CalculateAccessCapabilities(ctx, g, types.AccessCapabilitiesRequest{User: user, ResourceIDs: tc.requestResourceIDs})
 			require.NoError(t, err)
 
-			err = PruneResourceRequestRoles(ctx, req, g, clusterName, g.users[user].GetTraits())
+			err = ValidateAccessRequestForUser(ctx, g, req, ExpandVars(true))
 			if tc.expectError {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
 
+			if tc.loginHint == "" {
+				require.ElementsMatch(t, tc.expectRoles, accessCaps.ApplicableRolesForResources)
+			}
+
 			require.ElementsMatch(t, tc.expectRoles, req.GetRoles(),
 				"Pruned roles %v don't match expected roles %v", req.GetRoles(), tc.expectRoles)
+			require.Len(t, req.GetRoleThresholdMapping(), len(req.GetRoles()),
+				"Length of rtm does not match number of roles. rtm: %v roles %v",
+				req.GetRoleThresholdMapping(), req.GetRoles())
 		})
 	}
 }

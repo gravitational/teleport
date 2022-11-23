@@ -22,16 +22,25 @@ import (
 	"os/user"
 	"path/filepath"
 
-	"github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/utils/host"
 )
+
+// HostUsersProvisioningBackend is used to implement HostUsersBackend
+type HostUsersProvisioningBackend struct {
+	// SudoersPath is the path to write sudoers files to.
+	SudoersPath string
+	// HostUUID is the UUID of the running host
+	HostUUID string
+}
 
 // newHostUsersBackend initializes a new OS specific HostUsersBackend
 func newHostUsersBackend(uuid string) (HostUsersBackend, error) {
 	return &HostUsersProvisioningBackend{
-		sudoersPath: "/etc/sudoers.d",
-		hostUUID:    uuid,
+		SudoersPath: "/etc/sudoers.d",
+		HostUUID:    uuid,
 	}, nil
 }
 
@@ -109,8 +118,9 @@ func (u *HostUsersProvisioningBackend) WriteSudoersFile(username string, content
 	if err := u.CheckSudoers(contents); err != nil {
 		return trace.Wrap(err)
 	}
-	sudoersFilePath := filepath.Join(u.sudoersPath, fmt.Sprintf("teleport-%s-%s", u.hostUUID, username))
-	tmpSudoers, err := writeSudoersFile(u.sudoersPath, username, contents)
+	fileUsername := sanitizeSudoersName(username)
+	sudoersFilePath := filepath.Join(u.SudoersPath, fmt.Sprintf("teleport-%s-%s", u.HostUUID, fileUsername))
+	tmpSudoers, err := writeSudoersFile(u.SudoersPath, username, contents)
 	if err != nil {
 		if tmpSudoers != "" {
 			rmErr := os.Remove(tmpSudoers)
@@ -125,7 +135,8 @@ func (u *HostUsersProvisioningBackend) WriteSudoersFile(username string, content
 
 // RemoveSudoersFile deletes a user's sudoers file.
 func (u *HostUsersProvisioningBackend) RemoveSudoersFile(username string) error {
-	sudoersFilePath := filepath.Join(u.sudoersPath, fmt.Sprintf("teleport-%s-%s", u.hostUUID, username))
+	fileUsername := sanitizeSudoersName(username)
+	sudoersFilePath := filepath.Join(u.SudoersPath, fmt.Sprintf("teleport-%s-%s", u.HostUUID, fileUsername))
 	if _, err := os.Stat(sudoersFilePath); os.IsNotExist(err) {
 		log.Debugf("User %q, did not have sudoers file as it did not exist at path %q",
 			username,

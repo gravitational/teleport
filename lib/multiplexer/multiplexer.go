@@ -20,7 +20,6 @@ limitations under the License.
 // mux, _ := multiplexer.New(Config{Listener: listener})
 // mux.SSH() // returns listener getting SSH connections
 // mux.TLS() // returns listener getting TLS connections
-//
 package multiplexer
 
 import (
@@ -32,13 +31,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Config is a multiplexer config
@@ -342,10 +342,11 @@ func (p Protocol) String() string {
 }
 
 var (
-	proxyPrefix   = []byte{'P', 'R', 'O', 'X', 'Y'}
-	proxyV2Prefix = []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}
-	sshPrefix     = []byte{'S', 'S', 'H'}
-	tlsPrefix     = []byte{0x16}
+	proxyPrefix      = []byte{'P', 'R', 'O', 'X', 'Y'}
+	proxyV2Prefix    = []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}
+	sshPrefix        = []byte{'S', 'S', 'H'}
+	tlsPrefix        = []byte{0x16}
+	proxyHelloPrefix = []byte(sshutils.ProxyHelloSignature)
 )
 
 // This section defines Postgres wire protocol messages detected by Teleport:
@@ -362,24 +363,30 @@ var (
 	// separate plain connection, but we're detecting it anyway so it at
 	// least appears in the logs as "unsupported" for debugging.
 	postgresCancelRequest = []byte{0x0, 0x0, 0x0, 0x10, 0x4, 0xd2, 0x16, 0x2e}
+	// postgresGSSEncRequest is sent first by a Postgres client
+	// to check whether the server supports GSS encryption.
+	// It is currently unsupported and our postgres engine will always respond 'N'
+	// for "not supported".
+	postgresGSSEncRequest = []byte{0x0, 0x0, 0x0, 0x8, 0x4, 0xd2, 0x16, 0x30}
 )
+
+var httpMethods = [...][]byte{
+	[]byte("GET"),
+	[]byte("POST"),
+	[]byte("PUT"),
+	[]byte("DELETE"),
+	[]byte("HEAD"),
+	[]byte("CONNECT"),
+	[]byte("OPTIONS"),
+	[]byte("TRACE"),
+	[]byte("PATCH"),
+}
 
 // isHTTP returns true if the first few bytes of the prefix indicate
 // the use of an HTTP method.
 func isHTTP(in []byte) bool {
-	methods := [...][]byte{
-		[]byte("GET"),
-		[]byte("POST"),
-		[]byte("PUT"),
-		[]byte("DELETE"),
-		[]byte("HEAD"),
-		[]byte("CONNECT"),
-		[]byte("OPTIONS"),
-		[]byte("TRACE"),
-		[]byte("PATCH"),
-	}
-	for _, verb := range methods {
-		if bytes.HasPrefix(verb, in) {
+	for _, verb := range httpMethods {
+		if bytes.HasPrefix(in, verb) {
 			return true
 		}
 	}
@@ -410,13 +417,25 @@ func detectProto(r *bufio.Reader) (Protocol, error) {
 		if bytes.HasPrefix(in, proxyV2Prefix) {
 			return ProtoProxyV2, nil
 		}
+	case bytes.HasPrefix(in, proxyHelloPrefix[:8]):
+		// Support for SSH connections opened with the ProxyHelloSignature for
+		// Teleport to Teleport connections.
+		in, err = r.Peek(len(proxyHelloPrefix))
+		if err != nil {
+			return ProtoUnknown, trace.Wrap(err, "failed to peek connection")
+		}
+		if bytes.HasPrefix(in, proxyHelloPrefix) {
+			return ProtoSSH, nil
+		}
 	case bytes.HasPrefix(in, sshPrefix):
 		return ProtoSSH, nil
 	case bytes.HasPrefix(in, tlsPrefix):
 		return ProtoTLS, nil
 	case isHTTP(in):
 		return ProtoHTTP, nil
-	case bytes.HasPrefix(in, postgresSSLRequest), bytes.HasPrefix(in, postgresCancelRequest):
+	case bytes.HasPrefix(in, postgresSSLRequest),
+		bytes.HasPrefix(in, postgresCancelRequest),
+		bytes.HasPrefix(in, postgresGSSEncRequest):
 		return ProtoPostgres, nil
 	}
 

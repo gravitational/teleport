@@ -15,25 +15,36 @@ readonly MACOS_VERSION_MIN=10.13
 
 # Note: versions are the same as the corresponding git tags for each repo.
 readonly CBOR_VERSION=v0.9.0
-readonly CRYPTO_VERSION=OpenSSL_1_1_1o
-readonly FIDO2_VERSION=1.11.0
+readonly CBOR_COMMIT=58b3319b8c3ec15171cb00f01a3a1e9d400899e1
+readonly CRYPTO_VERSION=OpenSSL_1_1_1s
+readonly CRYPTO_COMMIT=129058165d195e43a0ad10111b0c2e29bdf65980
+readonly FIDO2_VERSION=1.12.0
+readonly FIDO2_COMMIT=659a02679f99fd34a44e06e35dce90794f6ecc86
 
 readonly LIB_CACHE="/tmp/teleport-fido2-cache"
 readonly PKGFILE_DIR="$LIB_CACHE/fido2-${FIDO2_VERSION}_cbor-${CBOR_VERSION}_crypto-${CRYPTO_VERSION}"
 
+# Library cache paths, implicitly matched by fetch_and_build.
+readonly CBOR_PATH="$LIB_CACHE/cbor-$CBOR_VERSION"
+readonly CRYPTO_PATH="$LIB_CACHE/crypto-$CRYPTO_VERSION"
+readonly FIDO2_PATH="$LIB_CACHE/fido2-$FIDO2_VERSION"
+
+# List of folders/files to remove on exit.
+# See cleanup and main.
+CLEANUPS=()
+
 fetch_and_build() {
   local name="$1"      # eg, cbor
   local version="$2"   # eg, v0.9.0
-  local url="$3"       # eg, https://github.com/...
-  local buildcmd="$4"  # eg, cbor_build, a bash function name
+  local commit="$3"    # eg, 58b3319b8c3ec15171cb00f01a3a1e9d400899e1
+  local url="$4"       # eg, https://github.com/...
+  local buildcmd="$5"  # eg, cbor_build, a bash function name
   echo "$name: fetch and build" >&2
 
   mkdir -p "$LIB_CACHE"
   local tmp=''
   tmp="$(mktemp -d "$LIB_CACHE/build.XXXXXX")"
-  # Early expansion on purpose.
-  #shellcheck disable=SC2064
-  trap "rm -fr '$tmp'" EXIT
+  CLEANUPS+=("$tmp")
 
   local fullname="$name-$version"
   local install_path="$tmp/$fullname"
@@ -41,6 +52,13 @@ fetch_and_build() {
   cd "$tmp"
   git clone --depth=1 -b "$version" "$url"
   cd "$(ls)"  # a single folder exists at this point
+  local head
+  head="$(git rev-parse HEAD)"
+  if [[ "$head" != "$commit" ]]; then
+    echo "Found unexpected HEAD commit for $name, aborting: $head" >&2
+    exit 1
+  fi
+
   mkdir -p "$install_path"
   eval "$buildcmd '$PWD' '$install_path'"
 
@@ -78,7 +96,8 @@ cbor_build() {
 
 cbor_fetch_and_build() {
   fetch_and_build \
-    cbor "$CBOR_VERSION" 'https://github.com/pjk/libcbor.git' cbor_build
+    cbor "$CBOR_VERSION" "$CBOR_COMMIT" 'https://github.com/pjk/libcbor.git' \
+    cbor_build
 }
 
 crypto_build() {
@@ -104,7 +123,8 @@ crypto_build() {
 
 crypto_fetch_and_build() {
   fetch_and_build \
-    crypto "$CRYPTO_VERSION" 'https://github.com/openssl/openssl.git' \
+    crypto "$CRYPTO_VERSION" "$CRYPTO_COMMIT" \
+    'https://github.com/openssl/openssl.git' \
     crypto_build
 }
 
@@ -130,7 +150,32 @@ fido2_build() {
 
 fido2_fetch_and_build() {
   fetch_and_build \
-    fido2 "$FIDO2_VERSION" 'https://github.com/Yubico/libfido2.git' fido2_build
+    fido2 "$FIDO2_VERSION" "$FIDO2_COMMIT" \
+    'https://github.com/Yubico/libfido2.git' \
+    fido2_build
+}
+
+fido2_compile_toy() {
+  local toydir=''
+  toydir="$(mktemp -d)"
+  CLEANUPS+=("$toydir")
+
+  cat >"$toydir/toy.c" <<EOF
+#include <fido.h>
+
+int main() {
+  fido_init(0 /* flags */);
+  return 0;
+}
+EOF
+
+  export PKG_CONFIG_PATH="$PKGFILE_DIR"
+  # Word splitting desired for pkg-config.
+  #shellcheck disable=SC2046
+  gcc \
+    $(pkg-config --cflags --libs libfido2-static) \
+    -o "$toydir/toy.bin" \
+    "$toydir/toy.c"
 }
 
 usage() {
@@ -138,19 +183,15 @@ usage() {
 }
 
 build() {
-  local cbor_path="$LIB_CACHE/cbor-$CBOR_VERSION"
-  local crypto_path="$LIB_CACHE/crypto-$CRYPTO_VERSION"
-  local fido2_path="$LIB_CACHE/fido2-$FIDO2_VERSION"
-
-  if [[ ! -d "$cbor_path" ]]; then
+  if [[ ! -d "$CBOR_PATH" ]]; then
     cbor_fetch_and_build
   fi
 
-  if [[ ! -d "$crypto_path" ]]; then
+  if [[ ! -d "$CRYPTO_PATH" ]]; then
     crypto_fetch_and_build
   fi
 
-  if [[ ! -d "$fido2_path" ]]; then
+  if [[ ! -d "$FIDO2_PATH" ]]; then
     fido2_fetch_and_build
   fi
 
@@ -158,16 +199,11 @@ build() {
   if [[ ! -f "$pkgfile" ]]; then
     local tmp=''
     tmp="$(mktemp)"  # file, not dir!
-    # Early expansion on purpose.
-    #shellcheck disable=SC2064
-    trap "rm -f '$tmp'" EXIT
+    CLEANUPS+=("$tmp")
 
     # Write libfido2-static.pc to tmp.
-    local cbor="$LIB_CACHE/cbor-$CBOR_VERSION"
-    local crypto="$LIB_CACHE/crypto-$CRYPTO_VERSION"
-    local fido2="$LIB_CACHE/fido2-$FIDO2_VERSION"
     cat >"$tmp" <<EOF
-prefix=$fido2
+prefix=$FIDO2_PATH
 exec_prefix=\${prefix}
 libdir=\${prefix}/lib
 includedir=\${prefix}/include
@@ -176,8 +212,8 @@ Name: libfido2
 Description: A FIDO2 library
 URL: https://github.com/yubico/libfido2
 Version: $FIDO2_VERSION
-Libs: -framework CoreFoundation -framework IOKit \${libdir}/libfido2.a $cbor/lib/libcbor.a $crypto/lib/libcrypto.a
-Cflags: -I\${includedir} -I$cbor/include -I$crypto/include -mmacosx-version-min="$MACOS_VERSION_MIN"
+Libs: -framework CoreFoundation -framework IOKit \${libdir}/libfido2.a $CBOR_PATH/lib/libcbor.a $CRYPTO_PATH/lib/libcrypto.a
+Cflags: -I\${includedir} -I$CBOR_PATH/include -I$CRYPTO_PATH/include -mmacosx-version-min="$MACOS_VERSION_MIN"
 EOF
 
     # Move .pc file to expected path.
@@ -189,15 +225,32 @@ EOF
   fi
 }
 
+cleanup() {
+  # The strange looking expansion below (`${arr[@]+"${arr[@]}"}`) avoids unbound
+  # errors when the array is empty. (The actual expansion is quoted.)
+  # See https://stackoverflow.com/a/7577209.
+  #shellcheck disable=SC2068
+  for path in ${CLEANUPS[@]+"${CLEANUPS[@]}"}; do
+    echo "Removing: $path" >&2
+    rm -fr "$path"
+  done
+}
+
 main() {
   if [[ $# -ne 1 ]]; then
     usage
     exit 1
   fi
+  trap cleanup EXIT
 
   case "$1" in
     build)
       build
+      if ! fido2_compile_toy; then
+        echo 'Failed to compile fido2 test program, cleaning cache and retrying' >&2
+        rm -fr "$CBOR_PATH" "$CRYPTO_PATH" "$FIDO2_PATH"
+        build
+      fi
       ;;
     pkg_config_path)
       echo "$PKGFILE_DIR"

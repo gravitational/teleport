@@ -18,20 +18,20 @@ import (
 	"context"
 	"sort"
 
+	"github.com/gravitational/trace"
+
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
-
-	"github.com/gravitational/trace"
 )
 
-// ListKubes lists kubernetes clusters
-func (s *Handler) ListKubes(ctx context.Context, req *api.ListKubesRequest) (*api.ListKubesResponse, error) {
-	kubes, err := s.DaemonService.ListKubes(ctx, req.ClusterUri)
+// GetAllKubes lists kubernetes clusters
+func (s *Handler) GetAllKubes(ctx context.Context, req *api.GetAllKubesRequest) (*api.GetAllKubesResponse, error) {
+	kubes, err := s.DaemonService.GetAllKubes(ctx, req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response := &api.ListKubesResponse{}
+	response := &api.GetAllKubesResponse{}
 	for _, k := range kubes {
 		response.Kubes = append(response.Kubes, newAPIKube(k))
 	}
@@ -39,16 +39,34 @@ func (s *Handler) ListKubes(ctx context.Context, req *api.ListKubesRequest) (*ap
 	return response, nil
 }
 
+// GetKubes accepts parameterized input to enable searching, sorting, and pagination
+func (s *Handler) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*api.GetKubesResponse, error) {
+	resp, err := s.DaemonService.GetKubes(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response := &api.GetKubesResponse{
+		TotalCount: int32(resp.TotalCount),
+		StartKey:   resp.StartKey,
+	}
+	for _, kube := range resp.Kubes {
+		response.Agents = append(response.Agents, newAPIKube(kube))
+	}
+
+	return response, nil
+}
+
 func newAPIKube(kube clusters.Kube) *api.Kube {
 	apiLabels := APILabels{}
-	for name, value := range kube.StaticLabels {
+	for name, value := range kube.KubernetesCluster.GetStaticLabels() {
 		apiLabels = append(apiLabels, &api.Label{
 			Name:  name,
 			Value: value,
 		})
 	}
 
-	for name, cmd := range kube.DynamicLabels {
+	for name, cmd := range kube.KubernetesCluster.GetDynamicLabels() {
 		apiLabels = append(apiLabels, &api.Label{
 			Name:  name,
 			Value: cmd.GetResult(),
@@ -58,7 +76,7 @@ func newAPIKube(kube clusters.Kube) *api.Kube {
 	sort.Sort(apiLabels)
 
 	return &api.Kube{
-		Name:   kube.Name,
+		Name:   kube.KubernetesCluster.GetName(),
 		Uri:    kube.URI.String(),
 		Labels: apiLabels,
 	}

@@ -23,16 +23,19 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 // TestEmitExecAuditEvent make sure the full command and exit code for a
 // command is always recorded.
 func TestEmitExecAuditEvent(t *testing.T) {
+	t.Parallel()
+
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
 
@@ -97,6 +100,8 @@ func TestEmitExecAuditEvent(t *testing.T) {
 }
 
 func TestLoginDefsParser(t *testing.T) {
+	t.Parallel()
+
 	expectedEnvSuPath := "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/bar"
 	expectedSuPath := "PATH=/usr/local/bin:/usr/bin:/bin:/foo"
 
@@ -114,7 +119,8 @@ func newExecServerContext(t *testing.T, srv Server) *ServerContext {
 
 	scx.session = &session{id: "xxx"}
 	scx.session.term = term
-	scx.request = &ssh.Request{Type: sshutils.ExecRequest}
+	err = scx.SetSSHRequest(&ssh.Request{Type: sshutils.ExecRequest})
+	require.NoError(t, err)
 
 	t.Cleanup(func() { require.NoError(t, scx.session.term.Close()) })
 

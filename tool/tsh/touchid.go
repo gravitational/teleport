@@ -20,11 +20,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth/touchid"
-
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/auth/touchid"
 )
 
 type touchIDCommand struct {
@@ -95,7 +95,7 @@ func (c *touchIDLsCommand) run(cf *CLIConf) error {
 		if cmp := strings.Compare(i1.RPID, i2.RPID); cmp != 0 {
 			return cmp < 0
 		}
-		if cmp := strings.Compare(i1.User, i2.User); cmp != 0 {
+		if cmp := strings.Compare(i1.User.Name, i2.User.Name); cmp != 0 {
 			return cmp < 0
 		}
 		return i1.CreateTime.Before(i2.CreateTime)
@@ -105,7 +105,7 @@ func (c *touchIDLsCommand) run(cf *CLIConf) error {
 	for _, info := range infos {
 		t.AddRow([]string{
 			info.RPID,
-			info.User,
+			info.User.Name,
 			info.CreateTime.Format(time.RFC3339),
 			info.CredentialID,
 		})

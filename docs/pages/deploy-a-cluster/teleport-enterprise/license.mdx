@@ -1,0 +1,32 @@
+---
+title: Enterprise License File
+description: Teleport enterprise license file configuration parameters and requirements
+---
+
+This guide explains the use of a license file with Teleport Enterprise.
+
+Commercial self-hosted Teleport subscriptions require a valid license. The
+license file can be downloaded from the [Teleport Customer
+Portal](https://dashboard.gravitational.com/web/login). When downloading the
+file, the products you are licensed to use will be listed in the browser.
+
+The Teleport license file contains an X.509 certificate and the corresponding
+private key in PEM format. Place the downloaded file on your Teleport Auth
+Servers and set the `license_file` configuration parameter of your
+`teleport.yaml` to point to the file location:
+
+```yaml
+auth_service:
+    license_file: /var/lib/teleport/license.pem
+```
+
+The `license_file` path can be either absolute or relative to the configured
+`data_dir`. If the license file path is not set, Teleport will look for the
+`license.pem` file in the configured `data_dir`.
+
+Only Auth Servers require the license. Proxies and Nodes that do not also run the Auth Service do not need the license.  
+    
+Attempts to use unlicensed products will result in an error message and users will be unable to use those products. For example, if you attempt to use Database Access without it being included in the license, you will get a message similar to:
+```code
+this Teleport cluster is not licensed for database access, please contact the cluster administrator
+```

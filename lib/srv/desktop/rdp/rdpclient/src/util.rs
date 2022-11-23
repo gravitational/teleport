@@ -14,6 +14,7 @@
 
 use crate::errors::invalid_data_error;
 use rdp::model::error::RdpResult;
+use std::convert::TryFrom;
 use utf16string::{WString, LE};
 
 /// According to [MS-RDPEFS] 1.1 Glossary:
@@ -46,6 +47,15 @@ pub fn from_unicode(s: Vec<u8>) -> RdpResult<String> {
 /// Converts a &str into a null-terminated UTF-8 encoded Vec<u8>
 pub fn to_utf8(s: &str) -> Vec<u8> {
     format!("{}\x00", s).into_bytes()
+}
+
+/// Takes a Rust string slice and calculates it's unicode size in bytes.
+pub fn unicode_size(s: &str, with_null_term: bool) -> u32 {
+    u32::try_from(to_unicode(s, with_null_term).len()).unwrap()
+}
+
+pub fn vec_u8_debug(v: &[u8]) -> String {
+    format!("&[u8] of length {}", v.len())
 }
 
 #[cfg(test)]

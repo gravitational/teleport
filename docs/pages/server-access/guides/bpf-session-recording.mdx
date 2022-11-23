@@ -8,7 +8,7 @@ videoBanner: 8uO5H-iYw5A
 This guide explains Enhanced Session Recording for SSH with BPF and how to set
 it up in your Teleport cluster.
 
-Teleport's default [SSH and Kubernetes session recording](../../architecture/nodes.mdx#session-recording)
+Teleport's default [SSH and Kubernetes session recording](../../architecture/nodes.mdx#ssh-session-recording)
 feature captures what is echoed to a terminal.
 
 This has inherent advantages. For example, because no input is captured, Teleport
@@ -27,6 +27,31 @@ Furthermore, due to their unstructured nature, session recordings are difficult 
 ingest and perform monitoring and alerting on.
 
 Teleport Enhanced Session Recording mitigates all three concerns by providing advanced security and greater logging capabilities, and better correlates a user with their activities.
+
+<Admonition type="warning" title="Security Warning">
+
+Teleport Enhanced Session Recording does not provide a secure environment on
+its own and is not a substitute for a Linux Security Module (SELinux, AppArmor,
+etc.). It must be paired with reasonable system hardening practices to enforce
+a trusted host environment, including proper access control on core system
+binaries and libraries and well-designed user management.
+
+Note that privileged users (either as root or via `sudo`) can interfere with
+session recording activities (such as unloading/disabling the necessary
+libraries, altering how Teleport is run, tampering with kernel functionality,
+creating tunnels, or just performing actions outside of the restricted
+session). Also, a local user with both monitored and unmonitored console
+sessions or ptrace privileges may not be fully captured in recordings.
+
+Commands executed via daemons (systemd, crond, atd, etc.) could be outside of
+the recorded session scope. Proper network-based restrictions for ingress
+traffic must also be implemented to prevent possible unauthorized data transfer.
+
+Additionally, certain forensic information such as full binary paths
+(accounting for any potential symbolic links), any modifications via shared
+library preloading, and environment variables may not be captured in session recordings.
+
+</Admonition>
 
 ## Prerequisites
 
@@ -49,7 +74,7 @@ Teleport Enhanced Session Recording mitigates all three concerns by providing ad
 <Notice type="tip">
 
   Our Standard Session Recording works with older Linux kernels. View
-  [Teleport Nodes](../../architecture/nodes.mdx#session-recording) for more
+  [Teleport Nodes](../../architecture/nodes.mdx#ssh-session-recording) for more
   details.
 
 </Notice>
@@ -111,17 +136,21 @@ $ tctl tokens rm (=presets.tokens.first=)
 
 ### Create a configuration file
 
-Set up your Teleport Node with the following content in `/etc/teleport.yaml`. 
+Set up your Teleport Node with the following content in `/etc/teleport.yaml`.
 
 ```yaml
 # Example config to be saved as etc/teleport.yaml
+version: v3
 teleport:
   nodename: graviton-node
   # The token you created earlier
   auth_token: (=presets.tokens.first=)
-  auth_servers:
-  # Replace with the address of the Teleport Auth Service or Proxy Service.
-  - 127.0.0.1:3025
+
+  # Replace with the address of the Teleport Auth Service
+  auth_server: 127.0.0.1:3025
+  # Or specify the Proxy Service address.
+  proxy_server: 127.0.0.1:3080
+
   data_dir: /var/lib/teleport
 proxy_service:
   enabled: false
@@ -255,6 +284,6 @@ Sessions with Enhanced Session Recording will include the
 ## Next steps
 
 - Read more about
-  [session recording](../../architecture/nodes.mdx#session-recording).
+  [session recording](../../architecture/nodes.mdx#ssh-session-recording).
 - See all configuration options for Enhanced Session Recording in our
-  [Configuration Reference](../../setup/reference/config.mdx).
+  [Configuration Reference](../../reference/config.mdx).

@@ -1,0 +1,67 @@
+// Copyright 2022 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package events;
+
+import "gogoproto/gogo.proto";
+import "teleport/legacy/types/events/events.proto";
+
+option go_package = "github.com/gravitational/teleport/api/types/events";
+option (gogoproto.goproto_getters_all) = false;
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+
+// OSType is the same as teleport.devicetrust.v1.OSType.
+// Duplicated because gogo doesn't play well with protoc-gen-go.
+enum OSType {
+  OS_TYPE_UNSPECIFIED = 0;
+  // Linux.
+  OS_TYPE_LINUX = 1;
+  // macOS.
+  OS_TYPE_MACOS = 2;
+  // Windows.
+  OS_TYPE_WINDOWS = 3;
+}
+
+// DeviceMetadata groups device information for events.
+message DeviceMetadata {
+  // ID of the device.
+  string device_id = 1;
+  // OS of the device.
+  OSType os_type = 2;
+  // Device inventory identifier.
+  string asset_tag = 3;
+  // Device credential identifier.
+  string credential_id = 4;
+}
+
+// DeviceEvent is a device-related event.
+// The event type (Metadata.Type) for device events is always "device". See the
+// event code (Metadata.Code) for its meaning.
+message DeviceEvent {
+  // Metadata holds common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status indicates the outcome of the event.
+  Status status = 2;
+  // DeviceMetadata holds metadata about the user device.
+  DeviceMetadata device = 3;
+  // UserMetadata holds metadata about the user behind the event.
+  UserMetadata user = 4;
+}

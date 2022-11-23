@@ -18,6 +18,7 @@ package srv
 
 import (
 	"context"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -57,6 +58,7 @@ func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer
 
 func TestMonitorLockInForce(t *testing.T) {
 	t.Parallel()
+
 	ctx := context.Background()
 	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Dir:   t.TempDir(),
@@ -93,6 +95,7 @@ func TestMonitorLockInForce(t *testing.T) {
 
 func TestMonitorStaleLocks(t *testing.T) {
 	t.Parallel()
+
 	ctx := context.Background()
 	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Dir:   t.TempDir(),
@@ -166,6 +169,7 @@ func (t *mockActivityTracker) UpdateClientActivity() {}
 // is already before time.Now
 func TestMonitorDisconnectExpiredCertBeforeTimeNow(t *testing.T) {
 	t.Parallel()
+
 	clock := clockwork.NewRealClock()
 
 	certExpirationTime := clock.Now().Add(-1 * time.Second)
@@ -187,4 +191,27 @@ func TestMonitorDisconnectExpiredCertBeforeTimeNow(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("Client is still connected.")
 	}
+}
+
+func TestTrackingReadConnEOF(t *testing.T) {
+	server, client := net.Pipe()
+	defer client.Close()
+
+	// Close the server to force client reads to instantly return EOF.
+	require.NoError(t, server.Close())
+
+	// Wrap the client in a TrackingReadConn.
+	ctx, cancel := context.WithCancel(context.Background())
+	tc, err := NewTrackingReadConn(TrackingReadConnConfig{
+		Conn:    client,
+		Clock:   clockwork.NewFakeClock(),
+		Context: ctx,
+		Cancel:  cancel,
+	})
+	require.NoError(t, err)
+
+	// Make sure it returns an EOF and not a wrapped exception.
+	buf := make([]byte, 64)
+	_, err = tc.Read(buf)
+	require.Equal(t, io.EOF, err)
 }
