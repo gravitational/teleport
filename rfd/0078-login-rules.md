@@ -173,6 +173,24 @@ traits_expression: >
     pair(key2, union(expr3)))
 ```
 
+### Context available in predicate expressions
+
+For all predicate expressions in the login rule (values of `traits_map`, or the
+`traits_expression`) the full dict of the users incoming external traits are
+available under the `external` identifier.
+This is similar to how traits are accessed in role templates, you can get trait
+`example` with either `external["example"]` or `external.example`.
+
+If there is only a single login rule in the cluster, the traits available will
+be those provided by the SSO connector used to log in, and are the traits the
+user would otherwise have been given if the login rule were not in place.
+
+If the cluster includes multiple login rules, they will be sorted in increasing
+order of their `priority` field (ties will be deterministically broken by a
+secondary sort by the rule `name`).
+The traits input to each successive login rule will be the output of the
+previous login rule.
+
 ### Predicate Helper Functions
 
 A set of helper functions to be used in the predicate expressions will be
