@@ -21,23 +21,22 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/auth/native"
 )
 
 // CreateCertificate creates a valid 2048-bit RSA certificate.
 func CreateCertificate(principal string, certType uint32) (*ssh.Certificate, ssh.Signer, error) {
 	// Create RSA key for CA and certificate to be signed by CA.
-	caKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	caKey, err := native.GenerateRSAPrivateKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	key, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	key, err := native.GenerateRSAPrivateKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

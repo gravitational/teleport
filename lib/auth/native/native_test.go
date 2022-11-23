@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/test"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -54,7 +55,7 @@ func setupNativeContext(ctx context.Context, t *testing.T) *nativeContext {
 	clock := clockwork.NewFakeClockAt(time.Date(2016, 9, 8, 7, 6, 5, 0, time.UTC))
 
 	tt.suite = &test.AuthSuite{
-		A:      New(context.Background(), SetClock(clock)),
+		A:      keygen.New(context.Background(), keygen.SetClock(clock)),
 		Keygen: GenerateKeyPair,
 		Clock:  clock,
 	}

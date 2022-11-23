@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -51,6 +52,8 @@ func TestMain(m *testing.M) {
 			HSM: true,
 		},
 	})
+
+	native.PrecomputeTestKeys()
 
 	os.Exit(m.Run())
 }

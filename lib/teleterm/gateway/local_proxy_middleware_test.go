@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -30,11 +31,11 @@ import (
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	tlsutils "github.com/gravitational/teleport/lib/utils/tls"
 )
 
 func TestLocalProxyMiddleware_OnNewConnection(t *testing.T) {
-	cert, err := utils.GenerateSelfSignedCert([]string{"localhost"})
+	cert, err := tlsutils.GenerateSelfSignedCert([]string{"localhost"})
 	require.NoError(t, err)
 	tlsCert, err := keys.X509KeyPair(cert.Cert, cert.PrivateKey)
 	require.NoError(t, err)
