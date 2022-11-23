@@ -999,7 +999,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 	//
 	// This is how long the Access Request will hang around for approval. In
 	// other words, the TTL on the types.AccessRequest resource itself.
-	ttl, err := resourceTTL(ctx, m.clock, identity.Expires, m.getter, req)
+	ttl, err := m.pendingTTL(ctx, identity, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1009,13 +1009,70 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 	//
 	// This is the expiration time of the elevated certificate that will
 	// be issued if the Access Request is approved.
-	ttl, err = elevatedTTL(ctx, m.clock, identity.Expires, m.getter, req)
+	ttl, err = m.accessTTL(ctx, identity, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	req.SetAccessExpiry(now.Add(ttl))
 
 	return nil
+}
+
+// pendingTTL calculates the TTL of the Access Request (how long it
+// will await approval).
+func (m *RequestValidator) pendingTTL(ctx context.Context, identity tlsca.Identity, r types.AccessRequest) (time.Duration, error) {
+	// If no expiration provided, use default (1 hour).
+	expiry := r.Expiry()
+	if expiry.IsZero() {
+		expiry = m.clock.Now().UTC().Add(defaults.PendingAccessDuration)
+	}
+
+	if expiry.Before(m.clock.Now().UTC()) {
+		return 0, trace.BadParameter("invalid expiration, Access Request can not be created in the past")
+	}
+
+	return m.truncateTTL(ctx, identity, expiry, r.GetRoles())
+}
+
+// accessTTL calculates the TTL of the elevated certificate that will be issued
+// if the Access Request is approved.
+func (m *RequestValidator) accessTTL(ctx context.Context, identity tlsca.Identity, r types.AccessRequest) (time.Duration, error) {
+	return m.truncateTTL(ctx, identity, r.GetAccessExpiry(), r.GetRoles())
+}
+
+// truncateTTL will truncate given expiration by identity expiration and
+// shortest session TTL of any role.
+func (m *RequestValidator) truncateTTL(ctx context.Context, identity tlsca.Identity, expiry time.Time, roles []string) (time.Duration, error) {
+	ttl := apidefaults.MaxCertDuration
+
+	// Reduce by remaining TTL on requesting certificate (identity).
+	identityTTL := identity.Expires.Sub(m.clock.Now())
+	if identityTTL > 0 && identityTTL < ttl {
+		ttl = identityTTL
+	}
+
+	// Reduce TTL further if expiration time requested is shorter than that
+	// identity.
+	expiryTTL := expiry.Sub(m.clock.Now())
+	if expiryTTL > 0 && expiryTTL < ttl {
+		ttl = expiryTTL
+	}
+
+	// Loop over the roles requested by the user and reduce certificate TTL
+	// further. Follow the typical Teleport RBAC pattern of strictest setting
+	// wins.
+	for _, roleName := range roles {
+		role, err := m.getter.GetRole(ctx, roleName)
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		roleTTL := time.Duration(role.GetOptions().MaxSessionTTL)
+		if roleTTL > 0 && roleTTL < ttl {
+			ttl = roleTTL
+		}
+	}
+
+	return ttl, nil
 }
 
 // GetRequestableRoles gets the list of all existent roles which the user is
@@ -1573,59 +1630,4 @@ func MapListResourcesResultToLeafResource(resource types.ResourceWithLabels, hin
 	default:
 	}
 	return types.ResourcesWithLabels{resource}, nil
-}
-
-// resourceTTL calculates the TTL for the types.AccessRequest resource.
-func resourceTTL(ctx context.Context, clock clockwork.Clock, identityExpires time.Time, getter RequestValidatorGetter, r types.AccessRequest) (time.Duration, error) {
-	// If no expiration provided, use default (1 hour).
-	expiry := r.Expiry()
-	if expiry.IsZero() {
-		expiry = clock.Now().UTC().Add(defaults.PendingAccessDuration)
-	}
-
-	if expiry.Before(clock.Now().UTC()) {
-		return 0, trace.BadParameter("invalid expiration, Access Request can not be created in the past")
-	}
-
-	return truncateTTL(ctx, clock, identityExpires, getter, expiry, r.GetRoles())
-}
-
-// elevatedAccessTTL calculates the TTL for elevated access.
-func elevatedTTL(ctx context.Context, clock clockwork.Clock, identityExpires time.Time, getter RequestValidatorGetter, r types.AccessRequest) (time.Duration, error) {
-	return truncateTTL(ctx, clock, identityExpires, getter, r.GetAccessExpiry(), r.GetRoles())
-}
-
-// truncateTTL will truncate given expiration by identity expiration and
-// shortest session TTL of any role.
-func truncateTTL(ctx context.Context, clock clockwork.Clock, identityExpires time.Time, getter RequestValidatorGetter, expiry time.Time, roles []string) (time.Duration, error) {
-	ttl := apidefaults.MaxCertDuration
-
-	// Reduce by remaining TTL on requesting certificate (identity).
-	identityTTL := identityExpires.Sub(clock.Now())
-	if identityTTL > 0 && identityTTL < ttl {
-		ttl = identityTTL
-	}
-
-	// Reduce TTL further if expiration time requested is shorter than that
-	// identity.
-	expiryTTL := expiry.Sub(clock.Now())
-	if expiryTTL > 0 && expiryTTL < ttl {
-		ttl = expiryTTL
-	}
-
-	// Loop over the roles requested by the user and reduce certificate TTL
-	// further. Follow the typical Teleport RBAC pattern of strictest setting
-	// wins.
-	for _, roleName := range roles {
-		role, err := getter.GetRole(ctx, roleName)
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
-		roleTTL := time.Duration(role.GetOptions().MaxSessionTTL)
-		if roleTTL > 0 && roleTTL < ttl {
-			ttl = roleTTL
-		}
-	}
-
-	return ttl, nil
 }
