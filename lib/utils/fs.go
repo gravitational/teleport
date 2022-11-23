@@ -18,6 +18,7 @@ package utils
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"os"
 	"path/filepath"
@@ -220,4 +221,47 @@ func FSTryReadLockTimeout(ctx context.Context, filePath string, timeout time.Dur
 	}
 
 	return unlockWrapper(fileLock.Unlock, fileLock.Path()), nil
+}
+
+// RemoveSecure attempts to securely delete the file by first overwriting the file with random data followed by
+// calling os.Remove(filePath). The number of times to overwrite the data is set by iterations. Iterations must
+// be > 0 or a trace.BadParameterError will be returned.
+func RemoveSecure(filePath string, iterations int) error {
+	if iterations < 1 {
+		return trace.BadParameter("iterations must be greater than 0")
+	}
+
+	for i := 0; i < iterations; i++ {
+		if err := overwriteFile(filePath); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return trace.Wrap(os.Remove(filePath))
+}
+
+func overwriteFile(filePath string) error {
+	f, err := os.OpenFile(filePath, os.O_WRONLY, 0)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	b := make([]byte, 4096)
+	var size int64
+	for size < fi.Size() {
+		if _, err := rand.Read(b); err != nil {
+			return trace.Wrap(err)
+		}
+		n, err := f.Write(b)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		size += int64(n)
+	}
+	return nil
 }
