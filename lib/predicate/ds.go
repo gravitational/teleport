@@ -50,17 +50,6 @@ func union[T comparable](a, b set[T]) set[T] {
 	return i
 }
 
-func difference[T comparable](a, b set[T]) set[T] {
-	i := make(set[T])
-	for k := range a {
-		if _, ok := b[k]; !ok {
-			i[k] = struct{}{}
-		}
-	}
-
-	return i
-}
-
 func newSet[T comparable](a []T) set[T] {
 	i := make(set[T])
 	for _, k := range a {

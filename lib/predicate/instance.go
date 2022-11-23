@@ -25,18 +25,12 @@ func newInstance(clauses []clause) *instance {
 
 func (i *instance) propagate() clauseError {
 	for {
-		for {
-			changed, err := i.unitPropagateOnce()
-			if err != clauseNoError {
-				return err
-			}
-
-			if !changed {
-				break
-			}
+		changed, err := i.unitPropagateOnce()
+		if err != clauseNoError {
+			return err
 		}
 
-		if !i.pureLiteralEliminateOnce() {
+		if !changed {
 			break
 		}
 	}
@@ -72,34 +66,6 @@ func (i *instance) unitPropagateOnce() (bool, clauseError) {
 	}
 
 	return false, clauseNoError
-}
-
-func (i *instance) pureLiteralEliminateOnce() bool {
-	positive := make(set[int])
-	negative := make(set[int])
-
-	for _, clause := range i.clauses {
-		for v := range clause.positive {
-			positive[v] = struct{}{}
-		}
-
-		for v := range clause.negative {
-			negative[v] = struct{}{}
-		}
-	}
-
-	onlyPositive := difference(positive, negative)
-	onlyNegative := difference(negative, positive)
-
-	for v := range onlyPositive {
-		i.applySubst(v, true)
-	}
-
-	for v := range onlyNegative {
-		i.applySubst(v, false)
-	}
-
-	return len(onlyPositive) > 0 || len(onlyNegative) > 0
 }
 
 func (i *instance) pickBranchAssignment() (int, bool) {
