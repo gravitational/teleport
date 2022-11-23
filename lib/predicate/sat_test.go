@@ -68,6 +68,7 @@ func TestUnsatIntEq(t *testing.T) {
 
 var out int
 
+// opt ideas: two-watch literals, more efficient clause repr, noncloning core, vsids heuristic
 func BenchmarkSatIntAdd(b *testing.B) {
 	theory := newNumTheory()
 	r1 := integer(theory, "r1")
