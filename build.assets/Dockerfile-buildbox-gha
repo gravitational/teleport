@@ -44,46 +44,46 @@ ENV LANGUAGE=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
     LC_CTYPE=en_US.UTF-8
 
-RUN yum groupinstall -y 'Development Tools' && \
-    yum update -y $YUM_UPDATE_FLAGS         && \
-    yum install -y      \
-         pam-devel      \
-         perl-IPC-Cmd   \
-         tree           \
-         which          \
-         zip            \
-         zlib-static && \
-    yum clean all
+# RUN yum groupinstall -y 'Development Tools' && \
+#     yum update -y $YUM_UPDATE_FLAGS         && \
+#     yum install -y      \
+#          pam-devel      \
+#          perl-IPC-Cmd   \
+#          tree           \
+#          which          \
+#          zip            \
+#          zlib-static && \
+#     yum clean all
 
-RUN localedef -c -i en_US -f UTF-8 en_US.UTF-8
+# RUN localedef -c -i en_US -f UTF-8 en_US.UTF-8
 
-# Install Go.
-RUN mkdir -p /opt && \
-    mkdir -p /go  && \
-    curl https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-$GOLANG_ARCH.tar.gz | tar xz -C /opt && \
-    chmod a+w /go && \
-    chmod a+w /var/lib && \
-    /opt/go/bin/go version
-ENV GOPATH="/go" \
-    GOROOT="/opt/go" \
-    PATH="$PATH:/opt/go/bin:/go/bin"
+# # Install Go.
+# RUN mkdir -p /opt && \
+#     mkdir -p /go  && \
+#     curl https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-$GOLANG_ARCH.tar.gz | tar xz -C /opt && \
+#     chmod a+w /go && \
+#     chmod a+w /var/lib && \
+#     /opt/go/bin/go version
+# ENV GOPATH="/go" \
+#     GOROOT="/opt/go" \
+#     PATH="$PATH:/opt/go/bin:/go/bin"
 
-# Install Rust.
+# # Install Rust.
 
-ENV RUSTUP_HOME=/usr/local/rustup \
-    CARGO_HOME=/usr/local/cargo \
-    PATH=/usr/local/cargo/bin:$PATH \
-    RUST_VERSION=$RUST_VERSION
+# ENV RUSTUP_HOME=/usr/local/rustup \
+#     CARGO_HOME=/usr/local/cargo \
+#     PATH=/usr/local/cargo/bin:$PATH \
+#     RUST_VERSION=$RUST_VERSION
 
-RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
-    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+# RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
+#     mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
 
-RUN chmod a-w /
+# RUN chmod a-w /
 
-USER ci
+# USER ci
 
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
-    rustup --version && \
-    cargo --version && \
-    rustc --version && \
-    rustup component add rustfmt clippy
+# RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+#     rustup --version && \
+#     cargo --version && \
+#     rustc --version && \
+#     rustup component add rustfmt clippy
