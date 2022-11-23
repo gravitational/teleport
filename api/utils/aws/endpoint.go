@@ -62,7 +62,8 @@ func IsMemoryDBEndpoint(uri string) bool {
 // IsKeyspacesEndpoint returns true if input URI is an AWS Keyspaces endpoint.
 // https://docs.aws.amazon.com/keyspaces/latest/devguide/programmatic.endpoints.html
 func IsKeyspacesEndpoint(uri string) bool {
-	return strings.HasPrefix(uri, "cassandra.") && IsAWSEndpoint(uri)
+	hasCassandraPrefix := strings.HasPrefix(uri, "cassandra.") || strings.HasPrefix(uri, "cassandra-fips.")
+	return hasCassandraPrefix && IsAWSEndpoint(uri)
 }
 
 // RDSEndpointDetails contains information about an RDS endpoint.
