@@ -109,7 +109,7 @@ func RedshiftServerlessWorkgroup(name, region string) *redshiftserverless.Workgr
 // RedshiftServerlessEndpointAccess returns a sample redshiftserverless.EndpointAccess.
 func RedshiftServerlessEndpointAccess(workgroup *redshiftserverless.Workgroup, name, region string) *redshiftserverless.EndpointAccess {
 	return &redshiftserverless.EndpointAccess{
-		Address:            aws.String(fmt.Sprintf("%s-xxxyyyzzz.1234567890.%s.redshift-serverless.amazonaws.com", name, region)),
+		Address:            aws.String(fmt.Sprintf("%s-endpoint-xxxyyyzzz.1234567890.%s.redshift-serverless.amazonaws.com", name, region)),
 		EndpointArn:        aws.String(fmt.Sprintf("arn:aws:redshift-serverless:%s:1234567890:managedvpcendpoint/some-uuid-for-%v", region, name)),
 		EndpointCreateTime: aws.Time(sampleTime),
 		EndpointName:       aws.String(name),

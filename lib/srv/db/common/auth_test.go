@@ -382,16 +382,21 @@ func TestGetAzureIdentityResourceIDCache(t *testing.T) {
 	require.Equal(t, identityResourceID(t, "identity"), resourceID)
 }
 
-func TestUsernameToAWSRoleARN(t *testing.T) {
+func TestRedshiftServerlessUsernameToRoleARN(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		inputUsername string
 		expectRoleARN string
+		expectError   bool
 	}{
 		{
 			inputUsername: "arn:aws:iam::1234567890:role/rolename",
 			expectRoleARN: "arn:aws:iam::1234567890:role/rolename",
+		},
+		{
+			inputUsername: "arn:aws:iam::1234567890:user/user",
+			expectError:   true,
 		},
 		{
 			inputUsername: "role/rolename",
@@ -401,11 +406,25 @@ func TestUsernameToAWSRoleARN(t *testing.T) {
 			inputUsername: "rolename",
 			expectRoleARN: "arn:aws:iam::1234567890:role/rolename",
 		},
+		{
+			inputUsername: "IAM:user",
+			expectError:   true,
+		},
+		{
+			inputUsername: "IAMR:rolename",
+			expectRoleARN: "arn:aws:iam::1234567890:role/rolename",
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.inputUsername, func(t *testing.T) {
-			require.Equal(t, test.expectRoleARN, UsernameToAWSRoleARN(newRedshiftServerlessDatabase(t), test.inputUsername))
+			actualRoleARN, err := redshiftServerlessUsernameToRoleARN(newRedshiftServerlessDatabase(t).GetAWS(), test.inputUsername)
+			if test.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expectRoleARN, actualRoleARN)
+			}
 		})
 	}
 }

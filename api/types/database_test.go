@@ -432,14 +432,4 @@ func TestDatabaseFromRedshiftServerlessEndpoint(t *testing.T) {
 			},
 		}, database.GetAWS())
 	})
-
-	t.Run("vpc endpoint mising workgroup name", func(t *testing.T) {
-		_, err := NewDatabaseV3(Metadata{
-			Name: "test",
-		}, DatabaseSpecV3{
-			Protocol: "postgres",
-			URI:      "my-vpc-endpoint-xxxyyyzzz.1234567890.us-east-1.redshift-serverless.amazonaws.com:5439",
-		})
-		require.Error(t, err)
-	})
 }

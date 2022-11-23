@@ -233,7 +233,10 @@ func (a *dbAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx 
 	// mapped to a Postgres user "IAMR:my-role-name" inside the database. So we
 	// first need to assume this IAM role before getting auth token.
 	awsMetadata := sessionCtx.Database.GetAWS()
-	roleARN := UsernameToAWSRoleARN(sessionCtx.Database, sessionCtx.DatabaseUser)
+	roleARN, err := redshiftServerlessUsernameToRoleARN(awsMetadata, sessionCtx.DatabaseUser)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
 	client, err := a.cfg.Clients.GetAWSRedshiftServerlessClientForRole(ctx, awsMetadata.Region, roleARN)
 	if err != nil {
 		return "", "", trace.AccessDenied(`Could not generate Redshift Serverless auth token:
@@ -807,21 +810,42 @@ func matchAzureResourceName(resourceID, name string) bool {
 	return parsedResource.Name == name
 }
 
-// UsernameToAWSRoleARN converts a database username to AWS role ARN.
-func UsernameToAWSRoleARN(database types.Database, username string) string {
-	if arn.IsARN(username) {
-		return username
-	}
-	resource := username
-	if !strings.Contains(resource, "/") {
-		resource = fmt.Sprintf("role/%s", username)
-	}
+// redshiftServerlessUsernameToRoleARN converts a database username to AWS role
+// ARN for a Redshift Serverless database.
+func redshiftServerlessUsernameToRoleARN(aws types.AWS, username string) (string, error) {
+	switch {
+	case strings.HasPrefix(username, "IAM:"):
+		// These are in-database usernames created when logged in as IAM users.
+		return "", trace.BadParameter("only database users mapped to IAM roles are supported")
 
-	aws := database.GetAWS()
-	return arn.ARN{
-		Partition: awsutils.GetPartitionFromRegion(aws.Region),
-		Service:   iam.ServiceName,
-		AccountID: aws.AccountID,
-		Resource:  resource,
-	}.String()
+	case strings.HasPrefix(username, "IAMR:"):
+		// These are in-database usernames created when logged in as IAM roles.
+		return arn.ARN{
+			Partition: awsutils.GetPartitionFromRegion(aws.Region),
+			Service:   iam.ServiceName,
+			AccountID: aws.AccountID,
+			Resource:  fmt.Sprintf("role/%s", strings.TrimPrefix(username, "IAMR:")),
+		}.String(), nil
+
+	case arn.IsARN(username):
+		if parsedARN, err := arn.Parse(username); err != nil {
+			return "", trace.Wrap(err)
+		} else if parsedARN.Resource != iam.ServiceName && !strings.HasPrefix(parsedARN.Resource, "role/") {
+			return "", trace.BadParameter("expecting an AWS IAM role ARN but got %v", username)
+		}
+		return username, nil
+
+	default:
+		resource := username
+		if !strings.Contains(resource, "/") {
+			resource = fmt.Sprintf("role/%s", username)
+		}
+
+		return arn.ARN{
+			Partition: awsutils.GetPartitionFromRegion(aws.Region),
+			Service:   iam.ServiceName,
+			AccountID: aws.AccountID,
+			Resource:  resource,
+		}.String(), nil
+	}
 }
