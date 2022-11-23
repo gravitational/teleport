@@ -141,7 +141,7 @@ type TerminalHandlerConfig struct {
 	displayLogin string
 	// sessionData is the data to send to the client on the initial session creation.
 	sessionData session.Session
-	// KeepAliveInterval is the interval for sending ping frames to web client.
+	// keepAliveInterval is the interval for sending ping frames to web client.
 	// This value is pulled from the cluster network config and
 	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
 	keepAliveInterval time.Duration
@@ -189,7 +189,7 @@ type TerminalHandler struct {
 
 	wsLock *sync.Mutex
 
-	// KeepAliveInterval is the interval for sending ping frames to web client.
+	// keepAliveInterval is the interval for sending ping frames to web client.
 	// This value is pulled from the cluster network config and
 	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
 	keepAliveInterval time.Duration
@@ -222,20 +222,18 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		CheckOrigin:     func(r *http.Request) bool { return true },
 	}
 
-	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		errMsg := "Error upgrading to websocket"
-		t.log.Errorf("%v: %v", errMsg, err)
-		http.Error(w, errMsg, http.StatusInternalServerError)
-		return
-	}
-
-	ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
-
 	emitError := func(errMsg string, err error) {
 		t.log.Errorf("%s: %s", errMsg, err)
 		http.Error(w, errMsg, http.StatusInternalServerError)
 	}
+
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		emitError("Error upgrading to websocket", err)
+		return
+	}
+
+	ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
 
 	// If the displayLogin is set then use it instead of the login name used in
 	// the SSH connection. This is specifically for the use case when joining
@@ -252,7 +250,7 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	envelope := &Envelope{
 		Version: defaults.WebsocketVersion,
-		Type:    defaults.WebsocketSessionData,
+		Type:    defaults.WebsocketSessionMetadata,
 		Payload: string(sessionString),
 	}
 

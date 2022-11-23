@@ -694,8 +694,8 @@ const (
 	// WebsocketWebauthnChallenge is sending a webauthn challenge.
 	WebsocketWebauthnChallenge = "n"
 
-	// WebsocketSessionData is sending the data for a ssh session.
-	WebsocketSessionData = "s"
+	// WebsocketSessionMetadata is sending the data for a ssh session.
+	WebsocketSessionMetadata = "s"
 )
 
 // The following are cryptographic primitives Teleport does not support in

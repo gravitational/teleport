@@ -1072,21 +1072,21 @@ func TestNewTerminalHandler(t *testing.T) {
 	term, err := NewTerminal(ctx, validCfg)
 	require.NoError(t, err)
 	// passed through
-	require.Equal(t, term.ctx, validCfg.sctx)
-	require.Equal(t, term.authProvider, validCfg.authProvider)
-	require.Equal(t, term.sessionData, validCfg.sessionData)
-	require.Equal(t, term.keepAliveInterval, validCfg.keepAliveInterval)
-	require.Equal(t, term.proxyHostPort, validCfg.proxyHostPort)
-	require.Equal(t, term.interactiveCommand, validCfg.interactiveCommand)
-	require.Equal(t, term.term, validCfg.term)
-	require.Equal(t, term.displayLogin, validCfg.displayLogin)
+	require.Equal(t, validCfg.sctx, term.ctx)
+	require.Equal(t, validCfg.authProvider, term.authProvider)
+	require.Equal(t, validCfg.sessionData, term.sessionData)
+	require.Equal(t, validCfg.keepAliveInterval, term.keepAliveInterval)
+	require.Equal(t, validCfg.proxyHostPort, term.proxyHostPort)
+	require.Equal(t, validCfg.interactiveCommand, term.interactiveCommand)
+	require.Equal(t, validCfg.term, term.term)
+	require.Equal(t, validCfg.displayLogin, term.displayLogin)
 	// newly added
-	require.Equal(t, term.encoder, unicode.UTF8.NewEncoder())
-	require.Equal(t, term.decoder, unicode.UTF8.NewDecoder())
-	require.Equal(t, term.wsLock, &sync.Mutex{})
-	require.Equal(t, term.log, logrus.WithFields(logrus.Fields{
+	require.Equal(t, unicode.UTF8.NewEncoder(), term.encoder)
+	require.Equal(t, unicode.UTF8.NewDecoder(), term.decoder)
+	require.Equal(t, &sync.Mutex{}, term.wsLock)
+	require.Equal(t, logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentWebsocket,
-	}))
+	}), term.log)
 }
 
 func TestResizeTerminal(t *testing.T) {

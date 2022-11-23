@@ -2217,8 +2217,6 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	// Fetching nodes is quite slow when many nodes exist so fetch it once and
-	// pass the value to the methods that require it.
 	clt, err := sctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2314,6 +2312,8 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 	// req.Server will be either an IP, hostname, or server UUID.
 	_, err := uuid.Parse(req.Server)
 	if err != nil {
+		// TODO Investigate using ListResources instead of GetNodes as we can
+		// provide more filters that may reduce the work to do on the client side.
 		servers, err := clt.GetNodes(ctx, apidefaults.Namespace)
 		if err != nil {
 			return session.Session{}, trace.Wrap(err)
@@ -2332,7 +2332,7 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 		if err != nil {
 			return session.Session{}, trace.Wrap(err)
 		}
-		host, port, err = resolveServerHostPort(req.Server, append([]types.Server{}, server))
+		host, port, err = resolveServerHostPort(req.Server, []types.Server{server})
 		if err != nil {
 			return session.Session{}, trace.Wrap(err)
 		}
