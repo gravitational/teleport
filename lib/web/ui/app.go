@@ -18,8 +18,6 @@ package ui
 
 import (
 	"fmt"
-	"sort"
-	"strings"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -67,19 +65,7 @@ func MakeApps(c MakeAppsConfig) []App {
 	result := []App{}
 	for _, teleApp := range c.Apps {
 		fqdn := AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, teleApp)
-		labels := []Label{}
-		for name, value := range teleApp.GetAllLabels() {
-			if strings.HasPrefix(name, "teleport.internal/") {
-				continue
-			}
-
-			labels = append(labels, Label{
-				Name:  name,
-				Value: value,
-			})
-		}
-
-		sort.Sort(sortedLabels(labels))
+		labels := makeLabels(teleApp.GetAllLabels())
 
 		app := App{
 			Name:        teleApp.GetName(),
