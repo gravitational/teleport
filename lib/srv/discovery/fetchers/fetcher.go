@@ -22,13 +22,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-const (
-	// Azure identifies that a fetcher is watching resources from Azure.
-	Azure = "azure"
-	// AWS identifies that a fetcher is watching resources from AWS.
-	AWS = "aws"
-)
-
 // Fetcher defines the common methods across all fetchers.
 type Fetcher interface {
 	// Get returns the list of resources from the cloud after applying the filters.

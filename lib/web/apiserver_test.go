@@ -53,9 +53,31 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+	lemma_secret "github.com/mailgun/lemma/secret"
+	"github.com/pquerna/otp/totp"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
+	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
+	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
+	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
+	"golang.org/x/text/encoding/unicode"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/testing/protocmp"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -84,7 +106,9 @@ import (
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/pam"
+	libproxy "github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
@@ -98,24 +122,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
-	lemma_secret "github.com/mailgun/lemma/secret"
-	"github.com/pquerna/otp/totp"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
-	"golang.org/x/text/encoding/unicode"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
-	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
-	"k8s.io/client-go/tools/clientcmd"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 const hostID = "00000000-0000-0000-0000-000000000000"
@@ -155,6 +161,15 @@ func TestMain(m *testing.M) {
 }
 
 func newWebSuite(t *testing.T) *WebSuite {
+	return newWebSuiteWithConfig(t, webSuiteConfig{})
+}
+
+type webSuiteConfig struct {
+	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
+	authPreferenceSpec *types.AuthPreferenceSpecV2
+}
+
+func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	mockU2F, err := mocku2f.Create()
 	require.NoError(t, err)
 	require.NotNil(t, mockU2F)
@@ -182,6 +197,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 			Dir:                     t.TempDir(),
 			Clock:                   s.clock,
 			ClusterNetworkingConfig: networkingConfig,
+			AuthPreferenceSpec:      cfg.authPreferenceSpec,
 		},
 	})
 	require.NoError(t, err)
@@ -326,6 +342,15 @@ func newWebSuite(t *testing.T) *WebSuite {
 	require.NoError(t, err)
 	s.proxyTunnel = revTunServer
 
+	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+		ClusterName:         s.server.ClusterName(),
+		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		RemoteClusterGetter: s.proxyClient,
+		SiteGetter:          revTunServer,
+		TracerProvider:      tracing.NoopProvider(),
+	})
+	require.NoError(t, err)
+
 	// proxy server:
 	s.proxy, err = regular.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
@@ -337,7 +362,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 		utils.NetAddr{},
 		s.proxyClient,
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode("", revTunServer, s.proxyClient),
+		regular.SetProxyMode("", revTunServer, s.proxyClient, router),
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
@@ -352,7 +377,9 @@ func newWebSuite(t *testing.T) *WebSuite {
 	var sessionLingeringThreshold time.Duration
 	fs, err := NewDebugFileSystem("../../webassets/teleport")
 	require.NoError(t, err)
+
 	handler, err := NewHandler(Config{
+		ClusterFeatures:                 *modules.GetModules().Features().ToProto(), // safe to dereference because ToProto creates a struct and return a pointer to it
 		Proxy:                           revTunServer,
 		AuthServers:                     utils.FromAddr(s.server.TLS.Addr()),
 		DomainName:                      s.server.ClusterName(),
@@ -893,8 +920,21 @@ func TestClusterNodesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
-	clusterName := env.server.ClusterName()
 
+	// Get the node already added by `newWebPack`
+	servers, err := env.server.Auth().GetNodes(context.Background(), apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, servers, 1)
+	server1 := servers[0]
+
+	// Add another node.
+	server2, err := types.NewServerWithLabels("server2", types.KindNode, types.ServerSpecV2{}, map[string]string{"test-field": "test-value"})
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertNode(context.Background(), server2)
+	require.NoError(t, err)
+
+	// Get nodes from endpoint.
+	clusterName := env.server.ClusterName()
 	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "nodes")
 
 	query := url.Values{"sort": []string{"name"}}
@@ -903,19 +943,36 @@ func TestClusterNodesGet(t *testing.T) {
 	re, err := pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 
-	nodes := clusterNodesGetResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes))
-	require.Len(t, nodes.Items, 1)
-	require.Equal(t, 1, nodes.TotalCount)
+	// Test response.
+	res := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Len(t, res.Items, 2)
+	require.Equal(t, 2, res.TotalCount)
+	require.ElementsMatch(t, res.Items, []ui.Server{
+		{
+			ClusterName: clusterName,
+			Name:        server1.GetName(),
+			Hostname:    server1.GetHostname(),
+			Tunnel:      server1.GetUseTunnel(),
+			Addr:        server1.GetAddr(),
+			Labels:      []ui.Label{},
+			SSHLogins:   []string{pack.login},
+		},
+		{ClusterName: clusterName,
+			Name:      "server2",
+			Labels:    []ui.Label{{Name: "test-field", Value: "test-value"}},
+			Tunnel:    false,
+			SSHLogins: []string{pack.login}},
+	})
 
 	// Get nodes using shortcut.
 	re, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), query)
 	require.NoError(t, err)
 
-	nodes2 := clusterNodesGetResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes2))
-	require.Len(t, nodes.Items, 1)
-	require.Equal(t, nodes, nodes2)
+	res2 := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res2))
+	require.Len(t, res.Items, 2)
+	require.Equal(t, res, res2)
 }
 
 type clusterAlertsGetResponse struct {
@@ -1142,44 +1199,92 @@ func TestResizeTerminal(t *testing.T) {
 	s := newWebSuite(t)
 	sid := session.NewID()
 
-	// Create a new user "foo", open a terminal to a new session, and wait for
-	// it to be ready.
+	errs := make(chan error, 2)
+	readLoop := func(ctx context.Context, ws *websocket.Conn, ch chan<- *Envelope) {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			typ, b, err := ws.ReadMessage()
+			if err != nil {
+				errs <- err
+				return
+			}
+			if typ != websocket.BinaryMessage {
+				errs <- trace.BadParameter("expected binary message, got %v", typ)
+				return
+			}
+			var envelope Envelope
+			if err := proto.Unmarshal(b, &envelope); err != nil {
+				errs <- trace.Wrap(err)
+				return
+			}
+			ch <- &envelope
+		}
+	}
+
+	// Create a new user "foo", open a terminal to a new session
 	pack1 := s.authPack(t, "foo")
 	ws1, err := s.makeTerminal(t, pack1, withSessionID(sid))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws1.Close()) })
-	err = s.waitForRawEvent(ws1, 5*time.Second)
-	require.NoError(t, err)
 
-	// Create a new user "bar", open a terminal to the session created above,
-	// and wait for it to be ready.
+	// Create a new user "bar", open a terminal to the session created above
 	pack2 := s.authPack(t, "bar")
 	ws2, err := s.makeTerminal(t, pack2, withSessionID(sid))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws2.Close()) })
-	err = s.waitForRawEvent(ws2, 5*time.Second)
-	require.NoError(t, err)
 
-	// Look at the audit events for the first terminal. It should have two
-	// resize events from the second terminal (80x25 default then 100x100). Only
-	// the second terminal will get these because resize events are not sent
-	// back to the originator.
-	err = s.waitForResizeEvent(ws1, 5*time.Second)
-	require.NoError(t, err)
-	err = s.waitForResizeEvent(ws1, 5*time.Second)
-	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	ws1Messages := make(chan *Envelope)
+	ws2Messages := make(chan *Envelope)
+	go readLoop(ctx, ws1, ws1Messages)
+	go readLoop(ctx, ws2, ws2Messages)
 
-	// Look at the stream events for the second terminal. We don't expect to see
-	// any resize events yet. It will timeout.
-	ws2Event := s.listenForResizeEvent(ws2)
-	select {
-	case <-ws2Event:
-		t.Fatal("unexpected resize event")
-	case <-time.After(time.Second):
+	// consume events from the first terminal
+	// we exect to see at least one raw event with PTY data (indicating terminal ready)
+	// and 2 resize events from the second user joining the session (one for the default
+	// size, and one for the manual resize request)
+	done := time.After(10 * time.Second)
+	t1ResizeEvents, t1RawEvents := 0, 0
+t1ready:
+	for {
+		select {
+		case <-done:
+			require.FailNow(t, "expected to receive 2 resize events (got %d) and at least 1 raw event (got %d)", t1ResizeEvents, t1RawEvents)
+		case err := <-errs:
+			require.NoError(t, err)
+		case e := <-ws1Messages:
+			if isResizeEventEnvelope(e) {
+				t1ResizeEvents++
+			}
+			if e.GetType() == defaults.WebsocketRaw {
+				t1RawEvents++
+			}
+			if t1ResizeEvents == 2 && t1RawEvents > 0 {
+				break t1ready
+			}
+		}
 	}
 
-	// Resize the second terminal. This should be reflected on the first terminal
-	// because resize events are not sent back to the originator.
+	// we should not expect to see a resize event on terminal 2,
+	// since they are not broadcasted back to the originator
+	select {
+	case e := <-ws2Messages:
+		if isResizeEventEnvelope(e) {
+			require.FailNow(t, "terminal 2 should not have received a resize event")
+		}
+	case err := <-errs:
+		require.NoError(t, err)
+	case <-time.After(1 * time.Second):
+	}
+
+	// Resize the second terminal. This should be reflected only on the first terminal
+	// because resize events are sent to participants but not the originator..
 	params, err := session.NewTerminalParamsFromInt(300, 120)
 	require.NoError(t, err)
 	data, err := json.Marshal(events.EventFields{
@@ -1199,16 +1304,31 @@ func TestResizeTerminal(t *testing.T) {
 	err = ws2.WriteMessage(websocket.BinaryMessage, envelopeBytes)
 	require.NoError(t, err)
 
-	// This time the first terminal will see the resize event.
-	err = s.waitForResizeEvent(ws1, 5*time.Second)
-	require.NoError(t, err)
-
-	// The second terminal will not see any resize event. It will timeout.
-	select {
-	case <-ws2Event:
-		t.Fatal("unexpected resize event")
-	case <-time.After(time.Second):
+	// the first terminal should see the resize event
+	done = time.After(5 * time.Second)
+	for {
+		select {
+		case <-done:
+			require.FailNow(t, "expected to receive a final resize event")
+		case err := <-errs:
+			require.NoError(t, err)
+		case e := <-ws1Messages:
+			if isResizeEventEnvelope(e) {
+				return
+			}
+		}
 	}
+}
+
+func isResizeEventEnvelope(e *Envelope) bool {
+	if e.GetType() != defaults.WebsocketAudit {
+		return false
+	}
+	var ef events.EventFields
+	if err := json.Unmarshal([]byte(e.GetPayload()), &ef); err != nil {
+		return false
+	}
+	return ef.GetType() == events.ResizeEvent
 }
 
 // TestTerminalPing tests that the server sends continuous ping control messages.
@@ -2806,7 +2926,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 0)
 
-	// Register a database.
+	// Register databases.
 	db, err := types.NewDatabaseServerV3(types.Metadata{
 		Name:   "test-db-name",
 		Labels: map[string]string{"test-field": "test-value"},
@@ -2818,8 +2938,17 @@ func TestClusterDatabasesGet(t *testing.T) {
 		HostID:      "test-hostID",
 	})
 	require.NoError(t, err)
+	db2, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "db2",
+	}, types.DatabaseServerSpecV3{
+		Hostname: "test-hostname",
+		HostID:   "test-hostID",
+	})
+	require.NoError(t, err)
 
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db2)
 	require.NoError(t, err)
 
 	re, err = pack.clt.Get(context.Background(), endpoint, query)
@@ -2827,15 +2956,19 @@ func TestClusterDatabasesGet(t *testing.T) {
 
 	resp = testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 1)
-	require.Equal(t, 1, resp.TotalCount)
-	require.EqualValues(t, ui.Database{
+	require.Len(t, resp.Items, 2)
+	require.Equal(t, 2, resp.TotalCount)
+	require.ElementsMatch(t, resp.Items, []ui.Database{{
 		Name:     "test-db-name",
 		Desc:     "test-description",
 		Protocol: "test-protocol",
 		Type:     types.DatabaseTypeSelfHosted,
 		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
-	}, resp.Items[0])
+	}, {
+		Name:   "db2",
+		Type:   types.DatabaseTypeSelfHosted,
+		Labels: []ui.Label{},
+	}})
 }
 
 func TestClusterDatabaseGet(t *testing.T) {
@@ -3034,7 +3167,7 @@ func TestClusterKubesGet(t *testing.T) {
 
 	cluster1, err := types.NewKubernetesClusterV3(
 		types.Metadata{
-			Name:   "test-kube-name",
+			Name:   "test-kube1",
 			Labels: map[string]string{"test-field": "test-value"},
 		},
 		types.KubernetesClusterSpecV3{},
@@ -3054,6 +3187,22 @@ func TestClusterKubesGet(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	cluster2, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: "test-kube2",
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+	server2, err := types.NewKubernetesServerV3FromCluster(
+		cluster2,
+		"test-kube2-hostname",
+		"test-kube2-hostid",
+	)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertKubernetesServer(context.Background(), server2)
+	require.NoError(t, err)
+
 	type testResponse struct {
 		Items      []ui.KubeCluster `json:"items"`
 		TotalCount int              `json:"totalCount"`
@@ -3063,27 +3212,43 @@ func TestClusterKubesGet(t *testing.T) {
 		name             string
 		user             string
 		extraRoles       services.RoleSet
-		expectedResponse ui.KubeCluster
+		expectedResponse []ui.KubeCluster
 	}{
 		{
 			name: "user with no extra roles",
 			user: "test-user@example.com",
-			expectedResponse: ui.KubeCluster{
-				Name:       "test-kube-name",
-				Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
-				KubeUsers:  nil,
-				KubeGroups: nil,
+			expectedResponse: []ui.KubeCluster{
+				{
+					Name:       "test-kube1",
+					Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
+					KubeUsers:  nil,
+					KubeGroups: nil,
+				},
+				{
+					Name:       "test-kube2",
+					Labels:     []ui.Label{},
+					KubeUsers:  nil,
+					KubeGroups: nil,
+				},
 			},
 		},
 		{
 			name:       "user with extra roles",
 			user:       "test-user2@example.com",
 			extraRoles: services.NewRoleSet(extraRole),
-			expectedResponse: ui.KubeCluster{
-				Name:       "test-kube-name",
-				Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
-				KubeUsers:  []string{"user1"},
-				KubeGroups: []string{"group1"},
+			expectedResponse: []ui.KubeCluster{
+				{
+					Name:       "test-kube1",
+					Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
+					KubeUsers:  []string{"user1"},
+					KubeGroups: []string{"group1"},
+				},
+				{
+					Name:       "test-kube2",
+					Labels:     []ui.Label{},
+					KubeUsers:  []string{"user1"},
+					KubeGroups: []string{"group1"},
+				},
 			},
 		},
 	}
@@ -3098,9 +3263,9 @@ func TestClusterKubesGet(t *testing.T) {
 
 		resp := testResponse{}
 		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-		require.Len(t, resp.Items, 1)
-		require.Equal(t, 1, resp.TotalCount)
-		require.EqualValues(t, tc.expectedResponse, resp.Items[0])
+		require.Len(t, resp.Items, 2)
+		require.Equal(t, 2, resp.TotalCount)
+		require.ElementsMatch(t, tc.expectedResponse, resp.Items)
 	}
 }
 
@@ -3135,8 +3300,29 @@ func TestClusterAppsGet(t *testing.T) {
 		},
 	}
 
-	// Register a app service.
-	_, err := env.server.Auth().UpsertApplicationServer(context.Background(), resource)
+	resource2, err := types.NewAppServerV3(types.Metadata{Name: "server2"}, types.AppServerSpecV3{
+		HostID: "hostid",
+		App: &types.AppV3{
+			Metadata: types.Metadata{Name: "app2"},
+			Spec:     types.AppSpecV3{URI: "uri", PublicAddr: "publicaddrs"},
+		}})
+	require.NoError(t, err)
+
+	// Test URIs with tcp is filtered out of result.
+	resource3, err := types.NewAppServerV3(types.Metadata{Name: "server3"}, types.AppServerSpecV3{
+		HostID: "hostid",
+		App: &types.AppV3{
+			Metadata: types.Metadata{Name: "app3"},
+			Spec:     types.AppSpecV3{URI: "tcp://something", PublicAddr: "publicaddrs"},
+		}})
+	require.NoError(t, err)
+
+	// Register apps.
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource2)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource3)
 	require.NoError(t, err)
 
 	// Make the call.
@@ -3147,9 +3333,9 @@ func TestClusterAppsGet(t *testing.T) {
 	// Test correct response.
 	resp := testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 1)
-	require.Equal(t, 1, resp.TotalCount)
-	require.EqualValues(t, ui.App{
+	require.Len(t, resp.Items, 2)
+	require.Equal(t, 2, resp.TotalCount)
+	require.ElementsMatch(t, resp.Items, []ui.App{{
 		Name:        resource.Spec.App.GetName(),
 		Description: resource.Spec.App.GetDescription(),
 		URI:         resource.Spec.App.GetURI(),
@@ -3158,7 +3344,16 @@ func TestClusterAppsGet(t *testing.T) {
 		FQDN:        resource.Spec.App.GetPublicAddr(),
 		ClusterID:   env.server.ClusterName(),
 		AWSConsole:  true,
-	}, resp.Items[0])
+	}, {
+		Name:       "app2",
+		URI:        "uri",
+		Labels:     []ui.Label{},
+		ClusterID:  env.server.ClusterName(),
+		FQDN:       "publicaddrs",
+		PublicAddr: "publicaddrs",
+		AWSConsole: false,
+	}})
+
 }
 
 // TestApplicationAccessDisabled makes sure application access can be disabled
@@ -4159,6 +4354,158 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 	require.True(t, apiRes.PrivateKeyPolicyEnabled)
 }
 
+func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing.T) {
+	tt := []struct {
+		name                 string
+		cloud                bool
+		numberOfUsers        int
+		password             []byte
+		authPreferenceType   string
+		initialConnectorName string
+		resultConnectorName  string
+	}{{
+		name:                 "first cloud sign-in changes connector to `passwordless`",
+		cloud:                true,
+		numberOfUsers:        1,
+		authPreferenceType:   constants.Local,
+		initialConnectorName: "",
+		resultConnectorName:  constants.PasswordlessConnector,
+	}, {
+		name:                 "first non-cloud sign-in doesn't change the connector",
+		cloud:                false,
+		numberOfUsers:        1,
+		authPreferenceType:   constants.Local,
+		initialConnectorName: "",
+		resultConnectorName:  "",
+	}, {
+		name:                 "second cloud sign-in doesn't change the connector",
+		cloud:                true,
+		numberOfUsers:        2,
+		authPreferenceType:   constants.Local,
+		initialConnectorName: "",
+		resultConnectorName:  "",
+	}, {
+		name:                 "first cloud sign-in does not change custom connector",
+		cloud:                true,
+		numberOfUsers:        1,
+		authPreferenceType:   constants.OIDC,
+		initialConnectorName: "custom",
+		resultConnectorName:  "custom",
+	}, {
+		name:                 "first cloud sign-in with password does not change connector",
+		cloud:                true,
+		numberOfUsers:        1,
+		password:             []byte("abc123"),
+		authPreferenceType:   constants.Local,
+		initialConnectorName: "",
+		resultConnectorName:  "",
+	}}
+
+	for _, tc := range tt {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestFeatures: modules.Features{
+				Cloud: tc.cloud,
+			},
+		})
+
+		const RPID = "localhost"
+
+		s := newWebSuiteWithConfig(t, webSuiteConfig{
+			authPreferenceSpec: &types.AuthPreferenceSpecV2{
+				Type:          tc.authPreferenceType,
+				ConnectorName: tc.initialConnectorName,
+				SecondFactor:  constants.SecondFactorOn,
+				Webauthn: &types.Webauthn{
+					RPID: RPID,
+				},
+			},
+		})
+
+		// user and role
+		users := make([]types.User, tc.numberOfUsers)
+
+		for i := 0; i < tc.numberOfUsers; i++ {
+			user, err := types.NewUser(fmt.Sprintf("test_user_%v", i))
+			require.NoError(t, err)
+
+			user.SetCreatedBy(types.CreatedBy{
+				User: types.UserRef{Name: "other_user"},
+			})
+
+			role := services.RoleForUser(user)
+
+			err = s.server.Auth().UpsertRole(s.ctx, role)
+			require.NoError(t, err)
+
+			user.AddRole(role.GetName())
+
+			err = s.server.Auth().CreateUser(s.ctx, user)
+			require.NoError(t, err)
+
+			users[i] = user
+		}
+
+		initialUser := users[0]
+
+		clt := s.client()
+
+		// create register challenge
+		token, err := s.server.Auth().CreateResetPasswordToken(s.ctx, auth.CreateUserTokenRequest{
+			Name: initialUser.GetName(),
+		})
+		require.NoError(t, err)
+
+		res, err := s.server.Auth().CreateRegisterChallenge(s.ctx, &authproto.CreateRegisterChallengeRequest{
+			TokenID:     token.GetName(),
+			DeviceType:  authproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			DeviceUsage: authproto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+		})
+		require.NoError(t, err)
+
+		cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+
+		// use passwordless as auth method
+		device, err := mocku2f.Create()
+		require.NoError(t, err)
+
+		device.SetPasswordless()
+
+		ccr, err := device.SignCredentialCreation("https://"+RPID, cc)
+		require.NoError(t, err)
+
+		// send sign-in response to server
+		body, err := json.Marshal(changeUserAuthenticationRequest{
+			WebauthnCreationResponse: ccr,
+			TokenID:                  token.GetName(),
+			DeviceName:               "passwordless-device",
+			Password:                 tc.password,
+		})
+		require.NoError(t, err)
+
+		req, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(body))
+		require.NoError(t, err)
+
+		csrfToken, err := csrf.GenerateToken()
+		require.NoError(t, err)
+		addCSRFCookieToReq(req, csrfToken)
+		req.Header.Set(csrf.HeaderName, csrfToken)
+		req.Header.Set("Content-Type", "application/json")
+
+		re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
+			return clt.Client.HTTPClient().Do(req)
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, re.Code(), http.StatusOK)
+
+		// check if auth preference connectorName is set
+		authPreference, err := s.server.Auth().GetAuthPreference(s.ctx)
+		require.NoError(t, err)
+
+		require.Equal(t, authPreference.GetConnectorName(), tc.resultConnectorName, "Found unexpected auth connector name")
+	}
+}
+
 func TestParseSSORequestParams(t *testing.T) {
 	t.Parallel()
 
@@ -4225,6 +4572,61 @@ func TestParseSSORequestParams(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestClusterDesktopsGet(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
+
+	type testResponse struct {
+		Items      []ui.Desktop `json:"items"`
+		TotalCount int          `json:"totalCount"`
+	}
+
+	// Add a few desktops.
+	resource, err := types.NewWindowsDesktopV3("desktop1", map[string]string{"test-field": "test-value"}, types.WindowsDesktopSpecV3{
+		Addr:   "addr:3389", // test stripping off rdp port
+		HostID: "host",
+	})
+	require.NoError(t, err)
+	resource2, err := types.NewWindowsDesktopV3("desktop2", map[string]string{"test-field": "test-value2"}, types.WindowsDesktopSpecV3{
+		Addr:   "addr",
+		HostID: "host",
+	})
+	require.NoError(t, err)
+
+	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), resource)
+	require.NoError(t, err)
+	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), resource2)
+	require.NoError(t, err)
+
+	// Make the call.
+	query := url.Values{"sort": []string{"name"}}
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "desktops")
+	re, err := pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+
+	// Test correct response.
+	resp := testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 2)
+	require.Equal(t, 2, resp.TotalCount)
+	require.ElementsMatch(t, resp.Items, []ui.Desktop{{
+		OS:     constants.WindowsOS,
+		Name:   "desktop1",
+		Addr:   "addr",
+		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
+		HostID: "host",
+	}, {
+		OS:     constants.WindowsOS,
+		Name:   "desktop2",
+		Addr:   "addr",
+		Labels: []ui.Label{{Name: "test-field", Value: "test-value2"}},
+		HostID: "host",
+	}})
 }
 
 func TestDesktopActive(t *testing.T) {
@@ -5375,147 +5777,6 @@ func waitForOutput(stream *terminalStream, substr string) error {
 	}
 }
 
-func (s *WebSuite) waitForRawEvent(ws *websocket.Conn, timeout time.Duration) error {
-	timeoutContext, timeoutCancel := context.WithTimeout(s.ctx, timeout)
-	defer timeoutCancel()
-
-	done := make(chan error, 1)
-
-	go func() {
-		for {
-			ty, raw, err := ws.ReadMessage()
-			if err != nil {
-				done <- trace.Wrap(err)
-				return
-			}
-
-			if ty != websocket.BinaryMessage {
-				done <- trace.BadParameter("expected binary message, got %v", ty)
-				return
-			}
-
-			var envelope Envelope
-			err = proto.Unmarshal(raw, &envelope)
-			if err != nil {
-				done <- trace.Wrap(err)
-				return
-			}
-
-			if envelope.GetType() == defaults.WebsocketRaw {
-				done <- nil
-				return
-			}
-		}
-	}()
-
-	for {
-		select {
-		case <-timeoutContext.Done():
-			return trace.BadParameter("timeout waiting for raw event")
-		case err := <-done:
-			return trace.Wrap(err)
-		}
-	}
-}
-
-func (s *WebSuite) waitForResizeEvent(ws *websocket.Conn, timeout time.Duration) error {
-	timeoutContext, timeoutCancel := context.WithTimeout(s.ctx, timeout)
-	defer timeoutCancel()
-
-	done := make(chan error, 1)
-
-	go func() {
-		for {
-			ty, raw, err := ws.ReadMessage()
-			if err != nil {
-				done <- trace.Wrap(err)
-				return
-			}
-
-			if ty != websocket.BinaryMessage {
-				done <- trace.BadParameter("expected binary message, got %v", ty)
-				return
-			}
-
-			var envelope Envelope
-			err = proto.Unmarshal(raw, &envelope)
-			if err != nil {
-				done <- trace.Wrap(err)
-				return
-			}
-
-			if envelope.GetType() != defaults.WebsocketAudit {
-				continue
-			}
-
-			var e events.EventFields
-			err = json.Unmarshal([]byte(envelope.GetPayload()), &e)
-			if err != nil {
-				done <- trace.Wrap(err)
-				return
-			}
-
-			if e.GetType() == events.ResizeEvent {
-				done <- nil
-				return
-			}
-		}
-	}()
-
-	for {
-		select {
-		case <-timeoutContext.Done():
-			return trace.BadParameter("timeout waiting for resize event")
-		case err := <-done:
-			return trace.Wrap(err)
-		}
-	}
-}
-
-func (s *WebSuite) listenForResizeEvent(ws *websocket.Conn) chan struct{} {
-	ch := make(chan struct{})
-
-	go func() {
-		for {
-			ty, raw, err := ws.ReadMessage()
-			if err != nil {
-				close(ch)
-				return
-			}
-
-			if ty != websocket.BinaryMessage {
-				close(ch)
-				return
-			}
-
-			var envelope Envelope
-			err = proto.Unmarshal(raw, &envelope)
-			if err != nil {
-				close(ch)
-				return
-			}
-
-			if envelope.GetType() != defaults.WebsocketAudit {
-				continue
-			}
-
-			var e events.EventFields
-			err = json.Unmarshal([]byte(envelope.GetPayload()), &e)
-			if err != nil {
-				close(ch)
-				return
-			}
-
-			if e.GetType() == events.ResizeEvent {
-				ch <- struct{}{}
-				return
-			}
-		}
-	}()
-
-	return ch
-}
-
 func (s *WebSuite) clientNoRedirects(opts ...roundtrip.ClientParam) *client.WebClient {
 	hclient := client.NewInsecureWebClient()
 	hclient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
@@ -5792,6 +6053,15 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, revTunServer.Close()) })
 
+	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+		ClusterName:         authServer.ClusterName(),
+		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		RemoteClusterGetter: client,
+		SiteGetter:          revTunServer,
+		TracerProvider:      tracing.NoopProvider(),
+	})
+	require.NoError(t, err)
+
 	proxyServer, err := regular.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		authServer.ClusterName(),
@@ -5802,7 +6072,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "proxy-1.example.com:443"},
 		client,
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode("", revTunServer, client),
+		regular.SetProxyMode("", revTunServer, client, router),
 		regular.SetEmitter(client),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
@@ -5896,13 +6166,17 @@ type proxy struct {
 
 // authPack returns new authenticated package consisting of created valid
 // user, otp token, created web session and authenticated client.
-func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPack {
+func (r *proxy) authPack(t *testing.T, teleportUser string, roles []types.Role) *authPack {
 	ctx := context.Background()
 	const (
-		loginUser = "user"
 		pass      = "abc123"
 		rawSecret = "def456"
 	)
+
+	u, err := user.Current()
+	require.NoError(t, err)
+	loginUser := u.Username
+
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -5914,7 +6188,7 @@ func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPac
 	err = r.auth.Auth().SetAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
-	r.createUser(context.Background(), t, user, loginUser, pass, otpSecret, roles)
+	r.createUser(context.Background(), t, teleportUser, loginUser, pass, otpSecret, roles)
 
 	// create a valid otp token
 	validToken, err := totp.GenerateCode(otpSecret, r.clock.Now())
@@ -5922,7 +6196,7 @@ func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPac
 
 	clt := r.newClient(t)
 	req := CreateSessionReq{
-		User:              user,
+		User:              teleportUser,
 		Pass:              pass,
 		SecondFactorToken: validToken,
 	}
@@ -5944,7 +6218,7 @@ func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPac
 
 	return &authPack{
 		otpSecret: otpSecret,
-		user:      user,
+		user:      teleportUser,
 		login:     loginUser,
 		session:   session,
 		clt:       clt,
@@ -6132,13 +6406,15 @@ func login(t *testing.T, clt *client.WebClient, cookieToken, reqToken string, re
 }
 
 func validateTerminalStream(t *testing.T, conn *websocket.Conn) {
+	t.Helper()
 	termHandler := newTerminalHandler()
 	stream := termHandler.asTerminalStream(conn)
-	_, err := io.WriteString(stream, "echo foo\r\n")
-	require.NoError(t, err)
 
-	err = waitForOutput(stream, "foo")
+	// here we intentionally run a command where the output we're looking
+	// for is not present in the command itself
+	_, err := io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
 	require.NoError(t, err)
+	require.NoError(t, waitForOutput(stream, "teleport"))
 }
 
 type mockProxySettings struct{}
@@ -6426,4 +6702,232 @@ func init() {
 	statusScheme.AddUnversionedTypes(metav1.SchemeGroupVersion,
 		&metav1.Status{},
 	)
+}
+
+// TestForwardingTraces checks that the userContext includes the ID of the
+// access request after it has been consumed and the web session has been renewed.
+func TestForwardingTraces(t *testing.T) {
+	t.Parallel()
+
+	env := newWebPack(t, 1)
+	p := env.proxies[0]
+
+	newRequest := func(t *testing.T) *http.Request {
+		req, err := http.NewRequest(http.MethodGet, "", nil)
+		require.NoError(t, err)
+
+		return req
+	}
+
+	// Span captured from the UI which was marshaled by opentelemetry-js.
+	const rawSpan = `{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"web-ui"}},{"key":"telemetry.sdk.language","value":{"stringValue":"webjs"}},{"key":"telemetry.sdk.name","value":{"stringValue":"opentelemetry"}},{"key":"telemetry.sdk.version","value":{"stringValue":"1.7.0"}},{"key":"service.version","value":{"stringValue":"0.1.0"}}],"droppedAttributesCount":0},"scopeSpans":[{"scope":{"name":"@opentelemetry/instrumentation-fetch","version":"0.33.0"},"spans":[{"traceId":"255c8d876e7dbf3707ee8451ad518652","spanId":"d9edec516e598d8c","name":"HTTP GET","kind":3,"startTimeUnixNano":1668606426497000000,"endTimeUnixNano":1668502943215499800,"attributes":[{"key":"component","value":{"stringValue":"fetch"}},{"key":"http.method","value":{"stringValue":"GET"}},{"key":"http.url","value":{"stringValue":"https://proxy.example.com/v1/webapi/user/status"}},{"key":"http.status_code","value":{"intValue":0}},{"key":"http.status_text","value":{"stringValue":"Failed to fetch"}},{"key":"http.host","value":{"stringValue":"proxy.example.com"}},{"key":"http.scheme","value":{"stringValue":"https"}},{"key":"http.user_agent","value":{"stringValue":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36    "}},{"key":"http.response_content_length","value":{"intValue":0}}],"droppedAttributesCount":0,"events":[{"attributes":[],"name":"fetchStart","timeUnixNano":1668502943210900000,"droppedAttributesCount":0},{"attributes":[],"name":"domainLookupStart","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"domainLookupEnd","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"connectStart","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"secureConnectionStart","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"connectEnd","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"requestStart","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"responseStart","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"responseEnd","timeUnixNano":1668502943215100000,"droppedAttributesCount":0}],"droppedEventsCount":0,"status":{"code":0},"links":[],"droppedLinksCount":0}]}]}]}`
+
+	// dummy span with arbitrary data, needed to be able to protojson.Marshal in tests
+	span := &tracepb.TracesData{
+		ResourceSpans: []*tracepb.ResourceSpans{
+			{
+				Resource: &resourcev1.Resource{
+					Attributes: []*commonv1.KeyValue{
+						{
+							Key: "test",
+							Value: &commonv1.AnyValue{
+								Value: &commonv1.AnyValue_IntValue{
+									IntValue: 0,
+								},
+							},
+						},
+					},
+				},
+				ScopeSpans: []*tracepb.ScopeSpans{
+					{
+						Spans: []*tracepb.Span{
+							{
+								TraceId:           []byte{1, 2, 3, 4},
+								SpanId:            []byte{5, 6, 7, 8},
+								TraceState:        "",
+								ParentSpanId:      []byte{9, 10, 11, 12},
+								Name:              "test",
+								Kind:              tracepb.Span_SPAN_KIND_CLIENT,
+								StartTimeUnixNano: uint64(time.Now().Add(-1 * time.Minute).Unix()),
+								EndTimeUnixNano:   uint64(time.Now().Unix()),
+								Attributes: []*commonv1.KeyValue{
+									{
+										Key: "test",
+										Value: &commonv1.AnyValue{
+											Value: &commonv1.AnyValue_IntValue{
+												IntValue: 11,
+											},
+										},
+									},
+								},
+								Status: &tracepb.Status{
+									Message: "success!",
+									Code:    tracepb.Status_STATUS_CODE_OK,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	cases := []struct {
+		name      string
+		req       func(t *testing.T) *http.Request
+		assertion func(t *testing.T, spans []*otlp.ResourceSpans, err error, code int)
+	}{
+		{
+			name: "no data",
+			req: func(t *testing.T) *http.Request {
+				r := newRequest(t)
+				r.Body = io.NopCloser(&bytes.Buffer{})
+				return r
+			},
+			assertion: func(t *testing.T, spans []*tracepb.ResourceSpans, err error, code int) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusBadRequest, code)
+				require.Empty(t, spans)
+			},
+		},
+		{
+			name: "invalid data",
+			req: func(t *testing.T) *http.Request {
+				r := newRequest(t)
+				r.Body = io.NopCloser(strings.NewReader(`{"test": "abc"}`))
+				return r
+			},
+			assertion: func(t *testing.T, spans []*tracepb.ResourceSpans, err error, code int) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusBadRequest, code)
+				require.Empty(t, spans)
+			},
+		},
+		{
+			name: "no traces",
+			req: func(t *testing.T) *http.Request {
+				r := newRequest(t)
+
+				raw, err := protojson.Marshal(&tracepb.ResourceSpans{})
+				require.NoError(t, err)
+				r.Body = io.NopCloser(bytes.NewBuffer(raw))
+
+				return r
+			},
+			assertion: func(t *testing.T, spans []*tracepb.ResourceSpans, err error, code int) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusBadRequest, code)
+				require.Empty(t, spans)
+			},
+		},
+		{
+			name: "traces with base64 encoded ids",
+			req: func(t *testing.T) *http.Request {
+				r := newRequest(t)
+
+				// Since the id fields of the span are all []byte,
+				// protojson will marshal them into base64
+				raw, err := protojson.Marshal(span)
+				require.NoError(t, err)
+				r.Body = io.NopCloser(bytes.NewBuffer(raw))
+
+				return r
+			},
+			assertion: func(t *testing.T, spans []*tracepb.ResourceSpans, err error, code int) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, code)
+				require.Len(t, spans, 1)
+				require.Empty(t, cmp.Diff(span.ResourceSpans[0], spans[0], protocmp.Transform()))
+			},
+		},
+		{
+			name: "traces with hex encoded ids",
+			req: func(t *testing.T) *http.Request {
+				r := newRequest(t)
+
+				// The id fields are hex encoded instead of base64 encoded
+				// by opentelemetry-js for the rawSpan
+				r.Body = io.NopCloser(strings.NewReader(rawSpan))
+
+				return r
+			},
+			assertion: func(t *testing.T, spans []*otlp.ResourceSpans, err error, code int) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, code)
+				require.Len(t, spans, 1)
+
+				var data tracepb.TracesData
+				require.NoError(t, protojson.Unmarshal([]byte(rawSpan), &data))
+
+				// compare the spans, but ignore the ids since we know that the rawSpan
+				// has hex encoded ids and protojson.Unmarshal will give us an invalid value
+				require.Empty(t, cmp.Diff(data.ResourceSpans[0], spans[0], protocmp.Transform(), protocmp.IgnoreFields(&otlp.Span{}, "span_id", "trace_id")))
+
+				// compare the ids separately
+				sid1 := spans[0].ScopeSpans[0].Spans[0].SpanId
+				tid1 := spans[0].ScopeSpans[0].Spans[0].TraceId
+
+				sid2 := data.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanId
+				tid2 := data.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceId
+
+				require.Equal(t, hex.EncodeToString(sid1), base64.StdEncoding.EncodeToString(sid2))
+				require.Equal(t, hex.EncodeToString(tid1), base64.StdEncoding.EncodeToString(tid2))
+			},
+		},
+	}
+
+	// NOTE: resetting the tracing client prevents
+	// the test cases from running in parallel
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			clt := &mockTraceClient{
+				uploadReceived: make(chan struct{}),
+			}
+			p.handler.handler.cfg.TraceClient = clt
+
+			recorder := httptest.NewRecorder()
+
+			// use the handler directly because there is no easy way to pipe in our tracing
+			// data using the pack client in a format that would match the ui.
+			_, err := p.handler.handler.traces(recorder, tt.req(t), nil, nil)
+
+			// if traces weren't uploaded perform the assertion
+			// without waiting for traces to be forwarded
+			if err != nil || recorder.Code != http.StatusOK {
+				tt.assertion(t, clt.spans, err, recorder.Code)
+				return
+			}
+
+			// traces are forwarded in a goroutine, wait for them
+			// to be received by the trace client before doing the
+			// assertion
+			select {
+			case <-clt.uploadReceived:
+			case <-time.After(10 * time.Second):
+				t.Fatal("Timed out waiting for traces to be uploaded")
+			}
+
+			tt.assertion(t, clt.spans, err, recorder.Code)
+		})
+	}
+}
+
+type mockTraceClient struct {
+	uploadError    error
+	uploadReceived chan struct{}
+	spans          []*otlp.ResourceSpans
+}
+
+func (m *mockTraceClient) Start(ctx context.Context) error {
+	return nil
+}
+
+func (m *mockTraceClient) Stop(ctx context.Context) error {
+	return nil
+}
+
+func (m *mockTraceClient) UploadTraces(ctx context.Context, protoSpans []*otlp.ResourceSpans) error {
+	m.spans = append(m.spans, protoSpans...)
+	m.uploadReceived <- struct{}{}
+	return m.uploadError
 }
