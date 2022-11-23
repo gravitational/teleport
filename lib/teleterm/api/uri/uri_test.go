@@ -83,3 +83,42 @@ func TestParseClusterURI(t *testing.T) {
 		})
 	}
 }
+
+func TestGetDbName(t *testing.T) {
+	tests := []struct {
+		in  uri.ResourceURI
+		out string
+	}{
+		{
+			uri.NewClusterURI("foo").AppendDB("postgres"),
+			"postgres",
+		},
+		{
+			uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendDB("postgres"),
+			"postgres",
+		},
+		{
+			uri.NewClusterURI("foo"),
+			"",
+		},
+		{
+			uri.NewClusterURI("foo").AppendLeafCluster("bar"),
+			"",
+		},
+		{
+			uri.NewClusterURI("foo").AppendKube("k8s"),
+			"",
+		},
+		{
+			uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendKube("k8s"),
+			"",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.in.String(), func(t *testing.T) {
+			out := tt.in.GetDbName()
+			require.Equal(t, tt.out, out)
+		})
+	}
+}

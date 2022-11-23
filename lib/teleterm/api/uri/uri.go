@@ -25,6 +25,8 @@ import (
 
 var pathClusters = urlpath.New("/clusters/:cluster/*")
 var pathLeafClusters = urlpath.New("/clusters/:cluster/leaves/:leaf/*")
+var pathDbs = urlpath.New("/clusters/:cluster/dbs/:dbName")
+var pathLeafDbs = urlpath.New("/clusters/:cluster/leaves/:leaf/dbs/:dbName")
 
 // New creates an instance of ResourceURI
 func New(path string) ResourceURI {
@@ -90,6 +92,20 @@ func (r ResourceURI) GetLeafClusterName() string {
 	}
 
 	return result.Params["leaf"]
+}
+
+func (r ResourceURI) GetDbName() string {
+	result, ok := pathDbs.Match(r.path)
+	if ok {
+		return result.Params["dbName"]
+	}
+
+	result, ok = pathLeafDbs.Match(r.path)
+	if ok {
+		return result.Params["dbName"]
+	}
+
+	return ""
 }
 
 // AppendServer appends server segment to the URI
