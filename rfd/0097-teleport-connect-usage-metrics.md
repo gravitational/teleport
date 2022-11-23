@@ -92,10 +92,6 @@ Usage of each feature will be measured basing on events from the [events](#event
 various statistics, like the most common kinds of connections or just show the usage of particular features like Access
 Requests.
 
-#### Where users struggle the most?
-
-//TODO
-
 #### What platforms are the most popular?
 
 This will be measured in two ways.
