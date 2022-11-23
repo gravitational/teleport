@@ -463,9 +463,13 @@ message LoginRuleSpec {
     // evaluated first.
     string priority = 1;
 
-    // traits is a predicate expression which should return the desired traits for
-    // the user upon login.
-    string traits = 2;
+    // traits_map is a map of trait keys to lists of predicate expressions
+    // which should evaluate to the desired values for that trait.
+    map<string, wrappers.StringValues> traits_map = 2;
+
+	// traits_expression is a predicate expression which should return the
+    // desired traits for the user upon login.
+    string traits_expression = 3;
 };
 
 ```
