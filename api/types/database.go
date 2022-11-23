@@ -31,7 +31,7 @@ import (
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 )
 
-// Database represents a database proxied by a database server.
+// Database represents a single database proxied by a database server.
 type Database interface {
 	// ResourceWithLabels provides common resource methods.
 	ResourceWithLabels
