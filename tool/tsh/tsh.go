@@ -1266,17 +1266,20 @@ func exportSession(cf *CLIConf) error {
 		// when playing from a file, id is not included, this
 		// makes the outputs otherwise identical
 		delete(event, "id")
-		var e []byte
-		var err error
 		if format == teleport.JSON {
-			e, err = utils.FastMarshal(event)
+			e, err := utils.FastMarshal(event)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Println(string(e))
 		} else {
-			e, err = yaml.Marshal(event)
+			e, err := yaml.Marshal(event)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			// ensure that each YAML is prefixed by --- so that `yq` can be used
+			fmt.Printf("---\n%s", string(e))
 		}
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Println(string(e))
 	}
 	return nil
 }
