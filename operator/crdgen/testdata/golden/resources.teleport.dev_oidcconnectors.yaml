@@ -2,23 +2,23 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
-  name: teleportusers.resources.teleport.dev
+  name: teleportoidcconnectors.resources.teleport.dev
 spec:
   group: resources.teleport.dev
   names:
-    kind: TeleportUser
-    listKind: TeleportUserList
-    plural: teleportusers
+    kind: TeleportOIDCConnector
+    listKind: TeleportOIDCConnectorList
+    plural: teleportoidcconnectors
     shortNames:
-    - user
-    - users
-    singular: teleportuser
+    - oidcconnector
+    - oidcconnectors
+    singular: teleportoidcconnector
   scope: Namespaced
   versions:
-  - name: v2
+  - name: v3
     schema:
       openAPIV3Schema:
-        description: User is the Schema for the users API
+        description: OIDCConnector is the Schema for the oidcconnectors API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -33,72 +33,84 @@ spec:
           metadata:
             type: object
           spec:
-            description: User resource definition v2 from Teleport
+            description: OIDCConnector resource definition v3 from Teleport
             properties:
-              github_identities:
-                description: GithubIdentities list associated Github OAuth2 identities
-                  that let user log in using externally verified identity
+              acr_values:
+                description: ACR is an Authentication Context Class Reference value.
+                  The meaning of the ACR value is context-specific and varies for
+                  identity providers.
+                type: string
+              claims_to_roles:
+                description: ClaimsToRoles specifies a dynamic mapping from claims
+                  to roles.
                 items:
                   properties:
-                    connector_id:
-                      description: ConnectorID is id of registered OIDC connector,
-                        e.g. 'google-example.com'
+                    claim:
+                      description: Claim is a claim name.
                       type: string
-                    username:
-                      description: Username is username supplied by external identity
-                        provider
+                    roles:
+                      description: Roles is a list of static teleport roles to match.
+                      items:
+                        type: string
+                      nullable: true
+                      type: array
+                    value:
+                      description: Value is a claim value to match.
                       type: string
                   type: object
                 type: array
-              oidc_identities:
-                description: OIDCIdentities lists associated OpenID Connect identities
-                  that let user log in using externally verified identity
+              client_id:
+                description: ClientID is the id of the authentication client (Teleport
+                  Auth server).
+                type: string
+              client_secret:
+                description: ClientSecret is used to authenticate the client.
+                type: string
+              display:
+                description: Display is the friendly name for this provider.
+                type: string
+              google_admin_email:
+                description: GoogleAdminEmail is the email of a google admin to impersonate.
+                type: string
+              google_service_account:
+                description: GoogleServiceAccount is a string containing google service
+                  account credentials.
+                type: string
+              google_service_account_uri:
+                description: GoogleServiceAccountURI is a path to a google service
+                  account uri.
+                type: string
+              issuer_url:
+                description: IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.
+                type: string
+              prompt:
+                description: Prompt is an optional OIDC prompt. An empty string omits
+                  prompt. If not specified, it defaults to select_account for backwards
+                  compatibility.
+                type: string
+              provider:
+                description: Provider is the external identity provider.
+                type: string
+              redirect_url:
+                description: RedirectURLs is a list of callback URLs which the identity
+                  provider can use to redirect the client back to the Teleport Proxy
+                  to complete authentication. This list should match the URLs on the
+                  provider's side. The URL used for a given auth request will be chosen
+                  to match the requesting Proxy's public address. If there is no match,
+                  the first url in the list will be used.
                 items:
-                  properties:
-                    connector_id:
-                      description: ConnectorID is id of registered OIDC connector,
-                        e.g. 'google-example.com'
-                      type: string
-                    username:
-                      description: Username is username supplied by external identity
-                        provider
-                      type: string
-                  type: object
+                  type: string
                 type: array
-              roles:
-                description: Roles is a list of roles assigned to user
+              scope:
+                description: Scope specifies additional scopes set by provider.
                 items:
                   type: string
                 nullable: true
                 type: array
-              saml_identities:
-                description: SAMLIdentities lists associated SAML identities that
-                  let user log in using externally verified identity
-                items:
-                  properties:
-                    connector_id:
-                      description: ConnectorID is id of registered OIDC connector,
-                        e.g. 'google-example.com'
-                      type: string
-                    username:
-                      description: Username is username supplied by external identity
-                        provider
-                      type: string
-                  type: object
-                type: array
-              traits:
-                additionalProperties:
-                  items:
-                    type: string
-                  type: array
-                description: Traits are key/value pairs received from an identity
-                  provider (through OIDC claims or SAML assertions) or from a system
-                  administrator for local accounts. Traits are used to populate role
-                  variables.
-                type: object
             type: object
           status:
-            description: TeleportUserStatus defines the observed state of TeleportUser
+            description: TeleportOIDCConnectorStatus defines the observed state of
+              TeleportOIDCConnector
             properties:
               conditions:
                 description: Conditions represent the latest available observations
