@@ -510,6 +510,7 @@ func TestAppWithUpdatedLabels(t *testing.T) {
 // testIMImporter is a test instance metadata client for exercising cloud labels.
 type testIMImporter struct {
 	labels map[string]string
+	mu     sync.RWMutex
 }
 
 func newTestIMImporter(labels map[string]string) *testIMImporter {
@@ -519,7 +520,13 @@ func newTestIMImporter(labels map[string]string) *testIMImporter {
 }
 
 func (i *testIMImporter) Get() map[string]string {
-	return i.labels
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	copyLabels := map[string]string{}
+	for k, v := range i.labels {
+		copyLabels[k] = v
+	}
+	return copyLabels
 }
 
 // Apply adds the current labels to the provided resource's static labels.
