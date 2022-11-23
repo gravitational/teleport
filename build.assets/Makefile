@@ -408,7 +408,7 @@ release-arm-oss:
 
 .PHONY: release-arm-enterprise
 release-arm-enterprise:
-	make -C ../e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+	make -C .. release-unix-only -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
 .PHONY: release-arm64-oss
 release-arm64-oss:
@@ -416,7 +416,7 @@ release-arm64-oss:
 
 .PHONY: release-arm64-enterprise
 release-arm64-enterprise:
-	make -C ../e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+	make -C ../e release-unix-only -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
 #
 # Create a Teleport FIPS package using the build container.
