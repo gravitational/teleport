@@ -1307,6 +1307,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				},
 				RedshiftServerless: service.DatabaseAWSRedshiftServerless{
 					WorkgroupName: database.AWS.RedshiftServerless.WorkgroupName,
+					EndpointName:  database.AWS.RedshiftServerless.EndpointName,
 				},
 				RDS: service.DatabaseAWSRDS{
 					InstanceID: database.AWS.RDS.InstanceID,
@@ -1321,10 +1322,6 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				SecretStore: service.DatabaseAWSSecretStore{
 					KeyPrefix: database.AWS.SecretStore.KeyPrefix,
 					KMSKeyID:  database.AWS.SecretStore.KMSKeyID,
-				},
-				RedshiftServerless: service.DatabaseAWSRedshiftServerless{
-					WorkgroupName: database.AWS.RedshiftServerless.WorkgroupName,
-					EndpointName:  database.AWS.RedshiftServerless.EndpointName,
 				},
 			},
 			GCP: service.DatabaseGCP{
