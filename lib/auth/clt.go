@@ -776,18 +776,6 @@ func (c *Client) ChangePassword(req services.ChangePasswordReq) error {
 	return trace.Wrap(err)
 }
 
-// CheckPassword checks if the suplied web access password is valid.
-func (c *Client) CheckPassword(user string, password []byte, otpToken string) error {
-	_, err := c.PostJSON(
-		context.TODO(),
-		c.Endpoint("users", user, "web", "password", "check"),
-		checkPasswordReq{
-			Password: string(password),
-			OTPToken: otpToken,
-		})
-	return trace.Wrap(err)
-}
-
 // ExtendWebSession creates a new web session for a user based on another
 // valid web session
 func (c *Client) ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error) {
@@ -1461,9 +1449,6 @@ type IdentityService interface {
 
 	// ChangePassword changes user password
 	ChangePassword(req services.ChangePasswordReq) error
-
-	// CheckPassword checks if the suplied web access password is valid.
-	CheckPassword(user string, password []byte, otpToken string) error
 
 	// GenerateToken creates a special provisioning token for a new SSH server
 	// that is valid for ttl period seconds.
