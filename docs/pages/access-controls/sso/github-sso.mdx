@@ -41,7 +41,8 @@ Instructions for creating a GitHub OAuth app are available here:
 Define a GitHub authentication connector by creating a file called `github.yaml`
 with the following content:
 
-<ScopedBlock scope="oss">
+<Tabs>
+<TabItem label="Open Source" scope="oss">
 
 ```yaml
 kind: github
@@ -67,8 +68,8 @@ spec:
         - access
 ```
 
-</ScopedBlock>
-<ScopedBlock scope="enterprise">
+</TabItem>
+<TabItem label="Enterprise" scope="enterprise">
 
 ```yaml
 kind: github
@@ -96,7 +97,8 @@ spec:
         - access
 ```
 
-</ScopedBlock>
+</TabItem>
+</Tabs>
 
 The values of `client_id`, `client_secret`, and `redirect_url` come from the
 GitHub OAuth App you created earlier.
