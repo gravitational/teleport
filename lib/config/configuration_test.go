@@ -374,6 +374,16 @@ func TestConfigReading(t *testing.T) {
 					Subscriptions:  []string{"sub1"},
 				},
 			},
+			GCPMatchers: []GCPMatcher{
+				{
+					Types:     []string{"gke"},
+					Locations: []string{"uswest1"},
+					Tags: map[string]apiutils.Strings{
+						"a": {"b"},
+					},
+					ProjectIDs: []string{"p1", "p2"},
+				},
+			},
 		},
 		Proxy: Proxy{
 			Service: Service{
@@ -1399,6 +1409,17 @@ func makeConfigFixture() string {
 			},
 			ResourceGroups: []string{"group1"},
 			Subscriptions:  []string{"sub1"},
+		},
+	}
+
+	conf.Discovery.GCPMatchers = []GCPMatcher{
+		{
+			Types:     []string{"gke"},
+			Locations: []string{"uswest1"},
+			Tags: map[string]apiutils.Strings{
+				"a": {"b"},
+			},
+			ProjectIDs: []string{"p1", "p2"},
 		},
 	}
 
