@@ -33,16 +33,14 @@ import (
 	"github.com/gravitational/teleport/lib/client/conntest/database"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// DatabasePinger describes the required methods to test a Database Connection.
-type DatabasePinger interface {
+// databasePinger describes the required methods to test a Database Connection.
+type databasePinger interface {
 
 	// Ping tests the connection to the Database with a simple request.
-	Ping(ctx context.Context, req database.Ping) error
+	Ping(ctx context.Context, req database.PingParams) error
 
 	// IsConnectionRefusedError returns whether the error is referring to a connection refused.
 	IsConnectionRefusedError(error) bool
@@ -56,7 +54,7 @@ type DatabasePinger interface {
 
 // ClientDatabaseConnectionTester contains the required auth.ClientI methods to test a Database Connection
 type ClientDatabaseConnectionTester interface {
-	client.ALPNAuthTunnel
+	client.ALPNAuthClient
 
 	services.ConnectionsDiagnostic
 	apiclient.ListResourcesClient
@@ -131,17 +129,7 @@ func (s *DatabaseConnectionTester) TestConnection(ctx context.Context, req TestC
 		return nil, trace.Wrap(err)
 	}
 
-	// Lookup the Database Server that's proxying the requested Database.
-	listResourcesResponse, err := s.cfg.UserClient.ListResources(ctx, proto.ListResourcesRequest{
-		PredicateExpression: fmt.Sprintf(`name == "%s"`, req.ResourceName),
-		ResourceType:        types.KindDatabaseServer,
-		Limit:               defaults.MaxIterationLimit,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	databaseServers, err := types.ResourcesWithLabels(listResourcesResponse.Resources).AsDatabaseServers()
+	databaseServers, err := s.getDatabaseServers(ctx, req.ResourceName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -164,15 +152,19 @@ func (s *DatabaseConnectionTester) TestConnection(ctx context.Context, req TestC
 	}
 
 	databaseServer := databaseServers[0]
-	databaseProtocol := databaseServer.GetDatabase().GetProtocol()
-	databaseServiceName := databaseServer.GetName()
+	routeToDatabase := proto.RouteToDatabase{
+		ServiceName: databaseServer.GetName(),
+		Protocol:    databaseServer.GetDatabase().GetProtocol(),
+		Username:    req.DatabaseUser,
+		Database:    req.DatabaseName,
+	}
 
-	databasePinger, err := getDatabaseConnTester(databaseProtocol)
+	databasePinger, err := getDatabaseConnTester(routeToDatabase.Protocol)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := checkDatabaseLogin(databaseProtocol, req.DatabaseUser, req.DatabaseName); err != nil {
+	if err := checkDatabaseLogin(routeToDatabase.Protocol, req.DatabaseUser, req.DatabaseName); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -185,49 +177,59 @@ func (s *DatabaseConnectionTester) TestConnection(ctx context.Context, req TestC
 		return nil, trace.Wrap(err)
 	}
 
+	listener, err := s.runALPNTunnel(ctx, req, routeToDatabase, connectionDiagnosticID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ping, err := newPing(listener.Addr().String(), req.DatabaseUser, req.DatabaseName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if pingErr := databasePinger.Ping(ctx, ping); pingErr != nil {
+		connDiag, err := s.handlePingError(ctx, connectionDiagnosticID, pingErr, databasePinger)
+		return connDiag, trace.Wrap(err)
+	}
+
+	return s.handlePingSuccess(ctx, connectionDiagnosticID)
+}
+
+func (s *DatabaseConnectionTester) runALPNTunnel(ctx context.Context, req TestConnectionRequest, routeToDatabase proto.RouteToDatabase, connectionDiagnosticID string) (net.Listener, error) {
 	list, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	proxyMiddleware := client.NewALPNCertChecker(func(lp *alpnproxy.LocalProxy) error {
-		return lp.CheckDBCerts(tlsca.RouteToDatabase{
-			Protocol:    databaseProtocol,
-			Username:    req.DatabaseUser,
-			Database:    req.DatabaseName,
-			ServiceName: databaseServiceName,
-		})
-	})
-
-	err = client.RunALPNAuthTunnel(ctx, client.RunALPNAuthTunnelRequest{
-		Client:                 s.cfg.UserClient,
+	err = client.RunALPNAuthTunnel(ctx, client.ALPNAuthTunnelConfig{
+		AuthClient:             s.cfg.UserClient,
 		Listener:               list,
-		Protocol:               databaseProtocol,
+		Protocol:               routeToDatabase.Protocol,
 		WebProxyAddr:           s.webProxyAddr,
-		ProxyMiddleware:        proxyMiddleware,
 		ConnectionDiagnosticID: connectionDiagnosticID,
-		RouteToDatabase: proto.RouteToDatabase{
-			Protocol:    databaseProtocol,
-			Username:    req.DatabaseUser,
-			Database:    req.DatabaseName,
-			ServiceName: databaseServiceName,
-		},
-		InsecureSkipVerify: req.InsecureSkipVerify,
+		RouteToDatabase:        routeToDatabase,
+		InsecureSkipVerify:     req.InsecureSkipVerify,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ping, err := newPing(list.Addr().String(), req.DatabaseUser, req.DatabaseName)
+	return list, nil
+}
+
+func (s *DatabaseConnectionTester) getDatabaseServers(ctx context.Context, databaseName string) ([]types.DatabaseServer, error) {
+	// Lookup the Database Server that's proxying the requested Database.
+	listResourcesResponse, err := s.cfg.UserClient.ListResources(ctx, proto.ListResourcesRequest{
+		PredicateExpression: fmt.Sprintf(`name == "%s"`, databaseName),
+		ResourceType:        types.KindDatabaseServer,
+		Limit:               defaults.MaxIterationLimit,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := databasePinger.Ping(ctx, ping); err != nil {
-		return s.handlePingError(ctx, connectionDiagnosticID, err, databasePinger)
-	}
-
-	return s.handlePingSuccess(ctx, connectionDiagnosticID)
+	databaseServers, err := types.ResourcesWithLabels(listResourcesResponse.Resources).AsDatabaseServers()
+	return databaseServers, trace.Wrap(err)
 }
 
 func checkDatabaseLogin(protocol, databaseUser, databaseName string) error {
@@ -254,18 +256,18 @@ func checkDatabaseLogin(protocol, databaseUser, databaseName string) error {
 	return nil
 }
 
-func newPing(alpnProxyAddr, databaseUser, databaseName string) (database.Ping, error) {
+func newPing(alpnProxyAddr, databaseUser, databaseName string) (database.PingParams, error) {
 	proxyHost, proxyPortStr, err := net.SplitHostPort(alpnProxyAddr)
 	if err != nil {
-		return database.Ping{}, trace.Wrap(err)
+		return database.PingParams{}, trace.Wrap(err)
 	}
 
 	proxyPort, err := strconv.Atoi(proxyPortStr)
 	if err != nil {
-		return database.Ping{}, trace.Wrap(err)
+		return database.PingParams{}, trace.Wrap(err)
 	}
 
-	return database.Ping{
+	return database.PingParams{
 		Host:     proxyHost,
 		Port:     proxyPort,
 		Username: databaseUser,
@@ -317,7 +319,7 @@ func (s DatabaseConnectionTester) handlePingSuccess(ctx context.Context, connect
 	return connDiag, nil
 }
 
-func (s DatabaseConnectionTester) handlePingError(ctx context.Context, connectionDiagnosticID string, pingErr error, databasePinger DatabasePinger) (types.ConnectionDiagnostic, error) {
+func (s DatabaseConnectionTester) handlePingError(ctx context.Context, connectionDiagnosticID string, pingErr error, databasePinger databasePinger) (types.ConnectionDiagnostic, error) {
 	// If the requested DB User/Name can't be used per RBAC checks, the Database Agent returns an error which gets here.
 	// It must be ignored because there's already a Connection Diagnostic Trace written by the Database Agent (lib/srv/db/server.go)
 	if strings.Contains(pingErr.Error(), "access to db denied. User does not have permissions. Confirm database user and name.") {
@@ -403,7 +405,7 @@ func (s DatabaseConnectionTester) appendDiagnosticTrace(ctx context.Context, con
 	return connDiag, nil
 }
 
-func getDatabaseConnTester(protocol string) (DatabasePinger, error) {
+func getDatabaseConnTester(protocol string) (databasePinger, error) {
 	switch protocol {
 	case defaults.ProtocolPostgres:
 		return database.PostgresPinger{}, nil

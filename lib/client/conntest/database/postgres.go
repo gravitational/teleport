@@ -37,7 +37,7 @@ const (
 type PostgresPinger struct{}
 
 // Ping connects to the database and issues a basic select statement to validate the connection.
-func (p PostgresPinger) Ping(ctx context.Context, ping Ping) error {
+func (p PostgresPinger) Ping(ctx context.Context, ping PingParams) error {
 	if err := ping.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -97,7 +97,7 @@ func (p PostgresPinger) IsInvalidDatabaseUserError(err error) bool {
 		}
 	}
 
-	return strings.Contains(err.Error(), "does not exist (SQLSTATE 28000)")
+	return false
 }
 
 // IsInvalidDatabaseNameError checks whether the error is of type invalid database name.
@@ -110,5 +110,5 @@ func (p PostgresPinger) IsInvalidDatabaseNameError(err error) bool {
 		}
 	}
 
-	return strings.Contains(err.Error(), "does not exist (SQLSTATE 3D000)")
+	return false
 }

@@ -164,7 +164,7 @@ func TestPostgresPing(t *testing.T) {
 	require.NoError(t, err)
 
 	p := PostgresPinger{}
-	err = p.Ping(context.Background(), Ping{
+	err = p.Ping(context.Background(), PingParams{
 		Host:     "localhost",
 		Port:     port,
 		Username: "someuser",

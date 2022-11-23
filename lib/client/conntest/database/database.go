@@ -20,16 +20,20 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// Ping contains the required fields necessary to test a Database Connection.
-type Ping struct {
-	Host     string
-	Port     int
+// PingParams contains the required fields necessary to test a Database Connection.
+type PingParams struct {
+	// Host is the hostname of the Database (does not include port).
+	Host string
+	// Port is the port where the Database is accepting connections.
+	Port int
+	// Username is the user to be used to login into the database.
 	Username string
+	// Database is the database name to be used to login into the database.
 	Database string
 }
 
 // CheckAndSetDefaults validates and set the default values for the Ping.
-func (req *Ping) CheckAndSetDefaults() error {
+func (req *PingParams) CheckAndSetDefaults() error {
 	if req.Database == "" {
 		return trace.BadParameter("missing required parameter Database")
 	}

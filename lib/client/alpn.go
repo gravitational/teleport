@@ -34,8 +34,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// ALPNAuthTunnel contains the required methods to create a local ALPN proxy.
-type ALPNAuthTunnel interface {
+// ALPNAuthClient contains the required methods to create a local ALPN proxy.
+type ALPNAuthClient interface {
 	// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster.
 	// If the cluster has multiple TLS certs, they will all be concatenated.
 	GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error)
@@ -50,12 +50,12 @@ type ALPNAuthTunnel interface {
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 }
 
-// RunALPNAuthTunnelRequest contains the required fields used to create an authed ALPN Proxy
-type RunALPNAuthTunnelRequest struct {
+// ALPNAuthTunnelConfig contains the required fields used to create an authed ALPN Proxy
+type ALPNAuthTunnelConfig struct {
 	// Client is the client that's used to interact with the cluster and obtain Certificates.
-	Client ALPNAuthTunnel
+	AuthClient ALPNAuthClient
 
-	// Listener to be used to accept connections that will go trough the
+	// Listener to be used to accept connections that will go trough the tunnel.
 	Listener net.Listener
 
 	// InsecureSkipTLSVerify turns off verification for x509 upstream ALPN proxy service certificate.
@@ -73,9 +73,6 @@ type RunALPNAuthTunnelRequest struct {
 	// Can be empty.
 	ConnectionDiagnosticID string
 
-	// ProxyMiddleware is a middleware that ensures that the local proxy has valid TLS certs.
-	ProxyMiddleware alpnproxy.LocalProxyMiddleware
-
 	// RouteToDatabase contains the destination server that must receive the connection.
 	// Specific for database proxying.
 	RouteToDatabase proto.RouteToDatabase
@@ -83,8 +80,8 @@ type RunALPNAuthTunnelRequest struct {
 
 // RunALPNAuthTunnel runs a local authenticated ALPN proxy to another service.
 // At least one Route (which defines the service) must be defined
-func RunALPNAuthTunnel(ctx context.Context, req RunALPNAuthTunnelRequest) error {
-	alpnProtocol, err := alpn.ToALPNProtocol(req.Protocol)
+func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
+	alpnProtocol, err := alpn.ToALPNProtocol(cfg.Protocol)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -94,70 +91,49 @@ func RunALPNAuthTunnel(ctx context.Context, req RunALPNAuthTunnelRequest) error 
 		protocols = append(alpn.ProtocolsWithPing(alpnProtocol), protocols...)
 	}
 
-	rootCAs := x509.NewCertPool()
+	pool := x509.NewCertPool()
 
-	alpnUpgradeRequired := alpnproxy.IsALPNConnUpgradeRequired(req.WebProxyAddr, req.InsecureSkipVerify)
+	alpnUpgradeRequired := alpnproxy.IsALPNConnUpgradeRequired(cfg.WebProxyAddr, cfg.InsecureSkipVerify)
 
 	if alpnUpgradeRequired {
-		caCert, err := req.Client.GetClusterCACert(ctx)
+		caCert, err := cfg.AuthClient.GetClusterCACert(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if ok := rootCAs.AppendCertsFromPEM(caCert.GetTLSCA()); !ok {
+		if ok := pool.AppendCertsFromPEM(caCert.GetTLSCA()); !ok {
 			return fmt.Errorf("failed to append cert from cluster's TLS CA Cert")
 		}
 	}
 
-	address, err := utils.ParseAddr(req.WebProxyAddr)
+	address, err := utils.ParseAddr(cfg.WebProxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	key, err := GenerateRSAKey()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	currentUser, err := req.Client.GetCurrentUser(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	certs, err := req.Client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey:              key.MarshalSSHPublicKey(),
-		Username:               currentUser.GetName(),
-		Expires:                time.Now().Add(time.Minute).UTC(),
-		ConnectionDiagnosticID: req.ConnectionDiagnosticID,
-		RouteToDatabase:        req.RouteToDatabase,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	tlsCert, err := keys.X509KeyPair(certs.TLS, key.PrivateKeyPEM())
+	tlsCert, err := tlsCertForUser(ctx, cfg.AuthClient, cfg.RouteToDatabase, cfg.ConnectionDiagnosticID)
 	if err != nil {
 		return trace.BadParameter("failed to parse private key: %v", err)
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		InsecureSkipVerify:      req.InsecureSkipVerify,
-		RemoteProxyAddr:         req.WebProxyAddr,
+		InsecureSkipVerify:      cfg.InsecureSkipVerify,
+		RemoteProxyAddr:         cfg.WebProxyAddr,
 		Protocols:               protocols,
-		Listener:                req.Listener,
+		Listener:                cfg.Listener,
 		ParentContext:           ctx,
 		SNI:                     address.Host(),
 		Certs:                   []tls.Certificate{tlsCert},
-		RootCAs:                 rootCAs,
+		RootCAs:                 pool,
 		ALPNConnUpgradeRequired: alpnUpgradeRequired,
-		Middleware:              req.ProxyMiddleware,
+		Middleware:              nil,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	go func() {
-		defer req.Listener.Close()
+		defer cfg.Listener.Close()
 		if err := lp.Start(ctx); err != nil {
 			log.WithError(err).Info("ALPN proxy stopped.")
 		}
@@ -166,26 +142,32 @@ func RunALPNAuthTunnel(ctx context.Context, req RunALPNAuthTunnelRequest) error 
 	return nil
 }
 
-// ALPNCertChecker implements alpnproxy.LocalProxyMiddleware.
-// It has basic checks and supports adding custom checks based on the extracted Identity from the certificate.
-type ALPNCertChecker struct {
-	checkCerts func(lp *alpnproxy.LocalProxy) error
-}
-
-// NewALPNCertChecker creates a new ALPNCertChecker.
-func NewALPNCertChecker(certChecker func(*alpnproxy.LocalProxy) error) *ALPNCertChecker {
-	return &ALPNCertChecker{
-		checkCerts: certChecker,
+func tlsCertForUser(ctx context.Context, client ALPNAuthClient, routeToDatabase proto.RouteToDatabase, connectionDiagnosticID string) (tls.Certificate, error) {
+	key, err := GenerateRSAKey()
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
 	}
-}
 
-// OnNewConnection is a callback triggered when a new downstream connection is
-// accepted by the local proxy.
-func (c *ALPNCertChecker) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy, conn net.Conn) error {
-	return trace.Wrap(c.checkCerts(lp))
-}
+	currentUser, err := client.GetCurrentUser(ctx)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
 
-// OnStart is a callback triggered when the local proxy starts.
-func (c *ALPNCertChecker) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
-	return trace.Wrap(c.checkCerts(lp))
+	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		PublicKey:              key.MarshalSSHPublicKey(),
+		Username:               currentUser.GetName(),
+		Expires:                time.Now().Add(time.Minute).UTC(),
+		ConnectionDiagnosticID: connectionDiagnosticID,
+		RouteToDatabase:        routeToDatabase,
+	})
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	tlsCert, err := keys.X509KeyPair(certs.TLS, key.PrivateKeyPEM())
+	if err != nil {
+		return tls.Certificate{}, trace.BadParameter("failed to parse private key: %v", err)
+	}
+
+	return tlsCert, err
 }
