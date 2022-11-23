@@ -35,3 +35,17 @@ func TestSATSimple(t *testing.T) {
 	require.Equal(t, clauseNoError, err)
 	require.Equal(t, map[int]bool{1: false, 2: true}, assignments)
 }
+
+func TestSATIntEq(t *testing.T) {
+	theory := newNumTheory()
+	r1 := newInteger(theory)
+	constantEquals(theory, r1, 5)
+	r2 := newInteger(theory)
+	equals(theory, r1, r2)
+
+	clauses := theory.finish()
+	instance := newInstance(clauses)
+	assignments, err := instance.solve()
+	require.Equal(t, clauseNoError, err)
+	require.Equal(t, map[int]bool{}, assignments)
+}

@@ -14,47 +14,35 @@
 
 package predicate
 
-import "fmt"
-
 const bitCount = 8
 
 type numTheory struct {
-	counter     int
-	abs_counter int
-	clauses     []clause
-	vars        set[int]
-	var_names   map[int]string
-	var_true    int
-	var_false   int
+	counter   int
+	clauses   []clause
+	vars      set[int]
+	var_true  int
+	var_false int
 }
 
 func newNumTheory() *numTheory {
 	t := &numTheory{
-		vars:      make(set[int]),
-		var_names: make(map[int]string),
+		vars: make(set[int]),
 	}
 
-	t.var_true = t.addVar("true")
-	t.var_false = t.addVar("false")
+	t.var_true = t.addVar()
+	t.var_false = t.addVar()
 	return t
 }
 
-func (t *numTheory) addVar(name string) int {
+func (t *numTheory) addVar() int {
 	v := t.counter
 	t.vars[v] = struct{}{}
 	t.counter++
-	t.var_names[v] = name
 	return v
 }
 
 func (t *numTheory) addClause(positive set[int], negative set[int]) {
 	t.clauses = append(t.clauses, newClause(positive, negative))
-}
-
-func (t *numTheory) addAbstractVar() int {
-	v := t.abs_counter
-	t.abs_counter++
-	return v
 }
 
 func (t *numTheory) finish() []clause {
@@ -66,22 +54,77 @@ type integer struct {
 }
 
 func newInteger(theory *numTheory) *integer {
-	id := theory.addAbstractVar()
 	bits := make([]int, 0)
 	for i := 0; i < bitCount; i++ {
-		bits = append(bits, theory.addVar(fmt.Sprintf("%v_%v", id, i)))
+		bits = append(bits, theory.addVar())
 	}
 
 	return &integer{bits}
 }
 
-func (i *integer) constantContraint(theory *numTheory, value int) {
+func constantEquals(theory *numTheory, x *integer, value int) {
 	for j := 0; j < bitCount; j++ {
 		bit := (value >> j) & 1
 		if bit == 1 {
-			theory.addClause(newSet([]int{i.bits[j]}), newSet[int](nil))
+			theory.addClause(newSet([]int{x.bits[j]}), newSet[int](nil))
 		} else {
-			theory.addClause(newSet[int](nil), newSet([]int{i.bits[j]}))
+			theory.addClause(newSet[int](nil), newSet([]int{x.bits[j]}))
 		}
 	}
+}
+
+func equals(theory *numTheory, x *integer, y *integer) {
+	for j := 0; j < bitCount; j++ {
+		theory.addClause(newSet([]int{x.bits[j]}), newSet([]int{y.bits[j]}))
+		theory.addClause(newSet([]int{y.bits[j]}), newSet([]int{x.bits[j]}))
+	}
+}
+
+type addition struct {
+	carries *integer
+	bits    *integer
+}
+
+func newAddition(theory *numTheory, a *integer, b *integer) *addition {
+	carries := newInteger(theory)
+	bits := newInteger(theory)
+
+	previous_carry := theory.var_false
+	for j := 0; j < bitCount; j++ {
+		current_carry := carries.bits[j]
+		full_adder(theory, a.bits[j], b.bits[j], previous_carry, bits.bits[j], current_carry)
+		previous_carry = current_carry
+	}
+
+	return &addition{carries, bits}
+}
+
+func xor_gate(theory *numTheory, a int, b int, out int) {
+	theory.addClause(newSet([]int{a, b}), newSet([]int{out}))
+	theory.addClause(newSet([]int{a, out}), newSet([]int{b}))
+	theory.addClause(newSet([]int{b, out}), newSet([]int{a}))
+	theory.addClause(newSet[int](nil), newSet([]int{a, b, out}))
+}
+
+func or_gate(theory *numTheory, a int, b int, out int) {
+	theory.addClause(newSet([]int{out}), newSet([]int{a}))
+	theory.addClause(newSet([]int{out}), newSet([]int{b}))
+	theory.addClause(newSet([]int{a, b}), newSet([]int{out}))
+}
+
+func and_gate(theory *numTheory, a int, b int, out int) {
+	theory.addClause(newSet([]int{a}), newSet([]int{out}))
+	theory.addClause(newSet([]int{b}), newSet([]int{out}))
+	theory.addClause(newSet([]int{out}), newSet([]int{a, b}))
+}
+
+func full_adder(theory *numTheory, a int, b int, c int, out int, carry_out int) {
+	fa0 := theory.addVar()
+	xor_gate(theory, a, b, fa0)
+	xor_gate(theory, c, fa0, out)
+	fa1 := theory.addVar()
+	fa2 := theory.addVar()
+	and_gate(theory, a, b, fa1)
+	and_gate(theory, c, fa0, fa2)
+	or_gate(theory, fa1, fa2, carry_out)
 }
