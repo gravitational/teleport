@@ -102,6 +102,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					},
 					RedshiftServerless: types.RedshiftServerless{
 						WorkgroupName: db.AWS.RedshiftServerless.WorkgroupName,
+						EndpointName:  db.AWS.RedshiftServerless.EndpointName,
 					},
 					RDS: types.RDS{
 						InstanceID: db.AWS.RDS.InstanceID,

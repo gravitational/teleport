@@ -1322,6 +1322,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 					KeyPrefix: database.AWS.SecretStore.KeyPrefix,
 					KMSKeyID:  database.AWS.SecretStore.KMSKeyID,
 				},
+				RedshiftServerless: service.DatabaseAWSRedshiftServerless{
+					WorkgroupName: database.AWS.RedshiftServerless.WorkgroupName,
+					EndpointName:  database.AWS.RedshiftServerless.EndpointName,
+				},
 			},
 			GCP: service.DatabaseGCP{
 				ProjectID:  database.GCP.ProjectID,

@@ -476,16 +476,6 @@ func TestRedshiftServerlessEndpoint(t *testing.T) {
 			},
 		},
 		{
-			name:                               "cn-north-1",
-			endpoint:                           "my-workgroup.1234567890.redshift-serverless.cn-north-1.amazonaws.com.cn:5439",
-			expectIsRedshiftServerlessEndpoint: true,
-			expectDetails: &RedshiftServerlessEndpointDetails{
-				WorkgroupName: "my-workgroup",
-				AccountID:     "1234567890",
-				Region:        "cn-north-1",
-			},
-		},
-		{
 			name:                               "localhost:5432",
 			endpoint:                           "localhost",
 			expectIsRedshiftServerlessEndpoint: false,

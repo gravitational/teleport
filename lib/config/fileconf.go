@@ -1391,7 +1391,7 @@ type Databases struct {
 	Databases []*Database `yaml:"databases"`
 	// ResourceMatchers match cluster database resources.
 	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
-	// AWSMatchers match AWS hosted databases.
+	// AWSMatchers match AWS-hosted databases.
 	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
 	// AzureMatchers match Azure hosted databases.
 	AzureMatchers []AzureMatcher `yaml:"azure,omitempty"`
@@ -1472,7 +1472,7 @@ type Database struct {
 	StaticLabels map[string]string `yaml:"static_labels,omitempty"`
 	// DynamicLabels is a list of database dynamic labels.
 	DynamicLabels []CommandLabel `yaml:"dynamic_labels,omitempty"`
-	// AWS contains AWS specific settings for AWS hosted databases.
+	// AWS contains AWS specific settings for AWS-hosted databases.
 	AWS DatabaseAWS `yaml:"aws"`
 	// GCP contains GCP specific settings for Cloud SQL databases.
 	GCP DatabaseGCP `yaml:"gcp"`
@@ -1570,6 +1570,8 @@ type DatabaseAWSMemoryDB struct {
 type DatabaseAWSRedshiftServerless struct {
 	// WorkgroupName is the Redshift Serverless workgroup name.
 	WorkgroupName string `yaml:"workgroup_name,omitempty"`
+	// EndpointName is the Redshift Serverless VPC endpoint name.
+	EndpointName string `yaml:"endpoint_name,omitempty"`
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.

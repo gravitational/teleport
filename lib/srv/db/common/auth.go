@@ -228,10 +228,10 @@ propagate):
 
 // GetRedshiftServerlessAuthToken generates Redshift Serverless auth token.
 func (a *dbAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error) {
-	// Redshift Serverless maps IAM users/roles to database users. For example,
-	// an IAM role "arn:aws:iam::1234567890:role/my-role-name" will be mapped
-	// to a Postgres user "IAMR:my-role-name" inside the database. So we first
-	// need to assume another IAM role before getting auth token.
+	// Redshift Serverless maps caller IAM users/roles to database users. For
+	// example, an IAM role "arn:aws:iam::1234567890:role/my-role-name" will be
+	// mapped to a Postgres user "IAMR:my-role-name" inside the database. So we
+	// first need to assume this IAM role before getting auth token.
 	awsMetadata := sessionCtx.Database.GetAWS()
 	roleARN := UsernameToAWSRoleARN(sessionCtx.Database, sessionCtx.DatabaseUser)
 	client, err := a.cfg.Clients.GetAWSRedshiftServerlessClientForRole(ctx, awsMetadata.Region, roleARN)
@@ -259,7 +259,7 @@ Make sure that IAM role %q has a trust relationship with Teleport database agent
 
   %v
 
-Make sure that IAM role %q has permissions to generate credentials. Here is sample IAM policy:
+Make sure that IAM role %q has permissions to generate credentials. Here is a sample IAM policy:
 
 %v
 `, err, roleARN, policy)
