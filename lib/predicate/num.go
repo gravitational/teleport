@@ -46,7 +46,7 @@ func (t *numTheory) addVar(name string) int {
 	return v
 }
 
-func (t *numTheory) addClause(positive set[int], negative set[int]) {
+func (t *numTheory) addClause(positive, negative set[int]) {
 	t.clauses = append(t.clauses, newClause(positive, negative))
 }
 
@@ -78,7 +78,7 @@ func constantEquals(theory *numTheory, x *integerS, value int) {
 	}
 }
 
-func equals(theory *numTheory, x *integerS, y *integerS) {
+func equals(theory *numTheory, x, y *integerS) {
 	for j := 0; j < bitCount; j++ {
 		theory.addClause(newSet([]int{x.bits[j]}), newSet([]int{y.bits[j]}))
 		theory.addClause(newSet([]int{y.bits[j]}), newSet([]int{x.bits[j]}))
@@ -90,7 +90,7 @@ type additionS struct {
 	carries *integerS
 }
 
-func add(theory *numTheory, a *integerS, b *integerS) *additionS {
+func add(theory *numTheory, a, b *integerS) *additionS {
 	bits := integer(theory, "add.out")
 	carries := integer(theory, "add.carry")
 
@@ -104,26 +104,26 @@ func add(theory *numTheory, a *integerS, b *integerS) *additionS {
 	return &additionS{bits, carries}
 }
 
-func xor_gate(theory *numTheory, a int, b int, out int) {
+func xor_gate(theory *numTheory, a, b, out int) {
 	theory.addClause(newSet([]int{a, b}), newSet([]int{out}))
 	theory.addClause(newSet([]int{a, out}), newSet([]int{b}))
 	theory.addClause(newSet([]int{b, out}), newSet([]int{a}))
 	theory.addClause(newSet[int](nil), newSet([]int{a, b, out}))
 }
 
-func or_gate(theory *numTheory, a int, b int, out int) {
+func or_gate(theory *numTheory, a, b, out int) {
 	theory.addClause(newSet([]int{out}), newSet([]int{a}))
 	theory.addClause(newSet([]int{out}), newSet([]int{b}))
 	theory.addClause(newSet([]int{a, b}), newSet([]int{out}))
 }
 
-func and_gate(theory *numTheory, a int, b int, out int) {
+func and_gate(theory *numTheory, a, b, out int) {
 	theory.addClause(newSet([]int{a}), newSet([]int{out}))
 	theory.addClause(newSet([]int{b}), newSet([]int{out}))
 	theory.addClause(newSet([]int{out}), newSet([]int{a, b}))
 }
 
-func full_adder(theory *numTheory, a int, b int, c int, out int, carry_out int) {
+func full_adder(theory *numTheory, a, b, c, out, carry_out int) {
 	fa0 := theory.addVar("fa.0")
 	xor_gate(theory, a, b, fa0)
 	xor_gate(theory, c, fa0, out)
