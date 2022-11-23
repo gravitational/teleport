@@ -165,14 +165,18 @@ Kubernetes Service and Discovery Service on Google Cloud or some other way
 Stop your VM so you can attach your service account to it:
 
 ```code
-$ gcloud compute instances stop ${VM_NAME?}
+$ VM_NAME=my-vm
+$ MY_ZONE=my-region
+$ gcloud compute instances stop ${VM_NAME?} --zone=${MY_ZONE?}
 ```
 
 Attach your service account to the instance:
 
 ```code
 $ gcloud compute instances set-service-account ${VM_NAME?} \
-   --service-account teleport-discovery-kubernetes@${PROJECT_ID?}.iam.gserviceaccount.com  
+   --service-account teleport-discovery-kubernetes@${PROJECT_ID?}.iam.gserviceaccount.com \
+   --zone ${MY_ZONE?} \
+   --scopes=cloud-platform
 ```
 
 <Details title="Running the Kubernetes and Discovery Services separately?">
@@ -184,22 +188,34 @@ Attach your service account to the VM running the Kubernetes Service:
 
 ```code
 $ gcloud compute instances set-service-account ${VM1_NAME?} \
-   --service-account teleport-kubernetes-service@${PROJECT_ID?}.iam.gserviceaccount.com  
+   --service-account teleport-kubernetes-service@${PROJECT_ID?}.iam.gserviceaccount.com \
+   --zone ${MY_ZONE?} \
+   --scopes=cloud-platform
 ```
 
 Attach your service account to the VM running the Discovery Service:
 
 ```code
 $ gcloud compute instances set-service-account ${VM2_NAME?} \
-   --service-account teleport-discovery-service@${PROJECT_ID?}.iam.gserviceaccount.com  
+   --service-account teleport-discovery-service@${PROJECT_ID?}.iam.gserviceaccount.com \
+   --zone ${MY_ZONE?} \
+   --scopes=cloud-platform
 ```
 
 </Details>
 
+<Notice type="warning">
+
+You must use the `scopes` flag in the `gcloud compute instances
+set-service-account` command. Otherwise, your Google Cloud VM will fail to
+obtain the required authorization to access the GKE API.
+
+</Notice>
+
 Once you have attached the service account, restart your VM:
 
 ```code
-$ gcloud compute instances start VM_NAME
+$ gcloud compute instances start ${VM_NAME?} --zone ${MY_ZONE?}
 ```
 </TabItem>
 <TabItem label="Other Platform">
@@ -299,13 +315,12 @@ On the host running the Kubernetes Service and Discovery Service, create a
 Teleport configuration file with the following content at `/etc/teleport.yaml`:
 
 ```yaml
-version: v2
+version: v3
 teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  auth_servers:
-  - "teleport.example.com:3080"
+  proxy_server: "teleport.example.com:443"
 auth_service:
   enabled: off
 proxy_service:
@@ -329,9 +344,9 @@ kubernetes_service:
 
 Edit this configuration for your environment as explained below.
 
-#### `auth_servers` 
+#### `proxy_server` 
 
-Replace `teleport.example.com:3080` with the host and port of your Teleport
+Replace `teleport.example.com:443` with the host and port of your Teleport
 Proxy Service (e.g., `mytenant.teleport.sh:443` for a Teleport Cloud tenant).
 
 #### `discovery_service.gcp`
@@ -348,7 +363,7 @@ configured matcher.
 
 This means that if you declare the following two matchers, the Discovery Service
 will register clusters in project `myproj-dev` running in `us-east1`, as well as
-clusters in project `myproj-prod` running in `us-east2`, but _not_ clusters in
+clusters in project `myproj-prod` running in `us-east2`, but *not* clusters in
 `myproj-dev` running in `us-east2`:
 
 ```yaml
