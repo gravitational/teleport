@@ -17,11 +17,13 @@ limitations under the License.
 package utils
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -89,4 +91,55 @@ func TestLocks(t *testing.T) {
 	require.Nil(t, unlock2)
 
 	require.NoError(t, unlock())
+}
+
+func TestOverwriteFile(t *testing.T) {
+	have := []byte("Sensitive Information")
+
+	tmpFile, err := os.CreateTemp("", "teleport-overwrite-file-test-")
+	if err != nil {
+		t.Fatalf("Unable to create tmp file: %s\n", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Remove(tmpFile.Name()); err != nil {
+			t.Fatalf("Error calling os.Remove: %s\n", err)
+		}
+	})
+
+	if _, err := tmpFile.Write(have); err != nil {
+		tmpFile.Close()
+		t.Fatalf("Error writing to tmp file: %s\n", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		t.Fatalf("Unable to close tmp file: %s\n", err)
+	}
+
+	if err := overwriteFile(tmpFile.Name()); err != nil {
+		t.Fatalf("Unable to overwrite tmp file: %s\n", err)
+	}
+
+	contents, err := os.ReadFile(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Unable to read tmp file: %s\n", err)
+	}
+
+	if bytes.Contains(contents, have) {
+		t.Fatal("File contents were not overwritten")
+	}
+}
+
+func TestRemoveSecure(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "teleport-remove-secure-test-")
+	if err != nil {
+		t.Fatalf("Unable to create tmp file: %s\n", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		t.Fatalf("Unable to close tmp file: %s\n", err)
+	}
+	if err := RemoveSecure(tmpFile.Name(), 0); !trace.IsBadParameter(err) {
+		t.Fatalf("RemoveSecure(filePath, 0) = %v; expected trace.BadParameterError\n", err)
+	}
+	if err := RemoveSecure(tmpFile.Name(), 1); err != nil {
+		t.Fatalf("RemoveSecure(filePath, 1) = %v; expected nil\n", err)
+	}
 }
