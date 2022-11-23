@@ -404,7 +404,7 @@ release-386:
 
 .PHONY: release-arm-oss
 release-arm-oss:
-	make full -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+	make -C .. full -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
 .PHONY: release-arm-enterprise
 release-arm-enterprise:
@@ -412,7 +412,7 @@ release-arm-enterprise:
 
 .PHONY: release-arm64-oss
 release-arm64-oss:
-	make full -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+	make -C .. full -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
 .PHONY: release-arm64-enterprise
 release-arm64-enterprise:
