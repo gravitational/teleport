@@ -543,10 +543,10 @@ func TestReviewThresholds(t *testing.T) {
 
 		// perform request validation (necessary in order to initialize internal
 		// request variables like annotations and thresholds).
-		validator, err := NewRequestValidator(context.Background(), g, tt.requestor, ExpandVars(true))
+		validator, err := NewRequestValidator(context.Background(), clock, g, tt.requestor, ExpandVars(true))
 		require.NoError(t, err, "scenario=%q", tt.desc)
 
-		require.NoError(t, validator.Validate(context.Background(), clock, req, identity), "scenario=%q", tt.desc)
+		require.NoError(t, validator.Validate(context.Background(), req, identity), "scenario=%q", tt.desc)
 
 	Inner:
 		for ri, rt := range tt.reviews {
@@ -1051,16 +1051,16 @@ func TestRolesForResourceRequest(t *testing.T) {
 				"some-id", user.GetName(), tc.requestRoles, tc.requestResourceIDs)
 			require.NoError(t, err)
 
-			validator, err := NewRequestValidator(context.Background(), g, user.GetName(), ExpandVars(true))
-			require.NoError(t, err)
-
 			clock := clockwork.NewFakeClock()
 			now := clock.Now().UTC()
 			identity := tlsca.Identity{
 				Expires: now.Add(8 * time.Hour),
 			}
 
-			err = validator.Validate(context.Background(), clock, req, identity)
+			validator, err := NewRequestValidator(context.Background(), clock, g, user.GetName(), ExpandVars(true))
+			require.NoError(t, err)
+
+			err = validator.Validate(context.Background(), req, identity)
 			require.ErrorIs(t, err, tc.expectError)
 			if err != nil {
 				return
