@@ -16,6 +16,7 @@ limitations under the License.
 
 package main
 
+//nolint:goimports
 import (
 	"flag"
 	"os"

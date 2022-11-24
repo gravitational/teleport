@@ -14,6 +14,7 @@
 
 package proxy
 
+//nolint:goimports
 import (
 	"context"
 	"fmt"

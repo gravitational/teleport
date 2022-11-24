@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gravitational/trace"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
