@@ -460,32 +460,25 @@ package `teleport/loginrule/v1`.
 // LoginRule is a resource to configure rules and logic which should run during
 // Teleport user login.
 message LoginRule {
-  // kind is a resource kind
-  string kind = 1;
-  // sub_kind is an optional resource sub kind, used in some resources
-  string sub_kind = 2;
-  // version is a resource version
-  string version = 3;
-  // metadata is resource metadata
-  types.Metadata metadata = 4;
-  // spec is the login rule specification
-  LoginRuleSpec spec = 5;
-}
+  // Name is the name of this login rule. It must be unique within the cluster.
+  string name = 1;
 
-// LoginRuleSpec is a login rule specification.
-message LoginRuleSpec {
-  // priority is the priority of the login rule relative to other login rules
+  // Version is the resource version of this login rule. Initially "v1" is
+  // supported.
+  string version = 2;
+
+  // Priority is the priority of the login rule relative to other login rules
   // in the same cluster. Login rules with a lower numbered priority will be
   // evaluated first.
-  int32 priority = 1;
+  int32 priority = 3;
 
-  // traits_map is a map of trait keys to lists of predicate expressions which
+  // TraitsMap is a map of trait keys to lists of predicate expressions which
   // should evaluate to the desired values for that trait.
-  map<string, wrappers.StringValues> traits_map = 2;
+  map<string, wrappers.StringValues> traits_map = 4;
 
-  // traits_expression is a predicate expression which should return the
+  // TraitsExpression is a predicate expression which should return the
   // desired traits for the user upon login.
-  string traits_expression = 3;
+  string traits_expression = 5;
 }
 ```
 
@@ -562,6 +555,10 @@ message DeleteLoginRuleRequest {
   string name = 1;
 }
 ```
+
+Note: there will be a separate Go struct type wrapping the LoginRule type which
+can be marshalled to and from YAML by `tctl` and includes the requisite
+[ResourceHeader](https://github.com/gravitational/teleport/blob/991651e872a46c3918eb280ed977147c9e9bf1ab/api/proto/teleport/legacy/types/types.proto#L145).
 
 ### Resource RBAC
 
