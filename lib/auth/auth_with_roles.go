@@ -1685,14 +1685,6 @@ func (a *ServerWithRoles) ChangePassword(req services.ChangePasswordReq) error {
 	return a.authServer.ChangePassword(req)
 }
 
-func (a *ServerWithRoles) CheckPassword(user string, password []byte, otpToken string) error {
-	if err := a.currentUserAction(user); err != nil {
-		return trace.Wrap(err)
-	}
-	_, err := a.authServer.checkPassword(user, password, otpToken)
-	return trace.Wrap(err)
-}
-
 func (a *ServerWithRoles) PreAuthenticatedSignIn(ctx context.Context, user string) (types.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
@@ -2830,7 +2822,7 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector typ
 		return trace.Wrap(err)
 	}
 	if !modules.GetModules().Features().SAML {
-		return trace.AccessDenied("SAML is only available in enterprise subscriptions")
+		return trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 	return a.authServer.UpsertSAMLConnector(ctx, connector)
 }
