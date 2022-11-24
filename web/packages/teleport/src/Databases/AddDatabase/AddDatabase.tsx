@@ -30,13 +30,14 @@ import {
   Text,
 } from 'design';
 import Select, { Option } from 'shared/components/Select';
+import {
+  formatDatabaseInfo,
+  DbType,
+  DbProtocol,
+  DatabaseInfo,
+} from 'shared/services/databases';
 
 import { AuthType } from 'teleport/services/user';
-import { DbProtocol, DbType } from 'teleport/services/databases';
-import {
-  DatabaseInfo,
-  formatDatabaseInfo,
-} from 'teleport/services/databases/makeDatabase';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import DownloadLinks from 'teleport/components/DownloadLinks';
 import useTeleport from 'teleport/useTeleport';

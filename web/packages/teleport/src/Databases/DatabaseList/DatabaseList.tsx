@@ -18,9 +18,10 @@ import React, { useState } from 'react';
 import { ButtonBorder } from 'design';
 import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
 import { SortType } from 'design/DataTable/types';
+import { DbProtocol } from 'shared/services/databases';
 
 import { AuthType } from 'teleport/services/user';
-import { Database, DbProtocol } from 'teleport/services/databases';
+import { Database } from 'teleport/services/databases';
 import { AgentLabel } from 'teleport/services/agents';
 import ConnectDialog from 'teleport/Databases/ConnectDialog';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';

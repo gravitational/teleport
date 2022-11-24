@@ -19,14 +19,10 @@ import styled from 'styled-components';
 import { Flex } from 'design';
 
 import ClusterNavButton from 'teleterm/ui/DocumentCluster/ClusterNavButton';
-import ClusterContext, {
-  NavLocation,
-  useClusterContext,
-} from 'teleterm/ui/DocumentCluster/clusterContext';
+import { NavLocation } from 'teleterm/ui/DocumentCluster/clusterContext';
 
 export default function SideNav(props: Props) {
-  const ctx = useClusterContext();
-  const items = createItems(ctx);
+  const items = createItems();
 
   const $items = items.map((item, index) => {
     return (
@@ -58,28 +54,23 @@ const StyledNav = styled(Flex)`
   height: 100%;
 `;
 
-function createItems(ctx: ClusterContext): SideNavItem[] {
-  const serverCount = ctx.getServers().length;
-  const dbCount = ctx.getDbs().length;
-  const kubeCount = ctx.getKubes().length;
-  // const appCount = ctx.getApps().length;
-
+function createItems(): SideNavItem[] {
   return [
     {
       to: '/resources/servers',
-      title: `Servers (${serverCount})`,
+      title: `Servers`,
     },
     {
       to: '/resources/databases',
-      title: `Databases (${dbCount})`,
+      title: `Databases`,
     },
     {
       to: '/resources/kubes',
-      title: `Kubes (${kubeCount})`,
+      title: `Kubes`,
     },
     // {
     //   to: '/resources/apps',
-    //   title: `Apps (${appCount})`,
+    //   title: `Apps`,
     // },
   ];
 }

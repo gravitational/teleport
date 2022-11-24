@@ -14,18 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { Kube, ServerSideParams } from 'teleterm/services/tshd/types';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useClusterContext } from 'teleterm/ui/DocumentCluster/clusterContext';
 
+import { useServerSideResources } from '../useServerSideResources';
+
 export function useKubes() {
+  const appContext = useAppContext();
   const ctx = useClusterContext();
-  const kubes = ctx.getKubes();
-  const syncStatus = ctx.getSyncStatus().kubes;
+  const { fetchAttempt, ...serversideResources } = useServerSideResources<Kube>(
+    { fieldName: 'name', dir: 'ASC' }, // default sort
+    (params: ServerSideParams) => appContext.resourcesService.fetchKubes(params)
+  );
 
   return {
-    pageSize: 100,
-    kubes,
-    syncStatus,
     connect: ctx.connectKube,
+    fetchAttempt,
+    ...serversideResources,
   };
 }
 

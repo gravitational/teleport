@@ -14,7 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Database, DbType, DbProtocol } from './types';
+import { formatDatabaseInfo } from 'shared/services/databases';
+
+import { Database } from './types';
 
 export default function makeDatabase(json): Database {
   const { name, desc, protocol, type } = json;
@@ -31,44 +33,3 @@ export default function makeDatabase(json): Database {
     users: json.database_users || [],
   };
 }
-
-export const formatDatabaseInfo = (type: DbType, protocol: DbProtocol) => {
-  const output = { type, protocol, title: '' };
-
-  switch (type) {
-    case 'rds':
-      output.title = `RDS ${formatProtocol(protocol)}`;
-      return output;
-    case 'redshift':
-      output.title = 'Redshift';
-      return output;
-    case 'self-hosted':
-      output.title = `Self-hosted ${formatProtocol(protocol)}`;
-      return output;
-    case 'gcp':
-      output.title = `Cloud SQL ${formatProtocol(protocol)}`;
-      return output;
-    default:
-      output.title = `${type} ${formatProtocol(protocol)}`;
-      return output;
-  }
-};
-
-const formatProtocol = (input: DbProtocol) => {
-  switch (input) {
-    case 'postgres':
-      return 'PostgreSQL';
-    case 'mysql':
-      return 'MySQL/MariaDB';
-    case 'mongodb':
-      return 'MongoDB';
-    case 'sqlserver':
-      return 'SQL Server';
-    case 'redis':
-      return 'Redis';
-    default:
-      return input;
-  }
-};
-
-export type DatabaseInfo = ReturnType<typeof formatDatabaseInfo>;

@@ -3,8 +3,11 @@ import { useStore } from 'shared/libs/stores';
 import isMatch from 'design/utils/match';
 import { makeLabelTag } from 'teleport/components/formatters';
 import { Label } from 'teleport/types';
-import { formatDatabaseInfo } from 'teleport/services/databases/makeDatabase';
-import { DbProtocol, DbType } from 'teleport/services/databases';
+import {
+  DbProtocol,
+  DbType,
+  formatDatabaseInfo,
+} from 'shared/services/databases';
 import { pipe } from 'shared/utils/pipe';
 
 import { routing } from 'teleterm/ui/uri';
@@ -13,6 +16,7 @@ import {
   Cluster,
   CreateAccessRequestParams,
   ReviewAccessRequestParams,
+  ServerSideParams,
 } from 'teleterm/services/tshd/types';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 
@@ -673,12 +677,11 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     };
   }
 
-  // TODO (avatus) Remove after Advanced Search is merged
   getServers() {
     return [...this.state.servers.values()];
   }
 
-  async fetchKubes(params) {
+  async fetchKubes(params: ServerSideParams) {
     return await this.client.getKubes(params);
   }
 
@@ -905,6 +908,7 @@ const helpers = {
 
 export function makeServer(source: Server) {
   return {
+    uri: source.uri,
     id: source.name,
     clusterId: source.name,
     hostname: source.hostname,
@@ -917,6 +921,7 @@ export function makeServer(source: Server) {
 
 export function makeDatabase(source: Database) {
   return {
+    uri: source.uri,
     name: source.name,
     description: source.desc,
     type: formatDatabaseInfo(
@@ -930,6 +935,7 @@ export function makeDatabase(source: Database) {
 
 export function makeKube(source: Kube) {
   return {
+    uri: source.uri,
     name: source.name,
     labels: source.labelsList,
   };

@@ -15,13 +15,15 @@ limitations under the License.
 */
 
 import React from 'react';
-
-import Table, { Cell } from 'design/DataTable';
+import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
 import { ButtonBorder } from 'design';
-
 import { Danger } from 'design/Alert';
+import { SearchPanel, SearchPagination } from 'shared/components/Search';
 
-import { renderLabelCell } from '../renderLabelCell';
+import { makeKube } from 'teleterm/ui/services/clusters';
+
+import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
+import { getEmptyTableText } from '../getEmptyTableText';
 
 import { useKubes, State } from './useKubes';
 
@@ -31,34 +33,64 @@ export default function Container() {
 }
 
 function KubeList(props: State) {
-  const { kubes = [], pageSize = 15, connect, syncStatus } = props;
+  const {
+    connect,
+    fetchAttempt,
+    agentFilter,
+    pageCount,
+    customSort,
+    prevPage,
+    nextPage,
+    updateQuery,
+    onAgentLabelClick,
+    updateSearch,
+  } = props;
+  const kubes = fetchAttempt.data?.agentsList.map(makeKube) || [];
+  const disabled = fetchAttempt.status === 'processing';
+  const emptyText = getEmptyTableText(fetchAttempt.status, 'kubes');
 
   return (
     <>
-      {syncStatus.status === 'failed' && (
-        <Danger>{syncStatus.statusText}</Danger>
+      {fetchAttempt.status === 'error' && (
+        <Danger>{fetchAttempt.statusText}</Danger>
       )}
-      <Table
-        data={kubes}
-        columns={[
-          {
-            key: 'name',
-            headerText: 'Name',
-            isSortable: true,
-          },
-          {
-            key: 'labelsList',
-            headerText: 'Labels',
-            render: renderLabelCell,
-          },
-          {
-            altKey: 'connect-btn',
-            render: kube => renderConnectButtonCell(kube.uri, connect),
-          },
-        ]}
-        emptyText="No Kubernetes Clusters Found"
-        pagination={{ pageSize, pagerPosition: 'bottom' }}
+      <SearchPanel
+        updateQuery={updateQuery}
+        updateSearch={updateSearch}
+        pageCount={pageCount}
+        filter={agentFilter}
+        showSearchBar={true}
+        disableSearch={disabled}
       />
+      <DarkenWhileDisabled disabled={disabled}>
+        <Table
+          data={kubes}
+          columns={[
+            {
+              key: 'name',
+              headerText: 'Name',
+              isSortable: true,
+            },
+            {
+              key: 'labels',
+              headerText: 'Labels',
+              render: ({ labels }) => (
+                <ClickableLabelCell
+                  labels={labels}
+                  onClick={onAgentLabelClick}
+                />
+              ),
+            },
+            {
+              altKey: 'connect-btn',
+              render: kube => renderConnectButtonCell(kube.uri, connect),
+            },
+          ]}
+          customSort={customSort}
+          emptyText={emptyText}
+        />
+        <SearchPagination prevPage={prevPage} nextPage={nextPage} />
+      </DarkenWhileDisabled>
     </>
   );
 }
