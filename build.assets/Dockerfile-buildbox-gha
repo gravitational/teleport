@@ -48,8 +48,16 @@ ENV LANGUAGE=en_US.UTF-8 \
 
 RUN yum update -y $YUM_UPDATE_FLAGS         && \
     yum install -y     \
-        git \ gcc \ gcc-c++ \ make \ pam-devel \ perl-IPC-Cmd \ tree \ which \
-        zip \ zlib-static && \
+        git \ 
+        gcc \ 
+        gcc-c++ \ 
+        make \ 
+        pam-devel \ 
+        perl-IPC-Cmd \ 
+        tree \ 
+        which \
+        zip \ 
+        zlib-static && \
     yum clean all
 
 RUN localedef -c -i en_US -f UTF-8 en_US.UTF-8
