@@ -31,7 +31,7 @@ import (
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 )
 
-// Database represents a database proxied by a database server.
+// Database represents a single database proxied by a database server.
 type Database interface {
 	// ResourceWithLabels provides common resource methods.
 	ResourceWithLabels
@@ -571,7 +571,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.Azure.Name == "" {
 			d.Spec.Azure.Name = name
 		}
-	case strings.Contains(d.Spec.URI, awsutils.AWSEndpointSuffix) || strings.Contains(d.Spec.URI, awsutils.AWSCNEndpointSuffix):
+	case awsutils.IsKeyspacesEndpoint(d.Spec.URI):
 		if d.Spec.AWS.AccountID == "" {
 			return trace.BadParameter("database %q AWS account ID is empty", d.GetName())
 		}

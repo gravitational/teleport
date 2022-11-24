@@ -756,26 +756,6 @@ var (
 	}
 )
 
-// CheckPasswordLimiter creates a rate limit that can be used to slow down
-// requests that come to the check password endpoint.
-func CheckPasswordLimiter() *limiter.Limiter {
-	limiter, err := limiter.NewLimiter(limiter.Config{
-		MaxConnections:   LimiterMaxConnections,
-		MaxNumberOfUsers: LimiterMaxConcurrentUsers,
-		Rates: []limiter.Rate{
-			{
-				Period:  1 * time.Second,
-				Average: 10,
-				Burst:   10,
-			},
-		},
-	})
-	if err != nil {
-		panic(fmt.Sprintf("Failed to create limiter: %v.", err))
-	}
-	return limiter
-}
-
 // Transport returns a new http.Client with sensible defaults.
 func HTTPClient() (*http.Client, error) {
 	transport, err := Transport()

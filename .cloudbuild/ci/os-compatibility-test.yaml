@@ -4,7 +4,7 @@ options:
    machineType: E2_HIGHCPU_32
 
 steps:
-  - name: public.ecr.aws/gravitational/teleport-buildbox-centos7:teleport11
+  - name: public.ecr.aws/gravitational/teleport-buildbox-centos7:teleport12
     id: build-teleport
     dir: /workspace
     entrypoint: "/bin/bash"
