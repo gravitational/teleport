@@ -109,6 +109,11 @@ func (r ResourceURI) GetDbName() string {
 	return ""
 }
 
+// GetRootClusterURI trims the existing ResourceURI into a URI that points solely at the root cluster.
+func (r ResourceURI) GetRootClusterURI() ResourceURI {
+	return NewClusterURI(r.GetProfileName())
+}
+
 // AppendServer appends server segment to the URI
 func (r ResourceURI) AppendServer(id string) ResourceURI {
 	r.path = fmt.Sprintf("%v/servers/%v", r.path, id)
