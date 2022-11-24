@@ -144,24 +144,6 @@ class ClusterContext extends Store<State> {
     this.setState({ searchValue });
   };
 
-  getServers() {
-    return this.appCtx.clustersService.searchServers(this.clusterUri, {
-      search: this.state.searchValue,
-    });
-  }
-
-  getDbs() {
-    return this.appCtx.clustersService.searchDbs(this.clusterUri, {
-      search: this.state.searchValue,
-    });
-  }
-
-  getKubes() {
-    return this.appCtx.clustersService.searchKubes(this.clusterUri, {
-      search: this.state.searchValue,
-    });
-  }
-
   getApps() {
     return this.appCtx.clustersService.searchApps(this.clusterUri, {
       search: this.state.searchValue,

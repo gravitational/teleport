@@ -13,21 +13,20 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
 import React from 'react';
-
-import Table, { Cell } from 'design/DataTable';
-
+import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
 import { Danger } from 'design/Alert';
 import { MenuLogin, MenuLoginProps } from 'shared/components/MenuLogin';
+import { SearchPanel, SearchPagination } from 'shared/components/Search';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { IAppContext } from 'teleterm/ui/types';
-import { GatewayProtocol } from 'teleterm/ui/services/clusters';
+import { GatewayProtocol, makeDatabase } from 'teleterm/ui/services/clusters';
 
 import { MenuLoginTheme } from '../MenuLoginTheme';
-import { renderLabelCell } from '../renderLabelCell';
+import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
+import { getEmptyTableText } from '../getEmptyTableText';
 
 import { useDatabases, State } from './useDatabases';
 
@@ -37,38 +36,80 @@ export default function Container() {
 }
 
 function DatabaseList(props: State) {
+  const {
+    connect,
+    fetchAttempt,
+    agentFilter,
+    pageCount,
+    customSort,
+    prevPage,
+    nextPage,
+    updateQuery,
+    onAgentLabelClick,
+    updateSearch,
+  } = props;
+  const dbs = fetchAttempt.data?.agentsList.map(makeDatabase) || [];
+  const disabled = fetchAttempt.status === 'processing';
+  const emptyText = getEmptyTableText(fetchAttempt.status, 'databases');
+
   return (
     <>
-      {props.syncStatus.status === 'failed' && (
-        <Danger>{props.syncStatus.statusText}</Danger>
+      {fetchAttempt.status === 'error' && (
+        <Danger>{fetchAttempt.statusText}</Danger>
       )}
-      <Table
-        data={props.dbs}
-        columns={[
-          {
-            key: 'name',
-            headerText: 'Name',
-            isSortable: true,
-          },
-          {
-            key: 'labelsList',
-            headerText: 'Labels',
-            render: renderLabelCell,
-          },
-          {
-            altKey: 'connect-btn',
-            render: db => (
-              <ConnectButton
-                dbUri={db.uri}
-                protocol={db.protocol as GatewayProtocol}
-                onConnect={dbUser => props.connect(db.uri, dbUser)}
-              />
-            ),
-          },
-        ]}
-        pagination={{ pageSize: 15, pagerPosition: 'bottom' }}
-        emptyText="No Databases Found"
+      <SearchPanel
+        updateQuery={updateQuery}
+        updateSearch={updateSearch}
+        pageCount={pageCount}
+        filter={agentFilter}
+        showSearchBar={true}
+        disableSearch={disabled}
       />
+      <DarkenWhileDisabled disabled={disabled}>
+        <Table
+          data={dbs}
+          columns={[
+            {
+              key: 'name',
+              headerText: 'Name',
+              isSortable: true,
+            },
+            {
+              key: 'description',
+              headerText: 'Description',
+              isSortable: true,
+            },
+            {
+              key: 'type',
+              headerText: 'Type',
+              isSortable: true,
+            },
+            {
+              key: 'labels',
+              headerText: 'Labels',
+              render: ({ labels }) => (
+                <ClickableLabelCell
+                  labels={labels}
+                  onClick={onAgentLabelClick}
+                />
+              ),
+            },
+            {
+              altKey: 'connect-btn',
+              render: db => (
+                <ConnectButton
+                  dbUri={db.uri}
+                  protocol={db.protocol as GatewayProtocol}
+                  onConnect={dbUser => connect(db, dbUser)}
+                />
+              ),
+            },
+          ]}
+          customSort={customSort}
+          emptyText={emptyText}
+        />
+        <SearchPagination prevPage={prevPage} nextPage={nextPage} />
+      </DarkenWhileDisabled>
     </>
   );
 }

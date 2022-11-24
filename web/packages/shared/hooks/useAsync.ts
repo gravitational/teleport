@@ -107,9 +107,11 @@ export function useAsync<R, T extends Function>(cb?: AsyncCb<R, T>) {
   return [state, run, setAttempt] as const;
 }
 
+export type AttemptStatus = 'processing' | 'success' | 'error' | '';
+
 export type Attempt<T> = {
   data?: T;
-  status: 'processing' | 'success' | 'error' | '';
+  status: AttemptStatus;
   statusText: string;
 };
 

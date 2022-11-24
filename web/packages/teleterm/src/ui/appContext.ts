@@ -28,6 +28,7 @@ import { FileTransferService } from 'teleterm/ui/services/fileTransferClient';
 
 import { CommandLauncher } from './commandLauncher';
 import { IAppContext } from './types';
+import { ResourcesService } from './services/resources/resourcesService';
 
 export default class AppContext implements IAppContext {
   clustersService: ClustersService;
@@ -42,11 +43,13 @@ export default class AppContext implements IAppContext {
   commandLauncher: CommandLauncher;
   connectionTracker: ConnectionTrackerService;
   fileTransferService: FileTransferService;
+  resourcesService: ResourcesService;
 
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
     this.mainProcessClient = mainProcessClient;
     this.fileTransferService = new FileTransferService(tshClient);
+    this.resourcesService = new ResourcesService(tshClient);
     this.statePersistenceService = new StatePersistenceService(
       this.mainProcessClient.fileStorage
     );
