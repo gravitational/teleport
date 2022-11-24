@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"testing"
@@ -76,7 +77,7 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 	helpers.MakeTestDatabaseServer(t, *proxyAddr, provisionToken, service.Database{
 		Name:     databaseResourceName,
 		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:" + postgresTestServer.Port(),
+		URI:      net.JoinHostPort("localhost", postgresTestServer.Port()),
 	})
 	// Wait for the Database Server to be registered
 	waitForDatabases(t, authServer, []string{databaseResourceName})

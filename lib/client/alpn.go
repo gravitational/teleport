@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 	"net"
 	"time"
 
@@ -103,7 +102,7 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 
 		pool = x509.NewCertPool()
 		if ok := pool.AppendCertsFromPEM(caCert.GetTLSCA()); !ok {
-			return fmt.Errorf("failed to append cert from cluster's TLS CA Cert")
+			return trace.Errorf("failed to append cert from cluster's TLS CA Cert")
 		}
 	}
 
@@ -112,7 +111,7 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 		return trace.Wrap(err)
 	}
 
-	tlsCert, err := tlsCertForUser(ctx, cfg.AuthClient, cfg.RouteToDatabase, cfg.ConnectionDiagnosticID)
+	tlsCert, err := getDatabaseUserCerts(ctx, cfg.AuthClient, cfg.RouteToDatabase, cfg.ConnectionDiagnosticID)
 	if err != nil {
 		return trace.BadParameter("failed to parse private key: %v", err)
 	}
@@ -143,7 +142,7 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 	return nil
 }
 
-func tlsCertForUser(ctx context.Context, client ALPNAuthClient, routeToDatabase proto.RouteToDatabase, connectionDiagnosticID string) (tls.Certificate, error) {
+func getDatabaseUserCerts(ctx context.Context, client ALPNAuthClient, routeToDatabase proto.RouteToDatabase, connectionDiagnosticID string) (tls.Certificate, error) {
 	key, err := GenerateRSAKey()
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)

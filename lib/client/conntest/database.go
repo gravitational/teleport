@@ -174,6 +174,7 @@ func (s *DatabaseConnectionTester) TestConnection(ctx context.Context, req TestC
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer listener.Close()
 
 	ping, err := newPing(listener.Addr().String(), req.DatabaseUser, req.DatabaseName)
 	if err != nil {
