@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"encoding/json"
 	"bytes"
 	"io"
 	"reflect"
@@ -98,6 +99,16 @@ func FastMarshalIndent(v interface{}, prefix, indent string) ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// WriteJSON marshals multiple documents as a JSON list with indentation.
+func WriteJSON(w io.Writer, values interface{}) error {
+	data, err := json.MarshalIndent(values, "", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
 }
 
 const yamlDocDelimiter = "---"
