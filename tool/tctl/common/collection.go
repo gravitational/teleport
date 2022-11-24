@@ -802,6 +802,13 @@ type windowsDesktopAndServiceCollection struct {
 	verbose  bool
 }
 
+func (c *windowsDesktopAndServiceCollection) windowsDesktops() (r []types.WindowsDesktop) {
+	for _, resource := range c.desktops {
+		r = append(r, resource.desktop)
+	}
+	return r
+}
+
 func stripInternalTeleportLabels(verbose bool, labels map[string]string) string {
 	if verbose { // remove teleport.dev labels unless we're in verbose mode.
 		return types.LabelsAsString(labels, nil)
@@ -833,11 +840,11 @@ func (c *windowsDesktopAndServiceCollection) writeText(w io.Writer) error {
 }
 
 func (c *windowsDesktopAndServiceCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, c.desktops)
+	return utils.WriteYAML(w, c.windowsDesktops())
 }
 
 func (c *windowsDesktopAndServiceCollection) writeJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(c.desktops, "", "    ")
+	data, err := json.MarshalIndent(c.windowsDesktops(), "", "    ")
 	if err != nil {
 		return trace.Wrap(err)
 	}
