@@ -1266,21 +1266,21 @@ func exportSession(cf *CLIConf) error {
 		// when playing from a file, id is not included, this
 		// makes the outputs otherwise identical
 		delete(event, "id")
-		if format == teleport.JSON {
-			e, err := utils.FastMarshal(event)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Println(string(e))
-		} else {
-			e, err := yaml.Marshal(event)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			// ensure that each YAML is prefixed by --- so that `yq` can be used
-			fmt.Printf("---\n%s", string(e))
-		}
 	}
+
+	switch format {
+	case teleport.JSON:
+		if err := utils.WriteJSON(os.Stdout, events); err != nil {
+			return trace.Wrap(err)
+		}
+	case teleport.YAML:
+		if err := utils.WriteYAML(os.Stdout, events); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.Errorf("Invalid format %s, only pty, json and yaml are supported", format)
+	}
+
 	return nil
 }
 
