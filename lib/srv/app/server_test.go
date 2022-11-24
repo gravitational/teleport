@@ -41,6 +41,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
 	libsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -107,6 +108,12 @@ type suiteConfig struct {
 	Apps types.Apps
 	// ServerStreamer is the auth server audit events streamer.
 	ServerStreamer events.Streamer
+	// CloudImporter will use the given cloud importer for the app server.
+	CloudImporter labels.Importer
+	// AppLabels are the labels assigned to the application.
+	AppLabels map[string]string
+	// RoleAppLabels are the labels set to allow for the user role.
+	RoleAppLabels types.Labels
 }
 
 func SetUpSuite(t *testing.T) *Suite {
@@ -145,22 +152,38 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		s.tlsServer.Close()
 	})
 
-	// Create user and role.
-	s.user, s.role, err = auth.CreateUserAndRole(s.tlsServer.Auth(), "foo", []string{"foo-login"})
-	require.NoError(t, err)
-
-	// Grant the user's role access to the application label "bar: baz".
-	s.role.SetAppLabels(types.Allow, types.Labels{"bar": []string{"baz"}})
-	s.role.SetAWSRoleARNs(types.Allow, []string{"readonly"})
-	err = s.tlsServer.Auth().UpsertRole(context.Background(), s.role)
-	require.NoError(t, err)
-
+	// Set up the host cert pool.
 	rootCA, err := s.tlsServer.Auth().GetCertAuthority(context.Background(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: "root.example.com",
 	}, false)
 	require.NoError(t, err)
 	s.hostCertPool, err = services.CertPool(rootCA)
+	require.NoError(t, err)
+
+	roleAppLabels := config.RoleAppLabels
+	// Default to something that matches the staticLabels package level variable.
+	if roleAppLabels == nil {
+		roleAppLabels = types.Labels{
+			"bar": []string{"baz"},
+		}
+	}
+
+	// Grant the user's role access to the application label "bar: baz".
+	s.role = &types.RoleV5{
+		Metadata: types.Metadata{
+			Name: "foo",
+		},
+		Version: types.V5,
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				AppLabels:   roleAppLabels,
+				AWSRoleARNs: []string{"readonly"},
+			},
+		},
+	}
+	// Create user for regular tests.
+	s.user, err = auth.CreateUser(s.tlsServer.Auth(), "foo", s.role)
 	require.NoError(t, err)
 
 	s.closeContext, s.closeFunc = context.WithCancel(context.Background())
@@ -180,10 +203,16 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 	s.hostport = u.Host
 
+	// Default to staticLabels.
+	appLabels := config.AppLabels
+	if appLabels == nil {
+		appLabels = staticLabels
+	}
+
 	// Create apps that will be used for each test.
 	appFoo, err := types.NewAppV3(types.Metadata{
 		Name:   "foo",
-		Labels: staticLabels,
+		Labels: appLabels,
 	}, types.AppSpecV3{
 		URI:           s.testhttp.URL,
 		PublicAddr:    "foo.example.com",
@@ -214,33 +243,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	tlsConfig.Time = s.clock.Now
 
 	// Generate certificate for user.
-	privateKey, publicKey, err := s.tlsServer.Auth().GenerateKeyPair("")
-	require.NoError(t, err)
-	certificate, err := s.tlsServer.Auth().GenerateUserAppTestCert(auth.AppTestCertRequest{
-		PublicKey:   publicKey,
-		Username:    s.user.GetName(),
-		TTL:         1 * time.Hour,
-		PublicAddr:  "foo.example.com",
-		ClusterName: "root.example.com",
-	})
-	require.NoError(t, err)
-	s.clientCertificate, err = tls.X509KeyPair(certificate, privateKey)
-	require.NoError(t, err)
+	s.clientCertificate = s.generateCertificate(t, s.user, "foo.example.com", "")
 
 	// Generate certificate for AWS console application.
-	privateKey, publicKey, err = s.tlsServer.Auth().GenerateKeyPair("")
-	require.NoError(t, err)
-	certificate, err = s.tlsServer.Auth().GenerateUserAppTestCert(auth.AppTestCertRequest{
-		PublicKey:   publicKey,
-		Username:    s.user.GetName(),
-		TTL:         1 * time.Hour,
-		PublicAddr:  "aws.example.com",
-		ClusterName: "root.example.com",
-		AWSRoleARN:  "readonly",
-	})
-	require.NoError(t, err)
-	s.awsConsoleCertificate, err = tls.X509KeyPair(certificate, privateKey)
-	require.NoError(t, err)
+	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "readonly")
 
 	// Make sure the upload directory is created.
 	err = os.MkdirAll(filepath.Join(
@@ -288,6 +294,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		OnReconcile:      config.OnReconcile,
 		LockWatcher:      lockWatcher,
 		Emitter:          discard,
+		CloudLabels:      config.CloudImporter,
 	})
 	require.NoError(t, err)
 
@@ -304,6 +311,27 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	})
 
 	return s
+}
+
+func (s *Suite) generateCertificate(t *testing.T, user types.User, publicAddr, AWSRoleARN string) tls.Certificate {
+	privateKey, publicKey, err := s.tlsServer.Auth().GenerateKeyPair("")
+	require.NoError(t, err)
+	req := auth.AppTestCertRequest{
+		PublicKey:   publicKey,
+		Username:    user.GetName(),
+		TTL:         1 * time.Hour,
+		PublicAddr:  publicAddr,
+		ClusterName: "root.example.com",
+	}
+	if AWSRoleARN != "" {
+		req.AWSRoleARN = AWSRoleARN
+	}
+	certificate, err := s.tlsServer.Auth().GenerateUserAppTestCert(req)
+	require.NoError(t, err)
+	tlsCertificate, err := tls.X509KeyPair(certificate, privateKey)
+	require.NoError(t, err)
+
+	return tlsCertificate
 }
 
 // TestStart makes sure that after the server has started, a correct services.App
@@ -379,7 +407,146 @@ func TestWaitStop(t *testing.T) {
 	require.Equal(t, err, context.Canceled)
 }
 
-// TestHandleConnection verifies that requests with valid certificates are forwarded.
+func TestAppWithUpdatedLabels(t *testing.T) {
+	tests := []struct {
+		name          string
+		app           types.Application
+		dynamicLabels map[string]*labels.Dynamic
+		cloudLabels   labels.Importer
+
+		expectedDynamicLabels map[string]string
+		expectedCloudLabels   map[string]string
+	}{
+		{
+			name: "no dynamic labels or cloud labels",
+			app: &types.AppV3{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"test1": "value1",
+					},
+				},
+			},
+			expectedDynamicLabels: map[string]string{},
+			expectedCloudLabels:   map[string]string{},
+		},
+		{
+			name: "only dynamic labels",
+			app: &types.AppV3{
+				Metadata: types.Metadata{
+					Name: "app1",
+					Labels: map[string]string{
+						"test1": "value1",
+					},
+				},
+				Spec: types.AppSpecV3{
+					DynamicLabels: map[string]types.CommandLabelV2{
+						"something": {
+							Command: []string{"echo", "blah"},
+							Result:  "blah",
+						},
+					},
+				},
+			},
+			expectedDynamicLabels: map[string]string{
+				"something": "blah",
+			},
+			expectedCloudLabels: map[string]string{},
+		},
+		{
+			name: "dynamic and cloud labels",
+			app: &types.AppV3{
+				Metadata: types.Metadata{
+					Name: "app1",
+					Labels: map[string]string{
+						"test1": "value1",
+					},
+				},
+				Spec: types.AppSpecV3{
+					DynamicLabels: map[string]types.CommandLabelV2{
+						"something": {
+							Command: []string{"echo", "blah"},
+							Result:  "blah",
+						},
+					},
+				},
+			},
+			cloudLabels: newTestIMImporter(map[string]string{
+				"aws/cloud1": "value1",
+				"aws/cloud2": "value2",
+			}),
+			expectedDynamicLabels: map[string]string{
+				"something": "blah",
+			},
+			expectedCloudLabels: map[string]string{
+				"aws/cloud1": "value1",
+				"aws/cloud2": "value2",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s := SetUpSuiteWithConfig(t, suiteConfig{
+				CloudImporter: test.cloudLabels,
+			})
+
+			if test.cloudLabels != nil {
+				require.NoError(t, test.cloudLabels.Sync(context.Background()))
+			}
+
+			updatedApp := s.appServer.appWithUpdatedLabels(test.app)
+
+			for key, value := range test.expectedDynamicLabels {
+				require.Equal(t, value, updatedApp.GetDynamicLabels()[key].GetResult())
+			}
+
+			for key, value := range test.expectedCloudLabels {
+				require.Equal(t, value, updatedApp.GetStaticLabels()[key])
+			}
+		})
+	}
+}
+
+// testIMImporter is a test instance metadata client for exercising cloud labels.
+type testIMImporter struct {
+	labels map[string]string
+	mu     sync.RWMutex
+}
+
+func newTestIMImporter(labels map[string]string) *testIMImporter {
+	return &testIMImporter{
+		labels: labels,
+	}
+}
+
+func (i *testIMImporter) Get() map[string]string {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	copyLabels := map[string]string{}
+	for k, v := range i.labels {
+		copyLabels[k] = v
+	}
+	return copyLabels
+}
+
+// Apply adds the current labels to the provided resource's static labels.
+func (i *testIMImporter) Apply(r types.ResourceWithLabels) {
+	labels := i.Get()
+	for k, v := range r.GetStaticLabels() {
+		labels[k] = v
+	}
+	r.SetStaticLabels(labels)
+}
+
+func (i *testIMImporter) Sync(context.Context) error {
+	return nil
+}
+
+func (i *testIMImporter) Start(_ context.Context) {
+}
+
+// TestHandleConnection verifies that requests with valid certificates are forwarded and the
+// request had headers rewritten as expected.
 func TestHandleConnection(t *testing.T) {
 	s := SetUpSuite(t)
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
@@ -392,8 +559,70 @@ func TestHandleConnection(t *testing.T) {
 
 // TestAuthorize verifies that only authorized requests are handled.
 func TestAuthorize(t *testing.T) {
-	// TODO(r0mant): Implement this.
-	t.Skip("Not implemented")
+	tests := []struct {
+		name           string
+		cloudLabels    labels.Importer
+		roleAppLabels  types.Labels
+		appLabels      map[string]string
+		message        string
+		expectedStatus int
+	}{
+		{
+			name: "no cloud labels",
+			roleAppLabels: types.Labels{
+				"bar": []string{"baz"},
+			},
+			appLabels: map[string]string{
+				"bar": "baz",
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name: "cloud labels",
+			cloudLabels: newTestIMImporter(map[string]string{
+				"aws/test": "value",
+			}),
+			roleAppLabels: types.Labels{
+				"aws/test": []string{"value"},
+			},
+			appLabels:      map[string]string{},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:          "no access",
+			roleAppLabels: types.Labels{},
+			appLabels: map[string]string{
+				"bar": "baz",
+			},
+			message:        "Not Found",
+			expectedStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s := SetUpSuiteWithConfig(t, suiteConfig{
+				CloudImporter: test.cloudLabels,
+				AppLabels:     test.appLabels,
+				RoleAppLabels: test.roleAppLabels,
+			})
+
+			if test.cloudLabels != nil {
+				require.NoError(t, s.appServer.c.CloudLabels.Sync(context.Background()))
+			}
+
+			s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
+				require.Equal(t, test.expectedStatus, resp.StatusCode)
+				buf, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				message := s.message
+				if test.message != "" {
+					message = test.message
+				}
+				require.Equal(t, message, strings.TrimSpace(string(buf)))
+			})
+		})
+	}
 }
 
 // TestAuthorizeWithLocks verifies that requests are forbidden when there is
@@ -446,7 +675,7 @@ func TestSessionClose(t *testing.T) {
 func TestAWSConsoleRedirect(t *testing.T) {
 	s := SetUpSuite(t)
 	s.checkHTTPResponse(t, s.awsConsoleCertificate, func(resp *http.Response) {
-		require.Equal(t, resp.StatusCode, http.StatusFound)
+		require.Equal(t, http.StatusFound, resp.StatusCode)
 		location, err := resp.Location()
 		require.NoError(t, err)
 		require.Equal(t, location.String(), "https://signin.aws.amazon.com")

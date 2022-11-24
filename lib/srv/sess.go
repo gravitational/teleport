@@ -25,7 +25,11 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
+
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -1676,8 +1680,19 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 	}
 
 	go func() {
-		if err := s.tracker.UpdateExpirationLoop(s.serverCtx, s.registry.clock); err != nil {
-			s.log.WithError(err).Debug("Failed to update session tracker expiration")
+		ctx, span := tracing.DefaultProvider().Tracer("session").Start(
+			s.serverCtx,
+			"session/UpdateExpirationLoop",
+			oteltrace.WithLinks(oteltrace.LinkFromContext(ctx)),
+			oteltrace.WithAttributes(
+				attribute.String("session_id", s.id.String()),
+				attribute.String("kind", string(types.SSHSessionKind)),
+			),
+		)
+		defer span.End()
+
+		if err := s.tracker.UpdateExpirationLoop(ctx, s.registry.clock); err != nil {
+			s.log.WithError(err).Warn("Failed to update session tracker expiration")
 		}
 	}()
 
