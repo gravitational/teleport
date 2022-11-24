@@ -4,3 +4,6 @@
 [submodule "webassets"]
 	path = webassets
 	url = https://github.com/gravitational/webassets.git
+[submodule "z3c"]
+	path = go-z3
+	url = git@github.com:xacrimon/go-z3.git
