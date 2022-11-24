@@ -995,19 +995,15 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 
 	now := m.clock.Now().UTC()
 
-	// Calculate expiration of the Access Request.
-	//
-	// This is how long the Access Request will hang around for approval. In
-	// other words, the TTL on the types.AccessRequest resource itself.
+	// Calculate expiration time of the Access Request (how long it
+	// will await approval).
 	ttl, err := m.pendingTTL(ctx, identity, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	req.SetExpiry(now.Add(ttl))
 
-	// Calculate the expiry time of the Access Request.
-	//
-	// This is the expiration time of the elevated certificate that will
+	// Calculate expiration time of the elevated certificate that will
 	// be issued if the Access Request is approved.
 	ttl, err = m.accessTTL(ctx, identity, req)
 	if err != nil {
@@ -1018,10 +1014,10 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 	return nil
 }
 
-// pendingTTL calculates the TTL of the Access Request (how long it
-// will await approval).
+// pendingTTL calculates the TTL of the Access Request (how long it will await
+// approval).
 func (m *RequestValidator) pendingTTL(ctx context.Context, identity tlsca.Identity, r types.AccessRequest) (time.Duration, error) {
-	// If no expiration provided, use default (1 hour).
+	// If no expiration provided, use default.
 	expiry := r.Expiry()
 	if expiry.IsZero() {
 		expiry = m.clock.Now().UTC().Add(defaults.PendingAccessDuration)
