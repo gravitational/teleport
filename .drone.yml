@@ -795,7 +795,7 @@ kind: pipeline
 type: kubernetes
 name: clean-up-previous-build
 environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.75
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.76-35e77b7-20221117T1411084
 trigger:
   event:
     include:
@@ -1078,8 +1078,8 @@ steps:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - $OutputsDir = "$Workspace/outputs"
-  - $relcliUrl = 'https://cdn.teleport.dev/relcli-v1.1.75-windows.exe'
-  - $relcliSha256 = '664a48f349791b51c3fb5610ff282b050d5c3d74523730bb229256d2cc9ea0d7'
+  - $relcliUrl = 'https://cdn.teleport.dev/relcli-v1.1.76-windows.exe'
+  - $relcliSha256 = '56dfdd9d1a09aac892fcd48eba035072dc6c151eaa2e1b21cf54786bb3c09520'
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Get-Relcli -Url $relcliUrl -Sha256 $relcliSha256 -Workspace $Workspace
   - Register-Artifacts -Workspace $Workspace -Outputs $OutputsDir
@@ -1804,7 +1804,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -1813,8 +1813,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -1989,7 +1992,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -1998,8 +2001,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -2187,7 +2193,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2196,8 +2202,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -2370,7 +2379,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2379,8 +2388,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -2626,7 +2638,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2635,8 +2647,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -2884,7 +2899,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2893,8 +2908,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -3142,7 +3160,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3151,8 +3169,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -3386,7 +3407,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3395,8 +3416,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -3569,7 +3593,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3578,8 +3602,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -3825,7 +3852,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3834,8 +3861,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -4077,7 +4107,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -4086,8 +4116,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -4288,7 +4321,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -4297,8 +4330,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -4505,7 +4541,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -4514,8 +4550,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -4703,7 +4742,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -4712,8 +4751,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -4882,7 +4924,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -4891,8 +4933,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -5065,7 +5110,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -5074,8 +5119,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -5312,7 +5360,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -5321,8 +5369,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -5559,7 +5610,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -5568,8 +5619,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -5815,7 +5869,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -5824,8 +5878,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -6076,7 +6133,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -6085,8 +6142,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -6267,7 +6327,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="windows" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -6276,8 +6336,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="windows" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -7792,124 +7855,6 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/relcli.go (main.relcliPipeline)
-################################################
-
-kind: pipeline
-type: kubernetes
-name: publish-rlz
-environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.75
-trigger:
-  event:
-    include:
-    - promote
-  target:
-    include:
-    - production
-  repo:
-    include:
-    - gravitational/*
-clone:
-  disable: true
-steps:
-- name: Check if commit is tagged
-  image: alpine
-  commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
-    && exit 1)'
-- name: Wait for docker
-  image: docker
-  commands:
-  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  volumes:
-  - name: dockersock
-    path: /var/run
-- name: Assume AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
-    AWS_ROLE:
-      from_secret: TELEPORT_BUILD_READ_ONLY_AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-- name: Pull relcli
-  image: docker:cli
-  commands:
-  - apk add --no-cache aws-cli
-  - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker pull $RELCLI_IMAGE
-  environment:
-    AWS_DEFAULT_REGION: us-west-2
-  volumes:
-  - name: dockersock
-    path: /var/run
-  - name: awsconfig
-    path: /root/.aws
-- name: Publish in Release API
-  image: docker:git
-  commands:
-  - mkdir -p /tmpfs/creds
-  - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
-  - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
-  - trap "rm -rf /tmpfs/creds" EXIT
-  - |-
-    docker run -i -v /tmpfs/creds:/tmpfs/creds \
-      -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
-      $RELCLI_IMAGE relcli auto_publish -f -v 6
-  environment:
-    RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
-    RELCLI_CERT: /tmpfs/creds/releases.crt
-    RELCLI_KEY: /tmpfs/creds/releases.key
-    RELEASES_CERT:
-      from_secret: RELEASES_CERT
-    RELEASES_KEY:
-      from_secret: RELEASES_KEY
-  volumes:
-  - name: dockersock
-    path: /var/run
-  - name: tmpfs
-    path: /tmpfs
-  - name: awsconfig
-    path: /root/.aws
-services:
-- name: Start Docker
-  image: docker:dind
-  privileged: true
-  volumes:
-  - name: tmpfs
-    path: /tmpfs
-  - name: dockersock
-    path: /var/run
-volumes:
-- name: dockersock
-  temp: {}
-- name: tmpfs
-  temp:
-    medium: memory
-- name: awsconfig
-  temp: {}
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
 # Generated at dronegen/mac.go (main.newDarwinPipeline)
 ################################################
 
@@ -8108,7 +8053,7 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      release_params="" # List of "-F releaseId=XXX" parameters to curl
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -8117,8 +8062,11 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+
+        release_params="$release_params -F releaseId=$product@$VERSION"
       done
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
     done
   environment:
     RELEASES_CERT:
@@ -18140,8 +18088,131 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/relcli.go (main.relcliPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: publish-rlz
+environment:
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.76-35e77b7-20221117T1411084
+trigger:
+  event:
+    include:
+    - promote
+  target:
+    include:
+    - production
+  repo:
+    include:
+    - gravitational/*
+clone:
+  disable: true
+depends_on:
+- promote-build
+- teleport-container-images-branch-promote
+- publish-apt-new-repos
+- publish-yum-new-repos
+steps:
+- name: Check if commit is tagged
+  image: alpine
+  commands:
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+    && exit 1)'
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_ROLE:
+      from_secret: TELEPORT_BUILD_READ_ONLY_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+- name: Pull relcli
+  image: docker:cli
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker pull $RELCLI_IMAGE
+  environment:
+    AWS_DEFAULT_REGION: us-west-2
+  volumes:
+  - name: dockersock
+    path: /var/run
+  - name: awsconfig
+    path: /root/.aws
+- name: Publish in Release API
+  image: docker:git
+  commands:
+  - mkdir -p /tmpfs/creds
+  - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
+  - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
+  - trap "rm -rf /tmpfs/creds" EXIT
+  - |-
+    docker run -i -v /tmpfs/creds:/tmpfs/creds \
+      -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
+      $RELCLI_IMAGE relcli auto_publish -f -v 6
+  environment:
+    RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
+    RELCLI_CERT: /tmpfs/creds/releases.crt
+    RELCLI_KEY: /tmpfs/creds/releases.key
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY
+  volumes:
+  - name: dockersock
+    path: /var/run
+  - name: tmpfs
+    path: /tmpfs
+  - name: awsconfig
+    path: /root/.aws
+services:
+- name: Start Docker
+  image: docker:dind
+  privileged: true
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: dockersock
+  temp: {}
+- name: tmpfs
+  temp:
+    medium: memory
+- name: awsconfig
+  temp: {}
 ---
 kind: signature
-hmac: 5b45ea95a882532f9524ae1a2f2be1054aea6e4aba440e5729d6a7b7d0afa3a7
+hmac: 0563a434992d317095294eea074ab8b36090744ba6d2bbb86d584cccc7fa11bd
 
 ...
