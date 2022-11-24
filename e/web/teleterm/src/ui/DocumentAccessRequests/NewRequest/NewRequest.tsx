@@ -3,12 +3,9 @@ import React from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex, Alert } from 'design';
-import { StyledArrowBtn } from 'design/DataTable/Pager/StyledPager';
-import { StyledPanel } from 'design/DataTable/StyledTable';
-import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
 import { space, width } from 'design/system';
 
-import { SearchPanel } from 'e-teleport/Workflow/NewRequest/SearchPanel';
+import { SearchPanel, SearchPagination } from 'shared/components/Search';
 import { ResourceList } from 'e-teleport/Workflow/NewRequest/ResourceList';
 
 import useNewRequest, { ResourceKind } from './useNewRequest';
@@ -113,29 +110,10 @@ export function NewRequest() {
           requestableRoles={requestableRoles}
           disableRows={fetchStatus === 'loading'}
         />
-        <StyledPanel borderBottomLeftRadius={3} borderBottomRightRadius={3}>
-          <Flex justifyContent="flex-end" width="100%">
-            <Flex alignItems="center" mr={2}></Flex>
-            <Flex>
-              <StyledArrowBtn
-                onClick={prevPage}
-                title="Previous page"
-                disabled={!prevPage || fetchStatus === 'loading'}
-                mx={0}
-              >
-                <CircleArrowLeft fontSize="3" />
-              </StyledArrowBtn>
-              <StyledArrowBtn
-                ml={0}
-                onClick={nextPage}
-                title="Next page"
-                disabled={!nextPage || fetchStatus === 'loading'}
-              >
-                <CircleArrowRight fontSize="3" />
-              </StyledArrowBtn>
-            </Flex>
-          </Flex>
-        </StyledPanel>
+        <SearchPagination
+          nextPage={fetchStatus === 'loading' ? null : nextPage}
+          prevPage={fetchStatus === 'loading' ? null : prevPage}
+        />
       </StyledMain>
     </Layout>
   );

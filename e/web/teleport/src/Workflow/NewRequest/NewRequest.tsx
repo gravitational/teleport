@@ -13,6 +13,7 @@ import { StyledPanel } from 'design/DataTable/StyledTable';
 import { StyledArrowBtn } from 'design/DataTable/Pager/StyledPager';
 import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
 import Select from 'shared/components/Select';
+import { SearchPanel } from 'shared/components/Search';
 import {
   FeatureBox,
   FeatureHeader,
@@ -22,7 +23,6 @@ import ErrorMessage from 'teleport/components/AgentErrorMessage';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 
-import { SearchPanel } from './SearchPanel';
 import { ResourceList } from './ResourceList';
 import { RequestCheckout } from './RequestCheckout';
 import { useNewRequest, State, ResourceKind } from './useNewRequest';
