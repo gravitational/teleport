@@ -500,12 +500,12 @@ service LoginRuleService {
   // CreateLoginRule creates a login rule if one with the same name does not
   // already exist, else it returns an error.
   // (RFD note) Used for: tctl create rule.yaml
-  rpc CreateLoginRule(CreateLoginRuleRequest) returns (CreateLoginRuleResponse);
+  rpc CreateLoginRule(CreateLoginRuleRequest) returns (LoginRule);
 
   // UpsertLoginRule creates a login rule if one with the same name does not
   // already exist, else it replaces the existing login rule.
   // (RFD note) Used for: tctl create -f rule.yaml
-  rpc UpsertLoginRule(UpsertLoginRuleRequest) returns (UpsertLoginRuleResponse);
+  rpc UpsertLoginRule(UpsertLoginRuleRequest) returns (LoginRule);
 
   // GetLoginRule retrieves a login rule described by the given request.
   rpc GetLoginRule(GetLoginRuleRequest) returns (LoginRule);
@@ -523,21 +523,9 @@ message CreateLoginRuleRequest {
   LoginRule login_rule = 1;
 }
 
-// CreateLoginRuleResponse is a response to a CreateLoginRule request.
-message CreateLoginRuleResponse {
-  // LoginRule is the login rule as created.
-  LoginRule login_rule = 1;
-}
-
 // UpsertLoginRuleRequest is a request to upsert a login rule.
 message UpsertLoginRuleRequest {
   // LoginRule is the login rule to be created.
-  LoginRule login_rule = 1;
-}
-
-// UpsertLoginRuleReponse is a response to an UpsertLoginRule request.
-message UpsertLoginRuleResponse {
-  // LoginRule is the login rule as created.
   LoginRule login_rule = 1;
 }
 
