@@ -108,7 +108,7 @@ func (c *Cluster) GetDatabases(ctx context.Context, r *api.GetDatabasesRequest) 
 		}
 		defer proxyClient.Close()
 
-		authClient, err = proxyClient.ConnectToRootCluster(ctx)
+		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
