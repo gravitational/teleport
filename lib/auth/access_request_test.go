@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -288,7 +288,7 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			checkCerts(t, certs, testPack.users[tc.requester], nil, nil, nil)
 
 			// should not be able to list any nodes
-			nodes, err := requesterClient.GetNodes(ctx, apidefaults.Namespace)
+			nodes, err := requesterClient.GetNodes(ctx, defaults.Namespace)
 			require.NoError(t, err)
 			require.Empty(t, nodes)
 
@@ -359,7 +359,7 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			elevatedClient := testPack.tlsServer.NewClientWithCert(elevatedCert)
 
 			// should be able to list the expected nodes
-			nodes, err = elevatedClient.GetNodes(ctx, apidefaults.Namespace)
+			nodes, err = elevatedClient.GetNodes(ctx, defaults.Namespace)
 			require.NoError(t, err)
 			gotNodes := []string{}
 			for _, node := range nodes {
