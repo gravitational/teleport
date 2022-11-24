@@ -103,7 +103,6 @@ type KubeMockServer struct {
 // More endpoints can be configured
 // TODO(tigrato): add support for other endpoints
 func NewKubeAPIMock() (*KubeMockServer, error) {
-
 	s := &KubeMockServer{
 		router: httprouter.New(),
 		log:    log.NewEntry(log.New()),
@@ -162,7 +161,6 @@ func (s *KubeMockServer) formatResponseError(rw http.ResponseWriter, respErr err
 }
 
 func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
-
 	q := req.URL.Query()
 
 	request := remoteCommandRequest{
