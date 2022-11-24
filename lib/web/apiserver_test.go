@@ -5579,7 +5579,7 @@ func TestCreateDatabase(t *testing.T) {
 		{
 			name: "missing port",
 			req: createDatabaseRequest{
-				Name:     "emptyprotocol",
+				Name:     "missingport",
 				Protocol: "mysql",
 				URI:      "someuri",
 			},

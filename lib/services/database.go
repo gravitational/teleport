@@ -143,7 +143,6 @@ func ValidateDatabase(db types.Database) error {
 
 	// For MongoDB we support specifying either server address or connection
 	// string in the URI which is useful when connecting to a replica set.
-	aws := db.GetAWS()
 	if db.GetProtocol() == defaults.ProtocolMongoDB &&
 		(strings.HasPrefix(db.GetURI(), connstring.SchemeMongoDB+"://") ||
 			strings.HasPrefix(db.GetURI(), connstring.SchemeMongoDBSRV+"://")) {
@@ -166,7 +165,7 @@ func ValidateDatabase(db types.Database) error {
 		if !strings.Contains(db.GetURI(), defaults.SnowflakeURL) {
 			return trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
 		}
-	} else if db.GetProtocol() == defaults.ProtocolCassandra && aws.Region != "" && aws.AccountID != "" {
+	} else if db.GetProtocol() == defaults.ProtocolCassandra && db.GetAWS().Region != "" && db.GetAWS().AccountID != "" {
 		// In case of cloud hosted Cassandra doesn't require URI validation.
 	} else if _, _, err := net.SplitHostPort(db.GetURI()); err != nil {
 		return trace.BadParameter("invalid database %q address %q: %v", db.GetName(), db.GetURI(), err)
@@ -179,18 +178,17 @@ func ValidateDatabase(db types.Database) error {
 	}
 
 	// Validate Active Directory specific configuration, when Kerberos auth is required.
-	ad := db.GetAD()
-	if db.GetProtocol() == defaults.ProtocolSQLServer && (ad.Domain != "" || !strings.Contains(db.GetURI(), azureutils.MSSQLEndpointSuffix)) {
-		if ad.KeytabFile == "" {
+	if db.GetProtocol() == defaults.ProtocolSQLServer && (db.GetAD().Domain != "" || !strings.Contains(db.GetURI(), azureutils.MSSQLEndpointSuffix)) {
+		if db.GetAD().KeytabFile == "" {
 			return trace.BadParameter("missing keytab file path for database %q", db.GetName())
 		}
-		if ad.Krb5File == "" {
+		if db.GetAD().Krb5File == "" {
 			return trace.BadParameter("missing keytab file path for database %q", db.GetName())
 		}
-		if ad.Domain == "" {
+		if db.GetAD().Domain == "" {
 			return trace.BadParameter("missing Active Directory domain for database %q", db.GetName())
 		}
-		if ad.SPN == "" {
+		if db.GetAD().SPN == "" {
 			return trace.BadParameter("missing service principal name for database %q", db.GetName())
 		}
 	}
