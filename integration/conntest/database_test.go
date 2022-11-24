@@ -17,6 +17,7 @@ package conntest
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -212,11 +213,15 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 			diagnoseConnectionEndpoint := strings.Join([]string{"sites", "$site", "diagnostics", "connections"}, "/")
 			resp, err := webPack.DoRequest(http.MethodPost, diagnoseConnectionEndpoint, diagnoseReq)
 			require.NoError(t, err)
-			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			respBody, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
 			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
 
 			var connectionDiagnostic ui.ConnectionDiagnostic
-			require.NoError(t, json.NewDecoder(resp.Body).Decode(&connectionDiagnostic))
+			require.NoError(t, json.Unmarshal(respBody, &connectionDiagnostic))
 
 			gotFailedTraces := 0
 			expectedFailedTraces := 0

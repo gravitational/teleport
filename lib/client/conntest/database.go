@@ -65,8 +65,8 @@ type DatabaseConnectionTesterConfig struct {
 	// UserClient is an auth client that has a User's identity.
 	UserClient ClientDatabaseConnectionTester
 
-	// ProxyHostPort is the proxy to use in the `--proxy` format (host:webPort,sshPort)
-	ProxyHostPort string
+	// PublicProxyAddr is public address of the proxy
+	PublicProxyAddr string
 
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
@@ -75,20 +75,13 @@ type DatabaseConnectionTesterConfig struct {
 
 // DatabaseConnectionTester implements the ConnectionTester interface for Testing Database access.
 type DatabaseConnectionTester struct {
-	cfg          DatabaseConnectionTesterConfig
-	webProxyAddr string
+	cfg DatabaseConnectionTesterConfig
 }
 
 // NewDatabaseConnectionTester returns a new DatabaseConnectionTester
 func NewDatabaseConnectionTester(cfg DatabaseConnectionTesterConfig) (*DatabaseConnectionTester, error) {
-	parsedProxyHostAddr, err := client.ParseProxyHost(cfg.ProxyHostPort)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &DatabaseConnectionTester{
-		cfg:          cfg,
-		webProxyAddr: parsedProxyHostAddr.WebProxyAddr,
+		cfg: cfg,
 	}, nil
 }
 
@@ -205,7 +198,7 @@ func (s *DatabaseConnectionTester) runALPNTunnel(ctx context.Context, req TestCo
 		AuthClient:             s.cfg.UserClient,
 		Listener:               list,
 		Protocol:               routeToDatabase.Protocol,
-		WebProxyAddr:           s.webProxyAddr,
+		PublicProxyAddr:        s.cfg.PublicProxyAddr,
 		ConnectionDiagnosticID: connectionDiagnosticID,
 		RouteToDatabase:        routeToDatabase,
 		InsecureSkipVerify:     req.InsecureSkipVerify,

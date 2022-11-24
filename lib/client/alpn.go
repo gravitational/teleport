@@ -66,8 +66,8 @@ type ALPNAuthTunnelConfig struct {
 	// This protocol must map to a Teleport ALPN protocol [lib/srv/alpnproxy/common.alpnToALPNProtocol]
 	Protocol string
 
-	// WebProxyAddr is the proxy addr to
-	WebProxyAddr string
+	// PublicProxyAddr is public address of the proxy
+	PublicProxyAddr string
 
 	// ConnectionDiagnosticID contains the ID to be used to store Connection Diagnostic checks.
 	// Can be empty.
@@ -93,7 +93,7 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 
 	var pool *x509.CertPool
 
-	alpnUpgradeRequired := alpnproxy.IsALPNConnUpgradeRequired(cfg.WebProxyAddr, cfg.InsecureSkipVerify)
+	alpnUpgradeRequired := alpnproxy.IsALPNConnUpgradeRequired(cfg.PublicProxyAddr, cfg.InsecureSkipVerify)
 
 	if alpnUpgradeRequired {
 		caCert, err := cfg.AuthClient.GetClusterCACert(ctx)
@@ -107,7 +107,7 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 		}
 	}
 
-	address, err := utils.ParseAddr(cfg.WebProxyAddr)
+	address, err := utils.ParseAddr(cfg.PublicProxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -119,7 +119,7 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		InsecureSkipVerify:      cfg.InsecureSkipVerify,
-		RemoteProxyAddr:         cfg.WebProxyAddr,
+		RemoteProxyAddr:         cfg.PublicProxyAddr,
 		Protocols:               protocols,
 		Listener:                cfg.Listener,
 		ParentContext:           ctx,

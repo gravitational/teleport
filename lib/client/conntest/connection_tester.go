@@ -128,6 +128,9 @@ type ConnectionTesterConfig struct {
 	// ProxyHostPort is the proxy to use in the `--proxy` format (host:webPort,sshPort)
 	ProxyHostPort string
 
+	// PublicProxyAddr is public address of the proxy.
+	PublicProxyAddr string
+
 	// KubernetesPublicProxyAddr is the kubernetes proxy.
 	KubernetesPublicProxyAddr string
 
@@ -163,7 +166,7 @@ func ConnectionTesterForKind(cfg ConnectionTesterConfig) (ConnectionTester, erro
 		tester, err := NewDatabaseConnectionTester(
 			DatabaseConnectionTesterConfig{
 				UserClient:        cfg.UserClient,
-				ProxyHostPort:     cfg.ProxyHostPort,
+				PublicProxyAddr:   cfg.PublicProxyAddr,
 				TLSRoutingEnabled: cfg.TLSRoutingEnabled,
 			},
 		)
