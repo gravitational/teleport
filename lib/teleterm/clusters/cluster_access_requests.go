@@ -79,7 +79,7 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 	if len(req.Roles) > 0 {
 		request, err = services.NewAccessRequest(c.status.Username, req.Roles...)
 	} else {
-		request, err = services.NewAccessRequestWithResources(c.status.Username, nil, resourceIDs)
+		request, err = services.NewAccessRequestWithResources(c.status.Username, req.Roles, resourceIDs)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
