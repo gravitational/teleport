@@ -17,6 +17,7 @@ package daemon
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
@@ -26,6 +27,14 @@ import (
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+)
+
+const (
+	// tshdEventsTimeout is the maximum amount of time the gRPC client managed by the tshd daemon will
+	// wait for a response from the tshd events server managed by the Electron app. This timeout
+	// should be used for quick one-off calls where the client doesn't need the server or the user to
+	// perform any additional work, such as the SendNotification RPC.
+	tshdEventsTimeout = time.Second
 )
 
 // New creates an instance of Daemon service
@@ -175,6 +184,16 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		LocalPort:             params.LocalPort,
 		CLICommandProvider:    cliCommandProvider,
 		TCPPortAllocator:      s.cfg.TCPPortAllocator,
+		OnExpiredCert: func(ctx context.Context, gateway *gateway.Gateway) error {
+			cluster, err := s.ResolveCluster(gateway.TargetURI())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			err = s.cfg.GatewayCertReissuer.ReissueCert(ctx, gateway, cluster)
+
+			return trace.Wrap(err)
+		},
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -573,6 +592,7 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 
 	client := api.NewTshdEventsServiceClient(conn)
 	s.tshdEventsClient = client
+	s.cfg.GatewayCertReissuer.TSHDEventsClient = client
 
 	return nil
 }
@@ -589,7 +609,8 @@ func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferReq
 // Service is the daemon service
 type Service struct {
 	cfg *Config
-	mu  sync.RWMutex
+	// mu guards gateways and tshdEventsClient.
+	mu sync.RWMutex
 	// closeContext is canceled when Service is getting stopped. It is used as a context for the calls
 	// to the tshd events gRPC client.
 	closeContext context.Context
