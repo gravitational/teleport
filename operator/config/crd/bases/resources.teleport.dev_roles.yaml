@@ -9,9 +9,6 @@ spec:
     kind: TeleportRole
     listKind: TeleportRoleList
     plural: teleportroles
-    shortNames:
-    - role
-    - roles
     singular: teleportrole
   scope: Namespaced
   versions:
@@ -40,9 +37,7 @@ spec:
                 properties:
                   app_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: AppLabels is a map of labels used as part of the
                       RBAC system.
                     type: object
@@ -55,17 +50,13 @@ spec:
                     type: array
                   cluster_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: ClusterLabels is a map of node labels (used to dynamically
                       grant access to clusters).
                     type: object
                   db_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: DatabaseLabels are used in RBAC system to allow/deny
                       access to databases.
                     type: object
@@ -161,9 +152,7 @@ spec:
                     type: array
                   kubernetes_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: KubernetesLabels is a map of kubernetes cluster labels
                       used for RBAC.
                     type: object
@@ -181,9 +170,7 @@ spec:
                     type: array
                   node_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: NodeLabels is a map of node labels (used to dynamically
                       grant access to nodes).
                     type: object
@@ -232,10 +219,11 @@ spec:
                         nullable: true
                         type: array
                       search_as_roles:
-                        description: SearchAsRoles is a list of roles which the user
-                          should be able to "assume" while searching for resources,
-                          and should be able to request with a search-based access
-                          request.
+                        description: SearchAsRoles is a list of extra roles which
+                          should apply to a user while they are searching for resources
+                          as part of a Resource Access Request, and defines the underlying
+                          roles which will be requested as part of any Resource Access
+                          Request.
                         items:
                           type: string
                         nullable: true
@@ -338,6 +326,15 @@ spec:
                               type: string
                           type: object
                         type: array
+                      preview_as_roles:
+                        description: PreviewAsRoles is a list of extra roles which
+                          should apply to a reviewer while they are viewing a Resource
+                          Access Request for the purposes of viewing details such
+                          as the hostname and labels of requested resources.
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
                       roles:
                         description: Roles is the name of roles which may be reviewed.
                         items:
@@ -380,9 +377,7 @@ spec:
                     type: array
                   windows_desktop_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: WindowsDesktopLabels are used in the RBAC system
                       to allow/deny access to Windows desktops.
                     type: object
@@ -400,9 +395,7 @@ spec:
                 properties:
                   app_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: AppLabels is a map of labels used as part of the
                       RBAC system.
                     type: object
@@ -415,17 +408,13 @@ spec:
                     type: array
                   cluster_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: ClusterLabels is a map of node labels (used to dynamically
                       grant access to clusters).
                     type: object
                   db_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: DatabaseLabels are used in RBAC system to allow/deny
                       access to databases.
                     type: object
@@ -521,9 +510,7 @@ spec:
                     type: array
                   kubernetes_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: KubernetesLabels is a map of kubernetes cluster labels
                       used for RBAC.
                     type: object
@@ -541,9 +528,7 @@ spec:
                     type: array
                   node_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: NodeLabels is a map of node labels (used to dynamically
                       grant access to nodes).
                     type: object
@@ -592,10 +577,11 @@ spec:
                         nullable: true
                         type: array
                       search_as_roles:
-                        description: SearchAsRoles is a list of roles which the user
-                          should be able to "assume" while searching for resources,
-                          and should be able to request with a search-based access
-                          request.
+                        description: SearchAsRoles is a list of extra roles which
+                          should apply to a user while they are searching for resources
+                          as part of a Resource Access Request, and defines the underlying
+                          roles which will be requested as part of any Resource Access
+                          Request.
                         items:
                           type: string
                         nullable: true
@@ -698,6 +684,15 @@ spec:
                               type: string
                           type: object
                         type: array
+                      preview_as_roles:
+                        description: PreviewAsRoles is a list of extra roles which
+                          should apply to a reviewer while they are viewing a Resource
+                          Access Request for the purposes of viewing details such
+                          as the hostname and labels of requested resources.
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
                       roles:
                         description: Roles is the name of roles which may be reviewed.
                         items:
@@ -740,9 +735,7 @@ spec:
                     type: array
                   windows_desktop_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: WindowsDesktopLabels are used in the RBAC system
                       to allow/deny access to Windows desktops.
                     type: object
@@ -883,8 +876,14 @@ spec:
                       users what they aught to
                     type: string
                   require_session_mfa:
-                    description: RequireSessionMFA specifies whether a user is required
-                      to do an MFA check for every session.
+                    description: RequireMFAType is the type of MFA requirement enforced
+                      for this user.
+                    format: int32
+                    type: integer
+                  ssh_file_copy:
+                    description: SSHFileCopy indicates whether remote file operations
+                      via SCP or SFTP are allowed over an SSH session. It defaults
+                      to true unless explicitly set to false.
                     type: boolean
                 type: object
             type: object
@@ -898,8 +897,8 @@ spec:
                   description: "Condition contains details for one aspect of the current
                     state of this API Resource. --- This struct is intended for direct
                     use as an array at the field path .status.conditions.  For example,
-                    type FooStatus struct{ // Represents the observations of a foo's
-                    current state. // Known .status.conditions.type are: \"Available\",
+                    \n type FooStatus struct{ // Represents the observations of a
+                    foo's current state. // Known .status.conditions.type are: \"Available\",
                     \"Progressing\", and \"Degraded\" // +patchMergeKey=type // +patchStrategy=merge
                     // +listType=map // +listMapKey=type Conditions []metav1.Condition
                     `json:\"conditions,omitempty\" patchStrategy:\"merge\" patchMergeKey:\"type\"

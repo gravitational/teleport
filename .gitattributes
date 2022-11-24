@@ -1,3 +1,8 @@
 webassets/* linguist-vendored
 docs/theme/js/* linguist-vendored
 docs/theme/js/theme.js linguist-vendored=false
+
+# JS protobuf files, not caught by built-in linguist rules.
+# https://github.com/github/linguist/blob/v7.23.0/lib/linguist/generated.rb#L349-L358
+*_pb.js linguist-generated
+*_pb.d.ts linguist-generated

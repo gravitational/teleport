@@ -19,6 +19,7 @@ package utils
 import (
 	"bytes"
 	"crypto/x509"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -31,13 +32,13 @@ import (
 	"testing"
 	"unicode"
 
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/kingpin"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 )
 
 type LoggingPurpose int
@@ -211,14 +212,7 @@ func formatErrorWriter(err error, w io.Writer) {
 }
 
 func formatCertError(err error) string {
-	switch innerError := trace.Unwrap(err).(type) {
-	case x509.HostnameError:
-		return fmt.Sprintf("Cannot establish https connection to %s:\n%s\n%s\n",
-			innerError.Host,
-			innerError.Error(),
-			"try a different hostname for --proxy or specify --insecure flag if you know what you're doing.")
-	case x509.UnknownAuthorityError:
-		return `WARNING:
+	const unknownAuthority = `WARNING:
 
   The proxy you are connecting to has presented a certificate signed by a
   unknown authority. This is most likely due to either being presented
@@ -236,15 +230,33 @@ func formatCertError(err error) string {
   If you think something malicious may be occurring, contact your Teleport
   system administrator to resolve this issue.
 `
-	case x509.CertificateInvalidError:
+	if errors.As(err, &x509.UnknownAuthorityError{}) {
+		return unknownAuthority
+	}
+
+	var hostnameErr x509.HostnameError
+	if errors.As(err, &hostnameErr) {
+		return fmt.Sprintf("Cannot establish https connection to %s:\n%s\n%s\n",
+			hostnameErr.Host,
+			hostnameErr.Error(),
+			"try a different hostname for --proxy or specify --insecure flag if you know what you're doing.")
+	}
+
+	var certInvalidErr x509.CertificateInvalidError
+	if errors.As(err, &x509.CertificateInvalidError{}) {
 		return fmt.Sprintf(`WARNING:
 
   The certificate presented by the proxy is invalid: %v.
 
-  Contact your Teleport system administrator to resolve this issue.`, innerError)
-	default:
-		return ""
+  Contact your Teleport system administrator to resolve this issue.`, certInvalidErr)
 	}
+
+	// Check for less explicit errors. These are often emitted on Darwin
+	if strings.Contains(err.Error(), "certificate is not trusted") {
+		return unknownAuthority
+	}
+
+	return ""
 }
 
 const (
@@ -354,7 +366,7 @@ func SplitIdentifiers(s string) []string {
 // EscapeControl escapes all ANSI escape sequences from string and returns a
 // string that is safe to print on the CLI. This is to ensure that malicious
 // servers can not hide output. For more details, see:
-//   * https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
+//   - https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
 func EscapeControl(s string) string {
 	if needsQuoting(s) {
 		return fmt.Sprintf("%q", s)
@@ -365,7 +377,7 @@ func EscapeControl(s string) string {
 // AllowNewlines escapes all ANSI escape sequences except newlines from string and returns a
 // string that is safe to print on the CLI. This is to ensure that malicious
 // servers can not hide output. For more details, see:
-//   * https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
+//   - https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
 func AllowNewlines(s string) string {
 	if !strings.Contains(s, "\n") {
 		return EscapeControl(s)
@@ -509,4 +521,27 @@ type PredicateError struct {
 
 func (p PredicateError) Error() string {
 	return fmt.Sprintf("%s\nCheck syntax at https://goteleport.com/docs/setup/reference/predicate-language/#resource-filtering", p.Err.Error())
+}
+
+// FormatAlert formats and colors the alert message if possible.
+func FormatAlert(alert types.ClusterAlert) string {
+	// TODO(timothyb89): Due to complications with globally enabling +
+	// properly resetting Windows terminal ANSI processing, for now we just
+	// disable color output. Otherwise, raw ANSI escapes will be visible to
+	// users.
+	var buf bytes.Buffer
+	switch runtime.GOOS {
+	case constants.WindowsOS:
+		fmt.Fprint(&buf, alert.Spec.Message)
+	default:
+		switch alert.Spec.Severity {
+		case types.AlertSeverity_HIGH:
+			fmt.Fprint(&buf, Color(Red, alert.Spec.Message))
+		case types.AlertSeverity_MEDIUM:
+			fmt.Fprint(&buf, Color(Yellow, alert.Spec.Message))
+		default:
+			fmt.Fprint(&buf, alert.Spec.Message)
+		}
+	}
+	return buf.String()
 }

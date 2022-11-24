@@ -23,11 +23,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 func TestProcessKubeCSR(t *testing.T) {
@@ -51,7 +52,7 @@ func TestProcessKubeCSR(t *testing.T) {
 		Usage:            []string{"usage a", "usage b"},
 		Principals:       []string{"principal a", "principal b"},
 		KubernetesGroups: []string{"k8s group a", "k8s group b"},
-		Traits:           map[string][]string{"trait a": []string{"b", "c"}},
+		Traits:           map[string][]string{"trait a": {"b", "c"}},
 		TeleportCluster:  s.clusterName.GetClusterName(),
 	}
 	subj, err := userID.Subject()

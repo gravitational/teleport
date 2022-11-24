@@ -22,15 +22,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/vulcand/predicate/builder"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/gravitational/trace"
-	"github.com/vulcand/predicate/builder"
 )
 
 // NewAdminContext returns new admin auth context
@@ -145,17 +145,12 @@ Loop:
 	return lockTargets
 }
 
-// UseSearchAsRoles extends the roles of the Checker on the current Context with
-// the set of roles the user is allowed to search as.
-func (c *Context) UseSearchAsRoles(access services.RoleGetter, clusterName string) error {
-	if len(c.Checker.GetAllowedResourceIDs()) > 0 {
-		return trace.AccessDenied("user is currently logged in with a search-based access request, cannot further extend roles for search")
-	}
+// UseExtraRoles extends the roles of the Checker on the current Context with
+// the given extra roles.
+func (c *Context) UseExtraRoles(access services.RoleGetter, clusterName string, roles []string) error {
 	var newRoleNames []string
-	// include existing roles
 	newRoleNames = append(newRoleNames, c.Checker.RoleNames()...)
-	// extend with allowed search_as_roles
-	newRoleNames = append(newRoleNames, c.Checker.GetSearchAsRoles()...)
+	newRoleNames = append(newRoleNames, roles...)
 	newRoleNames = utils.Deduplicate(newRoleNames)
 
 	// set new roles on the context user and create a new access checker
@@ -167,6 +162,17 @@ func (c *Context) UseSearchAsRoles(access services.RoleGetter, clusterName strin
 	}
 	c.Checker = checker
 	return nil
+}
+
+// MFAParams returns MFA params for the given auth context and auth preference MFA requirement.
+func (c *Context) MFAParams(authPrefMFARequirement types.RequireMFAType) services.AccessMFAParams {
+	params := c.Checker.MFAParams(authPrefMFARequirement)
+
+	// Builtin services (like proxy_service and kube_service) are not gated
+	// on MFA and only need to pass normal RBAC action checks.
+	_, isService := c.Identity.(BuiltinRole)
+	params.Verified = isService || c.Identity.GetIdentity().MFAVerified != ""
+	return params
 }
 
 // Authorize authorizes user based on identity supplied via context
@@ -189,7 +195,31 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 		authContext.LockTargets()...); lockErr != nil {
 		return nil, trace.Wrap(lockErr)
 	}
+
+	// Enforce required private key policy if set.
+	if err := a.enforcePrivateKeyPolicy(ctx, authContext, authPref); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return authContext, nil
+}
+
+func (a *authorizer) enforcePrivateKeyPolicy(ctx context.Context, authContext *Context, authPref types.AuthPreference) error {
+	switch authContext.Identity.(type) {
+	case BuiltinRole, RemoteBuiltinRole:
+		// built in roles do not need to pass private key policies
+		return nil
+	}
+
+	// Check that the required private key policy, defined by roles and auth pref,
+	// is met by this Identity's tls certificate.
+	identityPolicy := authContext.Identity.GetIdentity().PrivateKeyPolicy
+	requiredPolicy := authContext.Checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if err := requiredPolicy.VerifyPolicy(identityPolicy); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context, error) {
@@ -278,6 +308,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		RouteToDatabase:   u.Identity.RouteToDatabase,
 		MFAVerified:       u.Identity.MFAVerified,
 		ClientIP:          u.Identity.ClientIP,
+		PrivateKeyPolicy:  u.Identity.PrivateKeyPolicy,
 	}
 
 	return &Context{
@@ -326,6 +357,8 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 					types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 					types.NewRule(types.KindClusterAuthPreference, services.RO()),
 					types.NewRule(types.KindKubeService, services.RO()),
+					types.NewRule(types.KindKubeServer, services.RO()),
+					types.NewRule(types.KindInstaller, services.RO()),
 					// this rule allows remote proxy to update the cluster's certificate authorities
 					// during certificates renewal
 					{
@@ -360,6 +393,83 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 		Identity:         r,
 		UnmappedIdentity: r,
 	}, nil
+}
+
+func roleSpecForProxyWithRecordAtProxy(clusterName string) types.RoleSpecV5 {
+	base := roleSpecForProxy(clusterName)
+	base.Allow.Rules = append(base.Allow.Rules, types.NewRule(types.KindHostCert, services.RW()))
+	return base
+}
+
+func roleSpecForProxy(clusterName string) types.RoleSpecV5 {
+	return types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Namespaces:       []string{types.Wildcard},
+			ClusterLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Rules: []types.Rule{
+				types.NewRule(types.KindProxy, services.RW()),
+				types.NewRule(types.KindOIDCRequest, services.RW()),
+				types.NewRule(types.KindSSHSession, services.RW()),
+				types.NewRule(types.KindSession, services.RO()),
+				types.NewRule(types.KindEvent, services.RW()),
+				types.NewRule(types.KindSAMLRequest, services.RW()),
+				types.NewRule(types.KindOIDC, services.ReadNoSecrets()),
+				types.NewRule(types.KindSAML, services.ReadNoSecrets()),
+				types.NewRule(types.KindGithub, services.ReadNoSecrets()),
+				types.NewRule(types.KindGithubRequest, services.RW()),
+				types.NewRule(types.KindNamespace, services.RO()),
+				types.NewRule(types.KindNode, services.RO()),
+				types.NewRule(types.KindAuthServer, services.RO()),
+				types.NewRule(types.KindReverseTunnel, services.RO()),
+				types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+				types.NewRule(types.KindUser, services.RO()),
+				types.NewRule(types.KindRole, services.RO()),
+				types.NewRule(types.KindClusterAuthPreference, services.RO()),
+				types.NewRule(types.KindClusterName, services.RO()),
+				types.NewRule(types.KindClusterAuditConfig, services.RO()),
+				types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+				types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+				types.NewRule(types.KindStaticTokens, services.RO()),
+				types.NewRule(types.KindTunnelConnection, services.RW()),
+				types.NewRule(types.KindRemoteCluster, services.RO()),
+				types.NewRule(types.KindSemaphore, services.RW()),
+				types.NewRule(types.KindAppServer, services.RO()),
+				types.NewRule(types.KindWebSession, services.RW()),
+				types.NewRule(types.KindWebToken, services.RW()),
+				types.NewRule(types.KindKubeService, services.RW()),
+				types.NewRule(types.KindKubeServer, services.RW()),
+				types.NewRule(types.KindDatabaseServer, services.RO()),
+				types.NewRule(types.KindLock, services.RO()),
+				types.NewRule(types.KindToken, []string{types.VerbRead, types.VerbDelete}),
+				types.NewRule(types.KindWindowsDesktopService, services.RO()),
+				types.NewRule(types.KindDatabaseCertificate, []string{types.VerbCreate}),
+				types.NewRule(types.KindWindowsDesktop, services.RO()),
+				types.NewRule(types.KindInstaller, services.RO()),
+				types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+				// this rule allows local proxy to update the remote cluster's host certificate authorities
+				// during certificates renewal
+				{
+					Resources: []string{types.KindCertAuthority},
+					Verbs:     []string{types.VerbCreate, types.VerbRead, types.VerbUpdate},
+					// allow administrative access to the host certificate authorities
+					// matching any cluster name except local
+					Where: builder.And(
+						builder.Equals(services.CertAuthorityTypeExpr, builder.String(string(types.HostCA))),
+						builder.Not(
+							builder.Equals(
+								services.ResourceNameExpr,
+								builder.String(clusterName),
+							),
+						),
+					).String(),
+				},
+			},
+		},
+	}
 }
 
 // RoleSetForBuiltinRole returns RoleSet for embedded builtin role
@@ -419,6 +529,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindNetworkRestrictions, services.RO()),
+						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 					},
 				},
 			})
@@ -488,136 +599,13 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 		if services.IsRecordAtProxy(recConfig.GetMode()) {
 			return services.RoleFromSpec(
 				role.String(),
-				types.RoleSpecV5{
-					Allow: types.RoleConditions{
-						Namespaces:       []string{types.Wildcard},
-						ClusterLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
-						NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-						AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-						DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-						KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-						Rules: []types.Rule{
-							types.NewRule(types.KindProxy, services.RW()),
-							types.NewRule(types.KindOIDCRequest, services.RW()),
-							types.NewRule(types.KindSSHSession, services.RW()),
-							types.NewRule(types.KindSession, services.RO()),
-							types.NewRule(types.KindEvent, services.RW()),
-							types.NewRule(types.KindSAMLRequest, services.RW()),
-							types.NewRule(types.KindOIDC, services.ReadNoSecrets()),
-							types.NewRule(types.KindSAML, services.ReadNoSecrets()),
-							types.NewRule(types.KindGithub, services.ReadNoSecrets()),
-							types.NewRule(types.KindGithubRequest, services.RW()),
-							types.NewRule(types.KindNamespace, services.RO()),
-							types.NewRule(types.KindNode, services.RO()),
-							types.NewRule(types.KindAuthServer, services.RO()),
-							types.NewRule(types.KindReverseTunnel, services.RO()),
-							types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
-							types.NewRule(types.KindUser, services.RO()),
-							types.NewRule(types.KindRole, services.RO()),
-							types.NewRule(types.KindClusterAuthPreference, services.RO()),
-							types.NewRule(types.KindClusterName, services.RO()),
-							types.NewRule(types.KindClusterAuditConfig, services.RO()),
-							types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
-							types.NewRule(types.KindSessionRecordingConfig, services.RO()),
-							types.NewRule(types.KindStaticTokens, services.RO()),
-							types.NewRule(types.KindTunnelConnection, services.RW()),
-							types.NewRule(types.KindHostCert, services.RW()),
-							types.NewRule(types.KindRemoteCluster, services.RO()),
-							types.NewRule(types.KindSemaphore, services.RW()),
-							types.NewRule(types.KindAppServer, services.RO()),
-							types.NewRule(types.KindWebSession, services.RW()),
-							types.NewRule(types.KindWebToken, services.RW()),
-							types.NewRule(types.KindKubeService, services.RW()),
-							types.NewRule(types.KindDatabaseServer, services.RO()),
-							types.NewRule(types.KindLock, services.RO()),
-							types.NewRule(types.KindWindowsDesktopService, services.RO()),
-							types.NewRule(types.KindWindowsDesktop, services.RO()),
-							// this rule allows local proxy to update the remote cluster's host certificate authorities
-							// during certificates renewal
-							{
-								Resources: []string{types.KindCertAuthority},
-								Verbs:     []string{types.VerbCreate, types.VerbRead, types.VerbUpdate},
-								// allow administrative access to the host certificate authorities
-								// matching any cluster name except local
-								Where: builder.And(
-									builder.Equals(services.CertAuthorityTypeExpr, builder.String(string(types.HostCA))),
-									builder.Not(
-										builder.Equals(
-											services.ResourceNameExpr,
-											builder.String(clusterName),
-										),
-									),
-								).String(),
-							},
-						},
-					},
-				})
+				roleSpecForProxyWithRecordAtProxy(clusterName),
+			)
 		}
 		return services.RoleFromSpec(
 			role.String(),
-			types.RoleSpecV5{
-				Allow: types.RoleConditions{
-					Namespaces:       []string{types.Wildcard},
-					ClusterLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
-					NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-					AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-					DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-					Rules: []types.Rule{
-						types.NewRule(types.KindProxy, services.RW()),
-						types.NewRule(types.KindOIDCRequest, services.RW()),
-						types.NewRule(types.KindSSHSession, services.RW()),
-						types.NewRule(types.KindSession, services.RO()),
-						types.NewRule(types.KindEvent, services.RW()),
-						types.NewRule(types.KindSAMLRequest, services.RW()),
-						types.NewRule(types.KindOIDC, services.ReadNoSecrets()),
-						types.NewRule(types.KindSAML, services.ReadNoSecrets()),
-						types.NewRule(types.KindGithub, services.ReadNoSecrets()),
-						types.NewRule(types.KindGithubRequest, services.RW()),
-						types.NewRule(types.KindNamespace, services.RO()),
-						types.NewRule(types.KindNode, services.RO()),
-						types.NewRule(types.KindAuthServer, services.RO()),
-						types.NewRule(types.KindReverseTunnel, services.RO()),
-						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
-						types.NewRule(types.KindUser, services.RO()),
-						types.NewRule(types.KindRole, services.RO()),
-						types.NewRule(types.KindClusterAuthPreference, services.RO()),
-						types.NewRule(types.KindClusterName, services.RO()),
-						types.NewRule(types.KindClusterAuditConfig, services.RO()),
-						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
-						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
-						types.NewRule(types.KindStaticTokens, services.RO()),
-						types.NewRule(types.KindTunnelConnection, services.RW()),
-						types.NewRule(types.KindRemoteCluster, services.RO()),
-						types.NewRule(types.KindSemaphore, services.RW()),
-						types.NewRule(types.KindAppServer, services.RO()),
-						types.NewRule(types.KindWebSession, services.RW()),
-						types.NewRule(types.KindWebToken, services.RW()),
-						types.NewRule(types.KindKubeService, services.RW()),
-						types.NewRule(types.KindDatabaseServer, services.RO()),
-						types.NewRule(types.KindLock, services.RO()),
-						types.NewRule(types.KindWindowsDesktopService, services.RO()),
-						types.NewRule(types.KindWindowsDesktop, services.RO()),
-						// this rule allows local proxy to update the remote cluster's host certificate authorities
-						// during certificates renewal
-						{
-							Resources: []string{types.KindCertAuthority},
-							Verbs:     []string{types.VerbCreate, types.VerbRead, types.VerbUpdate},
-							// allow administrative access to the certificate authority names
-							// matching any cluster name except local
-							Where: builder.And(
-								builder.Equals(services.CertAuthorityTypeExpr, builder.String(string(types.HostCA))),
-								builder.Not(
-									builder.Equals(
-										services.ResourceNameExpr,
-										builder.String(clusterName),
-									),
-								),
-							).String(),
-						},
-					},
-				},
-			})
+			roleSpecForProxy(clusterName),
+		)
 	case types.RoleSignup:
 		return services.RoleFromSpec(
 			role.String(),
@@ -669,6 +657,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.KindKubeService, services.RW()),
+						types.NewRule(types.KindKubeServer, services.RW()),
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),
@@ -680,6 +669,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindKubernetesCluster, services.RW()),
 					},
 				},
 			})
@@ -705,6 +695,24 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindWindowsDesktopService, services.RW()),
 						types.NewRule(types.KindWindowsDesktop, services.RW()),
 					},
+				},
+			})
+	case types.RoleDiscovery:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV5{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					Rules: []types.Rule{
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindNode, services.RO()),
+						types.NewRule(types.KindKubernetesCluster, services.RW()),
+					},
+					// wildcard any cluster available.
+					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				},
 			})
 	}

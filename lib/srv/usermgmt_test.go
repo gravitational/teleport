@@ -23,13 +23,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 type testHostUserBackend struct {
@@ -250,7 +251,7 @@ func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
 		for _, group := range user.groups {
 			mgmt.CreateGroup(group)
 		}
-		if utils.SliceContainsStr(user.groups, types.TeleportServiceGroup) {
+		if slices.Contains(user.groups, types.TeleportServiceGroup) {
 			users.CreateUser(user.user, &services.HostUsersInfo{Groups: user.groups})
 		} else {
 			mgmt.CreateUser(user.user, user.groups)

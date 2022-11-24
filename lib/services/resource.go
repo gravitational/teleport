@@ -153,8 +153,12 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindRemoteCluster, nil
 	case types.KindSemaphore, "semaphores", "sem", "sems":
 		return types.KindSemaphore, nil
+	case types.KindKubernetesCluster, "kube_clusters":
+		return types.KindKubernetesCluster, nil
 	case types.KindKubeService, "kube_services":
 		return types.KindKubeService, nil
+	case types.KindKubeServer, "kube_servers":
+		return types.KindKubeServer, nil
 	case types.KindLock, "locks":
 		return types.KindLock, nil
 	case types.KindDatabaseServer:
@@ -171,6 +175,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindWindowsDesktop, nil
 	case types.KindToken, "tokens":
 		return types.KindToken, nil
+	case types.KindInstaller:
+		return types.KindInstaller, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -474,14 +480,14 @@ func init() {
 		if !ok {
 			return nil, trace.BadParameter("expected GithubConnector, got %T", resource)
 		}
-		bytes, err := MarshalGithubConnector(githubConnector, opts...)
+		bytes, err := marshalGithubConnector(githubConnector, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return bytes, nil
 	})
 	RegisterResourceUnmarshaler(types.KindGithubConnector, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
-		githubConnector, err := UnmarshalGithubConnector(bytes) // XXX: Does not support marshal options.
+		githubConnector, err := unmarshalGithubConnector(bytes) // XXX: Does not support marshal options.
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

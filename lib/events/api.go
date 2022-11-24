@@ -23,12 +23,12 @@ import (
 	"math"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -67,7 +67,7 @@ const (
 	EventNamespace = "namespace"
 
 	// SessionPrintEvent event happens every time a write occurs to
-	// temirnal I/O during a session
+	// terminal I/O during a session
 	SessionPrintEvent = "print"
 
 	// SessionPrintEventBytes says how many bytes have been written into the session
@@ -395,6 +395,10 @@ const (
 	// AppSessionRequestEvent is an HTTP request and response.
 	AppSessionRequestEvent = "app.session.request"
 
+	// AppSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
+	// a request via app access session.
+	AppSessionDynamoDBRequestEvent = "app.session.dynamodb.request"
+
 	// DatabaseCreateEvent is emitted when a database resource is created.
 	DatabaseCreateEvent = "db.create"
 	// DatabaseUpdateEvent is emitted when a database resource is updated.
@@ -481,8 +485,21 @@ const (
 	// RPC request command.
 	DatabaseSessionSQLServerRPCRequestEvent = "db.session.sqlserver.rpc_request"
 
+	// DatabaseSessionElasticsearchRequestEvent is emitted when Elasticsearch client sends
+	// a generic request.
+	DatabaseSessionElasticsearchRequestEvent = "db.session.elasticsearch.request"
+
 	// DatabaseSessionMalformedPacketEvent is emitted when SQL packet is malformed.
 	DatabaseSessionMalformedPacketEvent = "db.session.malformed_packet"
+
+	// DatabaseSessionCassandraBatchEvent is emitted when a Cassandra client executes a batch of queries.
+	DatabaseSessionCassandraBatchEvent = "db.session.cassandra.batch"
+	// DatabaseSessionCassandraPrepareEvent is emitted when a Cassandra client sends prepare packet.
+	DatabaseSessionCassandraPrepareEvent = "db.session.cassandra.prepare"
+	// DatabaseSessionCassandraExecuteEvent is emitted when a Cassandra client sends executed packet.
+	DatabaseSessionCassandraExecuteEvent = "db.session.cassandra.execute"
+	// DatabaseSessionCassandraRegisterEvent is emitted when a Cassandra client sends the register packet.
+	DatabaseSessionCassandraRegisterEvent = "db.session.cassandra.register"
 
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
@@ -498,6 +515,13 @@ const (
 	// KubeRequestEvent fires when a proxy handles a generic kubernetes
 	// request.
 	KubeRequestEvent = "kube.request"
+
+	// KubernetesClusterCreateEvent is emitted when a kubernetes cluster resource is created.
+	KubernetesClusterCreateEvent = "kube.create"
+	// KubernetesClusterUpdateEvent is emitted when a kubernetes cluster resource is updated.
+	KubernetesClusterUpdateEvent = "kube.update"
+	// KubernetesClusterDeleteEvent is emitted when a kubernetes cluster resource is deleted.
+	KubernetesClusterDeleteEvent = "kube.delete"
 
 	// MFADeviceAddEvent is an event type for users adding MFA devices.
 	MFADeviceAddEvent = "mfa.add"
@@ -539,10 +563,26 @@ const (
 	// DesktopClipboardSendEvent is emitted when local clipboard data
 	// is sent to Teleport.
 	DesktopClipboardSendEvent = "desktop.clipboard.send"
-
+	// DesktopSharedDirectoryStartEvent is emitted when when Teleport
+	// successfully begins sharing a new directory to a remote desktop.
+	DesktopSharedDirectoryStartEvent = "desktop.directory.share"
+	// DesktopSharedDirectoryReadEvent is emitted when data is read from a shared directory.
+	DesktopSharedDirectoryReadEvent = "desktop.directory.read"
+	// DesktopSharedDirectoryWriteEvent is emitted when data is written to a shared directory.
+	DesktopSharedDirectoryWriteEvent = "desktop.directory.write"
 	// UpgradeWindowStartUpdateEvent is emitted when the upgrade window start time
 	// is updated. Used only for teleport cloud.
 	UpgradeWindowStartUpdateEvent = "upgradewindowstart.update"
+
+	// SessionRecordingAccessEvent is emitted when a session recording is accessed
+	SessionRecordingAccessEvent = "session.recording.access"
+
+	// SSMRunEvent is emitted when a run of an install script
+	// completes on a discovered EC2 node
+	SSMRunEvent = "ssm.run"
+
+	// DeviceEvent is the catch-all event for Device Trust events.
+	DeviceEvent = "device"
 
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
@@ -578,6 +618,9 @@ type ServerMetadataGetter interface {
 
 	// GetClusterName returns the originating teleport cluster name
 	GetClusterName() string
+
+	// GetForwardedBy returns the ID of the server that forwarded this event.
+	GetForwardedBy() string
 }
 
 // ServerMetadataSetter represents interface
@@ -719,10 +762,7 @@ type IAuditLog interface {
 	// Returns all events that happen during a session sorted by time
 	// (oldest first).
 	//
-	// after tells to use only return events after a specified cursor Id
-	//
-	// This function is usually used in conjunction with GetSessionReader to
-	// replay recorded session streams.
+	// after is used to return events after a specified cursor ID
 	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error)
 
 	// SearchEvents is a flexible way to find events.

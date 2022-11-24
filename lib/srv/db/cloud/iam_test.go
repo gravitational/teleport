@@ -22,23 +22,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/common"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
-
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	clients "github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestAWSIAM tests RDS, Aurora and Redshift IAM auto-configuration.
@@ -99,6 +96,15 @@ func TestAWSIAM(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	rdsProxy, err := types.NewDatabaseV3(types.Metadata{
+		Name: "rds-proxy",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost",
+		AWS:      types.AWS{Region: "localhost", AccountID: "1234567890", RDSProxy: types.RDSProxy{Name: "rds-proxy", ResourceID: "rds-proxy-resource-id"}},
+	})
+	require.NoError(t, err)
+
 	redshiftDatabase, err := types.NewDatabaseV3(types.Metadata{
 		Name: "redshift",
 	}, types.DatabaseSpecV3{
@@ -128,7 +134,7 @@ func TestAWSIAM(t *testing.T) {
 	}
 	configurator, err := NewIAM(ctx, IAMConfig{
 		AccessPoint: &mockAccessPoint{},
-		Clients: &common.TestCloudClients{
+		Clients: &clients.TestCloudClients{
 			RDS:      rdsClient,
 			Redshift: redshiftClient,
 			STS:      stsClient,
@@ -179,6 +185,22 @@ func TestAWSIAM(t *testing.T) {
 		require.NotContains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
 	})
 
+	t.Run("RDS Proxy", func(t *testing.T) {
+		// Configure RDS Proxy database and make sure IAM was enabled and policy was attached.
+		err = configurator.Setup(ctx, rdsProxy)
+		require.NoError(t, err)
+		waitForTaskProcessed(t)
+		policy := iamClient.attachedRolePolicies["test-role"][policyName]
+		require.Contains(t, policy, rdsProxy.GetAWS().RDSProxy.ResourceID)
+
+		// Deconfigure RDS Proxy database, policy should get detached.
+		err = configurator.Teardown(ctx, rdsProxy)
+		require.NoError(t, err)
+		waitForTaskProcessed(t)
+		policy = iamClient.attachedRolePolicies["test-role"][policyName]
+		require.NotContains(t, policy, rdsProxy.GetAWS().RDSProxy.ResourceID)
+	})
+
 	t.Run("Redshift", func(t *testing.T) {
 		// Configure Redshift database and make sure policy was attached.
 		err = configurator.Setup(ctx, redshiftDatabase)
@@ -218,7 +240,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 	// Make configurator.
 	configurator, err := NewIAM(ctx, IAMConfig{
 		AccessPoint: &mockAccessPoint{},
-		Clients:     &common.TestCloudClients{}, // placeholder,
+		Clients:     &clients.TestCloudClients{}, // placeholder,
 		HostID:      "host-id",
 	})
 	require.NoError(t, err)
@@ -226,12 +248,12 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 	tests := []struct {
 		name    string
 		meta    types.AWS
-		clients common.CloudClients
+		clients clients.Clients
 	}{
 		{
 			name: "RDS database",
 			meta: types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				RDS: &RDSMockUnauth{},
 				IAM: &IAMErrorMock{
 					Error: trace.AccessDenied("unauthorized"),
@@ -242,7 +264,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 		{
 			name: "Aurora cluster",
 			meta: types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				RDS: &RDSMockUnauth{},
 				IAM: &IAMErrorMock{
 					Error: trace.AccessDenied("unauthorized"),
@@ -253,7 +275,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 		{
 			name: "Redshift cluster",
 			meta: types.AWS{Region: "localhost", AccountID: "1234567890", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				Redshift: &RedshiftMockUnauth{},
 				IAM: &IAMErrorMock{
 					Error: trace.AccessDenied("unauthorized"),
@@ -264,7 +286,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 		{
 			name: "IAM UnmodifiableEntityException",
 			meta: types.AWS{Region: "localhost", AccountID: "1234567890", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				Redshift: &RedshiftMockUnauth{},
 				IAM: &IAMErrorMock{
 					Error: awserr.New(iam.ErrCodeUnmodifiableEntityException, "unauthorized", fmt.Errorf("unauthorized")),
@@ -302,54 +324,6 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
-}
-
-// DELETE IN 11.0.
-func TestAWSIAMDeleteOldPolicy(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	// Configure mocks.
-	stsClient := &STSMock{
-		ARN: "arn:aws:iam::1234567890:role/test-role",
-	}
-
-	iamClient := &IAMMock{
-		attachedRolePolicies: map[string]map[string]string{
-			"test-role": map[string]string{
-				"teleport-host-id":                 "old policy",
-				"cluster.local" + policyNameSuffix: "new policy",
-			},
-		},
-	}
-
-	fakeClock := clockwork.NewFakeClock()
-
-	// Make configurator.
-	configurator, err := NewIAM(ctx, IAMConfig{
-		Clock:       fakeClock,
-		AccessPoint: &mockAccessPoint{},
-		Clients: &common.TestCloudClients{
-			STS: stsClient,
-			IAM: iamClient,
-		},
-		HostID: "host-id",
-	})
-	require.NoError(t, err)
-	require.NoError(t, configurator.Start(ctx))
-
-	isPolicyDeleted := func() bool {
-		// Advance in periodic check to make sure Advance happens after
-		// Clock.Sleep in deleteOldPolicy goroutine.
-		fakeClock.Advance(time.Hour)
-
-		_, err = iamClient.GetRolePolicyWithContext(ctx, &iam.GetRolePolicyInput{
-			RoleName:   aws.String("test-role"),
-			PolicyName: aws.String("teleport-host-id"),
-		})
-		return trace.IsNotFound(awslib.ConvertIAMError(err))
-	}
-	require.Eventually(t, isPolicyDeleted, 2*time.Second, 100*time.Millisecond)
 }
 
 // mockAccessPoint is a mock for auth.DatabaseAccessPoint.

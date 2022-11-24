@@ -22,7 +22,6 @@ This guide will help you to:
 <ScopedBlock scope={["oss", "enterprise"]}>
   ![Teleport Database Access Snowflake Self-Hosted](../../../img/database-access/guides/snowflake_selfhosted.png)
 </ScopedBlock>
-
 <ScopedBlock scope={["cloud"]}>
   ![Teleport Database Access Snowflake Cloud](../../../img/database-access/guides/snowflake_cloud.png)
 </ScopedBlock>
@@ -65,8 +64,8 @@ Install Teleport on the host where you will run the Teleport Database Service:
   --token=/tmp/token \
   --auth-server=teleport.example.com:3080 \
   --name=example-snowflake \
-  --protocol=Snowflake \
-  --uri=https://abc123.us-east-2.aws.snowflakecomputing.com \
+  --protocol=snowflake \
+  --uri=https://abc12345.snowflakecomputing.com \
   --labels=env=dev
   ```
 
@@ -89,8 +88,8 @@ Install Teleport on the host where you will run the Teleport Database Service:
   --token=/tmp/token \
   --auth-server=mytenant.teleport.sh:443 \
   --name=example-snowflake \
-  --protocol=Snowflake \
-  --uri=Snowflakes://Snowflake.example.com:6379 \
+  --protocol=snowflake \
+  --uri=https://abc12345.snowflakecomputing.com \
   --labels=env=dev
   ```
 
@@ -125,9 +124,7 @@ Use the public key you generated earlier to enable key pair authentication.
 Log in to your Snowflake instance and execute the SQL statement below:
 
 ```sql
-alter user alice set rsa_public_key='MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAv3dHYw4LJCcZzdbhb3hV
-...
-LwIDAQAB';
+alter user alice set rsa_public_key='MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAv3dHYw4LJCcZzdbhb3hV...LwIDAQAB';
 ```
 
 In this statement, `alice` is the name of the Snowflake user and the `rsa_public_key` is the key generated earlier without
@@ -167,28 +164,17 @@ Log in to your Teleport cluster and see the available databases:
   </TabItem>
 </Tabs>
 
-To connect to a particular database instance, first retrieve its certificate
-using the `tsh db login` command:
-
-```code
-$ tsh db login example-snowflake
-```
-
-<Admonition type="tip" title="Tip">
-  You can be logged into multiple databases simultaneously.
-</Admonition>
-
-You can optionally specify the user to use by default
-when connecting to the database instance:
-
-```code
-$ tsh db login --db-user=alice example-snowflake
-```
-
-Once logged in, connect to the database:
+To retrieve credentials for a database and connect to it:
 
 ```code
 $ tsh db connect example-snowflake
+```
+
+You can optionally specify the database user and the database name to use by
+default when connecting to the database instance:
+
+```code
+$ tsh db connect --db-user=alice --db-name=SNOWFLAKE_SAMPLE_DATA example-snowflake
 ```
 
 The `snowsql` command-line client should be available in the system `PATH` in order to be

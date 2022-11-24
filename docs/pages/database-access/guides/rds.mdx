@@ -13,8 +13,6 @@ This guide will help you to:
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access RDS Self-Hosted](../../../img/database-access/guides/rds_selfhosted.png)
 </ScopedBlock>
-
-
 <ScopedBlock scope={["cloud"]}>
 ![Teleport Database Access RDS Cloud](../../../img/database-access/guides/rds_cloud.png)
 </ScopedBlock>
@@ -185,29 +183,21 @@ $ tsh db ls
   Primary, reader, and custom endpoints of Aurora clusters have names of
   `<cluster-id>`, `<cluster-id>-reader`, and
   `<cluster-id>-custom-<endpoint-name>` respectively.
+
+  You can override the `<cluster-id>` part of the name with `teleport.dev/database_name` AWS tag.
 </Admonition>
 
-Log in to particular database using `tsh db login` command:
+To retrieve credentials for a database and connect to it:
 
 ```code
-$ tsh db login postgres-rds
+$ tsh db connect postgres-rds
 ```
-
-<Admonition type="tip" title="Tip">
-  You can be logged in to multiple databases simultaneously.
-</Admonition>
 
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
 ```code
-$ tsh db login --db-user=postgres --db-name=postgres postgres-rds
-```
-
-Now connect to the database:
-
-```code
-$ tsh db connect postgres-rds
+$ tsh db connect --db-user=postgres --db-name=postgres postgres-rds
 ```
 
 <Admonition type="note" title="Note">
@@ -220,6 +210,10 @@ To log out of the database and remove credentials:
 ```code
 $ tsh db logout postgres-rds
 ```
+
+## Troubleshooting
+
+(!docs/pages/includes/database-access/aws-troubleshooting.mdx!)
 
 ## Next steps
 

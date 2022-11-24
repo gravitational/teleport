@@ -18,11 +18,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/gravitational/trace"
 )
 
 // DbcmdCLICommandProvider provides CLI commands for database gateways. It needs Storage to read
@@ -57,13 +57,13 @@ func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (string, e
 	}
 
 	cmd, err := dbcmd.NewCmdBuilder(cluster.clusterClient, &cluster.status, &routeToDb,
-		// TODO(ravicious): Pass the root cluster name here. GetActualName returns leaf name for leaf
+		// TODO(ravicious): Pass the root cluster name here. cluster.Name returns leaf name for leaf
 		// clusters.
 		//
 		// At this point it doesn't matter though because this argument is used only for
 		// generating correct CA paths. We use dbcmd.WithNoTLS here which means that the CA paths aren't
 		// included in the returned CLI command.
-		cluster.GetActualName(),
+		cluster.Name,
 		dbcmd.WithLogger(gateway.Log()),
 		dbcmd.WithLocalProxy(gateway.LocalAddress(), gateway.LocalPortInt(), ""),
 		dbcmd.WithNoTLS(),

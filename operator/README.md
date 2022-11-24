@@ -82,7 +82,7 @@ If it's a creation/modification:
 If you don't have a cluster yet, you can start one by using the [minikube](https://minikube.sigs.k8s.io/docs/start/) tool.
 
 #### Operator's docker image
-You can obtain the docker image by pulling from `quay.io/gravitational/teleport`
+You can obtain the docker image by pulling from `public.ecr.aws/gravitational/teleport`
 
 #### HELM chart from Teleport with the operator
 The [teleport-cluster Helm chart](../examples/chart/teleport-cluster) supports deploying the operator alongside teleport.

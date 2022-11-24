@@ -118,21 +118,14 @@ func (t *teleportService) waitForStart(ctx context.Context) error {
 
 func (t *teleportService) waitForReady(ctx context.Context) error {
 	t.log.Debugf("Waiting for %s to be ready", t.name)
-	eventChannel := make(chan service.Event)
-	t.process.WaitForEvent(ctx, service.TeleportReadyEvent, eventChannel)
-	select {
-	case <-eventChannel:
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err(), "timed out waiting for %s to be ready", t.name)
+	if _, err := t.process.WaitForEvent(ctx, service.TeleportReadyEvent); err != nil {
+		return trace.Wrap(err, "timed out waiting for %s to be ready", t.name)
 	}
 	// also wait for AuthIdentityEvent so that we can read the admin credentials
 	// and create a test client
 	if t.process.GetAuthServer() != nil {
-		t.process.WaitForEvent(ctx, service.AuthIdentityEvent, eventChannel)
-		select {
-		case <-eventChannel:
-		case <-ctx.Done():
-			return trace.Wrap(ctx.Err(), "timed out waiting for %s auth identity event", t.name)
+		if _, err := t.process.WaitForEvent(ctx, service.AuthIdentityEvent); err != nil {
+			return trace.Wrap(err, "timed out waiting for %s auth identity event", t.name)
 		}
 		t.log.Debugf("%s is ready", t.name)
 	}
@@ -187,7 +180,11 @@ func (t *teleportService) waitForLocalAdditionalKeys(ctx context.Context) error 
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if t.process.GetAuthServer().GetKeyStore().HasLocalAdditionalKeys(ca) {
+		hasUsableKeys, err := t.process.GetAuthServer().GetKeyStore().HasUsableAdditionalKeys(ctx, ca)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if hasUsableKeys {
 			break
 		}
 	}
@@ -197,12 +194,8 @@ func (t *teleportService) waitForLocalAdditionalKeys(ctx context.Context) error 
 
 func (t *teleportService) waitForPhaseChange(ctx context.Context) error {
 	t.log.Debugf("Waiting for %s to change phase", t.name)
-	eventC := make(chan service.Event, 1)
-	t.process.WaitForEvent(ctx, service.TeleportPhaseChangeEvent, eventC)
-	select {
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err(), "timed out waiting for %s to change phase", t.name)
-	case <-eventC:
+	if _, err := t.process.WaitForEvent(ctx, service.TeleportPhaseChangeEvent); err != nil {
+		return trace.Wrap(err, "timed out waiting for %s to change phase", t.name)
 	}
 	t.log.Debugf("%s changed phase", t.name)
 	return nil
@@ -264,7 +257,7 @@ func newHSMAuthConfig(ctx context.Context, t *testing.T, storageConfig *backend.
 		ClusterName: "testcluster",
 	})
 	require.NoError(t, err)
-	config.AuthServers = append(config.AuthServers, config.Auth.ListenAddr)
+	config.SetAuthServerAddress(config.Auth.ListenAddr)
 	config.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{
 			{
@@ -289,7 +282,7 @@ func newProxyConfig(ctx context.Context, t *testing.T, authAddr utils.NetAddr, l
 
 	config := service.MakeDefaultConfig()
 	config.PollingPeriod = 1 * time.Second
-	config.Token = "foo"
+	config.SetToken("foo")
 	config.SSH.Enabled = false
 	config.Auth.Enabled = false
 	config.Proxy.Enabled = true
@@ -302,7 +295,7 @@ func newProxyConfig(ctx context.Context, t *testing.T, authAddr utils.NetAddr, l
 	config.PollingPeriod = 1 * time.Second
 	config.ShutdownTimeout = time.Minute
 	config.DataDir = t.TempDir()
-	config.AuthServers = append(config.AuthServers, authAddr)
+	config.SetAuthServerAddress(authAddr)
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	config.Log = log
 	return config
@@ -313,7 +306,7 @@ func etcdBackendConfig(t *testing.T) *backend.Config {
 	cfg := &backend.Config{
 		Type: "etcd",
 		Params: backend.Params{
-			"peers":         []string{"https://127.0.0.1:2379"},
+			"peers":         []string{etcdTestEndpoint()},
 			"prefix":        prefix,
 			"tls_key_file":  "../../examples/etcd/certs/client-key.pem",
 			"tls_cert_file": "../../examples/etcd/certs/client-cert.pem",
@@ -328,6 +321,15 @@ func etcdBackendConfig(t *testing.T) *backend.Config {
 			"failed to clean up etcd backend")
 	})
 	return cfg
+}
+
+// etcdTestEndpoint returns etcd host used in tests.
+func etcdTestEndpoint() string {
+	host := os.Getenv("TELEPORT_ETCD_TEST_ENDPOINT")
+	if host != "" {
+		return host
+	}
+	return "https://127.0.0.1:2379"
 }
 
 func liteBackendConfig(t *testing.T) *backend.Config {
@@ -354,7 +356,7 @@ func TestHSMRotation(t *testing.T) {
 	authConfig := newHSMAuthConfig(ctx, t, liteBackendConfig(t), log)
 	auth1 := newTeleportService(t, authConfig, "auth1")
 	t.Cleanup(func() {
-		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(nil))
+		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil))
 	})
 	teleportServices := TeleportServices{auth1}
 
@@ -421,7 +423,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	auth1Config := newHSMAuthConfig(ctx, t, storageConfig, log)
 	auth1 := newTeleportService(t, auth1Config, "auth1")
 	t.Cleanup(func() {
-		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(nil),
+		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil),
 			"failed to delete hsm keys during test cleanup")
 	})
 	authServices := TeleportServices{auth1}
@@ -454,7 +456,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	auth2 := newTeleportService(t, auth2Config, "auth2")
 	require.NoError(t, auth2.waitForStart(ctx))
 	t.Cleanup(func() {
-		require.NoError(t, auth2.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(nil))
+		require.NoError(t, auth2.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil))
 	})
 	authServices = append(authServices, auth2)
 	teleportServices = append(teleportServices, auth2)

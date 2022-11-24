@@ -20,10 +20,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/defaults"
 )
 
 // ClusterNetworkingConfig defines cluster networking configuration. This is
@@ -100,6 +100,12 @@ type ClusterNetworkingConfig interface {
 
 	// SetTunnelStrategy sets the tunnel strategy.
 	SetTunnelStrategy(*TunnelStrategyV1)
+
+	// GetProxyPingInterval gets the proxy ping interval.
+	GetProxyPingInterval() time.Duration
+
+	// SetProxyPingInterval sets the proxy ping interval.
+	SetProxyPingInterval(time.Duration)
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
@@ -351,6 +357,16 @@ func (c *ClusterNetworkingConfigV2) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// GetProxyPingInterval gets the proxy ping interval.
+func (c *ClusterNetworkingConfigV2) GetProxyPingInterval() time.Duration {
+	return c.Spec.ProxyPingInterval.Duration()
+}
+
+// SetProxyPingInterval sets the proxy ping interval.
+func (c *ClusterNetworkingConfigV2) SetProxyPingInterval(interval time.Duration) {
+	c.Spec.ProxyPingInterval = Duration(interval)
 }
 
 // MarshalYAML defines how a proxy listener mode should be marshaled to a string

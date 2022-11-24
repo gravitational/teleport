@@ -23,9 +23,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
 	libsecrets "github.com/gravitational/teleport/lib/srv/db/secrets"
 	libutils "github.com/gravitational/teleport/lib/utils"
@@ -109,7 +109,7 @@ func (f *elastiCacheFetcher) getManagedUsersForGroup(ctx context.Context, region
 	managedUsers := []*elasticache.User{}
 	for _, user := range allUsers {
 		// Match user group ID.
-		if !utils.SliceContainsStr(aws.StringValueSlice(user.UserGroupIds), userGroupID) {
+		if !slices.Contains(aws.StringValueSlice(user.UserGroupIds), userGroupID) {
 			continue
 		}
 
@@ -137,8 +137,8 @@ func (f *elastiCacheFetcher) getManagedUsersForGroup(ctx context.Context, region
 
 // getUsersForRegion discovers all ElastiCache users for provided region.
 func (f *elastiCacheFetcher) getUsersForRegion(ctx context.Context, region string, client elasticacheiface.ElastiCacheAPI) ([]*elasticache.User, error) {
-	getFunc := func(ctx context.Context) (interface{}, error) {
-		users := []*elasticache.User{}
+	getFunc := func(ctx context.Context) ([]*elasticache.User, error) {
+		var users []*elasticache.User
 		err := client.DescribeUsersPagesWithContext(ctx, &elasticache.DescribeUsersInput{}, func(output *elasticache.DescribeUsersOutput, _ bool) bool {
 			users = append(users, output.Users...)
 			return true
@@ -149,16 +149,16 @@ func (f *elastiCacheFetcher) getUsersForRegion(ctx context.Context, region strin
 		return users, nil
 	}
 
-	users, err := f.cache.Get(ctx, region, getFunc)
+	users, err := libutils.FnCacheGet(ctx, f.cache, region, getFunc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return users.([]*elasticache.User), nil
+	return users, nil
 }
 
 // getUserTags discovers resource tags for provided user.
 func (f *elastiCacheFetcher) getUserTags(ctx context.Context, user *elasticache.User, client elasticacheiface.ElastiCacheAPI) ([]*elasticache.Tag, error) {
-	getFunc := func(ctx context.Context) (interface{}, error) {
+	getFunc := func(ctx context.Context) ([]*elasticache.Tag, error) {
 		output, err := client.ListTagsForResourceWithContext(ctx, &elasticache.ListTagsForResourceInput{
 			ResourceName: user.ARN,
 		})
@@ -168,11 +168,12 @@ func (f *elastiCacheFetcher) getUserTags(ctx context.Context, user *elasticache.
 		return output.TagList, nil
 	}
 
-	userTags, err := f.cache.Get(ctx, aws.StringValue(user.ARN), getFunc)
+	userTags, err := libutils.FnCacheGet(ctx, f.cache, aws.StringValue(user.ARN), getFunc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return userTags.([]*elasticache.Tag), nil
+
+	return userTags, nil
 }
 
 // createUser creates an ElastiCache User.

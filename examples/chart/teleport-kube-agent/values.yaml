@@ -2,14 +2,29 @@
 # Values that must always be provided by the user.
 ################################################################
 
-# Join token for the cluster.
-# Leave empty if the secret "teleport-kube-agent-join-token"
-# has been created before and contains a valid join token
+# Join token for the cluster. `joinParams` can also pass the join token,
+# but supports more join methods and takes precedence if set.
 authToken: ""
+
 # Address of the teleport proxy with port (usually :3080).
 proxyAddr: ""
 # Comma-separated list of roles to enable (any of: kube,db,app)
 roles: "kube"
+
+################################################################
+# Values that must be provided if IAM or EC2 joining is enabled.
+################################################################
+
+# Specify how to join the Teleport cluster
+joinParams:
+  # Supported join methods are "token", "ec2", "iam".
+  # method "token", is equivalent to using authToken to join a cluster
+  method: "token"
+
+  # Leave empty only when method is "token" and the secret
+  # "teleport-kube-agent-join-token" has been created before and
+  # contains a valid join token.
+  tokenName: ""
 
 ################################################################
 # Values that must be provided if Kubernetes access is enabled.
@@ -41,10 +56,10 @@ appResources: []
 # Values that must be provided if Database access is enabled.
 ################################################################
 
-# At least one of 'databases', 'awsDatabases' or 'databaseResources' must be provided
+# At least one of 'databases', 'awsDatabases', 'azureDatabases', or 'databaseResources' must be provided
 # when database access is enabled. See the README for more details.
 
-# Database auto-discovery mode (AWS only)
+# Database auto-discovery mode (AWS)
 # Details of at least one awsDatabase discovery pattern to be discovered
 # and proxied. Example:
 # awsDatabases:
@@ -53,6 +68,20 @@ appResources: []
 #   tags:
 #     "environment": "production"
 awsDatabases: []
+
+# Database auto-discovery mode (Azure)
+# Details of at least one azureDatabase discovery pattern to be discovered
+# and proxied. Example:
+# azureDatabases:
+# - types: ["mysql", "postgres"]
+#   tags:
+#     "environment": "production"
+#   regions: ["eastus", "centralus"]
+#   subscriptions: ["subID1", "subID2"]
+#   resource_groups: ["group1", "group2"]
+# Note that regions, subscriptions, and resource_groups are optional, and by default
+# the pattern for these selectors is ["*"] which will match all regions, subscriptions, or resource groups.
+azureDatabases: []
 
 # Manual database configuration mode
 # Details of at least one database to be proxied. Example:
@@ -89,6 +118,16 @@ caPin: []
 # certificate.
 insecureSkipProxyTLSVerify: false
 
+# Settings for mounting your own TLS material in the agent pod.
+# The agent does not expose a TLS server, so this is only used to trust CAs.
+tls:
+  # Name of an existing secret to use which contains a CA or trust bundle in x509 PEM format.
+  # This is useful to trust private CAs.
+  # This will automatically set the SSL_CERT_FILE environment variable to trust the CA.
+  # Create the secret with `kubectl create secret generic --from-file=ca.pem=/path/to/root-ca.pem`
+  # The filename inside the secret is important - it _must_ be ca.pem
+  existingCASecretName: ""
+
 # If set, will use an existing volume mounted via extraVolumes
 # as the Teleport data directory.
 # If anything is set under the "storage" key, this will be ignored.
@@ -96,6 +135,7 @@ existingDataVolume: ""
 
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
+# Note: the PSP won't be deployed if Kubernetes does not support the resource (Kubernetes >= 1.25)
 podSecurityPolicy:
   enabled: true
 
@@ -118,17 +158,14 @@ highAvailability:
     minAvailable: 1
 
 ################################################################
-# Values that must be provided if using persistent storage for Teleport state.
+# Values that must be provided if using persistent storage for Teleport.
 #
-# Assigning a persistent volume to Teleport agent allows the agent to store its security association with the Teleport
-# cluster for re-use when the pod is restarted. Without a persistent storage for this state, every time Teleport agent
-# starts it must use the authToken to create a new registration with the cluster. By using the persistent volume the
-# authToken can be routinely rotated without breaking agents' ability to restart, as the token is only used on the first
-# startup. When persistent volumes are enabled, the agent will be deployed as a StatefulSet instead of a Deployment to
-# Kubernetes.
+# Assigning a persistent volume to Teleport agent allows the agent to keep session recordings when the pod is restarted if `session_recording` is set to `node` or `proxy`. 
+# The security association between the agent and the Teleport is no longer stored in PV, instead it is stored in a Kubernetes Secret so that the agent does not require PV 
+# to survive restarts and rotations while using short-lived joining tokens.
 #
 # Fields:
-#   enabled: Set to true to enable the use of StatefulSets and Persistent volumes.
+#   enabled: Set to true to enable the use of Persistent volumes.
 #   storageClassName: The name of the kubernetes storage class to use when creating volumes. See https://kubernetes.io/docs/concepts/storage/storage-classes/
 #   requests: The size of the volume to request from the persistent storage system
 ################################################################
@@ -143,7 +180,7 @@ storage:
 
 # Container image for the agent. Since this runs without the auth_service, we
 # don't need the enterprise version.
-image: quay.io/gravitational/teleport
+image: public.ecr.aws/gravitational/teleport
 # Optional array of imagePullSecrets, to use when pulling from a private registry
 imagePullSecrets: []
 # - name: myRegistryKeySecretName
@@ -154,8 +191,22 @@ imagePullSecrets: []
 clusterRoleName: ""
 # (optional) Override the name of the ClusterRoleBinding used by the agent's service account.
 clusterRoleBindingName: ""
+# (optional) Override the name of the Role used by the agent's service account for Secret access.
+roleName: ""
+# (optional) Override the name of the RoleBinding used by the agent's service account.
+roleBindingName: ""
 # (optional) Override the name of the service account used by the agent.
+# DEPRECATED Use serviceAccount:name instead
 serviceAccountName: ""
+# (optional) Kubernetes service account to create/use.
+serviceAccount:
+  # Specifies whether a ServiceAccount should be created
+  create: true 
+  # The name of the ServiceAccount to use.
+  # If not set and serviceAccount.create is true, the name is generated using the release name.
+  # If create is false, the name will be used to reference an existing service account.
+  name: ""
+
 # Name of the Secret to store the teleport join token.
 secretName: teleport-kube-agent-join-token
 
@@ -196,6 +247,10 @@ extraLabels:
   clusterRole: {}
   # Labels for the Cluster Role Binding
   clusterRoleBinding: {}
+  # Labels for the  Role
+  role: {}
+  # Labels for the Role Binding
+  roleBinding: {}
   # Labels for the ConfigMap
   config: {}
   # Labels for the Deployment/StatefulSet
@@ -232,14 +287,14 @@ extraEnv: []
 # Extra volumes to mount into the Teleport pods
 # https://kubernetes.io/docs/concepts/storage/volumes/
 extraVolumes: []
-#- name: myvolume
-#  secret:
-#    secretName: testSecret
+# - name: myvolume
+#   secret:
+#     secretName: testSecret
 
 # Extra volume mounts corresponding to the volumes mounted above
 extraVolumeMounts: []
-#- name: myvolume
-#  mountPath: /path/on/host
+# - name: myvolume
+#   mountPath: /path/on/host
 
 # Allow the imagePullPolicy to be overridden
 imagePullPolicy: IfNotPresent
@@ -247,9 +302,9 @@ imagePullPolicy: IfNotPresent
 # A list of initContainers to run before each Teleport pod starts
 # https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
 initContainers: []
-#- name: "teleport-init"
-#  image: "alpine"
-#  args: ["echo test"]
+# - name: "teleport-init"
+#   image: "alpine"
+#   args: ["echo test"]
 
 # Resources to request for each pod in the deployment
 # https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/

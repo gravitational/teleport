@@ -17,14 +17,18 @@ limitations under the License.
 package resources
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 const (
+	ConditionReasonFailedToDecode         = "FailedToDecode"
 	ConditionReasonOriginLabelNotMatching = "OriginLabelNotMatching"
 	ConditionReasonOriginLabelMatching    = "OriginLabelMatching"
 	ConditionReasonNewResource            = "NewResource"
@@ -32,6 +36,7 @@ const (
 	ConditionReasonTeleportError          = "TeleportError"
 	ConditionTypeTeleportResourceOwned    = "TeleportResourceOwned"
 	ConditionTypeSuccessfullyReconciled   = "SuccessfullyReconciled"
+	ConditionTypeValidStructure           = "ValidStructure"
 )
 
 // isResourceOriginKubernetes reads a teleport resource metadata, searches for the origin label and checks its
@@ -42,8 +47,9 @@ func isResourceOriginKubernetes(resource types.Resource) bool {
 }
 
 // checkOwnership takes an existing resource and validates the operator owns it.
-// It returns an ownership condition and an error if the resource is not owned by the operator
-func checkOwnership(existingResource types.Resource) (metav1.Condition, error) {
+// It returns an ownership condition and a boolean representing if the resource is
+// owned by the operator
+func checkOwnership(existingResource types.Resource) (metav1.Condition, bool) {
 	if existingResource == nil {
 		condition := metav1.Condition{
 			Type:    ConditionTypeTeleportResourceOwned,
@@ -51,7 +57,7 @@ func checkOwnership(existingResource types.Resource) (metav1.Condition, error) {
 			Reason:  ConditionReasonNewResource,
 			Message: "No existing Teleport resource found with that name. The created resource is owned by the operator.",
 		}
-		return condition, nil
+		return condition, true
 	}
 	if !isResourceOriginKubernetes(existingResource) {
 		// Existing Teleport resource does not belong to us, bailing out
@@ -62,7 +68,7 @@ func checkOwnership(existingResource types.Resource) (metav1.Condition, error) {
 			Reason:  ConditionReasonOriginLabelNotMatching,
 			Message: "A resource with the same name already exists in Teleport and does not have the Kubernetes origin label. Refusing to reconcile.",
 		}
-		return condition, trace.AlreadyExists("unowned resource '%s' already exists", existingResource)
+		return condition, false
 	}
 
 	condition := metav1.Condition{
@@ -71,10 +77,13 @@ func checkOwnership(existingResource types.Resource) (metav1.Condition, error) {
 		Reason:  ConditionReasonOriginLabelMatching,
 		Message: "Teleport resource has the Kubernetes origin label.",
 	}
-	return condition, nil
+	return condition, true
 }
 
-func getReconciliationCondition(err error) metav1.Condition {
+// getReconciliationConditionFromError takes an error returned by a call to Teleport and returns a
+// metav1.Condition describing how the Teleport resource reconciliation went. This is used to provide feedback to
+// the user about the controller's ability to reconcile the resource.
+func getReconciliationConditionFromError(err error) metav1.Condition {
 	var condition metav1.Condition
 	if err == nil {
 		condition = metav1.Condition{
@@ -93,4 +102,34 @@ func getReconciliationCondition(err error) metav1.Condition {
 	}
 
 	return condition
+}
+
+// getStructureConditionFromError takes a conversion error from k8s apimachinery's runtime.UnstructuredConverter
+// and returns a metav1.Condition describing how the status conversion went. This is used to provide feedback to
+// the user about the controller's ability to reconcile the resource.
+func getStructureConditionFromError(err error) metav1.Condition {
+	if err != nil {
+		return metav1.Condition{
+			Type:    ConditionTypeValidStructure,
+			Status:  metav1.ConditionFalse,
+			Reason:  ConditionReasonFailedToDecode,
+			Message: fmt.Sprintf("Failed to decode Kubernetes CR: %s", err),
+		}
+	}
+	return metav1.Condition{
+		Type:    ConditionTypeValidStructure,
+		Status:  metav1.ConditionTrue,
+		Reason:  ConditionReasonNoError,
+		Message: "Kubernetes CR was successfully decoded.",
+	}
+}
+
+// silentUpdateStatus updates the resource status but swallows the error if the update fails.
+// This should be used when an error already happened, and we're going to re-run the reconciliation loop anyway.
+func silentUpdateStatus(ctx context.Context, client kclient.Client, k8sResource kclient.Object) {
+	log := ctrllog.FromContext(ctx)
+	statusErr := client.Status().Update(ctx, k8sResource)
+	if statusErr != nil {
+		log.Error(statusErr, "failed to report error in status conditions")
+	}
 }

@@ -1,5 +1,7 @@
 #!/bin/bash
-set -x
+if [[ "${DEBUG:-false}" == "true" ]]; then
+    set -x
+fi
 
 # Update packages
 yum -y update
@@ -15,17 +17,17 @@ amazon-linux-extras install nginx1
 CURL_OPTS="-L --retry 100 --retry-delay 0 --connect-timeout 10 --max-time 300"
 
 # Install telegraf to collect stats from influx
-curl ${CURL_OPTS} -o /tmp/telegraf.rpm https://dl.influxdata.com/telegraf/releases/telegraf-${TELEGRAF_VERSION}-1.x86_64.rpm
+curl ${CURL_OPTS} -o /tmp/telegraf.rpm "https://dl.influxdata.com/telegraf/releases/telegraf-${TELEGRAF_VERSION}-1.x86_64.rpm"
 yum install -y /tmp/telegraf.rpm
 rm -f /tmp/telegraf.rpm
 
 # Install grafana
-curl ${CURL_OPTS} -o /tmp/grafana.rpm https://s3-us-west-2.amazonaws.com/grafana-releases/release/grafana-${GRAFANA_VERSION}-1.x86_64.rpm
+curl ${CURL_OPTS} -o /tmp/grafana.rpm "https://dl.grafana.com/oss/release/grafana-${GRAFANA_VERSION}-1.x86_64.rpm"
 yum install -y /tmp/grafana.rpm
 rm -f /tmp/grafana.rpm
 
 # Install InfluxDB
-curl $CURL_OPTS -o /tmp/influxdb.rpm https://dl.influxdata.com/influxdb/releases/influxdb-${INFLUXDB_VERSION}.x86_64.rpm
+curl $CURL_OPTS -o /tmp/influxdb.rpm "https://dl.influxdata.com/influxdb/releases/influxdb-${INFLUXDB_VERSION}.x86_64.rpm"
 yum install -y /tmp/influxdb.rpm
 rm -f /tmp/influxdb.rpm
 

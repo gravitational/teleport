@@ -7,7 +7,7 @@ Common issues and resolution steps.
 
 ## Auto-login does not work
 
-### Smart Card Service Not Running
+### Smart card service not running
 
 You connect to a Windows host from the Teleport UI, land on the Windows login
 screen and nothing happens.
@@ -22,7 +22,7 @@ Usually, this means that the Smart Card service is not running on the target
 host.
 
 First, make sure that you [enable the Smart Card service in Group
-Policy](./getting-started.mdx#enable-the-smart-card-service).
+Policy](./manual-setup.mdx#enable-the-smart-card-service).
 
 If that doesn't help, log into the target host directly, open the "Services"
 program from the "Start" menu and check that the "Smart Card" service is in the
@@ -32,7 +32,7 @@ If the "Smart Card" service is not running, open PowerShell and run
 `gpupdate.exe /force`. This forces a Group Policy sync and should pick up the
 service changes.
 
-### Smart Card Certificate Not Trusted
+### Smart card certificate not trusted
 
 You connect to a Windows host from the Teleport UI, land on the Windows login
 screen and see an error message: **"The smartcard certificate used for
@@ -43,7 +43,7 @@ authentication was not trusted"** (or similar).
 This means that the host does not trust the Teleport CA.
 
 First, make sure that you [import the Teleport CA into Group
-Policy](./getting-started.mdx#create-another-gpo-and-import-the-teleport-ca). Note that if the
+Policy](./manual-setup.mdx#create-another-gpo-and-import-the-teleport-ca). Note that if the
 Teleport CA was rotated since the last import, you will have to fetch the
 new CA using the following command:
 
@@ -74,9 +74,9 @@ the new CA.
 
 ## New session "hangs"
 
-### Host Unreachable
+### Host unreachable
 
-You click `CONNECT` on a Windows host from the Teleport UI, a new tab opens but
+You click `CONNECT` on a Windows host from the Teleport UI, and a new tab opens, but
 nothing is displayed other than the top bar. After a while, an error is
 displayed about a failed connection.
 
@@ -86,16 +86,16 @@ This happens when the `windows_desktop_service` can't reach the target Windows
 host.
 
 First, make sure that you [open the RDP
-port](./getting-started.mdx#open-firewall-to-inbound-rdp-connections) and [allow
+port](./manual-setup.mdx#open-firewall-to-inbound-rdp-connections) and [allow
 remote RDP connections in Group
-Policy](./getting-started.mdx#allow-remote-rdp-connections).
+Policy](./manual-setup.mdx#allow-remote-rdp-connections).
 
 If that does not help, check if the target host is online and try to `ping` it
 from the Linux server that runs `windows_desktop_service`. If the host is
 online but not reachable, there is some other networking barrier in the way,
 specific to your infrastructure.
 
-### Hostname Does Not Resolve
+### Hostname does not resolve
 
 Connections to Windows Desktops hang during connection establishment, or the
 Teleport debug logs show errors of the form
@@ -111,9 +111,26 @@ Ensure that your firewalls allow inbound DNS traffic on port `53` from the
 instance(s) running Teleport's Windows Desktop Service to the LDAP server
 (Active Directory Domain Controller).
 
+### RDP connection failed
+
+You click `CONNECT` on a Windows host from the Teleport UI, a new tab opens but
+nothing is displayed other than the top bar. You see an error that refers to a
+failed RDP connection. You may also see errors similar to:
+
+```text
+Rdp(Io(Os { code: 54, kind: ConnectionReset, message: "Connection reset by peer" }))
+```
+
+**Solution:** Configure a certificate for RDP connections
+
+This means that the desktop does not support secure cipher suites for TLS
+connections.
+
+Make sure that you [configure a certificate for RDP connections](./manual-setup.mdx#step-47-configure-a-certificate-for-rdp-connections).
+
 ## Teleport fails to start
 
-### Incorrect Domain
+### Incorrect domain
 
 Teleport fails to start with an error similar to:
 
@@ -128,7 +145,7 @@ LDAP Result Code 10 "Referral": 0000202B: RefErr: DSID-0310082F, data 0, 1 acces
 This means that your domain name is likely wrong. Double-check the `domain`
 field in the `ldap` section of `windows_desktop_service`.
 
-### Domain Controller Unreachable
+### Domain controller unreachable
 
 Teleport fails to start with an error similar to:
 
@@ -143,7 +160,7 @@ This means that your Domain Controller is down or unreachable. Double-check the
 correct, check that the Domain Controller is up and reachable from the server
 that runs `windows_desktop_service`.
 
-### Cannot Initialize LDAP over TLS
+### Cannot initialize LDAP over TLS
 
 Teleport fails to connect to LDAP on startup. You may see errors similar to:
 
@@ -194,7 +211,7 @@ following command, modifying the DN for your domain (in this command we use a
 domain of example.com)
 
 ```
-$ certutil -viewstore "ldap:///CN=NTAuthCertificates,CN=Public Key Services,CN=Configuration,DC=example,DC=com?caCertificate"
+$ certutil -viewstore "ldap:///CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com?caCertificate"
 ```
 
 You should see a popup window that shows the Teleport CA certificate. If the
@@ -236,4 +253,4 @@ Teleport currently requires that NLA is disabled in order to perform its
 certificate-based passwordless login.
 
 To disable NLA, follow the instructions in our
-[Getting Started Guide](./getting-started.mdx#allow-remote-rdp-connections).
+[Getting Started Guide](./manual-setup.mdx#allow-remote-rdp-connections).

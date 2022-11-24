@@ -27,8 +27,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+	saml2 "github.com/russellhaering/gosaml2"
+	samltypes "github.com/russellhaering/gosaml2/types"
+	"github.com/stretchr/testify/require"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -36,11 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/jonboulle/clockwork"
-	saml2 "github.com/russellhaering/gosaml2"
-	samltypes "github.com/russellhaering/gosaml2/types"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCreateSAMLUser(t *testing.T) {
@@ -65,17 +66,25 @@ func TestCreateSAMLUser(t *testing.T) {
 		Backend:                b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
+		},
 	}
 
 	a, err := NewServer(authConfig)
 	require.NoError(t, err)
 
+	sas, ok := a.samlAuthService.(*SAMLAuthService)
+	require.True(t, ok, "Server.samlAuthServer is not type *samlAuthServer")
+
 	// Dry-run creation of SAML user.
-	user, err := a.createSAMLUser(&createUserParams{
-		connectorName: "samlService",
-		username:      "foo@example.com",
-		roles:         []string{"admin"},
-		sessionTTL:    1 * time.Minute,
+	user, err := sas.createSAMLUser(&CreateUserParams{
+		ConnectorName: "samlService",
+		Username:      "foo@example.com",
+		Roles:         []string{"admin"},
+		SessionTTL:    1 * time.Minute,
 	}, true)
 	require.NoError(t, err)
 	require.Equal(t, "foo@example.com", user.GetName())
@@ -85,11 +94,11 @@ func TestCreateSAMLUser(t *testing.T) {
 	require.Error(t, err)
 
 	// Create SAML user with 1 minute expiry.
-	_, err = a.createSAMLUser(&createUserParams{
-		connectorName: "samlService",
-		username:      "foo@example.com",
-		roles:         []string{"admin"},
-		sessionTTL:    1 * time.Minute,
+	_, err = sas.createSAMLUser(&CreateUserParams{
+		ConnectorName: "samlService",
+		Username:      "foo@example.com",
+		Roles:         []string{"admin"},
+		SessionTTL:    1 * time.Minute,
 	}, false)
 	require.NoError(t, err)
 
@@ -188,6 +197,11 @@ func TestPingSAMLWorkaround(t *testing.T) {
 		Backend:                b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
+		},
 	}
 
 	a, err := NewServer(authConfig)
@@ -220,12 +234,18 @@ func TestPingSAMLWorkaround(t *testing.T) {
 		PrivateKey: fixtures.EncryptionKeyPEM,
 	}
 
+	// SAML connector validation requires the roles in mappings exist.
+	role, err := types.NewRole("admin", types.RoleSpecV5{})
+	require.NoError(t, err)
+	err = a.CreateRole(ctx, role)
+	require.NoError(t, err)
+
 	connector, err := types.NewSAMLConnector("ping", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "https://proxy.example.com:3080/v1/webapi/saml/acs",
 		Provider:                 "ping",
 		Display:                  "Ping",
 		AttributesToRoles: []types.AttributeMapping{
-			{Name: "groups", Value: "ping-admin", Roles: []string{"admin"}},
+			{Name: "groups", Value: "ping-admin", Roles: []string{role.GetName()}},
 		},
 		EntityDescriptor:  entityDescriptor,
 		SigningKeyPair:    signingKeypair,
@@ -277,9 +297,20 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 		Backend:                b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
+		},
 	}
 
 	a, err := NewServer(authConfig)
+	require.NoError(t, err)
+
+	sas, ok := a.samlAuthService.(*SAMLAuthService)
+	require.True(t, ok, "Server.samlAuthServer is not type *samlAuthServer")
+
+	_, err = CreateRole(ctx, a, "baz", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -327,7 +358,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 		},
 	}
 
-	connector, provider, err := a.getSAMLConnectorAndProvider(context.Background(), request)
+	connector, provider, err := sas.getSAMLConnectorAndProvider(context.Background(), request)
 	require.NoError(t, err)
 	require.NotNil(t, connector)
 	require.NotNil(t, provider)
@@ -362,18 +393,17 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 		SSOTestFlow: false,
 	}
 
-	connector, provider, err = a.getSAMLConnectorAndProvider(context.Background(), request2)
+	connector, provider, err = sas.getSAMLConnectorAndProvider(context.Background(), request2)
 	require.NoError(t, err)
 	require.NotNil(t, connector)
 	require.NotNil(t, provider)
-
 }
 
 func TestServer_ValidateSAMLResponse(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	clock := clockwork.NewFakeClockAt(time.Date(2022, 04, 25, 9, 0, 0, 0, time.UTC))
+	clock := clockwork.NewFakeClockAt(time.Date(2022, 4, 25, 9, 0, 0, 0, time.UTC))
 
 	// Create a Server instance for testing.
 	b, err := memory.New(memory.Config{
@@ -392,15 +422,21 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 		Backend:                b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
+		},
 	}
 
-	a, err := NewServer(authConfig)
+	a, err := NewServer(authConfig, WithClock(clock))
 	require.NoError(t, err)
 
-	a.SetClock(clock)
+	sas, ok := a.samlAuthService.(*SAMLAuthService)
+	require.True(t, ok, "Server.samlAuthServer is not type *samlAuthServer")
 
 	// empty response gives error.
-	response, err := a.ValidateSAMLResponse(context.Background(), "")
+	response, err := a.ValidateSAMLResponse(context.Background(), "", "")
 	require.Nil(t, response)
 	require.Error(t, err)
 
@@ -411,7 +447,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = a.CreateRole(role)
+	err = a.CreateRole(ctx, role)
 	require.NoError(t, err)
 
 	// real response from Okta
@@ -467,6 +503,12 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	}, nil, 10*365*24*time.Hour)
 	require.NoError(t, err)
 
+	// SAML connector validation requires the roles in mappings exist.
+	connectorRole, err := types.NewRole("baz", types.RoleSpecV5{})
+	require.NoError(t, err)
+	err = a.CreateRole(ctx, connectorRole)
+	require.NoError(t, err)
+
 	conn, err := types.NewSAMLConnector("saml-test-conn", types.SAMLConnectorSpecV2{
 		Issuer:                   "test",
 		SSO:                      "test",
@@ -475,7 +517,7 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 		AttributesToRoles: []types.AttributeMapping{{
 			Name:  "foo",
 			Value: "bar",
-			Roles: []string{"baz"},
+			Roles: []string{connectorRole.GetName()},
 		}},
 		SigningKeyPair: &types.AsymmetricKeyPair{
 			PrivateKey: string(keyPEM),
@@ -487,7 +529,7 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	err = a.UpsertSAMLConnector(ctx, conn)
 	require.NoError(t, err)
 
-	err = a.Identity.CreateSAMLAuthRequest(ctx, types.SAMLAuthRequest{
+	err = a.Services.CreateSAMLAuthRequest(ctx, types.SAMLAuthRequest{
 		ID:                "_4f256462-6c2d-466d-afc0-6ee36602b6f2",
 		ConnectorID:       "saml-test-conn",
 		SSOTestFlow:       true,
@@ -521,19 +563,19 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	require.NoError(t, err)
 
 	// check ValidateSAMLResponse
-	response, err = a.ValidateSAMLResponse(context.Background(), base64.StdEncoding.EncodeToString([]byte(respOkta)))
+	response, err = sas.ValidateSAMLResponse(context.Background(), base64.StdEncoding.EncodeToString([]byte(respOkta)), "")
 	require.NoError(t, err)
 	require.NotNil(t, response)
 
 	// check internal method, validate diagnostic outputs.
-	diagCtx := a.newSSODiagContext(types.KindSAML)
-	auth, err := a.validateSAMLResponse(context.Background(), diagCtx, base64.StdEncoding.EncodeToString([]byte(respOkta)))
+	diagCtx := NewSSODiagContext(types.KindSAML, a)
+	auth, err := sas.validateSAMLResponse(context.Background(), diagCtx, base64.StdEncoding.EncodeToString([]byte(respOkta)), "")
 	require.NoError(t, err)
 
 	// ensure diag info got stored and is identical.
 	infoFromBackend, err := a.GetSSODiagnosticInfo(context.Background(), types.KindSAML, auth.Req.ID)
 	require.NoError(t, err)
-	require.Equal(t, &diagCtx.info, infoFromBackend)
+	require.Equal(t, &diagCtx.Info, infoFromBackend)
 
 	// verify values
 	require.Equal(t, "ops@gravitational.io", auth.Username)
@@ -542,11 +584,11 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	require.Equal(t, "_4f256462-6c2d-466d-afc0-6ee36602b6f2", auth.Req.ID)
 	require.Equal(t, 0, len(auth.HostSigners))
 
-	authnInstant := time.Date(2022, 04, 25, 8, 3, 11, 779000000, time.UTC)
+	authnInstant := time.Date(2022, 4, 25, 8, 3, 11, 779000000, time.UTC)
 
 	// ignore, this is boring and very complex.
-	require.NotNil(t, diagCtx.info.SAMLAssertionInfo.Assertions)
-	diagCtx.info.SAMLAssertionInfo.Assertions = nil
+	require.NotNil(t, diagCtx.Info.SAMLAssertionInfo.Assertions)
+	diagCtx.Info.SAMLAssertionInfo.Assertions = nil
 
 	require.Equal(t, types.SSODiagnosticInfo{
 		TestFlow: true,
@@ -626,7 +668,7 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 				Roles: []string{"access"},
 			},
 		},
-	}, diagCtx.info)
+	}, diagCtx.Info)
 
 	// make sure no users have been created.
 	users, err := a.GetUsers(false)

@@ -13,8 +13,6 @@ This guide will help you to:
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access CloudSQL Self-Hosted](../../../img/database-access/guides/cloudsql_selfhosted.png)
 </ScopedBlock>
-
-
 <ScopedBlock scope={["cloud"]}>
 ![Teleport Database Access CloudSQL Cloud](../../../img/database-access/guides/cloudsql_cloud.png)
 </ScopedBlock>
@@ -22,6 +20,7 @@ This guide will help you to:
 ## Prerequisites
 
 - Google Cloud account
+- Command-line client `psql` installed and added to your system's `PATH` environment variable.
 - A host, e.g., a Compute Engine instance, where you will run the Teleport Database
   Service
 
@@ -204,14 +203,14 @@ a single Cloud SQL PostgreSQL database:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```yaml
+version: v3
 teleport:
   data_dir: /var/lib/teleport-db
   nodename: test
   # Proxy address to connect to. Note that it has to be the proxy address
   # because the Database Service always connects to the cluster over a reverse
   # tunnel.
-  auth_servers:
-  - teleport.example.com:3080
+  proxy_server: teleport.example.com:3080
 db_service:
   enabled: "yes"
   # This section contains definitions of all databases proxied by this
@@ -248,12 +247,12 @@ proxy_service:
 <ScopedBlock scope={["cloud"]}>
 
 ```yaml
+version: v3
 teleport:
   data_dir: /var/lib/teleport-db
   nodename: test
   # Proxy address to connect to. Use your Teleport Cloud tenant address here.
-  auth_servers:
-  - mytenant.teleport.sh
+  proxy_server: mytenant.teleport.sh
 db_service:
   enabled: "yes"
   # This section contains definitions of all databases proxied by this
@@ -349,25 +348,17 @@ $ tsh db ls
 Note that you will only be able to see databases your role has access to. See
 our [RBAC](../rbac.mdx) guide for more details.
 
-To connect to a particular database server, first retrieve credentials from
-Teleport using the `tsh db login` command:
+To retrieve credentials for a database and connect to it:
 
 ```sh
-$ tsh db login cloudsql
+$ tsh db connect cloudsql
 ```
-
-<Admonition
-  type="tip"
-  title="Tip"
->
-  You can be logged in to multiple databases simultaneously.
-</Admonition>
 
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
 ```code
-$ tsh db login --db-user=teleport@<project-id>.iam --db-name=postgres cloudsql
+$ tsh db connect --db-user=teleport@<project-id>.iam --db-name=postgres cloudsql
 ```
 
 <Admonition
@@ -381,17 +372,6 @@ $ tsh db login --db-user=teleport@<project-id>.iam --db-name=postgres cloudsql
   `.gserviceaccount.com` suffix. The database user name is shown on the Users
   page of your Cloud SQL instance.
 
-</Admonition>
-
-Once logged in, connect to the database:
-
-```code
-$ tsh db connect aurora
-```
-
-<Admonition type="note" title="Note">
-  The `psql` command-line client should be available in PATH in order to be
-  able to connect.
 </Admonition>
 
 To log out of the database and remove credentials:

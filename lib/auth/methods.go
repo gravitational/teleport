@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -240,7 +241,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 	case constants.SecondFactorOptional:
 		// 2FA is optional. Make sure that a user does not have MFA devices
 		// registered.
-		devs, err := s.Identity.GetMFADevices(ctx, user, false /* withSecrets */)
+		devs, err := s.Services.GetMFADevices(ctx, user, false /* withSecrets */)
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, "", trace.Wrap(err)
 		}
@@ -356,6 +357,8 @@ type AuthenticateSSHRequest struct {
 	// KubernetesCluster sets the target kubernetes cluster for the TLS
 	// certificate. This can be empty on older clients.
 	KubernetesCluster string `json:"kubernetes_cluster"`
+	// AttestationStatement is an attestation statement associated with the given public key.
+	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets default certificate values
@@ -490,15 +493,16 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		sourceIP = host
 	}
 	certs, err := s.generateUserCert(certRequest{
-		user:              user,
-		ttl:               req.TTL,
-		publicKey:         req.PublicKey,
-		compatibility:     req.CompatibilityMode,
-		checker:           checker,
-		traits:            user.GetTraits(),
-		routeToCluster:    req.RouteToCluster,
-		kubernetesCluster: req.KubernetesCluster,
-		sourceIP:          sourceIP,
+		user:                 user,
+		ttl:                  req.TTL,
+		publicKey:            req.PublicKey,
+		compatibility:        req.CompatibilityMode,
+		checker:              checker,
+		traits:               user.GetTraits(),
+		routeToCluster:       req.RouteToCluster,
+		kubernetesCluster:    req.KubernetesCluster,
+		sourceIP:             sourceIP,
+		attestationStatement: req.AttestationStatement,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -534,7 +538,7 @@ func (s *Server) emitNoLocalAuthEvent(username string) {
 func (s *Server) createUserWebSession(ctx context.Context, user types.User) (types.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User as this method
 	// is only used for local accounts.
-	return s.createWebSession(ctx, types.NewWebSessionRequest{
+	return s.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
 		User:      user.GetName(),
 		Roles:     user.GetRoles(),
 		Traits:    user.GetTraits(),

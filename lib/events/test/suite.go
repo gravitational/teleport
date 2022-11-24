@@ -25,18 +25,18 @@ import (
 	"testing"
 	"time"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
+
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/session"
 )
 
 // UploadDownload tests uploads and downloads
@@ -107,7 +107,7 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	var err error
 	var checkpoint string
 
-	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 100, types.EventOrderAscending, checkpoint)
 		return err
 	})
@@ -189,7 +189,7 @@ Outer:
 		event, ok := arr[0].(*apievents.UserLogin)
 		require.True(t, ok)
 		require.Equal(t, event.GetTime(), baseTime2)
-		require.True(t, apiutils.SliceContainsStr(names, event.User))
+		require.True(t, slices.Contains(names, event.User))
 
 		for i, name := range names {
 			if name == event.User {
@@ -225,7 +225,7 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 
 	var history []apievents.AuditEvent
 
-	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), apidefaults.Namespace, nil, 100, types.EventOrderAscending, "")
 		return err
 	})

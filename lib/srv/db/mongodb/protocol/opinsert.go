@@ -20,22 +20,21 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
-
-	"github.com/gravitational/trace"
 )
 
 // MessageOpInsert represents parsed OP_INSERT wire message.
 //
 // https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#op_insert
 //
-// struct {
-//     MsgHeader header;             // standard message header
-//     int32     flags;              // bit vector - see below
-//     cstring   fullCollectionName; // "dbname.collectionname"
-//     document* documents;          // one or more documents to insert into the collection
-// }
+//	struct {
+//	    MsgHeader header;             // standard message header
+//	    int32     flags;              // bit vector - see below
+//	    cstring   fullCollectionName; // "dbname.collectionname"
+//	    document* documents;          // one or more documents to insert into the collection
+//	}
 //
 // OP_INSERT is deprecated starting MongoDB 5.0 in favor of OP_MSG.
 type MessageOpInsert struct {
@@ -97,7 +96,7 @@ func readOpInsert(header MessageHeader, payload []byte) (*MessageOpInsert, error
 	for len(rem) > 0 {
 		var document bsoncore.Document
 		document, rem, ok = bsoncore.ReadDocument(rem)
-		if !ok {
+		if !ok || len(document) == 0 {
 			return nil, trace.BadParameter("malformed OP_INSERT: missing document %v", payload)
 		}
 		documents = append(documents, document)

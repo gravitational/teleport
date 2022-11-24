@@ -27,6 +27,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -191,6 +192,7 @@ func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 			continue
 		}
 		pool.Stop()
+		trustedClustersStats.DeleteLabelValues(pool.Cluster)
 		delete(w.pools, k)
 	}
 
@@ -201,6 +203,7 @@ func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 			continue
 		}
 
+		trustedClustersStats.WithLabelValues(k.cluster).Set(0)
 		pool, err := w.newAgentPool(ctx, w.cfg, k.cluster, k.addr)
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
@@ -229,7 +232,7 @@ func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig,
 
 		// Configs for remote cluster.
 		Cluster:         cluster,
-		Resolver:        StaticResolver(addr),
+		Resolver:        StaticResolver(addr, apitypes.ProxyListenerMode_Separate),
 		IsRemoteCluster: true,
 	})
 	if err != nil {

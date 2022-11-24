@@ -22,15 +22,14 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/trace"
 )
 
 func TestMain(m *testing.M) {
@@ -124,7 +123,10 @@ func TestTeleportMain(t *testing.T) {
 		require.False(t, conf.Proxy.Enabled)
 		require.Equal(t, log.DebugLevel, conf.Log.GetLevel())
 		require.Equal(t, "hvostongo.example.org", conf.Hostname)
-		require.Equal(t, "xxxyyy", conf.Token)
+
+		token, err := conf.Token()
+		require.NoError(t, err)
+		require.Equal(t, "xxxyyy", token)
 		require.Equal(t, "10.5.5.5", conf.AdvertiseIP)
 		require.Equal(t, map[string]string{"a": "a1", "b": "b1"}, conf.SSH.Labels)
 	})
@@ -203,11 +205,11 @@ func TestDumpConfigFile(t *testing.T) {
 }
 
 const configData = `
+version: v3
 teleport:
   advertise_ip: 10.5.5.5
   nodename: hvostongo.example.org
-  auth_servers:
-    - auth.server.example.org:3024
+  auth_server: auth.server.example.org:3024
   auth_token: xxxyyy
   log:
     output: stderr

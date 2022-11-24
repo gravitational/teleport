@@ -23,14 +23,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -38,6 +38,13 @@ const (
 	DefaultRenewInterval  = 20 * time.Minute
 	DefaultJoinMethod     = "token"
 )
+
+var SupportedJoinMethods = []string{
+	string(types.JoinMethodToken),
+	string(types.JoinMethodIAM),
+	string(types.JoinMethodGitHub),
+	string(types.JoinMethodCircleCI),
+}
 
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentTBot,

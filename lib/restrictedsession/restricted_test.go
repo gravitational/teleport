@@ -30,6 +30,10 @@ import (
 	"testing"
 	"time"
 
+	go_cmp "github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	api "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -38,9 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"gopkg.in/check.v1"
 )
 
 type blockAction int
@@ -126,7 +127,7 @@ var (
 	}
 )
 
-type Suite struct {
+type bpfContext struct {
 	cgroupDir        string
 	cgroupID         uint64
 	ctx              *bpf.SessionContext
@@ -139,14 +140,260 @@ type Suite struct {
 	expectedAuditEvents []apievents.AuditEvent
 }
 
-var _ = check.Suite(&Suite{})
+func setupBPFContext(t *testing.T) *bpfContext {
+	tt := bpfContext{}
+	t.Cleanup(func() { tt.Close(t) })
 
-func TestRootRestrictedSession(t *testing.T) {
+	utils.InitLoggerForTests()
+
+	// This test must be run as root and the host has to be capable of running
+	// BPF programs.
+	if !isRoot() {
+		t.Skip("Tests for package restrictedsession can only be run as root.")
+	}
+
+	tt.srcAddrs = map[int]string{
+		4: "0.0.0.0",
+		6: "::",
+	}
+
+	var err error
+	// Create temporary directory where cgroup2 hierarchy will be mounted.
+	tt.cgroupDir = t.TempDir()
+
+	// Create BPF service since we piggy-back on it
+	tt.enhancedRecorder, err = bpf.New(&bpf.Config{
+		Enabled:    true,
+		CgroupPath: tt.cgroupDir,
+	})
+	require.NoError(t, err)
+
+	// Create the SessionContext used by both enhanced recording and us (restricted session)
+	tt.ctx = &bpf.SessionContext{
+		Namespace: apidefaults.Namespace,
+		SessionID: uuid.New().String(),
+		ServerID:  uuid.New().String(),
+		Login:     "foo",
+		User:      "foo@example.com",
+		PID:       os.Getpid(),
+		Emitter:   &tt.emitter,
+		Events:    map[string]bool{},
+	}
+
+	// Create enhanced recording session to piggy-back on.
+	tt.cgroupID, err = tt.enhancedRecorder.OpenSession(tt.ctx)
+	require.NoError(t, err)
+	require.Equal(t, tt.cgroupID > 0, true)
+
+	deny := []api.AddressCondition{}
+	allow := []api.AddressCondition{}
+	for _, r := range testRanges {
+		if len(r.deny) > 0 {
+			deny = append(deny, api.AddressCondition{CIDR: r.deny})
+		}
+
+		if len(r.allow) > 0 {
+			allow = append(allow, api.AddressCondition{CIDR: r.allow})
+		}
+	}
+
+	restrictions := api.NewNetworkRestrictions()
+	restrictions.SetAllow(allow)
+	restrictions.SetDeny(deny)
+
+	config := &Config{
+		Enabled: true,
+	}
+
+	client := &mockClient{
+		restrictions: restrictions,
+		Fanout:       *services.NewFanout(),
+	}
+
+	tt.restrictedMgr, err = New(config, client)
+	require.NoError(t, err)
+
+	client.Fanout.SetInit()
+
+	time.Sleep(100 * time.Millisecond)
+
+	return &tt
+}
+
+func (tt *bpfContext) Close(t *testing.T) {
+	if tt.cgroupID > 0 {
+		tt.restrictedMgr.CloseSession(tt.ctx, tt.cgroupID)
+	}
+
+	if tt.restrictedMgr != nil {
+		tt.restrictedMgr.Close()
+	}
+
+	if tt.enhancedRecorder != nil && tt.ctx != nil {
+		err := tt.enhancedRecorder.CloseSession(tt.ctx)
+		require.NoError(t, err)
+	}
+
+	if tt.cgroupDir != "" {
+		err := os.RemoveAll(tt.cgroupDir)
+		require.NoError(t, err)
+	}
+}
+
+func (tt *bpfContext) openSession(t *testing.T) {
+	// Create the restricted session
+	tt.restrictedMgr.OpenSession(tt.ctx, tt.cgroupID)
+}
+
+func (tt *bpfContext) closeSession(t *testing.T) {
+	// Close the restricted session
+	tt.restrictedMgr.CloseSession(tt.ctx, tt.cgroupID)
+}
+
+func (tt *bpfContext) dialExpectAllow(t *testing.T, ver int, ip string) {
+	if err := dialTCP(ver, mustParseIP(ip)); err != nil {
+		// Other than EPERM or EINVAL is OK
+		if errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EINVAL) {
+			t.Fatalf("Dial %v was not allowed: %v", ip, err)
+		}
+	}
+}
+
+func (tt *bpfContext) sendExpectAllow(t *testing.T, ver int, ip string) {
+	err := sendUDP(ver, mustParseIP(ip))
+
+	// Other than EPERM or EINVAL is OK
+	if errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EINVAL) {
+		t.Fatalf("Send %v: failed with %v", ip, err)
+	}
+}
+
+func (tt *bpfContext) dialExpectDeny(t *testing.T, ver int, ip string) {
+	// Only EPERM is expected
+	err := dialTCP(ver, mustParseIP(ip))
+	if err == nil {
+		t.Fatalf("Dial %v: did not expect to succeed", ip)
+	}
+
+	if !errors.Is(err, syscall.EPERM) {
+		t.Fatalf("Dial %v: EPERM expected, got: %v", ip, err)
+	}
+
+	ev := tt.expectedAuditEvent(ver, ip, apievents.SessionNetwork_CONNECT)
+	tt.expectedAuditEvents = append(tt.expectedAuditEvents, ev)
+}
+
+func (tt *bpfContext) sendExpectDeny(t *testing.T, ver int, ip string) {
+	err := sendUDP(ver, mustParseIP(ip))
+	if !errors.Is(err, syscall.EPERM) {
+		t.Fatalf("Send %v: was not denied: %v", ip, err)
+	}
+
+	ev := tt.expectedAuditEvent(ver, ip, apievents.SessionNetwork_SEND)
+	tt.expectedAuditEvents = append(tt.expectedAuditEvents, ev)
+}
+
+func (tt *bpfContext) expectedAuditEvent(ver int, ip string, op apievents.SessionNetwork_NetworkOperation) apievents.AuditEvent {
+	return &apievents.SessionNetwork{
+		Metadata: apievents.Metadata{
+			Type: events.SessionNetworkEvent,
+			Code: events.SessionNetworkCode,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerID:        tt.ctx.ServerID,
+			ServerNamespace: tt.ctx.Namespace,
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: tt.ctx.SessionID,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:  tt.ctx.User,
+			Login: tt.ctx.Login,
+		},
+		BPFMetadata: apievents.BPFMetadata{
+			CgroupID: tt.cgroupID,
+			Program:  "restrictedsessi",
+			PID:      uint64(tt.ctx.PID),
+		},
+		DstPort:    testPort,
+		DstAddr:    ip,
+		SrcAddr:    tt.srcAddrs[ver],
+		TCPVersion: int32(ver),
+		Operation:  op,
+		Action:     apievents.EventAction_DENIED,
+	}
+}
+
+func TestRootNetwork(t *testing.T) {
 	if !bpfTestEnabled() {
 		t.Skip("BPF testing is disabled")
 	}
 
-	check.TestingT(t)
+	tt := setupBPFContext(t)
+
+	type testCase struct {
+		ver      int
+		ip       string
+		expected blockAction
+	}
+
+	tests := []testCase{}
+	for _, r := range testRanges {
+		for ip, expected := range r.probe {
+			tests = append(tests, testCase{
+				ver:      r.ver,
+				ip:       ip,
+				expected: expected,
+			})
+		}
+	}
+
+	// Restricted session is not yet open, all these should be allowed
+	for _, tc := range tests {
+		tt.dialExpectAllow(t, tc.ver, tc.ip)
+		tt.sendExpectAllow(t, tc.ver, tc.ip)
+	}
+
+	// Nothing should be reported to the audit log
+	time.Sleep(100 * time.Millisecond)
+	require.Empty(t, tt.emitter.Events())
+
+	// Open the restricted session
+	tt.openSession(t)
+
+	// Now the policy should be enforced
+	for _, tc := range tests {
+		if tc.expected == denied {
+			tt.dialExpectDeny(t, tc.ver, tc.ip)
+			tt.sendExpectDeny(t, tc.ver, tc.ip)
+		} else {
+			tt.dialExpectAllow(t, tc.ver, tc.ip)
+			tt.sendExpectAllow(t, tc.ver, tc.ip)
+		}
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Close the restricted session
+	tt.closeSession(t)
+
+	// Check that the emitted audit events are correct
+	actualAuditEvents := tt.emitter.Events()
+	require.Empty(t, go_cmp.Diff(actualAuditEvents, tt.expectedAuditEvents))
+
+	// Clear out the expected and actual evetns
+	tt.expectedAuditEvents = nil
+	tt.emitter.Reset()
+
+	// Restricted session is now closed, all these should be allowed
+	for _, tc := range tests {
+		tt.dialExpectAllow(t, tc.ver, tc.ip)
+		tt.sendExpectAllow(t, tc.ver, tc.ip)
+	}
+
+	// Nothing should be reported to the audit log
+	time.Sleep(100 * time.Millisecond)
+	require.Empty(t, tt.emitter.Events())
 }
 
 func mustParseIPSpec(cidr string) *net.IPNet {
@@ -174,113 +421,6 @@ func (_ *mockClient) DeleteNetworkRestrictions(context.Context) error {
 	return nil
 }
 
-func (s *Suite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
-
-	// This test must be run as root and the host has to be capable of running
-	// BPF programs.
-	if !isRoot() {
-		c.Skip("Tests for package restrictedsession can only be run as root.")
-	}
-
-	s.srcAddrs = map[int]string{
-		4: "0.0.0.0",
-		6: "::",
-	}
-
-	var err error
-	// Create temporary directory where cgroup2 hierarchy will be mounted.
-	s.cgroupDir, err = os.MkdirTemp("", "cgroup-test")
-	c.Assert(err, check.IsNil)
-
-	// Create BPF service since we piggy-back on it
-	s.enhancedRecorder, err = bpf.New(&bpf.Config{
-		Enabled:    true,
-		CgroupPath: s.cgroupDir,
-	})
-	c.Assert(err, check.IsNil)
-
-	// Create the SessionContext used by both enhanced recording and us (restricted session)
-	s.ctx = &bpf.SessionContext{
-		Namespace: apidefaults.Namespace,
-		SessionID: uuid.New().String(),
-		ServerID:  uuid.New().String(),
-		Login:     "foo",
-		User:      "foo@example.com",
-		PID:       os.Getpid(),
-		Emitter:   &s.emitter,
-		Events:    map[string]bool{},
-	}
-
-	// Create enhanced recording session to piggy-back on.
-	s.cgroupID, err = s.enhancedRecorder.OpenSession(s.ctx)
-	c.Assert(err, check.IsNil)
-	c.Assert(s.cgroupID > 0, check.Equals, true)
-
-	deny := []api.AddressCondition{}
-	allow := []api.AddressCondition{}
-	for _, r := range testRanges {
-		if len(r.deny) > 0 {
-			deny = append(deny, api.AddressCondition{CIDR: r.deny})
-		}
-
-		if len(r.allow) > 0 {
-			allow = append(allow, api.AddressCondition{CIDR: r.allow})
-		}
-	}
-
-	restrictions := api.NewNetworkRestrictions()
-	restrictions.SetAllow(allow)
-	restrictions.SetDeny(deny)
-
-	config := &Config{
-		Enabled: true,
-	}
-
-	client := &mockClient{
-		restrictions: restrictions,
-		Fanout:       *services.NewFanout(),
-	}
-
-	s.restrictedMgr, err = New(config, client)
-	c.Assert(err, check.IsNil)
-
-	client.Fanout.SetInit()
-
-	time.Sleep(100 * time.Millisecond)
-}
-
-func (s *Suite) TearDownSuite(c *check.C) {
-	if s.restrictedMgr != nil {
-		s.restrictedMgr.Close()
-	}
-
-	if s.enhancedRecorder != nil && s.ctx != nil {
-		err := s.enhancedRecorder.CloseSession(s.ctx)
-		c.Assert(err, check.IsNil)
-	}
-
-	if s.cgroupDir != "" {
-		os.RemoveAll(s.cgroupDir)
-	}
-}
-
-func (s *Suite) TearDownTest(c *check.C) {
-	if s.cgroupID > 0 {
-		s.restrictedMgr.CloseSession(s.ctx, s.cgroupID)
-	}
-}
-
-func (s *Suite) openSession(c *check.C) {
-	// Create the restricted session
-	s.restrictedMgr.OpenSession(s.ctx, s.cgroupID)
-}
-
-func (s *Suite) closeSession(c *check.C) {
-	// Close the restricted session
-	s.restrictedMgr.CloseSession(s.ctx, s.cgroupID)
-}
-
 var ip4Regex = regexp.MustCompile(`^\d+\.\d+\.\d+\.\d+$`)
 
 // mustParseIP parses the IP and also converts IPv4 addresses
@@ -292,9 +432,8 @@ func mustParseIP(addr string) net.IP {
 	ip := net.ParseIP(addr)
 	if is4 {
 		return ip.To4()
-	} else {
-		return ip.To16()
 	}
+	return ip.To16()
 }
 
 func testSocket(ver, typ int, ip net.IP) (int, syscall.Sockaddr, error) {
@@ -357,146 +496,6 @@ func sendUDP(ver int, ip net.IP) error {
 	defer syscall.Close(fd)
 
 	return syscall.Sendto(fd, []byte("abc"), 0, dst)
-}
-
-func (s *Suite) dialExpectAllow(c *check.C, ver int, ip string) {
-	if err := dialTCP(ver, mustParseIP(ip)); err != nil {
-		// Other than EPERM or EINVAL is OK
-		if errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EINVAL) {
-			c.Fatalf("Dial %v was not allowed: %v", ip, err)
-		}
-	}
-}
-
-func (s *Suite) dialExpectDeny(c *check.C, ver int, ip string) {
-	// Only EPERM is expected
-	err := dialTCP(ver, mustParseIP(ip))
-	if err == nil {
-		c.Fatalf("Dial %v: did not expect to succeed", ip)
-	}
-
-	if !errors.Is(err, syscall.EPERM) {
-		c.Fatalf("Dial %v: EPERM expected, got: %v", ip, err)
-	}
-
-	ev := s.expectedAuditEvent(ver, ip, apievents.SessionNetwork_CONNECT)
-	s.expectedAuditEvents = append(s.expectedAuditEvents, ev)
-}
-
-func (s *Suite) sendExpectAllow(c *check.C, ver int, ip string) {
-	err := sendUDP(ver, mustParseIP(ip))
-
-	// Other than EPERM or EINVAL is OK
-	if errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EINVAL) {
-		c.Fatalf("Send %v: failed with %v", ip, err)
-	}
-}
-
-func (s *Suite) sendExpectDeny(c *check.C, ver int, ip string) {
-	err := sendUDP(ver, mustParseIP(ip))
-	if !errors.Is(err, syscall.EPERM) {
-		c.Fatalf("Send %v: was not denied: %v", ip, err)
-	}
-
-	ev := s.expectedAuditEvent(ver, ip, apievents.SessionNetwork_SEND)
-	s.expectedAuditEvents = append(s.expectedAuditEvents, ev)
-}
-
-func (s *Suite) expectedAuditEvent(ver int, ip string, op apievents.SessionNetwork_NetworkOperation) apievents.AuditEvent {
-	return &apievents.SessionNetwork{
-		Metadata: apievents.Metadata{
-			Type: events.SessionNetworkEvent,
-			Code: events.SessionNetworkCode,
-		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        s.ctx.ServerID,
-			ServerNamespace: s.ctx.Namespace,
-		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: s.ctx.SessionID,
-		},
-		UserMetadata: apievents.UserMetadata{
-			User:  s.ctx.User,
-			Login: s.ctx.Login,
-		},
-		BPFMetadata: apievents.BPFMetadata{
-			CgroupID: s.cgroupID,
-			Program:  "restrictedsessi",
-			PID:      uint64(s.ctx.PID),
-		},
-		DstPort:    testPort,
-		DstAddr:    ip,
-		SrcAddr:    s.srcAddrs[ver],
-		TCPVersion: int32(ver),
-		Operation:  op,
-		Action:     apievents.EventAction_DENIED,
-	}
-}
-
-func (s *Suite) TestNetwork(c *check.C) {
-	type testCase struct {
-		ver      int
-		ip       string
-		expected blockAction
-	}
-
-	tests := []testCase{}
-	for _, r := range testRanges {
-		for ip, expected := range r.probe {
-			tests = append(tests, testCase{
-				ver:      r.ver,
-				ip:       ip,
-				expected: expected,
-			})
-		}
-	}
-
-	// Restricted session is not yet open, all these should be allowed
-	for _, t := range tests {
-		s.dialExpectAllow(c, t.ver, t.ip)
-		s.sendExpectAllow(c, t.ver, t.ip)
-	}
-
-	// Nothing should be reported to the audit log
-	time.Sleep(100 * time.Millisecond)
-	c.Assert(s.emitter.Events(), check.HasLen, 0)
-
-	// Open the restricted session
-	s.openSession(c)
-
-	// Now the policy should be enforced
-	for _, t := range tests {
-		if t.expected == denied {
-			s.dialExpectDeny(c, t.ver, t.ip)
-			s.sendExpectDeny(c, t.ver, t.ip)
-		} else {
-			s.dialExpectAllow(c, t.ver, t.ip)
-			s.sendExpectAllow(c, t.ver, t.ip)
-		}
-	}
-
-	time.Sleep(100 * time.Millisecond)
-
-	// Close the restricted session
-	s.closeSession(c)
-
-	// Check that the emitted audit events are correct
-	actualAuditEvents := s.emitter.Events()
-	c.Assert(actualAuditEvents, check.DeepEquals, s.expectedAuditEvents)
-
-	// Clear out the expected and actual evetns
-	s.expectedAuditEvents = nil
-	s.emitter.Reset()
-
-	// Restricted session is now closed, all these should be allowed
-	for _, t := range tests {
-		s.dialExpectAllow(c, t.ver, t.ip)
-		s.sendExpectAllow(c, t.ver, t.ip)
-	}
-
-	// Nothing should be reported to the audit log
-	time.Sleep(100 * time.Millisecond)
-	c.Assert(s.emitter.Events(), check.HasLen, 0)
 }
 
 // isRoot returns a boolean if the test is being run as root or not. Tests

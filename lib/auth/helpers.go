@@ -25,6 +25,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
@@ -33,6 +38,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -43,13 +49,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // TestAuthServerConfig is auth server test config
@@ -72,6 +73,10 @@ type TestAuthServerConfig struct {
 	Streamer events.Streamer
 	// AuditLog allows a test to configure its own audit log.
 	AuditLog events.IAuditLog
+	// TraceClient allows a test to configure the trace client
+	TraceClient otlptrace.Client
+	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
+	AuthPreferenceSpec *types.AuthPreferenceSpecV2
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -87,6 +92,12 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 	}
 	if len(cfg.CipherSuites) == 0 {
 		cfg.CipherSuites = utils.DefaultCipherSuites()
+	}
+	if cfg.AuthPreferenceSpec == nil {
+		cfg.AuthPreferenceSpec = &types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOff,
+		}
 	}
 	return nil
 }
@@ -161,6 +172,14 @@ func (a *TestServer) Shutdown(ctx context.Context) error {
 	)
 }
 
+// WithClock is a functional server option that sets the server's clock
+func WithClock(clock clockwork.Clock) ServerOption {
+	return func(s *Server) error {
+		s.clock = clock
+		return nil
+	}
+}
+
 // TestAuthServer is auth server using local filesystem backend
 // and test certificate authority key generation that speeds up
 // keygen by using the same private key
@@ -171,8 +190,6 @@ type TestAuthServer struct {
 	AuthServer *Server
 	// AuditLog is an event audit log
 	AuditLog events.IAuditLog
-	// SessionServer is a session service
-	SessionServer session.Service
 	// Backend is a backend for auth server
 	Backend backend.Backend
 	// Authorizer is an authorizer used in tests
@@ -218,11 +235,6 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		srv.AuditLog = localLog
 	}
 
-	srv.SessionServer, err = session.New(srv.Backend)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	access := local.NewAccessService(srv.Backend)
 	identity := local.NewIdentityService(srv.Backend)
 
@@ -243,6 +255,12 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		Streamer:               cfg.Streamer,
 		SkipPeriodicOperations: true,
 		Emitter:                emitter,
+		TraceClient:            cfg.TraceClient,
+		KeyStoreConfig: keystore.Config{
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
+		},
 	}, WithClock(cfg.Clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -279,10 +297,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	authPreference, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOff,
-	})
+	authPreference, err := types.NewAuthPreferenceFromConfigFile(*cfg.AuthPreferenceSpec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -529,11 +544,10 @@ func (a *TestAuthServer) Trust(ctx context.Context, remote *TestAuthServer, role
 // NewTestTLSServer returns new test TLS server
 func (a *TestAuthServer) NewTestTLSServer() (*TestTLSServer, error) {
 	apiConfig := &APIConfig{
-		AuthServer:     a.AuthServer,
-		Authorizer:     a.Authorizer,
-		SessionService: a.SessionServer,
-		AuditLog:       a.AuditLog,
-		Emitter:        a.AuthServer.emitter,
+		AuthServer: a.AuthServer,
+		Authorizer: a.Authorizer,
+		AuditLog:   a.AuditLog,
+		Emitter:    a.AuthServer.emitter,
 	}
 	srv, err := NewTestTLSServer(TestTLSServerConfig{
 		APIConfig:     apiConfig,
@@ -646,7 +660,7 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 	}
 	tlsConfig.Time = cfg.AuthServer.Clock().Now
 
-	accessPoint, err := NewAdminAuthServer(srv.AuthServer.AuthServer, srv.AuthServer.SessionServer, srv.AuthServer.AuditLog)
+	accessPoint, err := NewAdminAuthServer(srv.AuthServer.AuthServer, srv.AuthServer.AuditLog)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1048,7 +1062,7 @@ func CreateUserAndRole(clt clt, username string, allowedLogins []string) (types.
 		return nil, nil, trace.Wrap(err)
 	}
 	role := services.RoleForUser(user)
-	role.SetLogins(types.Allow, []string{user.GetName()})
+	role.SetLogins(types.Allow, allowedLogins)
 	err = clt.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

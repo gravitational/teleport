@@ -1,0 +1,360 @@
+---
+title: Teleport Access Requests with Email
+description: How to set up the Teleport email plugin to notify users when another user requests elevated privileges.
+---
+
+This guide will explain how to set up Teleport to send Just-in-Time Access
+Request notifications to users via email. Since all organizations use email for
+at least some of their communications, Teleport's email plugin makes it
+straightforward to integrate Access Requests into your existing workflows,
+letting you implement security best practices without compromising productivity.
+
+## Prerequisites
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+- Access to an SMTP service. The Teleport email plugin supports either Mailgun
+  or a generic SMTP service that authenticates via username and password.
+
+<Admonition type="warning" title="Protecting your email account">
+
+The Teleport plugin needs to use a username and password to authenticate to your
+SMTP service. To mitigate the risk of these credentials being leaked, you should
+set up a dedicated email account for the Teleport plugin and rotate the password
+regularly.
+
+</Admonition>
+
+(!/docs/pages/includes/tctl.mdx!)
+
+## Step 1/7. Define RBAC resources
+
+Before you set up the email plugin, you will need to enable Role Access Requests
+in your Teleport cluster.
+
+(!/docs/pages/includes/plugins/editor-request-rbac.mdx!)
+
+## Step 2/7. Install the Teleport email plugin
+
+<ScopedBlock scope={["enterprise", "oss"]}>
+
+We recommend installing Teleport plugins on the same host as the Teleport Proxy
+Service. This is an ideal location as plugins have a low memory footprint, and
+will require both public internet access and Teleport Auth Service access. 
+
+</ScopedBlock>
+
+<ScopedBlock scope="cloud">
+
+Install the Teleport email plugin on a host that can access both your
+Teleport Cloud tenant and your SMTP service.
+
+</ScopedBlock>
+
+<Details title="Using a local SMTP server?">
+
+If you are using a local SMTP server to test the plugin, you should install the
+plugin on your local machine. This is because the plugin needs to dial out to
+your SMTP server and perform any necessary DNS lookups in order to send email.
+
+Your Teleport cluster does *not* need to perform DNS lookups for your plugin, as
+the plugin dials out to the Proxy Service or Auth Service. 
+
+</Details>
+
+We currently only provide Linux amd64 binaries. You can also compile the plugin
+from source.
+
+<Tabs>
+<TabItem label="Download">
+  ```code
+  $ curl -L https://get.gravitational.com/teleport-access-email-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ tar -xzf teleport-access-email-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ cd teleport-access-email
+  $ ./install
+  ```
+</TabItem>
+<TabItem label="From Source">
+
+  To install from source you need `git` and `go` installed. If you do not have
+  Go installed, visit the Go [downloads page](https://go.dev/dl/).
+
+  ```code
+  # Checkout teleport-plugins
+  $ git clone https://github.com/gravitational/teleport-plugins.git
+  $ cd teleport-plugins/access/email
+  $ make
+  ```
+
+  Move the `teleport-email` binary from `teleport-plugins/access/email/build`
+  into a directory in your `PATH`.
+
+</TabItem>
+</Tabs>
+
+Ensure that the plugin is installed correctly:
+
+```code
+$ teleport-email version
+```
+
+## Step 3/7. Create a user and role for the plugin
+
+(!docs/pages/includes/plugins/rbac.mdx!)
+
+## Step 4/7. Export the access plugin identity
+
+(!docs/pages/includes/plugins/identity-export.mdx!)
+
+## Step 5/7. Configure the plugin
+
+At this point, you have generated credentials that the email plugin will use to
+connect to Teleport. You will now configure the plugin to use these credentials
+to receive Access Request notifications from Teleport and email them to your
+chosen recipients.
+
+The Teleport email plugin uses a config file in TOML format. Generate a
+boilerplate config by running the following command:
+
+```code
+$ teleport-email configure | sudo tee /etc/teleport-email.toml
+```
+
+Edit the configuration file for your environment. We will show you how to set
+each value below.
+
+### `[teleport]`
+
+<Tabs>
+<TabItem label="Teleport Enterprise" scope={["oss", "enterprise"]}>
+
+**`addr`**: Include the hostname and HTTPS port of your Teleport Proxy Service
+(e.g., `mytenant.teleport.sh:443`). If you are configuring your plugin to
+connect directly to the Teleport Auth Service, use your Auth Service's gRPC
+endpoint (e.g., `teleport.example.com:3025`).
+
+**`identity`**, **`client_key`**, **`client_crt`**, **`root_cas`**: The values
+you will use for these fields depend on whether the email plugin will
+connect to the Proxy Service or the Auth Service. 
+
+If you exported an identity file earlier, fill in the `identity` field with the
+path to the file and comment out the other fields.
+
+If you exported a client key, client certificate, and root CAs earlier, fill in
+the `client_key`, `client_crt`, and `root_cas` fields with the paths to these
+files and leave `identity` commented out.
+
+</TabItem>
+<TabItem label="Teleport Cloud" scope="cloud">
+
+**`addr`**: Include the hostname and HTTPS port of your Teleport Cloud tenant
+(e.g., `mytenant.teleport.sh:443`).
+
+**`identity`**, **`client_key`**, **`client_crt`**, **`root_cas`**: Fill in the
+`identity` field with the path to the identity file you exported earlier and
+comment out the other fields.
+
+</TabItem>
+</Tabs>
+
+### `[mailgun]` or `[smtp]`
+
+Provide the credentials for your SMTP service depending on whether you are using
+Mailgun or SMTP service.
+
+<Tabs>
+<TabItem label="Mailgun">
+
+In the `mailgun` section, assign `domain` to the domain name and subdomain of
+your Mailgun account. Assign `private_key` to your Mailgun private key.
+
+</TabItem>
+<TabItem label="Generic SMTP Service">
+
+Assign `host` to the fully qualified domain name of your SMTP service, omitting
+the URL scheme and port. (If you're using a local SMTP server for testing, use
+`"localhost"` for `host`.) Assign `port` to the port of your SMTP service, then
+fill in `username` and `password`.
+
+<Notice type="tip">
+
+You can also save your password to a separate file and assign `password_file` to
+the file's path. The plugin reads the file and uses the file's content as the
+password.
+
+</Notice>
+
+<Details title="Disabling TLS for testing">
+
+If you are testing the email plugin against a trusted internal SMTP server where
+you would rather not use TLS—e.g., a local SMTP server on your development
+machine—you can assign the `starttls_policy` setting to `disabled` (always
+disable TLS) or `opportunistic` (disable TLS if the server does not advertise
+the `STARTTLS` extension). The default is to always enforce TLS, and you should
+leave this setting unassigned unless you know what you are doing and understand
+the risks.
+
+</Details>
+
+</TabItem>
+</Tabs>
+
+### `[delivery]`
+
+Assign `sender` to the email address from which you would like the Teleport
+plugin to send messages.
+
+### `[role_to_recipients]`
+
+The `role_to_recipients` map configure the recipients that the email plugin
+will notify when a user requests access to a specific role. When the plugin
+receives an Access Request from the Auth Service, it will look up the role being
+requested and identify the recipients to notify.
+
+Here is an example of a `role_to_recipients` map:
+
+```toml
+[role_to_recipients]
+"*" = ["security@example.com", "executive-team@example.com"]
+"dev" = "eng@example.com"
+"dba" = "mallory@example.com"
+```
+
+In the `role_to_recipients` map, each key is the name of a Teleport role. Each
+value configures the recipients the plugin will email when it receives an Access
+Request for that role. The value can be a single string or an array of strings.
+Each string must be an email address.
+
+The `role_to_recipients` map must also include an entry for `"*"`, which the
+plugin looks up if no other entry matches a given role name. In the example
+above, requests for roles aside from `dev` and `dba` will notify
+`security@example.com` and `executive-team@example.com`.
+
+<Details title="Suggested reviewers">
+
+Users can suggest reviewers when they create an Access Request, e.g.,:
+
+```code
+$ tsh request create --roles=dbadmin --reviewers=alice@example.com,ivan@example.com
+```
+If an Access Request includes suggested reviewers, the email plugin will add
+these to the list of recipients to notify. If a suggested reviewer is an email
+address, the plugin will send a message to that recipient in addition to those
+configured in `role_to_recipients`.
+
+</Details>
+
+Configure the email plugin to notify you when a user requests the `editor` role
+by adding the following to your `role_to_recipients` config, replacing
+`YOUR_EMAIL_ADDRESS` with the appropriate address: 
+
+```toml
+[role_to_recipients]
+"*" = "YOUR_EMAIL_ADDRESS"
+"editor" = "YOUR_EMAIL_ADDRESS"
+```
+
+<Details title="Configuring recipients without role mapping">
+
+If you do not plan to use role-to-recipient mapping, you can configure the
+Teleport email plugin to notify a static list of recipients for every Access
+Request event by using the `delivery.recipients` field:
+
+```toml
+[delivery]
+recipients = ["eng@exmaple.com", "dev@example.com"]
+```
+
+If you use `delivery.recipients`, you must remove the `role_to_recipients`
+configuration section. Behind the scenes, `delivery.recipients` assigns the
+recipient list to a `role_to_recipients` mapping under the wildcard value `"*"`.
+
+</Details>
+
+You configuration should resemble the following:
+
+```toml
+# /etc/teleport-email.toml
+[teleport]
+addr = "example.com:3025"
+identity = "/var/lib/teleport/plugins/email/auth_id"
+
+[mailgun]
+domain = "sandboxbd81caddef744a69be0e5b544ab0c3bd.mailgun.org" 
+private_key = "xoxb-fakekey62b0eac53565a38c8cc0316f6"                                     
+
+# As an alternative, you can use SMTP server credentials:
+#
+# [smtp]
+# host = "smtp.gmail.com"
+# port = 587
+# username = "username@gmail.com"
+# password = ""
+# password_file = "/var/lib/teleport/plugins/email/smtp_password"
+
+[delivery]
+sender = "noreply@example.com" 
+
+[role_to_recipients]
+"*" = "eng@example.com"
+"editor" = ["admin@example.com", "execs@example.com"]
+
+[log]
+output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/email.log"
+severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
+```
+
+## Step 7/7. Test the email plugin
+
+After finishing your configuration, you can now run the plugin and test your
+email-based Access Request flow:
+
+```code
+$ teleport-email start
+```
+
+If everything works as expected, the log output should look like this:
+
+```code
+$ teleport-email start
+INFO   Starting Teleport Access Email Plugin (): email/app.go:80
+INFO   Plugin is ready email/app.go:101
+```
+
+### Create an Access Request
+
+(!docs/pages/includes/plugins/create-request.mdx!)
+
+The recipients you configured earlier should receive notifications of the
+request by email. 
+
+### Resolve the request
+
+(!docs/pages/includes/plugins/resolve-request.mdx!)
+
+## Step 8/8. Set up systemd
+
+In production, we recommend starting the Teleport plugin daemon via an init
+system like systemd. Here's the recommended Teleport plugin service unit file
+for systemd:
+
+```ini
+(!/examples/systemd/plugins/teleport-email.service!)
+```
+
+Save this as `teleport-email.service` in either `/usr/lib/systemd/system/` or
+another [unit file load
+path](https://www.freedesktop.org/software/systemd/man/systemd.unit.html#Unit%20File%20Load%20Path)
+supported by systemd.
+
+Enable and start the plugin:
+
+```code
+$ sudo systemctl enable teleport-email
+$ sudo systemctl start teleport-email
+```
+
+## Feedback
+
+If you have any issues with this plugin please create an [issue
+on GitHub](https://github.com/gravitational/teleport-plugins/issues/new).

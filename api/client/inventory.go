@@ -21,9 +21,10 @@ import (
 	"io"
 	"sync"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+
+	"github.com/gravitational/teleport/api/client/proto"
 )
 
 // DownstreamInventoryControlStream is the client/agent side of a bidirectional stream established
@@ -73,12 +74,18 @@ type UpstreamInventoryControlStream interface {
 type ICSPipeOption func(*pipeOptions)
 
 type pipeOptions struct {
-	peerAddr string
+	peerAddrFn func() string
 }
 
 func ICSPipePeerAddr(peerAddr string) ICSPipeOption {
+	return ICSPipePeerAddrFn(func() string {
+		return peerAddr
+	})
+}
+
+func ICSPipePeerAddrFn(fn func() string) ICSPipeOption {
 	return func(opts *pipeOptions) {
-		opts.peerAddr = peerAddr
+		opts.peerAddrFn = fn
 	}
 }
 
@@ -90,21 +97,21 @@ func InventoryControlStreamPipe(opts ...ICSPipeOption) (UpstreamInventoryControl
 		opt(&options)
 	}
 	pipe := &pipeControlStream{
-		downC:    make(chan proto.DownstreamInventoryMessage),
-		upC:      make(chan proto.UpstreamInventoryMessage),
-		doneC:    make(chan struct{}),
-		peerAddr: options.peerAddr,
+		downC:      make(chan proto.DownstreamInventoryMessage),
+		upC:        make(chan proto.UpstreamInventoryMessage),
+		doneC:      make(chan struct{}),
+		peerAddrFn: options.peerAddrFn,
 	}
 	return upstreamPipeControlStream{pipe}, downstreamPipeControlStream{pipe}
 }
 
 type pipeControlStream struct {
-	downC    chan proto.DownstreamInventoryMessage
-	upC      chan proto.UpstreamInventoryMessage
-	peerAddr string
-	mu       sync.Mutex
-	err      error
-	doneC    chan struct{}
+	downC      chan proto.DownstreamInventoryMessage
+	upC        chan proto.UpstreamInventoryMessage
+	peerAddrFn func() string
+	mu         sync.Mutex
+	err        error
+	doneC      chan struct{}
 }
 
 func (p *pipeControlStream) Close() error {
@@ -159,7 +166,10 @@ func (u upstreamPipeControlStream) Recv() <-chan proto.UpstreamInventoryMessage 
 }
 
 func (u upstreamPipeControlStream) PeerAddr() string {
-	return u.peerAddr
+	if u.peerAddrFn != nil {
+		return u.peerAddrFn()
+	}
+	return ""
 }
 
 type downstreamPipeControlStream struct {

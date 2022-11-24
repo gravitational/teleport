@@ -3,7 +3,7 @@
     "type": "object",
     "required": [
         "clusterName",
-        "authenticationType",
+        "authentication",
         "enterprise",
         "operator",
         "podSecurityPolicy",
@@ -30,10 +30,59 @@
             "type": "string",
             "default": ""
         },
+        "authentication": {
+            "$id": "#/properties/authentication",
+            "type": "object",
+            "required": ["type", "localAuth"],
+            "properties": {
+                "type": {
+                    "$id": "#/properties/authentication/properties/type",
+                    "type": "string",
+                    "default": "local"
+                },
+                "connectorName": {
+                    "$id": "#/properties/authentication/properties/connectorName",
+                    "type": "string",
+                    "default": ""
+                },
+                "localAuth": {
+                    "$id": "#/properties/authentication/properties/localAuth",
+                    "type": "boolean",
+                    "default": true
+                },
+                "lockingMode": {
+                    "$id": "#/properties/authentication/properties/lockingMode",
+                    "type": "string",
+                    "default": ""
+                },
+                "secondFactor": {
+                    "$id": "#/properties/authentication/properties/secondFactor",
+                    "type": "string",
+                    "enum": ["off", "on", "otp", "optional", "webauthn"],
+                    "default": "otp"
+                },
+                "webauthn": {
+                    "$id": "#/properties/authentication/properties/webauthn",
+                    "type": "object",
+                    "required": [],
+                    "properties": {
+                        "attestationAllowedCas": {
+                            "$id": "#/properties/authentication/properties/webauthn/properties/attestationAllowedCas",
+                            "type": "array",
+                            "default": []
+                        },
+                        "attestationDeniedCas": {
+                            "$id": "#/properties/authentication/properties/webauthn/properties/attestationDeniedCas",
+                            "type": "array",
+                            "default": []
+                        }
+                    }
+                }
+            }
+        },
         "authenticationType": {
             "$id": "#/properties/authenticationType",
-            "type": "string",
-            "default": "local"
+            "type": "string"
         },
         "authenticationSecondFactor": {
             "$id": "#/properties/authenticationSecondFactor",
@@ -67,6 +116,11 @@
         },
         "proxyListenerMode": {
             "$id": "#/properties/proxyListenerMode",
+            "type": "string",
+            "default": ""
+        },
+        "sessionRecording": {
+            "$id": "#/properties/sessionRecording",
             "type": "string",
             "default": ""
         },
@@ -163,8 +217,7 @@
         },
         "installCRDs": {
             "$id": "#/properties/installCRDs",
-            "type": "boolean",
-            "default": false
+            "type": "boolean"
         },
         "operator": {
             "$id": "#/properties/operator",
@@ -179,7 +232,7 @@
                 "image": {
                     "$id": "#/properties/operator/properties/image",
                     "type": "string",
-                    "default": "quay.io/gravitational/teleport-operator"
+                    "default": "public.ecr.aws/gravitational/teleport-operator"
                 },
                 "resources": {
                     "$id": "#/properties/operator/properties/resources",
@@ -295,6 +348,74 @@
                     "$id": "#/properties/aws/properties/backups",
                     "type": "boolean",
                     "default": false
+                },
+                "dynamoAutoScaling": {
+                    "$id": "#/properties/aws/properties/dynamoAutoScaling",
+                    "type": "boolean",
+                    "default": false
+                }
+            },
+            "if": {
+                "properties": {
+                    "dynamoAutoScaling": {
+                        "const": true
+                    }
+                }
+            },
+            "then": {
+                "properties": {
+                    "readMinCapacity": {
+                        "$id": "#/properties/aws/properties/readMinCapacity",
+                        "type": "integer"
+                    },
+                    "readMaxCapacity": {
+                        "$id": "#/properties/aws/properties/readMaxCapacity",
+                        "type": "integer"
+                    },
+                    "readTargetValue": {
+                        "$id": "#/properties/aws/properties/readTargetValue",
+                        "type": "number"
+                    },
+                    "writeMinCapacity": {
+                        "$id": "#/properties/aws/properties/writeMinCapacity",
+                        "type": "integer"
+                    },
+                    "writeMaxCapacity": {
+                        "$id": "#/properties/aws/properties/writeMaxCapacity",
+                        "type": "integer"
+                    },
+                    "writeTargetValue": {
+                        "$id": "#/properties/aws/properties/writeTargetValue",
+                        "type": "number"
+                    }
+                }
+            },
+            "else": {
+                "properties": {
+                    "readMinCapacity": {
+                        "$id": "#/properties/aws/properties/readMinCapacity",
+                        "type": "null"
+                    },
+                    "readMaxCapacity": {
+                        "$id": "#/properties/aws/properties/readMaxCapacity",
+                        "type": "null"
+                    },
+                    "readTargetValue": {
+                        "$id": "#/properties/aws/properties/readTargetValue",
+                        "type": "null"
+                    },
+                    "writeMinCapacity": {
+                        "$id": "#/properties/aws/properties/writeMinCapacity",
+                        "type": "null"
+                    },
+                    "writeMaxCapacity": {
+                        "$id": "#/properties/aws/properties/writeMaxCapacity",
+                        "type": "null"
+                    },
+                    "writeTargetValue": {
+                        "$id": "#/properties/aws/properties/writeTargetValue",
+                        "type": "null"
+                    }
                 }
             }
         },
@@ -344,6 +465,7 @@
                 "replicaCount",
                 "requireAntiAffinity",
                 "certManager",
+                "minReadySeconds",
                 "podDisruptionBudget"
             ],
             "properties": {
@@ -394,6 +516,11 @@
                         }
                     }
                 },
+                "minReadySeconds": {
+                    "$id": "#/properties/highAvailability/properties/minReadySeconds",
+                    "type": "integer",
+                    "default": 15
+                },
                 "podDisruptionBudget": {
                     "$id": "#/properties/highAvailability/properties/podDisruptionBudget",
                     "type": "object",
@@ -439,12 +566,12 @@
         "image": {
             "$id": "#/properties/image",
             "type": "string",
-            "default": "quay.io/gravitational/teleport"
+            "default": "public.ecr.aws/gravitational/teleport"
         },
         "enterpriseImage": {
             "$id": "#/properties/enterpriseImage",
             "type": "string",
-            "default": "quay.io/gravitational/teleport-ent"
+            "default": "public.ecr.aws/gravitational/teleport-ent"
         },
         "logLevel": {
             "$id": "#/properties/logLevel",
@@ -555,6 +682,23 @@
                     "$id": "#/properties/service/spec",
                     "type": "object",
                     "default": {}
+                }
+            }
+        },
+        "serviceAccount": {
+            "$id": "#/properties/serviceAccount",
+            "type": "object",
+            "required": [],
+            "properties": {
+                "name": {
+                    "$id": "#properties/service/name",
+                    "type": "string",
+                    "default": ""
+                },
+                "create": {
+                    "$id": "#properties/service/create",
+                    "type": "boolean",
+                    "default": true 
                 }
             }
         },

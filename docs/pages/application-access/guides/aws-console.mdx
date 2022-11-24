@@ -1,21 +1,19 @@
 ---
-title: Access AWS Management Console With Teleport Application Access
-description: How to access AWS Management Console with Teleport Application Access.
+title: Access AWS With Teleport Application Access
+description: How to access AWS with Teleport Application Access.
 videoBanner: GVcy_rffxQw
 ---
 
-# AWS Management Console Access
-
 Teleport can automatically sign your users into the AWS management console with
-appropriate IAM roles.
+appropriate IAM roles. Teleport also provides API access to AWS Command Line
+Interface (CLI) or any applications using AWS SDKs like Terraform.
 
 This guide will explain how to:
 
-- Connect your AWS account(s) to Teleport.
-- Set up example AWS IAM Read Only and Power User roles.
-- Use Teleport's role-based access control with AWS IAM roles.
+- Access AWS Management Console through Teleport.
 - View Teleport users' AWS console activity in CloudTrail.
-- Access the AWS Command Line Interface (CLI) through Teleport. 
+- Access the AWS Command Line Interface (CLI) through Teleport.
+- Access applications using AWS SDKs through Teleport.
 
 ## Prerequisites
 
@@ -35,7 +33,7 @@ you must associate the policy with the cluster role for the worker nodes.
 Otherwise, you will receive "400 Bad Request" errors from AWS.
 </Admonition>
 
-## Step 1. [Optional] Configure Read Only and Power User roles
+## Step 1/9. [Optional] Configure Read Only and Power User roles
 
 AWS provides the `ReadOnlyAccess` and `PowerUserAccess` IAM policies that can be incorporated into roles. **Skip this step** if you already have the roles you want to provide access to.
 
@@ -70,14 +68,14 @@ Enter a role name and press create role.
 Follow the same steps and select `PowerUserAccess` IAM Policy to create a `ExamplePowerUser` role.
 
 
-## Step 2. Update IAM role trust relationships
+## Step 2/9. Update IAM role trust relationships
 
 <Admonition type="note">
 This step is only required if you are allowing access from another account. The trust relationship will already exist for the same account.
 </Admonition>
 
 Teleport uses AWS [federation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_enable-console-custom-url.html) to generate sign-in URLs for users, which relies on the `AssumeRole` API
-for getting temporary security credentials. 
+for getting temporary security credentials.
 You will need to update your IAM roles' "Trusted entities" to include your AWS account ID.
 
 Go to the [Roles](https://console.aws.amazon.com/iamv2/home#/roles) list, pick
@@ -108,7 +106,7 @@ From the EC2 dashboard select Actions -> Security -> Modify IAM Role.
 
 Do this for each IAM role your Teleport users will need to assume.
 
-## Step 3. Give Teleport permissions to assume roles
+## Step 3/9. Give Teleport permissions to assume roles
 
 Next, create a Role using this IAM policy to allow Teleport to assume IAM roles:
 
@@ -135,7 +133,7 @@ is using.
 
 ![AWS Attach Security Role](../../../img/application-access/attach-security-role.png)
 
-## Step 4. Configure Teleport IAM role mapping
+## Step 4/9. Configure Teleport IAM role mapping
 
 The next step is to give your Teleport users permissions to assume IAM roles.
 
@@ -160,23 +158,23 @@ The `aws_role_arns` field supports template variables so they can be populated
 dynamically based on your users' identity provider attributes. See [Role Templates](../../access-controls/guides/role-templates.mdx)
 for details.
 
-## Step 5. Register AWS console application in Teleport
+## Step 5/9. Register AWS console application in Teleport
 
 Add AWS management console to your application service configuration:
 
 ```yaml
+version: v3
 teleport:
   # Data directory for the Application Proxy service. If running on the same
   # node as Auth/Proxy service, make sure to use different data directories.
   data_dir: /var/lib/teleport-app
-  # Instructs the service to load the join token from the specified file
+  # Instructs the service to load the auth token from the specified file
   # during initial registration with the cluster.
   auth_token: /var/lib/teleport-app/token
   # Proxy address to connect to. Note that it has to be the proxy address
   # because the app service always connects to the cluster over a reverse
   # tunnel.
-  auth_servers:
-  - teleport.example.com:3080
+  proxy_server: teleport.example.com:3080
 app_service:
   enabled: "yes"
   apps:
@@ -199,8 +197,21 @@ Start the application service
 sudo teleport start --config=/path/to/teleport.yaml
 ```
 
-Note that URI must start with `https://console.aws.amazon.com` in order to be
+Note that the URI must start with one of the following values in order to be
 recognized as an AWS console.
+
+| Regions                   | AWS Console URL |
+| ------------------------- | --------------- |
+| Standard AWS regions      | `https://console.aws.amazon.com` |
+| AWS GovCloud (US) regions | `https://console.amazonaws-us-gov.com` |
+| AWS China regions         | `https://console.amazonaws.cn` |
+
+<Admonition type="warning" title="non-standard AWS regions">
+For non-standard AWS regions such as AWS GovCloud (US) regions and AWS China
+regions, please set the corresponding region in the `AWS_REGION` environment
+variable or in the AWS credentials file so that the Application Service can use
+the correct STS endpoint.
+</Admonition>
 
 ### Multiple AWS accounts
 
@@ -222,12 +233,22 @@ app_service:
     labels:
       aws_account_id: "0987654321"
       env: prod
+  - name: "awsconsole-third-party"
+    uri: "https://console.aws.amazon.com/ec2/v2/home"
+    labels:
+      aws_account_id: "1234554321"
+    aws:
+      external_id: "example-external-id"
 ```
 
 When showing available IAM roles, Teleport will display only role ARNs that
 belong to the specific account.
 
-## Step 6. Connect to AWS console with assumed IAM role
+For AWS accounts that require external IDs for accessing their resources, set
+the `external_id` field, which the Application Service uses when assuming the
+AWS roles in these accounts.
+
+## Step 6/9. Connect to AWS console with assumed IAM role
 
 Navigate to the Applications tab in your Teleport cluster's control panel and
 click on the Launch button for the AWS console application which will bring up
@@ -250,7 +271,7 @@ Note that your federated login session is marked with your Teleport username.
     the management console session will be limited to a maximum of one hour.
 </Admonition>
 
-## Step 7. Use CloudTrail to see Teleport user activity
+## Step 7/9. Use CloudTrail to see Teleport user activity
 
 To view CloudTrail events for your federated sessions, navigate to the CloudTrail
 [dashboard](https://console.aws.amazon.com/cloudtrail/home) and go to "Event history".
@@ -260,7 +281,7 @@ username which you can search for to get the events history:
 
 ![CloudTrail](../../../img/application-access/cloud-trail.png)
 
-## Step 8. Using AWS CLI
+## Step 8/9. Access AWS CLI
 
 Before beginning this step, make sure that the `aws` command line interface (CLI) tool is installed in PATH. For more information, read [Installing or updating the latest version of the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html).
 
@@ -288,6 +309,55 @@ To log out of the aws application and remove credentials:
 $ tsh app logout awsconsole-test
 ```
 
+## Step 9/9. Access applications using AWS SDKs
+
+First, log into the previously configured console app if you haven't already
+done so:
+
+```code
+$ tsh app login --aws-role ExamplePowerUser awsconsole-test
+```
+
+Now, use the following command to start a local HTTPS proxy server your
+applications will be connecting to:
+
+```code
+$ tsh proxy aws -p 23456
+Started AWS proxy on http://127.0.0.1:23456.
+
+Use the following credentials and HTTPS proxy setting to connect to the proxy:
+  AWS_ACCESS_KEY_ID=(=aws.aws_access_key=)
+  AWS_SECRET_ACCESS_KEY=(=aws.aws_secret_access_key=)
+  AWS_CA_BUNDLE=<ca-bundle-path>
+  HTTPS_PROXY=http://127.0.0.1:23456
+```
+
+Use the displayed AWS credentials and HTTPS proxy settings when configuring
+your application.
+
+It is important to check how AWS credentials and HTTPS proxy setting can be
+configured for your application. For example, many command line tools like
+`terraform` or `eksctl` support setting the above AWS credentials and the HTTPS
+proxy using environment variables:
+
+```code
+$ export AWS_ACCESS_KEY_ID=(=aws.aws_access_key=)
+$ export AWS_SECRET_ACCESS_KEY=(=aws.aws_secret_access_key=)
+$ export AWS_CA_BUNDLE=<ca-bundle-path>
+$ export HTTPS_PROXY=http://127.0.0.1:23456
+$ terraform plan
+```
+
+If you are developing your own applications using AWS SDKs, some SDKs may
+require extra environment variables (e.g. `AWS_SDK_LOAD_CONFIG=true` for AWS
+SDK for Go v2) or require configuring the HTTPS proxy through code (e.g. AWS
+SDK for JavaScript).
+
+To log out of the AWS application and remove credentials:
+
+```code
+$ tsh app logout awsconsole-test
+```
 
 ## Next steps
 

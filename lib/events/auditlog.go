@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -52,14 +53,17 @@ const (
 	SessionLogsDir = "sessions"
 
 	// StreamingLogsDir is a subdirectory of sessions /var/lib/teleport/log/streaming
-	// is used in new versions of the uploader
+	// is used in new versions of the uploader. This directory is used in asynchronous
+	// recording modes where recordings are buffered to disk before being uploaded
+	// to the auth server.
 	StreamingLogsDir = "streaming"
 
-	// RecordsDir is a subdirectory with default records /var/lib/teleport/log/records
-	// is used in new versions of the uploader
+	// RecordsDir is an auth server subdirectory with session recordings that is used
+	// when the auth server is not configured for external cloud storage. It is not
+	// used by nodes, proxies, or other Teleport services.
 	RecordsDir = "records"
 
-	// PlaybackDir is a directory for playbacks
+	// PlaybackDir is a directory for caching downloaded sessions during playback.
 	PlaybackDir = "playbacks"
 
 	// LogfileExt defines the ending of the daily event log file
@@ -158,7 +162,7 @@ type AuditLogConfig struct {
 	// to GID
 	GID *int
 
-	// UID if provided will be used to set userownership of the directory
+	// UID if provided will be used to set user ownership of the directory
 	// to UID
 	UID *int
 
@@ -220,7 +224,7 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 // NewAuditLog creates and returns a new Audit Log object which will store its log files in
 // a given directory.
 func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
-	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -553,7 +557,7 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 		return trace.ConvertSystemError(err)
 	}
 	switch {
-	case format.Proto == true:
+	case format.Proto:
 		start = time.Now()
 		l.log.Debugf("Converting %v to playback format.", tarballPath)
 		protoReader := NewProtoReader(tarball)
@@ -565,7 +569,7 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 		stats := protoReader.GetStats().ToFields()
 		stats["duration"] = time.Since(start)
 		l.log.WithFields(stats).Debugf("Converted %v to %v.", tarballPath, l.playbackDir)
-	case format.Tar == true:
+	case format.Tar:
 		if err := utils.Extract(tarball, l.playbackDir); err != nil {
 			return trace.Wrap(err)
 		}
@@ -743,9 +747,7 @@ func (l *AuditLog) getSessionChunk(namespace string, sid session.ID, offsetBytes
 // (oldest first).
 //
 // Can be filtered by 'after' (cursor value to return events newer than)
-//
-// This function is usually used in conjunction with GetSessionReader to
-// replay recorded session streams.
+
 func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]EventFields, error) {
 	l.log.WithFields(log.Fields{"sid": string(sid), "afterN": afterN, "printEvents": includePrintEvents}).Debugf("GetSessionEvents.")
 	if namespace == "" {
@@ -899,8 +901,10 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 			e <- trace.BadParameter("audit log is closing, aborting the download")
 			return c, e
 		}
+	} else {
+		defer cancel()
 	}
-	defer cancel()
+
 	rawSession, err := os.OpenFile(tarballPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
 	if err != nil {
 		e <- trace.Wrap(err)

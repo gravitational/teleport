@@ -23,6 +23,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -31,9 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
 )
 
 var requestLoginHint = "use 'tsh login --request-id=<request-id>' to login with an approved request"
@@ -379,16 +379,7 @@ func onRequestSearch(cf *CLIConf) error {
 	}
 	defer proxyClient.Close()
 
-	authClient, err := proxyClient.CurrentClusterAccessPoint(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	clusterNameResource, err := authClient.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	clusterName := clusterNameResource.GetClusterName()
+	authClient := proxyClient.CurrentCluster()
 
 	req := proto.ListResourcesRequest{
 		ResourceType:        services.MapResourceKindToListResourcesType(cf.ResourceKind),
@@ -412,11 +403,11 @@ func onRequestSearch(cf *CLIConf) error {
 		resources = append(resources, leafResources...)
 	}
 
-	rows := [][]string{}
+	var rows [][]string
 	var resourceIDs []string
 	for _, resource := range resources {
 		resourceID := types.ResourceIDToString(types.ResourceID{
-			ClusterName: clusterName,
+			ClusterName: proxyClient.ClusterName(),
 			Kind:        resource.GetKind(),
 			Name:        resource.GetName(),
 		})

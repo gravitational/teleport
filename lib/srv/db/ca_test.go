@@ -21,6 +21,8 @@ import (
 	"net"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -28,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
-	"github.com/stretchr/testify/require"
 )
 
 // TestInitCACert verifies automatic download of root certs for cloud databases.
@@ -141,7 +142,7 @@ func TestInitCACert(t *testing.T) {
 		{
 			desc:     "should download Azure CA when it's not set",
 			database: azureMySQL.GetName(),
-			cert:     fixtures.TLSCACertPEM,
+			cert:     fixtures.TLSCACertPEM + "\n" + fixtures.TLSCACertPEM, // Two CA files.
 		},
 	}
 
@@ -200,7 +201,7 @@ type fakeDownloader struct {
 	count int
 }
 
-func (d *fakeDownloader) Download(context.Context, types.Database) ([]byte, error) {
+func (d *fakeDownloader) Download(context.Context, types.Database, string) ([]byte, error) {
 	d.count++
 	return d.cert, nil
 }

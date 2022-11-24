@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -28,10 +29,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
-
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // TLSConfig returns default TLS configuration strong defaults.
@@ -161,6 +162,26 @@ func CipherSuiteMapping(cipherSuites []string) ([]uint16, error) {
 	}
 
 	return out, nil
+}
+
+// TLSConn is a `net.Conn` that implements some of the functions defined by the
+// `tls.Conn` struct. This interface can be used where it could receive a
+// `tls.Conn` wrapped in another connection. For example, in the ALPN Proxy,
+// some TLS Connections can be wrapped with ping protocol.
+type TLSConn interface {
+	net.Conn
+
+	// ConnectionState returns basic TLS details about the connection.
+	// More info at: https://pkg.go.dev/crypto/tls#Conn.ConnectionState
+	ConnectionState() tls.ConnectionState
+	// Handshake runs the client or server handshake protocol if it has not yet
+	// been run.
+	// More info at: https://pkg.go.dev/crypto/tls#Conn.Handshake
+	Handshake() error
+	// HandshakeContext runs the client or server handshake protocol if it has
+	// not yet been run.
+	// More info at: https://pkg.go.dev/crypto/tls#Conn.HandshakeContext
+	HandshakeContext(context.Context) error
 }
 
 // cipherSuiteMapping is the mapping between Teleport formatted cipher

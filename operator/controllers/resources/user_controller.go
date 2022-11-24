@@ -20,15 +20,18 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gravitational/teleport/api/types"
-	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
-	"github.com/gravitational/teleport/operator/sidecar"
 	"github.com/gravitational/trace"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/gravitational/teleport/api/types"
+	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
+	"github.com/gravitational/teleport/operator/sidecar"
 )
+
+// TODO: Have the User controller to use the generic Teleport reconciler
 
 // UserReconciler reconciles a TeleportUser object
 type UserReconciler struct {
@@ -43,10 +46,6 @@ type UserReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the TeleportUser object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.11.0/pkg/reconcile
@@ -92,15 +91,11 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 
 	exists := !trace.IsNotFound(err)
 
-	newCondition, err := checkOwnership(existingResource)
-	// Setting the condition before returning a potential ownership error
-	meta.SetStatusCondition(&k8sResource.Status.Conditions, newCondition)
-	if err := r.Status().Update(ctx, k8sResource); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err != nil {
-		return trace.Wrap(err)
+	newOwnershipCondition, isOwned := checkOwnership(existingResource)
+	meta.SetStatusCondition(&k8sResource.Status.Conditions, newOwnershipCondition)
+	if !isOwned {
+		silentUpdateStatus(ctx, r.Client, k8sResource)
+		return trace.AlreadyExists("unowned resource '%s' already exists", existingResource.GetName())
 	}
 
 	r.addTeleportResourceOrigin(teleportResource)
@@ -108,15 +103,20 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	if !exists {
 		err = teleportClient.CreateUser(ctx, teleportResource)
 	} else {
+		// We don't want to lose the "created_by" data populated on creation
+		teleportResource.SetCreatedBy(existingResource.GetCreatedBy())
 		err = teleportClient.UpdateUser(ctx, teleportResource)
 	}
-
-	newCondition = getReconciliationCondition(err)
-	meta.SetStatusCondition(&k8sResource.Status.Conditions, newCondition)
-	if err := r.Status().Update(ctx, k8sResource); err != nil {
+	// If an error happens we want to put it in status.conditions before returning.
+	newReconciliationCondition := getReconciliationConditionFromError(err)
+	meta.SetStatusCondition(&k8sResource.Status.Conditions, newReconciliationCondition)
+	if err != nil {
+		silentUpdateStatus(ctx, r.Client, k8sResource)
 		return trace.Wrap(err)
 	}
-	return err
+
+	// We update the status conditions on exit
+	return trace.Wrap(r.Status().Update(ctx, k8sResource))
 }
 
 func (r *UserReconciler) addTeleportResourceOrigin(resource types.User) {

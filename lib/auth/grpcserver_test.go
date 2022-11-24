@@ -22,6 +22,8 @@ import (
 	"encoding/base32"
 	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"sort"
 	"testing"
 	"time"
@@ -29,27 +31,34 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
+	"github.com/jonboulle/clockwork"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
+	"github.com/stretchr/testify/require"
+	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
+	otlpresourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
+	otlptracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/pquerna/otp"
-	"github.com/pquerna/otp/totp"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 func TestMFADeviceManagement(t *testing.T) {
@@ -613,8 +622,17 @@ func testDeleteMFADevice(ctx context.Context, t *testing.T, cl *Client, opts mfa
 	if err != nil {
 		return
 	}
-	require.Empty(t, cmp.Diff(deleteAck.GetAck(), &proto.DeleteMFADeviceResponseAck{}))
-
+	deleted := deleteAck.GetAck().GetDevice()
+	require.NotNil(t, deleted, "deleted device in ack message is nil")
+	require.NotEmpty(t, deleted.Id, "deleted device.Id in ack message is empty")
+	require.NotEmpty(t, deleted.GetName(), "deleted device.Name in ack message is empty")
+	// opts.initReq.DeviceName can be either the device name or ID, so check if
+	// either matches the deleted device.
+	wantName := []string{
+		deleted.Id,
+		deleted.GetName(),
+	}
+	require.Contains(t, wantName, opts.initReq.DeviceName)
 	require.NoError(t, deleteStream.CloseSend())
 }
 
@@ -787,7 +805,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	require.NoError(t, err)
 	// Make sure MFA is required for this user.
 	roleOpt := role.GetOptions()
-	roleOpt.RequireSessionMFA = true
+	roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 	role.SetOptions(roleOpt)
 	err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
@@ -798,7 +816,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	registered := addOneOfEachMFADevice(t, cl, clock, webOrigin)
 
 	// Fetch MFA device IDs.
-	devs, err := srv.Auth().Identity.GetMFADevices(ctx, user.GetName(), false)
+	devs, err := srv.Auth().Services.GetMFADevices(ctx, user.GetName(), false)
 	require.NoError(t, err)
 	var webDevID string
 	for _, dev := range devs {
@@ -808,7 +826,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		}
 	}
 
-	_, pub, err := native.GenerateKeyPair()
+	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -1004,21 +1022,18 @@ func testGenerateUserSingleUseCert(ctx context.Context, t *testing.T, cl *Client
 	require.NoError(t, stream.CloseSend())
 }
 
+var requireMFATypes = []types.RequireMFAType{
+	types.RequireMFAType_OFF,
+	types.RequireMFAType_SESSION,
+	types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
+	types.RequireMFAType_HARDWARE_KEY_TOUCH,
+}
+
 func TestIsMFARequired(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
-
-	// Enable MFA support.
-	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional,
-		Webauthn: &types.Webauthn{
-			RPID: "teleport",
-		},
-	})
-	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPref)
-	require.NoError(t, err)
 
 	// Register an SSH node.
 	node := &types.ServerV2{
@@ -1031,33 +1046,52 @@ func TestIsMFARequired(t *testing.T) {
 			Hostname: "node-a",
 		},
 	}
-	_, err = srv.Auth().UpsertNode(ctx, node)
+	_, err := srv.Auth().UpsertNode(ctx, node)
 	require.NoError(t, err)
 
 	// Create a fake user.
-	user, role, err := CreateUserAndRole(srv.Auth(), "no-mfa-user", []string{"role"})
+	user, role, err := CreateUserAndRole(srv.Auth(), "no-mfa-user", []string{"no-mfa-user"})
 	require.NoError(t, err)
 
-	for _, required := range []bool{true, false} {
-		t.Run(fmt.Sprintf("required=%v", required), func(t *testing.T) {
-			roleOpt := role.GetOptions()
-			roleOpt.RequireSessionMFA = required
-			role.SetOptions(roleOpt)
-			err = srv.Auth().UpsertRole(ctx, role)
-			require.NoError(t, err)
-
-			cl, err := srv.NewClient(TestUser(user.GetName()))
-			require.NoError(t, err)
-
-			resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
-				Target: &proto.IsMFARequiredRequest_Node{Node: &proto.NodeLogin{
-					Login: user.GetName(),
-					Node:  "node-a",
-				}},
-			})
-			require.NoError(t, err)
-			require.Equal(t, resp.Required, required)
+	for _, authPrefRequireMFAType := range requireMFATypes {
+		authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+			Type:           constants.Local,
+			SecondFactor:   constants.SecondFactorOptional,
+			RequireMFAType: authPrefRequireMFAType,
+			Webauthn: &types.Webauthn{
+				RPID: "teleport",
+			},
 		})
+		require.NoError(t, err)
+		err = srv.Auth().SetAuthPreference(ctx, authPref)
+		require.NoError(t, err)
+
+		for _, roleRequireMFAType := range requireMFATypes {
+			// If role or auth pref have "hardware_key_touch", expect not required.
+			expectRequired := !(roleRequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH || authPrefRequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH)
+			// Otherwise, if auth pref or role require session MFA, expect required.
+			expectRequired = expectRequired && (roleRequireMFAType.IsSessionMFARequired() || authPrefRequireMFAType.IsSessionMFARequired())
+
+			t.Run(fmt.Sprintf("authPref=%v/role=%v/expect=%v", authPrefRequireMFAType, roleRequireMFAType, expectRequired), func(t *testing.T) {
+				roleOpt := role.GetOptions()
+				roleOpt.RequireMFAType = roleRequireMFAType
+				role.SetOptions(roleOpt)
+				err = srv.Auth().UpsertRole(ctx, role)
+				require.NoError(t, err)
+
+				cl, err := srv.NewClient(TestUser(user.GetName()))
+				require.NoError(t, err)
+
+				resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+					Target: &proto.IsMFARequiredRequest_Node{Node: &proto.NodeLogin{
+						Login: user.GetName(),
+						Node:  "node-a",
+					}},
+				})
+				require.NoError(t, err)
+				require.Equal(t, expectRequired, resp.Required)
+			})
+		}
 	}
 }
 
@@ -1116,7 +1150,7 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 
 	// Require MFA.
 	roleOpt := role.GetOptions()
-	roleOpt.RequireSessionMFA = true
+	roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 	role.SetOptions(roleOpt)
 	role.SetNodeLabels(types.Allow, map[string]apiutils.Strings{"a": []string{"c"}})
 	err = srv.Auth().UpsertRole(ctx, role)
@@ -1342,7 +1376,7 @@ func TestGenerateHostCerts(t *testing.T) {
 	clt, err := srv.NewClient(TestAdmin())
 	require.NoError(t, err)
 
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	pubTLS, err := PrivateKeyToPublicKeyTLS(priv)
@@ -1382,7 +1416,7 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	require.NoError(t, err)
 	defer clt.Close()
 
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	pubTLS, err := PrivateKeyToPublicKeyTLS(priv)
@@ -1720,12 +1754,8 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	server2, err := types.NewAppServerV3FromApp(app2, "server-2", "server-2")
 	require.NoError(t, err)
-
-	// Create a legacy app server.
 	app3, err := types.NewAppV3(types.Metadata{Name: "app-3"},
 		types.AppSpecV3{URI: "localhost"})
-	require.NoError(t, err)
-	server3Legacy, err := types.NewLegacyAppServer(app3, "server-3", "server-3")
 	require.NoError(t, err)
 	server3, err := types.NewAppServerV3FromApp(app3, "server-3", "server-3")
 	require.NoError(t, err)
@@ -1740,7 +1770,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	_, err = clt.UpsertApplicationServer(ctx, server2)
 	require.NoError(t, err)
-	_, err = clt.UpsertAppServer(ctx, server3Legacy)
+	_, err = clt.UpsertApplicationServer(ctx, server3)
 	require.NoError(t, err)
 
 	// Fetch all app servers.
@@ -1771,8 +1801,6 @@ func TestApplicationServersCRUD(t *testing.T) {
 
 	// Delete all app servers.
 	err = clt.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	err = clt.DeleteAllAppServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
@@ -2210,6 +2238,399 @@ func TestCustomRateLimiting(t *testing.T) {
 
 			err = test.fn(clt)
 			require.True(t, trace.IsLimitExceeded(err), "got err = %v, want LimitExceeded", err)
+		})
+	}
+}
+
+type mockAuthorizer struct {
+	ctx *Context
+	err error
+}
+
+func (a mockAuthorizer) Authorize(context.Context) (*Context, error) {
+	return a.ctx, a.err
+}
+
+type mockTraceClient struct {
+	err   error
+	spans []*otlptracev1.ResourceSpans
+}
+
+func (m mockTraceClient) Start(ctx context.Context) error {
+	return nil
+}
+
+func (m mockTraceClient) Stop(ctx context.Context) error {
+	return nil
+}
+
+func (m *mockTraceClient) UploadTraces(ctx context.Context, protoSpans []*otlptracev1.ResourceSpans) error {
+	m.spans = protoSpans
+
+	return m.err
+}
+
+func TestExport(t *testing.T) {
+	t.Parallel()
+	uploadErr := trace.AccessDenied("failed to upload")
+
+	const user = "user"
+
+	validateResource := func(forwardedFor string, resourceSpan *otlptracev1.ResourceSpans) {
+		var forwarded []string
+		for _, attribute := range resourceSpan.Resource.Attributes {
+			if attribute.Key == forwardedTag {
+				forwarded = append(forwarded, attribute.Value.GetStringValue())
+			}
+		}
+
+		require.Len(t, forwarded, 1)
+
+		for _, scopeSpan := range resourceSpan.ScopeSpans {
+			for _, span := range scopeSpan.Spans {
+				for _, attribute := range span.Attributes {
+					if attribute.Key == forwardedTag {
+						forwarded = append(forwarded, attribute.Value.GetStringValue())
+					}
+				}
+			}
+		}
+
+		require.Len(t, forwarded, 2)
+		for _, value := range forwarded {
+			require.Equal(t, forwardedFor, value)
+		}
+	}
+
+	validateTaggedSpans := func(forwardedFor string) require.ValueAssertionFunc {
+		return func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			require.NotEmpty(t, i)
+			resourceSpans, ok := i.([]*otlptracev1.ResourceSpans)
+			require.True(t, ok)
+
+			for _, resourceSpan := range resourceSpans {
+				if resourceSpan.Resource != nil {
+					validateResource(forwardedFor, resourceSpan)
+					return
+				}
+
+				for _, scopeSpan := range resourceSpan.ScopeSpans {
+					for _, span := range scopeSpan.Spans {
+						var foundForwardedTag bool
+						for _, attribute := range span.Attributes {
+							if attribute.Key == forwardedTag {
+								require.False(t, foundForwardedTag)
+								foundForwardedTag = true
+								require.Equal(t, forwardedFor, attribute.Value.GetStringValue())
+							}
+						}
+						require.True(t, foundForwardedTag)
+					}
+				}
+			}
+		}
+	}
+
+	testSpans := []*otlptracev1.ResourceSpans{
+		{
+			Resource: &otlpresourcev1.Resource{
+				Attributes: []*otlpcommonv1.KeyValue{
+					{
+						Key: "test",
+						Value: &otlpcommonv1.AnyValue{
+							Value: &otlpcommonv1.AnyValue_IntValue{
+								IntValue: 1,
+							},
+						},
+					},
+					{
+						Key: "key",
+						Value: &otlpcommonv1.AnyValue{
+							Value: &otlpcommonv1.AnyValue_StringValue{
+								StringValue: user,
+							},
+						},
+					},
+				},
+			},
+			ScopeSpans: []*otlptracev1.ScopeSpans{
+				{
+					Spans: []*otlptracev1.Span{
+						{
+							Name: "with-attributes",
+							Attributes: []*otlpcommonv1.KeyValue{
+								{
+									Key: "test",
+									Value: &otlpcommonv1.AnyValue{
+										Value: &otlpcommonv1.AnyValue_IntValue{
+											IntValue: 1,
+										},
+									},
+								},
+								{
+									Key: "key",
+									Value: &otlpcommonv1.AnyValue{
+										Value: &otlpcommonv1.AnyValue_DoubleValue{
+											DoubleValue: 5.0,
+										},
+									},
+								},
+							},
+						},
+						{
+							Name:       "with-tag",
+							Attributes: []*otlpcommonv1.KeyValue{{Key: forwardedTag, Value: &otlpcommonv1.AnyValue{Value: &otlpcommonv1.AnyValue_StringValue{StringValue: "test"}}}},
+						},
+						{
+							Name: "no-attributes",
+						},
+					},
+				},
+			},
+		},
+		{
+			ScopeSpans: []*otlptracev1.ScopeSpans{
+				{
+					Spans: []*otlptracev1.Span{
+						{
+							Name: "more-with-attributes",
+							Attributes: []*otlpcommonv1.KeyValue{
+								{
+									Key: "test2",
+									Value: &otlpcommonv1.AnyValue{
+										Value: &otlpcommonv1.AnyValue_IntValue{
+											IntValue: 11,
+										},
+									},
+								},
+								{
+									Key: "key2",
+									Value: &otlpcommonv1.AnyValue{
+										Value: &otlpcommonv1.AnyValue_DoubleValue{
+											DoubleValue: 15.0,
+										},
+									},
+								},
+							},
+						},
+						{
+							Name: "already-tagged",
+							Attributes: []*otlpcommonv1.KeyValue{
+								{
+									Key: forwardedTag,
+									Value: &otlpcommonv1.AnyValue{
+										Value: &otlpcommonv1.AnyValue_StringValue{
+											StringValue: user,
+										},
+									},
+								},
+								{
+									Key: "key2",
+									Value: &otlpcommonv1.AnyValue{
+										Value: &otlpcommonv1.AnyValue_DoubleValue{
+											DoubleValue: 15.0,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	cases := []struct {
+		name              string
+		identity          TestIdentity
+		errAssertion      require.ErrorAssertionFunc
+		uploadedAssertion require.ValueAssertionFunc
+		spans             []*otlptracev1.ResourceSpans
+		authorizer        Authorizer
+		mockTraceClient   mockTraceClient
+	}{
+		{
+			name:              "error when unauthorized",
+			identity:          TestNop(),
+			errAssertion:      require.Error,
+			uploadedAssertion: require.Empty,
+			spans:             make([]*otlptracev1.ResourceSpans, 1),
+			authorizer:        &mockAuthorizer{err: trace.AccessDenied("unauthorized")},
+		},
+		{
+			name:              "nop for empty spans",
+			identity:          TestBuiltin(types.RoleNode),
+			errAssertion:      require.NoError,
+			uploadedAssertion: require.Empty,
+		},
+		{
+			name:     "failure to forward spans",
+			identity: TestBuiltin(types.RoleNode),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.ErrorIs(t, trail.FromGRPC(trace.Unwrap(err)), uploadErr)
+			},
+			uploadedAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.NotNil(t, i)
+				require.Len(t, i, 1)
+			},
+			spans:           make([]*otlptracev1.ResourceSpans, 1),
+			mockTraceClient: mockTraceClient{err: uploadErr},
+		},
+		{
+			name:              "forwarded spans get tagged for system roles",
+			identity:          TestBuiltin(types.RoleProxy),
+			errAssertion:      require.NoError,
+			spans:             testSpans,
+			uploadedAssertion: validateTaggedSpans(fmt.Sprintf("%s.localhost:%s", types.RoleProxy, types.RoleProxy)),
+		},
+		{
+			name:              "forwarded spans get tagged for users",
+			identity:          TestUser(user),
+			errAssertion:      require.NoError,
+			spans:             testSpans,
+			uploadedAssertion: validateTaggedSpans(user),
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			as, err := NewTestAuthServer(TestAuthServerConfig{
+				Dir:         t.TempDir(),
+				Clock:       clockwork.NewFakeClock(),
+				TraceClient: &tt.mockTraceClient,
+			})
+			require.NoError(t, err)
+
+			srv, err := as.NewTestTLSServer()
+			require.NoError(t, err)
+
+			t.Cleanup(func() { require.NoError(t, srv.Close()) })
+
+			// Create a fake user.
+			_, _, err = CreateUserAndRole(srv.Auth(), user, []string{"role"})
+			require.NoError(t, err)
+
+			// Setup the server
+			if tt.authorizer != nil {
+				srv.TLSServer.grpcServer.Authorizer = tt.authorizer
+			}
+
+			// Get a client for the test identity
+			clt, err := srv.NewClient(tt.identity)
+			require.NoError(t, err)
+
+			// create a tracing client and forward some traces
+			traceClt := tracing.NewClient(clt.APIClient.GetConnection())
+			t.Cleanup(func() { require.NoError(t, traceClt.Close()) })
+			require.NoError(t, traceClt.Start(ctx))
+
+			tt.errAssertion(t, traceClt.UploadTraces(ctx, tt.spans))
+			tt.uploadedAssertion(t, tt.mockTraceClient.spans)
+		})
+	}
+}
+
+// TestSAMLValidation tests that SAML validation does not perform an HTTP
+// request if the calling user does not have permissions to create or update
+// a SAML connector.
+func TestSAMLValidation(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{SAML: true},
+	})
+
+	// minimal entity_descriptor to pass validation. not actually valid
+	const minimalEntityDescriptor = `
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="http://example.com">
+  <md:IDPSSODescriptor>
+    <md:SingleSignOnService Location="http://example.com" />
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>`
+
+	allowSAMLUpsert := types.RoleConditions{
+		Rules: []types.Rule{{
+			Resources: []string{types.KindSAML},
+			Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+		}},
+	}
+
+	testCases := []struct {
+		desc               string
+		allow              types.RoleConditions
+		entityDescriptor   string
+		entityServerCalled bool
+		assertErr          func(error) bool
+	}{
+		{
+			desc:               "access denied",
+			allow:              types.RoleConditions{},
+			entityServerCalled: false,
+			assertErr:          trace.IsAccessDenied,
+		},
+		{
+			desc:               "validation failure",
+			allow:              allowSAMLUpsert,
+			entityDescriptor:   "", // validation fails with no issuer
+			entityServerCalled: true,
+			assertErr:          trace.IsBadParameter,
+		},
+		{
+			desc:               "access permitted",
+			allow:              allowSAMLUpsert,
+			entityDescriptor:   minimalEntityDescriptor,
+			entityServerCalled: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			server := newTestTLSServer(t)
+			// Create an http server to serve the entity descriptor url
+			entityServerCalled := false
+			entityServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				entityServerCalled = true
+				_, err := w.Write([]byte(tc.entityDescriptor))
+				require.NoError(t, err)
+			}))
+
+			role, err := CreateRole(ctx, server.Auth(), "test_role", types.RoleSpecV5{Allow: tc.allow})
+			require.NoError(t, err)
+			user, err := CreateUser(server.Auth(), "test_user", role)
+			require.NoError(t, err)
+
+			connector, err := types.NewSAMLConnector("test_connector", types.SAMLConnectorSpecV2{
+				AssertionConsumerService: "http://localhost:65535/acs", // not called
+				EntityDescriptorURL:      entityServer.URL,
+				AttributesToRoles: []types.AttributeMapping{
+					// not used. can be any name, value but role must exist
+					{Name: "groups", Value: "admin", Roles: []string{role.GetName()}},
+				},
+			})
+			require.NoError(t, err)
+
+			client, err := server.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			err = client.UpsertSAMLConnector(ctx, connector)
+
+			if tc.assertErr != nil {
+				require.Error(t, err)
+				require.True(t, tc.assertErr(err), "UpsertSAMLConnector error type mismatch. got: %T", trace.Unwrap(err))
+			} else {
+				require.NoError(t, err)
+			}
+			if tc.entityServerCalled {
+				require.True(t, entityServerCalled, "entity_descriptor_url was not called")
+			} else {
+				require.False(t, entityServerCalled, "entity_descriptor_url was called")
+			}
 		})
 	}
 }

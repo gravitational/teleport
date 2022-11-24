@@ -22,16 +22,15 @@ import (
 	"net"
 	"strconv"
 
+	mssql "github.com/denisenkom/go-mssqldb"
+	"github.com/denisenkom/go-mssqldb/msdsn"
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 	"github.com/gravitational/teleport/lib/utils"
-
-	mssql "github.com/denisenkom/go-mssqldb"
-	"github.com/denisenkom/go-mssqldb/msdsn"
-	"github.com/gravitational/trace"
 )
 
 // MakeTestClient returns SQL Server client used in tests.
@@ -118,17 +117,14 @@ type TestServer struct {
 }
 
 // NewTestServer returns a new instance of a test MSServer.
-func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
-	address := "localhost:0"
-	if config.Address != "" {
-		address = config.Address
-	}
-
-	listener, err := net.Listen("tcp", address)
+func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) {
+	err = config.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, port, err := net.SplitHostPort(listener.Addr().String())
+	defer config.CloseOnError(&err)
+
+	port, err := config.Port()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -138,7 +134,7 @@ func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
 	})
 	server := &TestServer{
 		cfg:      config,
-		listener: listener,
+		listener: config.Listener,
 		port:     port,
 		log:      log,
 	}

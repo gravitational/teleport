@@ -1,4 +1,4 @@
-.version: &version "11.0.0-dev"
+.version: &version "12.0.0-dev"
 
 name: teleport-cluster
 apiVersion: v2
@@ -12,4 +12,4 @@ keywords:
 dependencies:
   - name: teleport-operator
     version: *version
-    condition: installCRDs
+    condition: installCRDs,operator.enabled
