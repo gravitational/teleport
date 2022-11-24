@@ -477,7 +477,7 @@ message LoginRuleSpec {
   // priority is the priority of the login rule relative to other login rules
   // in the same cluster. Login rules with a lower numbered priority will be
   // evaluated first.
-  string priority = 1;
+  int32 priority = 1;
 
   // traits_map is a map of trait keys to lists of predicate expressions which
   // should evaluate to the desired values for that trait.
