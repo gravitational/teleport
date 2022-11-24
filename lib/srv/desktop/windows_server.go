@@ -1321,7 +1321,7 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 
 	go func() {
 		if err := tracker.UpdateExpirationLoop(ctx, s.cfg.Clock); err != nil {
-			s.cfg.Log.WithError(err).Debugf("Failed to update session tracker expiration for session %v", sessionID)
+			s.cfg.Log.WithError(err).Warnf("Failed to update session tracker expiration for session %v", sessionID)
 		}
 	}()
 
