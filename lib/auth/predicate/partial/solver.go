@@ -21,12 +21,13 @@ import (
 	"go/parser"
 	"go/token"
 	"strconv"
+	"strings"
 
 	"github.com/aclements/go-z3/z3"
 	"github.com/gravitational/trace"
 )
 
-type Resolver func(string) any
+type Resolver func([]string) any
 
 func PartialSolve(predicate string, resolveIdentifier Resolver, querying string) (z3.Value, error) {
 	ast, err := parser.ParseExpr(predicate)
@@ -144,17 +145,47 @@ func lowerBasicLit(ctx *ctx, node *ast.BasicLit) (z3.Value, error) {
 		}
 
 		return ctx.def.FromInt(int64(value), ctx.def.IntSort()), nil
+	case node.Kind == token.STRING:
+		return ctx.def.FromString(node.Value), nil
 	default:
 		return nil, trace.NotImplemented("basic lit kind %v unsupported", node.Kind)
 	}
 }
 
 func lowerIndexExpr(ctx *ctx, node *ast.IndexExpr) (z3.Value, error) {
-	return nil, nil
+	// todo: impl maps
+	return nil, trace.BadParameter("maps are not supported")
 }
 
 func lowerSelectorExpr(ctx *ctx, node *ast.SelectorExpr) (z3.Value, error) {
-	return nil, nil
+	fields, err := evaluateSelector(node, []string{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	full := strings.Join(fields, ".")
+	if v, ok := ctx.idents[full]; ok {
+		return v, nil
+	}
+
+	// todo: query resolver
+	// todo: figure out type here
+	ident := ctx.def.IntConst(full)
+	ctx.idents[full] = ident
+	return ident, nil
+}
+
+func evaluateSelector(sel *ast.SelectorExpr, fields []string) ([]string, error) {
+	fields = append([]string{sel.Sel.Name}, fields...)
+	switch l := sel.X.(type) {
+	case *ast.SelectorExpr:
+		return evaluateSelector(l, fields)
+	case *ast.Ident:
+		fields = append([]string{l.Name}, fields...)
+		return fields, nil
+	default:
+		return nil, trace.BadParameter("unsupported selector type: %T", l)
+	}
 }
 
 func lowerIdent(ctx *ctx, node *ast.Ident) (z3.Value, error) {
@@ -177,5 +208,6 @@ func lowerIdent(ctx *ctx, node *ast.Ident) (z3.Value, error) {
 }
 
 func lowerCallExpr(ctx *ctx, node *ast.CallExpr) (z3.Value, error) {
-	return nil, nil
+	// todo: impl fn calls
+	return nil, trace.BadParameter("fn calls are not supported")
 }
