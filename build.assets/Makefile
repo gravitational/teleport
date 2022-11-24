@@ -403,20 +403,12 @@ release-amd64-fips:
 release-386:
 	$(MAKE) release ARCH=386
 
-.PHONY: release-arm-oss
-release-arm-oss:
+.PHONY: release-oss
+release-oss:
 	make -C .. full build-archive -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
-.PHONY: release-arm-enterprise
-release-arm-enterprise:
-	make -C .. release-unix-only -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
-
-.PHONY: release-arm64-oss
-release-arm64-oss:
-	make -C .. full build-archive -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
-
-.PHONY: release-arm64-enterprise
-release-arm64-enterprise:
+.PHONY: release-enterprise
+release-enterprise:
 	make -C .. release-unix-only -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 
 #

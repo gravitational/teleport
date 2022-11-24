@@ -22,7 +22,7 @@ ARG GOLANG_ARCH=arm64
 
 # Installing the kerenel packages causes the update to hang on aarch64, so we
 # skip upgrading them.
-ARG YUM_UPDATE_FLAGS="--exclude 'kernel-*'"
+ARG YUM_UPDATE_FLAGS="--exclude kernel-*"
 RUN echo "aarch64-redhat-linux-gnu" > /etc/rpm/platform 
 
 # #############################################################################
@@ -46,15 +46,10 @@ ENV LANGUAGE=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
     LC_CTYPE=en_US.UTF-8
 
-RUN yum groupinstall -y 'Development Tools' && \
-    yum update -y $YUM_UPDATE_FLAGS         && \
-    yum install -y      \
-         pam-devel      \
-         perl-IPC-Cmd   \
-         tree           \
-         which          \
-         zip            \
-         zlib-static && \
+RUN yum update -y $YUM_UPDATE_FLAGS         && \
+    yum install -y     \
+        git \ gcc \ gcc-c++ \ make \ pam-devel \ perl-IPC-Cmd \ tree \ which \
+        zip \ zlib-static && \
     yum clean all
 
 RUN localedef -c -i en_US -f UTF-8 en_US.UTF-8
