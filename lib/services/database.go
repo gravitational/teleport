@@ -130,6 +130,10 @@ func UnmarshalDatabase(data []byte, opts ...MarshalOption) (types.Database, erro
 
 // ValidateDatabase validates a types.Database.
 func ValidateDatabase(db types.Database) error {
+	if err := db.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Unlike application access proxy, database proxy name doesn't necessarily
 	// need to be a valid subdomain but use the same validation logic for the
 	// simplicity and consistency.

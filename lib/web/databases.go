@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -87,10 +86,6 @@ func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p
 			URI:      req.URI,
 		})
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := services.ValidateDatabase(database); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
