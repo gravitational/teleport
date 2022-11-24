@@ -19,6 +19,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -91,23 +92,9 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 	_, span := tracing.DefaultProvider().Tracer("terminal").Start(ctx, "terminal/NewTerminal")
 	defer span.End()
 
-	// Make sure whatever session is requested is a valid session.
-	_, err := session.ParseID(cfg.sessionData.ID.String())
+	err := cfg.CheckAndSetDefaults()
 	if err != nil {
-		return nil, trace.BadParameter("sid: invalid session id")
-	}
-
-	if cfg.sessionData.Login == "" {
-		return nil, trace.BadParameter("login: missing login")
-	}
-
-	if cfg.sessionData.ServerID == "" {
-		return nil, trace.BadParameter("server: missing server")
-	}
-
-	if cfg.term.W <= 0 || cfg.term.H <= 0 ||
-		cfg.term.W >= 4096 || cfg.term.H >= 4096 {
-		return nil, trace.BadParameter("term: bad dimensions(%dx%d)", cfg.term.W, cfg.term.H)
+		return nil, err
 	}
 
 	return &TerminalHandler{
@@ -149,6 +136,29 @@ type TerminalHandlerConfig struct {
 	proxyHostPort string
 	// interactiveCommand is a command to execute.
 	interactiveCommand []string
+}
+
+func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
+	// Make sure whatever session is requested is a valid session id.
+	_, err := session.ParseID(t.sessionData.ID.String())
+	if err != nil {
+		return trace.BadParameter("sid: invalid session id")
+	}
+
+	if t.sessionData.Login == "" {
+		return trace.BadParameter("login: missing login")
+	}
+
+	if t.sessionData.ServerID == "" {
+		return trace.BadParameter("server: missing server")
+	}
+
+	if t.term.W <= 0 || t.term.H <= 0 ||
+		t.term.W >= 4096 || t.term.H >= 4096 {
+		return trace.BadParameter("term: bad dimensions(%dx%d)", t.term.W, t.term.H)
+	}
+
+	return nil
 }
 
 // TerminalHandler connects together an SSH session with a web-based
@@ -222,18 +232,19 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		CheckOrigin:     func(r *http.Request) bool { return true },
 	}
 
-	emitError := func(errMsg string, err error) {
-		t.log.Errorf("%s: %s", errMsg, err)
-		http.Error(w, errMsg, http.StatusInternalServerError)
-	}
-
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		emitError("Error upgrading to websocket", err)
+		errMsg := "Error upgrading to websocket"
+		t.log.WithError(err).Error(errMsg)
+		http.Error(w, errMsg, http.StatusInternalServerError)
 		return
 	}
 
-	ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
+	err = ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
+	if err != nil {
+		t.log.Error(err)
+		return
+	}
 
 	// If the displayLogin is set then use it instead of the login name used in
 	// the SSH connection. This is specifically for the use case when joining
@@ -242,27 +253,38 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		t.sessionData.Login = t.displayLogin
 	}
 
-	sessionString, err := json.Marshal(siteSessionGenerateResponse{Session: t.sessionData})
+	sendError := func(errMsg string, err error, ws *websocket.Conn) {
+		envelope := &Envelope{
+			Version: defaults.WebsocketVersion,
+			Type:    defaults.WebsocketError,
+			Payload: fmt.Sprintf("%s: %s", errMsg, err.Error()),
+		}
+
+		envelopeBytes, _ := proto.Marshal(envelope)
+		ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
+	}
+
+	sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: t.sessionData})
 	if err != nil {
-		emitError("unable to marshal session response", err)
+		sendError("unable to marshal session response", err, ws)
 		return
 	}
 
 	envelope := &Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketSessionMetadata,
-		Payload: string(sessionString),
+		Payload: string(sessionMetadataResponse),
 	}
 
 	envelopeBytes, err := proto.Marshal(envelope)
 	if err != nil {
-		emitError("unable to marshal session data event for web client", err)
+		sendError("unable to marshal session data event for web client", err, ws)
 		return
 	}
 
 	err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
 	if err != nil {
-		emitError("unable to write message to socket", err)
+		sendError("unable to write message to socket", err, ws)
 		return
 	}
 

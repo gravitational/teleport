@@ -1152,7 +1152,7 @@ t1ready:
 	for {
 		select {
 		case <-done:
-			require.FailNow(t, fmt.Sprintf("expected to receive 2 resize events (got %d) and at least 1 raw event (got %d)", t1ResizeEvents, t1RawEvents))
+			require.FailNowf(t, "", "expected to receive 2 resize events (got %d) and at least 1 raw event (got %d)", t1ResizeEvents, t1RawEvents)
 		case err := <-errs:
 			require.NoError(t, err)
 		case e := <-ws1Messages:
@@ -5767,15 +5767,29 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 	}
 
 	ty, raw, err := ws.ReadMessage()
-	require.Nil(t, err)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	require.Equal(t, websocket.BinaryMessage, ty)
 	var env Envelope
-	require.Nil(t, proto.Unmarshal(raw, &env))
+
+	err = proto.Unmarshal(raw, &env)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	var sessResp siteSessionGenerateResponse
-	require.Nil(t, json.Unmarshal([]byte(env.Payload), &sessResp))
 
-	require.NoError(t, resp.Body.Close())
+	err = json.Unmarshal([]byte(env.Payload), &sessResp)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	err = resp.Body.Close()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
 	return ws, &sessResp.Session, nil
 }
 
@@ -6392,13 +6406,13 @@ func (r *proxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID)
 	})
 
 	ty, raw, err := ws.ReadMessage()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, websocket.BinaryMessage, ty)
 	var env Envelope
-	require.Nil(t, proto.Unmarshal(raw, &env))
+	require.NoError(t, proto.Unmarshal(raw, &env))
 
 	var sessResp siteSessionGenerateResponse
-	require.Nil(t, json.Unmarshal([]byte(env.Payload), &sessResp))
+	require.NoError(t, json.Unmarshal([]byte(env.Payload), &sessResp))
 
 	return ws, sessResp.Session
 }

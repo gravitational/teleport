@@ -1612,7 +1612,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
 			proxySession.Close()
-			log.Infof("access denied to %v connecting to %v: %v", user, nodeAddress, err)
+			log.Infof("Access denied to %v connecting to %v: %v", user, nodeAddress, err)
 			return nil, trace.AccessDenied("access denied to %v connecting to %v", user, nodeAddress)
 		}
 		return nil, trace.Wrap(err)
