@@ -536,9 +536,8 @@ func TestReviewThresholds(t *testing.T) {
 		require.NoError(t, err, "scenario=%q", tt.desc)
 
 		clock := clockwork.NewFakeClock()
-		now := clock.Now().UTC()
 		identity := tlsca.Identity{
-			Expires: now.Add(8 * time.Hour),
+			Expires: clock.Now().UTC().Add(8 * time.Hour),
 		}
 
 		// perform request validation (necessary in order to initialize internal
@@ -1052,9 +1051,8 @@ func TestRolesForResourceRequest(t *testing.T) {
 			require.NoError(t, err)
 
 			clock := clockwork.NewFakeClock()
-			now := clock.Now().UTC()
 			identity := tlsca.Identity{
-				Expires: now.Add(8 * time.Hour),
+				Expires: clock.Now().UTC().Add(8 * time.Hour),
 			}
 
 			validator, err := NewRequestValidator(context.Background(), clock, g, user.GetName(), ExpandVars(true))
@@ -1417,9 +1415,8 @@ func TestPruneRequestRoles(t *testing.T) {
 			req.SetLoginHint(tc.loginHint)
 
 			clock := clockwork.NewFakeClock()
-			now := clock.Now().UTC()
 			identity := tlsca.Identity{
-				Expires: now.Add(8 * time.Hour),
+				Expires: clock.Now().UTC().Add(8 * time.Hour),
 			}
 
 			err = ValidateAccessRequestForUser(ctx, clock, g, req, identity, ExpandVars(true))
@@ -1437,3 +1434,157 @@ func TestPruneRequestRoles(t *testing.T) {
 		})
 	}
 }
+
+//t.Run("resource TTL", func(t *testing.T) { testResourceTTL(t, testPack) })
+//t.Run("elevated TTL", func(t *testing.T) { testElevatedTTL(t, testPack) })
+
+//// testResourceTTL verifies that the TTL for the Access Request gets reduced by
+//// requested access time and lifetime of the requesting certificate.
+//func testResourceTTL(t *testing.T, testPack *accessRequestTestPack) {
+//	now := testPack.tlsServer.Clock().Now()
+//
+//	tests := []struct {
+//		desc            string
+//		expiry          time.Time
+//		identityExpires time.Time
+//		expectedTTL     time.Duration
+//	}{
+//		{
+//			desc:            "access request with ttl",
+//			expiry:          now.Add(8 * time.Hour),
+//			identityExpires: now.Add(10 * time.Hour),
+//			expectedTTL:     8 * time.Hour,
+//		},
+//		{
+//			desc:            "access request without ttl",
+//			expiry:          time.Time{},
+//			identityExpires: now.Add(10 * time.Hour),
+//			expectedTTL:     defaults.PendingAccessDuration,
+//		},
+//		{
+//			desc:            "access request truncation by identity expiration",
+//			expiry:          time.Time{},
+//			identityExpires: now.Add(13 * time.Minute),
+//			expectedTTL:     13 * time.Minute,
+//		},
+//	}
+//
+// TODO(russjones): From zmb3: I realize we're already in a subtest, so
+// maybe this is a bad idea, but I would still probably put the body of
+// this loop in a t.Run, otherwise it will be hard to tell which specific
+// test is failing if one of these assertions fails.
+//
+//	for _, tt := range tests {
+//		r, err := services.NewAccessRequest("operator", "admins")
+//		require.NoError(t, err)
+//		r.SetExpiry(tt.expiry)
+//
+//		// Verify TTL for elevated access.
+//		auth := testPack.tlsServer.AuthServer.AuthServer
+//		ttl, err := auth.resourceTTL(context.Background(), tt.identityExpires, r)
+//		require.NoError(t, err)
+//		require.Equal(t, tt.expectedTTL, ttl)
+//	}
+//}
+//
+//// testElevatedTTL verifies that the TTL for elevated access gets reduced by
+//// requested access time, lifetime of certificate, and strictest session TTL on
+//// any role.
+//func testElevatedTTL(t *testing.T, testPack *accessRequestTestPack) {
+//	now := testPack.tlsServer.Clock().Now()
+//
+//	tests := []struct {
+//		desc            string
+//		accessExpiry    time.Time
+//		identityExpires time.Time
+//		roleName        string
+//		roleSpec        types.RoleSpecV5
+//		userName        string
+//		userRoles       []string
+//		expectedTTL     time.Duration
+//	}{
+//		{
+//			desc:            "truncated by max certificate duration",
+//			accessExpiry:    now.Add(defaults.MaxAccessDuration).Add(1 * time.Minute),
+//			identityExpires: now.Add(defaults.MaxAccessDuration),
+//			roleName:        "role-foo",
+//			roleSpec: types.RoleSpecV5{
+//				Options: types.RoleOptions{
+//					MaxSessionTTL: types.NewDuration(defaults.MaxAccessDuration),
+//				},
+//				Allow: types.RoleConditions{
+//					Request: &types.AccessRequestConditions{
+//						Roles: []string{"role-foo"},
+//					},
+//				},
+//			},
+//			userName:    "user-foo",
+//			userRoles:   []string{"user-foo"},
+//			expectedTTL: defaults.MaxAccessDuration,
+//		},
+//		{
+//			desc:            "truncated by identity expiration",
+//			accessExpiry:    now.Add(defaults.MaxAccessDuration).Add(-1 * time.Minute),
+//			identityExpires: now.Add(defaults.MaxAccessDuration),
+//			roleName:        "role-bar",
+//			roleSpec: types.RoleSpecV5{
+//				Options: types.RoleOptions{
+//					MaxSessionTTL: types.NewDuration(defaults.MaxAccessDuration),
+//				},
+//				Allow: types.RoleConditions{
+//					Request: &types.AccessRequestConditions{
+//						Roles: []string{"role-bar"},
+//					},
+//				},
+//			},
+//			userName:    "role-bar",
+//			userRoles:   []string{"role-bar"},
+//			expectedTTL: defaults.MaxAccessDuration - 1*time.Minute,
+//		},
+//		{
+//			desc:            "trucated by role session ttl",
+//			accessExpiry:    now.Add(defaults.MaxAccessDuration),
+//			identityExpires: now.Add(defaults.MaxAccessDuration),
+//			roleName:        "role-baz",
+//			roleSpec: types.RoleSpecV5{
+//				Options: types.RoleOptions{
+//					MaxSessionTTL: types.NewDuration(defaults.MaxAccessDuration - 2*time.Minute),
+//				},
+//				Allow: types.RoleConditions{
+//					Request: &types.AccessRequestConditions{
+//						Roles: []string{"role-baz"},
+//					},
+//				},
+//			},
+//			userName:    "role-baz",
+//			userRoles:   []string{"role-baz"},
+//			expectedTTL: defaults.MaxAccessDuration - 2*time.Minute,
+//		},
+//	}
+//
+//	for _, tt := range tests {
+//		// Create role.
+//		role, err := types.NewRole(tt.roleName, tt.roleSpec)
+//		require.NoError(t, err)
+//		err = testPack.tlsServer.Auth().UpsertRole(context.Background(), role)
+//		require.NoError(t, err)
+//
+//		// Create user.
+//		user, err := types.NewUser(tt.userName)
+//		require.NoError(t, err)
+//		user.SetRoles(tt.userRoles)
+//		err = testPack.tlsServer.Auth().UpsertUser(user)
+//		require.NoError(t, err)
+//
+//		// Create Access Request.
+//		r, err := services.NewAccessRequest(tt.roleName, tt.roleName)
+//		require.NoError(t, err)
+//		r.SetAccessExpiry(tt.accessExpiry)
+//
+//		// Verify TTL for elevated access.
+//		auth := testPack.tlsServer.AuthServer.AuthServer
+//		ttl, err := auth.elevatedTTL(context.Background(), tt.identityExpires, r)
+//		require.NoError(t, err)
+//		require.Equal(t, ttl, tt.expectedTTL)
+//	}
+//}
