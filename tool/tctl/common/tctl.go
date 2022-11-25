@@ -55,7 +55,6 @@ const (
 
 const (
 	identityFileEnvVar = "TELEPORT_IDENTITY_FILE"
-	proxyAddrEnvVar    = "TELEPORT_PROXY"
 	authAddrEnvVar     = "TELEPORT_AUTH_SERVER"
 )
 
