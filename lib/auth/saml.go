@@ -19,12 +19,14 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // ErrSAMLRequiresEnterprise is the error returned by the SAML methods when not
