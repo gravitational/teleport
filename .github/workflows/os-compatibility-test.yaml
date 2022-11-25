@@ -15,7 +15,7 @@ jobs:
       contents: read
 
     container:
-      image: public.ecr.aws/gravitational/teleport-buildbox-centos7:teleport12
+      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport12
       env:
         GOCACHE: /tmp/gocache
 

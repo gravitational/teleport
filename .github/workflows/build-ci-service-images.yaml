@@ -11,8 +11,6 @@ on:
     paths:
       - .github/services/Dockerfile.*
       - examples/etcd/certs/*.pem
-    branches:
-      - master
 
 env:
   REGISTRY: ghcr.io
