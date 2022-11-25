@@ -28,6 +28,13 @@ import (
 )
 
 type Resolver func([]string) any
+type Type int
+
+const (
+	TypeInt Type = iota
+	TypeBool
+	TypeString
+)
 
 type CachedSolver struct {
 	def    *z3.Context
@@ -41,14 +48,25 @@ func NewCachedSolver() *CachedSolver {
 	return &CachedSolver{def, solver}
 }
 
-func (s *CachedSolver) PartialSolve(predicate string, resolveIdentifier Resolver, querying string) (z3.Value, error) {
+func (s *CachedSolver) PartialSolve(predicate string, resolveIdentifier Resolver, querying string, to Type) (z3.Value, error) {
 	ast, err := parser.ParseExpr(predicate)
 	if err != nil {
 		return nil, err
 	}
 
-	ctx := &ctx{s.def, s.solver, make(map[string]z3.Value)}
+	ctx := &ctx{s.def, s.solver, make(map[string]z3.Value), z3.Sort{}, resolveIdentifier}
 	defer ctx.solver.Reset()
+
+	switch to {
+	case TypeInt:
+		ctx.unkTy = s.def.IntSort()
+	case TypeBool:
+		ctx.unkTy = s.def.BoolSort()
+	case TypeString:
+		ctx.unkTy = s.def.StringSort()
+	default:
+		return nil, trace.BadParameter("unsupported output type %v", to)
+	}
 
 	cond, err := lower(ctx, ast)
 	if err != nil {
@@ -66,13 +84,46 @@ func (s *CachedSolver) PartialSolve(predicate string, resolveIdentifier Resolver
 	}
 
 	model := ctx.solver.Model()
-	return model.Eval(ctx.idents[querying], true), nil
+	val, ok := ctx.idents[querying]
+	if !ok {
+		return nil, trace.NotFound("identifier %v not found", querying)
+	}
+
+	return model.Eval(val, true), nil
 }
 
 type ctx struct {
-	def    *z3.Context
-	solver *z3.Solver
-	idents map[string]z3.Value
+	def               *z3.Context
+	solver            *z3.Solver
+	idents            map[string]z3.Value
+	unkTy             z3.Sort
+	resolveIdentifier Resolver
+}
+
+func (ctx *ctx) resolve(fields []string) (z3.Value, error) {
+	full := strings.Join(fields, ".")
+	if v, ok := ctx.idents[full]; ok {
+		return v, nil
+	}
+
+	if val := ctx.resolveIdentifier(fields); val != nil {
+		var ident z3.Value
+		switch val := val.(type) {
+		case int:
+			ident = ctx.def.FromInt(int64(val), ctx.def.IntSort())
+		case string:
+			ident = ctx.def.FromString(val)
+		default:
+			return nil, trace.BadParameter("unsupported type %T", val)
+		}
+
+		ctx.idents[full] = ident
+		return ident, nil
+	}
+
+	val := ctx.def.Const(full, ctx.unkTy)
+	ctx.idents[full] = val
+	return val, nil
 }
 
 func lower(ctx *ctx, node ast.Expr) (z3.Value, error) {
@@ -98,6 +149,16 @@ func lower(ctx *ctx, node ast.Expr) (z3.Value, error) {
 	}
 }
 
+func pickType(ctx *ctx, x, y z3.Value) (z3.Kind, error) {
+	xk := x.Sort().Kind()
+	yk := y.Sort().Kind()
+	if xk != yk {
+		return 0, trace.BadParameter("type mismatch %v != %v", xk, yk)
+	}
+
+	return xk, nil
+}
+
 func lowerBinary(ctx *ctx, node *ast.BinaryExpr) (z3.Value, error) {
 	x, err := lower(ctx, node.X)
 	if err != nil {
@@ -111,9 +172,21 @@ func lowerBinary(ctx *ctx, node *ast.BinaryExpr) (z3.Value, error) {
 
 	switch node.Op {
 	case token.EQL:
-		xi := x.(z3.Int)
-		yi := y.(z3.Int)
-		return xi.Eq(yi), nil
+		ty, err := pickType(ctx, x, y)
+		if err != nil {
+			return nil, err
+		}
+
+		switch ty {
+		case z3.KindInt:
+			return x.(z3.Int).Eq(y.(z3.Int)), nil
+		case z3.KindBool:
+			return x.(z3.Bool).Eq(y.(z3.Bool)), nil
+		case z3.KindString:
+			return x.(z3.String).Eq(y.(z3.String)), nil
+		default:
+			return nil, trace.BadParameter("type %v does not support equals", ty)
+		}
 	case token.LSS:
 		xi := x.(z3.Int)
 		yi := y.(z3.Int)
@@ -167,7 +240,7 @@ func lowerBasicLit(ctx *ctx, node *ast.BasicLit) (z3.Value, error) {
 
 		return ctx.def.FromInt(int64(value), ctx.def.IntSort()), nil
 	case node.Kind == token.STRING:
-		return ctx.def.FromString(node.Value), nil
+		return ctx.def.FromString(node.Value[1 : len(node.Value)-1]), nil
 	default:
 		return nil, trace.NotImplemented("basic lit kind %v unsupported", node.Kind)
 	}
@@ -184,16 +257,7 @@ func lowerSelectorExpr(ctx *ctx, node *ast.SelectorExpr) (z3.Value, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	full := strings.Join(fields, ".")
-	if v, ok := ctx.idents[full]; ok {
-		return v, nil
-	}
-
-	// todo: query resolver
-	// todo: figure out type here
-	ident := ctx.def.IntConst(full)
-	ctx.idents[full] = ident
-	return ident, nil
+	return ctx.resolve(fields)
 }
 
 func evaluateSelector(sel *ast.SelectorExpr, fields []string) ([]string, error) {
@@ -216,15 +280,7 @@ func lowerIdent(ctx *ctx, node *ast.Ident) (z3.Value, error) {
 	case "false":
 		return ctx.def.FromBool(true), nil
 	default:
-		if ident, ok := ctx.idents[node.Name]; ok {
-			return ident, nil
-		}
-
-		// todo: query resolver
-		// todo: figure out type here
-		ident := ctx.def.IntConst(node.Name)
-		ctx.idents[node.Name] = ident
-		return ident, nil
+		return ctx.resolve([]string{node.Name})
 	}
 }
 

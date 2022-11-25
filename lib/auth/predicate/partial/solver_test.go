@@ -22,14 +22,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSolverEq(t *testing.T) {
+func TestSolverIntEq(t *testing.T) {
 	state := NewCachedSolver()
 	x, err := state.PartialSolve("x == 7", func(s []string) any {
 		return nil
-	}, "x")
+	}, "x", TypeInt)
 
 	require.NoError(t, err)
 	require.Equal(t, "7", x.String())
+}
+
+func TestSolverStringExp(t *testing.T) {
+	state := NewCachedSolver()
+	x, err := state.PartialSolve("x == \"blah\"", func(s []string) any {
+		return nil
+	}, "x", TypeString)
+
+	require.NoError(t, err)
+	require.Equal(t, "\"blah\"", x.String())
 }
 
 var xRes string
@@ -40,7 +50,7 @@ func BenchmarkSolverEq(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		x, err := state.PartialSolve("x == 7", func(s []string) any {
 			return nil
-		}, "x")
+		}, "x", TypeInt)
 
 		if err != nil {
 			b.Fatal(err)
