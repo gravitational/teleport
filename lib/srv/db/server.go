@@ -16,7 +16,7 @@ limitations under the License.
 
 package db
 
-//nolint:goimports
+//nolint:goimports // Ignored because of inline comments.
 import (
 	"context"
 	"crypto/tls"

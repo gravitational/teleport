@@ -16,7 +16,7 @@ limitations under the License.
 
 package main
 
-//nolint:goimports
+//nolint:goimports // Ignored because of inline comments.
 import (
 	"flag"
 	"os"

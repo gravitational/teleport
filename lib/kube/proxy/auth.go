@@ -14,7 +14,7 @@
 
 package proxy
 
-//nolint:goimports
+//nolint:goimports // Ignored because of inline comments.
 import (
 	"context"
 	"fmt"
