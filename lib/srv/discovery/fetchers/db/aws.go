@@ -156,7 +156,7 @@ func (f awsFetcher) ResourceType() string {
 }
 
 // Cloud returns the cloud the fetcher is operating.
-func (a awsFetcher) Cloud() string {
+func (f awsFetcher) Cloud() string {
 	return types.CloudAWS
 }
 

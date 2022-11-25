@@ -15,6 +15,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
@@ -60,6 +61,12 @@ func (f *rdsDBProxyFetcher) Get(ctx context.Context) (types.ResourcesWithLabels,
 	}
 
 	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
+}
+
+// String returns the fetcher's string description.
+func (f *rdsDBProxyFetcher) String() string {
+	return fmt.Sprintf("rdsDBProxyFetcher(Region=%v, Labels=%v)",
+		f.cfg.Region, f.cfg.Labels)
 }
 
 // getRDSProxyDatabases returns a list of database resources representing RDS
