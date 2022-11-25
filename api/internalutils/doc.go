@@ -1,8 +1,5 @@
-//go:build !bpf || 386
-// +build !bpf 386
-
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,11 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package restrictedsession
-
-import "github.com/gravitational/teleport/lib/bpf"
-
-// New returns a new NOP service. Note this function does nothing.
-func New(config *bpf.RestrictedSessionConfig, wc RestrictionsWatcherClient) (Manager, error) {
-	return &NOP{}, nil
-}
+// packages under `api/internalutils` hold helpers that aren't intended to be part of the
+// public api, but need to be importable by both `api` and `lib`.
+package internal
