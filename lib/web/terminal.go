@@ -242,7 +242,7 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	err = ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
 	if err != nil {
-		t.log.Error(err)
+		t.log.WithError(err).Error("Error setting websocket readline")
 		return
 	}
 

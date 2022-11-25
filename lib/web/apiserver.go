@@ -2225,43 +2225,20 @@ func (h *Handler) siteNodeConnect(
 	var sessionData session.Session
 	var displayLogin string
 
+	clusterName := site.GetName()
+
 	if req.SessionID.IsZero() {
 		// An existing session ID was not provided so we need to create a new one.
-		clusterName := site.GetName()
-		h.log.Infof("Generating new session for %s\n", clusterName)
 		sessionData, err = h.generateSession(r.Context(), clt, req, clusterName)
 		if err != nil {
 			h.log.WithError(err).Debug("Unable to generate new ssh session.")
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		// Fetch the session data from the supplied SID.
-		sessionID, err := session.ParseID(req.SessionID.String())
+		sessionData, displayLogin, err = h.fetchExistingSession(r.Context(), clt, req, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		h.log.Infof("Attempting to join existing session: %s\n", sessionID)
-
-		tracker, err := clt.GetSessionTracker(r.Context(), string(*sessionID))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if tracker.GetSessionKind() != types.SSHSessionKind || tracker.GetState() == types.SessionState_SessionStateTerminated {
-			return nil, trace.NotFound("SSH session %v not found", sessionID)
-		}
-
-		sessionData = trackerToLegacySession(tracker, site.GetName())
-		// When joining an existing session use the specially handled
-		// `SSHSessionJoinPrincipal` login instead of the provided login so that
-		// users are able to join sessions without having permissions to create
-		// new ones themselves for auditing purposes. Otherwise the user would
-		// fail the SSH lib username validation step.
-		sessionData.Login = teleport.SSHSessionJoinPrincipal
-		// Using the Login above will then display `-teleport-internal-join` as the
-		// username that the user is logging in as, so we need to instead show the
-		// session username in the UI.
-		displayLogin = tracker.GetLogin()
 	}
 
 	h.log.Debugf("New terminal request for server=%s, login=%s, sid=%s, websid=%s.",
@@ -2308,7 +2285,7 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 		host string
 		port int
 	)
-
+	h.log.Infof("Generating new session for %s\n", clusterName)
 	// req.Server will be either an IP, hostname, or server UUID.
 	_, err := uuid.Parse(req.Server)
 	if err != nil {
@@ -2349,6 +2326,38 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 		LastActive:     time.Now().UTC(),
 		Namespace:      apidefaults.Namespace,
 	}, nil
+}
+
+func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, siteName string) (session.Session, string, error) {
+	// Fetch the session data from the supplied SID.
+	sessionID, err := session.ParseID(req.SessionID.String())
+	if err != nil {
+		return session.Session{}, "", trace.Wrap(err)
+	}
+	h.log.Infof("Attempting to join existing session: %s\n", sessionID)
+
+	tracker, err := clt.GetSessionTracker(ctx, string(*sessionID))
+	if err != nil {
+		return session.Session{}, "", trace.Wrap(err)
+	}
+
+	if tracker.GetSessionKind() != types.SSHSessionKind || tracker.GetState() == types.SessionState_SessionStateTerminated {
+		return session.Session{}, "", trace.NotFound("SSH session %v not found", sessionID)
+	}
+
+	sessionData := trackerToLegacySession(tracker, siteName)
+	// When joining an existing session use the specially handled
+	// `SSHSessionJoinPrincipal` login instead of the provided login so that
+	// users are able to join sessions without having permissions to create
+	// new ones themselves for auditing purposes. Otherwise the user would
+	// fail the SSH lib username validation step.
+	sessionData.Login = teleport.SSHSessionJoinPrincipal
+	// Using the Login above will then display `-teleport-internal-join` as the
+	// username that the user is logging in as, so we need to instead show the
+	// session username in the UI.
+	displayLogin := tracker.GetLogin()
+
+	return sessionData, displayLogin, nil
 }
 
 type siteSessionGenerateReq struct {
