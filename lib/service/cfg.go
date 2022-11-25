@@ -942,6 +942,10 @@ func (d *DatabaseAD) CheckAndSetDefaults(name string) error {
 
 // CheckAndSetDefaults validates the database proxy configuration.
 func (d *Database) CheckAndSetDefaults() error {
+	if d.Name == "" {
+		return trace.BadParameter("empty database name")
+	}
+
 	// Mark the database as coming from the static configuration.
 	if d.StaticLabels == nil {
 		d.StaticLabels = make(map[string]string)
