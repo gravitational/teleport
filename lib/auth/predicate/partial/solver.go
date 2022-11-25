@@ -29,23 +29,44 @@ import (
 
 type Resolver func([]string) any
 
-func PartialSolve(predicate string, resolveIdentifier Resolver, querying string) (z3.Value, error) {
+type CachedSolver struct {
+	def    *z3.Context
+	solver *z3.Solver
+}
+
+func NewCachedSolver() *CachedSolver {
+	config := z3.NewContextConfig()
+	def := z3.NewContext(config)
+	solver := z3.NewSolver(def)
+	return &CachedSolver{def, solver}
+}
+
+func (s *CachedSolver) PartialSolve(predicate string, resolveIdentifier Resolver, querying string) (z3.Value, error) {
 	ast, err := parser.ParseExpr(predicate)
 	if err != nil {
 		return nil, err
 	}
 
-	config := z3.NewContextConfig()
-	ctx := &ctx{idents: make(map[string]z3.Value)}
-	ctx.def = z3.NewContext(config)
-	ctx.solver = z3.NewSolver(ctx.def)
+	ctx := &ctx{s.def, s.solver, make(map[string]z3.Value)}
+	defer ctx.solver.Reset()
 
-	_, err = lower(ctx, ast)
+	cond, err := lower(ctx, ast)
 	if err != nil {
 		return nil, err
 	}
 
-	return nil, nil
+	ctx.solver.Assert(cond.(z3.Bool))
+	sat, err := ctx.solver.Check()
+	if err != nil {
+		return nil, err
+	}
+
+	if !sat {
+		return nil, trace.NotFound("no solution found")
+	}
+
+	model := ctx.solver.Model()
+	return model.Eval(ctx.idents[querying], true), nil
 }
 
 type ctx struct {
