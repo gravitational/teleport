@@ -51,18 +51,18 @@ type Keygen struct {
 	clock clockwork.Clock
 }
 
-// KeygenOption is a functional optional argument for key generator
-type KeygenOption func(k *Keygen)
+// Option is a functional optional argument for key generator
+type Option func(k *Keygen)
 
 // SetClock sets the clock to use for key generation.
-func SetClock(clock clockwork.Clock) KeygenOption {
+func SetClock(clock clockwork.Clock) Option {
 	return func(k *Keygen) {
 		k.clock = clock
 	}
 }
 
 // New returns a new key generator.
-func New(ctx context.Context, opts ...KeygenOption) *Keygen {
+func New(ctx context.Context, opts ...Option) *Keygen {
 	ctx, cancel := context.WithCancel(ctx)
 	k := &Keygen{
 		ctx:    ctx,

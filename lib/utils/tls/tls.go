@@ -39,8 +39,8 @@ import (
 // verifier and not in Go.
 const macMaxTLSCertValidityPeriod = 825 * 24 * time.Hour
 
-// TLSCredentials keeps the typical 3 components of a proper HTTPS configuration
-type TLSCredentials struct {
+// Credentials keeps the typical 3 components of a proper HTTPS configuration
+type Credentials struct {
 	// PublicKey in PEM format
 	PublicKey []byte
 	// PrivateKey in PEM format
@@ -50,7 +50,7 @@ type TLSCredentials struct {
 
 // GenerateSelfSignedCert generates a self-signed certificate that
 // is valid for given domain names and ips, returns PEM-encoded bytes with key and cert
-func GenerateSelfSignedCert(hostNames []string) (*TLSCredentials, error) {
+func GenerateSelfSignedCert(hostNames []string) (*Credentials, error) {
 	priv, err := native.GenerateRSAPrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -98,7 +98,7 @@ func GenerateSelfSignedCert(hostNames []string) (*TLSCredentials, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &TLSCredentials{
+	return &Credentials{
 		PublicKey:  pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY", Bytes: publicKeyBytes}),
 		PrivateKey: pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)}),
 		Cert:       pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes}),
