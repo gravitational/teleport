@@ -122,6 +122,17 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	}
 	devicepb.RegisterDeviceTrustServiceServer(gRPCServer, deviceService)
 
+	// Create a SAMLService and register it with the auth.Server
+	sas, err := NewSAMLAuthService(&SAMLAuthServiceConfig{
+		Auth:    authServer.AuthServer,
+		Emitter: authServer.Emitter,
+		Log:     p.Log,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	authServer.AuthServer.SetSAMLService(sas)
+
 	return nil
 }
 

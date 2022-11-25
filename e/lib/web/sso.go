@@ -9,6 +9,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/types"
+	eauth "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -229,7 +230,7 @@ func (p *Plugin) samlACSHandle(w http.ResponseWriter, r *http.Request, params ht
 		// if found, use it to terminate the flow.
 		//
 		// this improves the UX by terminating the failed SSO flow immediately, rather than hoping for a timeout.
-		if requestID, errParse := auth.ParseSAMLInResponseTo(samlResponse); errParse == nil {
+		if requestID, errParse := eauth.ParseSAMLInResponseTo(samlResponse); errParse == nil {
 			if request, errGet := proxyClient.GetSAMLAuthRequest(r.Context(), requestID); errGet == nil && !request.CreateWebSession {
 				if url, errEnc := web.RedirectURLWithError(request.ClientRedirectURL, err); errEnc == nil {
 					return url.String()
@@ -237,7 +238,7 @@ func (p *Plugin) samlACSHandle(w http.ResponseWriter, r *http.Request, params ht
 			}
 		}
 
-		if errors.Is(err, auth.ErrSAMLNoRoles) {
+		if errors.Is(err, eauth.ErrSAMLNoRoles) {
 			return client.LoginFailedUnauthorizedRedirectURL
 		}
 

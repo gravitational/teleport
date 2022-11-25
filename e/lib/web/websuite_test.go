@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	eauth "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -71,6 +72,13 @@ func newWebSuite(t *testing.T) *webSuite {
 		},
 	})
 	require.NoError(t, err)
+
+	// Plug in SAML service
+	sas, err := eauth.NewSAMLAuthService(&eauth.SAMLAuthServiceConfig{
+		Auth: s.testAuthServer.Auth(),
+	})
+	require.NoError(t, err)
+	s.testAuthServer.Auth().SetSAMLService(sas)
 
 	err = s.testAuthServer.Auth().UpsertAuthServer(&types.ServerV2{
 		Kind:    types.KindAuthServer,
