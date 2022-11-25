@@ -103,11 +103,9 @@ func FastMarshalIndent(v interface{}, prefix, indent string) ([]byte, error) {
 
 // WriteJSON marshals multiple documents as a JSON list with indentation.
 func WriteJSON(w io.Writer, values interface{}) error {
-	data, err := json.MarshalIndent(values, "", "    ")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.Write(data)
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "    ")
+	err := encoder.Encode(values)
 	return trace.Wrap(err)
 }
 
