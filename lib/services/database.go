@@ -639,7 +639,7 @@ func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, endpo
 	}, nil
 }
 
-// MetadataFromMemoryDBCluster creates AWS metadata for the providec MemoryDB
+// MetadataFromMemoryDBCluster creates AWS metadata for the provided MemoryDB
 // cluster.
 func MetadataFromMemoryDBCluster(cluster *memorydb.Cluster, endpointType string) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(cluster.ARN))
@@ -660,7 +660,7 @@ func MetadataFromMemoryDBCluster(cluster *memorydb.Cluster, endpointType string)
 }
 
 // MetadataFromRedshiftServerlessWorkgroup creates AWS metadata for the
-// providec Redshift Serverless Workgroup.
+// provided Redshift Serverless Workgroup.
 func MetadataFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workgroup) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(workgroup.WorkgroupArn))
 	if err != nil {
@@ -678,7 +678,7 @@ func MetadataFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workg
 }
 
 // MetadataFromRedshiftServerlessVPCEndpoint creates AWS metadata for the
-// providec Redshift Serverless VPC endpoint.
+// provided Redshift Serverless VPC endpoint.
 func MetadataFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.EndpointAccess, workgroup *redshiftserverless.Workgroup) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(endpoint.EndpointArn))
 	if err != nil {

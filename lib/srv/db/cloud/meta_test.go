@@ -116,10 +116,10 @@ func TestAWSMetadata(t *testing.T) {
 
 	// Configure Redshift Serverless API mock.
 	redshiftServerlessWorkgroup := cloudtest.RedshiftServerlessWorkgroup("my-workgroup", "us-west-1")
-	redshiftServerlesEndpoint := cloudtest.RedshiftServerlessEndpointAccess(redshiftServerlessWorkgroup, "my-endpoint", "us-west-1")
+	redshiftServerlessEndpoint := cloudtest.RedshiftServerlessEndpointAccess(redshiftServerlessWorkgroup, "my-endpoint", "us-west-1")
 	redshiftServerless := &cloudtest.RedshiftServerlessMock{
 		Workgroups: []*redshiftserverless.Workgroup{redshiftServerlessWorkgroup},
-		Endpoints:  []*redshiftserverless.EndpointAccess{redshiftServerlesEndpoint},
+		Endpoints:  []*redshiftserverless.EndpointAccess{redshiftServerlessEndpoint},
 	}
 
 	// Create metadata fetcher.

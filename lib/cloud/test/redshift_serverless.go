@@ -45,7 +45,7 @@ func (m RedshiftServerlessMock) GetWorkgroupWithContext(_ aws.Context, input *re
 	}
 	return nil, trace.NotFound("not found")
 }
-func (m *RedshiftServerlessMock) GetEndpointAccessWithContext(_ aws.Context, input *redshiftserverless.GetEndpointAccessInput, _ ...request.Option) (*redshiftserverless.GetEndpointAccessOutput, error) {
+func (m RedshiftServerlessMock) GetEndpointAccessWithContext(_ aws.Context, input *redshiftserverless.GetEndpointAccessInput, _ ...request.Option) (*redshiftserverless.GetEndpointAccessOutput, error) {
 	for _, endpoint := range m.Endpoints {
 		if aws.StringValue(endpoint.EndpointName) == aws.StringValue(input.EndpointName) {
 			return new(redshiftserverless.GetEndpointAccessOutput).SetEndpoint(endpoint), nil
