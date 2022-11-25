@@ -2276,7 +2276,7 @@ db_service:
   - name: foo
     protocol: postgres
 `,
-			outError: `invalid database "foo" address`,
+			outError: `database "foo" URI is empty`,
 		},
 		{
 			desc: "invalid database uri (missing port)",
@@ -2361,7 +2361,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				DatabaseName:     "foo",
 				DatabaseProtocol: defaults.ProtocolPostgres,
 			},
-			outError: `invalid database "foo" address`,
+			outError: `database "foo" URI is empty`,
 		},
 		{
 			desc: "invalid database uri (missing port)",

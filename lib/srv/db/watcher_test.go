@@ -147,7 +147,7 @@ func TestWatcherCloudDynamicResource(t *testing.T) {
 	assertReconciledResource(t, reconcileCh, types.Databases{db0})
 
 	withRDSURL := func(v3 *types.DatabaseSpecV3) {
-		v3.URI = "mypostgresql.c6c8mwvfdgv0.us-west-2.rds.amazonaws.com"
+		v3.URI = "mypostgresql.c6c8mwvfdgv0.us-west-2.rds.amazonaws.com:5432"
 	}
 
 	t.Run("dynamic resource - no match", func(t *testing.T) {
@@ -219,7 +219,7 @@ func makeCloudDatabase(name string, labels map[string]string) (*types.DatabaseV3
 	return makeDatabase(name, labels, map[string]string{
 		types.OriginLabel: types.OriginCloud,
 	}, func(v3 *types.DatabaseSpecV3) {
-		v3.URI = "mypostgresql.c6c8mwvfdgv0.us-west-2.rds.amazonaws.com"
+		v3.URI = "mypostgresql.c6c8mwvfdgv0.us-west-2.rds.amazonaws.com:5432"
 	})
 }
 

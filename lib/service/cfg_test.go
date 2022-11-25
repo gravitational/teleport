@@ -196,41 +196,11 @@ func TestCheckDatabase(t *testing.T) {
 			outErr: true,
 		},
 		{
-			desc: "invalid database name",
+			desc: "fails services.ValidateDatabase",
 			inDatabase: Database{
 				Name:     "??--++",
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
-			},
-			outErr: true,
-		},
-		{
-			desc: "invalid database protocol",
-			inDatabase: Database{
-				Name:     "example",
-				Protocol: "unknown",
-				URI:      "localhost:5432",
-			},
-			outErr: true,
-		},
-		{
-			desc: "invalid database uri",
-			inDatabase: Database{
-				Name:     "example",
-				Protocol: defaults.ProtocolPostgres,
-				URI:      "localhost",
-			},
-			outErr: true,
-		},
-		{
-			desc: "invalid database CA cert",
-			inDatabase: Database{
-				Name:     "example",
-				Protocol: defaults.ProtocolPostgres,
-				URI:      "localhost:5432",
-				TLS: DatabaseTLS{
-					CACert: []byte("cert"),
-				},
 			},
 			outErr: true,
 		},
@@ -279,15 +249,6 @@ func TestCheckDatabase(t *testing.T) {
 				},
 			},
 			outErr: true,
-		},
-		{
-			desc: "MongoDB connection string",
-			inDatabase: Database{
-				Name:     "example",
-				Protocol: defaults.ProtocolMongoDB,
-				URI:      "mongodb://mongo-1:27017,mongo-2:27018/?replicaSet=rs0",
-			},
-			outErr: false,
 		},
 		{
 			desc: "SQL Server correct configuration",
