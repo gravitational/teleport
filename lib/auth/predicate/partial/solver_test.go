@@ -24,38 +24,40 @@ import (
 
 func TestSolverIntEq(t *testing.T) {
 	state := NewCachedSolver()
-	x, err := state.PartialSolve("x == 7", func(s []string) any {
+	x, err := state.PartialSolveForAll("x == 7", func(s []string) any {
 		return nil
 	}, "x", TypeInt)
 
 	require.NoError(t, err)
-	require.Equal(t, "7", x.String())
+	require.Len(t, x, 1)
+	require.Equal(t, "7", x[0].String())
 }
 
-func TestSolverStringExp(t *testing.T) {
+func TestSolverStringExpMultiSolution(t *testing.T) {
 	state := NewCachedSolver()
-	x, err := state.PartialSolve("x == \"blah\"", func(s []string) any {
+	x, err := state.PartialSolveForAll("x == \"blah\" || x == \"root\"", func(s []string) any {
 		return nil
 	}, "x", TypeString)
 
 	require.NoError(t, err)
-	require.Equal(t, "\"blah\"", x.String())
+	require.Len(t, x, 2)
+	require.Equal(t, "\"blah\"", x[0].String())
+	require.Equal(t, "\"root\"", x[1].String())
 }
 
-var xRes string
-
-func BenchmarkSolverEq(b *testing.B) {
+func BenchmarkSolverStringExpMultiSolution(b *testing.B) {
 	state := NewCachedSolver()
 
 	for i := 0; i < b.N; i++ {
-		x, err := state.PartialSolve("x == 7", func(s []string) any {
+		x, err := state.PartialSolveForAll("x == \"blah\" || x == \"root\"", func(s []string) any {
 			return nil
-		}, "x", TypeInt)
+		}, "x", TypeString)
 
 		if err != nil {
 			b.Fatal(err)
 		}
 
-		xRes = x.String()
+		require.Equal(b, "\"blah\"", x[0].String())
+		require.Equal(b, "\"root\"", x[1].String())
 	}
 }

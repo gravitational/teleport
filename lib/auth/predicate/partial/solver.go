@@ -48,7 +48,7 @@ func NewCachedSolver() *CachedSolver {
 	return &CachedSolver{def, solver}
 }
 
-func (s *CachedSolver) PartialSolve(predicate string, resolveIdentifier Resolver, querying string, to Type) (z3.Value, error) {
+func (s *CachedSolver) PartialSolveForAll(predicate string, resolveIdentifier Resolver, querying string, to Type) ([]z3.Value, error) {
 	ast, err := parser.ParseExpr(predicate)
 	if err != nil {
 		return nil, err
@@ -74,22 +74,29 @@ func (s *CachedSolver) PartialSolve(predicate string, resolveIdentifier Resolver
 	}
 
 	ctx.solver.Assert(cond.(z3.Bool))
-	sat, err := ctx.solver.Check()
-	if err != nil {
-		return nil, err
-	}
+	var out []z3.Value
 
-	if !sat {
-		return nil, trace.NotFound("no solution found")
-	}
+	for {
+		sat, err := ctx.solver.Check()
+		if err != nil {
+			return nil, err
+		}
 
-	model := ctx.solver.Model()
-	val, ok := ctx.idents[querying]
-	if !ok {
-		return nil, trace.NotFound("identifier %v not found", querying)
-	}
+		if !sat {
+			return out, nil
+		}
 
-	return model.Eval(val, true), nil
+		model := ctx.solver.Model()
+		val, ok := ctx.idents[querying]
+		if !ok {
+			return nil, trace.NotFound("identifier %v not found", querying)
+		}
+
+		last := model.Eval(val, true)
+		out = append(out, last)
+		neq := ctx.def.Distinct(val, last)
+		ctx.solver.Assert(neq)
+	}
 }
 
 type ctx struct {
