@@ -25,9 +25,9 @@ features, which ones are the most popular and which are problematic for users.
 ### Collecting events
 
 Events for Connect will be collected on the client side. TypeScript code will have a stateless metrics service that will
-forward them to the gRPC handler exposed by `tsh daemon`. To prevent flooding backend with a large number of small
+forward them to the gRPC handler exposed by `tsh daemon`, which will ultimately submit them to a service called `prehog`. To prevent flooding backend with a large number of small
 requests, events will be batched before sending to `prehog`. The batching mechanism has already been implemented
-in `UsageReporter` that will be used for collecting cluster events. `tsh deamon` will try to reuse the same code as much
+in `UsageReporter` that will be used for collecting cluster events. `tsh daemon` will try to reuse the same code as much
 as possible (by providing its own batching parameters and submit function). Events will be sent once every hour (this
 may change) and before closing the app.
 
@@ -41,7 +41,7 @@ Connect for a few reasons:
 
 ### Anonymization
 
-Each event that contains sensitive data, like cluster name needs to be anonymized. It will be done in `tsh deamon`, the
+Each event that contains sensitive data, like cluster name needs to be anonymized. It will be done in `tsh daemon`, the
 same way as in `Auth Server` - using HMAC with unique `cluster id` as the key. Connect will reuse the same code.
 The only issue with anonymizing events client-side is lack of `cluster id` that is kept in `Auth Server`. To remedy
 this, when the app starts and retrieves cluster information, it should also retrieve the `cluster id`, create an
@@ -132,7 +132,7 @@ Event properties:
 - `protocol`: one of `ssh`/`proxy_db`/`kube`
 - `distinct_id`: string
 
-### `connect.accessRequests.create`
+### `connect.accessRequest.create`
 
 Creating an access request.
 
