@@ -7,7 +7,8 @@ disxcord:
 
 # Mapping from role to recipients
 roleToRecipients: []
-#  "*": "1022880284221386772"  # security-team
+#  "*":
+#    - "1234567890"  # security-team
 #  "dev":
-#    - "1022875294723485768"  # dev-team-channel
-#    - "1022880143963856897"  # admin-team-channel
+#    - "0987654321"  # dev-team-channel
+#    - "1212121212"  # admin-team-channel

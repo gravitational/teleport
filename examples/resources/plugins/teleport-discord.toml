@@ -24,12 +24,11 @@ token = "XXXXXXXXX"
 [role_to_recipients]
 # Map roles to recipients.
 #
-# Provide Discord user_email/channel recipients for access requests for specific roles.
-# role.suggested_reviewers will automatically be treated as additional email recipients.
+# Provide Discord channel ID recipients for access requests for specific roles.
 # "*" must be provided to match non-specified roles.
 #
-# "dev" = "devs-discord-channel"
-# "*" = ["admin-discord-channel"]
+# "dev" = "1234567890"
+# "*" = ["0987654321"]
 
 [log]
 output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/discord.log"
