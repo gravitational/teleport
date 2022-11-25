@@ -2815,7 +2815,7 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector typ
 		return trace.Wrap(err)
 	}
 	if !modules.GetModules().Features().SAML {
-		return trace.AccessDenied("SAML is only available in enterprise subscriptions")
+		return trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 	return a.authServer.UpsertSAMLConnector(ctx, connector)
 }

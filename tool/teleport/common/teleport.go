@@ -446,10 +446,17 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 
 // OnStart is the handler for "start" CLI command
 func OnStart(clf config.CommandLineFlags, config *service.Config) error {
-	if clf.ConfigFile != "" {
+	//check to see if the config file is not passed and if the
+	// default config file is available. If available it will be used
+	configFileUsed := clf.ConfigFile
+	if clf.ConfigFile == "" && utils.FileExists(defaults.ConfigFilePath) {
+		configFileUsed = defaults.ConfigFilePath
+	}
+
+	if configFileUsed == "" {
 		config.Log.Infof("Starting Teleport v%s", teleport.Version)
 	} else {
-		config.Log.Infof("Starting Teleport v%s with a config file located at %q", teleport.Version, clf.ConfigFile)
+		config.Log.Infof("Starting Teleport v%s with a config file located at %q", teleport.Version, configFileUsed)
 	}
 	return service.Run(context.TODO(), *config, nil)
 }
