@@ -948,7 +948,6 @@ func (d *Database) CheckAndSetDefaults() error {
 	}
 	d.StaticLabels[types.OriginLabel] = types.OriginConfigFile
 
-	// Check and set defaults for TLS mode.
 	if err := d.TLS.Mode.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -974,7 +973,7 @@ func (d *Database) CheckAndSetDefaults() error {
 }
 
 // ToDatabase converts Database to types.Database.
-func (d Database) ToDatabase() (types.Database, error) {
+func (d *Database) ToDatabase() (types.Database, error) {
 	return types.NewDatabaseV3(types.Metadata{
 		Name:        d.Name,
 		Description: d.Description,
