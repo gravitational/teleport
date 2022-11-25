@@ -18,7 +18,6 @@ package db
 
 import (
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -38,13 +37,14 @@ func MakeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (res
 	}
 
 	for _, matcher := range matchers {
-		for _, region := range matcher.Regions {
-			for matcherType, makeFetchers := range makeFetcherFuncs {
-				if !slices.Contains(matcher.Types, matcherType) {
-					continue
-				}
+		for _, matcherType := range matcher.Types {
+			makeFetchers, found := makeFetcherFuncs[matcherType]
+			if !found {
+				return nil, trace.BadParameter("unknown matcher type %q", matcherType)
+			}
 
-				for _, makeFetcher := range makeFetchers {
+			for _, makeFetcher := range makeFetchers {
+				for _, region := range matcher.Regions {
 					fetcher, err := makeFetcher(clients, region, matcher.Tags)
 					if err != nil {
 						return nil, trace.Wrap(err)

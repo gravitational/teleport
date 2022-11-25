@@ -131,7 +131,7 @@ func (w *Watcher) fetchAndSend() {
 		}
 		databases, err := resources.AsDatabases()
 		if err != nil {
-			w.log.WithError(err).Errorf("Failed to convert types.ResourceWithLabels to types.Databases for fetcher %v.", fetcher)
+			w.log.WithError(err).Errorf("Failed to convert types.ResourcesWithLabels to types.Databases for fetcher %v.", fetcher)
 			return
 		}
 		result = append(result, databases...)
