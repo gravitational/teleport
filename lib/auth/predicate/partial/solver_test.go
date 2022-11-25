@@ -18,6 +18,7 @@ package predicate
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -26,7 +27,7 @@ func TestSolverIntEq(t *testing.T) {
 	state := NewCachedSolver()
 	x, err := state.PartialSolveForAll("x == 7", func(s []string) any {
 		return nil
-	}, "x", TypeInt)
+	}, "x", TypeInt, 10*time.Second)
 
 	require.NoError(t, err)
 	require.Len(t, x, 1)
@@ -37,7 +38,7 @@ func TestSolverStringExpMultiSolution(t *testing.T) {
 	state := NewCachedSolver()
 	x, err := state.PartialSolveForAll("x == \"blah\" || x == \"root\"", func(s []string) any {
 		return nil
-	}, "x", TypeString)
+	}, "x", TypeString, 10*time.Second)
 
 	require.NoError(t, err)
 	require.Len(t, x, 2)
@@ -51,7 +52,7 @@ func BenchmarkSolverStringExpMultiSolution(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		x, err := state.PartialSolveForAll("x == \"blah\" || x == \"root\"", func(s []string) any {
 			return nil
-		}, "x", TypeString)
+		}, "x", TypeString, 10*time.Second)
 
 		if err != nil {
 			b.Fatal(err)

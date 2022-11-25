@@ -22,6 +22,7 @@ import (
 	"go/token"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aclements/go-z3/z3"
 	"github.com/gravitational/trace"
@@ -48,7 +49,32 @@ func NewCachedSolver() *CachedSolver {
 	return &CachedSolver{def, solver}
 }
 
-func (s *CachedSolver) PartialSolveForAll(predicate string, resolveIdentifier Resolver, querying string, to Type) ([]z3.Value, error) {
+func (s *CachedSolver) PartialSolveForAll(predicate string, resolveIdentifier Resolver, querying string, to Type, timeout time.Duration) ([]z3.Value, error) {
+	outCh := make(chan []z3.Value)
+	errCh := make(chan error)
+
+	go func() {
+		out, err := s.partialSolveForAllImpl(predicate, resolveIdentifier, querying, to)
+		if err != nil {
+			errCh <- err
+			return
+		}
+
+		outCh <- out
+	}()
+
+	select {
+	case out := <-outCh:
+		return out, nil
+	case err := <-errCh:
+		return nil, err
+	case <-time.After(timeout):
+		s.def.Interrupt()
+		return nil, trace.LimitExceeded("timeout")
+	}
+}
+
+func (s *CachedSolver) partialSolveForAllImpl(predicate string, resolveIdentifier Resolver, querying string, to Type) ([]z3.Value, error) {
 	ast, err := parser.ParseExpr(predicate)
 	if err != nil {
 		return nil, err
