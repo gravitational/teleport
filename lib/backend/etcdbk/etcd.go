@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"crypto/x509"
 	"encoding/base64"
 	"os"
@@ -407,6 +408,9 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 		MaxCallSendMsgSize: b.cfg.MaxClientMsgSizeBytes,
 	})
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return trace.WrapWithMessage(err, "failed to dial all etcd endpoints: %s", b.nodes)
+		}
 		return trace.Wrap(err)
 	}
 	b.client = clt
