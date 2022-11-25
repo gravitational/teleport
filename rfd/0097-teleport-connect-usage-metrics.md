@@ -25,7 +25,8 @@ features, which ones are the most popular and which are problematic for users.
 ### Collecting events
 
 Events for Connect will be collected on the client side. TypeScript code will have a stateless metrics service that will
-forward them to the gRPC handler exposed by `tsh daemon`, which will ultimately submit them to a service called `prehog`. To prevent flooding backend with a large number of small
+forward them to the gRPC handler exposed by `tsh daemon`, which will ultimately submit them to a service
+called `prehog`. To prevent flooding backend with a large number of small
 requests, events will be batched before sending to `prehog`. The batching mechanism has already been implemented
 in `UsageReporter` that will be used for collecting cluster events. `tsh daemon` will try to reuse the same code as much
 as possible (by providing its own batching parameters and submit function). Events will be sent once every hour (this
@@ -40,6 +41,9 @@ Connect for a few reasons:
 - Batch can be sent after the session expires.
 
 ### Anonymization
+
+> **NOTE:** The anonymization solution described below applies only to events that are associated with a cluster. Events
+> that do not belong to any cluster but contain sensitive data will have to be anonymized in a different way.
 
 Each event that contains sensitive data, like cluster name needs to be anonymized. It will be done in `tsh daemon`, the
 same way as in `Auth Server` - using HMAC with unique `cluster id` as the key. Connect will reuse the same code.
