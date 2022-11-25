@@ -160,6 +160,19 @@ func (r ResourcesWithLabels) AsDatabaseServers() ([]DatabaseServer, error) {
 	return dbs, nil
 }
 
+// AsDatabases converts each resource into type Database.
+func (r ResourcesWithLabels) AsDatabases() (Databases, error) {
+	dbs := make(Databases, 0, len(r))
+	for _, resource := range r {
+		db, ok := resource.(Database)
+		if !ok {
+			return nil, trace.BadParameter("expected types.Database, got: %T", resource)
+		}
+		dbs = append(dbs, db)
+	}
+	return dbs, nil
+}
+
 // AsWindowsDesktops converts each resource into type WindowsDesktop.
 func (r ResourcesWithLabels) AsWindowsDesktops() ([]WindowsDesktop, error) {
 	desktops := make([]WindowsDesktop, 0, len(r))

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package watchers
+package db
 
 import (
 	"context"
@@ -29,8 +29,47 @@ import (
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// MakeAzureFetchers creates fetchers for Azure-hosted databases.
+func MakeAzureFetchers(ctx context.Context, clients cloud.Clients, matchers []services.AzureMatcher) (result []common.Fetcher, err error) {
+	type makeFetcherFunc func(azureFetcherConfig) (common.Fetcher, error)
+	makeFetcherFuncs := map[string][]makeFetcherFunc{
+		services.AzureMatcherMySQL:    {newAzureMySQLFetcher},
+		services.AzureMatcherPostgres: {newAzurePostgresFetcher},
+		services.AzureMatcherRedis:    {newAzureRedisFetcher, newAzureRedisEnterpriseFetcher},
+	}
+	for _, matcher := range matchers {
+		for _, matcherType := range matcher.Types {
+			makeFetchers, found := makeFetcherFuncs[matcherType]
+			if !found {
+				return nil, trace.BadParameter("unknown matcher type %q", matcherType)
+			}
+
+			for _, makeFetcher := range makeFetchers {
+				for _, sub := range matcher.Subscriptions {
+					for _, group := range matcher.ResourceGroups {
+						fetcher, err := makeFetcher(azureFetcherConfig{
+							AzureClients:  clients,
+							Type:          matcherType,
+							Subscription:  sub,
+							ResourceGroup: group,
+							Labels:        matcher.ResourceTags,
+							Regions:       matcher.Regions,
+						})
+						if err != nil {
+							return nil, trace.Wrap(err)
+						}
+						result = append(result, fetcher)
+					}
+				}
+			}
+		}
+	}
+	return result, nil
+}
 
 // azureListClient defines an interface for a common Azure client that can list
 // Azure database resources.
@@ -53,7 +92,7 @@ type azureFetcherPlugin[DBType comparable, ListClient azureListClient[DBType]] i
 }
 
 // newAzureFetcher returns a Azure DB server fetcher for the provided subscription, group, regions, and tags.
-func newAzureFetcher[DBType comparable, ListClient azureListClient[DBType]](config azureFetcherConfig, plugin azureFetcherPlugin[DBType, ListClient]) (Fetcher, error) {
+func newAzureFetcher[DBType comparable, ListClient azureListClient[DBType]](config azureFetcherConfig, plugin azureFetcherPlugin[DBType, ListClient]) (common.Fetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -135,13 +174,23 @@ type azureFetcher[DBType comparable, ListClient azureListClient[DBType]] struct 
 }
 
 // Get returns Azure DB servers matching the watcher's selectors.
-func (f *azureFetcher[DBType, ListClient]) Get(ctx context.Context) (types.Databases, error) {
+func (f *azureFetcher[DBType, ListClient]) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
 	databases, err := f.getDatabases(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
+}
+
+// ResourceType identifies the resource type the fetcher is returning.
+func (f *azureFetcher[DBType, ListClient]) ResourceType() string {
+	return types.KindDatabase
+}
+
+// Cloud returns the cloud the fetcher is operating.
+func (f *azureFetcher[DBType, ListClient]) Cloud() string {
+	return types.CloudAzure
 }
 
 // getSubscriptions returns the subscriptions that this fetcher is configured to query.
@@ -226,10 +275,10 @@ func (f *azureFetcher[DBType, ListClient]) String() string {
 		f.cfg.Type, f.cfg.Subscription, f.cfg.ResourceGroup, f.cfg.Regions, f.cfg.Labels)
 }
 
-// simplifyMatchers returns simplified Azure Matchers.
+// SimplifyMatchers returns simplified Azure Matchers.
 // Selectors are deduplicated, wildcard in a selector reduces the selector
 // to just the wildcard, and defaults are applied.
-func simplifyMatchers(matchers []services.AzureMatcher) []services.AzureMatcher {
+func SimplifyMatchers(matchers []services.AzureMatcher) []services.AzureMatcher {
 	result := make([]services.AzureMatcher, 0, len(matchers))
 	for _, m := range matchers {
 		subs := apiutils.Deduplicate(m.Subscriptions)

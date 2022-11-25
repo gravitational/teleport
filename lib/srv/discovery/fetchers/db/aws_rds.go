@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package watchers
+package db
 
 import (
 	"context"
@@ -27,8 +27,9 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 // rdsFetcherConfig is the RDS databases fetcher configuration.
@@ -57,12 +58,14 @@ func (c *rdsFetcherConfig) CheckAndSetDefaults() error {
 
 // rdsDBInstancesFetcher retrieves RDS DB instances.
 type rdsDBInstancesFetcher struct {
+	awsFetcher
+
 	cfg rdsFetcherConfig
 	log logrus.FieldLogger
 }
 
 // newRDSDBInstancesFetcher returns a new RDS DB instances fetcher instance.
-func newRDSDBInstancesFetcher(config rdsFetcherConfig) (Fetcher, error) {
+func newRDSDBInstancesFetcher(config rdsFetcherConfig) (common.Fetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -77,7 +80,7 @@ func newRDSDBInstancesFetcher(config rdsFetcherConfig) (Fetcher, error) {
 }
 
 // Get returns RDS DB instances matching the watcher's selectors.
-func (f *rdsDBInstancesFetcher) Get(ctx context.Context) (types.Databases, error) {
+func (f *rdsDBInstancesFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
 	rdsDatabases, err := f.getRDSDatabases(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -88,9 +91,9 @@ func (f *rdsDBInstancesFetcher) Get(ctx context.Context) (types.Databases, error
 
 // getRDSDatabases returns a list of database resources representing RDS instances.
 func (f *rdsDBInstancesFetcher) getRDSDatabases(ctx context.Context) (types.Databases, error) {
-	instances, err := getAllDBInstances(ctx, f.cfg.RDS, common.MaxPages, f.log)
+	instances, err := getAllDBInstances(ctx, f.cfg.RDS, maxAWSPages, f.log)
 	if err != nil {
-		return nil, common.ConvertError(err)
+		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 	}
 	databases := make(types.Databases, 0, len(instances))
 	for _, instance := range instances {
@@ -151,12 +154,14 @@ func (f *rdsDBInstancesFetcher) String() string {
 
 // rdsAuroraClustersFetcher retrieves RDS Aurora clusters.
 type rdsAuroraClustersFetcher struct {
+	awsFetcher
+
 	cfg rdsFetcherConfig
 	log logrus.FieldLogger
 }
 
 // newRDSAuroraClustersFetcher returns a new RDS Aurora fetcher instance.
-func newRDSAuroraClustersFetcher(config rdsFetcherConfig) (Fetcher, error) {
+func newRDSAuroraClustersFetcher(config rdsFetcherConfig) (common.Fetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -171,7 +176,7 @@ func newRDSAuroraClustersFetcher(config rdsFetcherConfig) (Fetcher, error) {
 }
 
 // Get returns Aurora clusters matching the watcher's selectors.
-func (f *rdsAuroraClustersFetcher) Get(ctx context.Context) (types.Databases, error) {
+func (f *rdsAuroraClustersFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
 	auroraDatabases, err := f.getAuroraDatabases(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -182,9 +187,9 @@ func (f *rdsAuroraClustersFetcher) Get(ctx context.Context) (types.Databases, er
 
 // getAuroraDatabases returns a list of database resources representing RDS clusters.
 func (f *rdsAuroraClustersFetcher) getAuroraDatabases(ctx context.Context) (types.Databases, error) {
-	clusters, err := getAllDBClusters(ctx, f.cfg.RDS, common.MaxPages, f.log)
+	clusters, err := getAllDBClusters(ctx, f.cfg.RDS, maxAWSPages, f.log)
 	if err != nil {
-		return nil, common.ConvertError(err)
+		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 	}
 	databases := make(types.Databases, 0, len(clusters))
 	for _, cluster := range clusters {
@@ -325,7 +330,7 @@ func retryWithIndividualEngineFilters(log logrus.FieldLogger, engines []string, 
 	if err == nil {
 		return nil
 	}
-	if !common.IsUnrecognizedAWSEngineNameError(err) {
+	if !libcloudaws.IsUnrecognizedAWSEngineNameError(err) {
 		return trace.Wrap(err)
 	}
 	log.WithError(err).Warn("Teleport supports an engine which is unrecognized in this AWS region. Querying engines individually.")
@@ -334,7 +339,7 @@ func retryWithIndividualEngineFilters(log logrus.FieldLogger, engines []string, 
 		if err == nil {
 			continue
 		}
-		if !common.IsUnrecognizedAWSEngineNameError(err) {
+		if !libcloudaws.IsUnrecognizedAWSEngineNameError(err) {
 			return trace.Wrap(err)
 		}
 		// skip logging unrecognized engine name error here, we already logged it in the initial attempt.

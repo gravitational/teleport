@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 // GKEFetcherConfig configures the GKE fetcher.
@@ -68,7 +69,7 @@ type gkeFetcher struct {
 }
 
 // NewGKEFetcher creates a new GKE fetcher configuration.
-func NewGKEFetcher(cfg GKEFetcherConfig) (Fetcher, error) {
+func NewGKEFetcher(cfg GKEFetcherConfig) (common.Fetcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

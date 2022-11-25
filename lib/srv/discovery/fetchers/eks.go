@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 const (
@@ -71,7 +72,7 @@ func (c *EKSFetcherConfig) CheckAndSetDefaults() error {
 }
 
 // NewEKSFetcher creates a new EKS fetcher configuration.
-func NewEKSFetcher(cfg EKSFetcherConfig) (Fetcher, error) {
+func NewEKSFetcher(cfg EKSFetcherConfig) (common.Fetcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

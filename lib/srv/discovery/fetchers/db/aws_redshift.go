@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package watchers
+package db
 
 import (
 	"context"
@@ -27,8 +27,9 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 // redshiftFetcherConfig is the Redshift databases fetcher configuration.
@@ -57,12 +58,14 @@ func (c *redshiftFetcherConfig) CheckAndSetDefaults() error {
 
 // redshiftFetcher retrieves Redshift databases.
 type redshiftFetcher struct {
+	awsFetcher
+
 	cfg redshiftFetcherConfig
 	log logrus.FieldLogger
 }
 
 // newRedshiftFetcher returns a new Redshift databases fetcher instance.
-func newRedshiftFetcher(config redshiftFetcherConfig) (Fetcher, error) {
+func newRedshiftFetcher(config redshiftFetcherConfig) (common.Fetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -77,7 +80,7 @@ func newRedshiftFetcher(config redshiftFetcherConfig) (Fetcher, error) {
 }
 
 // Get returns Redshift and Aurora databases matching the watcher's selectors.
-func (f *redshiftFetcher) Get(ctx context.Context) (types.Databases, error) {
+func (f *redshiftFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
 	clusters, err := getRedshiftClusters(ctx, f.cfg.Redshift)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -121,8 +124,8 @@ func getRedshiftClusters(ctx context.Context, redshiftClient redshiftiface.Redsh
 		func(page *redshift.DescribeClustersOutput, lastPage bool) bool {
 			pageNum++
 			clusters = append(clusters, page.Clusters...)
-			return pageNum <= common.MaxPages
+			return pageNum <= maxAWSPages
 		},
 	)
-	return clusters, common.ConvertError(err)
+	return clusters, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 }

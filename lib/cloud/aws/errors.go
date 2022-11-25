@@ -19,6 +19,7 @@ package aws
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -78,4 +79,13 @@ func parseMetadataClientError(err error) error {
 		return trace.ReadError(httpError.HTTPStatusCode(), nil)
 	}
 	return trace.Wrap(err)
+}
+
+// IsUnrecognizedAWSEngineNameError checks if the err is non-nil and came from
+// using an engine filter that the AWS region does not recognize.
+func IsUnrecognizedAWSEngineNameError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "unrecognized engine name")
 }

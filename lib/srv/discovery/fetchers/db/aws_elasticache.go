@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package watchers
+package db
 
 import (
 	"context"
@@ -26,8 +26,9 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 // elastiCacheFetcherConfig is the ElastiCache databases fetcher configuration.
@@ -56,12 +57,14 @@ func (c *elastiCacheFetcherConfig) CheckAndSetDefaults() error {
 
 // elastiCacheFetcher retrieves ElastiCache Redis databases.
 type elastiCacheFetcher struct {
+	awsFetcher
+
 	cfg elastiCacheFetcherConfig
 	log logrus.FieldLogger
 }
 
 // newElastiCacheFetcher returns a new ElastiCache databases fetcher instance.
-func newElastiCacheFetcher(config elastiCacheFetcherConfig) (Fetcher, error) {
+func newElastiCacheFetcher(config elastiCacheFetcherConfig) (common.Fetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -78,7 +81,7 @@ func newElastiCacheFetcher(config elastiCacheFetcherConfig) (Fetcher, error) {
 // Get returns ElastiCache Redis databases matching the watcher's selectors.
 //
 // TODO(greedy52) support ElastiCache global datastore.
-func (f *elastiCacheFetcher) Get(ctx context.Context) (types.Databases, error) {
+func (f *elastiCacheFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
 	clusters, err := getElastiCacheClusters(ctx, f.cfg.ElastiCache)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -102,7 +105,7 @@ func (f *elastiCacheFetcher) Get(ctx context.Context) (types.Databases, error) {
 	}
 
 	if len(eligibleClusters) == 0 {
-		return types.Databases{}, nil
+		return types.ResourcesWithLabels{}, nil
 	}
 
 	// Fetch more information to provide extra labels. Do not fail because some
@@ -185,10 +188,10 @@ func getElastiCacheClusters(ctx context.Context, client elasticacheiface.ElastiC
 		func(page *elasticache.DescribeReplicationGroupsOutput, lastPage bool) bool {
 			pageNum++
 			clusters = append(clusters, page.ReplicationGroups...)
-			return pageNum <= common.MaxPages
+			return pageNum <= maxAWSPages
 		},
 	)
-	return clusters, common.ConvertError(err)
+	return clusters, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 }
 
 // getElastiCacheNodes fetches all ElastiCache nodes that associated with a
@@ -213,10 +216,10 @@ func getElastiCacheNodes(ctx context.Context, client elasticacheiface.ElastiCach
 					nodes = append(nodes, cacheCluster)
 				}
 			}
-			return pageNum <= common.MaxPages
+			return pageNum <= maxAWSPages
 		},
 	)
-	return nodes, common.ConvertError(err)
+	return nodes, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 }
 
 // getElastiCacheSubnetGroups fetches all ElastiCache subnet groups.
@@ -230,10 +233,10 @@ func getElastiCacheSubnetGroups(ctx context.Context, client elasticacheiface.Ela
 		func(page *elasticache.DescribeCacheSubnetGroupsOutput, lastPage bool) bool {
 			pageNum++
 			subnetGroups = append(subnetGroups, page.CacheSubnetGroups...)
-			return pageNum <= common.MaxPages
+			return pageNum <= maxAWSPages
 		},
 	)
-	return subnetGroups, common.ConvertError(err)
+	return subnetGroups, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 }
 
 // getElastiCacheResourceTags fetches resource tags for provided ElastiCache
@@ -244,7 +247,7 @@ func getElastiCacheResourceTags(ctx context.Context, client elasticacheiface.Ela
 	}
 	output, err := client.ListTagsForResourceWithContext(ctx, input)
 	if err != nil {
-		return nil, common.ConvertError(err)
+		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 	}
 
 	return output.TagList, nil
