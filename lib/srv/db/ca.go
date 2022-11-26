@@ -26,14 +26,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gravitational/trace"
+	sqladmin "google.golang.org/api/sqladmin/v1beta4"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
 
 // initCACert initializes the provided server's CA certificate in case of a
