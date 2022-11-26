@@ -143,7 +143,7 @@ export class SharedDirectoryManager {
   async writeFile(
     path: string,
     offset: bigint,
-    writeData: Uint8Array
+    data: Uint8Array
   ): Promise<number> {
     this.checkReady();
 
@@ -152,14 +152,11 @@ export class SharedDirectoryManager {
       throw new Error('cannot read the bytes of a directory');
     }
 
-    const file = await fileHandle.createWritable();
-    if (offset > 0) {
-      file.seek(Number(offset));
-    }
-    file.write(writeData);
+    const file = await fileHandle.createWritable({ keepExistingData: true });
+    file.write({ type: 'write', position: Number(offset), data });
     file.close(); // Needed to actually write data to disk.
 
-    return writeData.length;
+    return data.length;
   }
 
   /**
