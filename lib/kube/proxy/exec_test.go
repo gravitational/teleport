@@ -103,7 +103,7 @@ func TestExecKubeService(t *testing.T) {
 				// is merged into k8s go-client.
 				// For now go-client does not support connections over websockets.
 				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
-					return newWebSocketExecutor(c, s, u)
+					return newWebSocketClient(c, s, u)
 				},
 			},
 		},

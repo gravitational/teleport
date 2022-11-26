@@ -30,6 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
+	"k8s.io/apiserver/pkg/util/wsstream"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
@@ -55,7 +56,20 @@ func (p portForwardRequest) String() string {
 // portForwardCallback is a callback to be called on every port forward request
 type portForwardCallback func(addr string, success bool)
 
+// runPortForwarding checks if the request contains WebSocket upgrade headers and
+// decides which protocol the client expects.
+// Go client uses SPDY while other clients still require WebSockets.
+// This function will run until the end of the execution of the request.
 func runPortForwarding(req portForwardRequest) error {
+	if wsstream.IsWebSocketRequest(req.httpRequest) {
+		return trace.Wrap(runPortForwardingWebSocket(req))
+	}
+	return trace.Wrap(runPortForwardingHTTPStreams(req))
+}
+
+// runPortForwardingHTTPStreams upgrades the clients using SPDY protocol.
+// It supports multiplexing and HTTP streams and can be used per-request.
+func runPortForwardingHTTPStreams(req portForwardRequest) error {
 	_, err := httpstream.Handshake(req.httpRequest, req.httpResponseWriter, []string{PortForwardProtocolV1Name})
 	if err != nil {
 		return trace.Wrap(err)
@@ -95,6 +109,18 @@ func runPortForwarding(req portForwardRequest) error {
 	return nil
 }
 
+// parsePortString parses a port from a given string.
+func parsePortString(pString string) (uint16, error) {
+	port, err := strconv.ParseUint(pString, 10, 16)
+	if err != nil {
+		return 0, trace.BadParameter("unable to parse %q as a port: %v", pString, err)
+	}
+	if port < 1 {
+		return 0, trace.BadParameter("port %q must be > 0", pString)
+	}
+	return uint16(port), nil
+}
+
 // httpStreamReceived is the httpstream.NewStreamHandler for port
 // forward streams. It checks each stream's port and stream type headers,
 // rejecting any streams that with missing or invalid values. Each valid
@@ -106,12 +132,10 @@ func httpStreamReceived(ctx context.Context, streams chan httpstream.Stream) fun
 		if len(portString) == 0 {
 			return trace.BadParameter("%q header is required", PortHeader)
 		}
-		port, err := strconv.ParseUint(portString, 10, 16)
+
+		_, err := parsePortString(portString)
 		if err != nil {
-			return trace.BadParameter("unable to parse %q as a port: %v", portString, err)
-		}
-		if port < 1 {
-			return trace.BadParameter("port %q must be > 0", portString)
+			return trace.Wrap(err)
 		}
 
 		// make sure it has a valid stream type header
