@@ -208,7 +208,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client auth.ClientI) error {
 	return nil
 }
 
-// ListActive retreives the list of nodes who recently sent heartbeats to
+// ListActive retrieves the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
 func (c *NodeCommand) ListActive(ctx context.Context, clt auth.ClientI) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
