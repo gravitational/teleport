@@ -38,7 +38,6 @@ import (
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -197,6 +196,7 @@ func TestUserNotFound(t *testing.T) {
 
 func TestChangePassword(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	s := setupPasswordSuite(t)
 	req, err := s.prepareForPasswordChange("user1", []byte("abc123"), constants.SecondFactorOff)
@@ -206,7 +206,7 @@ func TestChangePassword(t *testing.T) {
 	s.a.SetClock(fakeClock)
 	req.NewPassword = []byte("abce456")
 
-	err = s.a.ChangePassword(req)
+	err = s.a.ChangePassword(ctx, req)
 	require.NoError(t, err)
 	require.Equal(t, events.UserPasswordChangeEvent, s.mockEmitter.LastEvent().GetType())
 	require.Equal(t, "user1", s.mockEmitter.LastEvent().(*apievents.UserPasswordChange).User)
@@ -216,7 +216,7 @@ func TestChangePassword(t *testing.T) {
 	fakeClock.Advance(defaults.AccountLockInterval + time.Second)
 	req.OldPassword = req.NewPassword
 	req.NewPassword = []byte("abc5555")
-	err = s.a.ChangePassword(req)
+	err = s.a.ChangePassword(ctx, req)
 	require.NoError(t, err)
 }
 
@@ -243,7 +243,7 @@ func TestChangePasswordWithOTP(t *testing.T) {
 	// change password
 	req.NewPassword = []byte("abce456")
 	req.SecondFactorToken = validToken
-	err = s.a.ChangePassword(req)
+	err = s.a.ChangePassword(ctx, req)
 	require.NoError(t, err)
 
 	s.shouldLockAfterFailedAttempts(t, req)
@@ -255,7 +255,7 @@ func TestChangePasswordWithOTP(t *testing.T) {
 	req.OldPassword = req.NewPassword
 	req.NewPassword = []byte("abc5555")
 	req.SecondFactorToken = validToken
-	err = s.a.ChangePassword(req)
+	err = s.a.ChangePassword(ctx, req)
 	require.NoError(t, err)
 }
 
@@ -307,7 +307,7 @@ func TestServer_ChangePassword(t *testing.T) {
 			require.NoError(t, err, "solving challenge with device")
 
 			// Change password.
-			req := services.ChangePasswordReq{
+			req := &proto.ChangePasswordRequest{
 				User:        username,
 				OldPassword: oldPass,
 				NewPassword: newPass,
@@ -316,9 +316,9 @@ func TestServer_ChangePassword(t *testing.T) {
 			case mfaResp.GetTOTP() != nil:
 				req.SecondFactorToken = mfaResp.GetTOTP().Code
 			case mfaResp.GetWebauthn() != nil:
-				req.WebauthnResponse = wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn())
+				req.Webauthn = mfaResp.GetWebauthn()
 			}
-			require.NoError(t, authServer.ChangePassword(req), "changing password")
+			require.NoError(t, authServer.ChangePassword(ctx, req), "changing password")
 
 			// Did the password change take effect?
 			require.NoError(t, authServer.checkPasswordWOToken(username, newPass), "password change didn't take effect")
@@ -665,23 +665,24 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 	require.Error(t, err)
 }
 
-func (s *passwordSuite) shouldLockAfterFailedAttempts(t *testing.T, req services.ChangePasswordReq) {
+func (s *passwordSuite) shouldLockAfterFailedAttempts(t *testing.T, req *proto.ChangePasswordRequest) {
+	ctx := context.Background()
 	loginAttempts, _ := s.a.GetUserLoginAttempts(req.User)
 	require.Empty(t, loginAttempts)
 	for i := 0; i < defaults.MaxLoginAttempts; i++ {
-		err := s.a.ChangePassword(req)
+		err := s.a.ChangePassword(ctx, req)
 		require.Error(t, err)
 		loginAttempts, _ = s.a.GetUserLoginAttempts(req.User)
 		require.Len(t, loginAttempts, i+1)
 	}
 
-	err := s.a.ChangePassword(req)
+	err := s.a.ChangePassword(ctx, req)
 	require.True(t, trace.IsAccessDenied(err))
 }
 
-func (s *passwordSuite) prepareForPasswordChange(user string, pass []byte, secondFactorType constants.SecondFactorType) (services.ChangePasswordReq, error) {
+func (s *passwordSuite) prepareForPasswordChange(user string, pass []byte, secondFactorType constants.SecondFactorType) (*proto.ChangePasswordRequest, error) {
 	ctx := context.Background()
-	req := services.ChangePasswordReq{
+	req := &proto.ChangePasswordRequest{
 		User:        user,
 		OldPassword: pass,
 	}
