@@ -13,7 +13,7 @@ You will learn how to:
   reverse tunnels.
 - Explore a cluster and execute commands on specific nodes in the cluster.
 - Share interactive shell sessions with colleagues or join someone else's session.
-- Replay recorded interactive sessions.
+- List and replay recorded interactive sessions.
 
 In addition to this document, you can always simply type `tsh` into your
 terminal for the CLI reference.
@@ -840,6 +840,60 @@ The alias substitution happens before the command line flags are fully parsed. T
 $ TELEPORT_DEBUG=1 tsh status
 DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.go:203
 ...
+```
+
+# Interactive Recording
+
+Within the Teleport cluster the `ssh` and `Kubernetes` recorded sessions are available for listing and replay for authorized users via `tsh`.
+The same listings including Desktops are available in the Web Console under the Audit Log in the Activity section.
+
+## List Recordings and Play
+
+Get the list of recordings.  Without specifying a time period the past 24 hour recordings are shown.
+```code
+$ tsh recordings ls
+ID                                   Type Participants Hostname Timestamp           
+------------------------------------ ---- ------------ -------- ------------------- 
+b0a04442-70dc-4be8-9308-7b7901d2d600      jeff         dev       Nov 26 16:36:16 UTC 
+c0a02222-70dc-4be8-9308-7b7901d2d600 kube alice                  Nov 26 20:36:16 UTC 
+d0a04442-70dc-4be8-9308-7b7901d2d600      navin        test      Nov 26 16:36:16 UTC 
+```
+
+If no type is specified that is a `ssh` session.
+
+To Play sessions type `tsh play <sessionid>`.  The screen will reset playing the interactive session with the timestamp in the upper right.
+
+```code
+$ tsh play c0a02222-70dc-4be8-9308-7b7901d2d600
+root@ubuntu:/# df                                                                     2022-11-26T21:20:52.715Z
+Filesystem     1K-blocks    Used Available Use% Mounted on
+overlay         20959212 4387284  16571928  21% /
+tmpfs              65536       0     65536   0% /dev
+tmpfs            1982720       0   1982720   0% /sys/fs/cgroup
+/dev/nvme0n1p1  20959212 4387284  16571928  21% /etc/hosts
+shm                65536       0     65536   0% /dev/shm
+tmpfs            3410436      12   3410424   1% /run/secrets/kubernetes.io/serviceaccount
+tmpfs            1982720       0   1982720   0% /proc/acpi
+tmpfs            1982720       0   1982720   0% /sys/firmware
+root@ubuntu:/# exit
+exit
+
+
+end of session playback
+```
+
+### Filtering Recorded sessions
+
+Multiple options are available to get recordings from specific days.  The `--from-utc` and `--to-utc` parameters
+allow specifying the days recordings to list.
+
+```code
+$ tsh recordings ls --from-utc 2022-10-01 --to-utc 2022-10-05
+ID                                   Type Participants Hostname Timestamp           
+------------------------------------ ---- ------------ -------- ------------------- 
+b0a04442-70dc-4be8-9308-7b7901d2d600      jeff         dev       Oct 01 16:36:16 UTC 
+c0a02222-70dc-4be8-9308-7b7901d2d600 kube alice                  Oct 03 20:36:16 UTC 
+d0a04442-70dc-4be8-9308-7b7901d2d600      navin        test      Oct 05 16:36:16 UTC 
 ```
 
 ## Further reading
