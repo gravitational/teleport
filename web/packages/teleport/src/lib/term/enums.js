@@ -26,6 +26,7 @@ export const TermEventEnum = {
   RESIZE: 'terminal.resize',
   CLOSE: 'terminal.close',
   RESET: 'terminal.reset',
+  SESSION: 'terminal.new_session',
   DATA: 'terminal.data',
   CONN_CLOSE: 'connection.close',
   WEBAUTHN_CHALLENGE: 'terminal.webauthn',

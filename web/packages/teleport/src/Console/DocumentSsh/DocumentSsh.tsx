@@ -16,9 +16,7 @@ limitations under the License.
 
 import React, { useRef, useEffect } from 'react';
 
-import * as Icons from 'design/Icon';
-import { Indicator, Text, Box, ButtonPrimary } from 'design';
-import * as Alerts from 'design/Alert';
+import { Indicator, Box } from 'design';
 
 import {
   FileTransferActionBar,
@@ -41,7 +39,7 @@ import { getHttpFileTransferHandlers } from './httpFileTransferHandlers';
 
 export default function DocumentSsh({ doc, visible }: PropTypes) {
   const refTerminal = useRef<Terminal>();
-  const { tty, status, statusText, closeDocument } = useSshSession(doc);
+  const { tty, status, closeDocument } = useSshSession(doc);
   const webauthn = useWebAuthn(tty);
 
   function handleCloseFileTransfer() {
@@ -63,14 +61,6 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
           <Box textAlign="center" m={10}>
             <Indicator />
           </Box>
-        )}
-        {status === 'error' && (
-          <Alerts.Danger mx="10" mt="5">
-            Connection error: {statusText}
-          </Alerts.Danger>
-        )}
-        {status === 'notfound' && (
-          <SidNotFoundError sid={doc.sid} clusterId={doc.clusterId} />
         )}
         {webauthn.requested && (
           <AuthnDialog
@@ -116,23 +106,6 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
     </Document>
   );
 }
-
-const SidNotFoundError = ({ sid = '', clusterId = '' }) => (
-  <Box my={10} mx="auto" width="300px">
-    <Text typography="h4" mb="3" textAlign="center">
-      The session is no longer active
-    </Text>
-    <ButtonPrimary
-      block
-      secondary
-      as="a"
-      href={cfg.getPlayerRoute({ sid, clusterId }, { recordingType: 'ssh' })}
-      target="_blank"
-    >
-      <Icons.CirclePlay fontSize="5" mr="2" /> Replay Session
-    </ButtonPrimary>
-  </Box>
-);
 
 interface PropTypes {
   doc: stores.DocumentSsh;

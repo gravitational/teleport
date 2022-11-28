@@ -39,6 +39,30 @@ export interface Session {
   resourceName: string;
 }
 
+export type SessionMetadata = {
+  kind: string;
+  id: string;
+  namespace: string;
+  parties: any;
+  terminal_params: {
+    w: number;
+    h: number;
+  };
+  login: string;
+  created: string;
+  last_active: string;
+  server_id: string;
+  server_hostname: string;
+  server_hostport: number;
+  server_addr: string;
+  cluster_name: string;
+  kubernetes_cluster_name: string;
+  desktop_name: string;
+  database_name: string;
+  app_name: string;
+  resourceName: string;
+};
+
 export type ParticipantList = Record<string, Participant[]>;
 
 export type SessionKind = 'ssh' | 'k8s' | 'db' | 'app' | 'desktop';

@@ -23,26 +23,6 @@ import makeSession, { makeParticipant } from './makeSession';
 import { ParticipantList } from './types';
 
 const service = {
-  createSession({ serverId, clusterId, login }: CreateParams) {
-    const request = {
-      session: {
-        login,
-        cluster_name: clusterId,
-        server_id: serverId,
-      },
-    };
-
-    return api
-      .post(cfg.getTerminalSessionUrl({ clusterId }), request)
-      .then(response => makeSession(response.session));
-  },
-
-  fetchSession({ clusterId, sid }: FetchSessionParams) {
-    return api
-      .get(cfg.getTerminalSessionUrl({ sid, clusterId }))
-      .then(makeSession);
-  },
-
   fetchSessions(clusterId) {
     return api.get(cfg.getTerminalSessionUrl({ clusterId })).then(response => {
       if (response && response.sessions) {
@@ -73,14 +53,3 @@ const service = {
 };
 
 export default service;
-
-type CreateParams = {
-  serverId: string;
-  clusterId: string;
-  login: string;
-};
-
-type FetchSessionParams = {
-  sid: string;
-  clusterId: string;
-};
