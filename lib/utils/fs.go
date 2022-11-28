@@ -241,7 +241,7 @@ func overwriteFile(filePath string) error {
 	}
 
 	// Rounding up to 4k to hide the original file size. 4k was chosen because it's a common block size.
-	var block int64 = 4096
+	const block = 4096
 	size := fi.Size() / block * block
 	if fi.Size()%block != 0 {
 		size += block
