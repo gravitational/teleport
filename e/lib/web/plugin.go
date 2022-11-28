@@ -160,10 +160,9 @@ func (p *Plugin) withCloud(fn cloudPublicHandler) httprouter.Handle {
 			return nil, trace.AccessDenied("access denied")
 		}
 
-		proxyClient := p.h.GetProxyClient()
-		client, ok := proxyClient.(*auth.Client)
-		if !ok {
-			return nil, trace.BadParameter("expected *auth.Client, got: %T", client)
+		client, err := p.getAuthClient()
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
 		cloudClient, err := cloud.NewClientFromConnection(client.GetConnection())
@@ -183,4 +182,22 @@ func (p *Plugin) withCloud(fn cloudPublicHandler) httprouter.Handle {
 
 		return res, nil
 	})
+}
+
+func (p *Plugin) getAuthClient() (*auth.Client, error) {
+	proxyClient := p.h.GetProxyClient()
+
+	// TODO(mcbattirola): Move away from type assertions to a more robust solution.
+	switch c := proxyClient.(type) {
+	case *auth.GithubConverter:
+		authClient, ok := c.ClientI.(*auth.Client)
+		if !ok {
+			return nil, trace.BadParameter("unexpected underlying type for GithubConverter: %T", c.ClientI)
+		}
+		return authClient, nil
+	case *auth.Client:
+		return c, nil
+	default:
+		return nil, trace.BadParameter("unexpected underlying type for proxyClient: %T", proxyClient)
+	}
 }
