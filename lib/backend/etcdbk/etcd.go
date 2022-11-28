@@ -25,7 +25,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"io/ioutil"
-	"os"
 	"sort"
 	"strings"
 	"time"
