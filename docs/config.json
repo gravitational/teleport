@@ -323,6 +323,11 @@
               "title": "Email",
               "slug": "/access-controls/access-request-plugins/ssh-approval-email/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Discord",
+              "slug": "/access-controls/access-request-plugins/ssh-approval-discord/",
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
