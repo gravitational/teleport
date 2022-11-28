@@ -21,10 +21,9 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
-
-	"github.com/gravitational/trace"
 )
 
 // TrustedCluster holds information needed for a cluster that can not be directly
