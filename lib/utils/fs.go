@@ -29,6 +29,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // ErrUnsuccessfulLockTry designates an error when we temporarily couldn't acquire lock
@@ -228,10 +230,14 @@ func overwriteFile(filePath string) error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.WithError(err).Warningf("Failed to close %v.", f.Name())
+		}
+	}()
 
 	fi, err := f.Stat()
 	if err != nil {
-		f.Close()
 		return trace.ConvertSystemError(err)
 	}
 
@@ -242,10 +248,6 @@ func overwriteFile(filePath string) error {
 		size += block
 	}
 
-	if _, err := io.CopyN(f, rand.Reader, size); err != nil {
-		f.Close()
-		return trace.Wrap(err)
-	}
-
-	return trace.ConvertSystemError(f.Close())
+	_, err = io.CopyN(f, rand.Reader, size)
+	return trace.Wrap(err)
 }
