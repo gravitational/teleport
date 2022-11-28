@@ -130,7 +130,9 @@ spec:
 If Okta is used for logging into Teleport or the Teleport user's username is the same as the
 e-mail used for Okta, this will be unnecessary.
 
-### Background synchronization
+### Okta object synchronization
+
+#### Method 1: Background synchronization
 
 The background synchronization process, which synchronizes all applications from Okta, is expected
 to run roughly every 2 minutes. This process wil translate Okta users, groups, and applications
@@ -152,6 +154,12 @@ sequenceDiagram
     OktaSvc->>AppSvc: Synchronize groups in Teleport
   end
 ```
+#### Method 2: SCIM provisioning
+
+Teleport could potentially implement a SCIM provisioning server to synchronize to and from Okta. This would allow Okta to synchronize
+to Teleport upon user creation. I worry that we won't have as granular a control with this mechanism, however. It doesn't
+appear that SCIM provisioning can be triggered manually via the API, and for synchronizing to Okta from Teleport, the shorted duration
+is 1 hour, which is too long for us.
 
 #### Okta to Teleport mappings
 
@@ -224,6 +232,7 @@ spec:
     ...
 ```
 
+
 ### Requesting access to applications and groups
 
 A user will be able to submit access requests to specific applications and groups through the
@@ -232,15 +241,78 @@ API or UI. These requests will submit access requests through Teleport's
 The Okta service will monitor these approval requests and take appropriate
 action based on the request and the resource targeted.
 
-#### Group approval
+#### Method 1: Explicit API approval per user
+
+##### Group approval
 
 When an approval request has been accepted for a group, the Okta service assign the user to the given
-group. When the approval is rescinded, the user will be removed from the group.
+group using the API. When the approval is rescinded, the user will be removed from the group.
 
-#### Application approval
+##### Application approval
 
 When an approval request has been accepted for an application, the Okta service will assign the user
 to the application. When the approval is rescinded, the user will be removed from the application.
+
+#### Method 2: Teleport SAML/OIDC IdP
+
+The general mechanism for this method involves using an identity provider from within Teleport that Okta can use for authentication.
+We can use this to create special, temporary users within Okta that will only authenticate for a limited amount of time and only have
+specific rules and allowances configured for them.
+
+##### Okta external IdPs
+
+Okta can use external identity providers for its applications, and can additionally be used to authenticate directly to Okta. First, the
+external identity provider must be set up within the Okta UI. There is no apparent API that would allow us to automate this step.
+
+These can be either OIDC or SAML. For our purposes, either should work. One downside of OIDC is that Okta requires this OIDC server
+to be publicly visible on the internet. SAML may be a better choice for us as it allows for Okta to use this without direct
+access to the Teleport server, and other Teleport features may require SAML.
+
+##### Creating temporary users
+
+When an application access request is created, we can easily create a new, temporary user and assign the requested permissions
+to these users.
+
+##### Teleport IdP issuing expiring JWTs
+
+For these temporary users, Teleport's IdP will issue JWTs that have explicit expiration dates that correspond to the access
+request given, or potentially shorter lived/renewable JWTs. This will allow Teleport to ensure that these temporary users can
+only access Okta and Okta applications for a short period of time. When the access request expires or is rescinded, Teleport's
+IdP can then cease issuing new JWTs or only issue JWTs that are past expiration to prevent further access to Okta.
+One potential snag here is that, given that these users are now valid within Okta, it would potentially be possible to
+authenticate as the user outside of the Teleport IdP. We can address this with IdP routing rules, however.
+
+##### IdP routing rules
+
+Okta external IdPs can use special routing rules to ensure that users are routed to specific external identity providers for
+authentication based on arbitrary rules. I propose we use a special username prefix `+teleport-<uuid>` that we assign to all temporary users created in Okta to ensure that these users are always using Teleport's
+IdP to authenticate so that Teleport can control whether the user is able to authenticate properly or not, even if the user
+otherwise seems valid by Okta standards.
+
+##### Cleanup of temporary users
+
+These temporary users should be cleaned up once the access request expires or is rescinded. Additionally, Teleport should monitor
+temporary users and attempt to clean up any users its unable to reconcile so that Teleport doesn't leave a ton of ephemeral users
+sitting around. Cleaning these users up
+every 3 days is a good start.
+
+##### Assuming of users from the Teleport UI
+
+One snag in this process is that, once a user is logged into Okta, the session is reused for subsequent accesses to Okta.
+If you are logged in as your main user and request privileged access, even if a new user is created for you, the existing session
+will be used. In order to get around this, we'll need to configure Okta such that Teleport is a trusted CORS origin and issue
+the following Javascript prior to accessing an application in the browser:
+
+```javascript
+await fetch('https://dev-53161101.okta.com/api/v1/sessions/me', {
+    method: 'DELETE', // *GET, POST, PUT, DELETE, etc.
+    mode: 'cors', // no-cors, *cors, same-origin
+    cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+    credentials: 'include', // include, *same-origin, omit
+  });
+```
+
+This will delete the current Okta session and allow Teleport users to log in as the newly created temporary users.
 
 #### What groups and applications can users request?
 
