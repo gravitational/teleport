@@ -409,7 +409,7 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 	})
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return trace.WrapWithMessage(err, "failed to dial all etcd endpoints: %s", b.nodes)
+			return trace.WrapWithMessage(err, "timed out dialing etcd endpoints: %s", b.nodes)
 		}
 		return trace.Wrap(err)
 	}
