@@ -23,7 +23,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"errors"
 	"io/ioutil"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -357,6 +359,9 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 		MaxCallSendMsgSize: b.cfg.MaxClientMsgSizeBytes,
 	})
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return trace.WrapWithMessage(err, "timed out dialing etcd endpoints: %s", b.nodes)
+		}
 		return trace.Wrap(err)
 	}
 	b.client = clt
