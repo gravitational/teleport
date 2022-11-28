@@ -94,7 +94,7 @@ func (r ResourceURI) GetLeafClusterName() string {
 	return result.Params["leaf"]
 }
 
-// GetDbName extracts the database name from r. Returns an empty string if r is not a database URI.
+// GetDbName extracts the database name from r. Returns an empty string if path is not a database URI.
 func (r ResourceURI) GetDbName() string {
 	result, ok := pathDbs.Match(r.path)
 	if ok {
