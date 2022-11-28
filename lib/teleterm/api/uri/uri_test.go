@@ -86,37 +86,44 @@ func TestParseClusterURI(t *testing.T) {
 
 func TestGetDbName(t *testing.T) {
 	tests := []struct {
-		in  uri.ResourceURI
-		out string
+		name string
+		in   uri.ResourceURI
+		out  string
 	}{
 		{
-			uri.NewClusterURI("foo").AppendDB("postgres"),
-			"postgres",
+			name: "returns root cluster db name",
+			in:   uri.NewClusterURI("foo").AppendDB("postgres"),
+			out:  "postgres",
 		},
 		{
-			uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendDB("postgres"),
-			"postgres",
+			name: "returns leaf cluster db name",
+			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendDB("postgres"),
+			out:  "postgres",
 		},
 		{
-			uri.NewClusterURI("foo"),
-			"",
+			name: "returns empty string when given root cluster URI",
+			in:   uri.NewClusterURI("foo"),
+			out:  "",
 		},
 		{
-			uri.NewClusterURI("foo").AppendLeafCluster("bar"),
-			"",
+			name: "returns empty string when given leaf cluster URI",
+			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar"),
+			out:  "",
 		},
 		{
-			uri.NewClusterURI("foo").AppendKube("k8s"),
-			"",
+			name: "returns empty string when given root cluster non-db resource URI",
+			in:   uri.NewClusterURI("foo").AppendKube("k8s"),
+			out:  "",
 		},
 		{
-			uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendKube("k8s"),
-			"",
+			name: "returns empty string when given leaf cluster non-db resource URI",
+			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendKube("k8s"),
+			out:  "",
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.in.String(), func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			out := tt.in.GetDbName()
 			require.Equal(t, tt.out, out)
 		})
