@@ -52,7 +52,7 @@ require (
 	github.com/go-logr/logr v1.2.3
 	github.com/go-mysql-org/go-mysql v1.5.0 // replaced
 	github.com/go-piv/piv-go v1.10.0
-	github.com/go-redis/redis/v9 v9.0.0-rc.2
+	github.com/go-redis/redis/v9 v9.0.0-rc.1 // replaced
 	github.com/gobuffalo/flect v0.3.0
 	github.com/gocql/gocql v1.2.1
 	github.com/gofrs/flock v0.8.1
