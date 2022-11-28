@@ -16,6 +16,9 @@ limitations under the License.
 
 import Logger from 'shared/libs/logger';
 
+import { context, defaultTextMapSetter, trace } from '@opentelemetry/api';
+import { W3CTraceContextPropagator } from '@opentelemetry/core';
+
 import webSession from 'teleport/services/websession';
 import history from 'teleport/services/history';
 import cfg, { UrlResourcesParams, UrlSshParams } from 'teleport/config';
@@ -32,6 +35,8 @@ import serviceClusters from 'teleport/services/clusters';
 import { StoreParties, StoreDocs, DocumentSsh, Document } from './stores';
 
 const logger = Logger.create('teleport/console');
+
+const tracer = trace.getTracer('console-context');
 
 /**
  * Console Context is used by components to access shared state and also to communicate
@@ -115,34 +120,37 @@ export default class ConsoleContext {
   }
 
   refreshParties() {
-    // Finds unique clusterIds from all active ssh sessions
-    // and creates a separate API call per each.
-    // After receiving the data, it updates the stores only once.
-    const clusters = this.storeDocs
-      .getSshDocuments()
-      .filter(doc => doc.status === 'connected')
-      .map(doc => doc.clusterId);
+    return tracer.startActiveSpan('refreshParties', span => {
+      // Finds unique clusterIds from all active ssh sessions
+      // and creates a separate API call per each.
+      // After receiving the data, it updates the stores only once.
+      const clusters = this.storeDocs
+        .getSshDocuments()
+        .filter(doc => doc.status === 'connected')
+        .map(doc => doc.clusterId);
 
-    const unique = [...new Set(clusters)];
-    const requests = unique.map(clusterId =>
-      // Fetch parties for a given cluster and in case of an error
-      // return an empty object.
-      serviceSession.fetchParticipants({ clusterId }).catch(err => {
-        logger.error('failed to refresh participants', err);
-        const emptyResults: ParticipantList = {};
-        return emptyResults;
-      })
-    );
+      const unique = [...new Set(clusters)];
+      const requests = unique.map(clusterId =>
+        // Fetch parties for a given cluster and in case of an error
+        // return an empty object.
+        serviceSession.fetchParticipants({ clusterId }).catch(err => {
+          logger.error('failed to refresh participants', err);
+          const emptyResults: ParticipantList = {};
+          return emptyResults;
+        })
+      );
 
-    return Promise.all(requests).then(results => {
-      let parties: ParticipantList = {};
-      for (let i = 0; i < results.length; i++) {
-        parties = {
-          ...results[i],
-        };
-      }
+      return Promise.all(requests).then(results => {
+        let parties: ParticipantList = {};
+        for (let i = 0; i < results.length; i++) {
+          parties = {
+            ...results[i],
+          };
+        }
 
-      this.storeParties.setParties(parties);
+        this.storeParties.setParties(parties);
+        span.end();
+      });
     });
   }
 
@@ -158,28 +166,25 @@ export default class ConsoleContext {
     return serviceClusters.fetchClusters();
   }
 
-  fetchSshSession(clusterId: string, sid: string) {
-    return serviceSession.fetchSession({ clusterId, sid });
-  }
-
-  createSshSession(clusterId: string, serverId: string, login: string) {
-    return serviceSession.createSession({
-      serverId,
-      clusterId,
-      login,
-    });
-  }
-
   logout() {
     webSession.logout();
   }
 
   createTty(session: Session): Tty {
     const { login, sid, serverId, clusterId } = session;
+
+    const propagator = new W3CTraceContextPropagator();
+    let carrier = {};
+
+    const ctx = context.active();
+
+    propagator.inject(ctx, carrier, defaultTextMapSetter);
+
     const ttyUrl = cfg.api.ttyWsAddr
       .replace(':fqdn', getHostName())
       .replace(':token', getAccessToken())
-      .replace(':clusterId', clusterId);
+      .replace(':clusterId', clusterId)
+      .replace(':traceparent', carrier['traceparent']);
 
     const addressResolver = new TtyAddressResolver({
       ttyUrl,

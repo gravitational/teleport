@@ -17,15 +17,31 @@ limitations under the License.
 import { useEffect, useState } from 'react';
 import { useAttempt } from 'shared/hooks';
 
+import { context, trace } from '@opentelemetry/api';
+
 import { Session } from 'teleport/services/session';
+
 import Ctx from 'teleport/teleportContext';
+
+const tracer = trace.getTracer('userSessions');
 
 export default function useSessions(ctx: Ctx, clusterId: string) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [attempt, attemptActions] = useAttempt({ isProcessing: true });
 
   function onRefresh() {
-    return ctx.sshService.fetchSessions(clusterId).then(setSessions);
+    return tracer.startActiveSpan(
+      'onRefresh',
+      undefined, // SpanOptions
+      context.active(),
+      span => {
+        return ctx.sshService.fetchSessions(clusterId).then(resp => {
+          setSessions(resp);
+          span.end();
+          return resp;
+        });
+      }
+    );
   }
 
   useEffect(() => {
