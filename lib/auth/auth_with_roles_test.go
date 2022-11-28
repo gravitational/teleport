@@ -159,10 +159,10 @@ func TestInstaller(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	_, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	_, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	_, err = CreateRole(ctx, srv.Auth(), "test-read", types.RoleSpecV5{
+	_, err = CreateRole(ctx, srv.Auth(), "test-read", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -173,7 +173,7 @@ func TestInstaller(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	_, err = CreateRole(ctx, srv.Auth(), "test-update", types.RoleSpecV5{
+	_, err = CreateRole(ctx, srv.Auth(), "test-update", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -184,7 +184,7 @@ func TestInstaller(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	_, err = CreateRole(ctx, srv.Auth(), "test-delete", types.RoleSpecV5{
+	_, err = CreateRole(ctx, srv.Auth(), "test-delete", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -251,10 +251,10 @@ func TestGithubAuthRequest(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	access1Role, err := CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV5{
+	access1Role, err := CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -266,7 +266,7 @@ func TestGithubAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	access2Role, err := CreateRole(ctx, srv.Auth(), "test-access-2", types.RoleSpecV5{
+	access2Role, err := CreateRole(ctx, srv.Auth(), "test-access-2", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -278,7 +278,7 @@ func TestGithubAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	access3Role, err := CreateRole(ctx, srv.Auth(), "test-access-3", types.RoleSpecV5{
+	access3Role, err := CreateRole(ctx, srv.Auth(), "test-access-3", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -290,7 +290,7 @@ func TestGithubAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	readerRole, err := CreateRole(ctx, srv.Auth(), "test-access-4", types.RoleSpecV5{
+	readerRole, err := CreateRole(ctx, srv.Auth(), "test-access-4", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -426,11 +426,11 @@ func TestSSODiagnosticInfo(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// empty role
-	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	// privileged role
-	privRole, err := CreateRole(ctx, srv.Auth(), "priv-access", types.RoleSpecV5{
+	privRole, err := CreateRole(ctx, srv.Auth(), "priv-access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -489,31 +489,31 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	accessFooRole, err := CreateRole(ctx, srv.Auth(), "test-access-foo", types.RoleSpecV5{
+	accessFooRole, err := CreateRole(ctx, srv.Auth(), "test-access-foo", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"foo"},
 		},
 	})
 	require.NoError(t, err)
 
-	accessBarRole, err := CreateRole(ctx, srv.Auth(), "test-access-bar", types.RoleSpecV5{
+	accessBarRole, err := CreateRole(ctx, srv.Auth(), "test-access-bar", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"bar"},
 		},
 	})
 	require.NoError(t, err)
 
-	loginsTraitsRole, err := CreateRole(ctx, srv.Auth(), "test-access-traits", types.RoleSpecV5{
+	loginsTraitsRole, err := CreateRole(ctx, srv.Auth(), "test-access-traits", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"{{internal.logins}}"},
 		},
 	})
 	require.NoError(t, err)
 
-	impersonatorRole, err := CreateRole(ctx, srv.Auth(), "test-impersonator", types.RoleSpecV5{
+	impersonatorRole, err := CreateRole(ctx, srv.Auth(), "test-impersonator", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Impersonate: &types.ImpersonateConditions{
 				Roles: []string{
@@ -526,7 +526,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	denyBarRole, err := CreateRole(ctx, srv.Auth(), "test-deny", types.RoleSpecV5{
+	denyBarRole, err := CreateRole(ctx, srv.Auth(), "test-deny", types.RoleSpecV6{
 		Deny: types.RoleConditions{
 			Impersonate: &types.ImpersonateConditions{
 				Roles: []string{accessBarRole.GetName()},
@@ -535,13 +535,13 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	dummyUserRole, err := types.NewRoleV3("dummy-user-role", types.RoleSpecV5{})
+	dummyUserRole, err := types.NewRoleV3("dummy-user-role", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	dummyUser, err := CreateUser(srv.Auth(), "dummy-user", dummyUserRole)
 	require.NoError(t, err)
 
-	dummyUserImpersonatorRole, err := CreateRole(ctx, srv.Auth(), "dummy-user-impersonator", types.RoleSpecV5{
+	dummyUserImpersonatorRole, err := CreateRole(ctx, srv.Auth(), "dummy-user-impersonator", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Impersonate: &types.ImpersonateConditions{
 				Users: []string{dummyUser.GetName()},
@@ -752,21 +752,21 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	accessFooRole, err := CreateRole(ctx, srv.Auth(), "test-access-foo", types.RoleSpecV5{
+	accessFooRole, err := CreateRole(ctx, srv.Auth(), "test-access-foo", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"foo"},
 		},
 	})
 	require.NoError(t, err)
 
-	accessBarRole, err := CreateRole(ctx, srv.Auth(), "test-access-bar", types.RoleSpecV5{
+	accessBarRole, err := CreateRole(ctx, srv.Auth(), "test-access-bar", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"bar"},
 		},
 	})
 	require.NoError(t, err)
 
-	impersonatorRole, err := CreateRole(ctx, srv.Auth(), "test-impersonator", types.RoleSpecV5{
+	impersonatorRole, err := CreateRole(ctx, srv.Auth(), "test-impersonator", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Impersonate: &types.ImpersonateConditions{
 				Roles: []string{accessFooRole.GetName(), accessBarRole.GetName()},
@@ -1164,7 +1164,7 @@ func TestGetAndList_Nodes(t *testing.T) {
 func TestStreamSessionEventsRBAC(t *testing.T) {
 	t.Parallel()
 
-	role, err := types.NewRoleV3("deny-sessions", types.RoleSpecV5{
+	role, err := types.NewRoleV3("deny-sessions", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			NodeLabels: types.Labels{
 				"*": []string{types.Wildcard},
@@ -2143,7 +2143,7 @@ func TestKindClusterConfig(t *testing.T) {
 	})
 
 	t.Run("with KindClusterConfig privilege", func(t *testing.T) {
-		role, err := types.NewRoleV3("test-role", types.RoleSpecV5{
+		role, err := types.NewRoleV3("test-role", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{
 					types.NewRule(types.KindClusterConfig, []string{types.VerbRead}),
@@ -2720,7 +2720,6 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestGetAndList_WindowsDesktops(t *testing.T) {
@@ -3268,7 +3267,7 @@ func TestListResources_WithRoles(t *testing.T) {
 
 	// creates roles that deny the given labels
 	createRole := func(ctx context.Context, t *testing.T, srv *Server, name string, labels map[string]apiutils.Strings) {
-		role, err := types.NewRoleV3(name, types.RoleSpecV5{
+		role, err := types.NewRoleV3(name, types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				NodeLabels: types.Labels{
 					"*": []string{types.Wildcard},
@@ -3559,7 +3558,7 @@ func TestGenerateHostCert(t *testing.T) {
 				})
 			}
 
-			role, err := CreateRole(ctx, srv.Auth(), test.desc, types.RoleSpecV5{
+			role, err := CreateRole(ctx, srv.Auth(), test.desc, types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: rules},
 				Deny:  types.RoleConditions{Rules: denyRules},
 			})
@@ -3683,7 +3682,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		role, err := types.NewRole("foo", types.RoleSpecV5{
+		role, err := types.NewRole("foo", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{{
 					Resources: []string{types.KindSessionTracker},
@@ -3701,7 +3700,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		role, err := types.NewRole("foo", types.RoleSpecV5{})
+		role, err := types.NewRole("foo", types.RoleSpecV6{})
 		require.NoError(t, err)
 
 		return getActiveSessionsTestCase{"with no access rule", tracker, role, false}
@@ -3712,7 +3711,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		role, err := types.NewRole("foo", types.RoleSpecV5{
+		role, err := types.NewRole("foo", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{{
 					Resources: []string{types.KindSessionTracker},
@@ -3731,7 +3730,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		role, err := types.NewRole("foo", types.RoleSpecV5{
+		role, err := types.NewRole("foo", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{{
 					Resources: []string{types.KindSessionTracker},
