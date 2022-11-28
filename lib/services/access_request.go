@@ -24,6 +24,9 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/vulcand/predicate"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -31,10 +34,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/vulcand/predicate"
 )
 
 const maxAccessRequestReasonSize = 4096

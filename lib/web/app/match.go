@@ -21,14 +21,14 @@ import (
 	"math/rand"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/gravitational/trace"
 )
 
 // Getter returns a list of registered apps and the local cluster name.

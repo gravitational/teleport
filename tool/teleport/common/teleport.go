@@ -27,6 +27,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
@@ -37,10 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // Options combines init/start teleport options
@@ -433,10 +433,17 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 
 // OnStart is the handler for "start" CLI command
 func OnStart(clf config.CommandLineFlags, config *service.Config) error {
-	if clf.ConfigFile != "" {
+	//check to see if the config file is not passed and if the
+	// default config file is available. If available it will be used
+	configFileUsed := clf.ConfigFile
+	if clf.ConfigFile == "" && utils.FileExists(defaults.ConfigFilePath) {
+		configFileUsed = defaults.ConfigFilePath
+	}
+
+	if configFileUsed == "" {
 		config.Log.Infof("Starting Teleport v%s", teleport.Version)
 	} else {
-		config.Log.Infof("Starting Teleport v%s with a config file located at %q", teleport.Version, clf.ConfigFile)
+		config.Log.Infof("Starting Teleport v%s with a config file located at %q", teleport.Version, configFileUsed)
 	}
 	return service.Run(context.TODO(), *config, nil)
 }

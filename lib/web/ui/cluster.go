@@ -21,11 +21,12 @@ import (
 	"sort"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
 )
 
 // Cluster describes a cluster

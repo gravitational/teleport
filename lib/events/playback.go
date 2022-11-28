@@ -27,13 +27,13 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // Header returns information about playback

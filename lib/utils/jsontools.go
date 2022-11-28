@@ -22,10 +22,9 @@ import (
 	"reflect"
 	"unicode"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	jsoniter "github.com/json-iterator/go"
-
-	"github.com/ghodss/yaml"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
