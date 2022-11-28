@@ -31,16 +31,14 @@ import (
 	"net/http/httptest"
 	"strconv"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
-	// Register Snowflake database driver.
-	_ "github.com/snowflakedb/gosnowflake"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 // TestServerOption allows setting test server options.
