@@ -221,7 +221,7 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
-// GenerateUserCert generates a user certificate with the passed in parameters.
+// GenerateUserCert generates a user ssh certificate with the passed in parameters.
 // The private key of the CA to sign the certificate must be provided.
 func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	if err := c.CheckAndSetDefaults(); err != nil {
@@ -235,7 +235,7 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 // See: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD.
 const sourceAddress = "source-address"
 
-// GenerateUserCertWithoutValidation generates a user certificate with the
+// GenerateUserCertWithoutValidation generates a user ssh certificate with the
 // passed in parameters without validating them.
 func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([]byte, error) {
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicUserKey)
