@@ -849,7 +849,8 @@ The same listings including Desktops are available in the Web Console under the 
 
 ## List Recordings and Play
 
-Get the list of recordings.  Without specifying a time period the past 24 hour recordings are shown.
+Get the list of recordings. By default, recordings for the past 24 hours are shown.
+The time range can be customized with the `--last`, `--from-utc`, and `--to-utc` flags.
 ```code
 $ tsh recordings ls
 ID                                   Type Participants Hostname Timestamp           
