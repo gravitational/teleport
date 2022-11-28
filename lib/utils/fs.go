@@ -245,11 +245,11 @@ func overwriteFile(filePath string) error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	defer f.Close()
 
 	fi, err := f.Stat()
 	if err != nil {
-		return trace.Wrap(err)
+		f.Close()
+		return trace.ConvertSystemError(err)
 	}
 
 	// Rounding up to 4k to hide the original file size. 4k was chosen because it's a common block size.
@@ -259,6 +259,10 @@ func overwriteFile(filePath string) error {
 		size += block
 	}
 
-	_, err = io.CopyN(f, rand.Reader, size)
-	return trace.Wrap(err)
+	if _, err := io.CopyN(f, rand.Reader, size); err != nil {
+		f.Close()
+		return trace.Wrap(err)
+	}
+
+	return trace.ConvertSystemError(f.Close())
 }
