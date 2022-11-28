@@ -141,7 +141,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	}
 	identity.RoleSet, identity.UnmappedRoles = roleSet, origRoles
 	identity.Impersonator = certificate.Extensions[teleport.CertExtensionImpersonator]
-	accessRequestIDs, err := parseAccessRequestIDs(certificate.Extensions[teleport.CertExtensionTeleportActiveRequests])
+	accessRequestIDs, err := ParseAccessRequestIDs(certificate.Extensions[teleport.CertExtensionTeleportActiveRequests])
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
@@ -560,7 +560,7 @@ type AccessRequests struct {
 	IDs []string `json:"access_requests"`
 }
 
-func parseAccessRequestIDs(str string) ([]string, error) {
+func ParseAccessRequestIDs(str string) ([]string, error) {
 	var accessRequestIDs []string
 	var ar AccessRequests
 
