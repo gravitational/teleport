@@ -702,6 +702,7 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 		UserMetadata: ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
+			Protocol:   events.EventProtocolSSH,
 		},
 		SessionRecording: ctx.SessionRecordingConfig.GetMode(),
 		InitialCommand:   initialCommand,
@@ -832,6 +833,10 @@ func (s *session) emitSessionEndEvent() {
 			SessionID: string(s.id),
 		},
 		UserMetadata:      ctx.Identity.GetUserMetadata(),
+                ConnectionMetadata: apievents.ConnectionMetadata{
+                        RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
+                        Protocol:   events.EventProtocolSSH,
+                },
 		EnhancedRecording: s.hasEnhancedRecording,
 		Interactive:       s.term != nil,
 		StartTime:         start,
