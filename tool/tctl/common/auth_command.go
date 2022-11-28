@@ -27,6 +27,10 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -42,10 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // AuthCommand implements `tctl auth` group of commands

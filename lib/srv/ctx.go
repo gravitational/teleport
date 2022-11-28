@@ -28,6 +28,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -47,11 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 )
 
 var ctxID int32
@@ -175,7 +174,7 @@ type Server interface {
 	// temporary teleport users or not
 	GetCreateHostUser() bool
 
-	// GetHostUser returns the HostUsers instance being used to manage
+	// GetHostUsers returns the HostUsers instance being used to manage
 	// host user provisioning
 	GetHostUsers() HostUsers
 
@@ -436,13 +435,15 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		trace.ComponentFields: fields,
 	})
 
-	lockTargets, err := ComputeLockTargets(srv, identityContext)
+	clusterName, err := srv.GetAccessPoint().GetClusterName()
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		childErr := child.Close()
+		return nil, nil, trace.NewAggregate(err, childErr)
 	}
+
 	monitorConfig := MonitorConfig{
 		LockWatcher:           child.srv.GetLockWatcher(),
-		LockTargets:           lockTargets,
+		LockTargets:           ComputeLockTargets(clusterName.GetClusterName(), srv.HostUUID(), identityContext),
 		LockingMode:           identityContext.AccessChecker.LockingMode(authPref.GetLockingMode()),
 		DisconnectExpiredCert: child.disconnectExpiredCert,
 		ClientIdleTimeout:     child.clientIdleTimeout,
@@ -1148,28 +1149,19 @@ func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
 	}, nil
 }
 
-// ComputeLockTargets computes lock targets inferred from a Server
-// and an IdentityContext.
-func ComputeLockTargets(s Server, id IdentityContext) ([]types.LockTarget, error) {
-	clusterName, err := s.GetAccessPoint().GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+// ComputeLockTargets computes lock targets inferred from the clusterName, serverID and IdentityContext.
+func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []types.LockTarget {
 	lockTargets := []types.LockTarget{
 		{User: id.TeleportUser},
 		{Login: id.Login},
-		{Node: s.HostUUID()},
-		{Node: auth.HostFQDN(s.HostUUID(), clusterName.GetClusterName())},
+		{Node: serverID},
+		{Node: auth.HostFQDN(serverID, clusterName)},
 		{MFADevice: id.Certificate.Extensions[teleport.CertExtensionMFAVerified]},
 	}
 	roles := apiutils.Deduplicate(append(id.AccessChecker.RoleNames(), id.UnmappedRoles...))
-	lockTargets = append(lockTargets,
-		services.RolesToLockTargets(roles)...,
-	)
-	lockTargets = append(lockTargets,
-		services.AccessRequestsToLockTargets(id.ActiveRequests)...,
-	)
-	return lockTargets, nil
+	lockTargets = append(lockTargets, services.RolesToLockTargets(roles)...)
+	lockTargets = append(lockTargets, services.AccessRequestsToLockTargets(id.ActiveRequests)...)
+	return lockTargets
 }
 
 // SetRequest sets the ssh request that was issued by the client.

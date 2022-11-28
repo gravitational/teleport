@@ -21,9 +21,9 @@ import (
 	"os"
 
 	"github.com/gravitational/kingpin"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
@@ -47,7 +47,7 @@ type DesktopCommand struct {
 func (c *DesktopCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	c.config = config
 
-	desktop := app.Command("desktops", "Operate on registered desktops.")
+	desktop := app.Command("windows_desktops", "Operate on registered desktops.").Alias("desktops")
 	c.desktopList = desktop.Command("ls", "List all desktops registered with the cluster.")
 	c.desktopList.Flag("format", "Output format, 'text', 'json' or 'yaml'").Default(teleport.Text).StringVar(&c.format)
 	c.desktopList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)

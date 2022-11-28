@@ -27,6 +27,10 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -36,10 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tlsca"
-	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
 )
 
 // TokensCommand implements `tctl tokens` group of commands

@@ -22,17 +22,16 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
-
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 	authzapi "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/transport"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestCheckImpersonationPermissions(t *testing.T) {
