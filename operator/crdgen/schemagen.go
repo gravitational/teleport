@@ -213,6 +213,11 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 				Items: &apiextv1.JSONSchemaPropsOrArray{Schema: &apiextv1.JSONSchemaProps{Type: "string"}},
 			},
 		}
+	case field.TypeName() == ".wrappers.StringValues":
+		prop.Type = "array"
+		prop.Items = &apiextv1.JSONSchemaPropsOrArray{
+			Schema: &apiextv1.JSONSchemaProps{Type: "string"},
+		}
 	case field.TypeName() == ".types.CertExtensionType" || field.TypeName() == ".types.CertExtensionMode":
 		prop.Type = "integer"
 		prop.Format = "int32"

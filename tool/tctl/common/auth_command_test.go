@@ -239,16 +239,20 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			if err != nil {
 				t.Fatalf("loading generated kubeconfig: %v", err)
 			}
-			gotCert := kc.AuthInfos[kc.CurrentContext].ClientCertificateData
+			currentCtx, ok := kc.Contexts[kc.CurrentContext]
+			if !ok {
+				t.Fatalf("currentContext %q not present in kubeconfig", kc.CurrentContext)
+			}
+			gotCert := kc.AuthInfos[currentCtx.AuthInfo].ClientCertificateData
 			if !bytes.Equal(gotCert, client.userCerts.TLS) {
 				t.Errorf("got client cert: %q, want %q", gotCert, client.userCerts.TLS)
 			}
-			gotCA := kc.Clusters[kc.CurrentContext].CertificateAuthorityData
+			gotCA := kc.Clusters[currentCtx.Cluster].CertificateAuthorityData
 			wantCA := ca.GetActiveKeys().TLS[0].Cert
 			if !bytes.Equal(gotCA, wantCA) {
 				t.Errorf("got CA cert: %q, want %q", gotCA, wantCA)
 			}
-			gotServerAddr := kc.Clusters[kc.CurrentContext].Server
+			gotServerAddr := kc.Clusters[currentCtx.Cluster].Server
 			if tt.wantAddr != "" && gotServerAddr != tt.wantAddr {
 				t.Errorf("got server address: %q, want %q", gotServerAddr, tt.wantAddr)
 			}
@@ -305,9 +309,11 @@ func (c *mockClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, 
 func (c *mockClient) GetCertAuthorities(context.Context, types.CertAuthType, bool, ...services.MarshalOption) ([]types.CertAuthority, error) {
 	return c.cas, nil
 }
+
 func (c *mockClient) GetProxies() ([]types.Server, error) {
 	return c.proxies, nil
 }
+
 func (c *mockClient) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
 	return c.remoteClusters, nil
 }

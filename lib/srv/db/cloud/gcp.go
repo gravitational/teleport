@@ -22,14 +22,14 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 // GetGCPRequireSSL requests settings for the project/instance in session from GCP
 // and returns true when the instance requires SSL. An access denied error is
 // returned when an unauthorized error is returned from GCP.
-func GetGCPRequireSSL(ctx context.Context, sessionCtx *common.Session, gcpClient cloud.GCPSQLAdminClient) (requireSSL bool, err error) {
+func GetGCPRequireSSL(ctx context.Context, sessionCtx *common.Session, gcpClient gcp.SQLAdminClient) (requireSSL bool, err error) {
 	dbi, err := gcpClient.GetDatabaseInstance(ctx, sessionCtx.Database)
 	if err != nil {
 		err = common.ConvertError(err)
@@ -51,7 +51,7 @@ or "cloudsql.instances.get" IAM permission.`, err)
 // AppendGCPClientCert calls the GCP API to generate an ephemeral certificate
 // and adds it to the TLS config. An access denied error is returned when the
 // generate call fails.
-func AppendGCPClientCert(ctx context.Context, sessionCtx *common.Session, gcpClient cloud.GCPSQLAdminClient, tlsConfig *tls.Config) error {
+func AppendGCPClientCert(ctx context.Context, sessionCtx *common.Session, gcpClient gcp.SQLAdminClient, tlsConfig *tls.Config) error {
 	cert, err := gcpClient.GenerateEphemeralCert(ctx, sessionCtx.Database, sessionCtx.Identity)
 	if err != nil {
 		err = common.ConvertError(err)

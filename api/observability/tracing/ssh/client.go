@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -79,6 +80,15 @@ func NewClient(c ssh.Conn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request
 // doesn't service any global requests and writes the error to the first opened
 // channel.
 func isTracingSupported(clt *ssh.Client) (tracingCapability, error) {
+	srvVer := clt.ServerVersion()
+	if !strings.HasPrefix(string(srvVer), "SSH-2.0-Teleport") {
+		// Tracing is only supported by Teleport Nodes. Skip the check for
+		// all other implementations.
+		// Note: If tracing is not implemented SSH server should return ssh.UnknownChannelType,
+		//       but OpenSSH 7.x returns ssh.Prohibited, hence the check here.
+		return tracingUnsupported, nil
+	}
+
 	ch, _, err := clt.OpenChannel(TracingChannel, nil)
 	if err != nil {
 		var openError *ssh.OpenChannelError
@@ -159,6 +169,19 @@ func (c *Client) SendRequest(ctx context.Context, name string, wantReply bool, p
 	defer span.End()
 
 	c.mu.RLock()
+	// If the TracingChannel was rejected when the client was created,
+	// the connection was prohibited due to a lock or session control.
+	// Callers to SendRequest are expecting to receive the reason the request
+	// was rejected, so we need to propagate the rejectedError here.
+	if c.rejectedError != nil {
+		err := c.rejectedError
+		c.mu.RUnlock()
+
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+		return false, nil, trace.Wrap(err)
+	}
+
 	capability := c.capability
 	c.mu.RUnlock()
 
@@ -239,6 +262,9 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 		c.rejectedError = nil
 		c.capability = tracingUnknown
 		c.mu.Unlock()
+
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -250,6 +276,9 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 		capability, err := isTracingSupported(c.Client)
 		if err != nil {
 			c.mu.Unlock()
+
+			span.SetStatus(codes.Error, err.Error())
+			span.RecordError(err)
 			return nil, trace.Wrap(err)
 		}
 		c.capability = capability
