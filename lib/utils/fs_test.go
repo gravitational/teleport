@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -109,6 +108,5 @@ func TestRemoveSecure(t *testing.T) {
 	f, err := os.Create(filepath.Join(t.TempDir(), "teleport-remove-secure-test"))
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
-	require.True(t, trace.IsBadParameter(RemoveSecure(f.Name(), 0)))
-	require.NoError(t, RemoveSecure(f.Name(), 1))
+	require.NoError(t, RemoveSecure(f.Name()))
 }
