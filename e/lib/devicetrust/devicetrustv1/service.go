@@ -245,8 +245,7 @@ func (s *Service) BulkCreateDevices(ctx context.Context, req *devicepb.BulkCreat
 }
 
 func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.CreateDeviceEnrollTokenRequest) (*devicepb.DeviceEnrollToken, error) {
-	// TODO(codingllama): Use verb constants from OSS.
-	if err := s.authorizeVerb(ctx, types.KindDevice, "create_enroll_token"); err != nil {
+	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbCreateEnrollToken); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -260,7 +259,7 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 			Code: events.DeviceEnrollTokenCreateCode,
 		},
 		Status: &apievents.Status{
-			Success: err == nil,
+			Success: true,
 		},
 		Device: &apievents.DeviceMetadata{
 			DeviceId: req.DeviceId,
@@ -269,6 +268,35 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 	})
 
 	return token, nil
+}
+
+func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceServer) error {
+	ctx := stream.Context()
+	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbEnroll); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Attempt to enroll the device.
+	c := &enrollCeremony{
+		logger:  s.logger,
+		storage: s.storage,
+	}
+	dev, err := c.EnrollDevice(stream)
+
+	// Emit audit event.
+	s.emitAuditEvent(ctx, &apievents.DeviceEvent{
+		Metadata: apievents.Metadata{
+			Type: events.DeviceEvent,
+			Code: events.DeviceEnrollCode,
+		},
+		Status: &apievents.Status{
+			Success: err == nil,
+		},
+		Device: getDeviceMetadata(dev),
+		User:   getUserMetadata(ctx),
+	})
+
+	return trace.Wrap(err)
 }
 
 func (s *Service) authorizeVerb(ctx context.Context, rule, verb string) error {

@@ -65,8 +65,7 @@ func TestService_authz(t *testing.T) {
 			name: "CreateDeviceEnrollToken",
 			checker: &fakeChecker{
 				wantRule: types.KindDevice,
-				// TODO(codingllama): Use verb constants from OSS.
-				wantVerb: "create_enroll_token",
+				wantVerb: types.VerbCreateEnrollToken,
 			},
 			rpc: func() error {
 				_, err := devices.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
@@ -89,6 +88,26 @@ func TestService_authz(t *testing.T) {
 				return err
 			},
 			assertErr: trace.IsNotFound,
+		},
+		{
+			name: "EnrollDevice",
+			checker: &fakeChecker{
+				wantRule: types.KindDevice,
+				wantVerb: types.VerbEnroll,
+			},
+			rpc: func() error {
+				stream, err := devices.EnrollDevice(ctx)
+				if err != nil {
+					return err
+				}
+				if err := stream.Send(&devicepb.EnrollDeviceRequest{}); err != nil {
+					return err
+				}
+				// Validation errors from Send typically arrive at Recv.
+				_, err = stream.Recv()
+				return err
+			},
+			assertErr: trace.IsBadParameter,
 		},
 		{
 			name: "FindDevices",
@@ -777,6 +796,7 @@ func TestService_CreateDeviceEnrollToken(t *testing.T) {
 
 type wantEvent struct {
 	Type, Code string
+	WantFail   bool
 }
 
 func assertEvents(t *testing.T, got []apievents.AuditEvent, want []wantEvent) {
@@ -792,6 +812,19 @@ func assertEvents(t *testing.T, got []apievents.AuditEvent, want []wantEvent) {
 		}
 		if g.GetCode() != w.Code {
 			t.Errorf("Audit: event mismatch: got[%v].Code = %v, want %v", i, g.GetCode(), w.Code)
+		}
+		if g.GetType() != events.DeviceEvent {
+			continue
+		}
+
+		devEvent, ok := g.(*apievents.DeviceEvent)
+		switch {
+		case !ok:
+			t.Errorf("Audit: event mismatch: got[%v] is not a DeviceEvent: %T", i, devEvent)
+		case devEvent.Status == nil:
+			t.Errorf("Audit: event mismatch: got[%v].Status is nil, want non-nil", i)
+		case devEvent.Status.Success == w.WantFail:
+			t.Errorf("Audit: event mismatch: got[%v].Status.Success = %v, want %v", i, devEvent.Status.Success, !w.WantFail)
 		}
 	}
 }
