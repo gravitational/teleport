@@ -212,15 +212,10 @@ func FSTryReadLockTimeout(ctx context.Context, filePath string, timeout time.Dur
 	return unlockWrapper(fileLock.Unlock, fileLock.Path()), nil
 }
 
-// RemoveSecure attempts to securely delete the file by first overwriting the file with random data followed by
-// calling os.Remove(filePath). The number of times to overwrite the data is set by iterations. Iterations must
-// be > 0 or a trace.BadParameterError will be returned.
-func RemoveSecure(filePath string, iterations int) error {
-	if iterations < 1 {
-		return trace.BadParameter("iterations must be greater than 0")
-	}
-
-	for i := 0; i < iterations; i++ {
+// RemoveSecure attempts to securely delete the file by first overwriting the file with random data three times
+// followed by calling os.Remove(filePath).
+func RemoveSecure(filePath string) error {
+	for i := 0; i < 3; i++ {
 		if err := overwriteFile(filePath); err != nil {
 			return trace.Wrap(err)
 		}
