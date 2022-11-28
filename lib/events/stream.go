@@ -657,7 +657,7 @@ func (w *sliceWriter) completeStream() {
 			if err != nil {
 				log.WithError(err).
 					WithField("upload", w.proto.cfg.Upload.ID).
-					WithField("session", w.proto.cfg.Upload.SessionID). 
+					WithField("session", w.proto.cfg.Upload.SessionID).
 					Warning("Failed to upload part")
 				continue
 			}
@@ -674,7 +674,10 @@ func (w *sliceWriter) completeStream() {
 		err := w.proto.cfg.Uploader.CompleteUpload(w.proto.cancelCtx, w.proto.cfg.Upload, w.completedParts)
 		w.proto.setCompleteResult(err)
 		if err != nil {
-			log.WithError(err).Warningf("Failed to complete upload %q for session id %q", w.proto.cfg.Upload.ID, w.proto.cfg.Upload.SessionID)
+			log.WithError(err).
+				WithField("upload", w.proto.cfg.Upload.ID).
+				WithField("session", w.proto.cfg.Upload.SessionID).
+				Warning("Failed to complete upload")
 		}
 	}
 }
