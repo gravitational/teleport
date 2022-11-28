@@ -103,6 +103,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.DELETE("/enterprise/accessrequest/:requestId", h.WithAuth(p.deleteAccessRequestHandle))
 	h.GET("/enterprise/accessrequest/:requestId", h.WithClusterClientProvider(p.getAccessRequestHandle))
 	h.GET("/enterprise/accessrequest", h.WithAuth(p.getAccessRequestsHandle))
+	h.GET("/enterprise/resourcerequestroles", h.WithAuth(p.getResourceRequestRolesHandle))
 
 	if p.h.ClusterFeatures.GetCloud() {
 		h.DELETE("/enterprise/cloud/card", p.withCloudAuth(p.removeCardHandle))

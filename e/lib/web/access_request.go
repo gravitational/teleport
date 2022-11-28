@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/web/ui"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web"
@@ -66,7 +68,7 @@ func createAccessRequest(ctx context.Context, clt accessRequestAPIGetter, reques
 	}
 
 	if len(resourceIDs) != 0 { // search based request
-		req, err = services.NewAccessRequestWithResources(user, nil, resourceIDs)
+		req, err = services.NewAccessRequestWithResources(user, request.Roles, resourceIDs)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -92,6 +94,40 @@ func createAccessRequest(ctx context.Context, clt accessRequestAPIGetter, reques
 	}
 
 	return getAccessRequest(ctx, clt, req.GetMetadata().Name, opts...)
+}
+
+func (p *Plugin) getResourceRequestRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resourceIds := r.URL.Query().Get("resourceIds")
+	var req []ui.ResourceID
+	err = json.Unmarshal([]byte(resourceIds), &req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return getResourceRequestRoles(r.Context(), clt, req, ctx.GetUser())
+}
+
+// getResourceRequestRoles returns the list of necessary roles to access a list of resources
+// given their resource IDs.
+func getResourceRequestRoles(ctx context.Context, clt auth.ClientI, req []ui.ResourceID, user string) ([]string, error) {
+	// Creates new list of type types.ResourceID from the request of type ui.ResourceID.
+	// This is done because the json field name for `ClusterName` is different in both.
+	var resourceIDs []types.ResourceID
+	for _, resourceID := range req {
+		resourceIDs = append(resourceIDs, types.ResourceID{Name: resourceID.Name, Kind: resourceID.Kind, ClusterName: resourceID.ClusterName})
+	}
+
+	accessCaps, err := clt.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{User: user, ResourceIDs: resourceIDs})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return accessCaps.ApplicableRolesForResources, nil
 }
 
 func (p *Plugin) getAccessRequestHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (interface{}, error) {
