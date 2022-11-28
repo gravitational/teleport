@@ -392,21 +392,29 @@ func (s *S) removeFromAssetTagIndex(ctx context.Context, deviceID, assetTag stri
 // GetDeviceByID reads a device by ID.
 // Returns the stored device or trace.NotFound.
 func (s *S) GetDeviceByID(ctx context.Context, deviceID string) (*devicepb.Device, error) {
+	dev, _, _, err := s.getDeviceByID(ctx, deviceID)
+	return dev, trace.Wrap(err)
+}
+
+// getDeviceByID is the internal version of GetDeviceByID.
+// It returns all internal data structures along with the device.
+func (s *S) getDeviceByID(ctx context.Context, deviceID string) (*devicepb.Device, *storedDevice, *backend.Item, error) {
 	if deviceID == "" {
-		return nil, trace.BadParameter("device ID required")
+		return nil, nil, nil, trace.BadParameter("device ID required")
 	}
 
 	item, err := s.backend().Get(ctx, deviceKey(deviceID))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 
 	stored := &storedDevice{}
 	if err := json.Unmarshal(item.Value, stored); err != nil {
-		return nil, trace.Wrap(err, "unmarshal device")
+		return nil, nil, nil, trace.Wrap(err, "unmarshal device")
 	}
 
-	return storedToDevice(deviceIDFromKey(item.Key), stored), nil
+	dev := storedToDevice(deviceIDFromKey(item.Key), stored)
+	return dev, stored, item, nil
 }
 
 // GetDevicesByAssetTag reads devices by asset tag.
@@ -576,6 +584,51 @@ func deviceIDFromPageToken(pageToken string) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return t.ID, nil
+}
+
+// EnrollDevice updates an existing device in storage, marking it as enrolled.
+// Both device credential and collected data are required for the update.
+// Returns the updated device, without collected data.
+func (s *S) EnrollDevice(
+	ctx context.Context,
+	deviceID string, cred *devicepb.DeviceCredential, cd *devicepb.DeviceCollectedData) (*devicepb.Device, error) {
+	if _, err := ValidateDeviceCredential(cred); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := ValidateCollectedData(cd); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dev, stored, item, err := s.getDeviceByID(ctx, deviceID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := ValidateCollectedDataAgainstDevice(cd, dev); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(codingllama): Write collected data to storage.
+	// TODO(codingllama): Return collected data in our various device queries.
+
+	now := s.nowUTC()
+	stored.UpdateTime = now
+	stored.EnrollStatus = int(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED)
+	stored.Credential = &storedDeviceCredential{
+		ID:           cred.Id,
+		PublicKeyDER: cred.PublicKeyDer,
+	}
+	val, err := json.Marshal(stored)
+	if err != nil {
+		return nil, trace.Wrap(err, "marshal device")
+	}
+	if _, err := s.backend().CompareAndSwap(ctx, *item, backend.Item{
+		Key:   item.Key,
+		Value: val,
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return storedToDevice(deviceID, stored), nil
 }
 
 // CreateDeviceEnrollToken creates or replaces the existing enrollment token for

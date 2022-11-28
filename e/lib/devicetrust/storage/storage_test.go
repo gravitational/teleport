@@ -2,6 +2,10 @@ package storage_test
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"sort"
@@ -16,6 +20,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
@@ -764,6 +769,254 @@ func TestS_ListDevices_errors(t *testing.T) {
 			}
 			assert.ErrorContains(t, err, test.wantErr, "ListDevices error mismatch")
 		})
+	}
+}
+
+func TestS_EnrollDevice(t *testing.T) {
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+
+	dev, err := s.CreateDevice(ctx, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama",
+	})
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	key1, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey failed: %v", err)
+	}
+	key1DER, err := x509.MarshalPKIXPublicKey(key1.Public())
+	if err != nil {
+		t.Fatalf("MarshalPKIXPublicKey failed: %v", err)
+	}
+	key2, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey failed: %v", err)
+	}
+	key2DER, err := x509.MarshalPKIXPublicKey(key2.Public())
+	if err != nil {
+		t.Fatalf("MarshalPKIXPublicKey failed: %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		baseDev *devicepb.Device
+		cred    *devicepb.DeviceCredential
+		cd      *devicepb.DeviceCollectedData
+	}{
+		{
+			name:    "ok",
+			baseDev: dev,
+			cred: &devicepb.DeviceCredential{
+				Id:           "cred1",
+				PublicKeyDer: key1DER,
+			},
+			cd: &devicepb.DeviceCollectedData{
+				CollectTime:  timestamppb.Now(),
+				OsType:       dev.OsType,
+				SerialNumber: dev.AssetTag,
+			},
+		},
+		{
+			// Note: this test case depends on the device being successfully enrolled
+			// above.
+			name:    "re-enroll",
+			baseDev: dev,
+			cred: &devicepb.DeviceCredential{
+				Id:           "cred2",
+				PublicKeyDer: key2DER,
+			},
+			cd: &devicepb.DeviceCollectedData{
+				CollectTime:  timestamppb.Now(),
+				OsType:       dev.OsType,
+				SerialNumber: dev.AssetTag,
+			},
+		},
+	}
+	for _, test := range tests {
+		deviceID := test.baseDev.Id
+		got, err := s.EnrollDevice(ctx, deviceID, test.cred, test.cd)
+		if err != nil {
+			t.Fatalf("EnrollDevice failed: %v", err)
+		}
+
+		if got.UpdateTime.AsTime().Before(test.baseDev.UpdateTime.AsTime()) {
+			t.Errorf("got.UpdateTime = %v, want >= %v", got.UpdateTime, test.baseDev.UpdateTime)
+		}
+
+		want := proto.Clone(test.baseDev).(*devicepb.Device)
+		want.UpdateTime = got.UpdateTime
+		want.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED
+		want.Credential = test.cred
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("EnrollDevice mismatch (-want +got):\n%s", diff)
+		}
+
+		// Are changes reflected in storage?
+		stored, err := s.GetDeviceByID(ctx, deviceID)
+		if err != nil {
+			t.Fatalf("GetDeviceByID failed: %v", err)
+		}
+		// TODO(codingllama): Assert collected data on tests.
+		stored.CollectedData = nil
+		if diff := cmp.Diff(got, stored, protocmp.Transform()); diff != "" {
+			t.Errorf("GetDeviceByID mismatch (-want +got):\n%s", diff)
+		}
+	}
+}
+
+func TestS_EnrollDevice_errors(t *testing.T) {
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+
+	dev, err := s.CreateDevice(ctx, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama",
+	})
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+	key1, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey failed: %v", err)
+	}
+	key1DER, err := x509.MarshalPKIXPublicKey(key1.Public())
+	if err != nil {
+		t.Fatalf("MarshalPKIXPublicKey failed: %v", err)
+	}
+
+	validCred := &devicepb.DeviceCredential{
+		Id:           "cred1",
+		PublicKeyDer: key1DER,
+	}
+	validCD := &devicepb.DeviceCollectedData{
+		CollectTime:  timestamppb.Now(),
+		OsType:       dev.OsType,
+		SerialNumber: dev.AssetTag,
+	}
+
+	tests := []struct {
+		name       string
+		deviceID   string
+		createCred func() *devicepb.DeviceCredential
+		createCD   func() *devicepb.DeviceCollectedData
+		assertErr  func(error) bool
+		wantErr    string
+	}{
+		{
+			name:       "unknown device",
+			deviceID:   "unknown",
+			createCred: func() *devicepb.DeviceCredential { return validCred },
+			createCD:   func() *devicepb.DeviceCollectedData { return validCD },
+			assertErr:  trace.IsNotFound,
+		},
+		{
+			name:       "credential nil",
+			deviceID:   dev.Id,
+			createCred: func() *devicepb.DeviceCredential { return nil },
+			createCD:   func() *devicepb.DeviceCollectedData { return validCD },
+			assertErr:  trace.IsBadParameter,
+			wantErr:    "credential required",
+		},
+		{
+			name:     "credential ID empty",
+			deviceID: dev.Id,
+			createCred: func() *devicepb.DeviceCredential {
+				cp := proto.Clone(validCred).(*devicepb.DeviceCredential)
+				cp.Id = ""
+				return cp
+			},
+			createCD:  func() *devicepb.DeviceCollectedData { return validCD },
+			assertErr: trace.IsBadParameter,
+			wantErr:   "credential ID",
+		},
+		{
+			name:     "credential PublicKeyDer empty",
+			deviceID: dev.Id,
+			createCred: func() *devicepb.DeviceCredential {
+				cp := proto.Clone(validCred).(*devicepb.DeviceCredential)
+				cp.PublicKeyDer = nil
+				return cp
+			},
+			createCD:  func() *devicepb.DeviceCollectedData { return validCD },
+			assertErr: trace.IsBadParameter,
+			wantErr:   "public key required",
+		},
+		{
+			name:     "credential PublicKeyDer invalid",
+			deviceID: dev.Id,
+			createCred: func() *devicepb.DeviceCredential {
+				cp := proto.Clone(validCred).(*devicepb.DeviceCredential)
+				cp.PublicKeyDer = []byte("not a DER")
+				return cp
+			},
+			createCD:  func() *devicepb.DeviceCollectedData { return validCD },
+			assertErr: trace.IsBadParameter,
+			wantErr:   "invalid credential public key",
+		},
+		{
+			name:       "collectedData nil",
+			deviceID:   dev.Id,
+			createCred: func() *devicepb.DeviceCredential { return validCred },
+			createCD:   func() *devicepb.DeviceCollectedData { return nil },
+			assertErr:  trace.IsBadParameter,
+			wantErr:    "collected data required",
+		},
+		{
+			name:       "collectedData CollectTime nil",
+			deviceID:   dev.Id,
+			createCred: func() *devicepb.DeviceCredential { return validCred },
+			createCD: func() *devicepb.DeviceCollectedData {
+				cp := proto.Clone(validCD).(*devicepb.DeviceCollectedData)
+				cp.CollectTime = nil
+				return cp
+
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "collect time missing",
+		},
+		{
+			name:       "collectedData OSType mismatch",
+			deviceID:   dev.Id,
+			createCred: func() *devicepb.DeviceCredential { return validCred },
+			createCD: func() *devicepb.DeviceCollectedData {
+				cp := proto.Clone(validCD).(*devicepb.DeviceCollectedData)
+				cp.OsType = devicepb.OSType_OS_TYPE_LINUX
+				return cp
+
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "OS type mismatch",
+		},
+		{
+			name:       "collectedData SerialNumber mismatch",
+			deviceID:   dev.Id,
+			createCred: func() *devicepb.DeviceCredential { return validCred },
+			createCD: func() *devicepb.DeviceCollectedData {
+				cp := proto.Clone(validCD).(*devicepb.DeviceCollectedData)
+				cp.SerialNumber = "not the same as the other"
+				return cp
+
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "serial number mismatch",
+		},
+	}
+	for _, test := range tests {
+		_, err := s.EnrollDevice(ctx, test.deviceID, test.createCred(), test.createCD())
+		if !test.assertErr(err) {
+			t.Errorf("EnrollDevice: assertErr failed, err=%v", err)
+		}
+		assert.ErrorContains(t, err, test.wantErr, "EnrollDevice error mismatch")
 	}
 }
 
