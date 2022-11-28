@@ -566,6 +566,9 @@ export type RawEvents = {
     typeof eventCodes.KUBE_REQUEST,
     {
       kubernetes_cluster: string;
+      verb: string;
+      request_path: string;
+      response_code: string;
     }
   >;
   [eventCodes.KUBE_CREATED]: RawEvent<
