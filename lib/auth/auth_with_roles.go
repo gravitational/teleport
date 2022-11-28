@@ -29,7 +29,9 @@ import (
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	"golang.org/x/exp/slices"
+	"google.golang.org/grpc"
 
+	reportingtypes "github.com/gravitational/reporting/types"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -5174,6 +5176,14 @@ func (a *ServerWithRoles) UpdatePresence(ctx context.Context, sessionID, user st
 // since it's handled by the session presence task. This is never valid to call.
 func (a *ServerWithRoles) MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (a *ServerWithRoles) GetLicenseCheckResult(ctx context.Context) (*reportingtypes.Heartbeat, error) {
+	return &reportingtypes.Heartbeat{}, trace.NotImplemented(notImplementedMessage)
+}
+
+func (a *ServerWithRoles) GetConnection() *grpc.ClientConn {
+	return nil
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

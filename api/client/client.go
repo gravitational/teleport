@@ -40,6 +40,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	reportingtypes "github.com/gravitational/reporting/types"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -2901,4 +2902,8 @@ func (c *Client) UpsertClusterAlert(ctx context.Context, alert types.ClusterAler
 		Alert: alert,
 	}, c.callOpts...)
 	return trail.FromGRPC(err)
+}
+
+func (c *Client) GetLicenseCheckResult(ctx context.Context) (*reportingtypes.Heartbeat, error) {
+	return &reportingtypes.Heartbeat{}, trace.NotImplemented("(api/client) method not implemented")
 }

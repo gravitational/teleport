@@ -31,7 +31,9 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"google.golang.org/grpc"
 
+	reportingtypes "github.com/gravitational/reporting/types"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
@@ -1351,6 +1353,19 @@ func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) err
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// GetLicenseCheckResult returns the last license check result
+func (c *Client) GetLicenseCheckResult(ctx context.Context) (*reportingtypes.Heartbeat, error) {
+	out, err := c.Get(ctx, c.Endpoint("license", "status"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	heartbeat, err := reportingtypes.UnmarshalHeartbeat(out.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return heartbeat, nil
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web session is valid, returns session id in case if
@@ -1683,4 +1698,11 @@ type ClientI interface {
 
 	// PingInventory attempts to trigger a downstream ping against a connected instance.
 	PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error)
+
+	// GetLicenseCheckResult returns the last license check result
+	GetLicenseCheckResult(ctx context.Context) (*reportingtypes.Heartbeat, error)
+
+	// TODO change this to return err
+	// GetProxyClient returns authenticated server client
+	GetConnection() *grpc.ClientConn
 }
