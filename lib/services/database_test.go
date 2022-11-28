@@ -1726,7 +1726,6 @@ func TestNewDatabaseFromAzureManagedSQLServer(t *testing.T) {
 				labels := db.GetMetadata().Labels
 				require.Equal(t, types.OriginCloud, labels[types.OriginLabel])
 				require.Equal(t, "westus", labels[labelRegion])
-				require.Equal(t, AzureSQLManagedInstanceLabel, labels[labelEngineVersion])
 			},
 		},
 		{
