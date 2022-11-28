@@ -33,7 +33,6 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/teleport/lib/srv/alpnproxytest"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -80,7 +79,7 @@ func TestProxyKubeHandler(t *testing.T) {
 	)
 	suite := NewSuite(t)
 
-	kubeCert := alpnproxytest.MustGenCertSignedWithCA(t, suite.ca)
+	kubeCert := mustGenCertSignedWithCA(t, suite.ca)
 	suite.router.AddKubeHandler(func(ctx context.Context, conn net.Conn) error {
 		defer conn.Close()
 		tlsConn := tls.Server(conn, &tls.Config{
@@ -119,8 +118,8 @@ func TestProxyTLSDatabaseHandler(t *testing.T) {
 	)
 
 	suite := NewSuite(t)
-	clientCert := alpnproxytest.MustGenCertSignedWithCA(t, suite.ca,
-		alpnproxytest.WithIdentity(tlsca.Identity{
+	clientCert := mustGenCertSignedWithCA(t, suite.ca,
+		withIdentity(tlsca.Identity{
 			Username: "test-user",
 			Groups:   []string{"test-group"},
 			RouteToDatabase: tlsca.RouteToDatabase{
@@ -216,8 +215,8 @@ func TestProxyRouteToDatabase(t *testing.T) {
 	)
 
 	suite := NewSuite(t)
-	clientCert := alpnproxytest.MustGenCertSignedWithCA(t, suite.ca,
-		alpnproxytest.WithIdentity(tlsca.Identity{
+	clientCert := mustGenCertSignedWithCA(t, suite.ca,
+		withIdentity(tlsca.Identity{
 			Username: "test-user",
 			Groups:   []string{"test-group"},
 			RouteToDatabase: tlsca.RouteToDatabase{
@@ -359,13 +358,13 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	})
 
 	svr := suite.CreateProxyServer(t)
-	customCA := alpnproxytest.MustGenSelfSignedCert(t)
+	customCA := mustGenSelfSignedCert(t)
 
 	// Create a ConnectionHandler from the proxy server.
 	alpnConnHandler := svr.MakeConnectionHandler(&tls.Config{
 		NextProtos: []string{string(common.ProtocolHTTP)},
 		Certificates: []tls.Certificate{
-			alpnproxytest.MustGenCertSignedWithCA(t, customCA),
+			mustGenCertSignedWithCA(t, customCA),
 		},
 	})
 
@@ -610,8 +609,8 @@ func TestProxyPingConnections(t *testing.T) {
 	dataWritten := "message ping connection"
 
 	suite := NewSuite(t)
-	clientCert := alpnproxytest.MustGenCertSignedWithCA(t, suite.ca,
-		alpnproxytest.WithIdentity(tlsca.Identity{
+	clientCert := mustGenCertSignedWithCA(t, suite.ca,
+		withIdentity(tlsca.Identity{
 			Username: "test-user",
 			Groups:   []string{"test-group"},
 			RouteToDatabase: tlsca.RouteToDatabase{

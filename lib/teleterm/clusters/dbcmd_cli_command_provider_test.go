@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/alpnproxytest"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
@@ -93,7 +92,7 @@ func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 			}
 			dbcmdCLICommandProvider := NewDbcmdCLICommandProvider(fakeStorage, fakeExec{})
 
-			keyPairPaths := gatewaytest.MustGenAndSaveCert(t, alpnproxytest.WithIdentity(tlsca.Identity{
+			keyPairPaths := gatewaytest.MustGenAndSaveCert(t, tlsca.Identity{
 				Username: "alice",
 				Groups:   []string{"test-group"},
 				RouteToDatabase: tlsca.RouteToDatabase{
@@ -101,7 +100,7 @@ func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 					Protocol:    defaults.ProtocolPostgres,
 					Username:    "alice",
 				},
-			}))
+			})
 
 			gateway, err := gateway.New(
 				gateway.Config{
@@ -138,7 +137,7 @@ func TestDbcmdCLICommandProviderGetCommand_ReturnsErrorIfClusterIsNotFound(t *te
 	}
 	dbcmdCLICommandProvider := NewDbcmdCLICommandProvider(fakeStorage, fakeExec{})
 
-	keyPairPaths := gatewaytest.MustGenAndSaveCert(t, alpnproxytest.WithIdentity(tlsca.Identity{
+	keyPairPaths := gatewaytest.MustGenAndSaveCert(t, tlsca.Identity{
 		Username: "alice",
 		Groups:   []string{"test-group"},
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -146,7 +145,7 @@ func TestDbcmdCLICommandProviderGetCommand_ReturnsErrorIfClusterIsNotFound(t *te
 			Protocol:    defaults.ProtocolPostgres,
 			Username:    "alice",
 		},
-	}))
+	})
 
 	gateway, err := gateway.New(
 		gateway.Config{

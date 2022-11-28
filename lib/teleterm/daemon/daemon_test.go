@@ -27,7 +27,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/alpnproxytest"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
@@ -50,7 +49,7 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 
 	resourceURI := uri.New(params.TargetURI)
 
-	keyPairPaths := gatewaytest.MustGenAndSaveCert(m.t, alpnproxytest.WithIdentity(tlsca.Identity{
+	keyPairPaths := gatewaytest.MustGenAndSaveCert(m.t, tlsca.Identity{
 		Username: params.TargetUser,
 		Groups:   []string{"test-group"},
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -58,7 +57,7 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 			Protocol:    defaults.ProtocolPostgres,
 			Username:    params.TargetUser,
 		},
-	}))
+	})
 
 	gateway, err := gateway.New(gateway.Config{
 		LocalPort:             params.LocalPort,
