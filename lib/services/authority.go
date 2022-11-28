@@ -287,8 +287,10 @@ type UserCertParams struct {
 	// MFAVerified is the UUID of an MFA device when this Identity was
 	// confirmed immediately after an MFA check.
 	MFAVerified string
-	// MFAVerified is the the hard deadline of a session when this Identity was
-	// confirmed immediately after an MFA check.
+	// PreviousIdentityExpires is the expiry time of the identity/cert that this
+	// identity/cert was derived from. It is used to determine a session's hard
+	// deadline in cases where both require_session_mfa and disconnect_expired_cert
+	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
 	PreviousIdentityExpires time.Time
 	// ClientIP is an IP of the client to embed in the certificate.
 	ClientIP string

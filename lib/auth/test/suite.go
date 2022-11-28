@@ -172,6 +172,30 @@ func (s *AuthSuite) GenerateUserCert(t *testing.T) {
 
 	outImpersonator := parsedCert.Extensions[teleport.CertExtensionImpersonator]
 	require.Empty(t, cmp.Diff(outImpersonator, impersonator))
+
+	// Check that MFAVerified and PreviousIdentityTTL are encoded into ssh cert
+	clock := clockwork.NewFakeClock()
+	cert, err = s.A.GenerateUserCert(services.UserCertParams{
+		CASigner:                caSigner,
+		PublicUserKey:           pub,
+		Username:                "user",
+		AllowedLogins:           []string{"root"},
+		TTL:                     time.Minute,
+		CertificateFormat:       constants.CertificateFormatStandard,
+		MFAVerified:             "mfa-device-id",
+		PreviousIdentityExpires: clock.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+	parsedCert, err = sshutils.ParseCertificate(cert)
+	require.NoError(t, err)
+	devId, ok := parsedCert.Extensions[teleport.CertExtensionMFAVerified]
+	require.True(t, ok)
+	require.Equal(t, "mfa-device-id", devId)
+	prevIdExpiresStr, ok := parsedCert.Extensions[teleport.CertExtensionPreviousIdentityExpires]
+	require.True(t, ok)
+	prevIdExpires, err := time.Parse(time.RFC3339, prevIdExpiresStr)
+	require.NoError(t, err)
+	require.Equal(t, clock.Now().Add(time.Hour), prevIdExpires)
 }
 
 func checkCertExpiry(cert []byte, after, before time.Time) error {

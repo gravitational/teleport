@@ -29,7 +29,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -446,7 +445,7 @@ func GetDisconnectExpiredCertFromIdentity(
 		return time.Time{}
 	}
 
-	if identity.MFAVerified != "" && !identity.PreviousIdentityExpires.IsZero() {
+	if !identity.PreviousIdentityExpires.IsZero() {
 		// If this is a short-lived mfa verified cert, return the certificate extension
 		// that holds its' issuing cert's expiry value.
 		return identity.PreviousIdentityExpires
@@ -470,11 +469,10 @@ func getDisconnectExpiredCertFromIdentityContext(
 
 	// If the session doesn't need to be disconnected on cert expiry just return the default value.
 	if !checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
-		var t time.Time
-		return t
+		return time.Time{}
 	}
 
-	if identity.Certificate.Extensions[teleport.CertExtensionMFAVerified] != "" && !identity.PreviousIdentityExpires.IsZero() {
+	if !identity.PreviousIdentityExpires.IsZero() {
 		// If this is a short-lived mfa verified cert, return the certificate extension
 		// that holds its' issuing cert's expiry value.
 		return identity.PreviousIdentityExpires
