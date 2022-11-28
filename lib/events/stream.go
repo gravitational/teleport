@@ -655,7 +655,10 @@ func (w *sliceWriter) completeStream() {
 		case upload := <-w.completedUploadsC:
 			part, err := upload.getPart()
 			if err != nil {
-				log.WithError(err).Warningf("Failed to upload %q part for session id %q", w.proto.cfg.Upload.ID, w.proto.cfg.Upload.SessionID)
+				log.WithError(err).
+					WithField("upload", w.proto.cfg.Upload.ID).
+					WithField("session", w.proto.cfg.Upload.SessionID). 
+					Warning("Failed to upload part")
 				continue
 			}
 			w.updateCompletedParts(*part, upload.lastEventIndex)
