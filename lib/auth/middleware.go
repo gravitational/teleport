@@ -343,6 +343,7 @@ func getCustomRate(endpoint string) *ratelimit.RateSet {
 	// Account recovery RPCs.
 	case
 		"/proto.AuthService/ChangeUserAuthentication",
+		"/proto.AuthService/ChangePassword",
 		"/proto.AuthService/GetAccountRecoveryToken",
 		"/proto.AuthService/StartAccountRecovery",
 		"/proto.AuthService/VerifyAccountRecovery":
