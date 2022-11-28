@@ -78,11 +78,13 @@ of the stream is reached. To replay a session, refresh the page.
 
 ## Storage
 
-Be aware, Desktop Access session recordings capture the entire contents of the
-screen. This means they take up significantly more disk space than SSH or Kubernetes
+Be aware, Desktop Access session recordings save PNGs of changing sections of the
+screen, which means they take up significantly more disk space than SSH or Kubernetes
 session recordings. When using async recording modes, ensure that the host running
 Teleport's desktop service has sufficient disk space to store recordings that are
-in progress. If disk space is a concern, we recommend using sync recording and
+in progress. As a point of reference, when a full 1080p screen is redrawn (for example 
+when opening a new full-sized application window), you can expect about 250kb to be
+saved to disk. If disk space is a concern, we recommend using sync recording and
 configuring a cloud storage solution such as S3.
 
 Refer to the `storage` section of the [Teleport Configuration Reference](../../reference/config.mdx)
