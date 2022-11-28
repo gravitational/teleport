@@ -169,15 +169,16 @@ func setupBPFContext(t *testing.T) *bpfContext {
 	require.NoError(t, err)
 
 	// Create the SessionContext used by both enhanced recording and us (restricted session)
-	tt.ctx = &bpf.SessionContext{
-		Namespace: apidefaults.Namespace,
-		SessionID: uuid.New().String(),
-		ServerID:  uuid.New().String(),
-		Login:     "foo",
-		User:      "foo@example.com",
-		PID:       os.Getpid(),
-		Emitter:   &tt.emitter,
-		Events:    map[string]bool{},
+	bpfCtx.ctx = &bpf.SessionContext{
+		Namespace:      apidefaults.Namespace,
+		SessionID:      uuid.New().String(),
+		ServerID:       uuid.New().String(),
+		ServerHostname: "ip-172-31-11-148",
+		Login:          "foo",
+		User:           "foo@example.com",
+		PID:            os.Getpid(),
+		Emitter:        &tt.emitter,
+		Events:         map[string]bool{},
 	}
 
 	// Create enhanced recording session to piggy-back on.
@@ -301,6 +302,7 @@ func (tt *bpfContext) expectedAuditEvent(ver int, ip string, op apievents.Sessio
 		},
 		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        tt.ctx.ServerID,
+			ServerHostname:  tt.ctx.ServerHostname,
 			ServerNamespace: tt.ctx.Namespace,
 		},
 		SessionMetadata: apievents.SessionMetadata{
