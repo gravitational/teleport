@@ -70,6 +70,17 @@ func TestDatabasesCRUD(t *testing.T) {
 	err = service.CreateDatabase(ctx, db2)
 	require.NoError(t, err)
 
+	// Try to create an invalid database.
+	dbBadURI, err := types.NewDatabaseV3(types.Metadata{
+		Name: "db-missing-port",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "localhost",
+	})
+	require.NoError(t, err)
+	err = service.CreateDatabase(ctx, dbBadURI)
+	require.True(t, trace.IsBadParameter(err))
+
 	// Fetch all databases.
 	out, err = service.GetDatabases(ctx)
 	require.NoError(t, err)
