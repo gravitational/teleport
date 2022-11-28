@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -233,20 +232,6 @@ func (c HostCertParams) Check() error {
 	}
 
 	return nil
-}
-
-// ChangePasswordReq defines a request to change user password
-type ChangePasswordReq struct {
-	// User is user ID
-	User string
-	// OldPassword is user current password
-	OldPassword []byte `json:"old_password"`
-	// NewPassword is user new password
-	NewPassword []byte `json:"new_password"`
-	// SecondFactorToken is user 2nd factor token
-	SecondFactorToken string `json:"second_factor_token"`
-	// WebauthnResponse is Webauthn sign response
-	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthn_response"`
 }
 
 // UserCertParams defines OpenSSH user certificate parameters

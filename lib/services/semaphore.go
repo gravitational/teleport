@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
@@ -39,10 +40,16 @@ type SemaphoreLockConfig struct {
 	TickRate time.Duration
 	// Params holds the semaphore lease acquisition parameters.
 	Params types.AcquireSemaphoreRequest
+	// Clock used to alter time in tests
+	Clock clockwork.Clock
 }
 
 // CheckAndSetDefaults checks and sets default parameters
 func (l *SemaphoreLockConfig) CheckAndSetDefaults() error {
+	if l.Clock == nil {
+		l.Clock = clockwork.NewRealClock()
+	}
+
 	if l.Service == nil {
 		return trace.BadParameter("missing semaphore service")
 	}
@@ -59,7 +66,7 @@ func (l *SemaphoreLockConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("tick-rate must be less than expiry")
 	}
 	if l.Params.Expires.IsZero() {
-		l.Params.Expires = time.Now().UTC().Add(l.Expiry)
+		l.Params.Expires = l.Clock.Now().UTC().Add(l.Expiry)
 	}
 	if err := l.Params.Check(); err != nil {
 		return trace.Wrap(err)
@@ -73,7 +80,7 @@ type SemaphoreLock struct {
 	cfg       SemaphoreLockConfig
 	lease0    types.SemaphoreLease
 	retry     retryutils.Retry
-	ticker    *time.Ticker
+	ticker    clockwork.Ticker
 	doneC     chan struct{}
 	closeOnce sync.Once
 	renewalC  chan struct{}
@@ -140,7 +147,7 @@ func (l *SemaphoreLock) keepAlive(ctx context.Context) {
 			// cancellation/expiry.
 			return
 		}
-		if lease.Expires.After(time.Now().UTC()) {
+		if lease.Expires.After(l.cfg.Clock.Now().UTC()) {
 			// parent context is closed. create orphan context with generous
 			// timeout for lease cancellation scope.  this will not block any
 			// caller that is not explicitly waiting on the final error value.
@@ -157,7 +164,7 @@ func (l *SemaphoreLock) keepAlive(ctx context.Context) {
 Outer:
 	for {
 		select {
-		case tick := <-l.ticker.C:
+		case tick := <-l.ticker.Chan():
 			leaseContext, leaseCancel := context.WithDeadline(ctx, lease.Expires)
 			nextLease := lease
 			nextLease.Expires = tick.Add(l.cfg.Expiry)
@@ -185,7 +192,7 @@ Outer:
 				l.retry.Inc()
 				select {
 				case <-l.retry.After():
-				case tick = <-l.ticker.C:
+				case tick = <-l.ticker.Chan():
 					// check to make sure that we still have some time on the lease. the default tick rate would have
 					// us waking _as_ the lease expires here, but if we're working with a higher tick rate, its worth
 					// retrying again.
@@ -247,6 +254,7 @@ func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*Semaph
 		Max:    cfg.Expiry / 4,
 		Step:   cfg.Expiry / 16,
 		Jitter: retryutils.NewJitter(),
+		Clock:  cfg.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -259,7 +267,7 @@ func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*Semaph
 		cfg:      cfg,
 		lease0:   *lease,
 		retry:    retry,
-		ticker:   time.NewTicker(cfg.TickRate),
+		ticker:   cfg.Clock.NewTicker(cfg.TickRate),
 		doneC:    make(chan struct{}),
 		renewalC: make(chan struct{}),
 		cond:     sync.NewCond(&sync.Mutex{}),

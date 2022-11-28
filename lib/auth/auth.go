@@ -290,13 +290,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			)
 		}
 	}
-	// Plug in SAML auth service
-	sas := NewSAMLAuthService(&SAMLAuthServiceConfig{
-		Auth:                   &as,
-		Emitter:                as.emitter,
-		AssertionReplayService: as.Unstable.AssertionReplayService,
-	})
-	as.SetSAMLService(sas)
 
 	return &as, nil
 }
