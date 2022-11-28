@@ -526,3 +526,6 @@ const (
 	// already existing users are not deleted
 	TeleportServiceGroup = "teleport-system"
 )
+
+// A prefix used by all teleport internal labels
+const TeleportInternalLabelPrefix = "teleport.internal/"

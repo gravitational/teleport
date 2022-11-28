@@ -23,8 +23,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-const internalPrefix = "teleport.internal/"
-
 func makeLabels(labelMaps ...map[string]string) []Label {
 	length := 0
 	for _, labelMap := range labelMaps {
@@ -35,7 +33,7 @@ func makeLabels(labelMaps ...map[string]string) []Label {
 
 	for _, labelMap := range labelMaps {
 		for name, value := range labelMap {
-			if strings.HasPrefix(name, internalPrefix) {
+			if strings.HasPrefix(name, types.TeleportInternalLabelPrefix) {
 				continue
 			}
 
