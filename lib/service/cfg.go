@@ -55,7 +55,6 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -680,7 +679,7 @@ type SSHConfig struct {
 	BPF *bpf.Config
 
 	// RestrictedSession holds kernel objects restrictions for Teleport.
-	RestrictedSession *restricted.Config
+	RestrictedSession *bpf.RestrictedSessionConfig
 
 	// AllowTCPForwarding indicates that TCP port forwarding is allowed on this node
 	AllowTCPForwarding bool
@@ -1450,7 +1449,7 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 	cfg.SSH.PAM = &pam.Config{Enabled: false}
 	cfg.SSH.BPF = &bpf.Config{Enabled: false}
-	cfg.SSH.RestrictedSession = &restricted.Config{Enabled: false}
+	cfg.SSH.RestrictedSession = &bpf.RestrictedSessionConfig{Enabled: false}
 	cfg.SSH.AllowTCPForwarding = true
 	cfg.SSH.AllowFileCopying = true
 
