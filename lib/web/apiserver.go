@@ -72,10 +72,12 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/plugin"
+	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -214,6 +216,16 @@ type Config struct {
 
 	// TraceClient is used to forward spans to the upstream collector for the UI
 	TraceClient otlptrace.Client
+
+	// Router is used to route ssh sessions to hosts
+	Router *proxy.Router
+
+	// SessionControl is used to determine if users are
+	// allowed to spawn new sessions
+	SessionControl *srv.SessionController
+
+	// TracerProvider generates tracers to create spans with
+	TracerProvider oteltrace.TracerProvider
 }
 
 type APIHandler struct {
@@ -2190,6 +2202,40 @@ func (h *Handler) clusterLoginAlertsGet(w http.ResponseWriter, r *http.Request, 
 	}, nil
 }
 
+// createIdentityContext creates a srv.IdentityContext from the ssh cert of the user
+// stored within the SessionContext.
+func createIdentityContext(login string, sessionCtx *SessionContext) (srv.IdentityContext, error) {
+	accessChecker, err := sessionCtx.GetUserAccessChecker()
+	if err != nil {
+		return srv.IdentityContext{}, trace.Wrap(err)
+	}
+
+	sshCert, err := sessionCtx.GetSSHCertificate()
+	if err != nil {
+		return srv.IdentityContext{}, trace.Wrap(err)
+	}
+
+	unmappedRoles, err := services.ExtractRolesFromCert(sshCert)
+	if err != nil {
+		return srv.IdentityContext{}, trace.Wrap(err)
+	}
+
+	accessRequestIDs, err := srv.ParseAccessRequestIDs(sshCert.Extensions[teleport.CertExtensionTeleportActiveRequests])
+	if err != nil {
+		return srv.IdentityContext{}, trace.Wrap(err)
+	}
+
+	return srv.IdentityContext{
+		AccessChecker:  accessChecker,
+		TeleportUser:   sessionCtx.user,
+		Login:          login,
+		Certificate:    sshCert,
+		UnmappedRoles:  unmappedRoles,
+		ActiveRequests: accessRequestIDs,
+		Impersonator:   sshCert.Extensions[teleport.CertExtensionImpersonator],
+	}, nil
+}
+
 // siteNodeConnect connect to the site node
 //
 // GET /v1/webapi/sites/:site/namespaces/:namespace/connect?access_token=bearer_token&params=<urlencoded json-structure>
@@ -2204,7 +2250,7 @@ func (h *Handler) siteNodeConnect(
 	w http.ResponseWriter,
 	r *http.Request,
 	p httprouter.Params,
-	sctx *SessionContext,
+	sessionCtx *SessionContext,
 	site reversetunnel.RemoteSite,
 ) (interface{}, error) {
 	q := r.URL.Query()
@@ -2217,7 +2263,17 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(site)
+	clt, err := sessionCtx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity, err := createIdentityContext(req.Login, sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ctx, err := h.cfg.SessionControl.AcquireSessionContext(r.Context(), identity, h.cfg.ProxyWebAddr.Addr, r.RemoteAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2242,7 +2298,7 @@ func (h *Handler) siteNodeConnect(
 	}
 
 	h.log.Debugf("New terminal request for server=%s, login=%s, sid=%s, websid=%s.",
-		req.Server, req.Login, sessionData.ID, sctx.GetSessionID())
+		req.Server, req.Login, sessionData.ID, sessionCtx.GetSessionID())
 
 	authAccessPoint, err := site.CachingAccessPoint()
 	if err != nil {
@@ -2250,7 +2306,7 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(r.Context())
+	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
 		return nil, trace.Wrap(err)
@@ -2258,13 +2314,15 @@ func (h *Handler) siteNodeConnect(
 
 	terminalConfig := TerminalHandlerConfig{
 		term:               req.Term,
-		sctx:               sctx,
+		sessionCtx:         sessionCtx,
 		authProvider:       clt,
 		displayLogin:       displayLogin,
 		sessionData:        sessionData,
 		keepAliveInterval:  netConfig.GetKeepAliveInterval(),
 		proxyHostPort:      h.ProxyHostPort(),
 		interactiveCommand: req.InteractiveCommand,
+		router:             h.cfg.Router,
+		tracerProvider:     h.cfg.TracerProvider,
 	}
 
 	term, err := NewTerminal(r.Context(), terminalConfig)
