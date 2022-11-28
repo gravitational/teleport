@@ -17,8 +17,8 @@ limitations under the License.
 package utils
 
 import (
-	"encoding/json"
 	"bytes"
+	"encoding/json"
 	"io"
 	"reflect"
 	"unicode"
