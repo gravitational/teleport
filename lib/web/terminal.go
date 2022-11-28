@@ -94,34 +94,31 @@ type AuthProvider interface {
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
 // new TerminalHandler.
 func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandler, error) {
-	ctx, span := tracing.DefaultProvider().Tracer("terminal").Start(ctx, "terminal/NewTerminal")
-	defer span.End()
-
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	_, span = cfg.tracer.Start(ctx, "NewTerminal")
+	_, span := cfg.tracer.Start(ctx, "NewTerminal")
 	defer span.End()
 
 	return &TerminalHandler{
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentWebsocket,
-			"session_id":    cfg.sessionData.ID.String(),
+			"session_id":    cfg.SessionData.ID.String(),
 		}),
-		ctx:                cfg.sessionCtx,
-		authProvider:       cfg.authProvider,
+		ctx:                cfg.SessionCtx,
+		authProvider:       cfg.AuthProvider,
 		encoder:            unicode.UTF8.NewEncoder(),
 		decoder:            unicode.UTF8.NewDecoder(),
 		wsLock:             &sync.Mutex{},
-		displayLogin:       cfg.displayLogin,
-		sessionData:        cfg.sessionData,
-		keepAliveInterval:  cfg.keepAliveInterval,
-		proxyHostPort:      cfg.proxyHostPort,
-		interactiveCommand: cfg.interactiveCommand,
-		term:               cfg.term,
-		router:             cfg.router,
+		displayLogin:       cfg.DisplayLogin,
+		sessionData:        cfg.SessionData,
+		keepAliveInterval:  cfg.KeepAliveInterval,
+		proxyHostPort:      cfg.ProxyHostPort,
+		interactiveCommand: cfg.InteractiveCommand,
+		term:               cfg.Term,
+		router:             cfg.Router,
 		tracer:             cfg.tracer,
 	}, nil
 }
@@ -130,68 +127,68 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 // correctly setup the TerminalHandler
 type TerminalHandlerConfig struct {
 	// term is the initial PTY size.
-	term session.TerminalParams
+	Term session.TerminalParams
 	// sctx is the context for the users web session.
-	sessionCtx *SessionContext
+	SessionCtx *SessionContext
 	// authProvider is used to fetch nodes and sessions from the backend.
-	authProvider AuthProvider
+	AuthProvider AuthProvider
 	// displayLogin is the login name to display in the UI.
-	displayLogin string
+	DisplayLogin string
 	// sessionData is the data to send to the client on the initial session creation.
-	sessionData session.Session
+	SessionData session.Session
 	// keepAliveInterval is the interval for sending ping frames to web client.
 	// This value is pulled from the cluster network config and
 	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
-	keepAliveInterval time.Duration
+	KeepAliveInterval time.Duration
 	// proxyHostPort is the address of the server to connect to.
-	proxyHostPort string
+	ProxyHostPort string
 	// interactiveCommand is a command to execute.
-	interactiveCommand []string
+	InteractiveCommand []string
 	// Router determines how connections to nodes are created
-	router *proxy.Router
+	Router *proxy.Router
 	// TracerProvider is used to create the tracer
-	tracerProvider oteltrace.TracerProvider
+	TracerProvider oteltrace.TracerProvider
 	// tracer is used to create spans
 	tracer oteltrace.Tracer
 }
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
 	// Make sure whatever session is requested is a valid session id.
-	_, err := session.ParseID(t.sessionData.ID.String())
+	_, err := session.ParseID(t.SessionData.ID.String())
 	if err != nil {
 		return trace.BadParameter("sid: invalid session id")
 	}
 
-	if t.sessionData.Login == "" {
+	if t.SessionData.Login == "" {
 		return trace.BadParameter("login: missing login")
 	}
 
-	if t.sessionData.ServerID == "" {
+	if t.SessionData.ServerID == "" {
 		return trace.BadParameter("server: missing server")
 	}
 
-	if t.term.W <= 0 || t.term.H <= 0 ||
-		t.term.W >= 4096 || t.term.H >= 4096 {
-		return trace.BadParameter("term: bad dimensions(%dx%d)", t.term.W, t.term.H)
+	if t.Term.W <= 0 || t.Term.H <= 0 ||
+		t.Term.W >= 4096 || t.Term.H >= 4096 {
+		return trace.BadParameter("term: bad dimensions(%dx%d)", t.Term.W, t.Term.H)
 	}
 
-	if t.authProvider == nil {
+	if t.AuthProvider == nil {
 		return trace.BadParameter("AuthProvider must be provided")
 	}
 
-	if t.sessionCtx == nil {
+	if t.SessionCtx == nil {
 		return trace.BadParameter("SessionCtx must be provided")
 	}
 
-	if t.router == nil {
+	if t.Router == nil {
 		return trace.BadParameter("Router must be provided")
 	}
 
-	if t.tracerProvider == nil {
-		t.tracerProvider = tracing.DefaultProvider()
+	if t.TracerProvider == nil {
+		t.TracerProvider = tracing.DefaultProvider()
 	}
 
-	t.tracer = t.tracerProvider.Tracer("webterminal")
+	t.tracer = t.TracerProvider.Tracer("webterminal")
 
 	return nil
 }

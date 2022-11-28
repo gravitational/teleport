@@ -2285,13 +2285,13 @@ func (h *Handler) siteNodeConnect(
 
 	if req.SessionID.IsZero() {
 		// An existing session ID was not provided so we need to create a new one.
-		sessionData, err = h.generateSession(r.Context(), clt, req, clusterName)
+		sessionData, err = h.generateSession(ctx, clt, req, clusterName)
 		if err != nil {
 			h.log.WithError(err).Debug("Unable to generate new ssh session.")
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		sessionData, displayLogin, err = h.fetchExistingSession(r.Context(), clt, req, clusterName)
+		sessionData, displayLogin, err = h.fetchExistingSession(ctx, clt, req, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2313,19 +2313,19 @@ func (h *Handler) siteNodeConnect(
 	}
 
 	terminalConfig := TerminalHandlerConfig{
-		term:               req.Term,
-		sessionCtx:         sessionCtx,
-		authProvider:       clt,
-		displayLogin:       displayLogin,
-		sessionData:        sessionData,
-		keepAliveInterval:  netConfig.GetKeepAliveInterval(),
-		proxyHostPort:      h.ProxyHostPort(),
-		interactiveCommand: req.InteractiveCommand,
-		router:             h.cfg.Router,
-		tracerProvider:     h.cfg.TracerProvider,
+		Term:               req.Term,
+		SessionCtx:         sessionCtx,
+		AuthProvider:       clt,
+		DisplayLogin:       displayLogin,
+		SessionData:        sessionData,
+		KeepAliveInterval:  netConfig.GetKeepAliveInterval(),
+		ProxyHostPort:      h.ProxyHostPort(),
+		InteractiveCommand: req.InteractiveCommand,
+		Router:             h.cfg.Router,
+		TracerProvider:     h.cfg.TracerProvider,
 	}
 
-	term, err := NewTerminal(r.Context(), terminalConfig)
+	term, err := NewTerminal(ctx, terminalConfig)
 	if err != nil {
 		h.log.WithError(err).Error("Unable to create terminal.")
 		return nil, trace.Wrap(err)
@@ -2347,7 +2347,7 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 	// req.Server will be either an IP, hostname, or server UUID.
 	_, err := uuid.Parse(req.Server)
 	if err != nil {
-		// TODO Investigate using ListResources instead of GetNodes as we can
+		// TODO(hatched) Investigate using ListResources instead of GetNodes as we can
 		// provide more filters that may reduce the work to do on the client side.
 		servers, err := clt.GetNodes(ctx, apidefaults.Namespace)
 		if err != nil {
@@ -2387,7 +2387,6 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 }
 
 func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, siteName string) (session.Session, string, error) {
-	// Fetch the session data from the supplied SID.
 	sessionID, err := session.ParseID(req.SessionID.String())
 	if err != nil {
 		return session.Session{}, "", trace.Wrap(err)

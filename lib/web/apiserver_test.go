@@ -991,14 +991,14 @@ func TestNewTerminalHandler(t *testing.T) {
 		{
 			expectedErr: "sid: invalid session id",
 			cfg: TerminalHandlerConfig{
-				sessionData: session.Session{
+				SessionData: session.Session{
 					ID: session.ID("not a uuid"),
 				},
 			},
 		}, {
 			expectedErr: "login: missing login",
 			cfg: TerminalHandlerConfig{
-				sessionData: session.Session{
+				SessionData: session.Session{
 					ID:    session.NewID(),
 					Login: "",
 				},
@@ -1006,7 +1006,7 @@ func TestNewTerminalHandler(t *testing.T) {
 		}, {
 			expectedErr: "server: missing server",
 			cfg: TerminalHandlerConfig{
-				sessionData: session.Session{
+				SessionData: session.Session{
 					ID:       session.NewID(),
 					Login:    "root",
 					ServerID: "",
@@ -1016,12 +1016,12 @@ func TestNewTerminalHandler(t *testing.T) {
 		{
 			expectedErr: "term: bad dimensions(-1x0)",
 			cfg: TerminalHandlerConfig{
-				sessionData: session.Session{
+				SessionData: session.Session{
 					ID:       session.NewID(),
 					Login:    "root",
 					ServerID: uuid.New().String(),
 				},
-				term: session.TerminalParams{
+				Term: session.TerminalParams{
 					W: -1,
 					H: 0,
 				},
@@ -1030,12 +1030,12 @@ func TestNewTerminalHandler(t *testing.T) {
 		{
 			expectedErr: "term: bad dimensions(1x4097)",
 			cfg: TerminalHandlerConfig{
-				sessionData: session.Session{
+				SessionData: session.Session{
 					ID:       session.NewID(),
 					Login:    "root",
 					ServerID: uuid.New().String(),
 				},
-				term: session.TerminalParams{
+				Term: session.TerminalParams{
 					W: 1,
 					H: 4097,
 				},
@@ -1054,41 +1054,41 @@ func TestNewTerminalHandler(t *testing.T) {
 
 	// Valid Case
 	validCfg := TerminalHandlerConfig{
-		term: session.TerminalParams{
+		Term: session.TerminalParams{
 			W: 100,
 			H: 100,
 		},
-		sessionCtx: &SessionContext{},
-		authProvider: authProviderMock{
+		SessionCtx: &SessionContext{},
+		AuthProvider: authProviderMock{
 			server: validNode,
 		},
-		sessionData: session.Session{
+		SessionData: session.Session{
 			ID:       session.NewID(),
 			Login:    "root",
 			ServerID: uuid.New().String(),
 		},
-		keepAliveInterval:  time.Duration(100),
-		proxyHostPort:      "1234",
-		interactiveCommand: make([]string, 1),
-		displayLogin:       "tree",
-		router:             &proxy.Router{},
+		KeepAliveInterval:  time.Duration(100),
+		ProxyHostPort:      "1234",
+		InteractiveCommand: make([]string, 1),
+		DisplayLogin:       "tree",
+		Router:             &proxy.Router{},
 	}
 
 	term, err := NewTerminal(ctx, validCfg)
 	require.NoError(t, err)
 	// passed through
-	require.Equal(t, validCfg.sessionCtx, term.ctx)
-	require.Equal(t, validCfg.authProvider, term.authProvider)
-	require.Equal(t, validCfg.sessionData, term.sessionData)
-	require.Equal(t, validCfg.keepAliveInterval, term.keepAliveInterval)
-	require.Equal(t, validCfg.proxyHostPort, term.proxyHostPort)
-	require.Equal(t, validCfg.interactiveCommand, term.interactiveCommand)
-	require.Equal(t, validCfg.term, term.term)
-	require.Equal(t, validCfg.displayLogin, term.displayLogin)
+	require.Equal(t, validCfg.SessionCtx, term.ctx)
+	require.Equal(t, validCfg.AuthProvider, term.authProvider)
+	require.Equal(t, validCfg.SessionData, term.sessionData)
+	require.Equal(t, validCfg.KeepAliveInterval, term.keepAliveInterval)
+	require.Equal(t, validCfg.ProxyHostPort, term.proxyHostPort)
+	require.Equal(t, validCfg.InteractiveCommand, term.interactiveCommand)
+	require.Equal(t, validCfg.Term, term.term)
+	require.Equal(t, validCfg.DisplayLogin, term.displayLogin)
 	// newly added
-	require.Equal(t, unicode.UTF8.NewEncoder(), term.encoder)
-	require.Equal(t, unicode.UTF8.NewDecoder(), term.decoder)
-	require.Equal(t, &sync.Mutex{}, term.wsLock)
+	require.NotNil(t, term.encoder)
+	require.NotNil(t, term.decoder)
+	require.NotNil(t, term.wsLock)
 	require.NotNil(t, term.log)
 }
 
