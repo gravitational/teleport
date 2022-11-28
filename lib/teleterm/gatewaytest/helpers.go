@@ -155,9 +155,7 @@ func MustGenAndSaveCert(t *testing.T, identity tlsca.Identity) KeyPairPaths {
 	tlsCert := mustGenCertSignedWithCA(t, ca, identity)
 
 	privateKey, ok := tlsCert.PrivateKey.(*rsa.PrivateKey)
-	if !ok {
-		t.Fatal("Failed to cast tlsCert.PrivateKey")
-	}
+	require.True(t, ok, "Failed to cast tlsCert.PrivateKey")
 
 	// Save the cert.
 
