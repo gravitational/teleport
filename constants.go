@@ -439,11 +439,11 @@ const (
 	// CertExtensionMFAVerified is used to mark certificates issued after an MFA
 	// check.
 	CertExtensionMFAVerified = "mfa-verified"
-	// CertExtensionPreviousIdentityExpires is the RFC3339 timestamp representing the
-	// expiry time of the identity/cert that this identity/cert was derived from. It
-	// is used to determine a session's hard deadline in cases where both
-	// require_session_mfa and disconnect_expired_cert are enabled.
-	// See https://github.com/gravitational/teleport/issues/18544.
+	// CertExtensionPreviousIdentityExpires is the extension that stores an RFC3339
+	// timestamp representing the expiry time of the identity/cert that this
+	// identity/cert was derived from. It is used to determine a session's hard
+	// deadline in cases where both require_session_mfa and disconnect_expired_cert
+	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
 	CertExtensionPreviousIdentityExpires = "prev-identity-expires"
 	// CertExtensionClientIP is used to embed the IP of the client that created
 	// the certificate.
