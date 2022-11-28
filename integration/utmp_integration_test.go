@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -257,8 +258,19 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	require.NoError(t, err)
 	t.Cleanup(lockWatcher.Close)
 
+	nodeSessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   s.nodeClient,
+		AccessPoint:  s.nodeClient,
+		LockEnforcer: lockWatcher,
+		Emitter:      s.nodeClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     s.nodeID,
+	})
+	require.NoError(t, err)
+
 	nodeDir := t.TempDir()
 	srv, err := regular.New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
 		[]ssh.Signer{s.signer},
@@ -286,6 +298,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		regular.SetClock(s.clock),
 		regular.SetUtmpPath(utmpPath, utmpPath),
 		regular.SetLockWatcher(lockWatcher),
+		regular.SetSessionController(nodeSessionController),
 	)
 	require.NoError(t, err)
 	s.srv = srv

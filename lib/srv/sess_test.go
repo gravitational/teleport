@@ -80,7 +80,7 @@ func TestParseAccessRequestIDs(t *testing.T) {
 	}
 	for _, tt := range testCases {
 		t.Run(tt.comment, func(t *testing.T) {
-			out, err := parseAccessRequestIDs(tt.input)
+			out, err := ParseAccessRequestIDs(tt.input)
 			tt.assertErr(t, err)
 			require.Equal(t, out, tt.result)
 		})
