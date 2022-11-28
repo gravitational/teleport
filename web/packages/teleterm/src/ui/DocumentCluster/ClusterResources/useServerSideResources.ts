@@ -36,7 +36,7 @@ export function useServerSideResources<Agent>(
   fetchFunction: (params: ServerSideParams) => Promise<FetchResponse<Agent>>
 ) {
   const ctx = useAppContext();
-  const { clusterUri, documentUri } = useClusterContext();
+  const { clusterUri } = useClusterContext();
   const [pageIndex, setPageIndex] = useState(0);
   const [keys, setKeys] = useState<string[]>([]);
   const [agentFilter, setAgentFilter] = useState<AgentFilter>({
@@ -47,7 +47,7 @@ export function useServerSideResources<Agent>(
   // their respective rpcs.
   const [fetchAttempt, fetch] = useAsync(
     (startKey: string, filter: AgentFilter) =>
-      retryWithRelogin(ctx, documentUri, () =>
+      retryWithRelogin(ctx, clusterUri, () =>
         fetchFunction({
           ...filter,
           limit,
@@ -153,7 +153,6 @@ export function useServerSideResources<Agent>(
     fetchAttempt,
     fetch,
     updateSearch,
-    documentUri,
     updateSort,
     updateQuery,
     agentFilter,
