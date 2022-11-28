@@ -20,10 +20,13 @@ num-traits = "0.2.15"
 rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
 rsa = "0.7.2"
-rdp-rs = { git = "https://github.com/gravitational/rdp-rs", rev = "e7c7f9843d626e343b4de7a419af5982a3a7bd4b" }
-uuid = { version = "1.2.1", features = ["v4"] }
+rdp-rs = { git = "https://github.com/gravitational/rdp-rs", rev = "dce18e47ef502327418d3988047124367cd6e8a4" }
+uuid = { version = "1.2.2", features = ["v4"] }
 utf16string = "0.2.0"
 
 [build-dependencies]
 cbindgen = "0.24.3"
 tempfile = "3.3.0"
+
+[features]
+fips = ["rdp-rs/fips"]

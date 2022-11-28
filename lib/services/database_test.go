@@ -83,6 +83,132 @@ func TestDatabaseMarshal(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
+func TestValidateDatabase(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		inputName   string
+		inputSpec   types.DatabaseSpecV3
+		expectError bool
+	}{
+		{
+			// Captured error:
+			// a DNS-1035 label must consist of lower case alphanumeric
+			// characters or '-', start with an alphabetic character, and end
+			// with an alphanumeric character (e.g. 'my-name',  or 'abc-123',
+			// regex used for validation is '[a-z]([-a-z0-9]*[a-z0-9])?')
+			inputName: "invalid-database-name-",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			},
+			expectError: true,
+		},
+		{
+			inputName: "invalid-database-protocol",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: "unknown",
+				URI:      "localhost:5432",
+			},
+			expectError: true,
+		},
+		{
+			inputName: "invalid-database-uri",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "missing-port",
+			},
+			expectError: true,
+		},
+		{
+			inputName: "invalid-database-CA-cert",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				TLS: types.DatabaseTLS{
+					CACert: "bad-cert",
+				},
+			},
+			expectError: true,
+		},
+		{
+			inputName: "valid-mongodb",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolMongoDB,
+				URI:      "mongodb://mongo-1:27017,mongo-2:27018/?replicaSet=rs0",
+			},
+			expectError: false,
+		},
+		{
+			inputName: "invalid-mongodb-missing-username",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolMongoDB,
+				URI:      "mongodb://mongo-1:27017/?authmechanism=plain",
+			},
+			expectError: true,
+		},
+		{
+			inputName: "valid-redis",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolRedis,
+				URI:      "rediss://redis.example.com:6379",
+			},
+			expectError: false,
+		},
+		{
+			inputName: "invalid-redis-incorrect-mode",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolRedis,
+				URI:      "rediss://redis.example.com:6379?mode=unknown",
+			},
+			expectError: true,
+		},
+		{
+			inputName: "valid-snowflake",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSnowflake,
+				URI:      "test.snowflakecomputing.com",
+			},
+			expectError: false,
+		},
+		{
+			inputName: "invalid-snowflake",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSnowflake,
+				URI:      "not.snow.flake.com",
+			},
+			expectError: true,
+		},
+		{
+			inputName: "valid-cassandra-without-uri",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolCassandra,
+				AWS: types.AWS{
+					Region:    "us-east-1",
+					AccountID: "1234567890",
+				},
+			},
+			expectError: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.inputName, func(t *testing.T) {
+			database, err := types.NewDatabaseV3(types.Metadata{
+				Name: test.inputName,
+			}, test.inputSpec)
+			require.NoError(t, err)
+
+			err = ValidateDatabase(database)
+			if test.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 // indent returns the string where each line is indented by the specified
 // number of spaces.
 func indent(s string, spaces int) string {
