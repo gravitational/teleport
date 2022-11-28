@@ -26,9 +26,6 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/services \
     FuzzParserEvalBoolPredicate fuzz_parser_eval_bool_predicate
 
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/auth \
-    FuzzParseSAMLInResponseTo fuzz_parse_saml_in_response_to
-
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/restrictedsession \
     FuzzParseIPSpec fuzz_parse_ip_spec
 
