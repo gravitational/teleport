@@ -39,11 +39,11 @@ type stubUser struct {
 	groupIDS []string
 }
 
-func (s *stubUser) Gid() string {
+func (s *stubUser) GID() string {
 	return s.gid
 }
 
-func (s *stubUser) Uid() string {
+func (s *stubUser) UID() string {
 	return s.uid
 }
 

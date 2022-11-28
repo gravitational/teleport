@@ -432,8 +432,8 @@ func newOsWrapper() *osWrapper {
 // userInfo wraps user.User data into an interface, so we can override
 // returned results in tests.
 type userInfo interface {
-	Gid() string
-	Uid() string
+	GID() string
+	UID() string
 	GroupIds() ([]string, error)
 }
 
@@ -441,11 +441,11 @@ type systemUser struct {
 	u *user.User
 }
 
-func (s *systemUser) Gid() string {
+func (s *systemUser) GID() string {
 	return s.u.Gid
 }
 
-func (s *systemUser) Uid() string {
+func (s *systemUser) UID() string {
 	return s.u.Uid
 }
 
@@ -499,7 +499,7 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if localUser.Uid() != localUserCheck.Uid || localUser.Gid() != localUserCheck.Gid {
+	if localUser.UID() != localUserCheck.Uid || localUser.GID() != localUserCheck.Gid {
 		return trace.BadParameter("user %q has been changed", loginAsUser)
 	}
 
