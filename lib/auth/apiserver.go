@@ -103,7 +103,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 
 	// Passwords and sessions
 	srv.POST("/:version/users", srv.WithAuth(srv.upsertUser))
-	srv.PUT("/:version/users/:user/web/password", srv.WithAuth(srv.changePassword))
 	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.createWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.WithAuth(srv.authenticateWebUser))
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.WithAuth(srv.authenticateSSHUser))
@@ -509,20 +508,6 @@ func (s *APIServer) authenticateSSHUser(auth ClientI, w http.ResponseWriter, r *
 	}
 	req.Username = p.ByName("user")
 	return auth.AuthenticateSSHUser(r.Context(), req)
-}
-
-// changePassword updates users password based on the old password.
-func (s *APIServer) changePassword(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req services.ChangePasswordReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := auth.ChangePassword(req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message(fmt.Sprintf("password has been changed for user %q", req.User)), nil
 }
 
 type upsertUserRawReq struct {

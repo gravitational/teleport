@@ -5533,7 +5533,7 @@ func TestCreateDatabase(t *testing.T) {
 			req: createDatabaseRequest{
 				Name:     "mydatabase",
 				Protocol: "mysql",
-				URI:      "someuri",
+				URI:      "someuri:3306",
 			},
 			expectedStatus: http.StatusOK,
 			errAssert:      require.NoError,
@@ -5543,7 +5543,7 @@ func TestCreateDatabase(t *testing.T) {
 			req: createDatabaseRequest{
 				Name:     "dbwithlabels",
 				Protocol: "mysql",
-				URI:      "someuri",
+				URI:      "someuri:3306",
 				Labels: []ui.Label{
 					{
 						Name:  "env",
@@ -5559,7 +5559,7 @@ func TestCreateDatabase(t *testing.T) {
 			req: createDatabaseRequest{
 				Name:     "",
 				Protocol: "mysql",
-				URI:      "someuri",
+				URI:      "someuri:3306",
 			},
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
@@ -5571,7 +5571,7 @@ func TestCreateDatabase(t *testing.T) {
 			req: createDatabaseRequest{
 				Name:     "emptyprotocol",
 				Protocol: "",
-				URI:      "someuri",
+				URI:      "someuri:3306",
 			},
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
@@ -5588,6 +5588,18 @@ func TestCreateDatabase(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "missing uri")
+			},
+		},
+		{
+			name: "missing port",
+			req: createDatabaseRequest{
+				Name:     "missingport",
+				Protocol: "mysql",
+				URI:      "someuri",
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "missing port in address")
 			},
 		},
 	} {
@@ -5646,7 +5658,7 @@ func TestUpdateDatabase(t *testing.T) {
 	_, err = pack.clt.PostJSON(ctx, createDatabaseEndpoint, createDatabaseRequest{
 		Name:     databaseName,
 		Protocol: "mysql",
-		URI:      "somuri",
+		URI:      "someuri:3306",
 	})
 	require.NoError(t, err)
 

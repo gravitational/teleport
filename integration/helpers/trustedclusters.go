@@ -138,6 +138,6 @@ func WaitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, c
 	},
 		30*time.Second,
 		time.Second,
-		"Active tunnel connections did not reach %v in the expected time frame", expectedCount,
+		"Active tunnel connections did not reach %v in the expected time frame %v", expectedCount, 30*time.Second,
 	)
 }
