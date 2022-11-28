@@ -546,8 +546,11 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.GET("/webapi/sites/:site/alerts", h.WithClusterAuth(h.clusterLoginAlertsGet))
 
 	// active sessions handlers
-	h.GET("/webapi/sites/:site/connect", h.WithClusterAuth(h.siteNodeConnect))       // connect to an active session (via websocket)
-	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionsGet))      // get active list of sessions
+	h.GET("/webapi/sites/:site/connect", h.WithClusterAuth(h.siteNodeConnect))  // connect to an active session (via websocket)
+	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionsGet)) // get active list of sessions
+	// TODO POSTS to `/webapi/sites/:site/sessions` should no longer be required
+	// but this endpoint is still used by the UI. When time allows evaluate the
+	// removal of this handler and the associated methods here and in the UI.
 	h.POST("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionGenerate)) // create active session metadata
 	h.GET("/webapi/sites/:site/sessions/:sid", h.WithClusterAuth(h.siteSessionGet))  // get active session metadata
 
