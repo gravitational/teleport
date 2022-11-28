@@ -18,6 +18,7 @@ package utils
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"reflect"
 	"unicode"
@@ -98,6 +99,14 @@ func FastMarshalIndent(v interface{}, prefix, indent string) ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// WriteJSON marshals multiple documents as a JSON list with indentation.
+func WriteJSON(w io.Writer, values interface{}) error {
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "    ")
+	err := encoder.Encode(values)
+	return trace.Wrap(err)
 }
 
 const yamlDocDelimiter = "---"

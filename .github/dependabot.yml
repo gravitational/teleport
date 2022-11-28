@@ -10,6 +10,10 @@ updates:
       - dependency-name: cloud.google.com/go/firestore
       # Breaks backwards compatibility
       - dependency-name: github.com/gravitational/ttlmap
+      # TODO(greedy52): Update mongo-driver and fix API changes.
+      - dependency-name: go.mongodb.org/mongo-driver
+      # TODO(codingllama): Allow /x/crypto updates after upstream patch.
+      - dependency-name: golang.org/x/crypto
       # Must be kept in-sync with libbpf
       - dependency-name: github.com/aquasecurity/libbpfgo
       # Forked/replaced dependencies

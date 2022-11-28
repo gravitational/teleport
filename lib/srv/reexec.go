@@ -36,6 +36,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/shell"
@@ -304,13 +305,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
-	defer func() {
-		for _, f := range cmd.ExtraFiles {
-			if err := f.Close(); err != nil {
-				log.WithError(err).Warn("Error closing extra file.")
-			}
-		}
-	}()
 
 	// Wait until the continue signal is received from Teleport signaling that
 	// the child process has been placed in a cgroup.
@@ -324,18 +318,11 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	// again, to avoid it getting deleted under our nose.
 	parkerCtx, parkerCancel := context.WithCancel(context.Background())
 	defer parkerCancel()
-	if cmd.SysProcAttr.Credential != nil {
-		if err := newParker(parkerCtx, *cmd.SysProcAttr.Credential); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
 
-		localUserCheck, err := user.Lookup(c.Login)
-		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-		if localUser.Uid != localUserCheck.Uid || localUser.Gid != localUserCheck.Gid {
-			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("user %q has been changed", c.Login)
-		}
+	osPack := newOsWrapper()
+	if err := osPack.startNewParker(parkerCtx, cmd.SysProcAttr.Credential,
+		c.Login, &systemUser{u: localUser}); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	if c.X11Config.XServerUnixSocket != "" {
@@ -425,6 +412,98 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	}
 
 	return io.Discard, exitCode(err), trace.Wrap(err)
+}
+
+// osWrapper wraps system calls, so we can replace them in tests.
+type osWrapper struct {
+	LookupGroup    func(name string) (*user.Group, error)
+	LookupUser     func(username string) (*user.User, error)
+	CommandContext func(ctx context.Context, name string, arg ...string) *exec.Cmd
+}
+
+func newOsWrapper() *osWrapper {
+	return &osWrapper{
+		LookupGroup:    user.LookupGroup,
+		LookupUser:     user.Lookup,
+		CommandContext: exec.CommandContext,
+	}
+}
+
+// userInfo wraps user.User data into an interface, so we can override
+// returned results in tests.
+type userInfo interface {
+	GID() string
+	UID() string
+	GroupIds() ([]string, error)
+}
+
+type systemUser struct {
+	u *user.User
+}
+
+func (s *systemUser) GID() string {
+	return s.u.Gid
+}
+
+func (s *systemUser) UID() string {
+	return s.u.Uid
+}
+
+func (s *systemUser) GroupIds() ([]string, error) {
+	return s.u.GroupIds()
+}
+
+// startNewParker starts a new parker process only if the requested user has been created
+// by Teleport. Otherwise, does nothing.
+func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Credential,
+	loginAsUser string, localUser userInfo,
+) error {
+	if credential == nil {
+		// Empty credential, no reason to start the parker.
+		return nil
+	}
+
+	group, err := o.LookupGroup(types.TeleportServiceGroup)
+	if errors.Is(err, user.UnknownGroupError(types.TeleportServiceGroup)) {
+		// The service group doesn't exist. Auto-provision is disabled, do nothing.
+		return nil
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	groups, err := localUser.GroupIds()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	found := false
+	for _, localUserGroup := range groups {
+		if localUserGroup == group.Gid {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		// Check if the new user guid matches the TeleportServiceGroup. If not
+		// this user hasn't been created by Teleport, and we don't need the parker.
+		return nil
+	}
+
+	if err := o.newParker(ctx, *credential); err != nil {
+		return trace.Wrap(err)
+	}
+
+	localUserCheck, err := o.LookupUser(loginAsUser)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if localUser.UID() != localUserCheck.Uid || localUser.GID() != localUserCheck.Gid {
+		return trace.BadParameter("user %q has been changed", loginAsUser)
+	}
+
+	return nil
 }
 
 // RunForward reads in the command to run from the parent process (over a
@@ -854,13 +933,13 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 }
 
 // Spawns a process with the given credentials, outliving the context.
-func newParker(ctx context.Context, credential syscall.Credential) error {
+func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential) error {
 	executable, err := os.Executable()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	cmd := exec.CommandContext(ctx, executable, teleport.ParkSubCommand)
+	cmd := o.CommandContext(ctx, executable, teleport.ParkSubCommand)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Credential: &credential,
 	}
@@ -872,7 +951,7 @@ func newParker(ctx context.Context, credential syscall.Credential) error {
 		return trace.Wrap(err)
 	}
 
-	// the process will get killed when the context ends but we still need to
+	// the process will get killed when the context ends, but we still need to
 	// Wait on it
 	go cmd.Wait()
 

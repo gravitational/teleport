@@ -313,7 +313,7 @@ func etcdBackendConfig(t *testing.T) *backend.Config {
 	cfg := &backend.Config{
 		Type: "etcd",
 		Params: backend.Params{
-			"peers":         []string{"https://127.0.0.1:2379"},
+			"peers":         []string{etcdTestEndpoint()},
 			"prefix":        prefix,
 			"tls_key_file":  "../../examples/etcd/certs/client-key.pem",
 			"tls_cert_file": "../../examples/etcd/certs/client-cert.pem",
@@ -328,6 +328,15 @@ func etcdBackendConfig(t *testing.T) *backend.Config {
 			"failed to clean up etcd backend")
 	})
 	return cfg
+}
+
+// etcdTestEndpoint returns etcd host used in tests.
+func etcdTestEndpoint() string {
+	host := os.Getenv("TELEPORT_ETCD_TEST_ENDPOINT")
+	if host != "" {
+		return host
+	}
+	return "https://127.0.0.1:2379"
 }
 
 func liteBackendConfig(t *testing.T) *backend.Config {
