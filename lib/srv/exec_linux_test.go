@@ -29,8 +29,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
@@ -89,7 +90,7 @@ func TestOSCommandPrep(t *testing.T) {
 	require.Equal(t, syscall.SIGKILL, cmd.SysProcAttr.Pdeathsig)
 
 	// Non-empty command (exec a prog).
-	scx.ExecRequest.SetCommand("ls -lh /etc")
+	scx.execRequest.SetCommand("ls -lh /etc")
 	execCmd, err = scx.ExecCommand()
 	require.NoError(t, err)
 
@@ -104,7 +105,7 @@ func TestOSCommandPrep(t *testing.T) {
 	require.Equal(t, syscall.SIGKILL, cmd.SysProcAttr.Pdeathsig)
 
 	// Command without args.
-	scx.ExecRequest.SetCommand("top")
+	scx.execRequest.SetCommand("top")
 	execCmd, err = scx.ExecCommand()
 	require.NoError(t, err)
 
@@ -141,7 +142,7 @@ func TestContinue(t *testing.T) {
 	var err error
 	lsPath, err := os_exec.LookPath("ls")
 	require.NoError(t, err)
-	scx.ExecRequest.SetCommand(lsPath)
+	scx.execRequest.SetCommand(lsPath)
 
 	// Create an exec.Cmd to execute through Teleport.
 	cmd, err := ConfigureCommand(scx)

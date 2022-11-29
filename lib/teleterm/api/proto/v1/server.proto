@@ -16,22 +16,22 @@ syntax = "proto3";
 
 package teleport.terminal.v1;
 
-option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
-
 import "v1/label.proto";
+
+option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
 
 // Server describes connected Server
 message Server {
-    // uri is the server uri
-    string uri = 1;
-    // tunnel indicates if this server is connected over a reverse tunnel
-    bool tunnel = 2;
-    // name is the server name
-    string name = 3;
-    // hostname is this server hostname
-    string hostname = 4;
-    // addr is this server ip address
-    string addr = 5;
-    // labels is this server list of labels
-    repeated Label labels = 6;
+  // uri is the server uri
+  string uri = 1;
+  // tunnel indicates if this server is connected over a reverse tunnel
+  bool tunnel = 2;
+  // name is the server name
+  string name = 3;
+  // hostname is this server hostname
+  string hostname = 4;
+  // addr is this server ip address
+  string addr = 5;
+  // labels is this server list of labels
+  repeated Label labels = 6;
 }

@@ -34,14 +34,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/validation"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // WriteContextCloser provides close method with context
@@ -312,6 +313,16 @@ func SplitHostPort(hostname string) (string, string, error) {
 	return host, port, nil
 }
 
+// IsValidHostname checks if a string represents a valid hostname.
+func IsValidHostname(hostname string) bool {
+	for _, label := range strings.Split(hostname, ".") {
+		if len(validation.IsDNS1035Label(label)) > 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // ReadPath reads file contents
 func ReadPath(path string) ([]byte, error) {
 	if path == "" {
@@ -439,6 +450,12 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 		list = append(list, strconv.Itoa(i))
 	}
 	return PortList{ports: list}, nil
+}
+
+// HostUUIDExistsLocally checks if dataDir/host_uuid file exists in local storage.
+func HostUUIDExistsLocally(dataDir string) bool {
+	_, err := ReadHostUUID(dataDir)
+	return err == nil
 }
 
 // ReadHostUUID reads host UUID from the file in the data dir

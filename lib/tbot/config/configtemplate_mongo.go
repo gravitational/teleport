@@ -19,11 +19,12 @@ package config
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/trace"
 )
 
 // defaultMongoPrefix is the default prefix in generated MongoDB certs.
@@ -69,12 +70,17 @@ func (t *TemplateMongo) Render(ctx context.Context, bot Bot, currentIdentity *id
 		return trace.Wrap(err)
 	}
 
+	key, err := newClientKey(currentIdentity, dbCAs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	cfg := identityfile.WriteConfig{
 		OutputPath: t.Prefix,
 		Writer: &BotConfigWriter{
 			dest: dest,
 		},
-		Key:    newClientKey(currentIdentity, dbCAs),
+		Key:    key,
 		Format: identityfile.FormatMongo,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.

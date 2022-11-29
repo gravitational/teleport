@@ -23,34 +23,34 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/agent"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// Agent extends the agent.Agent interface.
+// Agent extends the agent.ExtendedAgent interface.
 // APIs which accept this interface promise to
 // call `Close()` when they are done using the
 // supplied agent.
 type Agent interface {
-	agent.Agent
+	agent.ExtendedAgent
 	io.Closer
 }
 
 // nopCloser wraps an agent.Agent in the extended
 // Agent interface by adding a NOP closer.
 type nopCloser struct {
-	agent.Agent
+	agent.ExtendedAgent
 }
 
 func (n nopCloser) Close() error { return nil }
 
 // NopCloser wraps an agent.Agent with a NOP closer, allowing it
 // to be passed to APIs which expect the extended agent interface.
-func NopCloser(std agent.Agent) Agent {
+func NopCloser(std agent.ExtendedAgent) Agent {
 	return nopCloser{std}
 }
 

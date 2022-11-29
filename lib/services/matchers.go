@@ -17,10 +17,10 @@ limitations under the License.
 package services
 
 import (
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // ResourceMatcher matches cluster resources.
@@ -42,6 +42,9 @@ type InstallerParams struct {
 	JoinMethod types.JoinMethod
 	// JoinToken is the token to use when joining the cluster
 	JoinToken string
+	// ScriptName is the name of the teleport script for the EC2
+	// instance to execute
+	ScriptName string
 }
 
 // AWSMatcher matches AWS databases.
@@ -67,10 +70,22 @@ type AzureMatcher struct {
 	ResourceGroups []string
 	// Types are Azure resource types to match, for example "mysql" or "postgres".
 	Types []string
-	// Regions are Azure regions to query for databases.
+	// Regions are Azure regions to query for resources.
 	Regions []string
 	// ResourceTags are Azure tags to match.
 	ResourceTags types.Labels
+}
+
+// GCPMatcher matches GCP resources.
+type GCPMatcher struct {
+	// Types are GKE resource types to match: "gke".
+	Types []string `yaml:"types,omitempty"`
+	// Locations are GCP locations to search resources for.
+	Locations []string `yaml:"locations,omitempty"`
+	// Tags are GCP labels to match.
+	Tags types.Labels `yaml:"tags,omitempty"`
+	// ProjectIDs are the GCP project IDs where the resources are deployed.
+	ProjectIDs []string `yaml:"project_ids,omitempty"`
 }
 
 // MatchResourceLabels returns true if any of the provided selectors matches the provided database.
@@ -115,7 +130,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
 	resourceKey := ResourceSeenKey{}
 	switch filter.ResourceKind {
-	case types.KindNode, types.KindWindowsDesktop, types.KindKubernetesCluster:
+	case types.KindNode, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindKubernetesCluster:
 		specResource = resource
 		resourceKey.name = specResource.GetName()
 
@@ -199,11 +214,11 @@ func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 }
 
 // matchAndFilterKubeClusters is similar to MatchResourceByFilters, but does two things in addition:
-//  1) handles kube service having a 1-N relationship (service-clusters)
+//  1. handles kube service having a 1-N relationship (service-clusters)
 //     so each kube cluster goes through the filters
-//  2) filters out the non-matched clusters on the kube service and the kube service is
+//  2. filters out the non-matched clusters on the kube service and the kube service is
 //     modified in place with only the matched clusters
-//  3) only returns true if the service contained any matched cluster
+//  3. only returns true if the service contained any matched cluster
 func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchResourceFilter) (bool, error) {
 	if len(filter.Labels) == 0 && len(filter.SearchKeywords) == 0 && filter.PredicateExpression == "" {
 		return true, nil
@@ -269,6 +284,8 @@ type MatchResourceFilter struct {
 const (
 	// AWSMatcherRDS is the AWS matcher type for RDS databases.
 	AWSMatcherRDS = "rds"
+	// AWSMatcherRDSProxy is the AWS matcher type for RDS Proxy databases.
+	AWSMatcherRDSProxy = "rdsproxy"
 	// AWSMatcherRedshift is the AWS matcher type for Redshift databases.
 	AWSMatcherRedshift = "redshift"
 	// AWSMatcherElastiCache is the AWS matcher type for ElastiCache databases.
@@ -281,4 +298,8 @@ const (
 	AzureMatcherMySQL = "mysql"
 	// AzureMatcherPostgres is the Azure matcher type for Azure Postgres databases.
 	AzureMatcherPostgres = "postgres"
+	// AzureMatcherRedis is the Azure matcher type for Azure Cache for Redis databases.
+	AzureMatcherRedis = "redis"
+	// AzureMatcherSQLServer is the Azure matcher type for SQL Server databases.
+	AzureMatcherSQLServer = "sqlserver"
 )

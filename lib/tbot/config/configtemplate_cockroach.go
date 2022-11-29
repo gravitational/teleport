@@ -19,11 +19,12 @@ package config
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/trace"
 )
 
 const defaultCockroachDirName = "cockroach"
@@ -67,13 +68,18 @@ func (t *TemplateCockroach) Render(ctx context.Context, bot Bot, currentIdentity
 		return trace.Wrap(err)
 	}
 
+	key, err := newClientKey(currentIdentity, dbCAs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	cfg := identityfile.WriteConfig{
 		OutputPath: t.DirName,
 		Writer: &BotConfigWriter{
 			dest:    dest,
 			subpath: t.DirName,
 		},
-		Key:    newClientKey(currentIdentity, dbCAs),
+		Key:    key,
 		Format: identityfile.FormatCockroach,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.

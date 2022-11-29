@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -32,16 +33,17 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // FileFD is a file descriptor passed down from a parent process when
@@ -92,9 +94,17 @@ type ExecCommand struct {
 	ClusterName string `json:"cluster_name"`
 
 	// Terminal indicates if a TTY has been allocated for the session. This is
-	// typically set if either an shell was requested or a TTY was explicitly
-	// allocated for a exec request.
+	// typically set if either a shell was requested or a TTY was explicitly
+	// allocated for an exec request.
 	Terminal bool `json:"term"`
+
+	// TerminalName is the name of TTY terminal, ex: /dev/tty1.
+	// Currently, this field is used by auditd.
+	TerminalName string `json:"terminal_name"`
+
+	// ClientAddress contains IP address of the connected client.
+	// Currently, this field is used by auditd.
+	ClientAddress string `json:"client_address"`
 
 	// RequestType is the type of request: either "exec" or "shell". This will
 	// be used to control where to connect std{out,err} based on the request
@@ -166,7 +176,7 @@ type UaccMetadata struct {
 // pipe) then constructs and runs the command.
 func RunCommand() (errw io.Writer, code int, err error) {
 	// errorWriter is used to return any error message back to the client. By
-	// default it writes to stdout, but if a TTY is allocated, it will write
+	// default, it writes to stdout, but if a TTY is allocated, it will write
 	// to it instead.
 	errorWriter := os.Stdout
 
@@ -192,6 +202,33 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
+	auditdMsg := auditd.Message{
+		SystemUser:   c.Login,
+		TeleportUser: c.Username,
+		ConnAddress:  c.ClientAddress,
+		TTYName:      c.TerminalName,
+	}
+
+	if err := auditd.SendEvent(auditd.AuditUserLogin, auditd.Success, auditdMsg); err != nil {
+		// Currently, this logs nothing. Related issue https://github.com/gravitational/teleport/issues/17318
+		log.WithError(err).Debugf("failed to send user start event to auditd: %v", err)
+	}
+
+	defer func() {
+		if err != nil {
+			if errors.Is(err, user.UnknownUserError(c.Login)) {
+				if err := auditd.SendEvent(auditd.AuditUserErr, auditd.Failed, auditdMsg); err != nil {
+					log.WithError(err).Debugf("failed to send UserErr event to auditd: %v", err)
+				}
+				return
+			}
+		}
+
+		if err := auditd.SendEvent(auditd.AuditUserEnd, auditd.Success, auditdMsg); err != nil {
+			log.WithError(err).Debugf("failed to send UserEnd event to auditd: %v", err)
+		}
+	}()
+
 	var tty *os.File
 	var pty *os.File
 	uaccEnabled := false
@@ -208,7 +245,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		errorWriter = tty
 		err = uacc.Open(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr, tty)
 		// uacc support is best-effort, only enable it if Open is successful.
-		// Currently there is no way to log this error out-of-band with the
+		// Currently, there is no way to log this error out-of-band with the
 		// command output, so for now we essentially ignore it.
 		if err == nil {
 			uaccEnabled = true
@@ -268,13 +305,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
-	defer func() {
-		for _, f := range cmd.ExtraFiles {
-			if err := f.Close(); err != nil {
-				log.WithError(err).Warn("Error closing extra file.")
-			}
-		}
-	}()
 
 	// Wait until the continue signal is received from Teleport signaling that
 	// the child process has been placed in a cgroup.
@@ -288,18 +318,11 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	// again, to avoid it getting deleted under our nose.
 	parkerCtx, parkerCancel := context.WithCancel(context.Background())
 	defer parkerCancel()
-	if cmd.SysProcAttr.Credential != nil {
-		if err := newParker(parkerCtx, *cmd.SysProcAttr.Credential); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
 
-		localUserCheck, err := user.Lookup(c.Login)
-		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-		if localUser.Uid != localUserCheck.Uid || localUser.Gid != localUserCheck.Gid {
-			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("user %q has been changed", c.Login)
-		}
+	osPack := newOsWrapper()
+	if err := osPack.startNewParker(parkerCtx, cmd.SysProcAttr.Credential,
+		c.Login, &systemUser{u: localUser}); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	if c.X11Config.XServerUnixSocket != "" {
@@ -323,7 +346,10 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		// xauthority files is put into the correct place ($HOME/.Xauthority)
 		// with the right permissions.
 		removeCmd := x11.NewXAuthCommand(context.Background(), "")
-		removeCmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		removeCmd.SysProcAttr = &syscall.SysProcAttr{
+			Setsid:     true,
+			Credential: cmd.SysProcAttr.Credential,
+		}
 		removeCmd.Env = cmd.Env
 		removeCmd.Dir = cmd.Dir
 		if err := removeCmd.RemoveEntries(c.X11Config.XAuthEntry.Display); err != nil {
@@ -331,7 +357,10 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		}
 
 		addCmd := x11.NewXAuthCommand(context.Background(), "")
-		addCmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		addCmd.SysProcAttr = &syscall.SysProcAttr{
+			Setsid:     true,
+			Credential: cmd.SysProcAttr.Credential,
+		}
 		addCmd.Env = cmd.Env
 		addCmd.Dir = cmd.Dir
 		if err := addCmd.AddEntry(c.X11Config.XAuthEntry); err != nil {
@@ -383,6 +412,98 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	}
 
 	return io.Discard, exitCode(err), trace.Wrap(err)
+}
+
+// osWrapper wraps system calls, so we can replace them in tests.
+type osWrapper struct {
+	LookupGroup    func(name string) (*user.Group, error)
+	LookupUser     func(username string) (*user.User, error)
+	CommandContext func(ctx context.Context, name string, arg ...string) *exec.Cmd
+}
+
+func newOsWrapper() *osWrapper {
+	return &osWrapper{
+		LookupGroup:    user.LookupGroup,
+		LookupUser:     user.Lookup,
+		CommandContext: exec.CommandContext,
+	}
+}
+
+// userInfo wraps user.User data into an interface, so we can override
+// returned results in tests.
+type userInfo interface {
+	GID() string
+	UID() string
+	GroupIds() ([]string, error)
+}
+
+type systemUser struct {
+	u *user.User
+}
+
+func (s *systemUser) GID() string {
+	return s.u.Gid
+}
+
+func (s *systemUser) UID() string {
+	return s.u.Uid
+}
+
+func (s *systemUser) GroupIds() ([]string, error) {
+	return s.u.GroupIds()
+}
+
+// startNewParker starts a new parker process only if the requested user has been created
+// by Teleport. Otherwise, does nothing.
+func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Credential,
+	loginAsUser string, localUser userInfo,
+) error {
+	if credential == nil {
+		// Empty credential, no reason to start the parker.
+		return nil
+	}
+
+	group, err := o.LookupGroup(types.TeleportServiceGroup)
+	if errors.Is(err, user.UnknownGroupError(types.TeleportServiceGroup)) {
+		// The service group doesn't exist. Auto-provision is disabled, do nothing.
+		return nil
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	groups, err := localUser.GroupIds()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	found := false
+	for _, localUserGroup := range groups {
+		if localUserGroup == group.Gid {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		// Check if the new user guid matches the TeleportServiceGroup. If not
+		// this user hasn't been created by Teleport, and we don't need the parker.
+		return nil
+	}
+
+	if err := o.newParker(ctx, *credential); err != nil {
+		return trace.Wrap(err)
+	}
+
+	localUserCheck, err := o.LookupUser(loginAsUser)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if localUser.UID() != localUserCheck.Uid || localUser.GID() != localUserCheck.Gid {
+		return trace.BadParameter("user %q has been changed", loginAsUser)
+	}
+
+	return nil
 }
 
 // RunForward reads in the command to run from the parent process (over a
@@ -630,7 +751,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	// Set the command's cwd to the user's $HOME, or "/" if
 	// they don't have an existing home dir.
 	// TODO (atburke): Generalize this to support Windows.
-	exists, err := checkHomeDir(localUser)
+	exists, err := CheckHomeDir(localUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	} else if exists {
@@ -768,8 +889,8 @@ func copyCommand(ctx *ServerContext, cmdbytes []byte) {
 	}
 }
 
-// checkHomeDir checks if the user's home dir exists
-func checkHomeDir(localUser *user.User) (bool, error) {
+// CheckHomeDir checks if the user's home dir exists
+func CheckHomeDir(localUser *user.User) (bool, error) {
 	if fi, err := os.Stat(localUser.HomeDir); err == nil {
 		return fi.IsDir(), nil
 	}
@@ -812,13 +933,13 @@ func checkHomeDir(localUser *user.User) (bool, error) {
 }
 
 // Spawns a process with the given credentials, outliving the context.
-func newParker(ctx context.Context, credential syscall.Credential) error {
+func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential) error {
 	executable, err := os.Executable()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	cmd := exec.CommandContext(ctx, executable, teleport.ParkSubCommand)
+	cmd := o.CommandContext(ctx, executable, teleport.ParkSubCommand)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Credential: &credential,
 	}
@@ -830,7 +951,7 @@ func newParker(ctx context.Context, credential syscall.Credential) error {
 		return trace.Wrap(err)
 	}
 
-	// the process will get killed when the context ends but we still need to
+	// the process will get killed when the context ends, but we still need to
 	// Wait on it
 	go cmd.Wait()
 

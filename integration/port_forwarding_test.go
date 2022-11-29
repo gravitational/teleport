@@ -26,14 +26,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
-
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 func extractPort(svr *httptest.Server) (int, error) {
@@ -121,7 +121,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 
 			// ... and a client connection that was launched with port
 			// forwarding enabled to that dummy server
-			localPort := helpers.NewPortValue()
+			localPort := newPortValue()
 			remotePort, err := extractPort(remoteSvr)
 			require.NoError(t, err)
 

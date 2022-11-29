@@ -296,7 +296,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: quay.io/gravitational/teleport:8.3.4
+          value: public.ecr.aws/gravitational/teleport:8.3.4
       - matchSnapshot:
           path: spec.template.spec
 

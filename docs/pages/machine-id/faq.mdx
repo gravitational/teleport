@@ -12,10 +12,9 @@ following situations:
    joining.
  - Long-lived worker nodes, like self-hosted Jenkins workers, using token-based
    joining.
-
-We are working to support SaaS-based CI/CD providers like GitHub Actions in the
-the near future, but cannot currently recommend using Machine ID on these
-providers.
+ - You use a supported SaaS CI/CD Provider:
+   - GitHub Actions (Teleport 11)
+   - CircleCI (coming in Teleport 11.1)
 
 ## Can Machine ID be used with Trusted Clusters ?
 
@@ -55,3 +54,13 @@ grant access to resources that you were not intending to grant. For this reason,
 we recommend that in this situation you create bespoke roles that directly
 include the logins that you wish to grant to the certificates output in that
 destination.
+
+## Can Machine ID be used with per-session MFA?
+
+We do not currently support Machine ID and per-session MFA. Enabling per-session
+MFA globally, or for roles impersonated by Machine ID, will prevent credentials
+produced by Machine ID from being used to connect to resources.
+
+As a work-around, ensure that per-session MFA is enforced on individual roles
+rather than enforced globally, and that it is not enforced for roles that you
+will impersonate using Machine ID.

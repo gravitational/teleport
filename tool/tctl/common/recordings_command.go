@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -50,6 +49,8 @@ type RecordingsCommand struct {
 	toUTC string
 	// maxRecordingsToShow is the maximum number of recordings to show per page of results
 	maxRecordingsToShow int
+	// recordingsSince is a duration which sets the time into the past in which to list session recordings
+	recordingsSince string
 }
 
 // Initialize allows RecordingsCommand to plug itself into the CLI parser
@@ -58,9 +59,10 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, config *service
 	recordings := app.Command("recordings", "View and control session recordings.")
 	c.recordingsList = recordings.Command("ls", "List recorded sessions.")
 	c.recordingsList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Default(teleport.Text).StringVar(&c.format)
-	c.recordingsList.Flag("from-utc", fmt.Sprintf("Start of time range in which recordings are listed. Format %s. Defaults to 24 hours ago.", time.RFC3339)).StringVar(&c.fromUTC)
-	c.recordingsList.Flag("to-utc", fmt.Sprintf("End of time range in which recordings are listed. Format %s. Defaults to current time.", time.RFC3339)).StringVar(&c.toUTC)
+	c.recordingsList.Flag("from-utc", fmt.Sprintf("Start of time range in which recordings are listed. Format %s. Defaults to 24 hours ago.", defaults.TshTctlSessionListTimeFormat)).StringVar(&c.fromUTC)
+	c.recordingsList.Flag("to-utc", fmt.Sprintf("End of time range in which recordings are listed. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).StringVar(&c.toUTC)
 	c.recordingsList.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&c.maxRecordingsToShow)
+	c.recordingsList.Flag("last", "Duration into the past from which session recordings should be listed. Format 5h30m40s").StringVar(&c.recordingsSince)
 }
 
 // TryRun attempts to run subcommands like "recordings ls".
@@ -75,9 +77,9 @@ func (c *RecordingsCommand) TryRun(ctx context.Context, cmd string, client auth.
 }
 
 func (c *RecordingsCommand) ListRecordings(ctx context.Context, tc auth.ClientI) error {
-	fromUTC, toUTC, err := defaults.SearchSessionRange(clockwork.NewRealClock(), c.fromUTC, c.toUTC)
+	fromUTC, toUTC, err := defaults.SearchSessionRange(clockwork.NewRealClock(), c.fromUTC, c.toUTC, c.recordingsSince)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("cannot request recordings: %v", err)
 	}
 	// Max number of days is limited to prevent too many requests being sent if dynamo is used as a backend.
 	if days := toUTC.Sub(fromUTC).Hours() / 24; days > defaults.TshTctlSessionDayLimit {

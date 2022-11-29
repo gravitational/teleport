@@ -19,12 +19,12 @@ package db
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud/watchers"
-
-	"github.com/gravitational/trace"
 )
 
 // startReconciler starts reconciler that registers/unregisters proxied
@@ -103,8 +103,9 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.DatabaseWa
 // selectors and register/unregister them appropriately.
 func (s *Server) startCloudWatcher(ctx context.Context) error {
 	watcher, err := watchers.NewWatcher(ctx, watchers.WatcherConfig{
-		AWSMatchers: s.cfg.AWSMatchers,
-		Clients:     s.cfg.CloudClients,
+		AWSMatchers:   s.cfg.AWSMatchers,
+		AzureMatchers: s.cfg.AzureMatchers,
+		Clients:       s.cfg.CloudClients,
 	})
 	if err != nil {
 		if trace.IsNotFound(err) {

@@ -27,11 +27,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gravitational/teleport/api/utils/keypaths"
-	"github.com/gravitational/teleport/api/utils/sshutils"
-
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
 const (
@@ -49,7 +50,7 @@ const (
 
 // IdentityFile represents the basic components of an identity file.
 type IdentityFile struct {
-	// PrivateKey is a PEM encoded key.
+	// PrivateKey is PEM encoded private key data.
 	PrivateKey []byte
 	// Certs contains PEM encoded certificates.
 	Certs Certs
@@ -75,7 +76,7 @@ type CACerts struct {
 
 // TLSConfig returns the identity file's associated TLSConfig.
 func (i *IdentityFile) TLSConfig() (*tls.Config, error) {
-	cert, err := tls.X509KeyPair(i.Certs.TLS, i.PrivateKey)
+	cert, err := keys.X509KeyPair(i.Certs.TLS, i.PrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -95,7 +96,17 @@ func (i *IdentityFile) TLSConfig() (*tls.Config, error) {
 
 // SSHClientConfig returns the identity file's associated SSHClientConfig.
 func (i *IdentityFile) SSHClientConfig() (*ssh.ClientConfig, error) {
-	ssh, err := sshutils.ProxyClientSSHConfig(i.Certs.SSH, i.PrivateKey, i.CACerts.SSH)
+	sshCert, err := sshutils.ParseCertificate(i.Certs.SSH)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	priv, err := keys.ParsePrivateKey(i.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ssh, err := sshutils.ProxyClientSSHConfig(sshCert, priv, i.CACerts.SSH...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -250,7 +261,7 @@ func decodeIdentityFile(idFile io.Reader) (*IdentityFile, error) {
 	// are copied out of the scanner's buffer.  All others are ignored.
 	for scanln() {
 		switch {
-		case hasPrefix("ssh"):
+		case isSSHCert(line):
 			ident.Certs.SSH = cloneln()
 		case hasPrefix("@cert-authority"):
 			ident.CACerts.SSH = append(ident.CACerts.SSH, cloneln())
@@ -289,4 +300,10 @@ func decodeIdentityFile(idFile io.Reader) (*IdentityFile, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &ident, nil
+}
+
+// Check if the given data has an ssh cert type prefix as it's first part.
+func isSSHCert(data []byte) bool {
+	sshCertType := bytes.Split(data, []byte(" "))[0]
+	return sshutils.IsSSHCertType(string(sshCertType))
 }

@@ -5,7 +5,7 @@ h1: Trusted Clusters
 ---
 
 Teleport can partition compute infrastructure into multiple clusters. A cluster
-is a group of Teleport resources connected. Each clustes
+is a group of Teleport resources connected. Each cluster
 manages a separate certificate authority (CA) for all users and resources.
 
 Trusted Clusters allow the users of one cluster, the **root cluster**, to
@@ -104,7 +104,7 @@ how to set up this cluster, see one of our
   As an alternative, you can set up a second Teleport Cloud account.
 
 - The `tctl` admin tool and `tsh` client tool version >= (=cloud.version=).
-  To download these tools, visit the [Downloads](/docs/cloud/downloads) page.
+  To download these tools, visit the [Downloads](../../deploy-a-cluster/teleport-cloud/downloads.mdx) page.
 
   ```code
   $ tctl version
@@ -645,7 +645,7 @@ $ tctl get rc
 kind: remote_cluster
 metadata:
   id: 1651261581522597792
-  name: rootcluster.example.com
+  name: leafcluster.teleport.sh
 status:
   connection: online
   last_heartbeat: "2022-04-29T19:45:35.052864534Z"

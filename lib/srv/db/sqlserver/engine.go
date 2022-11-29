@@ -21,6 +21,8 @@ import (
 	"io"
 	"net"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
@@ -28,8 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 func init() {
@@ -198,11 +198,7 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 		return trace.Wrap(err)
 	}
 
-	mfaParams := services.AccessMFAParams{
-		Verified:       sessionCtx.Identity.MFAVerified != "",
-		AlwaysRequired: ap.GetRequireSessionMFA(),
-	}
-
+	mfaParams := sessionCtx.MFAParams(ap.GetRequireMFAType())
 	err = sessionCtx.Checker.CheckAccess(sessionCtx.Database, mfaParams,
 		&services.DatabaseUserMatcher{
 			User: sessionCtx.DatabaseUser,

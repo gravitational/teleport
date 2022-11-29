@@ -26,10 +26,10 @@ import (
 	"time"
 
 	"github.com/gravitational/kingpin"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -116,7 +116,7 @@ This token will expire in %d minutes
 Use this token when defining a trusted cluster resource on a remote cluster.
 `
 
-var nodeMessageTemplate = template.Must(template.New("node").Parse(`The invite token: {{.token}}.
+var nodeMessageTemplate = template.Must(template.New("node").Parse(`The invite token: {{.token}}
 This token will expire in {{.minutes}} minutes.
 
 Run this on the new node to join the cluster:
@@ -174,7 +174,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client auth.ClientI) error {
 
 			pingResponse, err := client.Ping(ctx)
 			if err != nil {
-				log.Debugf("unnable to ping auth client: %s.", err.Error())
+				log.Debugf("unable to ping auth client: %s.", err.Error())
 			}
 
 			if err == nil && pingResponse.GetServerFeatures().Cloud {
@@ -208,7 +208,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client auth.ClientI) error {
 	return nil
 }
 
-// ListActive retreives the list of nodes who recently sent heartbeats to
+// ListActive retrieves the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
 func (c *NodeCommand) ListActive(ctx context.Context, clt auth.ClientI) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
@@ -225,15 +225,6 @@ func (c *NodeCommand) ListActive(ctx context.Context, clt auth.ClientI) error {
 		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),
 	})
 	switch {
-	// Underlying ListResources for nodes not available, use fallback.
-	// Using filter flags with older auth will silently do nothing.
-	//
-	// DELETE IN 11.0.0
-	case trace.IsNotImplemented(err):
-		nodes, err = clt.GetNodes(ctx, c.namespace)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 	case err != nil:
 		if utils.IsPredicateError(err) {
 			return trace.Wrap(utils.PredicateError{Err: err})
@@ -253,7 +244,7 @@ func (c *NodeCommand) ListActive(ctx context.Context, clt auth.ClientI) error {
 			return trace.Wrap(err)
 		}
 	case teleport.YAML:
-		if err := coll.writeYaml(os.Stdout); err != nil {
+		if err := coll.writeYAML(os.Stdout); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.JSON:

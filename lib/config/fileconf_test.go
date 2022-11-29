@@ -24,14 +24,16 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/installers"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 )
 
 // minimalConfigFile is a minimal subset of a teleport config file that can be
@@ -46,6 +48,9 @@ auth_service:
 
 ssh_service:
   enabled: yes
+
+discovery_service:
+  enabled: false
 `
 
 // cfgMap is a shorthand for a type that can hold the nested key-value
@@ -80,22 +85,24 @@ func TestAuthSection(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		desc                 string
-		mutate               func(cfgMap)
-		expectError          require.ErrorAssertionFunc
-		expectEnabled        require.BoolAssertionFunc
-		expectIdleMsg        require.ValueAssertionFunc
-		expectMotd           require.ValueAssertionFunc
-		expectWebIdleTimeout require.ValueAssertionFunc
+		desc                    string
+		mutate                  func(cfgMap)
+		expectError             require.ErrorAssertionFunc
+		expectEnabled           require.BoolAssertionFunc
+		expectIdleMsg           require.ValueAssertionFunc
+		expectMotd              require.ValueAssertionFunc
+		expectWebIdleTimeout    require.ValueAssertionFunc
+		expectProxyPingInterval require.ValueAssertionFunc
 	}{
 		{
-			desc:                 "Default",
-			mutate:               func(cfg cfgMap) {},
-			expectError:          require.NoError,
-			expectEnabled:        require.True,
-			expectIdleMsg:        require.Empty,
-			expectMotd:           require.Empty,
-			expectWebIdleTimeout: require.Empty,
+			desc:                    "Default",
+			mutate:                  func(cfg cfgMap) {},
+			expectError:             require.NoError,
+			expectEnabled:           require.True,
+			expectIdleMsg:           require.Empty,
+			expectMotd:              require.Empty,
+			expectWebIdleTimeout:    require.Empty,
+			expectProxyPingInterval: require.Empty,
 		}, {
 			desc: "Enabled",
 			mutate: func(cfg cfgMap) {
@@ -137,6 +144,19 @@ func TestAuthSection(t *testing.T) {
 				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "potato"
 			},
 			expectError: require.Error,
+		}, {
+			desc: "Proxy ping interval",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["proxy_ping_interval"] = "10s"
+			},
+			expectError:             require.NoError,
+			expectProxyPingInterval: requireEqual(types.Duration(10 * time.Second)),
+		}, {
+			desc: "Proxy ping interval (invalid)",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["proxy_ping_interval"] = "potato"
+			},
+			expectError: require.Error,
 		},
 	}
 
@@ -161,6 +181,10 @@ func TestAuthSection(t *testing.T) {
 
 			if tt.expectWebIdleTimeout != nil {
 				tt.expectWebIdleTimeout(t, cfg.Auth.WebIdleTimeout)
+			}
+
+			if tt.expectProxyPingInterval != nil {
+				tt.expectProxyPingInterval(t, cfg.Auth.ProxyPingInterval)
 			}
 		})
 	}
@@ -452,10 +476,98 @@ func TestAuthenticationConfig_Parse_nilU2F(t *testing.T) {
 
 	_, u2fErr := cap.GetU2F()
 	require.Error(t, u2fErr, "U2F configuration present")
-	require.True(t, trace.IsNotFound(u2fErr), "uxpected U2F error")
+	require.True(t, trace.IsNotFound(u2fErr), "unexpected U2F error")
 
 	_, webErr := cap.GetWebauthn()
 	require.NoError(t, webErr, "unexpected webauthn error")
+}
+
+func TestAuthenticationConfig_RequireSessionMFA(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		desc                 string
+		mutate               func(cfgMap)
+		expectError          bool
+		expectRequireMFAType types.RequireMFAType
+	}{
+		{
+			desc: "RequireSessionMFA invalid",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"require_session_mfa": "unknown",
+				}
+			},
+			expectError: true,
+		}, {
+			desc: "RequireSessionMFA empty",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{}
+			},
+			expectRequireMFAType: types.RequireMFAType_OFF,
+		}, {
+			desc: "RequireSessionMFA true",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"require_session_mfa": true,
+				}
+			},
+			expectRequireMFAType: types.RequireMFAType_SESSION,
+		}, {
+			desc: "RequireSessionMFA false",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"require_session_mfa": false,
+				}
+			},
+			expectRequireMFAType: types.RequireMFAType_OFF,
+		}, {
+			desc: "RequireSessionMFA true string",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"require_session_mfa": "yes",
+				}
+			},
+			expectRequireMFAType: types.RequireMFAType_SESSION,
+		}, {
+			desc: "RequireSessionMFA false string",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"require_session_mfa": "off",
+				}
+			},
+			expectRequireMFAType: types.RequireMFAType_OFF,
+		}, {
+			desc: "RequireSessionMFA hardware_key",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"require_session_mfa": types.RequireMFATypeHardwareKeyString,
+				}
+			},
+			expectRequireMFAType: types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
+		}, {
+			desc: "RequireSessionMFA hardware_key",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"require_session_mfa": types.RequireMFATypeHardwareKeyTouchString,
+				}
+			},
+			expectRequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			text := bytes.NewBuffer(editConfig(t, tt.mutate))
+			cfg, err := ReadConfig(text)
+			if tt.expectError {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(cfg.Auth.Authentication.RequireMFAType, tt.expectRequireMFAType))
+		})
+	}
 }
 
 // TestSSHSection tests the config parser for the SSH config block
@@ -468,7 +580,7 @@ func TestSSHSection(t *testing.T) {
 		expectError               require.ErrorAssertionFunc
 		expectEnabled             require.BoolAssertionFunc
 		expectAllowsTCPForwarding require.BoolAssertionFunc
-		expectedAWSSection        []AWSEC2Matcher
+		expectFileCopying         require.BoolAssertionFunc
 	}{
 		{
 			desc:                      "default",
@@ -485,7 +597,7 @@ func TestSSHSection(t *testing.T) {
 			expectEnabled:             require.True,
 			expectAllowsTCPForwarding: require.True,
 		}, {
-			desc: "diasbled",
+			desc: "disabled",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["enabled"] = "no"
 			},
@@ -515,126 +627,27 @@ func TestSSHSection(t *testing.T) {
 			},
 			expectError: require.Error,
 		}, {
-			desc:        "AWS section is filled with defaults",
-			expectError: require.NoError,
+			desc: "File copying is enabled",
 			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["enabled"] = "yes"
-				cfg["ssh_service"].(cfgMap)["aws"] = []cfgMap{
-					{
-						"types":   []string{"ec2"},
-						"regions": []string{"eu-central-1"},
-						"tags": cfgMap{
-							"discover_teleport": "yes",
-						},
-					},
-				}
+				cfg["ssh_service"].(cfgMap)["ssh_file_copy"] = true
 			},
-			expectedAWSSection: []AWSEC2Matcher{
-				{
-					Matcher: AWSMatcher{
-						Types:   []string{"ec2"},
-						Regions: []string{"eu-central-1"},
-						Tags: map[string]apiutils.Strings{
-							"discover_teleport": []string{"yes"},
-						},
-					},
-					InstallParams: &InstallParams{
-						JoinParams: JoinParams{
-							TokenName: defaults.IAMInviteTokenName,
-							Method:    types.JoinMethodIAM,
-						},
-					},
-					SSM: AWSSSM{DocumentName: defaults.AWSInstallerDocument},
-				},
-			},
+			expectError:       require.NoError,
+			expectEnabled:     require.True,
+			expectFileCopying: require.True,
 		}, {
-			desc:        "AWS section is filled with custom configs",
-			expectError: require.NoError,
+			desc: "File copying is disabled",
 			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["enabled"] = "yes"
-				cfg["ssh_service"].(cfgMap)["aws"] = []cfgMap{
-					{
-						"types":   []string{"ec2"},
-						"regions": []string{"eu-central-1"},
-						"tags": cfgMap{
-							"discover_teleport": "yes",
-						},
-						"install": cfgMap{
-							"join_params": cfgMap{
-								"token_name": "hello-iam-a-token",
-								"method":     "iam",
-							},
-						},
-						"ssm": cfgMap{
-							"document_name": "hello_document",
-						},
-					},
-				}
+				cfg["ssh_service"].(cfgMap)["ssh_file_copy"] = false
 			},
-			expectedAWSSection: []AWSEC2Matcher{
-				{
-					Matcher: AWSMatcher{
-						Types:   []string{"ec2"},
-						Regions: []string{"eu-central-1"},
-						Tags: map[string]apiutils.Strings{
-							"discover_teleport": []string{"yes"},
-						},
-					},
-					InstallParams: &InstallParams{
-						JoinParams: JoinParams{
-							TokenName: "hello-iam-a-token",
-							Method:    types.JoinMethodIAM,
-						},
-					},
-					SSM: AWSSSM{DocumentName: "hello_document"},
-				},
-			},
+			expectError:       require.NoError,
+			expectEnabled:     require.True,
+			expectFileCopying: require.False,
 		}, {
-			desc:        "AWS section is filled with invalid join method",
-			expectError: require.Error,
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["enabled"] = "yes"
-				cfg["ssh_service"].(cfgMap)["aws"] = []cfgMap{
-					{
-						"install": cfgMap{
-							"join_params": cfgMap{
-								"token_name": "hello-iam-a-token",
-								"method":     "token",
-							},
-						},
-					},
-				}
-			},
-			expectedAWSSection: nil,
-		},
-		{
-			desc:        "AWS section is filled with no token",
-			expectError: require.NoError,
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["enabled"] = "yes"
-				cfg["ssh_service"].(cfgMap)["aws"] = []cfgMap{
-					{
-						"install": cfgMap{
-							"join_params": cfgMap{
-								"method": "iam",
-							},
-						},
-					},
-				}
-			},
-			expectedAWSSection: []AWSEC2Matcher{
-				{
-					SSM: AWSSSM{
-						DocumentName: defaults.AWSInstallerDocument,
-					},
-					InstallParams: &InstallParams{
-						JoinParams: JoinParams{
-							TokenName: defaults.IAMInviteTokenName,
-							Method:    types.JoinMethodIAM,
-						},
-					},
-				},
-			},
+			desc:              "File copying is enabled by default",
+			mutate:            func(cfg cfgMap) {},
+			expectError:       require.NoError,
+			expectEnabled:     require.True,
+			expectFileCopying: require.True,
 		},
 	}
 
@@ -653,8 +666,333 @@ func TestSSHSection(t *testing.T) {
 				testCase.expectAllowsTCPForwarding(t, cfg.SSH.AllowTCPForwarding())
 			}
 
-			if testCase.expectedAWSSection != nil {
-				require.Equal(t, testCase.expectedAWSSection, cfg.SSH.AWSMatchers)
+			if testCase.expectFileCopying != nil {
+				testCase.expectFileCopying(t, cfg.SSH.SSHFileCopy())
+			}
+
+		})
+	}
+}
+
+func TestDiscoveryConfig(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		desc                     string
+		mutate                   func(cfgMap)
+		expectError              require.ErrorAssertionFunc
+		expectEnabled            require.BoolAssertionFunc
+		expectedDiscoverySection Discovery
+	}{
+		{
+			desc:                     "default",
+			mutate:                   func(cfgMap) {},
+			expectError:              require.NoError,
+			expectEnabled:            require.False,
+			expectedDiscoverySection: Discovery{},
+		},
+		{
+			desc:          "GCP section without project_ids",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types": []string{"gke"},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{},
+		},
+		{
+			desc:          "GCP section is filled with defaults",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":       []string{"gke"},
+						"project_ids": []string{"p1", "p2"},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				GCPMatchers: []GCPMatcher{
+					{
+						Types:     []string{"gke"},
+						Locations: []string{"*"},
+						Tags: map[string]apiutils.Strings{
+							"*": []string{"*"},
+						},
+						ProjectIDs: []string{"p1", "p2"},
+					},
+				},
+			},
+		},
+		{
+			desc:          "GCP section is filled",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":     []string{"gke"},
+						"locations": []string{"eucentral1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"project_ids": []string{"p1", "p2"},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				GCPMatchers: []GCPMatcher{
+					{
+						Types:     []string{"gke"},
+						Locations: []string{"eucentral1"},
+						Tags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
+						ProjectIDs: []string{"p1", "p2"},
+					},
+				},
+			},
+		},
+		{
+			desc:          "Azure section is filled with defaults",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
+					{
+						"types": []string{"aks"},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				AzureMatchers: []AzureMatcher{
+					{
+						Types:   []string{"aks"},
+						Regions: []string{"*"},
+						ResourceTags: map[string]apiutils.Strings{
+							"*": []string{"*"},
+						},
+						Subscriptions:  []string{"*"},
+						ResourceGroups: []string{"*"},
+					},
+				}},
+		},
+		{
+			desc:          "Azure section is filled with values",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
+					{
+						"types":   []string{"aks"},
+						"regions": []string{"eucentral1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"subscriptions":   []string{"sub1", "sub2"},
+						"resource_groups": []string{"group1", "group2"},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				AzureMatchers: []AzureMatcher{
+					{
+						Types:   []string{"aks"},
+						Regions: []string{"eucentral1"},
+						ResourceTags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
+						Subscriptions:  []string{"sub1", "sub2"},
+						ResourceGroups: []string{"group1", "group2"},
+					},
+				}},
+		},
+		{
+			desc:          "AWS section is filled with defaults",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"eu-central-1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				AWSMatchers: []AWSMatcher{
+					{
+						Types:   []string{"ec2"},
+						Regions: []string{"eu-central-1"},
+						Tags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
+						InstallParams: &InstallParams{
+							JoinParams: JoinParams{
+								TokenName: defaults.IAMInviteTokenName,
+								Method:    types.JoinMethodIAM,
+							},
+							ScriptName: installers.InstallerScriptName,
+						},
+						SSM: AWSSSM{DocumentName: defaults.AWSInstallerDocument},
+					},
+				}},
+		}, {
+			desc:          "AWS section is filled with custom configs",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"eu-central-1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"token_name": "hello-iam-a-token",
+								"method":     "iam",
+							},
+							"script_name": "installer-custom",
+						},
+						"ssm": cfgMap{
+							"document_name": "hello_document",
+						},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				AWSMatchers: []AWSMatcher{
+					{
+						Types:   []string{"ec2"},
+						Regions: []string{"eu-central-1"},
+						Tags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
+						InstallParams: &InstallParams{
+							JoinParams: JoinParams{
+								TokenName: "hello-iam-a-token",
+								Method:    types.JoinMethodIAM,
+							},
+							ScriptName: "installer-custom",
+						},
+						SSM: AWSSSM{DocumentName: "hello_document"},
+					},
+				},
+			},
+		}, {
+			desc:          "AWS section is filled with invalid join method",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"token_name": "hello-iam-a-token",
+								"method":     "token",
+							},
+						},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{},
+		}, {
+			desc:          "AWS section is filled with no token",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"method": "iam",
+							},
+						},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				AWSMatchers: []AWSMatcher{
+					{
+						SSM: AWSSSM{
+							DocumentName: defaults.AWSInstallerDocument,
+						},
+						Tags: map[string]apiutils.Strings{"*": {"*"}},
+						InstallParams: &InstallParams{
+							JoinParams: JoinParams{
+								TokenName: defaults.IAMInviteTokenName,
+								Method:    types.JoinMethodIAM,
+							},
+							ScriptName: installers.InstallerScriptName,
+						},
+					},
+				},
+			},
+		},
+		{
+			desc:          "Azure section is filled with defaults",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
+					{"types": []string{"vm"},
+						"regions":         []string{"westcentralus"},
+						"resource_groups": []string{"rg1"},
+						"subscriptions":   []string{"88888888-8888-8888-8888-888888888888"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				AzureMatchers: []AzureMatcher{
+					{
+						Types:          []string{"vm"},
+						Regions:        []string{"westcentralus"},
+						ResourceGroups: []string{"rg1"},
+						Subscriptions:  []string{"88888888-8888-8888-8888-888888888888"},
+						ResourceTags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
+					},
+				},
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.desc, func(t *testing.T) {
+			text := bytes.NewBuffer(editConfig(t, testCase.mutate))
+			cfg, err := ReadConfig(text)
+			testCase.expectError(t, err)
+			if cfg == nil {
+				return
+			}
+			testCase.expectEnabled(t, cfg.Discovery.Enabled())
+			if expectedAWS := testCase.expectedDiscoverySection.AWSMatchers; expectedAWS != nil {
+				require.Equal(t, expectedAWS, cfg.Discovery.AWSMatchers)
+			}
+			if expectedAzure := testCase.expectedDiscoverySection.AzureMatchers; expectedAzure != nil {
+				require.Equal(t, expectedAzure, cfg.Discovery.AzureMatchers)
 			}
 		})
 	}
@@ -890,12 +1228,31 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		require.Equal(t, "no", fc.Databases.EnabledFlag) // db is always disabled
 	})
 
-	t.Run("Auth server", func(t *testing.T) {
+	t.Run("V3 - auth server", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
+			Version:    defaults.TeleportConfigVersionV3,
 			AuthServer: "auth-server",
 		})
 		require.NoError(t, err)
-		require.Equal(t, "auth-server", fc.AuthServers[0])
+		require.Equal(t, "auth-server", fc.AuthServer)
+	})
+
+	t.Run("V3 - proxy server", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Version:      defaults.TeleportConfigVersionV3,
+			ProxyAddress: "proxy.server",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "proxy.server", fc.ProxyServer)
+	})
+
+	t.Run("v2 - auth server", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Version:    defaults.TeleportConfigVersionV2,
+			AuthServer: "auth-server",
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"auth-server"}, fc.AuthServers)
 	})
 
 	t.Run("Data dir", func(t *testing.T) {

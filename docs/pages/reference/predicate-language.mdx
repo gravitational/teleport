@@ -44,10 +44,10 @@ perform more sophisticated searches using the predicate language.
 
 For common resource fields, we defined shortened field names that can easily be accessed by:
 
-| Short Field       | Actual Field Equivalent                                     | Example                      |
-|-------------------|-------------------------------------------------------------|------------------------------|
-| `labels["<key>"]` | `resource.metadata.labels` + `resource.spec.dynamic_labels` | `labels["env"] == "staging"` |
-| `name`            | `resource.metadata.name`                                    | `name == "jenkins"`          |
+| Short Field       | Actual Field Equivalent                                                                | Example                      |
+|-------------------|----------------------------------------------------------------------------------------|------------------------------|
+| `labels["<key>"]` | `resource.metadata.labels` + `resource.spec.dynamic_labels`                            | `labels["env"] == "staging"` |
+| `name`            | `resource.spec.hostname` (only applies to server resource) or `resource.metadata.name` | `name == "jenkins"`          |
 
 The language supports the following operators:
 

@@ -27,12 +27,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gravitational/teleport/api/utils/keypaths"
-	"github.com/gravitational/teleport/api/utils/sshutils"
-
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v2"
+
+	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
 const (
@@ -48,7 +49,6 @@ const (
 //
 // Profiles can be stored in a profile file, allowing TSH users to
 // type fewer CLI args.
-//
 type Profile struct {
 	// WebProxyAddr is the host:port the web proxy can be accessed at.
 	WebProxyAddr string `yaml:"web_proxy_addr,omitempty"`
@@ -91,6 +91,14 @@ type Profile struct {
 	// AuthConnector (like "google", "passwordless").
 	// Equivalent to the --auth tsh flag.
 	AuthConnector string `yaml:"auth_connector,omitempty"`
+
+	// LoadAllCAs indicates that tsh should load the CAs of all clusters
+	// instead of just the current cluster.
+	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
+
+	// MFAMode ("auto", "platform", "cross-platform").
+	// Equivalent to the --mfa-mode tsh flag.
+	MFAMode string `yaml:"mfa_mode,omitempty"`
 }
 
 // Name returns the name of the profile.
@@ -105,7 +113,7 @@ func (p *Profile) Name() string {
 
 // TLSConfig returns the profile's associated TLSConfig.
 func (p *Profile) TLSConfig() (*tls.Config, error) {
-	cert, err := tls.LoadX509KeyPair(p.TLSCertPath(), p.UserKeyPath())
+	cert, err := keys.LoadX509KeyPair(p.TLSCertPath(), p.UserKeyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -185,7 +193,7 @@ func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	key, err := os.ReadFile(p.UserKeyPath())
+	sshCert, err := sshutils.ParseCertificate(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -195,7 +203,12 @@ func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	ssh, err := sshutils.ProxyClientSSHConfig(cert, key, [][]byte{caCerts})
+	priv, err := keys.LoadPrivateKey(p.UserKeyPath())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ssh, err := sshutils.ProxyClientSSHConfig(sshCert, priv, caCerts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -22,16 +22,17 @@ import (
 	"errors"
 	"net"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
+	"github.com/gravitational/teleport/lib/srv/db/redis/connection"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -88,11 +89,8 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mfaParams := services.AccessMFAParams{
-		Verified:       e.sessionCtx.Identity.MFAVerified != "",
-		AlwaysRequired: ap.GetRequireSessionMFA(),
-	}
 
+	mfaParams := e.sessionCtx.MFAParams(ap.GetRequireMFAType())
 	dbRoleMatchers := role.DatabaseRoleMatchers(
 		e.sessionCtx.Database.GetProtocol(),
 		e.sessionCtx.DatabaseUser,
@@ -150,14 +148,20 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
+	// If fail to get the initial username or password, return an error right
+	// away without making a connection to the Redis server.
+	username, password, err := e.getInitialUsernameAndPassowrd(ctx, sessionCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Initialize newClient factory function with current connection state.
 	e.newClient, err = e.getNewClientFn(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Create new client without username or password. Those will be added when we receive AUTH command.
-	e.redisClient, err = e.newClient("", "")
+	e.redisClient, err = e.newClient(username, password)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -178,6 +182,23 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	return nil
 }
 
+// getInitialUsernameAndPassowrd returns the username and password used for
+// the initial connection.
+func (e *Engine) getInitialUsernameAndPassowrd(ctx context.Context, sessionCtx *common.Session) (string, string, error) {
+	switch {
+	case sessionCtx.Database.IsAzure():
+		// Retrieve the auth token for Azure Cache for Redis. Use default user.
+		password, err := e.Auth.GetAzureCacheForRedisToken(ctx, sessionCtx)
+		return "", password, trace.Wrap(err)
+
+	default:
+		// Create new client without username or password. Those will be added
+		// when we receive AUTH command (e.g. self-hosted), or they can be
+		// fetched by the OnConnect callback (e.g. ElastiCache managed users).
+		return "", "", nil
+	}
+}
+
 // getNewClientFn returns a partial Redis client factory function.
 func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session) (redisClientFactoryFn, error) {
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
@@ -186,20 +207,28 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 	}
 
 	// Set default mode. Default mode can be overridden by URI parameters.
-	defaultMode := Standalone
+	defaultMode := connection.Standalone
 	switch sessionCtx.Database.GetType() {
 	case types.DatabaseTypeElastiCache:
 		if sessionCtx.Database.GetAWS().ElastiCache.EndpointType == apiawsutils.ElastiCacheConfigurationEndpoint {
-			defaultMode = Cluster
+			defaultMode = connection.Cluster
 		}
 
 	case types.DatabaseTypeMemoryDB:
 		if sessionCtx.Database.GetAWS().MemoryDB.EndpointType == apiawsutils.MemoryDBClusterEndpoint {
-			defaultMode = Cluster
+			defaultMode = connection.Cluster
+		}
+
+	case types.DatabaseTypeAzure:
+		// "OSSCluster" requires client to use the OSS Cluster mode.
+		//
+		// https://learn.microsoft.com/en-us/azure/azure-cache-for-redis/quickstart-create-redis-enterprise#clustering-policy
+		if sessionCtx.Database.GetAzure().Redis.ClusteringPolicy == azure.RedisEnterpriseClusterPolicyOSS {
+			defaultMode = connection.Cluster
 		}
 	}
 
-	connectionOptions, err := ParseRedisAddressWithDefaultMode(sessionCtx.Database.GetURI(), defaultMode)
+	connectionOptions, err := connection.ParseRedisAddressWithDefaultMode(sessionCtx.Database.GetURI(), defaultMode)
 	if err != nil {
 		return nil, trace.BadParameter("Redis connection string is incorrect %q: %v", sessionCtx.Database.GetURI(), err)
 	}
@@ -230,7 +259,7 @@ func (e *Engine) createOnClientConnectFunc(sessionCtx *common.Session, username,
 	// database session. Fetching an user's password on each new connection
 	// ensures the correct password is used for each shard connection when
 	// Redis is in cluster mode.
-	case apiutils.SliceContainsStr(sessionCtx.Database.GetManagedUsers(), sessionCtx.DatabaseUser):
+	case slices.Contains(sessionCtx.Database.GetManagedUsers(), sessionCtx.DatabaseUser):
 		return fetchUserPasswordOnConnect(sessionCtx, e.Users, e.Audit)
 
 	default:
@@ -339,7 +368,7 @@ func processServerResponse(cmd *redis.Cmd, err error, sessionCtx *common.Session
 		return nil, trace.ConnectionProblem(err, "failed to connect to the target database")
 	default:
 		// Return value and the error. If the error is not nil we will close the connection.
-		return value, err
+		return value, common.ConvertConnectError(err, sessionCtx)
 	}
 }
 

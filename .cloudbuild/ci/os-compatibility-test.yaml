@@ -4,13 +4,13 @@ options:
    machineType: E2_HIGHCPU_32
 
 steps:
-  - name: public.ecr.aws/gravitational/teleport-buildbox-centos7:teleport11
+  - name: public.ecr.aws/gravitational/teleport-buildbox-centos7:teleport12
     id: build-teleport
     dir: /workspace
     entrypoint: "/bin/bash"
     args: 
       - '-c'
-      - 'make -j$$(nproc) build/tctl build/tsh build/tbot build/teleport'  
+      - 'make build/tctl build/tsh build/tbot build/teleport'  
     timeout: 10m
     env:
       - GOCACHE=/tmp/gocache

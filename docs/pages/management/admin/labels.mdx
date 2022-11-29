@@ -104,13 +104,14 @@ On the host where you will run your Node, paste the following content into
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```yaml
-version: v2
+version: v3
 teleport:
-  auth_servers:
-    # The address of your Auth Service. You can also use a Proxy Service
-    # address, e.g., tele.example.com:443, if your Auth Service is not
-    # exposed to the internet.
-    - tele.example.com:3025
+  # The address of your Auth Service.
+  auth_server: tele.example.com:3025
+  # Or, you can also use a Proxy Service
+  # address, e.g., tele.example.com:443, if your Auth Service is not
+  # exposed to the internet.
+  proxy_server: tele.example.com:443
 
 auth_service:
   enabled: false
@@ -129,11 +130,10 @@ ssh_service:
 <ScopedBlock scope={["cloud"]}>
 
 ```yaml
-version: v2
+version: v3
 teleport:
-  auth_servers:
-    # Your Teleport Cloud tenant address
-    - mytenant.teleport.sh:443
+  # Your Teleport Cloud tenant address
+  proxy_server: mytenant.teleport.sh:443
 
 auth_service:
   enabled: false
@@ -161,8 +161,8 @@ machine. Your Teleport user must be authorized to access the Node.
 
 ```code
 $ tsh ls --query 'labels["environment"]=="dev"'
-Node Name    Address    Labels          
------------- ---------- --------------- 
+Node Name    Address    Labels
+------------ ---------- ---------------
 bdcb47b87ad6 ⟵ Tunnel environment=dev
 ```
 
@@ -231,7 +231,7 @@ host:
      kubernetes_groups: null
      kubernetes_users: null
 -    logins: null
-+    logins: 
++    logins:
 +      - root
      windows_logins: null
  version: v2
@@ -240,7 +240,7 @@ host:
 Apply your changes:
 
 ```code
-$ tctl create -f user.yaml 
+$ tctl create -f user.yaml
 user "myuser" has been updated
 ```
 
@@ -261,10 +261,9 @@ Edit `/etc/teleport.yaml` to define a `commands` array as shown below:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```yaml
-version: v2
+version: v3
 teleport:
-  auth_servers:
-    - tele.example.com:3025
+  auth_server: tele.example.com:3025
 
 auth_service:
   enabled: false
@@ -290,10 +289,9 @@ ssh_service:
 <ScopedBlock scope={["cloud"]}>
 
 ```yaml
-version: v2
+version: v3
 teleport:
-  auth_servers:
-    - mytenant.teleport.sh:443
+  proxy_server: mytenant.teleport.sh:443
 
 auth_service:
   enabled: false
@@ -360,9 +358,9 @@ machine. Your Teleport user must be authorized to access the Node.
 
 ```code
 $ tsh ls
-Node Name         Address    Labels          
------------------ ---------- --------------- 
-ip-192-0-2-0      ⟵ Tunnel arch=x86_64,hostname=ip-172-30-156-233 
+Node Name         Address    Labels
+----------------- ---------- ---------------
+ip-192-0-2-0      ⟵ Tunnel arch=x86_64,hostname=ip-172-30-156-233
 ```
 
 <Details title="Problems re-joining the Node?">

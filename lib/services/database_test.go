@@ -22,21 +22,27 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/types"
-	awsutils "github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/utils"
-
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	azureutils "github.com/gravitational/teleport/api/utils/azure"
+	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestDatabaseUnmarshal verifies a database resource can be unmarshaled.
@@ -77,6 +83,132 @@ func TestDatabaseMarshal(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
+func TestValidateDatabase(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		inputName   string
+		inputSpec   types.DatabaseSpecV3
+		expectError bool
+	}{
+		{
+			// Captured error:
+			// a DNS-1035 label must consist of lower case alphanumeric
+			// characters or '-', start with an alphabetic character, and end
+			// with an alphanumeric character (e.g. 'my-name',  or 'abc-123',
+			// regex used for validation is '[a-z]([-a-z0-9]*[a-z0-9])?')
+			inputName: "invalid-database-name-",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			},
+			expectError: true,
+		},
+		{
+			inputName: "invalid-database-protocol",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: "unknown",
+				URI:      "localhost:5432",
+			},
+			expectError: true,
+		},
+		{
+			inputName: "invalid-database-uri",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "missing-port",
+			},
+			expectError: true,
+		},
+		{
+			inputName: "invalid-database-CA-cert",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				TLS: types.DatabaseTLS{
+					CACert: "bad-cert",
+				},
+			},
+			expectError: true,
+		},
+		{
+			inputName: "valid-mongodb",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolMongoDB,
+				URI:      "mongodb://mongo-1:27017,mongo-2:27018/?replicaSet=rs0",
+			},
+			expectError: false,
+		},
+		{
+			inputName: "invalid-mongodb-missing-username",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolMongoDB,
+				URI:      "mongodb://mongo-1:27017/?authmechanism=plain",
+			},
+			expectError: true,
+		},
+		{
+			inputName: "valid-redis",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolRedis,
+				URI:      "rediss://redis.example.com:6379",
+			},
+			expectError: false,
+		},
+		{
+			inputName: "invalid-redis-incorrect-mode",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolRedis,
+				URI:      "rediss://redis.example.com:6379?mode=unknown",
+			},
+			expectError: true,
+		},
+		{
+			inputName: "valid-snowflake",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSnowflake,
+				URI:      "test.snowflakecomputing.com",
+			},
+			expectError: false,
+		},
+		{
+			inputName: "invalid-snowflake",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSnowflake,
+				URI:      "not.snow.flake.com",
+			},
+			expectError: true,
+		},
+		{
+			inputName: "valid-cassandra-without-uri",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolCassandra,
+				AWS: types.AWS{
+					Region:    "us-east-1",
+					AccountID: "1234567890",
+				},
+			},
+			expectError: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.inputName, func(t *testing.T) {
+			database, err := types.NewDatabaseV3(types.Metadata{
+				Name: test.inputName,
+			}, test.inputSpec)
+			require.NoError(t, err)
+
+			err = ValidateDatabase(database)
+			if test.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 // indent returns the string where each line is indented by the specified
 // number of spaces.
 func indent(s string, spaces int) string {
@@ -100,6 +232,172 @@ spec:
   uri: "localhost:5432"
   ca_cert: |
 %v`
+
+// TestDatabaseFromAzureDBServer tests converting an Azure DB Server to a database resource.
+func TestDatabaseFromAzureDBServer(t *testing.T) {
+	subscription := "sub1"
+	resourceGroup := "defaultRG"
+	resourceType := "Microsoft.DBforMySQL/servers"
+	name := "testdb"
+	id := fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/%v/%v",
+		subscription,
+		resourceGroup,
+		resourceType,
+		name,
+	)
+
+	server := azure.DBServer{
+		ID:       id,
+		Location: "eastus",
+		Name:     name,
+		Port:     "3306",
+		Properties: azure.ServerProperties{
+			FullyQualifiedDomainName: name + ".mysql" + azureutils.DatabaseEndpointSuffix,
+			UserVisibleState:         string(armmysql.ServerStateReady),
+			Version:                  string(armmysql.ServerVersionFive7),
+		},
+		Protocol: defaults.ProtocolMySQL,
+		Tags: map[string]string{
+			"foo": "bar",
+		},
+	}
+
+	expected, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "testdb",
+		Description: "Azure MySQL server in eastus",
+		Labels: map[string]string{
+			types.OriginLabel:   types.OriginCloud,
+			labelRegion:         "eastus",
+			labelEngine:         "Microsoft.DBforMySQL/servers",
+			labelEngineVersion:  "5.7",
+			labelResourceGroup:  "defaultRG",
+			labelSubscriptionID: "sub1",
+			"foo":               "bar",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "testdb.mysql.database.azure.com:3306",
+		Azure: types.Azure{
+			Name:       "testdb",
+			ResourceID: id,
+		},
+	})
+	require.NoError(t, err)
+
+	actual, err := NewDatabaseFromAzureServer(&server)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestDatabaseFromAzureRedis(t *testing.T) {
+	subscription := "test-sub"
+	name := "test-azure-redis"
+	group := "test-group"
+	region := "eastus"
+	id := fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Cache/Redis/%v", subscription, group, name)
+	resourceInfo := &armredis.ResourceInfo{
+		Name:     to.Ptr(name),
+		ID:       to.Ptr(id),
+		Location: to.Ptr(region),
+		Tags: map[string]*string{
+			"foo": to.Ptr("bar"),
+		},
+		Properties: &armredis.Properties{
+			HostName:          to.Ptr(fmt.Sprintf("%v.redis.cache.windows.net", name)),
+			SSLPort:           to.Ptr(int32(6380)),
+			ProvisioningState: to.Ptr(armredis.ProvisioningStateSucceeded),
+			RedisVersion:      to.Ptr("6.0"),
+		},
+	}
+
+	expected, err := types.NewDatabaseV3(types.Metadata{
+		Name:        name,
+		Description: "Azure Redis server in eastus",
+		Labels: map[string]string{
+			types.OriginLabel:   types.OriginCloud,
+			labelRegion:         region,
+			labelEngine:         "Microsoft.Cache/Redis",
+			labelEngineVersion:  "6.0",
+			labelResourceGroup:  group,
+			labelSubscriptionID: subscription,
+			"foo":               "bar",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolRedis,
+		URI:      "test-azure-redis.redis.cache.windows.net:6380",
+		Azure: types.Azure{
+			Name:       "test-azure-redis",
+			ResourceID: id,
+		},
+	})
+	require.NoError(t, err)
+
+	actual, err := NewDatabaseFromAzureRedis(resourceInfo)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestDatabaseFromAzureRedisEnterprise(t *testing.T) {
+	subscription := "test-sub"
+	name := "test-azure-redis"
+	group := "test-group"
+	region := "eastus"
+	clusterID := fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Cache/redisEnterprise/%v", subscription, group, name)
+	databaseID := fmt.Sprintf("%v/databases/default", clusterID)
+
+	armCluster := &armredisenterprise.Cluster{
+		Name:     to.Ptr(name),
+		ID:       to.Ptr(clusterID),
+		Location: to.Ptr(region),
+		Tags: map[string]*string{
+			"foo": to.Ptr("bar"),
+		},
+		Properties: &armredisenterprise.ClusterProperties{
+			HostName:     to.Ptr(fmt.Sprintf("%v.%v.redisenterprise.cache.azure.net", name, region)),
+			RedisVersion: to.Ptr("6.0"),
+		},
+	}
+	armDatabase := &armredisenterprise.Database{
+		Name: to.Ptr("default"),
+		ID:   to.Ptr(databaseID),
+		Properties: &armredisenterprise.DatabaseProperties{
+			ProvisioningState: to.Ptr(armredisenterprise.ProvisioningStateSucceeded),
+			Port:              to.Ptr(int32(10000)),
+			ClusteringPolicy:  to.Ptr(armredisenterprise.ClusteringPolicyOSSCluster),
+			ClientProtocol:    to.Ptr(armredisenterprise.ProtocolEncrypted),
+		},
+	}
+
+	expected, err := types.NewDatabaseV3(types.Metadata{
+		Name:        name,
+		Description: "Azure Redis Enterprise server in eastus",
+		Labels: map[string]string{
+			types.OriginLabel:   types.OriginCloud,
+			labelRegion:         region,
+			labelEngine:         "Microsoft.Cache/redisEnterprise",
+			labelEngineVersion:  "6.0",
+			labelResourceGroup:  group,
+			labelSubscriptionID: subscription,
+			labelEndpointType:   "OSSCluster",
+			"foo":               "bar",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolRedis,
+		URI:      "test-azure-redis.eastus.redisenterprise.cache.azure.net:10000",
+		Azure: types.Azure{
+			Name:       "test-azure-redis",
+			ResourceID: databaseID,
+			Redis: types.AzureRedis{
+				ClusteringPolicy: "OSSCluster",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	actual, err := NewDatabaseFromAzureRedisEnterprise(armCluster, armDatabase)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
 
 // TestDatabaseFromRDSInstance tests converting an RDS instance to a database resource.
 func TestDatabaseFromRDSInstance(t *testing.T) {
@@ -477,6 +775,97 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 	})
 }
 
+func TestDatabaseFromRDSProxy(t *testing.T) {
+	var port int64 = 9999
+	dbProxy := &rds.DBProxy{
+		DBProxyArn:   aws.String("arn:aws:rds:ca-central-1:123456:db-proxy:prx-abcdef"),
+		DBProxyName:  aws.String("testproxy"),
+		EngineFamily: aws.String(rds.EngineFamilyMysql),
+		Endpoint:     aws.String("proxy.rds.test"),
+		VpcId:        aws.String("test-vpc-id"),
+	}
+
+	dbProxyEndpoint := &rds.DBProxyEndpoint{
+		Endpoint:            aws.String("custom.proxy.rds.test"),
+		DBProxyEndpointName: aws.String("custom"),
+		DBProxyName:         aws.String("testproxy"),
+		DBProxyEndpointArn:  aws.String("arn:aws:rds:ca-central-1:123456:db-proxy-endpoint:prx-endpoint-abcdef"),
+		TargetRole:          aws.String(rds.DBProxyEndpointTargetRoleReadOnly),
+	}
+
+	tags := []*rds.Tag{{
+		Key:   aws.String("key"),
+		Value: aws.String("val"),
+	}}
+
+	t.Run("default endpoint", func(t *testing.T) {
+		expected, err := types.NewDatabaseV3(types.Metadata{
+			Name:        "testproxy",
+			Description: "RDS Proxy in ca-central-1",
+			Labels: map[string]string{
+				"key":             "val",
+				types.OriginLabel: types.OriginCloud,
+				labelAccountID:    "123456",
+				labelRegion:       "ca-central-1",
+				labelEngine:       "MYSQL",
+				labelVPCID:        "test-vpc-id",
+			},
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolMySQL,
+			URI:      "proxy.rds.test:9999",
+			AWS: types.AWS{
+				Region:    "ca-central-1",
+				AccountID: "123456",
+				RDSProxy: types.RDSProxy{
+					ResourceID: "prx-abcdef",
+					Name:       "testproxy",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		actual, err := NewDatabaseFromRDSProxy(dbProxy, port, tags)
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+	})
+
+	t.Run("custom endpoint", func(t *testing.T) {
+		expected, err := types.NewDatabaseV3(types.Metadata{
+			Name:        "testproxy-custom",
+			Description: "RDS Proxy endpoint in ca-central-1",
+			Labels: map[string]string{
+				"key":             "val",
+				types.OriginLabel: types.OriginCloud,
+				labelAccountID:    "123456",
+				labelRegion:       "ca-central-1",
+				labelEngine:       "MYSQL",
+				labelVPCID:        "test-vpc-id",
+				labelEndpointType: "READ_ONLY",
+			},
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolMySQL,
+			URI:      "custom.proxy.rds.test:9999",
+			AWS: types.AWS{
+				Region:    "ca-central-1",
+				AccountID: "123456",
+				RDSProxy: types.RDSProxy{
+					ResourceID:         "prx-abcdef",
+					Name:               "testproxy",
+					CustomEndpointName: "custom",
+				},
+			},
+			TLS: types.DatabaseTLS{
+				ServerName: "proxy.rds.test",
+			},
+		})
+		require.NoError(t, err)
+
+		actual, err := NewDatabaseFromRDSProxyCustomEndpoint(dbProxy, dbProxyEndpoint, port, tags)
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+	})
+}
+
 func TestAuroraMySQLVersion(t *testing.T) {
 	tests := []struct {
 		engineVersion        string
@@ -599,6 +988,17 @@ func TestIsRDSInstanceSupported(t *testing.T) {
 			require.Equal(t, want, got, "IsRDSInstanceSupported = %v, want = %v", got, want)
 		})
 	}
+}
+
+func TestAzureTagsToLabels(t *testing.T) {
+	azureTags := map[string]string{
+		"Env":     "dev",
+		"foo:bar": "some-id",
+		"Name":    "test",
+	}
+	labels := azureTagsToLabels(azureTags)
+	require.Equal(t, map[string]string{"Name": "test", "Env": "dev",
+		"foo:bar": "some-id"}, labels)
 }
 
 func TestRDSTagsToLabels(t *testing.T) {
@@ -1296,6 +1696,14 @@ func TestGetLabelEngineVersion(t *testing.T) {
 			labels: map[string]string{},
 			want:   "",
 		},
+		{
+			name: "azure-mysql-8.0.0",
+			labels: map[string]string{
+				labelEngine:        AzureEngineMySQL,
+				labelEngineVersion: "8.0.0",
+			},
+			want: "8.0.0",
+		},
 	}
 
 	for _, tt := range tests {
@@ -1351,6 +1759,118 @@ func Test_setDBName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := setDBName(tt.meta, tt.firstNamePart, tt.extraNameParts...)
 			require.Equal(t, tt.want, result)
+		})
+	}
+}
+
+func TestNewDatabaseFromAzureSQLServer(t *testing.T) {
+	for _, tc := range []struct {
+		desc        string
+		server      *armsql.Server
+		expectedErr require.ErrorAssertionFunc
+		expectedDB  require.ValueAssertionFunc
+	}{
+		{
+			desc: "complete server",
+			server: &armsql.Server{
+				ID:       to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-groupd/providers/Microsoft.Sql/servers/sqlserver"),
+				Name:     to.Ptr("sqlserver"),
+				Location: to.Ptr("westus"),
+				Properties: &armsql.ServerProperties{
+					FullyQualifiedDomainName: to.Ptr("sqlserver.database.windows.net"),
+					Version:                  to.Ptr("12.0"),
+				},
+			},
+			expectedErr: require.NoError,
+			expectedDB: func(t require.TestingT, i interface{}, _ ...interface{}) {
+				db, ok := i.(types.Database)
+				require.True(t, ok, "expected types.Database, got %T", i)
+
+				require.Equal(t, db.GetProtocol(), defaults.ProtocolSQLServer)
+				require.Equal(t, "sqlserver", db.GetName())
+				require.Equal(t, "sqlserver.database.windows.net:1433", db.GetURI())
+				require.Equal(t, "sqlserver", db.GetAzure().Name)
+				require.Equal(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-groupd/providers/Microsoft.Sql/servers/sqlserver", db.GetAzure().ResourceID)
+
+				// Assert labels
+				labels := db.GetMetadata().Labels
+				require.Equal(t, types.OriginCloud, labels[types.OriginLabel])
+				require.Equal(t, "westus", labels[labelRegion])
+				require.Equal(t, "12.0", labels[labelEngineVersion])
+			},
+		},
+		{
+			desc:        "empty properties",
+			server:      &armsql.Server{Properties: nil},
+			expectedErr: require.Error,
+			expectedDB:  require.Nil,
+		},
+		{
+			desc:        "empty FQDN",
+			server:      &armsql.Server{Properties: &armsql.ServerProperties{FullyQualifiedDomainName: nil}},
+			expectedErr: require.Error,
+			expectedDB:  require.Nil,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			database, err := NewDatabaseFromAzureSQLServer(tc.server)
+			tc.expectedErr(t, err)
+			tc.expectedDB(t, database)
+		})
+	}
+}
+
+func TestNewDatabaseFromAzureManagedSQLServer(t *testing.T) {
+	for _, tc := range []struct {
+		desc        string
+		server      *armsql.ManagedInstance
+		expectedErr require.ErrorAssertionFunc
+		expectedDB  require.ValueAssertionFunc
+	}{
+		{
+			desc: "complete server",
+			server: &armsql.ManagedInstance{
+				ID:       to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-groupd/providers/Microsoft.Sql/servers/sqlserver"),
+				Name:     to.Ptr("sqlserver"),
+				Location: to.Ptr("westus"),
+				Properties: &armsql.ManagedInstanceProperties{
+					FullyQualifiedDomainName: to.Ptr("sqlserver.database.windows.net"),
+				},
+			},
+			expectedErr: require.NoError,
+			expectedDB: func(t require.TestingT, i interface{}, _ ...interface{}) {
+				db, ok := i.(types.Database)
+				require.True(t, ok, "expected types.Database, got %T", i)
+
+				require.Equal(t, db.GetProtocol(), defaults.ProtocolSQLServer)
+				require.Equal(t, "sqlserver", db.GetName())
+				require.Equal(t, "sqlserver.database.windows.net:1433", db.GetURI())
+				require.Equal(t, "sqlserver", db.GetAzure().Name)
+				require.Equal(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-groupd/providers/Microsoft.Sql/servers/sqlserver", db.GetAzure().ResourceID)
+
+				// Assert labels
+				labels := db.GetMetadata().Labels
+				require.Equal(t, types.OriginCloud, labels[types.OriginLabel])
+				require.Equal(t, "westus", labels[labelRegion])
+			},
+		},
+		{
+			desc:        "empty properties",
+			server:      &armsql.ManagedInstance{Properties: nil},
+			expectedErr: require.Error,
+			expectedDB:  require.Nil,
+		},
+		{
+			desc:        "empty FQDN",
+			server:      &armsql.ManagedInstance{Properties: &armsql.ManagedInstanceProperties{FullyQualifiedDomainName: nil}},
+			expectedErr: require.Error,
+			expectedDB:  require.Nil,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			database, err := NewDatabaseFromAzureManagedSQLServer(tc.server)
+			tc.expectedErr(t, err)
+			tc.expectedDB(t, database)
 		})
 	}
 }

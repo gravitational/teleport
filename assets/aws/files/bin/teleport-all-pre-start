@@ -1,7 +1,7 @@
 #!/bin/bash
 # This script prepares a Letsencrypt certificate before all-in-one Teleport starts for the first time (if needed)
 set -e
-if [[ "${DEBUG}" == "true" ]]; then
+if [[ "${DEBUG:-false}" == "true" ]]; then
     set -x
 fi
 

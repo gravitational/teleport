@@ -1,5 +1,5 @@
 ---
-title: Deploy Open Source Teleport on a Linux Server 
+title: Deploy Open Source Teleport on a Linux Server
 description: This tutorial will guide you through the steps needed to install and run Teleport on a Linux server
 videoBanner: 6ynLlAUipNE
 ---
@@ -66,10 +66,11 @@ Teleport's certificate.
 
 ## Step 2/6. Run a simple web service
 
-Create a directory on your Linux machine called `demo-app` and run the following
-command:
+Run the following commands to create a directory on your Linux machine
+called `demo-app` and add a simple HTML file to serve to clients:
 
 ```code
+$ mkdir demo-app
 $ cat<<EOF>>demo-app/index.html
 <!DOCTYPE html>
 <html><head><title>Welcome!</title><head>
@@ -110,34 +111,7 @@ Take a look at the [Installation Guide](../installation.mdx) for more options.
 Generate a configuration file for Teleport using the `teleport configure` command.
 This command requires information about a TLS certificate and private key.
 
-If you are running Teleport on the internet, we recommend using Let's Encrypt to
-receive your key and certificate automatically. For private networks or custom
-deployments, use your own private key and certificate.
-
-<Tabs>
-  <TabItem label="Public internet deployment with Let's Encrypt">
-  (!docs/pages/includes/acme.mdx!)
-
-  </TabItem>
-
-  <TabItem label="Private network deployment">
-  On your Teleport host, place a valid private key and a certificate chain in `/var/lib/teleport/privkey.pem`
-  and `/var/lib/teleport/fullchain.pem` respectively.
-
-  The leaf certificate must have a subject that corresponds to the domain of your Teleport host, e.g., `*.teleport.example.com`.
-
-  Configure Teleport, changing the values of the `--cluster-name` and `--public-addr` flags to match the domain name of your Teleport host.
-
-  ```code
-  $ sudo teleport configure -o file \
-      --cluster-name=tele.example.com \
-      --public-addr=tele.example.com:443 \
-      --cert-file=/var/lib/teleport/fullchain.pem \
-      --key-file=/var/lib/teleport/privkey.pem
-  ```
-  </TabItem>
-
-</Tabs>
+(!docs/pages/includes/tls-certificate-setup.mdx!)
 
 Next, configure Teleport to provide secure access to your web service. Edit your
 Teleport configuration file (`/etc/teleport.yaml`) to include the following,
@@ -154,7 +128,7 @@ app_service:
 
 ### Start Teleport
 
-On your Linux machine, run the following command to start the `teleport` daemon
+On your Linux machine, run the necessary commands to start the `teleport` daemon
 (this depends on how you installed Teleport earlier).
 
 <Tabs>
@@ -166,8 +140,16 @@ On your Linux machine, run the following command to start the `teleport` daemon
   </TabItem>
 
   <TabItem label="Source or custom install">
+  Create a systemd unit file using the `teleport install systemd` command and the unit file path you'd
+  like to use for your configuration. We recommend the path `/etc/systemd/system/teleport.service` for most use cases:
+
     ```code
-    $ sudo teleport start
+    $ sudo teleport install systemd -o /etc/systemd/system/teleport.service
+    ```
+  Enable and start the new `teleport` daemon:
+
+    ```code
+    $ sudo systemctl enable teleport && sudo systemctl start teleport
     ```
   </TabItem>
 </Tabs>
@@ -211,12 +193,13 @@ Visit the provided URL in order to create your Teleport user.
   `ec2-user` in our examples) must exist on your Linux machine. Otherwise, you
   will get authentication errors later in this tutorial.
 
-  If a user does not already exist, you can create it with `adduser <login>`.
+  If a user does not already exist, you can create it with `adduser <login>` or 
+  use [Host user creation](../server-access/guides/host-user-creation.mdx)
   
   If you do not have the permission to create new users on the Linux host, run
   `tctl users add teleport $(whoami)` to explicitly allow Teleport to
   authenticate as the user that you have currently logged in as.
-  
+
 </Admonition>
 
 Teleport enforces the use of two-factor authentication by default. It supports
@@ -329,8 +312,8 @@ List all SSH servers connected to Teleport:
 
 ```code
 $ tsh ls
-Node Name        Address        Labels                                
----------------- -------------- ------------------------------------- 
+Node Name        Address        Labels
+---------------- -------------- -------------------------------------
 mynode 127.0.0.1:3022 env=example,hostname=mynode
 ```
 
@@ -366,5 +349,6 @@ Teleport tasks, such as:
 
 ## Further reading
 
-- How Let's Encrypt uses the [ACME protocol](https://letsencrypt.org/how-it-works/) to issue certificates
-
+- How Let's Encrypt uses the [ACME protocol](https://letsencrypt.org/how-it-works/) to issue certificates.
+- Configuration for the `teleport` daemon relies on [systemd](https://www.freedesktop.org/wiki/Software/systemd/). For more information on how the
+`teleport` service daemon is configured, see our guide on how to [Run Teleport as a Daemon](../management/admin/daemon.mdx).

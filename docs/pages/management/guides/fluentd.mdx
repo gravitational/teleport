@@ -38,11 +38,17 @@ from Teleport's events API, and forwards them to Fluentd.
   ```
   </TabItem>
 
-  <TabItem label="MacOS">
+  <TabItem label="macOS">
+
   ```code
   $ curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.plugin.version=)-darwin-amd64-bin.tar.gz
-  $ tar -zxvf teleport-event-handler-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
+  $ tar -zxvf teleport-event-handler-v(=teleport.plugin.version=)-darwin-amd64-bin.tar.gz
   ```
+
+  We currently only build the event handler plugin for amd64 machines. If your
+  macOS machine uses Apple silicon, you will need to [install
+  Rosetta](https://support.apple.com/en-us/HT211861) before you can run the
+  event handler plugin. You can also build from source.
   </TabItem>
 
   <TabItem label="Docker">
@@ -52,15 +58,38 @@ from Teleport's events API, and forwards them to Fluentd.
   </TabItem>
 
   <TabItem label="Helm">
+  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+  </TabItem>
+  <TabItem label="From Source">
+  Ensure that you have Docker installed and running.
+
+  Run the following commands to build the plugin:
+
   ```code
-  $ helm repo add teleport https://charts.releases.teleport.dev/
+  $ git clone https://github.com/gravitational/teleport-plugins.git --depth 1
+  $ cd teleport-plugins/event-handler/build.assets
+  $ make build
   ```
+
+  You can find the compiled binary within your clone of the `teleport-plugins`
+  repo, with the file path, `event-handler/build/teleport-event-handler`.
+
   </TabItem>
 </Tabs>
 
 ## Step 2/6. Configure the plugin
 
 <Tabs>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+
+Run the `configure` command to generate a sample configuration. Replace
+`mytenant.teleport.sh` with the DNS name of your Teleport Cloud tenant:
+
+```code
+$ ./teleport-event-handler configure . mytenant.teleport.sh
+```
+
+</TabItem>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 Run the `configure` command to generate a sample configuration. Replace
@@ -72,23 +101,13 @@ $ ./teleport-event-handler configure . teleport.example.com:443
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
-
-Run the `configure` command to generate a sample configuration. Replace
-`mytenant.teleport.sh` with the DNS name of your Teleport Cloud tenant:
-
-```code
-$ ./teleport-event-handler configure . mytenant.teleport.sh
-```
-
-</TabItem>
 <TabItem scope={["oss", "enterprise", "cloud"]} label="Helm Chart">
 
 Run the `configure` command to generate a sample configuration. Assign `TELEPORT_CLUSTER_ADDRESS` to the DNS name and port of your Teleport Auth Service or Proxy Service:
 
 ```code
 $ TELEPORT_CLUSTER_ADDRESS=mytenant.teleport.sh:443
-$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin quay.io/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=) configure . ${TELEPORT_CLUSTER_ADDRESS?}
+$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=) configure . ${TELEPORT_CLUSTER_ADDRESS?}
 ```
 
 In order to connect to Fluentd, you'll need to have the root certificate and the client credentials available as a secret. Use the following command to create that secret in Kubernetes:
@@ -209,7 +228,7 @@ spec:
 Next, create the role:
 
 ```code
-$ tctl create teleport-event-handler-impersonator.yaml
+$ tctl create -f teleport-event-handler-impersonator.yaml
 ```
 
 Assign this role to the current user by running the following command, substituting

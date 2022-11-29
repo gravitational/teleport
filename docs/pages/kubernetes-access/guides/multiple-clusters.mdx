@@ -45,15 +45,14 @@ $ TOKEN=$(kubectl exec -ti "${POD?}" -- tctl nodes add --roles=kube --ttl=10000h
 $ echo $TOKEN
 ```
 
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+
 Switch `kubectl` to the Kubernetes cluster `cookie` and run:
 
 ```code
-# Add Teleport chart repository
-$ helm repo add teleport https://charts.releases.teleport.dev
-
 # Deploy a Kubernetes agent. It dials back to the Teleport cluster tele.example.com.
-$ CLUSTER='cookie'
-$ PROXY='tele.example.com:443'
+$ CLUSTER=cookie
+$ PROXY=tele.example.com:443
 $ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
   --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
 ```
@@ -71,7 +70,7 @@ $ tsh kube ls
 
 # kubeconfig now points to the cookie cluster
 $ tsh kube login cookie
-# Logged into Kubernetes cluster "cookie"
+# Logged into Kubernetes cluster "cookie". Try 'kubectl version' to test the connection.
 
 # kubectl command executed on `cookie` but is routed through the `tele.example.com` cluster.
 $ kubectl get pods
@@ -95,15 +94,14 @@ $ TOKEN=$(tctl nodes add --roles=kube --ttl=10000h --format=json | jq -r '.[0]')
 $ echo $TOKEN
 ```
 
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+
 Switch `kubectl` to the Kubernetes cluster `cookie` and run:
 
 ```code
-# Add Teleport chart repository
-$ helm repo add teleport https://charts.releases.teleport.dev
-
 # Deploy a Kubernetes agent. It dials back to the Teleport cluster mytenant.teleport.sh.
-$ CLUSTER='cookie'
-$ PROXY='mytenant.teleport.sh'
+$ CLUSTER=cookie
+$ PROXY=mytenant.teleport.sh
 $ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
   --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
 ```
@@ -121,7 +119,7 @@ $ tsh kube ls
 
 # kubeconfig now points to the cookie cluster
 $ tsh kube login cookie
-# Logged into Kubernetes cluster "cookie"
+# Logged into Kubernetes cluster "cookie". Try 'kubectl version' to test the connection.
 
 # kubectl command executed on `cookie` but is routed through the `mytenant.teleport.sh` cluster.
 $ kubectl get pods
