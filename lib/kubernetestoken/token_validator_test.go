@@ -60,7 +60,7 @@ func tokenReviewMock(t *testing.T, reviewResult *v1.TokenReview) func(ctest.Acti
 }
 
 // newFakeClientset builds a fake clientSet reporting a specific Kubernetes version
-// This is used to test version-specific behaviours.
+// This is used to test version-specific behaviors.
 func newFakeClientset(version *version.Info) *fakeClientSet {
 	cs := fakeClientSet{}
 	cs.discovery = fakediscovery.FakeDiscovery{
@@ -76,7 +76,7 @@ type fakeClientSet struct {
 }
 
 // Discovery overrides the default fake.Clientset Discovery method and returns our custom discovery mock instead
-func (c fakeClientSet) Discovery() discovery.DiscoveryInterface {
+func (c *fakeClientSet) Discovery() discovery.DiscoveryInterface {
 	return &c.discovery
 }
 
@@ -145,7 +145,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				},
 			},
 			kubeVersion:   &boundTokenKubernetesVersion,
-			expectedError: trace.BadParameter("legacy SA tokens are not accepted as kubernetes version 1.21 supports bound tokens"),
+			expectedError: trace.BadParameter("legacy SA tokens are not accepted as kubernetes version 1.22 supports bound tokens"),
 		},
 		{
 			token: "valid-but-not-serviceaccount",

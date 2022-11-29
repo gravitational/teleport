@@ -245,7 +245,7 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			)
 		}
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
-			trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
