@@ -35,6 +35,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -71,10 +72,12 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/plugin"
+	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -213,6 +216,16 @@ type Config struct {
 
 	// TraceClient is used to forward spans to the upstream collector for the UI
 	TraceClient otlptrace.Client
+
+	// Router is used to route ssh sessions to hosts
+	Router *proxy.Router
+
+	// SessionControl is used to determine if users are
+	// allowed to spawn new sessions
+	SessionControl *srv.SessionController
+
+	// TracerProvider generates tracers to create spans with
+	TracerProvider oteltrace.TracerProvider
 }
 
 type APIHandler struct {
@@ -533,8 +546,11 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.GET("/webapi/sites/:site/alerts", h.WithClusterAuth(h.clusterLoginAlertsGet))
 
 	// active sessions handlers
-	h.GET("/webapi/sites/:site/connect", h.WithClusterAuth(h.siteNodeConnect))       // connect to an active session (via websocket)
-	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionsGet))      // get active list of sessions
+	h.GET("/webapi/sites/:site/connect", h.WithClusterAuth(h.siteNodeConnect))  // connect to an active session (via websocket)
+	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionsGet)) // get active list of sessions
+	// TODO POSTS to `/webapi/sites/:site/sessions` should no longer be required
+	// but this endpoint is still used by the UI. When time allows evaluate the
+	// removal of this handler and the associated methods here and in the UI.
 	h.POST("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionGenerate)) // create active session metadata
 	h.GET("/webapi/sites/:site/sessions/:sid", h.WithClusterAuth(h.siteSessionGet))  // get active session metadata
 
@@ -2189,6 +2205,40 @@ func (h *Handler) clusterLoginAlertsGet(w http.ResponseWriter, r *http.Request, 
 	}, nil
 }
 
+// createIdentityContext creates a srv.IdentityContext from the ssh cert of the user
+// stored within the SessionContext.
+func createIdentityContext(login string, sessionCtx *SessionContext) (srv.IdentityContext, error) {
+	accessChecker, err := sessionCtx.GetUserAccessChecker()
+	if err != nil {
+		return srv.IdentityContext{}, trace.Wrap(err)
+	}
+
+	sshCert, err := sessionCtx.GetSSHCertificate()
+	if err != nil {
+		return srv.IdentityContext{}, trace.Wrap(err)
+	}
+
+	unmappedRoles, err := services.ExtractRolesFromCert(sshCert)
+	if err != nil {
+		return srv.IdentityContext{}, trace.Wrap(err)
+	}
+
+	accessRequestIDs, err := srv.ParseAccessRequestIDs(sshCert.Extensions[teleport.CertExtensionTeleportActiveRequests])
+	if err != nil {
+		return srv.IdentityContext{}, trace.Wrap(err)
+	}
+
+	return srv.IdentityContext{
+		AccessChecker:  accessChecker,
+		TeleportUser:   sessionCtx.user,
+		Login:          login,
+		Certificate:    sshCert,
+		UnmappedRoles:  unmappedRoles,
+		ActiveRequests: accessRequestIDs,
+		Impersonator:   sshCert.Extensions[teleport.CertExtensionImpersonator],
+	}, nil
+}
+
 // siteNodeConnect connect to the site node
 //
 // GET /v1/webapi/sites/:site/namespaces/:namespace/connect?access_token=bearer_token&params=<urlencoded json-structure>
@@ -2203,7 +2253,7 @@ func (h *Handler) siteNodeConnect(
 	w http.ResponseWriter,
 	r *http.Request,
 	p httprouter.Params,
-	ctx *SessionContext,
+	sessionCtx *SessionContext,
 	site reversetunnel.RemoteSite,
 ) (interface{}, error) {
 	q := r.URL.Query()
@@ -2216,8 +2266,42 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	h.log.Debugf("New terminal request for ns=%s, server=%s, login=%s, sid=%s, websid=%s.",
-		req.Namespace, req.Server, req.Login, req.SessionID, ctx.GetSessionID())
+	clt, err := sessionCtx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity, err := createIdentityContext(req.Login, sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ctx, err := h.cfg.SessionControl.AcquireSessionContext(r.Context(), identity, h.cfg.ProxyWebAddr.Addr, r.RemoteAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var sessionData session.Session
+	var displayLogin string
+
+	clusterName := site.GetName()
+
+	if req.SessionID.IsZero() {
+		// An existing session ID was not provided so we need to create a new one.
+		sessionData, err = h.generateSession(ctx, clt, req, clusterName)
+		if err != nil {
+			h.log.WithError(err).Debug("Unable to generate new ssh session.")
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		sessionData, displayLogin, err = h.fetchExistingSession(ctx, clt, req, clusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	h.log.Debugf("New terminal request for server=%s, login=%s, sid=%s, websid=%s.",
+		req.Server, req.Login, sessionData.ID, sessionCtx.GetSessionID())
 
 	authAccessPoint, err := site.CachingAccessPoint()
 	if err != nil {
@@ -2225,23 +2309,26 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(r.Context())
+	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
 		return nil, trace.Wrap(err)
 	}
 
-	req.KeepAliveInterval = netConfig.GetKeepAliveInterval()
-	req.Namespace = apidefaults.Namespace
-	req.ProxyHostPort = h.ProxyHostPort()
-	req.Cluster = site.GetName()
-
-	clt, err := ctx.GetUserClient(site)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	terminalConfig := TerminalHandlerConfig{
+		Term:               req.Term,
+		SessionCtx:         sessionCtx,
+		AuthProvider:       clt,
+		DisplayLogin:       displayLogin,
+		SessionData:        sessionData,
+		KeepAliveInterval:  netConfig.GetKeepAliveInterval(),
+		ProxyHostPort:      h.ProxyHostPort(),
+		InteractiveCommand: req.InteractiveCommand,
+		Router:             h.cfg.Router,
+		TracerProvider:     h.cfg.TracerProvider,
 	}
 
-	term, err := NewTerminal(r.Context(), *req, clt, ctx)
+	term, err := NewTerminal(ctx, terminalConfig)
 	if err != nil {
 		h.log.WithError(err).Error("Unable to create terminal.")
 		return nil, trace.Wrap(err)
@@ -2252,6 +2339,85 @@ func (h *Handler) siteNodeConnect(
 	httplib.MakeTracingHandler(term, teleport.ComponentProxy).ServeHTTP(w, r)
 
 	return nil, nil
+}
+
+func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, clusterName string) (session.Session, error) {
+	var (
+		host string
+		port int
+	)
+	h.log.Infof("Generating new session for %s\n", clusterName)
+	// req.Server will be either an IP, hostname, or server UUID.
+	_, err := uuid.Parse(req.Server)
+	if err != nil {
+		// TODO(hatched) Investigate using ListResources instead of GetNodes as we can
+		// provide more filters that may reduce the work to do on the client side.
+		servers, err := clt.GetNodes(ctx, apidefaults.Namespace)
+		if err != nil {
+			return session.Session{}, trace.Wrap(err)
+		}
+		host, port, err = resolveServerHostPort(req.Server, servers)
+		if err != nil {
+			return session.Session{}, trace.Wrap(err)
+		}
+	} else {
+		// If the user has passed in a UUID then query for that node directly. We
+		// can connect to `uuid:0` directly. with `host = req.Server` however we will
+		// not have the proper hostname and the UI will display the UUID instead.
+		// This is why we have to query for the node. In a future update we can query
+		// for a uuid:hostname to dramatically improve performance in large environments.
+		server, err := clt.GetNode(ctx, apidefaults.Namespace, req.Server)
+		if err != nil {
+			return session.Session{}, trace.Wrap(err)
+		}
+		host, port, err = resolveServerHostPort(req.Server, []types.Server{server})
+		if err != nil {
+			return session.Session{}, trace.Wrap(err)
+		}
+	}
+
+	return session.Session{
+		Login:          req.Login,
+		ServerID:       req.Server,
+		ClusterName:    clusterName,
+		ServerHostname: host,
+		ServerHostPort: port,
+		ID:             session.NewID(),
+		Created:        time.Now().UTC(),
+		LastActive:     time.Now().UTC(),
+		Namespace:      apidefaults.Namespace,
+	}, nil
+}
+
+func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, siteName string) (session.Session, string, error) {
+	sessionID, err := session.ParseID(req.SessionID.String())
+	if err != nil {
+		return session.Session{}, "", trace.Wrap(err)
+	}
+	h.log.Infof("Attempting to join existing session: %s\n", sessionID)
+
+	tracker, err := clt.GetSessionTracker(ctx, string(*sessionID))
+	if err != nil {
+		return session.Session{}, "", trace.Wrap(err)
+	}
+
+	if tracker.GetSessionKind() != types.SSHSessionKind || tracker.GetState() == types.SessionState_SessionStateTerminated {
+		return session.Session{}, "", trace.NotFound("SSH session %v not found", sessionID)
+	}
+
+	sessionData := trackerToLegacySession(tracker, siteName)
+	// When joining an existing session use the specially handled
+	// `SSHSessionJoinPrincipal` login instead of the provided login so that
+	// users are able to join sessions without having permissions to create
+	// new ones themselves for auditing purposes. Otherwise the user would
+	// fail the SSH lib username validation step.
+	sessionData.Login = teleport.SSHSessionJoinPrincipal
+	// Using the Login above will then display `-teleport-internal-join` as the
+	// username that the user is logging in as, so we need to instead show the
+	// session username in the UI.
+	displayLogin := tracker.GetLogin()
+
+	return sessionData, displayLogin, nil
 }
 
 type siteSessionGenerateReq struct {
