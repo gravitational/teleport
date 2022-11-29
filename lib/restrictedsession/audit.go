@@ -76,6 +76,7 @@ func newNetworkAuditEvent(ctx *bpf.SessionContext, hdr *auditEventHeader) events
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        ctx.ServerID,
+			ServerHostname:  ctx.ServerHostname,
 			ServerNamespace: ctx.Namespace,
 		},
 		SessionMetadata: events.SessionMetadata{
