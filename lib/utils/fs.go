@@ -236,14 +236,18 @@ func RemoveSecure(filePath string) error {
 	return trace.ConvertSystemError(os.Remove(filePath))
 }
 
-func overwriteFile(filePath string) error {
+func overwriteFile(filePath string) (err error) {
 	f, err := os.OpenFile(filePath, os.O_WRONLY, 0)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	defer func() {
-		if err := f.Close(); err != nil {
-			log.WithError(err).Warningf("Failed to close %v.", f.Name())
+		if closeErr := f.Close(); closeErr != nil {
+			if err == nil {
+				err = trace.ConvertSystemError(closeErr)
+			} else {
+				log.WithError(closeErr).Warningf("Failed to close %v.", f.Name())
+			}
 		}
 	}()
 
