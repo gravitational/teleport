@@ -607,7 +607,9 @@ func setupConfig(t *testing.T) InitConfig {
 		AuthPreference:          types.DefaultAuthPreference(),
 		SkipPeriodicOperations:  true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			},
 		},
 	}
 }
