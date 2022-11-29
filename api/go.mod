@@ -31,7 +31,7 @@ require (
 // with OpenSSH <= 7.6.
 // We are working on landing a patch upstream.
 // https://github.com/golang/crypto/commit/6fad3dfc18918c2ac9c112e46b32473bd2e5e2f9
-require golang.org/x/crypto v0.2.0 // DO NOT UPDATE
+require golang.org/x/crypto v0.3.0 // DO NOT UPDATE
 
 require (
 	cloud.google.com/go/compute/metadata v0.2.1 // indirect
