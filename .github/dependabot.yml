@@ -20,7 +20,7 @@ updates:
       - dependency-name: github.com/coreos/go-oidc v2.1.0+incompatible
       - dependency-name: github.com/denisenkom/go-mssqldb v0.11.0
       - dependency-name: github.com/go-mysql-org/go-mysql v1.5.0
-      - dependency-name: github.com/go-redis/redis/v8 v8.11.4
+      - dependency-name: github.com/go-redis/redis/v9 v9.0.0-rc.1
       - dependency-name: github.com/gogo/protobuf v1.3.2
       - dependency-name: github.com/julienschmidt/httprouter v1.3.0
       - dependency-name: github.com/keys-pub/go-libfido2 v1.5.3-0.20220306005615-8ab03fb1ec27
