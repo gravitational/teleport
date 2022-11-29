@@ -664,7 +664,7 @@ func (s *APIServer) generateHostCert(auth ClientI, w http.ResponseWriter, r *htt
 		return nil, trace.BadParameter("exactly one system role is required")
 	}
 
-	cert, err := auth.GenerateHostCert(req.Key, req.HostID, req.NodeName, req.Principals, req.ClusterName, req.Roles[0], req.TTL)
+	cert, err := auth.GenerateHostCert(r.Context(), req.Key, req.HostID, req.NodeName, req.Principals, req.ClusterName, req.Roles[0], req.TTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

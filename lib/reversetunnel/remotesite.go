@@ -815,7 +815,7 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	}
 
 	// Get a host certificate for the forwarding node from the cache.
-	hostCertificate, err := s.certificateCache.getHostCertificate(params.Address, params.Principals)
+	hostCertificate, err := s.certificateCache.getHostCertificate(s.ctx, params.Address, params.Principals)
 	if err != nil {
 		return nil, trace.NewAggregate(err, userAgent.Close())
 	}
