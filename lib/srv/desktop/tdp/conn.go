@@ -129,5 +129,8 @@ func IsNonFatalErr(err error) bool {
 		return false
 	}
 
-	return errors.Is(err, trace.LimitExceeded(clipDataMaxLenErr))
+	return errors.Is(err, trace.LimitExceeded(clipDataMaxLenErr)) ||
+		errors.Is(err, trace.LimitExceeded(stringMaxLenError)) ||
+		errors.Is(err, trace.LimitExceeded(fileReadWriteMaxLenError)) ||
+		errors.Is(err, trace.LimitExceeded(mfaDataMaxLenError))
 }
