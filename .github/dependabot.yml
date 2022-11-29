@@ -37,6 +37,9 @@ updates:
     directory: "/api"
     schedule:
       interval: weekly
+    ignore:
+      # TODO(codingllama): Allow /x/crypto updates after upstream patch.
+      - dependency-name: golang.org/x/crypto
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
