@@ -276,8 +276,7 @@ func checkCertSubject(tlsCert tls.Certificate, dbRoute tlsca.RouteToDatabase) er
 		return trace.Wrap(err)
 	}
 
-	err = alpn.CheckCertSubject(cert, dbRoute)
-	return trace.Wrap(err)
+	return trace.Wrap(alpn.CheckCertSubject(cert, dbRoute))
 }
 
 // Gateway describes local proxy that creates a gateway to the remote Teleport resource.

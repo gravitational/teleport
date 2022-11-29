@@ -292,8 +292,7 @@ func (l *LocalProxy) CheckDBCerts(dbRoute tlsca.RouteToDatabase) error {
 		return trace.Wrap(err)
 	}
 
-	err = CheckCertSubject(cert, dbRoute)
-	return trace.Wrap(err)
+	return trace.Wrap(CheckCertSubject(cert, dbRoute))
 }
 
 // CheckCertSubject checks if the route to the database from the cert matches the provided route in
