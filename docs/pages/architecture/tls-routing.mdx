@@ -49,7 +49,7 @@ If in doubt, remove all load balancers/proxies from the equation and connect to 
 
 To use Teleport behind a reverse proxy, you should either:
 - use a layer 4 (TCP) proxy which forwards TCP streams directly to Teleport (which will in turn handle TLS termination itself)
-- deploy Teleport in its [separate ports](../reference/networking.mdx) mode by adding `version: v1` to `/etc/teleport.yaml` and removing `proxy_listener_mode: multiplex`
+- deploy Teleport in its [separate ports](../reference/networking.mdx#ports-without-tls-routing) mode by adding `version: v1` to `/etc/teleport.yaml` and removing `proxy_listener_mode: multiplex`
 </Admonition>
 
 ## How it works
