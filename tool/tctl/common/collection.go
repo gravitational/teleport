@@ -745,6 +745,7 @@ func (c *windowsDesktopServiceCollection) writeText(w io.Writer) error {
 
 type windowsDesktopCollection struct {
 	desktops []types.WindowsDesktop
+	verbose  bool
 }
 
 func (c *windowsDesktopCollection) resources() (r []types.Resource) {
@@ -755,29 +756,28 @@ func (c *windowsDesktopCollection) resources() (r []types.Resource) {
 }
 
 func (c *windowsDesktopCollection) writeText(w io.Writer) error {
-	t := asciitable.MakeTable([]string{"UUID", "Address"})
-	for _, desktop := range c.desktops {
-		t.AddRow([]string{desktop.GetName(), desktop.GetAddr()})
+	var rows [][]string
+	for _, d := range c.desktops {
+		labels := stripInternalTeleportLabels(c.verbose, d.GetAllLabels())
+		rows = append(rows, []string{d.GetName(), d.GetAddr(), d.GetDomain(), labels})
+	}
+	headers := []string{"Name", "Address", "AD Domain", "Labels"}
+	var t asciitable.Table
+	if c.verbose {
+		t = asciitable.MakeTable(headers, rows...)
+	} else {
+		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
 
-type windowsDesktopAndService struct {
-	desktop types.WindowsDesktop
-	service types.WindowsDesktopService
+func (c *windowsDesktopCollection) writeYAML(w io.Writer) error {
+	return utils.WriteYAML(w, c.desktops)
 }
 
-type windowsDesktopAndServiceCollection struct {
-	desktops []windowsDesktopAndService
-	verbose  bool
-}
-
-func (c *windowsDesktopAndServiceCollection) windowsDesktops() (r []types.WindowsDesktop) {
-	for _, resource := range c.desktops {
-		r = append(r, resource.desktop)
-	}
-	return r
+func (c *windowsDesktopCollection) writeJSON(w io.Writer) error {
+	return utils.WriteJSON(w, c.desktops)
 }
 
 func stripInternalTeleportLabels(verbose bool, labels map[string]string) string {
@@ -790,32 +790,6 @@ func stripInternalTeleportLabels(verbose bool, labels map[string]string) string 
 		}
 	}
 	return types.LabelsAsString(labels, nil)
-}
-
-func (c *windowsDesktopAndServiceCollection) writeText(w io.Writer) error {
-	var rows [][]string
-	for _, d := range c.desktops {
-		labels := stripInternalTeleportLabels(c.verbose, d.desktop.GetAllLabels())
-		rows = append(rows, []string{d.service.GetHostname(), d.desktop.GetAddr(),
-			d.desktop.GetDomain(), labels, d.service.GetTeleportVersion()})
-	}
-	headers := []string{"Host", "Address", "AD Domain", "Labels", "Version"}
-	var t asciitable.Table
-	if c.verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-func (c *windowsDesktopAndServiceCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, c.windowsDesktops())
-}
-
-func (c *windowsDesktopAndServiceCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSON(w, c.windowsDesktops())
 }
 
 type tokenCollection struct {
