@@ -244,7 +244,7 @@ func (c *NodeCommand) ListActive(ctx context.Context, clt auth.ClientI) error {
 			return trace.Wrap(err)
 		}
 	case teleport.YAML:
-		if err := coll.writeYaml(os.Stdout); err != nil {
+		if err := coll.writeYAML(os.Stdout); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.JSON:

@@ -90,6 +90,8 @@ type Session struct {
 	ServerID string `json:"server_id"`
 	// ServerHostname of session
 	ServerHostname string `json:"server_hostname"`
+	// ServerHostPort of session
+	ServerHostPort int `json:"server_hostport"`
 	// ServerAddr of session
 	ServerAddr string `json:"server_addr"`
 	// ClusterName is the name of the Teleport cluster that this session belongs to.
