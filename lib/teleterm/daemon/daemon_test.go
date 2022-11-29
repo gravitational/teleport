@@ -23,12 +23,15 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type mockGatewayCreator struct {
@@ -44,6 +47,18 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		hs.Close()
 	})
 
+	resourceURI := uri.New(params.TargetURI)
+
+	keyPairPaths := gatewaytest.MustGenAndSaveCert(m.t, tlsca.Identity{
+		Username: params.TargetUser,
+		Groups:   []string{"test-group"},
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: resourceURI.GetDbName(),
+			Protocol:    defaults.ProtocolPostgres,
+			Username:    params.TargetUser,
+		},
+	})
+
 	gateway, err := gateway.New(gateway.Config{
 		LocalPort:             params.LocalPort,
 		TargetURI:             params.TargetURI,
@@ -51,8 +66,8 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		TargetName:            params.TargetURI,
 		TargetSubresourceName: params.TargetSubresourceName,
 		Protocol:              defaults.ProtocolPostgres,
-		CertPath:              "../../../fixtures/certs/proxy1.pem",
-		KeyPath:               "../../../fixtures/certs/proxy1-key.pem",
+		CertPath:              keyPairPaths.CertPath,
+		KeyPath:               keyPairPaths.KeyPath,
 		Insecure:              true,
 		WebProxyAddr:          hs.Listener.Addr().String(),
 		CLICommandProvider:    params.CLICommandProvider,
@@ -62,7 +77,9 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		return nil, trace.Wrap(err)
 	}
 	m.t.Cleanup(func() {
-		gateway.Close()
+		if err := gateway.Close(); err != nil {
+			m.t.Logf("Ignoring error from gateway.Close() during cleanup, it appears the gateway was already closed. The error was: %s", err)
+		}
 	})
 
 	return gateway, nil
@@ -252,4 +269,59 @@ func TestGatewayCRUD(t *testing.T) {
 			}, daemon)
 		})
 	}
+}
+
+func TestUpdateTshdEventsServerAddress(t *testing.T) {
+	homeDir := t.TempDir()
+
+	storage, err := clusters.NewStorage(clusters.Config{
+		Dir:                homeDir,
+		InsecureSkipVerify: true,
+	})
+	require.NoError(t, err)
+
+	createTshdEventsClientCredsFuncCallCount := 0
+	createTshdEventsClientCredsFunc := func() (grpc.DialOption, error) {
+		createTshdEventsClientCredsFuncCallCount++
+		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+	}
+
+	daemon, err := New(Config{
+		Storage:                         storage,
+		CreateTshdEventsClientCredsFunc: createTshdEventsClientCredsFunc,
+	})
+	require.NoError(t, err)
+
+	ls, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { ls.Close() })
+
+	err = daemon.UpdateAndDialTshdEventsServerAddress(ls.Addr().String())
+	require.NoError(t, err)
+	require.NotNil(t, daemon.tshdEventsClient)
+	require.Equal(t, 1, createTshdEventsClientCredsFuncCallCount,
+		"Expected createTshdEventsClientCredsFunc to be called exactly once")
+}
+
+func TestUpdateTshdEventsServerAddress_CredsErr(t *testing.T) {
+	homeDir := t.TempDir()
+
+	storage, err := clusters.NewStorage(clusters.Config{
+		Dir:                homeDir,
+		InsecureSkipVerify: true,
+	})
+	require.NoError(t, err)
+
+	createTshdEventsClientCredsFunc := func() (grpc.DialOption, error) {
+		return nil, trace.Errorf("Error while creating creds")
+	}
+
+	daemon, err := New(Config{
+		Storage:                         storage,
+		CreateTshdEventsClientCredsFunc: createTshdEventsClientCredsFunc,
+	})
+	require.NoError(t, err)
+
+	err = daemon.UpdateAndDialTshdEventsServerAddress("foo")
+	require.ErrorContains(t, err, "Error while creating creds")
 }

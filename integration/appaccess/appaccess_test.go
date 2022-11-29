@@ -31,6 +31,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -557,6 +558,125 @@ func TestTCP(t *testing.T) {
 	}
 }
 
+// TestTCPLock tests locking TCP applications.
+func TestTCPLock(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Now())
+	mCloseChannel := make(chan struct{})
+	pack := SetupWithOptions(t, AppTestOptions{
+		Clock:               clock,
+		MonitorCloseChannel: mCloseChannel,
+	})
+
+	msg := []byte(uuid.New().String())
+
+	// Start the proxy to the two way communication app.
+	address := pack.startLocalProxy(t, pack.rootTCPTwoWayPublicAddr, pack.rootAppClusterName)
+	conn, err := net.Dial("tcp", address)
+	require.NoError(t, err)
+
+	// Read, write, and read again to make sure its working as expected.
+	buf := make([]byte, 1024)
+	n, err := conn.Read(buf)
+	require.NoError(t, err, buf)
+
+	resp := strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
+
+	_, err = conn.Write(msg)
+	require.NoError(t, err)
+
+	n, err = conn.Read(buf)
+	require.NoError(t, err, buf)
+
+	resp = strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
+
+	// Lock the user and try to write
+	pack.LockUser(t)
+	clock.Advance(10 * time.Second)
+
+	// Wait for the channel closure signal
+	select {
+	case <-mCloseChannel:
+	case <-time.After(time.Second * 10):
+		require.Fail(t, "timeout waiting for monitor channel signal")
+	}
+	_, err = conn.Write(msg)
+	require.NoError(t, err)
+
+	_, err = conn.Read(buf)
+	require.Error(t, err)
+
+	// Close and re-open the connection
+	require.NoError(t, conn.Close())
+
+	conn, err = net.Dial("tcp", address)
+	require.NoError(t, err)
+
+	// Try to read again, expect a failure.
+	_, err = conn.Read(buf)
+	require.Error(t, err, buf)
+}
+
+// TestTCPCertExpiration tests TCP application with certs expiring.
+func TestTCPCertExpiration(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Now())
+	mCloseChannel := make(chan struct{})
+	pack := SetupWithOptions(t, AppTestOptions{
+		Clock:               clock,
+		MonitorCloseChannel: mCloseChannel,
+	})
+
+	msg := []byte(uuid.New().String())
+
+	// Start the proxy to the two way communication app.
+	address := pack.startLocalProxy(t, pack.rootTCPTwoWayPublicAddr, pack.rootAppClusterName)
+	conn, err := net.Dial("tcp", address)
+	require.NoError(t, err)
+
+	// Read, write, and read again to make sure its working as expected.
+	buf := make([]byte, 1024)
+	n, err := conn.Read(buf)
+	require.NoError(t, err, buf)
+
+	resp := strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
+
+	_, err = conn.Write(msg)
+	require.NoError(t, err)
+
+	n, err = conn.Read(buf)
+	require.NoError(t, err, buf)
+
+	resp = strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
+
+	// Let the cert expire. We'll choose 24 hours to make sure we go above
+	// any cert durations that could be chosen here.
+	clock.Advance(24 * time.Hour)
+	// Wait for the channel closure signal
+	select {
+	case <-mCloseChannel:
+	case <-time.After(time.Second * 10):
+		require.Fail(t, "timeout waiting for monitor channel signal")
+	}
+	_, err = conn.Write(msg)
+	require.NoError(t, err)
+
+	_, err = conn.Read(buf)
+	require.Error(t, err)
+
+	// Close and re-open the connection
+	require.NoError(t, conn.Close())
+
+	conn, err = net.Dial("tcp", address)
+	require.NoError(t, err)
+
+	// Try to read again, expect a failure.
+	_, err = conn.Read(buf)
+	require.Error(t, err, buf)
+}
+
 func testServersHA(p *Pack, t *testing.T) {
 	type packInfo struct {
 		clusterName    string
@@ -580,7 +700,7 @@ func testServersHA(p *Pack, t *testing.T) {
 				}
 			},
 			startAppServers: func(pack *Pack, count int) []*service.TeleportProcess {
-				return pack.startRootAppServers(t, count, []service.App{})
+				return pack.startRootAppServers(t, count, AppTestOptions{})
 			},
 			waitForTunnelConn: func(t *testing.T, pack *Pack, count int) {
 				helpers.WaitForActiveTunnelConnections(t, pack.rootCluster.Tunnel, pack.rootCluster.Secrets.SiteName, count)
@@ -596,7 +716,7 @@ func testServersHA(p *Pack, t *testing.T) {
 				}
 			},
 			startAppServers: func(pack *Pack, count int) []*service.TeleportProcess {
-				return pack.startLeafAppServers(t, count, []service.App{})
+				return pack.startLeafAppServers(t, count, AppTestOptions{})
 			},
 			waitForTunnelConn: func(t *testing.T, pack *Pack, count int) {
 				helpers.WaitForActiveTunnelConnections(t, pack.leafCluster.Tunnel, pack.leafCluster.Secrets.SiteName, count)

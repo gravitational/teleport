@@ -27,11 +27,11 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/exp/slices"
 	"gopkg.in/square/go-jose.v2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -693,6 +693,12 @@ const (
 
 	// WebsocketWebauthnChallenge is sending a webauthn challenge.
 	WebsocketWebauthnChallenge = "n"
+
+	// WebsocketSessionMetadata is sending the data for a ssh session.
+	WebsocketSessionMetadata = "s"
+
+	// WebsocketError is sending an error message.
+	WebsocketError = "e"
 )
 
 // The following are cryptographic primitives Teleport does not support in
@@ -756,26 +762,6 @@ var (
 	}
 )
 
-// CheckPasswordLimiter creates a rate limit that can be used to slow down
-// requests that come to the check password endpoint.
-func CheckPasswordLimiter() *limiter.Limiter {
-	limiter, err := limiter.NewLimiter(limiter.Config{
-		MaxConnections:   LimiterMaxConnections,
-		MaxNumberOfUsers: LimiterMaxConcurrentUsers,
-		Rates: []limiter.Rate{
-			{
-				Period:  1 * time.Second,
-				Average: 10,
-				Burst:   10,
-			},
-		},
-	})
-	if err != nil {
-		panic(fmt.Sprintf("Failed to create limiter: %v.", err))
-	}
-	return limiter
-}
-
 // Transport returns a new http.Client with sensible defaults.
 func HTTPClient() (*http.Client, error) {
 	transport, err := Transport()
@@ -829,7 +815,7 @@ var TeleportConfigVersions = []string{
 }
 
 func ValidateConfigVersion(version string) error {
-	hasVersion := apiutils.SliceContainsStr(TeleportConfigVersions, version)
+	hasVersion := slices.Contains(TeleportConfigVersions, version)
 	if !hasVersion {
 		return trace.BadParameter("version must be one of %s", strings.Join(TeleportConfigVersions, ", "))
 	}

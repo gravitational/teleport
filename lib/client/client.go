@@ -23,6 +23,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -84,7 +85,6 @@ type NodeClient struct {
 	Namespace   string
 	Tracer      oteltrace.Tracer
 	Client      *tracessh.Client
-	Proxy       *ProxyClient
 	TC          *TeleportClient
 	OnMFA       func()
 	FIPSEnabled bool
@@ -197,6 +197,8 @@ type ReissueParams struct {
 	// MFACheck is optional parameter passed if MFA check was already done.
 	// It can be nil.
 	MFACheck *proto.IsMFARequiredResponse
+	// AuthClient is the client used for the MFACheck that can be reused
+	AuthClient auth.ClientI
 }
 
 func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
@@ -409,12 +411,16 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		// Connect to the target cluster (root or leaf) to check whether MFA is
 		// required or if we know from param that it's required, connect because
 		// it will be needed to do MFA check.
-		var err error
-		clt, err = proxy.ConnectToCluster(ctx, params.RouteToCluster)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if params.AuthClient != nil {
+			clt = params.AuthClient
+		} else {
+			authClt, err := proxy.ConnectToCluster(ctx, params.RouteToCluster)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			clt = authClt
+			defer clt.Close()
 		}
-		defer clt.Close()
 	}
 
 	if requiredCheck == nil {
@@ -487,7 +493,13 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		}
 		return nil, trace.Wrap(err)
 	}
-	defer stream.CloseSend()
+	defer func() {
+		// CloseSend closes the client side of the stream
+		stream.CloseSend()
+		// Recv to wait for the server side of the stream to end, this needs to
+		// be called to ensure the spans are finished properly
+		stream.Recv()
+	}()
 
 	initReq, err := proxy.prepareUserCertsRequest(params, key)
 	if err != nil {
@@ -1497,7 +1509,7 @@ func requestSubsystem(ctx context.Context, session *tracessh.Session, name strin
 
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
-func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDetails, user string) (*NodeClient, error) {
+func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDetails, user string, details sshutils.ClusterDetails, authMethods []ssh.AuthMethod) (*NodeClient, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/ConnectToNode",
@@ -1512,12 +1524,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 
 	log.Infof("Client=%v connecting to node=%v", proxy.clientAddr, nodeAddress)
 	if len(proxy.teleportClient.JumpHosts) > 0 {
-		return proxy.PortForwardToNode(ctx, nodeAddress, user)
-	}
-
-	authMethods, err := proxy.sessionSSHCertificate(ctx, nodeAddress)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		return proxy.PortForwardToNode(ctx, nodeAddress, user, details, authMethods)
 	}
 
 	// parse destination first:
@@ -1526,12 +1533,6 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 		return nil, trace.Wrap(err)
 	}
 	fakeAddr, err := utils.ParseAddr("tcp://" + nodeAddress.Addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// after auth but before we create the first session, find out cluster details
-	details, err := proxy.clusterDetails(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1594,6 +1595,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s",
 			nodeName(nodeAddress.Addr), serverErrorMsg)
 	}
+
 	pipeNetConn := utils.NewPipeNetConn(
 		proxyReader,
 		proxyWriter,
@@ -1607,40 +1609,14 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 		Auth:            authMethods,
 		HostKeyCallback: proxy.hostKeyCallback,
 	}
-	conn, chans, reqs, err := newClientConn(ctx, pipeNetConn, nodeAddress.ProxyFormat(), sshConfig)
-	if err != nil {
-		if utils.IsHandshakeFailedError(err) {
-			proxySession.Close()
-			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, user, nodeAddress)
-		}
-		return nil, trace.Wrap(err)
-	}
 
-	// We pass an empty channel which we close right away to ssh.NewClient
-	// because the client need to handle requests itself.
-	emptyCh := make(chan *ssh.Request)
-	close(emptyCh)
-
-	nc := &NodeClient{
-		Client:      tracessh.NewClient(conn, chans, emptyCh),
-		Proxy:       proxy,
-		Namespace:   apidefaults.Namespace,
-		TC:          proxy.teleportClient,
-		Tracer:      proxy.Tracer,
-		FIPSEnabled: details.FIPSEnabled,
-	}
-
-	// Start a goroutine that will run for the duration of the client to process
-	// global requests from the client. Teleport clients will use this to update
-	// terminal sizes when the remote PTY size has changed.
-	go nc.handleGlobalRequests(ctx, reqs)
-
-	return nc, nil
+	nc, err := NewNodeClient(ctx, sshConfig, pipeNetConn, nodeAddress.ProxyFormat(), proxy.teleportClient, details.FIPSEnabled)
+	return nc, trace.Wrap(err)
 }
 
 // PortForwardToNode connects to the ssh server via Proxy
 // It returns connected and authenticated NodeClient
-func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress NodeDetails, user string) (*NodeClient, error) {
+func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress NodeDetails, user string, details sshutils.ClusterDetails, authMethods []ssh.AuthMethod) (*NodeClient, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/PortForwardToNode",
@@ -1655,18 +1631,6 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 
 	log.Infof("Client=%v jumping to node=%s", proxy.clientAddr, nodeAddress)
 
-	authMethods, err := proxy.sessionSSHCertificate(ctx, nodeAddress)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// after auth but before we create the first session, find out if the proxy
-	// is in recording mode or not
-	details, err := proxy.clusterDetails(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// the client only tries to forward an agent when the proxy is in recording
 	// mode. we always try and forward an agent here because each new session
 	// creates a new context which holds the agent. if ForwardToAgent returns an error
@@ -1675,7 +1639,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 		if proxy.teleportClient.localAgent == nil {
 			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
 		}
-		err = agent.ForwardToAgent(proxy.Client.Client, proxy.teleportClient.localAgent.ExtendedAgent)
+		err := agent.ForwardToAgent(proxy.Client.Client, proxy.teleportClient.localAgent.ExtendedAgent)
 		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
 			return nil, trace.Wrap(err)
 		}
@@ -1691,11 +1655,29 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 		Auth:            authMethods,
 		HostKeyCallback: proxy.hostKeyCallback,
 	}
-	conn, chans, reqs, err := newClientConn(ctx, proxyConn, nodeAddress.Addr, sshConfig)
+
+	nc, err := NewNodeClient(ctx, sshConfig, proxyConn, nodeAddress.Addr, proxy.teleportClient, details.FIPSEnabled)
+	return nc, trace.Wrap(err)
+}
+
+// NewNodeClient constructs a NodeClient that is connected to the node at nodeAddress
+func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Conn, nodeAddress string, tc *TeleportClient, fipsEnabled bool) (*NodeClient, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"NewNodeClient",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("node", nodeAddress),
+		),
+	)
+	defer span.End()
+
+	sshconn, chans, reqs, err := newClientConn(ctx, conn, nodeAddress, sshConfig)
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
-			proxyConn.Close()
-			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, user, nodeAddress)
+			conn.Close()
+			log.Infof("Access denied to %v connecting to %v: %v", sshConfig.User, nodeAddress, err)
+			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, sshConfig.User, nodeAddress)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -1706,11 +1688,11 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	close(emptyCh)
 
 	nc := &NodeClient{
-		Client:    tracessh.NewClient(conn, chans, emptyCh),
-		Proxy:     proxy,
-		Namespace: apidefaults.Namespace,
-		TC:        proxy.teleportClient,
-		Tracer:    proxy.Tracer,
+		Client:      tracessh.NewClient(sshconn, chans, emptyCh),
+		Namespace:   apidefaults.Namespace,
+		TC:          tc,
+		Tracer:      tc.Tracer,
+		FIPSEnabled: fipsEnabled,
 	}
 
 	// Start a goroutine that will run for the duration of the client to process
@@ -1719,6 +1701,56 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	go nc.handleGlobalRequests(ctx, reqs)
 
 	return nc, nil
+}
+
+// RunInteractiveShell creates an interactive shell on the node and copies stdin/stdout/stderr
+// to and from the node and local shell. This will block until the interactive shell on the node
+// is terminated.
+func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.SessionParticipantMode, sessToJoin types.SessionTracker) error {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"nodeClient/RunInteractiveShell",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	env := make(map[string]string)
+	env[teleport.EnvSSHJoinMode] = string(mode)
+	env[teleport.EnvSSHSessionReason] = c.TC.Config.Reason
+	env[teleport.EnvSSHSessionDisplayParticipantRequirements] = strconv.FormatBool(c.TC.Config.DisplayParticipantRequirements)
+	encoded, err := json.Marshal(&c.TC.Config.Invited)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	env[teleport.EnvSSHSessionInvited] = string(encoded)
+	for key, value := range c.TC.Env {
+		env[key] = value
+	}
+
+	nodeSession, err := newSession(ctx, c, sessToJoin, env, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, c.TC.EnableEscapeSequences)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err = nodeSession.runShell(ctx, mode, nil, c.TC.OnShellCreated); err != nil {
+		switch e := trace.Unwrap(err).(type) {
+		case *ssh.ExitError:
+			c.TC.ExitStatus = e.ExitStatus()
+		case *ssh.ExitMissingError:
+			c.TC.ExitStatus = 1
+		}
+
+		return trace.Wrap(err)
+	}
+
+	if nodeSession.ExitMsg == "" {
+		fmt.Fprintln(c.TC.Stderr, "the connection was closed on the remote side at ", time.Now().Format(time.RFC822))
+	} else {
+		fmt.Fprintln(c.TC.Stderr, nodeSession.ExitMsg)
+	}
+
+	return nil
 }
 
 func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.Request) {
@@ -2136,7 +2168,7 @@ func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr No
 		ctx,
 		ReissueParams{
 			NodeName:       nodeName(nodeAddr.Addr),
-			RouteToCluster: nodeAddr.Cluster,
+			RouteToCluster: proxy.ClusterName(),
 			MFACheck:       nodeAddr.MFACheck,
 		},
 		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {

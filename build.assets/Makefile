@@ -24,7 +24,7 @@ ARCH ?= amd64
 
 GOLANG_VERSION ?= go1.19.2
 
-NODE_VERSION ?= 16.13.2
+NODE_VERSION ?= 16.18.1
 
 RUST_VERSION ?= 1.64.0 # don't bump this without checking GLIBC compatibility
 LIBBPF_VERSION ?= 0.7.0-teleport
@@ -147,6 +147,7 @@ buildbox-fips:
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
 			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+			--build-arg RUST_VERSION=$(RUST_VERSION) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 			--cache-from $(BUILDBOX_FIPS) \
 			--tag $(BUILDBOX_FIPS) -f Dockerfile-fips . ; \

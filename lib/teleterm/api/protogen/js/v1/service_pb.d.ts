@@ -14,6 +14,23 @@ import * as v1_gateway_pb from "../v1/gateway_pb";
 import * as v1_kube_pb from "../v1/kube_pb";
 import * as v1_server_pb from "../v1/server_pb";
 
+export class EmptyResponse extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): EmptyResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: EmptyResponse): EmptyResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: EmptyResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): EmptyResponse;
+    static deserializeBinaryFromReader(message: EmptyResponse, reader: jspb.BinaryReader): EmptyResponse;
+}
+
+export namespace EmptyResponse {
+    export type AsObject = {
+    }
+}
+
 export class RemoveClusterRequest extends jspb.Message { 
     getClusterUri(): string;
     setClusterUri(value: string): RemoveClusterRequest;
@@ -299,6 +316,11 @@ export class GetRequestableRolesRequest extends jspb.Message {
     getClusterUri(): string;
     setClusterUri(value: string): GetRequestableRolesRequest;
 
+    clearResourceIdsList(): void;
+    getResourceIdsList(): Array<v1_access_request_pb.ResourceID>;
+    setResourceIdsList(value: Array<v1_access_request_pb.ResourceID>): GetRequestableRolesRequest;
+    addResourceIds(value?: v1_access_request_pb.ResourceID, index?: number): v1_access_request_pb.ResourceID;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetRequestableRolesRequest.AsObject;
@@ -313,6 +335,7 @@ export class GetRequestableRolesRequest extends jspb.Message {
 export namespace GetRequestableRolesRequest {
     export type AsObject = {
         clusterUri: string,
+        resourceIdsList: Array<v1_access_request_pb.ResourceID.AsObject>,
     }
 }
 
@@ -321,6 +344,11 @@ export class GetRequestableRolesResponse extends jspb.Message {
     getRolesList(): Array<string>;
     setRolesList(value: Array<string>): GetRequestableRolesResponse;
     addRoles(value: string, index?: number): string;
+
+    clearApplicableRolesList(): void;
+    getApplicableRolesList(): Array<string>;
+    setApplicableRolesList(value: Array<string>): GetRequestableRolesResponse;
+    addApplicableRoles(value: string, index?: number): string;
 
 
     serializeBinary(): Uint8Array;
@@ -336,6 +364,7 @@ export class GetRequestableRolesResponse extends jspb.Message {
 export namespace GetRequestableRolesResponse {
     export type AsObject = {
         rolesList: Array<string>,
+        applicableRolesList: Array<string>,
     }
 }
 
@@ -1454,19 +1483,40 @@ export namespace GetAuthSettingsRequest {
     }
 }
 
-export class EmptyResponse extends jspb.Message { 
+export class UpdateTshdEventsServerAddressRequest extends jspb.Message { 
+    getAddress(): string;
+    setAddress(value: string): UpdateTshdEventsServerAddressRequest;
+
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): EmptyResponse.AsObject;
-    static toObject(includeInstance: boolean, msg: EmptyResponse): EmptyResponse.AsObject;
+    toObject(includeInstance?: boolean): UpdateTshdEventsServerAddressRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: UpdateTshdEventsServerAddressRequest): UpdateTshdEventsServerAddressRequest.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: EmptyResponse, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): EmptyResponse;
-    static deserializeBinaryFromReader(message: EmptyResponse, reader: jspb.BinaryReader): EmptyResponse;
+    static serializeBinaryToWriter(message: UpdateTshdEventsServerAddressRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UpdateTshdEventsServerAddressRequest;
+    static deserializeBinaryFromReader(message: UpdateTshdEventsServerAddressRequest, reader: jspb.BinaryReader): UpdateTshdEventsServerAddressRequest;
 }
 
-export namespace EmptyResponse {
+export namespace UpdateTshdEventsServerAddressRequest {
+    export type AsObject = {
+        address: string,
+    }
+}
+
+export class UpdateTshdEventsServerAddressResponse extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UpdateTshdEventsServerAddressResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: UpdateTshdEventsServerAddressResponse): UpdateTshdEventsServerAddressResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UpdateTshdEventsServerAddressResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UpdateTshdEventsServerAddressResponse;
+    static deserializeBinaryFromReader(message: UpdateTshdEventsServerAddressResponse, reader: jspb.BinaryReader): UpdateTshdEventsServerAddressResponse;
+}
+
+export namespace UpdateTshdEventsServerAddressResponse {
     export type AsObject = {
     }
 }

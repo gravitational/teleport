@@ -17,6 +17,7 @@ limitations under the License.
 package keystore
 
 import (
+	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
@@ -26,6 +27,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -125,6 +127,10 @@ JhuTMEqUaAOZBoQLn+txjl3nu9WwTThJzlY0L4w=
 )
 
 func TestKeyStore(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
@@ -139,15 +145,32 @@ func TestKeyStore(t *testing.T) {
 		softHSMConfig.PKCS11.HostUUID = "server1"
 	}
 
+	hostUUID := uuid.NewString()
+
+	gcpKMSConfig := GCPKMSConfig{
+		HostUUID:        hostUUID,
+		ProtectionLevel: "HSM",
+	}
+	if keyRing := os.Getenv("TEST_GCP_KMS_KEYRING"); keyRing != "" {
+		t.Logf("Running test with real GCP KMS keyring %s", keyRing)
+		gcpKMSConfig.KeyRing = keyRing
+	} else {
+		t.Log("Running test with fake GCP KMS service")
+		_, dialer := newTestGCPKMSService(t)
+		testClient := newTestGCPKMSClient(t, dialer)
+		gcpKMSConfig.kmsClientOverride = testClient
+		gcpKMSConfig.KeyRing = "test-keyring"
+	}
+
 	yubiSlotNumber := 0
-	testcases := []struct {
+	backends := []struct {
 		desc       string
 		config     Config
 		isSoftware bool
 		shouldSkip func() bool
 	}{
 		{
-			desc: "software keystore",
+			desc: "software",
 			config: Config{
 				Software: SoftwareConfig{
 					RSAKeyPairSource: native.GenerateKeyPair,
@@ -174,7 +197,7 @@ func TestKeyStore(t *testing.T) {
 					Path:       os.Getenv("YUBIHSM_PKCS11_PATH"),
 					SlotNumber: &yubiSlotNumber,
 					Pin:        "0001password",
-					HostUUID:   "server1",
+					HostUUID:   hostUUID,
 				},
 			},
 			shouldSkip: func() bool {
@@ -192,7 +215,7 @@ func TestKeyStore(t *testing.T) {
 					Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
 					TokenLabel: "cavium",
 					Pin:        os.Getenv("CLOUDHSM_PIN"),
-					HostUUID:   "server1",
+					HostUUID:   hostUUID,
 				},
 			},
 			shouldSkip: func() bool {
@@ -203,31 +226,39 @@ func TestKeyStore(t *testing.T) {
 				return false
 			},
 		},
+		{
+			desc: "gcp kms",
+			config: Config{
+				GCPKMS: gcpKMSConfig,
+			},
+			shouldSkip: func() bool {
+				return false
+			},
+		},
 	}
 
-	for _, tc := range testcases {
+	for _, tc := range backends {
 		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.shouldSkip() {
 				t.SkipNow()
-				return
 			}
 
-			// create the keystore
-			keyStore, err := NewKeyStore(tc.config)
+			// create the keystore manager
+			keyStore, err := NewManager(ctx, tc.config)
 			require.NoError(t, err)
 
 			// create a key
-			key, signer, err := keyStore.generateRSA()
+			key, signer, err := keyStore.generateRSA(ctx)
 			require.NoError(t, err)
 			require.NotNil(t, key)
 			require.NotNil(t, signer)
 
 			// delete the key when we're done with it
-			t.Cleanup(func() { require.NoError(t, keyStore.deleteKey(key)) })
+			t.Cleanup(func() { require.NoError(t, keyStore.deleteKey(ctx, key)) })
 
 			// get a signer from the key
-			signer, err = keyStore.getSigner(key)
+			signer, err = keyStore.getSigner(ctx, key)
 			require.NoError(t, err)
 			require.NotNil(t, signer)
 
@@ -265,7 +296,7 @@ func TestKeyStore(t *testing.T) {
 						testPKCS11SSHKeyPair,
 						&types.SSHKeyPair{
 							PrivateKey:     key,
-							PrivateKeyType: KeyType(key),
+							PrivateKeyType: keyType(key),
 							PublicKey:      sshPublicKey,
 						},
 					},
@@ -273,7 +304,7 @@ func TestKeyStore(t *testing.T) {
 						testPKCS11TLSKeyPair,
 						&types.TLSKeyPair{
 							Key:     key,
-							KeyType: KeyType(key),
+							KeyType: keyType(key),
 							Cert:    tlsCert,
 						},
 					},
@@ -281,7 +312,7 @@ func TestKeyStore(t *testing.T) {
 						testPKCS11JWTKeyPair,
 						&types.JWTKeyPair{
 							PrivateKey:     key,
-							PrivateKeyType: KeyType(key),
+							PrivateKeyType: keyType(key),
 							PublicKey:      sshPublicKey,
 						},
 					},
@@ -290,17 +321,17 @@ func TestKeyStore(t *testing.T) {
 			require.NoError(t, err)
 
 			// test that keyStore is able to select the correct key and get a signer
-			sshSigner, err = keyStore.GetSSHSigner(ca)
+			sshSigner, err = keyStore.GetSSHSigner(ctx, ca)
 			require.NoError(t, err)
 			require.NotNil(t, sshSigner)
 
-			tlsCert, tlsSigner, err := keyStore.GetTLSCertAndSigner(ca)
+			tlsCert, tlsSigner, err := keyStore.GetTLSCertAndSigner(ctx, ca)
 			require.NoError(t, err)
 			require.NotNil(t, tlsCert)
 			require.NotEqual(t, testPKCS11TLSKeyPair.Cert, tlsCert)
 			require.NotNil(t, tlsSigner)
 
-			jwtSigner, err := keyStore.GetJWTSigner(ca)
+			jwtSigner, err := keyStore.GetJWTSigner(ctx, ca)
 			require.NoError(t, err)
 			require.NotNil(t, jwtSigner)
 
@@ -324,55 +355,75 @@ func TestKeyStore(t *testing.T) {
 
 			if !tc.isSoftware {
 				// hsm keyStore should not get any signer from raw keys
-				_, err = keyStore.GetSSHSigner(ca)
+				_, err = keyStore.GetSSHSigner(ctx, ca)
 				require.True(t, trace.IsNotFound(err))
 
-				_, _, err = keyStore.GetTLSCertAndSigner(ca)
+				_, _, err = keyStore.GetTLSCertAndSigner(ctx, ca)
 				require.True(t, trace.IsNotFound(err))
 
-				_, err = keyStore.GetJWTSigner(ca)
+				_, err = keyStore.GetJWTSigner(ctx, ca)
 				require.True(t, trace.IsNotFound(err))
 			} else {
 				// software keyStore should be able to get a signer
-				sshSigner, err = keyStore.GetSSHSigner(ca)
+				sshSigner, err = keyStore.GetSSHSigner(ctx, ca)
 				require.NoError(t, err)
 				require.NotNil(t, sshSigner)
 
-				tlsCert, tlsSigner, err = keyStore.GetTLSCertAndSigner(ca)
+				tlsCert, tlsSigner, err = keyStore.GetTLSCertAndSigner(ctx, ca)
 				require.NoError(t, err)
 				require.NotNil(t, tlsCert)
 				require.NotNil(t, tlsSigner)
 
-				jwtSigner, err = keyStore.GetJWTSigner(ca)
+				jwtSigner, err = keyStore.GetJWTSigner(ctx, ca)
 				require.NoError(t, err)
 				require.NotNil(t, jwtSigner)
 			}
 		})
 	}
-}
 
-func TestLicenseRequirement(t *testing.T) {
-	// we need the SoftHSM2 tests to be enabled so that the HSM keystore can be
-	// selected
-	if os.Getenv("SOFTHSM2_PATH") == "" {
-		t.SkipNow()
+	for _, tc := range backends {
+		t.Run(tc.desc+"_DeleteUnusedKeys", func(t *testing.T) {
+			if tc.shouldSkip() {
+				t.SkipNow()
+			}
+			if tc.isSoftware {
+				// deleting keys is a no-op for software, we won't get the error
+				// we're expecting
+				t.SkipNow()
+			}
+
+			// create the keystore manager
+			keyStore, err := NewManager(ctx, tc.config)
+			require.NoError(t, err)
+
+			// create some keys to test DeleteUnusedKeys
+			const numKeys = 3
+			var rawKeys [][]byte
+			for i := 0; i < numKeys; i++ {
+				key, _, err := keyStore.generateRSA(ctx)
+				require.NoError(t, err)
+				rawKeys = append(rawKeys, key)
+			}
+
+			// say that only the first key is in use, delete the rest
+			usedKeys := [][]byte{rawKeys[0]}
+			err = keyStore.DeleteUnusedKeys(ctx, usedKeys)
+			require.NoError(t, err)
+
+			// make sure the first key is still good
+			signer, err := keyStore.getSigner(ctx, rawKeys[0])
+			require.NoError(t, err)
+			require.NotNil(t, signer)
+
+			// make sure all other keys are deleted
+			for i := 1; i < numKeys; i++ {
+				_, err := keyStore.getSigner(ctx, rawKeys[i])
+				require.Error(t, err)
+			}
+
+			// delete the final key so we don't leak it
+			err = keyStore.deleteKey(ctx, rawKeys[0])
+			require.NoError(t, err)
+		})
 	}
-
-	config := SetupSoftHSMTest(t)
-	config.PKCS11.HostUUID = "server1"
-
-	// should fail to create the keystore with default modules
-	_, err := NewKeyStore(config)
-	require.Error(t, err)
-
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			HSM: true,
-		},
-	})
-
-	// should succeed when HSM feature is enabled
-	_, err = NewKeyStore(config)
-	require.NoError(t, err)
 }
