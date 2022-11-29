@@ -246,7 +246,7 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Sessi
 
 	// if agent forwarding was requested (and we have a agent to forward),
 	// forward the agent to endpoint.
-	tc := ns.nodeClient.Proxy.teleportClient
+	tc := ns.nodeClient.TC
 	targetAgent := selectKeyAgent(tc)
 
 	if targetAgent != nil {
