@@ -2907,3 +2907,8 @@ func (c *Client) UpsertClusterAlert(ctx context.Context, alert types.ClusterAler
 func (c *Client) GetLicenseCheckResult(ctx context.Context) (*reportingtypes.Heartbeat, error) {
 	return &reportingtypes.Heartbeat{}, trace.NotImplemented("(api/client) method not implemented")
 }
+
+func (c *Client) ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error {
+	_, err := c.grpc.ChangePassword(ctx, req, c.callOpts...)
+	return trail.FromGRPC(err)
+}
