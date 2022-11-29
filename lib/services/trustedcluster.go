@@ -17,8 +17,6 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
-
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -32,28 +30,11 @@ func ValidateTrustedCluster(tc types.TrustedCluster) error {
 		return trace.Wrap(err)
 	}
 
-	// we are not mentioning Roles parameter because we are deprecating it
-	if len(tc.GetRoles()) == 0 && len(tc.GetRoleMap()) == 0 {
-		return trace.BadParameter("missing 'role_map' parameter")
-	}
-
 	if _, err := parseRoleMap(tc.GetRoleMap()); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
-}
-
-// RoleMapToString prints user friendly representation of role mapping
-func RoleMapToString(r types.RoleMap) string {
-	values, err := parseRoleMap(r)
-	if err != nil {
-		return fmt.Sprintf("<failed to parse: %v", err)
-	}
-	if len(values) != 0 {
-		return fmt.Sprintf("%v", values)
-	}
-	return "<empty>"
 }
 
 func parseRoleMap(r types.RoleMap) (map[string][]string, error) {

@@ -207,7 +207,7 @@ func (a *authorityCollection) writeText(w io.Writer) error {
 			if a.GetType() == types.HostCA {
 				roles = "N/A"
 			} else {
-				roles = fmt.Sprintf("%v", a.CombinedMapping())
+				roles = fmt.Sprintf("%v", a.GetRoleMap())
 			}
 			t.AddRow([]string{
 				a.GetClusterName(),
@@ -365,7 +365,7 @@ func (c *trustedClusterCollection) writeText(w io.Writer) error {
 			tc.GetToken(),
 			tc.GetProxyAddress(),
 			tc.GetReverseTunnelAddress(),
-			fmt.Sprintf("%v", tc.CombinedMapping()),
+			fmt.Sprintf("%v", tc.GetRoleMap()),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)

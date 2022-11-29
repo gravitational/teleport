@@ -100,23 +100,6 @@ func (s *InstanceSecrets) String() string {
 	return string(bytes)
 }
 
-// GetRoles returns a list of roles to initiate for this secret
-func (s *InstanceSecrets) GetRoles(t *testing.T) []types.Role {
-	var roles []types.Role
-
-	cas, err := s.GetCAs()
-	require.NoError(t, err)
-	for _, ca := range cas {
-		if ca.GetType() != types.UserCA {
-			continue
-		}
-		role := services.RoleForCertAuthority(ca)
-		role.SetLogins(types.Allow, s.AllowedLogins())
-		roles = append(roles, role)
-	}
-	return roles
-}
-
 // GetCAs return an array of CAs stored by the secrets object. In i
 // case we always return hard-coded userCA + hostCA (and they share keys
 // for simplicity)
@@ -156,7 +139,6 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 				Cert:    s.TLSCACert,
 			}},
 		},
-		Roles: []string{services.RoleNameForCertAuthority(s.SiteName)},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -450,7 +432,6 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 		}
 		tconf.Auth.Authorities = append(tconf.Auth.Authorities, leafCAs...)
 
-		tconf.Auth.Roles = append(tconf.Auth.Roles, trusted.GetRoles(t)...)
 		tconf.Identities = append(tconf.Identities, trusted.GetIdentity())
 		if trusted.TunnelAddr != "" {
 			rt, err := types.NewReverseTunnel(trusted.SiteName, []string{trusted.TunnelAddr})

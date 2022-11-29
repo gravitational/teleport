@@ -45,7 +45,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -1692,19 +1691,19 @@ func applyTracingConfig(fc *FileConfig, cfg *service.Config) error {
 
 // parseAuthorizedKeys parses keys in the authorized_keys format and
 // returns a types.CertAuthority.
-func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthority, types.Role, error) {
+func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthority, error) {
 	pubkey, comment, _, _, err := ssh.ParseAuthorizedKey(bytes)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	comments, err := url.ParseQuery(comment)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	clusterName := comments.Get("clustername")
 	if clusterName == "" {
-		return nil, nil, trace.BadParameter("no clustername provided")
+		return nil, trace.BadParameter("no clustername provided")
 	}
 
 	// create a new certificate authority
@@ -1718,37 +1717,32 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthor
 		},
 	})
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	// transform old allowed logins into roles
-	role := services.RoleForCertAuthority(ca)
-	role.SetLogins(types.Allow, allowedLogins)
-	ca.AddRole(role.GetName())
-
-	return ca, role, nil
+	return ca, nil
 }
 
 // parseKnownHosts parses keys in known_hosts format and returns a
 // types.CertAuthority.
-func parseKnownHosts(bytes []byte, allowedLogins []string) (types.CertAuthority, types.Role, error) {
+func parseKnownHosts(bytes []byte, allowedLogins []string) (types.CertAuthority, error) {
 	marker, options, pubKey, comment, _, err := ssh.ParseKnownHosts(bytes)
 	if marker != "cert-authority" {
-		return nil, nil, trace.BadParameter("invalid file format. expected '@cert-authority` marker")
+		return nil, trace.BadParameter("invalid file format. expected '@cert-authority` marker")
 	}
 	if err != nil {
-		return nil, nil, trace.BadParameter("invalid public key")
+		return nil, trace.BadParameter("invalid public key")
 	}
 	teleportOpts, err := url.ParseQuery(comment)
 	if err != nil {
-		return nil, nil, trace.BadParameter("invalid key comment: '%s'", comment)
+		return nil, trace.BadParameter("invalid key comment: '%s'", comment)
 	}
 	authType := types.CertAuthType(teleportOpts.Get("type"))
 	if authType != types.HostCA && authType != types.UserCA {
-		return nil, nil, trace.BadParameter("unsupported CA type: '%s'", authType)
+		return nil, trace.BadParameter("unsupported CA type: '%s'", authType)
 	}
 	if len(options) == 0 {
-		return nil, nil, trace.BadParameter("key without cluster_name")
+		return nil, trace.BadParameter("key without cluster_name")
 	}
 	const prefix = "*."
 	domainName := strings.TrimPrefix(options[0], prefix)
@@ -1763,15 +1757,10 @@ func parseKnownHosts(bytes []byte, allowedLogins []string) (types.CertAuthority,
 		},
 	})
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	// transform old allowed logins into roles
-	role := services.RoleForCertAuthority(ca)
-	role.SetLogins(types.Allow, apiutils.CopyStrings(allowedLogins))
-	ca.AddRole(role.GetName())
-
-	return ca, role, nil
+	return ca, nil
 }
 
 // certificateAuthorityFormat parses bytes and determines if they are in
@@ -1790,10 +1779,10 @@ func certificateAuthorityFormat(bytes []byte) (string, error) {
 
 // parseCAKey parses bytes either in known_hosts or authorized_keys format
 // and returns a types.CertAuthority.
-func parseCAKey(bytes []byte, allowedLogins []string) (types.CertAuthority, types.Role, error) {
+func parseCAKey(bytes []byte, allowedLogins []string) (types.CertAuthority, error) {
 	caFormat, err := certificateAuthorityFormat(bytes)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if caFormat == teleport.AuthorizedKeys {
@@ -1832,10 +1821,9 @@ func readTrustedClusters(clusters []TrustedCluster, conf *service.Config) error 
 		defer f.Close()
 		// read the keyfile for this cluster and get trusted CA keys:
 		var authorities []types.CertAuthority
-		var roles []types.Role
 		scanner := bufio.NewScanner(f)
 		for line := 0; scanner.Scan(); {
-			ca, role, err := parseCAKey(scanner.Bytes(), allowedLogins)
+			ca, err := parseCAKey(scanner.Bytes(), allowedLogins)
 			if err != nil {
 				return trace.BadParameter("%s:L%d. %v", tc.KeyFile, line, err)
 			}
@@ -1844,12 +1832,8 @@ func readTrustedClusters(clusters []TrustedCluster, conf *service.Config) error 
 					ca.GetClusterName())
 			}
 			authorities = append(authorities, ca)
-			if role != nil {
-				roles = append(roles, role)
-			}
 		}
 		conf.Auth.Authorities = append(conf.Auth.Authorities, authorities...)
-		conf.Auth.Roles = append(conf.Auth.Roles, roles...)
 		clusterName := authorities[0].GetClusterName()
 		// parse "tunnel_addr"
 		var tunnelAddresses []string

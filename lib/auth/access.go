@@ -64,22 +64,6 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 			}
 		}
 	}
-	// check if it's used by some external cert authorities, e.g.
-	// cert authorities related to external cluster
-	cas, err := a.Services.GetCertAuthorities(ctx, types.UserCA, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, a := range cas {
-		for _, r := range a.GetRoles() {
-			if r == name {
-				// Mask the actual error here as it could be used to enumerate users
-				// within the system.
-				log.Warnf("Failed to delete role: role %v is used by user cert authority %v", name, a.GetClusterName())
-				return trace.BadParameter("failed to delete role that still in use by a user. Check system server logs for more details.")
-			}
-		}
-	}
 
 	if err := a.Services.DeleteRole(ctx, name); err != nil {
 		return trace.Wrap(err)

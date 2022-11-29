@@ -335,7 +335,6 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 		DomainName: p.Root.Cluster.Secrets.SiteName,
 	}, false)
 	require.NoError(t, err)
-	ca.SetRoles(nil) // Reset roles, otherwise they will take precedence.
 	ca.SetRoleMap(types.RoleMap{
 		{Remote: p.Root.role.GetName(), Local: []string{p.Leaf.role.GetName()}},
 	})

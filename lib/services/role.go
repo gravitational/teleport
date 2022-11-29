@@ -88,12 +88,6 @@ func RoleNameForUser(name string) string {
 	return "user:" + name
 }
 
-// RoleNameForCertAuthority returns role name associated with a certificate
-// authority.
-func RoleNameForCertAuthority(name string) string {
-	return "ca:" + name
-}
-
 // NewImplicitRole is the default implicit role that gets added to all
 // RoleSets.
 func NewImplicitRole() types.Role {
@@ -165,24 +159,6 @@ func RoleForUser(u types.User) types.Role {
 					Modes: []string{string(types.SessionPeerMode)},
 				},
 			},
-		},
-	})
-	return role
-}
-
-// RoleForCertAuthority creates role using types.CertAuthority.
-func RoleForCertAuthority(ca types.CertAuthority) types.Role {
-	role, _ := types.NewRole(RoleNameForCertAuthority(ca.GetClusterName()), types.RoleSpecV6{
-		Options: types.RoleOptions{
-			MaxSessionTTL: types.NewDuration(defaults.MaxCertDuration),
-		},
-		Allow: types.RoleConditions{
-			Namespaces:       []string{defaults.Namespace},
-			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-			Rules:            types.CopyRulesSlice(DefaultCertAuthorityRules),
 		},
 	})
 	return role

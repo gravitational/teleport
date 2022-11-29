@@ -305,11 +305,7 @@ func (a *Server) addCertAuthorities(trustedCluster types.TrustedCluster, remoteC
 		remoteCertAuthority.SetName(trustedCluster.GetName())
 
 		// wipe out roles sent from the remote cluster and set roles from the trusted cluster
-		remoteCertAuthority.SetRoles(nil)
 		if remoteCertAuthority.GetType() == types.UserCA {
-			for _, r := range trustedCluster.GetRoles() {
-				remoteCertAuthority.AddRole(r)
-			}
 			remoteCertAuthority.SetRoleMap(trustedCluster.GetRoleMap())
 		}
 
@@ -490,7 +486,6 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 
 	// a host CA shouldn't have a rolemap or roles in the first place
 	remoteCA.SetRoleMap(nil)
-	remoteCA.SetRoles(nil)
 
 	remoteClusterName := remoteCA.GetName()
 	if remoteClusterName == domainName {

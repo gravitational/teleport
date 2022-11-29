@@ -887,8 +887,13 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	// makes a network request when creating new clusters
 	tc, err := types.NewTrustedCluster("test", types.TrustedClusterSpecV2{
 		Enabled:              true,
-		Roles:                []string{"a"},
 		ReverseTunnelAddress: "b",
+		RoleMap: []types.RoleMapping{
+			{
+				Remote: types.Wildcard,
+				Local:  []string{"admin"},
+			},
+		},
 	})
 	require.NoError(t, err)
 	// use the UpsertTrustedCluster in Uncached as we just want the resource in

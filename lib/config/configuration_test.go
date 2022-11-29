@@ -1306,7 +1306,7 @@ func TestParseKey(t *testing.T) {
 	for i, tt := range tests {
 		comment := fmt.Sprintf("Test %v", i)
 
-		ca, _, err := parseCAKey(tt.inCABytes, []string{"foo"})
+		ca, err := parseCAKey(tt.inCABytes, []string{"foo"})
 		require.NoError(t, err, comment)
 		require.Equal(t, ca.GetType(), tt.outType)
 		require.Equal(t, ca.GetClusterName(), tt.outClusterName)

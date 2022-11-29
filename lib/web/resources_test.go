@@ -180,22 +180,30 @@ metadata:
   name: tcName
 spec:
   enabled: false
+  role_map:
+  - remote: '*'
+    local: [ admin ]
   token: ""
   tunnel_addr: ""
   web_proxy_addr: ""
 version: v2
 `
-	cluster, err := types.NewTrustedCluster("tcName", types.TrustedClusterSpecV2{})
-	require.Nil(t, err)
+	cluster, err := types.NewTrustedCluster("tcName", types.TrustedClusterSpecV2{
+		RoleMap: []types.RoleMapping{
+			{
+				Remote: types.Wildcard,
+				Local:  []string{"admin"},
+			},
+		},
+	})
+	require.NoError(t, err)
 
 	item, err := ui.NewResourceItem(cluster)
-	require.Nil(t, err)
-	require.Equal(t, item, &ui.ResourceItem{
-		ID:      "trusted_cluster:tcName",
-		Kind:    types.KindTrustedCluster,
-		Name:    "tcName",
-		Content: contents,
-	})
+	require.NoError(t, err)
+	require.Equal(t, "trusted_cluster:tcName", item.ID)
+	require.Equal(t, types.KindTrustedCluster, item.Kind)
+	require.Equal(t, "tcName", item.Name)
+	require.YAMLEq(t, contents, item.Content)
 }
 
 func TestGetRoles(t *testing.T) {
@@ -328,8 +336,15 @@ func TestGetTrustedClusters(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	m.mockGetTrustedClusters = func(ctx context.Context) ([]types.TrustedCluster, error) {
-		cluster, err := types.NewTrustedCluster("test", types.TrustedClusterSpecV2{})
-		require.Nil(t, err)
+		cluster, err := types.NewTrustedCluster("test", types.TrustedClusterSpecV2{
+			RoleMap: []types.RoleMapping{
+				{
+					Remote: types.Wildcard,
+					Local:  []string{"admin"},
+				},
+			},
+		})
+		require.NoError(t, err)
 
 		return []types.TrustedCluster{cluster}, nil
 	}

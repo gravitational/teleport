@@ -274,7 +274,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		return nil, trace.Wrap(err)
 	}
 
-	accessInfo, err := services.AccessInfoFromRemoteIdentity(u.Identity, ca.CombinedMapping())
+	accessInfo, err := services.AccessInfoFromRemoteIdentity(u.Identity, ca.GetRoleMap())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

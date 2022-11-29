@@ -1555,7 +1555,6 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 
 	trustedCluster, err := types.NewTrustedCluster("localhost", types.TrustedClusterSpecV2{
 		Enabled:              true,
-		Roles:                []string{},
 		Token:                staticToken,
 		ProxyAddress:         rootProxyAddr.String(),
 		ReverseTunnelAddress: rootTunnelAddr.String(),

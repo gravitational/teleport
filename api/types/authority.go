@@ -52,19 +52,10 @@ type CertAuthority interface {
 	GetTrustedTLSKeyPairs() []*TLSKeyPair
 	GetTrustedJWTKeyPairs() []*JWTKeyPair
 
-	// CombinedMapping is used to specify combined mapping from legacy property Roles
-	// and new property RoleMap
-	CombinedMapping() RoleMap
 	// GetRoleMap returns role map property
 	GetRoleMap() RoleMap
 	// SetRoleMap sets role map
 	SetRoleMap(m RoleMap)
-	// GetRoles returns a list of roles assumed by users signed by this CA
-	GetRoles() []string
-	// SetRoles sets assigned roles for this certificate authority
-	SetRoles(roles []string)
-	// AddRole adds a role to ca role list
-	AddRole(name string)
 	// String returns human readable version of the CertAuthority
 	String() string
 	// GetRotation returns rotation state.
@@ -177,16 +168,6 @@ func (ca *CertAuthorityV2) String() string {
 	return fmt.Sprintf("CA(name=%v, type=%v)", ca.GetClusterName(), ca.GetType())
 }
 
-// AddRole adds a role to ca role list
-func (ca *CertAuthorityV2) AddRole(name string) {
-	for _, r := range ca.Spec.Roles {
-		if r == name {
-			return
-		}
-	}
-	ca.Spec.Roles = append(ca.Spec.Roles, name)
-}
-
 // GetID returns certificate authority ID -
 // combined type and name
 func (ca *CertAuthorityV2) GetID() CertAuthID {
@@ -212,25 +193,6 @@ func (ca *CertAuthorityV2) GetType() CertAuthType {
 // is associated with.
 func (ca *CertAuthorityV2) GetClusterName() string {
 	return ca.Spec.ClusterName
-}
-
-// GetRoles returns a list of roles assumed by users signed by this CA
-func (ca *CertAuthorityV2) GetRoles() []string {
-	return ca.Spec.Roles
-}
-
-// SetRoles sets assigned roles for this certificate authority
-func (ca *CertAuthorityV2) SetRoles(roles []string) {
-	ca.Spec.Roles = roles
-}
-
-// CombinedMapping is used to specify combined mapping from legacy property Roles
-// and new property RoleMap
-func (ca *CertAuthorityV2) CombinedMapping() RoleMap {
-	if len(ca.Spec.Roles) != 0 {
-		return RoleMap([]RoleMapping{{Remote: Wildcard, Local: ca.Spec.Roles}})
-	}
-	return RoleMap(ca.Spec.RoleMap)
 }
 
 // GetRoleMap returns role map property
