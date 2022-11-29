@@ -169,7 +169,7 @@ func setupBPFContext(t *testing.T) *bpfContext {
 	require.NoError(t, err)
 
 	// Create the SessionContext used by both enhanced recording and us (restricted session)
-	bpfCtx.ctx = &bpf.SessionContext{
+	tt.ctx = &bpf.SessionContext{
 		Namespace:      apidefaults.Namespace,
 		SessionID:      uuid.New().String(),
 		ServerID:       uuid.New().String(),
