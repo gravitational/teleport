@@ -32,13 +32,18 @@ import (
 	"strconv"
 	"testing"
 
+	// Register Snowflake database driver.
+	// Do not move this dependency outside _test.go file. Doing so will create
+	// ocsp_response_cache.json in random places.
+	_ "github.com/snowflakedb/gosnowflake"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
-	"github.com/stretchr/testify/require"
 )
 
 func init() {
