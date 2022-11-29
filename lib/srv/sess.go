@@ -955,15 +955,16 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 	// Open a BPF recording session. If BPF was not configured, not available,
 	// or running in a recording proxy, OpenSession is a NOP.
 	sessionContext := &bpf.SessionContext{
-		Context:   scx.srv.Context(),
-		PID:       s.term.PID(),
-		Emitter:   s.Recorder(),
-		Namespace: scx.srv.GetNamespace(),
-		SessionID: s.id.String(),
-		ServerID:  scx.srv.HostUUID(),
-		Login:     scx.Identity.Login,
-		User:      scx.Identity.TeleportUser,
-		Events:    scx.Identity.AccessChecker.EnhancedRecordingSet(),
+		Context:        scx.srv.Context(),
+		PID:            s.term.PID(),
+		Emitter:        s.Recorder(),
+		Namespace:      scx.srv.GetNamespace(),
+		SessionID:      s.id.String(),
+		ServerID:       scx.srv.HostUUID(),
+		ServerHostname: scx.srv.GetInfo().GetHostname(),
+		Login:          scx.Identity.Login,
+		User:           scx.Identity.TeleportUser,
+		Events:         scx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
 
 	if cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext); err != nil {
@@ -1146,15 +1147,16 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	// Open a BPF recording session. If BPF was not configured, not available,
 	// or running in a recording proxy, OpenSession is a NOP.
 	sessionContext := &bpf.SessionContext{
-		Context:   scx.srv.Context(),
-		PID:       scx.execRequest.PID(),
-		Emitter:   s.Recorder(),
-		Namespace: scx.srv.GetNamespace(),
-		SessionID: string(s.id),
-		ServerID:  scx.srv.HostUUID(),
-		Login:     scx.Identity.Login,
-		User:      scx.Identity.TeleportUser,
-		Events:    scx.Identity.AccessChecker.EnhancedRecordingSet(),
+		Context:        scx.srv.Context(),
+		PID:            scx.execRequest.PID(),
+		Emitter:        s.Recorder(),
+		Namespace:      scx.srv.GetNamespace(),
+		SessionID:      string(s.id),
+		ServerID:       scx.srv.HostUUID(),
+		ServerHostname: scx.srv.GetInfo().GetHostname(),
+		Login:          scx.Identity.Login,
+		User:           scx.Identity.TeleportUser,
+		Events:         scx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
 	cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext)
 	if err != nil {
