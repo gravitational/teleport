@@ -184,16 +184,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		LocalPort:             params.LocalPort,
 		CLICommandProvider:    cliCommandProvider,
 		TCPPortAllocator:      s.cfg.TCPPortAllocator,
-		OnExpiredCert: func(ctx context.Context, gateway *gateway.Gateway) error {
-			cluster, err := s.ResolveCluster(gateway.TargetURI())
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			err = s.cfg.GatewayCertReissuer.ReissueCert(ctx, gateway, cluster)
-
-			return trace.Wrap(err)
-		},
+		OnExpiredCert:         s.onExpiredGatewayCert,
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -210,6 +201,17 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 	s.gateways[gateway.URI().String()] = gateway
 
 	return gateway, nil
+}
+
+func (s *Service) onExpiredGatewayCert(ctx context.Context, gateway *gateway.Gateway) error {
+	cluster, err := s.ResolveCluster(gateway.TargetURI())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.cfg.GatewayCertReissuer.ReissueCert(ctx, gateway, cluster)
+
+	return trace.Wrap(err)
 }
 
 // RemoveGateway removes cluster gateway
