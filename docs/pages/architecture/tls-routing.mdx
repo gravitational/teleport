@@ -35,19 +35,21 @@ the additional SNI/ALPN parts of the request in the process. In order for ALPN t
 proxy must terminate TLS itself.
 
 Broadly, this means that Teleport's TLS routing functionality is incompatible with:
-- AWS ALB (Application Load Balancers), especially when using TLS via ACM (Amazon Certificate Manager)
-- Commonly used reverse HTTP proxies like nginx, Apache, Caddy, Traefik, HAProxy and others
+- AWS ALBs (Application Load Balancers)
+- AWS NLBs (Network Load Balancers), when using a TLS listener and a public ACM (Amazon Certificate Manager) certificate
+- Commonly used HTTP reverse proxies including nginx, Apache, Caddy, Traefik, HAProxy and many others
+- Cloudflare tunnels in their default configuration
 
-Deploying Teleport in TLS routing mode behind these proxies will result in a Teleport web UI experience that seems
+Deploying Teleport in TLS routing mode behind an HTTP proxy will result in a Teleport web UI experience that seems
 to work perfectly, but the use of `tsh`, `tctl` and attempting to join remote Teleport services to the cluster will fail
-with errors like `ssh: overflow reading version string` and `EOF`. A working Teleport web UI is not an indication of a
-correctly configured Teleport cluster.
+with errors like `ssh: overflow reading version string` and `EOF`. A functioning Teleport web UI is not always an indication
+of a correctly configured Teleport cluster.
 
-If in doubt, remove all load balancers/proxies from the equation and connect to Teleport directly to isolate the issue.
+If in doubt, remove all load balancers/proxies from the equation and connect to Teleport's web port directly to isolate the issue.
 
-To use Teleport behind a reverse proxy, either:
-- use a layer 4 (TCP) proxy only which forwards TCP streams directly to Teleport (which will then handle TLS termination itself)
-- deploy Teleport in its [../reference/networking.mdx](separate ports) mode by added `version: v1` to `/etc/teleport.yaml` and removing `proxy_listener_mode: multiplex`
+To use Teleport behind a reverse proxy, you should either:
+- use a layer 4 (TCP) proxy which forwards TCP streams directly to Teleport (which will in turn handle TLS termination itself)
+- deploy Teleport in its [../reference/networking.mdx](separate ports) mode by adding `version: v1` to `/etc/teleport.yaml` and removing `proxy_listener_mode: multiplex`
 </Admonition>
 
 ## How it works
