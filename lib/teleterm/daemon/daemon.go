@@ -317,7 +317,7 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Ga
 		return oldGateway, nil
 	}
 
-	newGateway, err := gateway.NewWithLocalPort(*oldGateway, localPort)
+	newGateway, err := gateway.NewWithLocalPort(oldGateway, localPort)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

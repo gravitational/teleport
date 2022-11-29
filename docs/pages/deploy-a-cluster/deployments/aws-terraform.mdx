@@ -38,8 +38,8 @@ We will assume that you have configured your AWS cli access with credentials ava
 ```code
 $ cat ~/.aws/credentials
 # [default]
-# aws_access_key_id = AKIA....
-# aws_secret_access_key = 8ZRxy....
+# aws_access_key_id = (=aws.aws_access_key=)
+# aws_secret_access_key = (=aws.aws_secret_access_key=)
 ```
 
 You should also have a default region set under `~/.aws/config`:
@@ -854,3 +854,9 @@ $ ./connect.sh proxy 1
 # connect to the node
 $ ./connect.sh node
 ```
+
+## Troubleshooting
+
+### AWS quotas
+
+(!docs/pages/includes/aws-quotas.mdx!)

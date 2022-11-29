@@ -74,11 +74,13 @@
 | `grpc_client_handled_total`               | counter | Teleport Proxy | Total number of RPCs completed on the client, regardless of success or failure.                                                 |
 | `grpc_client_msg_received_total`          | counter | Teleport Proxy | Total number of RPC stream messages received on the client.                                                                     |
 | `grpc_client_msg_sent_total`              | counter | Teleport Proxy | Total number of gRPC stream messages sent by the client.                                                                        |
-| `proxy_connection_limit_exceeded_total`   | counter | Teleport Proxy | Number of connections that exceeded the Proxy Service connection limit.                                                                 |
-| `proxy_ssh_sessions_total`                | gauge   | Teleport Proxy | Number of active sessions through this Proxy Service instance.                                                                                   |
-| `proxy_missing_ssh_tunnels`               | gauge   | Teleport Proxy | Number of missing SSH tunnels. Used to debug if Nodes have discovered all Proxy Service instances.                                              |
+| `proxy_connection_limit_exceeded_total`   | counter | Teleport Proxy | Number of connections that exceeded the Proxy Service connection limit.                                                         |
+| `proxy_ssh_sessions_total`                | gauge   | Teleport Proxy | Number of active sessions through this Proxy Service instance.                                                                  |
+| `proxy_missing_ssh_tunnels`               | gauge   | Teleport Proxy | Number of missing SSH tunnels. Used to debug if Nodes have discovered all Proxy Service instances.                              |
+| `remote_clusters`                         | gauge   | Teleport Proxy | Number of inbound connections from leaf clusters.                                                                               |
 | `teleport_connect_to_node_attempts_total` | counter | Teleport Proxy | Number of SSH connection attempts to a node. Use with `failed_connect_to_node_attempts_total` to get the failure rate.          |
 | `teleport_reverse_tunnels_connected`      | gauge   | Teleport Proxy | Number of reverse SSH tunnels connected to the Teleport Proxy Service by Teleport instances.                                    |
+| `trusted_clusters`                        | gauge   | Teleport Proxy | Number of outbound connections to leaf clusters.                                                                                |
 
 ## Teleport Nodes
 
@@ -97,7 +99,6 @@
 | `teleport_build_info` | gauge | Teleport | Provides build information of Teleport including gitref (git describe --long --tags), Go version, and Teleport version. The value of this gauge will always be 1. |
 | `teleport_cache_events` | counter | Teleport | Number of events received by a Teleport service cache. Teleport's Auth Service, Proxy Service, and other services cache incoming events related to their service. |
 | `teleport_cache_stale_events` | counter | Teleport | Number of stale events received by a Teleport service cache. A high percentage of stale events can indicate a degraded backend. |
-| `trusted_clusters` | gauge | Teleport | Number of tunnels per state. |
 | `tx` | counter | Teleport | Number of bytes transmitted during an SSH connection. |
 
 

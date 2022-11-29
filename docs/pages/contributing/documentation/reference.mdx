@@ -512,6 +512,14 @@ $ curl https://<Var name="proxy"/>/webapi/ping
 
 </Details>
 
+<Admonition type="tip">
+
+The `Var` component only works in [code blocks](#code-blocks) using the `code`
+syntax (e.g. <code>```code</code>), and only for "command" lines (beginning
+with `$`). The component will work without caveats outside of code blocks.
+
+</Admonition>
+
 When a user updates the value of an in-page variable, the values of any `Var`
 components with the same `name` property update automatically. When you copy a
 `code` snippet using the copy button, the values of any in-page variables within
@@ -574,6 +582,27 @@ The `Figure` component can help with using images, figures, and diagrams:
   ![Example](../../../img/overview.png)
 </Figure>
 ```
+
+## Icons
+
+The `Icon` component lets you insert icons into documentation text. This is
+useful when referencing a UI element with an icon. For example:
+
+```md
+In the main menu, click on <Icon name="desktop" inline size="sm"/> **Desktops**
+to view desktops available to your Teleport user.
+```
+
+Which renders as:
+
+In the main menu, click on <Icon name="desktop" inline size="sm"/> **Desktops**
+to view desktops available to your Teleport user.
+
+<Details title="Available icons">
+
+(!docs/pages/includes/icons-table.mdx!)
+
+</Details>
 
 ## ScopedBlock
 

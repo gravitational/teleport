@@ -1481,3 +1481,11 @@ const tdpMaxPathLength = 10240
 
 const maxClipboardDataLength = 1024 * 1024    // 1MB
 const tdpMaxFileReadWriteLength = 1024 * 1024 // 1MB
+
+// These correspond to TdpErrCode enum in the rust RDP client.
+const (
+	ErrCodeNil           uint32 = 0
+	ErrCodeFailed        uint32 = 1
+	ErrCodeDoesNotExist  uint32 = 2
+	ErrCodeAlreadyExists uint32 = 3
+)

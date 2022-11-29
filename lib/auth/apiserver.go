@@ -17,7 +17,6 @@ limitations under the License.
 package auth
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -33,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -86,91 +84,89 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.Router.UseRawPath = true
 
 	// Kubernetes extensions
-	srv.POST("/:version/kube/csr", srv.withAuth(srv.processKubeCSR))
+	srv.POST("/:version/kube/csr", srv.WithAuth(srv.processKubeCSR))
 
-	srv.POST("/:version/authorities/:type", srv.withAuth(srv.upsertCertAuthority))
-	srv.POST("/:version/authorities/:type/rotate", srv.withAuth(srv.rotateCertAuthority))
-	srv.POST("/:version/authorities/:type/rotate/external", srv.withAuth(srv.rotateExternalCertAuthority))
-	srv.DELETE("/:version/authorities/:type/:domain", srv.withAuth(srv.deleteCertAuthority))
-	srv.GET("/:version/authorities/:type/:domain", srv.withAuth(srv.getCertAuthority))
-	srv.GET("/:version/authorities/:type", srv.withAuth(srv.getCertAuthorities))
+	srv.POST("/:version/authorities/:type", srv.WithAuth(srv.upsertCertAuthority))
+	srv.POST("/:version/authorities/:type/rotate", srv.WithAuth(srv.rotateCertAuthority))
+	srv.POST("/:version/authorities/:type/rotate/external", srv.WithAuth(srv.rotateExternalCertAuthority))
+	srv.DELETE("/:version/authorities/:type/:domain", srv.WithAuth(srv.deleteCertAuthority))
+	srv.GET("/:version/authorities/:type/:domain", srv.WithAuth(srv.getCertAuthority))
+	srv.GET("/:version/authorities/:type", srv.WithAuth(srv.getCertAuthorities))
 
 	// Generating certificates for user and host authorities
-	srv.POST("/:version/ca/host/certs", srv.withAuth(srv.generateHostCert))
+	srv.POST("/:version/ca/host/certs", srv.WithAuth(srv.generateHostCert))
 
 	// Operations on users
-	srv.GET("/:version/users", srv.withAuth(srv.getUsers))
-	srv.GET("/:version/users/:user", srv.withAuth(srv.getUser))
-	srv.DELETE("/:version/users/:user", srv.withAuth(srv.deleteUser)) // DELETE IN: 5.2 REST method is replaced by grpc method with context.
+	srv.GET("/:version/users", srv.WithAuth(srv.getUsers))
+	srv.GET("/:version/users/:user", srv.WithAuth(srv.getUser))
+	srv.DELETE("/:version/users/:user", srv.WithAuth(srv.deleteUser)) // DELETE IN: 5.2 REST method is replaced by grpc method with context.
 
 	// Passwords and sessions
-	srv.POST("/:version/users", srv.withAuth(srv.upsertUser))
-	srv.PUT("/:version/users/:user/web/password", srv.withAuth(srv.changePassword))
-	srv.POST("/:version/users/:user/web/password/check", srv.withRate(srv.withAuth(srv.checkPassword)))
-	srv.POST("/:version/users/:user/web/sessions", srv.withAuth(srv.createWebSession))
-	srv.POST("/:version/users/:user/web/authenticate", srv.withAuth(srv.authenticateWebUser))
-	srv.POST("/:version/users/:user/ssh/authenticate", srv.withAuth(srv.authenticateSSHUser))
-	srv.GET("/:version/users/:user/web/sessions/:sid", srv.withAuth(srv.getWebSession))
-	srv.DELETE("/:version/users/:user/web/sessions/:sid", srv.withAuth(srv.deleteWebSession))
+	srv.POST("/:version/users", srv.WithAuth(srv.upsertUser))
+	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.createWebSession))
+	srv.POST("/:version/users/:user/web/authenticate", srv.WithAuth(srv.authenticateWebUser))
+	srv.POST("/:version/users/:user/ssh/authenticate", srv.WithAuth(srv.authenticateSSHUser))
+	srv.GET("/:version/users/:user/web/sessions/:sid", srv.WithAuth(srv.getWebSession))
+	srv.DELETE("/:version/users/:user/web/sessions/:sid", srv.WithAuth(srv.deleteWebSession))
 
 	// Servers and presence heartbeat
-	srv.POST("/:version/namespaces/:namespace/nodes/keepalive", srv.withAuth(srv.keepAliveNode))
-	srv.POST("/:version/authservers", srv.withAuth(srv.upsertAuthServer))
-	srv.GET("/:version/authservers", srv.withAuth(srv.getAuthServers))
-	srv.POST("/:version/proxies", srv.withAuth(srv.upsertProxy))
-	srv.GET("/:version/proxies", srv.withAuth(srv.getProxies))
-	srv.DELETE("/:version/proxies", srv.withAuth(srv.deleteAllProxies))
-	srv.DELETE("/:version/proxies/:name", srv.withAuth(srv.deleteProxy))
-	srv.POST("/:version/tunnelconnections", srv.withAuth(srv.upsertTunnelConnection))
-	srv.GET("/:version/tunnelconnections/:cluster", srv.withAuth(srv.getTunnelConnections))
-	srv.GET("/:version/tunnelconnections", srv.withAuth(srv.getAllTunnelConnections))
-	srv.DELETE("/:version/tunnelconnections/:cluster/:conn", srv.withAuth(srv.deleteTunnelConnection))
-	srv.DELETE("/:version/tunnelconnections/:cluster", srv.withAuth(srv.deleteTunnelConnections))
-	srv.DELETE("/:version/tunnelconnections", srv.withAuth(srv.deleteAllTunnelConnections))
+	srv.POST("/:version/namespaces/:namespace/nodes/keepalive", srv.WithAuth(srv.keepAliveNode))
+	srv.POST("/:version/authservers", srv.WithAuth(srv.upsertAuthServer))
+	srv.GET("/:version/authservers", srv.WithAuth(srv.getAuthServers))
+	srv.POST("/:version/proxies", srv.WithAuth(srv.upsertProxy))
+	srv.GET("/:version/proxies", srv.WithAuth(srv.getProxies))
+	srv.DELETE("/:version/proxies", srv.WithAuth(srv.deleteAllProxies))
+	srv.DELETE("/:version/proxies/:name", srv.WithAuth(srv.deleteProxy))
+	srv.POST("/:version/tunnelconnections", srv.WithAuth(srv.upsertTunnelConnection))
+	srv.GET("/:version/tunnelconnections/:cluster", srv.WithAuth(srv.getTunnelConnections))
+	srv.GET("/:version/tunnelconnections", srv.WithAuth(srv.getAllTunnelConnections))
+	srv.DELETE("/:version/tunnelconnections/:cluster/:conn", srv.WithAuth(srv.deleteTunnelConnection))
+	srv.DELETE("/:version/tunnelconnections/:cluster", srv.WithAuth(srv.deleteTunnelConnections))
+	srv.DELETE("/:version/tunnelconnections", srv.WithAuth(srv.deleteAllTunnelConnections))
 
 	// Remote clusters
-	srv.POST("/:version/remoteclusters", srv.withAuth(srv.createRemoteCluster))
-	srv.GET("/:version/remoteclusters/:cluster", srv.withAuth(srv.getRemoteCluster))
-	srv.GET("/:version/remoteclusters", srv.withAuth(srv.getRemoteClusters))
-	srv.DELETE("/:version/remoteclusters/:cluster", srv.withAuth(srv.deleteRemoteCluster))
-	srv.DELETE("/:version/remoteclusters", srv.withAuth(srv.deleteAllRemoteClusters))
+	srv.POST("/:version/remoteclusters", srv.WithAuth(srv.createRemoteCluster))
+	srv.GET("/:version/remoteclusters/:cluster", srv.WithAuth(srv.getRemoteCluster))
+	srv.GET("/:version/remoteclusters", srv.WithAuth(srv.getRemoteClusters))
+	srv.DELETE("/:version/remoteclusters/:cluster", srv.WithAuth(srv.deleteRemoteCluster))
+	srv.DELETE("/:version/remoteclusters", srv.WithAuth(srv.deleteAllRemoteClusters))
 
 	// Reverse tunnels
-	srv.POST("/:version/reversetunnels", srv.withAuth(srv.upsertReverseTunnel))
-	srv.GET("/:version/reversetunnels", srv.withAuth(srv.getReverseTunnels))
-	srv.DELETE("/:version/reversetunnels/:domain", srv.withAuth(srv.deleteReverseTunnel))
+	srv.POST("/:version/reversetunnels", srv.WithAuth(srv.upsertReverseTunnel))
+	srv.GET("/:version/reversetunnels", srv.WithAuth(srv.getReverseTunnels))
+	srv.DELETE("/:version/reversetunnels/:domain", srv.WithAuth(srv.deleteReverseTunnel))
 
 	// trusted clusters
-	srv.POST("/:version/trustedclusters/validate", srv.withAuth(srv.validateTrustedCluster))
+	srv.POST("/:version/trustedclusters/validate", srv.WithAuth(srv.validateTrustedCluster))
 
 	// Tokens
-	srv.POST("/:version/tokens/register", srv.withAuth(srv.registerUsingToken))
+	srv.POST("/:version/tokens/register", srv.WithAuth(srv.registerUsingToken))
 
 	// Active sessions
-	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.getSessionChunk))
-	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.withAuth(srv.getSessionEvents))
+	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.WithAuth(srv.getSessionChunk))
+	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.WithAuth(srv.getSessionEvents))
 
 	// Namespaces
-	srv.POST("/:version/namespaces", srv.withAuth(srv.upsertNamespace))
-	srv.GET("/:version/namespaces", srv.withAuth(srv.getNamespaces))
-	srv.GET("/:version/namespaces/:namespace", srv.withAuth(srv.getNamespace))
-	srv.DELETE("/:version/namespaces/:namespace", srv.withAuth(srv.deleteNamespace))
+	srv.POST("/:version/namespaces", srv.WithAuth(srv.upsertNamespace))
+	srv.GET("/:version/namespaces", srv.WithAuth(srv.getNamespaces))
+	srv.GET("/:version/namespaces/:namespace", srv.WithAuth(srv.getNamespace))
+	srv.DELETE("/:version/namespaces/:namespace", srv.WithAuth(srv.deleteNamespace))
 
 	// cluster configuration
-	srv.GET("/:version/configuration/name", srv.withAuth(srv.getClusterName))
-	srv.POST("/:version/configuration/name", srv.withAuth(srv.setClusterName))
-	srv.GET("/:version/configuration/static_tokens", srv.withAuth(srv.getStaticTokens))
-	srv.DELETE("/:version/configuration/static_tokens", srv.withAuth(srv.deleteStaticTokens))
-	srv.POST("/:version/configuration/static_tokens", srv.withAuth(srv.setStaticTokens))
+	srv.GET("/:version/configuration/name", srv.WithAuth(srv.getClusterName))
+	srv.POST("/:version/configuration/name", srv.WithAuth(srv.setClusterName))
+	srv.GET("/:version/configuration/static_tokens", srv.WithAuth(srv.getStaticTokens))
+	srv.DELETE("/:version/configuration/static_tokens", srv.WithAuth(srv.deleteStaticTokens))
+	srv.POST("/:version/configuration/static_tokens", srv.WithAuth(srv.setStaticTokens))
 
 	// SSO validation handlers
-	srv.POST("/:version/oidc/requests/validate", srv.withAuth(srv.validateOIDCAuthCallback))
-	srv.POST("/:version/saml/requests/validate", srv.withAuth(srv.validateSAMLResponse))
-	srv.POST("/:version/github/requests/validate", srv.withAuth(srv.validateGithubAuthCallback))
+	srv.POST("/:version/oidc/requests/validate", srv.WithAuth(srv.validateOIDCAuthCallback))
+	srv.POST("/:version/saml/requests/validate", srv.WithAuth(srv.validateSAMLResponse))
+	srv.POST("/:version/github/requests/validate", srv.WithAuth(srv.validateGithubAuthCallback))
 
 	// Audit logs AKA events
-	srv.GET("/:version/events", srv.withAuth(srv.searchEvents))
-	srv.GET("/:version/events/session", srv.withAuth(srv.searchSessionEvents))
+	srv.GET("/:version/events", srv.WithAuth(srv.searchEvents))
+	srv.GET("/:version/events/session", srv.WithAuth(srv.searchSessionEvents))
 
 	if config.PluginRegistry != nil {
 		if err := config.PluginRegistry.RegisterAuthWebHandlers(&srv); err != nil {
@@ -188,7 +184,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 // HandlerWithAuthFunc is http handler with passed auth context
 type HandlerWithAuthFunc func(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error)
 
-func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
+func (s *APIServer) WithAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 	const accessDeniedMsg = "auth API: access denied "
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		// HTTPS server expects auth context to be set by the auth middleware
@@ -222,33 +218,6 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 		}
 		return handler(auth, w, r, p, version)
 	})
-}
-
-// withRate wrap a rate limiter around the passed in httprouter.Handle and
-// returns a httprouter.Handle. Because the rate limiter wraps a http.Handler,
-// internally withRate converts to the standard handler and back.
-func (s *APIServer) withRate(handle httprouter.Handle) httprouter.Handle {
-	limiter := defaults.CheckPasswordLimiter()
-
-	fromStandard := func(h http.Handler) httprouter.Handle {
-		return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-			ctx := context.WithValue(r.Context(), contextParams, p)
-			r = r.WithContext(ctx)
-			h.ServeHTTP(w, r)
-		}
-	}
-	toStandard := func(handle httprouter.Handle) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			p, ok := r.Context().Value(contextParams).(httprouter.Params)
-			if !ok {
-				trace.WriteError(w, trace.BadParameter("parameters missing from request"))
-				return
-			}
-			handle(w, r, p)
-		})
-	}
-	limiter.WrapHandle(toStandard(handle))
-	return fromStandard(limiter)
 }
 
 type upsertServerRawReq struct {
@@ -541,20 +510,6 @@ func (s *APIServer) authenticateSSHUser(auth ClientI, w http.ResponseWriter, r *
 	return auth.AuthenticateSSHUser(r.Context(), req)
 }
 
-// changePassword updates users password based on the old password.
-func (s *APIServer) changePassword(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req services.ChangePasswordReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := auth.ChangePassword(req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message(fmt.Sprintf("password has been changed for user %q", req.User)), nil
-}
-
 type upsertUserRawReq struct {
 	User json.RawMessage `json:"user"`
 }
@@ -574,25 +529,6 @@ func (s *APIServer) upsertUser(auth ClientI, w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("'%v' user upserted", user.GetName())), nil
-}
-
-type checkPasswordReq struct {
-	Password string `json:"password"`
-	OTPToken string `json:"otp_token"`
-}
-
-func (s *APIServer) checkPassword(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req checkPasswordReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	user := p.ByName("user")
-	if err := auth.CheckPassword(user, []byte(req.Password), req.OTPToken); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message(fmt.Sprintf("%q user password matches", user)), nil
 }
 
 func (s *APIServer) getUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -656,7 +592,7 @@ func (s *APIServer) generateHostCert(auth ClientI, w http.ResponseWriter, r *htt
 		return nil, trace.BadParameter("exactly one system role is required")
 	}
 
-	cert, err := auth.GenerateHostCert(req.Key, req.HostID, req.NodeName, req.Principals, req.ClusterName, req.Roles[0], req.TTL)
+	cert, err := auth.GenerateHostCert(r.Context(), req.Key, req.HostID, req.NodeName, req.Principals, req.ClusterName, req.Roles[0], req.TTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -842,33 +778,8 @@ func (s *APIServer) validateOIDCAuthCallback(auth ClientI, w http.ResponseWriter
 	return &raw, nil
 }
 
-type validateSAMLResponseReq struct {
-	Response    string `json:"response"`
-	ConnectorID string `json:"connector_id,omitempty"`
-}
-
-// samlAuthRawResponse is returned when auth server validated callback parameters
-// returned from SAML provider
-type samlAuthRawResponse struct {
-	// Username is authenticated teleport username
-	Username string `json:"username"`
-	// Identity contains validated OIDC identity
-	Identity types.ExternalIdentity `json:"identity"`
-	// Web session will be generated by auth server if requested in OIDCAuthRequest
-	Session json.RawMessage `json:"session,omitempty"`
-	// Cert will be generated by certificate authority
-	Cert []byte `json:"cert,omitempty"`
-	// Req is original oidc auth request
-	Req SAMLAuthRequest `json:"req"`
-	// HostSigners is a list of signing host public keys
-	// trusted by proxy, used in console login
-	HostSigners []json.RawMessage `json:"host_signers"`
-	// TLSCert is TLS certificate authority certificate
-	TLSCert []byte `json:"tls_cert,omitempty"`
-}
-
 func (s *APIServer) validateSAMLResponse(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *validateSAMLResponseReq
+	var req *ValidateSAMLResponseReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -876,7 +787,7 @@ func (s *APIServer) validateSAMLResponse(auth ClientI, w http.ResponseWriter, r 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	raw := samlAuthRawResponse{
+	raw := SAMLAuthRawResponse{
 		Username: response.Username,
 		Identity: response.Identity,
 		Cert:     response.Cert,
@@ -1408,9 +1319,3 @@ func (s *APIServer) processKubeCSR(auth ClientI, w http.ResponseWriter, r *http.
 func message(msg string) map[string]interface{} {
 	return map[string]interface{}{"message": msg}
 }
-
-type contextParamsKey string
-
-// contextParams is the name of of the key that holds httprouter.Params in
-// a context.
-const contextParams contextParamsKey = "params"
