@@ -15,7 +15,7 @@ it and join the cluster.
 
 - AWS account with EC2 instances and permissions to create and attach IAM
 policies.
-- EC2 instances running Ubuntu/Debian/RHEL/Amazon Linux 2 if making use of the
+- EC2 instances running Ubuntu/Debian/RHEL/Amazon Linux 2 and SSM agent version 3.1 or greater if making use of the
 default Teleport install script. (For other Linux distributions, you can
 install Teleport manually.)
 
@@ -106,7 +106,7 @@ Install Teleport on the EC2 instance that will run the Discovery Service:
 ## Step 4/6. Configure Teleport to discover EC2 instances
 
 If you are running the Discovery Service on its own host, the service requires a
-valid auth token to connect to the cluster. Generate one by running the
+valid invite token to connect to the cluster. Generate one by running the
 following command against your Teleport Auth Service:
 
 ```code
@@ -323,7 +323,7 @@ If Installs are showing failed or instances are failing to appear check the
 Command history in AWS System Manager -> Node Management -> Run Command.
 Select the instance-id of the Target to review Errors.
 
-## Next Steps
+## Next steps
 
 Information on IAM best practices on EC2 instances managed by Systems
 Manager can be found for IAM best practices on EC2 instances managed
