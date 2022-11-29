@@ -7,7 +7,7 @@ on:
       - examples/etcd/certs/*.pem
     branches:
       - master
-
+  
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: gravitational/ci-etcd
