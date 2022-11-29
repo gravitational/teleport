@@ -13018,7 +13018,7 @@ type AuthServiceClient interface {
 	DeleteAllKubernetesClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetWindowsDesktopServices returns all registered Windows desktop services.
 	GetWindowsDesktopServices(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWindowsDesktopServicesResponse, error)
-	// TODO(zmb3): Document me.
+	// GetWindowsDesktopService gets a Windows desktop service by name.
 	GetWindowsDesktopService(ctx context.Context, in *GetWindowsDesktopServiceRequest, opts ...grpc.CallOption) (*GetWindowsDesktopServiceResponse, error)
 	// UpsertWindowsDesktopService registers a new Windows desktop service.
 	UpsertWindowsDesktopService(ctx context.Context, in *types.WindowsDesktopServiceV3, opts ...grpc.CallOption) (*types.KeepAlive, error)
@@ -15685,7 +15685,7 @@ type AuthServiceServer interface {
 	DeleteAllKubernetesClusters(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetWindowsDesktopServices returns all registered Windows desktop services.
 	GetWindowsDesktopServices(context.Context, *emptypb.Empty) (*GetWindowsDesktopServicesResponse, error)
-	// TODO(zmb3): Document me.
+	// GetWindowsDesktopService gets a Windows desktop service by name.
 	GetWindowsDesktopService(context.Context, *GetWindowsDesktopServiceRequest) (*GetWindowsDesktopServiceResponse, error)
 	// UpsertWindowsDesktopService registers a new Windows desktop service.
 	UpsertWindowsDesktopService(context.Context, *types.WindowsDesktopServiceV3) (*types.KeepAlive, error)
