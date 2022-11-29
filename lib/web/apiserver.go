@@ -371,6 +371,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 		// redirect to "/web" when someone hits "/"
 		if r.URL.Path == "/" {
+			app.SetRedirectPageHeaders(w.Header(), "")
 			http.Redirect(w, r, "/web", http.StatusFound)
 			return
 		}
