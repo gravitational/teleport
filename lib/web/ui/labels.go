@@ -23,6 +23,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+// makeLabels is a function that transforms map[string]string arguments passed to it to sorted slice of Labels.
+// It also removes all Teleport internal labels from output.
 func makeLabels(labelMaps ...map[string]string) []Label {
 	length := 0
 	for _, labelMap := range labelMaps {
