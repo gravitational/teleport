@@ -132,33 +132,39 @@ func TestGetDbName(t *testing.T) {
 
 func TestGetRootClusterURI(t *testing.T) {
 	tests := []struct {
-		in  uri.ResourceURI
-		out uri.ResourceURI
+		name string
+		in   uri.ResourceURI
+		out  uri.ResourceURI
 	}{
 		{
-			uri.NewClusterURI("foo"),
-			uri.NewClusterURI("foo"),
+			name: "noop on root cluster URI",
+			in:   uri.NewClusterURI("foo"),
+			out:  uri.NewClusterURI("foo"),
 		},
 		{
-			uri.NewClusterURI("foo").AppendDB("postgres"),
-			uri.NewClusterURI("foo"),
+			name: "trims root cluster resource URI",
+			in:   uri.NewClusterURI("foo").AppendDB("postgres"),
+			out:  uri.NewClusterURI("foo"),
 		},
 		{
-			uri.NewClusterURI("foo").AppendLeafCluster("bar"),
-			uri.NewClusterURI("foo"),
+			name: "trims leaf cluster URI",
+			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar"),
+			out:  uri.NewClusterURI("foo"),
 		},
 		{
-			uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendDB("postgres"),
-			uri.NewClusterURI("foo"),
+			name: "trims leaf cluster resource URI",
+			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendDB("postgres"),
+			out:  uri.NewClusterURI("foo"),
 		},
 		{
-			uri.NewGatewayURI("quux"),
-			uri.NewClusterURI(""),
+			name: "returns empty URI if given a gateway URI",
+			in:   uri.NewGatewayURI("quux"),
+			out:  uri.NewClusterURI(""),
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.in.String(), func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			out := tt.in.GetRootClusterURI()
 			require.Equal(t, tt.out, out)
 		})
