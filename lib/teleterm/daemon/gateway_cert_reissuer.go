@@ -32,8 +32,8 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// GatewayCertReissuer is responsible for managing the process of reissuing a cert for a gateway
-// after the cert expires.
+// GatewayCertReissuer is responsible for managing the process of reissuing a db cert for a gateway
+// after the db cert expires.
 type GatewayCertReissuer struct {
 	// TSHDEventsClient gets set by daemon.Service behind its mutex.
 	TSHDEventsClient TSHDEventsClient
@@ -56,12 +56,12 @@ type TSHDEventsClient interface {
 	SendNotification(ctx context.Context, in *api.SendNotificationRequest, opts ...grpc.CallOption) (*api.SendNotificationResponse, error)
 }
 
-// ReissueCert attempts to contact the cluster to reissue the cert used by the gateway. If that
+// ReissueCert attempts to contact the cluster to reissue the db cert used by the gateway. If that
 // operation fails and the error is resolvable by relogin, ReissueCert tells the Electron app to
-// relogin the user. Once that is done, it attempts to reissue the cert again.
+// relogin the user. Once that is done, it attempts to reissue the db cert again.
 //
 // ReissueCert is called by the LocalProxy middleware used by Connect's gateways. The middleware
-// calls ReissueCert on an incoming connection to the proxy if the cert used by the proxy has
+// calls ReissueCert on an incoming connection to the proxy if the db cert used by the proxy has
 // expired.
 //
 // If the initial call to the cluster fails with an error that is not resolvable by logging in,
@@ -83,13 +83,13 @@ func (r *GatewayCertReissuer) ReissueCert(ctx context.Context, gateway *gateway.
 }
 
 func (r *GatewayCertReissuer) reissueCert(ctx context.Context, gateway *gateway.Gateway, dbCertReissuer DBCertReissuer) error {
-	// Make the first attempt at reissuing the cert.
+	// Make the first attempt at reissuing the db cert.
 	//
 	// It might happen that the db cert has expired but the user cert is still active, allowing us to
 	// obtain a new db cert without having to relogin first.
 	//
 	// This can happen if the user cert was refreshed by anything other than the gateway itself. For
-	// example, if you execute `tsh ssh` within Connect after your cert expires or there are two
+	// example, if you execute `tsh ssh` within Connect after your user cert expires or there are two
 	// gateways that subsequently go through this flow.
 	err := r.reissueAndReloadGatewayCert(ctx, gateway, dbCertReissuer)
 
