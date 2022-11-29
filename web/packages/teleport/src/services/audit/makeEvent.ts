@@ -674,8 +674,8 @@ export const formatters: Formatters = {
   [eventCodes.KUBE_REQUEST]: {
     type: 'kube.request',
     desc: 'Kubernetes Request',
-    format: ({ user, kubernetes_cluster }) =>
-      `User [${user}] made a request to kubernetes cluster [${kubernetes_cluster}]`,
+    format: ({ user, kubernetes_cluster, verb, request_path, response_code }) =>
+      `User [${user}] received a [${response_code}] from a [${verb} ${request_path}] request to kubernetes cluster [${kubernetes_cluster}]`,
   },
   [eventCodes.KUBE_CREATED]: {
     type: 'kube.create',
