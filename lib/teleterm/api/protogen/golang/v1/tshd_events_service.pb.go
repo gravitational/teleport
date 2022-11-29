@@ -109,14 +109,12 @@ type ReloginRequest_GatewayCertExpired struct {
 
 func (*ReloginRequest_GatewayCertExpired) isReloginRequest_Reason() {}
 
-// GatewayCertExpired is given as the reason when something attempts to make a connection through
-// the gateway but:
+// GatewayCertExpired is given as the reason when a database client attempts to make a connection
+// through the gateway, the gateway middleware notices that the db cert has expired and tries to
+// connect to the cluster to reissue the cert, but fails because the user cert has expired as well.
 //
-// * the db cert used by the gateway has expired
-// * the user cert has expired as well, making the gateway middleware unable to reissue the db cert.
-//
-// At that point, tshd needs the Electron app to make the user log in again to the given cluster in
-// order to let the connection through.
+// At that point in order to let the connection through, tshd needs the Electron app to refresh the
+// user cert by asking the user to log in again.
 type GatewayCertExpired struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
