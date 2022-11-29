@@ -35,16 +35,25 @@ interface NotificationProps {
 const defaultAutoRemoveDurationMs = 10_000; // 10s
 
 export function Notification(props: NotificationProps & propTypes) {
+  const {
+    item,
+    onRemove,
+    Icon,
+    getColor,
+    isAutoRemovable,
+    autoRemoveDurationMs,
+    ...styleProps
+  } = props;
   const [isHovered, setIsHovered] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const timeoutHandler = useRef<number>();
   const theme = useTheme();
 
   useEffect(() => {
-    if (!isHovered && props.isAutoRemovable) {
+    if (!isHovered && isAutoRemovable) {
       timeoutHandler.current = setTimeout(
-        props.onRemove,
-        props.autoRemoveDurationMs || defaultAutoRemoveDurationMs
+        onRemove,
+        autoRemoveDurationMs || defaultAutoRemoveDurationMs
       ) as unknown as number;
     }
 
@@ -67,7 +76,7 @@ export function Notification(props: NotificationProps & propTypes) {
       style={{ visibility: isHovered ? 'visible' : 'hidden' }}
       onClick={e => {
         e.stopPropagation();
-        props.onRemove();
+        onRemove();
       }}
     >
       <Close />
@@ -90,11 +99,11 @@ export function Notification(props: NotificationProps & propTypes) {
         }
       }}
       onClick={toggleIsExpanded}
-      {...props}
+      {...styleProps}
     >
       <Flex alignItems="center" mr={1} minWidth="0" width="100%">
-        <props.Icon color={props.getColor(theme)} mr={3} fontSize={16} />
-        {getRenderedContent(props.item.content, isExpanded, removeIcon)}
+        <Icon color={getColor(theme)} mr={3} fontSize={16} />
+        {getRenderedContent(item.content, isExpanded, removeIcon)}
       </Flex>
     </Container>
   );
