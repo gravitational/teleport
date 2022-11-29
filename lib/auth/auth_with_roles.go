@@ -5185,8 +5185,8 @@ func (a *ServerWithRoles) GetLicenseCheckResult(ctx context.Context) (*reporting
 	return &reportingtypes.Heartbeat{}, trace.NotImplemented(notImplementedMessage)
 }
 
-func (a *ServerWithRoles) GetConnection() *grpc.ClientConn {
-	return nil
+func (a *ServerWithRoles) GetConnection() (*grpc.ClientConn, error) {
+	return nil, trace.NotImplemented("method not implemented")
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

@@ -2525,7 +2525,9 @@ func TestExport(t *testing.T) {
 			require.NoError(t, err)
 
 			// create a tracing client and forward some traces
-			traceClt := tracing.NewClient(clt.APIClient.GetConnection())
+			conn, err := clt.APIClient.GetConnection()
+			require.NoError(t, err)
+			traceClt := tracing.NewClient(conn)
 			t.Cleanup(func() { require.NoError(t, traceClt.Close()) })
 			require.NoError(t, traceClt.Start(ctx))
 

@@ -122,7 +122,12 @@ func NewTracingClient(ctx context.Context, cfg Config) (*tracing.Client, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	return tracing.NewClient(clt.GetConnection()), nil
+	conn, err := clt.GetConnection()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return tracing.NewClient(conn), nil
 }
 
 // newClient constructs a new client.
@@ -558,8 +563,8 @@ func (c *Client) Dialer() ContextDialer {
 }
 
 // GetConnection returns GRPC connection.
-func (c *Client) GetConnection() *grpc.ClientConn {
-	return c.conn
+func (c *Client) GetConnection() (*grpc.ClientConn, error) {
+	return c.conn, nil
 }
 
 // Close closes the Client connection to the auth server.
@@ -2905,7 +2910,7 @@ func (c *Client) UpsertClusterAlert(ctx context.Context, alert types.ClusterAler
 }
 
 func (c *Client) GetLicenseCheckResult(ctx context.Context) (*reportingtypes.Heartbeat, error) {
-	return &reportingtypes.Heartbeat{}, trace.NotImplemented("(api/client) method not implemented")
+	return &reportingtypes.Heartbeat{}, trace.NotImplemented("method not implemented")
 }
 
 func (c *Client) ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error {

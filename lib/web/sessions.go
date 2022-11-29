@@ -133,7 +133,7 @@ func (c *SessionContext) GetClient() (auth.ClientI, error) {
 }
 
 // GetClientConnection returns a connection to Auth Service
-func (c *SessionContext) GetClientConnection() *grpc.ClientConn {
+func (c *SessionContext) GetClientConnection() (*grpc.ClientConn, error) {
 	return c.clt.GetConnection()
 }
 

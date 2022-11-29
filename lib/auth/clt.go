@@ -1696,7 +1696,6 @@ type ClientI interface {
 	// GetLicenseCheckResult returns the last license check result
 	GetLicenseCheckResult(ctx context.Context) (*reportingtypes.Heartbeat, error)
 
-	// TODO change this to return err
 	// GetProxyClient returns authenticated server client
-	GetConnection() *grpc.ClientConn
+	GetConnection() (*grpc.ClientConn, error)
 }
