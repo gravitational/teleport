@@ -34,6 +34,7 @@ import (
 	"google.golang.org/api/iterator"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/keystore/internal/faketime"
 )
 
 const (
@@ -46,6 +47,8 @@ const (
 	// We always use version 1, during rotation brand new keys are created.
 	keyVersionSuffix = "/cryptoKeyVersions/1"
 )
+
+type pendingRetryTag struct{}
 
 var (
 	gcpKMSProtectionLevels = map[string]kmspb.ProtectionLevel{
@@ -67,6 +70,9 @@ type GCPKMSConfig struct {
 	// server without races when multiple auth servers are configured with the
 	// same KeyRing.
 	HostUUID string
+
+	kmsClientOverride *kms.KeyManagementClient
+	clockOverride     faketime.Clock
 }
 
 func (cfg *GCPKMSConfig) CheckAndSetDefaults() error {
@@ -88,15 +94,29 @@ type gcpKMSKeyStore struct {
 	protectionLevel kmspb.ProtectionLevel
 	kmsClient       *kms.KeyManagementClient
 	log             logrus.FieldLogger
+	clock           faketime.Clock
 	waiting         chan struct{}
 }
 
 // newGCPKMSKeyStore returns a new keystore configured to use a GCP KMS keyring
 // to manage all key material.
 func newGCPKMSKeyStore(ctx context.Context, cfg *GCPKMSConfig, logger logrus.FieldLogger) (*gcpKMSKeyStore, error) {
-	kmsClient, err := kms.NewKeyManagementClient(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var kmsClient *kms.KeyManagementClient
+	if cfg.kmsClientOverride != nil {
+		kmsClient = cfg.kmsClientOverride
+	} else {
+		var err error
+		kmsClient, err = kms.NewKeyManagementClient(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	var clock faketime.Clock
+	if cfg.clockOverride == nil {
+		clock = faketime.NewRealClock()
+	} else {
+		clock = cfg.clockOverride
 	}
 
 	logger = logger.WithFields(logrus.Fields{trace.Component: "GCPKMSKeyStore"})
@@ -107,6 +127,7 @@ func newGCPKMSKeyStore(ctx context.Context, cfg *GCPKMSConfig, logger logrus.Fie
 		protectionLevel: gcpKMSProtectionLevels[cfg.ProtectionLevel],
 		kmsClient:       kmsClient,
 		log:             logger,
+		clock:           clock,
 		waiting:         make(chan struct{}),
 	}, nil
 }
@@ -349,7 +370,7 @@ func retryWhilePending[reqType, optType, respType any](
 	ctx, cancel := context.WithTimeout(ctx, defaultGCPPendingTimeout)
 	defer cancel()
 
-	ticker := time.NewTicker(defaultGCPPendingRetryInterval)
+	ticker := g.clock.NewTicker(defaultGCPPendingRetryInterval, pendingRetryTag{})
 	defer ticker.Stop()
 	for {
 		resp, err := doGCPRequest(ctx, g, f, req)
@@ -362,7 +383,7 @@ func retryWhilePending[reqType, optType, respType any](
 		select {
 		case <-ctx.Done():
 			return nil, trace.Wrap(ctx.Err())
-		case <-ticker.C:
+		case <-ticker.C():
 		}
 	}
 }
