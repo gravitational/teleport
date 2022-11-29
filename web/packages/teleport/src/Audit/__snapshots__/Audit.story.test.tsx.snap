@@ -2938,7 +2938,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [alex] made a request to kubernetes cluster [gke_teleport-a]
+          User [alex] received a [200] from a [GET /api/v1/namespaces/teletest/pods/test-pod] request to kubernetes cluster [gke_teleport-a]
         </td>
         <td
           style="min-width: 120px;"
