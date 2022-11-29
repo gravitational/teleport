@@ -336,6 +336,15 @@ message GetUsersRequest {
   bool WithSecrets = 1 [(gogoproto.jsontag) = "with_secrets"];
 }
 
+// ChangePasswordRequest specifies the parameters for the ChangePassword method.
+message ChangePasswordRequest {
+  string User = 1 [(gogoproto.jsontag) = "name"];
+  bytes OldPassword = 2 [(gogoproto.jsontag) = "old_password"];
+  bytes NewPassword = 3 [(gogoproto.jsontag) = "new_password"];
+  string SecondFactorToken = 4 [(gogoproto.jsontag) = "second_factor_token"];
+  webauthn.CredentialAssertionResponse Webauthn = 5 [(gogoproto.jsontag) = "webauthn"];
+}
+
 // AccessRequests is a collection of AccessRequest values.
 message AccessRequests {
   repeated types.AccessRequestV3 AccessRequests = 1 [(gogoproto.jsontag) = "access_requests"];
@@ -2022,6 +2031,8 @@ service AuthService {
   rpc UpdateUser(types.UserV2) returns (google.protobuf.Empty);
   // DeleteUser deletes an existing user in a backend by username.
   rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
+  // ChangePassword allows a user to change their own password.
+  rpc ChangePassword(ChangePasswordRequest) returns (google.protobuf.Empty);
 
   // AcquireSemaphore acquires lease with requested resources from semaphore.
   rpc AcquireSemaphore(types.AcquireSemaphoreRequest) returns (types.SemaphoreLease);

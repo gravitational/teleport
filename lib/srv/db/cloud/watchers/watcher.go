@@ -22,9 +22,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -177,7 +177,7 @@ func makeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (res
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
 			for matcherType, makeFetchers := range makeFetcherFuncs {
-				if !utils.SliceContainsStr(matcher.Types, matcherType) {
+				if !slices.Contains(matcher.Types, matcherType) {
 					continue
 				}
 
@@ -197,9 +197,10 @@ func makeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (res
 func makeAzureFetchers(ctx context.Context, clients cloud.Clients, matchers []services.AzureMatcher) (result []Fetcher, err error) {
 	type makeFetcherFunc func(azureFetcherConfig) (Fetcher, error)
 	makeFetcherFuncs := map[string][]makeFetcherFunc{
-		services.AzureMatcherMySQL:    {newAzureMySQLFetcher},
-		services.AzureMatcherPostgres: {newAzurePostgresFetcher},
-		services.AzureMatcherRedis:    {newAzureRedisFetcher, newAzureRedisEnterpriseFetcher},
+		services.AzureMatcherMySQL:     {newAzureMySQLFetcher},
+		services.AzureMatcherPostgres:  {newAzurePostgresFetcher},
+		services.AzureMatcherRedis:     {newAzureRedisFetcher, newAzureRedisEnterpriseFetcher},
+		services.AzureMatcherSQLServer: {newAzureSQLServerFetcher, newAzureManagedSQLServerFetcher},
 	}
 	for _, matcher := range matchers {
 		for _, matcherType := range matcher.Types {

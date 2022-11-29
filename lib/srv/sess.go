@@ -955,15 +955,16 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 	// Open a BPF recording session. If BPF was not configured, not available,
 	// or running in a recording proxy, OpenSession is a NOP.
 	sessionContext := &bpf.SessionContext{
-		Context:   scx.srv.Context(),
-		PID:       s.term.PID(),
-		Emitter:   s.Recorder(),
-		Namespace: scx.srv.GetNamespace(),
-		SessionID: s.id.String(),
-		ServerID:  scx.srv.HostUUID(),
-		Login:     scx.Identity.Login,
-		User:      scx.Identity.TeleportUser,
-		Events:    scx.Identity.AccessChecker.EnhancedRecordingSet(),
+		Context:        scx.srv.Context(),
+		PID:            s.term.PID(),
+		Emitter:        s.Recorder(),
+		Namespace:      scx.srv.GetNamespace(),
+		SessionID:      s.id.String(),
+		ServerID:       scx.srv.HostUUID(),
+		ServerHostname: scx.srv.GetInfo().GetHostname(),
+		Login:          scx.Identity.Login,
+		User:           scx.Identity.TeleportUser,
+		Events:         scx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
 
 	if cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext); err != nil {
@@ -1000,6 +1001,12 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 			s.log.WithError(err).Error("Received error waiting for the interactive session to finish")
 		}
 
+		if result != nil {
+			if err := s.registry.broadcastResult(s.id, *result); err != nil {
+				s.log.Warningf("Failed to broadcast session result: %v", err)
+			}
+		}
+
 		// wait for copying from the pty to be complete or a timeout before
 		// broadcasting the result (which will close the pty) if it has not been
 		// closed already.
@@ -1013,14 +1020,10 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 			emitExecAuditEvent(scx, execRequest.GetCommand(), err)
 		}
 
-		if result != nil {
-			if err := s.registry.broadcastResult(s.id, *result); err != nil {
-				s.log.Warningf("Failed to broadcast session result: %v", err)
-			}
-		}
-
 		s.emitSessionEndEvent()
-		s.Close()
+		if err := s.Close(); err != nil {
+			s.log.Warnf("Failed to close session: %v", err)
+		}
 	}()
 
 	return nil
@@ -1144,15 +1147,16 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	// Open a BPF recording session. If BPF was not configured, not available,
 	// or running in a recording proxy, OpenSession is a NOP.
 	sessionContext := &bpf.SessionContext{
-		Context:   scx.srv.Context(),
-		PID:       scx.execRequest.PID(),
-		Emitter:   s.Recorder(),
-		Namespace: scx.srv.GetNamespace(),
-		SessionID: string(s.id),
-		ServerID:  scx.srv.HostUUID(),
-		Login:     scx.Identity.Login,
-		User:      scx.Identity.TeleportUser,
-		Events:    scx.Identity.AccessChecker.EnhancedRecordingSet(),
+		Context:        scx.srv.Context(),
+		PID:            scx.execRequest.PID(),
+		Emitter:        s.Recorder(),
+		Namespace:      scx.srv.GetNamespace(),
+		SessionID:      string(s.id),
+		ServerID:       scx.srv.HostUUID(),
+		ServerHostname: scx.srv.GetInfo().GetHostname(),
+		Login:          scx.Identity.Login,
+		User:           scx.Identity.TeleportUser,
+		Events:         scx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
 	cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext)
 	if err != nil {
@@ -1667,7 +1671,7 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 		defer span.End()
 
 		if err := s.tracker.UpdateExpirationLoop(ctx, s.registry.clock); err != nil {
-			s.log.WithError(err).Debug("Failed to update session tracker expiration")
+			s.log.WithError(err).Warn("Failed to update session tracker expiration")
 		}
 	}()
 

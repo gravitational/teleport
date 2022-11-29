@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -769,24 +770,6 @@ func (c *Client) CompareAndSwapUser(ctx context.Context, new, expected types.Use
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// ChangePassword updates users password based on the old password.
-func (c *Client) ChangePassword(req services.ChangePasswordReq) error {
-	_, err := c.PutJSON(context.TODO(), c.Endpoint("users", req.User, "web", "password"), req)
-	return trace.Wrap(err)
-}
-
-// CheckPassword checks if the suplied web access password is valid.
-func (c *Client) CheckPassword(user string, password []byte, otpToken string) error {
-	_, err := c.PostJSON(
-		context.TODO(),
-		c.Endpoint("users", user, "web", "password", "check"),
-		checkPasswordReq{
-			Password: string(password),
-			OTPToken: otpToken,
-		})
-	return trace.Wrap(err)
-}
-
 // ExtendWebSession creates a new web session for a user based on another
 // valid web session
 func (c *Client) ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error) {
@@ -927,14 +910,14 @@ func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 
 // ValidateSAMLResponse validates response returned by SAML identity provider
 func (c *Client) ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error) {
-	out, err := c.PostJSON(ctx, c.Endpoint("saml", "requests", "validate"), validateSAMLResponseReq{
+	out, err := c.PostJSON(ctx, c.Endpoint("saml", "requests", "validate"), ValidateSAMLResponseReq{
 		Response:    re,
 		ConnectorID: connectorID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var rawResponse *samlAuthRawResponse
+	var rawResponse *SAMLAuthRawResponse
 	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1459,10 +1442,7 @@ type IdentityService interface {
 	GetUsers(withSecrets bool) ([]types.User, error)
 
 	// ChangePassword changes user password
-	ChangePassword(req services.ChangePasswordReq) error
-
-	// CheckPassword checks if the suplied web access password is valid.
-	CheckPassword(user string, password []byte, otpToken string) error
+	ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error
 
 	// GenerateToken creates a special provisioning token for a new SSH server
 	// that is valid for ttl period seconds.
@@ -1610,6 +1590,12 @@ type ClientI interface {
 
 	types.WebSessionsGetter
 	types.WebTokensGetter
+
+	// DevicesClient returns a Device Trust client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	DevicesClient() devicepb.DeviceTrustServiceClient
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
