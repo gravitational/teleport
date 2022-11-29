@@ -135,7 +135,11 @@ type UsageReporter struct {
 	// Entry is a log entry
 	*log.Entry
 
+	// clock is the clock used for the main batching goroutine
 	clock clockwork.Clock
+
+	// submitClock is the clock used for the submission goroutine
+	submitClock clockwork.Clock
 
 	ctx context.Context
 
@@ -178,9 +182,10 @@ type UsageReporter struct {
 	// attempts.
 	submitDelay time.Duration
 
-	// ready is used to indicate the reporter is ready for its clock to be
-	// manipulated, used to avoid race conditions in tests.
-	ready chan struct{}
+	// receiveFunc is a callback for testing that's called when a batch has been
+	// received, but before it's been potentially enqueued, used to ensure sane
+	// sequencing in tests.
+	receiveFunc func()
 }
 
 // runSubmit starts the submission thread. It should be run as a background
@@ -209,8 +214,10 @@ func (r *UsageReporter) runSubmit() {
 			usageBatchSubmissionDuration.Observe(time.Since(t0).Seconds())
 		}
 
-		// Always sleep a bit to avoid spamming the server.
-		r.clock.Sleep(r.submitDelay)
+		// Always sleep a bit to avoid spamming the server. We need a secondary
+		// (possibly fake) clock here for testing to ensure
+		// FakeClock.BlockUntil() doesn't include this sleep call.
+		r.submitClock.Sleep(r.submitDelay)
 	}
 }
 
@@ -219,6 +226,7 @@ func (r *UsageReporter) runSubmit() {
 func (r *UsageReporter) enqueueBatch() {
 	if len(r.buf) == 0 {
 		// Nothing to do.
+		r.Debugf("will not submit empty batch")
 		return
 	}
 
@@ -247,6 +255,7 @@ func (r *UsageReporter) enqueueBatch() {
 	default:
 		// The queue is full, we'll try again later. Leave the existing buf in
 		// place.
+		r.Debugf("waiting to submit batch of %d due to full queue", len(r.buf))
 	}
 }
 
@@ -256,10 +265,6 @@ func (r *UsageReporter) Run() {
 
 	// Also start the submission goroutine.
 	go r.runSubmit()
-
-	// Mark as ready for testing: `clock.Advance()` has no effect if `timer`
-	// hasn't been initialized.
-	close(r.ready)
 
 	r.Debug("usage reporter is ready")
 
@@ -274,7 +279,6 @@ func (r *UsageReporter) Run() {
 		case events := <-r.events:
 			// If the buffer's already full, just warn and discard.
 			if len(r.buf) >= r.maxBufferSize {
-				// TODO: What level should we log usage submission errors at?
 				r.Warnf("Usage event buffer is full, %d events will be discarded", len(events))
 
 				usageEventsDropped.Add(float64(len(events)))
@@ -291,11 +295,18 @@ func (r *UsageReporter) Run() {
 
 			r.buf = append(r.buf, events...)
 
+			// call the receiver if any
+			if r.receiveFunc != nil {
+				r.receiveFunc()
+			}
+
 			// If we've accumulated enough events to trigger an early send, do
 			// so and reset the timer.
 			if len(r.buf) >= r.minBatchSize {
 				timer.Reset(r.maxBatchAge)
 				r.enqueueBatch()
+			} else {
+				r.Debugf("waiting to enqueue %d events (%d buffered total)", len(events), len(r.buf))
 			}
 		}
 	}
@@ -520,12 +531,12 @@ func NewUsageReporter(ctx context.Context, clusterName types.ClusterName, submit
 		submissionQueue: make(chan []*prehogapi.SubmitEventRequest, 1),
 		submit:          submitter,
 		clock:           clockwork.NewRealClock(),
+		submitClock:     clockwork.NewRealClock(),
 		clusterName:     clusterName,
 		minBatchSize:    usageReporterMinBatchSize,
 		maxBatchSize:    usageReporterMaxBatchSize,
 		maxBatchAge:     usageReporterMaxBatchAge,
 		maxBufferSize:   usageReporterMaxBufferSize,
 		submitDelay:     usageReporterSubmitDelay,
-		ready:           make(chan struct{}),
 	}, nil
 }
