@@ -141,8 +141,8 @@ func (r *GatewayCertReissuer) reissueAndReloadGatewayCert(ctx context.Context, g
 }
 
 func (r *GatewayCertReissuer) requestReloginFromElectronApp(ctx context.Context, req *api.ReloginRequest) error {
-	// If you're changing the timeout, remember to update the error message for codes.DeadlineExceeded below.
-	timeoutCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, time.Minute)
+	const reloginUserTimeout = time.Minute
+	timeoutCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, reloginUserTimeout)
 	defer cancelTshdEventsCtx()
 
 	// The Electron app cannot display two login modals at the same time, so we have to cut short any
@@ -156,7 +156,7 @@ func (r *GatewayCertReissuer) requestReloginFromElectronApp(ctx context.Context,
 
 	if err != nil {
 		if status.Code(err) == codes.DeadlineExceeded {
-			return trace.Wrap(err, "the user did not refresh the session within 1 minute")
+			return trace.Wrap(err, "the user did not refresh the session within %s", reloginUserTimeout.String())
 		}
 
 		return trace.Wrap(err, "could not refresh the session")
