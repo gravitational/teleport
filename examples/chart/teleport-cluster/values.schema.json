@@ -15,6 +15,7 @@
         "enterpriseImage",
         "log",
         "affinity",
+        "nodeSelector",
         "annotations",
         "extraVolumes",
         "extraVolumeMounts",
@@ -619,6 +620,11 @@
         },
         "affinity": {
             "$id": "#/properties/affinity",
+            "type": "object",
+            "default": {}
+        },
+        "nodeSelector": {
+            "$id": "#/properties/nodeSelector",
             "type": "object",
             "default": {}
         },

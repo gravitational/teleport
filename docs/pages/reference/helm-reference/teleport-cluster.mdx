@@ -1362,6 +1362,33 @@ See the [Teleport config file reference](../../reference/config.mdx) for more de
   </TabItem>
 </Tabs>
 
+## `nodeSelector`
+
+| Type | Default value |
+| - | - |
+| `object` | `{}` |
+
+`nodeSelector` can be used to add a map of key-value pairs to constrain the
+nodes that Teleport pods will run on.
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector)
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  nodeSelector:
+    role: bastion
+    environment: security
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set nodeSelector.role=bastion \
+  --set nodeSelector.environment=security
+  ```
+  </TabItem>
+</Tabs>
+
 ## `affinity`
 
 | Type | Default value | Can be used in `custom` mode? |
