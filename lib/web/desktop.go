@@ -102,36 +102,30 @@ func (h *Handler) createDesktopConnection(
 	}
 	defer ws.Close()
 
-	sendTDPError := func(ws *websocket.Conn, err error) error {
-		orig := err
-		msg := tdp.Notification{
-			Message:  fmt.Sprintf("Cannot connect to desktop: %s", err.Error()),
-			Severity: tdp.SeverityError,
+	sendTDPError := func(err error) error {
+		sendErr := sendTDPNotification(ws, err, true)
+		if sendErr != nil {
+			return sendErr
 		}
-		b, err := msg.Encode()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		ws.WriteMessage(websocket.BinaryMessage, b)
-		return orig
+		return err
 	}
 
 	q := r.URL.Query()
 	username := q.Get("username")
 	if username == "" {
-		return sendTDPError(ws, trace.BadParameter("missing username"))
+		return sendTDPError(trace.BadParameter("missing username"))
 	}
 	width, err := strconv.Atoi(q.Get("width"))
 	if err != nil {
-		return sendTDPError(ws, trace.BadParameter("width missing or invalid"))
+		return sendTDPError(trace.BadParameter("width missing or invalid"))
 	}
 	height, err := strconv.Atoi(q.Get("height"))
 	if err != nil {
-		return sendTDPError(ws, trace.BadParameter("height missing or invalid"))
+		return sendTDPError(trace.BadParameter("height missing or invalid"))
 	}
 
 	if width > maxRDPScreenWidth || height > maxRDPScreenHeight {
-		return sendTDPError(ws, trace.BadParameter(
+		return sendTDPError(trace.BadParameter(
 			"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
 			width, height, maxRDPScreenWidth, maxRDPScreenHeight,
 		))
@@ -147,15 +141,15 @@ func (h *Handler) createDesktopConnection(
 	// routing.
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
-		return sendTDPError(ws, trace.Wrap(err))
+		return sendTDPError(trace.Wrap(err))
 	}
 	winDesktops, err := clt.GetWindowsDesktops(r.Context(),
 		types.WindowsDesktopFilter{Name: desktopName})
 	if err != nil {
-		return sendTDPError(ws, trace.Wrap(err, "cannot get Windows desktops"))
+		return sendTDPError(trace.Wrap(err, "cannot get Windows desktops"))
 	}
 	if len(winDesktops) == 0 {
-		return sendTDPError(ws, trace.NotFound("no Windows desktops were found"))
+		return sendTDPError(trace.NotFound("no Windows desktops were found"))
 	}
 	var validServiceIDs []string
 	for _, desktop := range winDesktops {
@@ -178,35 +172,35 @@ func (h *Handler) createDesktopConnection(
 	}
 	serviceConn, err := c.connectToWindowsService(ctx.parent.clusterName, validServiceIDs)
 	if err != nil {
-		return sendTDPError(ws, trace.Wrap(err, "cannot connect to Windows Desktop Service"))
+		return sendTDPError(trace.Wrap(err, "cannot connect to Windows Desktop Service"))
 	}
 	defer serviceConn.Close()
 
 	pc, err := proxyClient(r.Context(), ctx, h.ProxyHostPort(), username)
 	if err != nil {
-		return sendTDPError(ws, trace.Wrap(err))
+		return sendTDPError(trace.Wrap(err))
 	}
 	defer pc.Close()
 
 	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, ctx, desktopName, username, site.GetName())
 	if err != nil {
-		return sendTDPError(ws, err)
+		return sendTDPError(err)
 	}
 	serviceConnTLS := tls.Client(serviceConn, tlsConfig)
 
 	if err := serviceConnTLS.HandshakeContext(r.Context()); err != nil {
-		return sendTDPError(ws, err)
+		return sendTDPError(err)
 	}
 	log.Debug("Connected to windows_desktop_service")
 
 	tdpConn := tdp.NewConn(serviceConnTLS)
 	err = tdpConn.WriteMessage(tdp.ClientUsername{Username: username})
 	if err != nil {
-		return sendTDPError(ws, err)
+		return sendTDPError(err)
 	}
 	err = tdpConn.WriteMessage(tdp.ClientScreenSpec{Width: uint32(width), Height: uint32(height)})
 	if err != nil {
-		return sendTDPError(ws, err)
+		return sendTDPError(err)
 	}
 
 	if err := proxyWebsocketConn(ws, serviceConnTLS); err != nil {
@@ -337,19 +331,6 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 		wds.Close()
 	}
 
-	sendTDPNotification := func(ws *websocket.Conn, err error, fatal bool) error {
-		severity := tdp.SeverityError
-		if !fatal {
-			severity = tdp.SeverityWarning
-		}
-		msg := tdp.Notification{Message: err.Error(), Severity: severity}
-		b, err := msg.Encode()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return ws.WriteMessage(websocket.BinaryMessage, b)
-	}
-
 	errs := make(chan error, 2)
 
 	go func() {
@@ -371,13 +352,18 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 				errs <- nil
 				return
 			} else if err != nil {
-				isFatal := !tdp.IsNonFatalErr(err)
+				isFatal := tdp.IsFatalErr(err)
 				sendErr := sendTDPNotification(ws, err, isFatal)
 
+				// If the error wasn't fatal and we successfully
+				// sent it back to the client, continue.
 				if !isFatal && sendErr == nil {
 					continue
 				}
 
+				// If the error was fatal or we failed to send it back
+				// to the client, send it to the errs channel and end
+				// the session.
 				if sendErr != nil {
 					err = sendErr
 				}
@@ -520,4 +506,19 @@ func (h *Handler) desktopAccessScriptInstallADCSHandle(w http.ResponseWriter, r 
 	w.WriteHeader(http.StatusOK)
 	_, err := io.WriteString(w, scripts.DesktopAccessScriptInstallADCS)
 	return nil, trace.Wrap(err)
+}
+
+// sendTDPNotification sends a tdp Notification over the supplied websocket with the
+// error message of err.
+func sendTDPNotification(ws *websocket.Conn, err error, fatal bool) error {
+	severity := tdp.SeverityError
+	if !fatal {
+		severity = tdp.SeverityWarning
+	}
+	msg := tdp.Notification{Message: err.Error(), Severity: severity}
+	b, err := msg.Encode()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return ws.WriteMessage(websocket.BinaryMessage, b)
 }

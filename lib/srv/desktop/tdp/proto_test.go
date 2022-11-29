@@ -201,86 +201,105 @@ func TestIsNonFatalErr(t *testing.T) {
 // kill a user's running session, or else that becomes a DoS attack vector.
 // To this end, TestSizeLimitsAreNonFatal checks that exceeding size limits causes
 // only non-fatal errors.
+//
+// An exception to this rule is a long ClientUsername, which can't be used in a DoS
+// attack (because there's no way for the RDP server to send a message that's translated
+// into a too-long ClientUsername). The best UX in this case is to send a fatal error
+// letting them know that the username was too long.
 func TestSizeLimitsAreNonFatal(t *testing.T) {
 	for _, test := range []struct {
-		name string
-		msg  Message
+		name  string
+		msg   Message
+		fatal bool
 	}{
 		{
-			name: "rejects long ClientUsername",
+			name: "rejects long ClientUsername as fatal",
 			msg: ClientUsername{
 				Username: string(bytes.Repeat([]byte("a"), windowsMaxUsernameLength+1)),
 			},
+			fatal: true,
 		},
 		{
-			name: "rejects long Clipboard",
-			msg:  ClipboardData(bytes.Repeat([]byte("a"), maxClipboardDataLength+1)),
+			name:  "rejects long Clipboard",
+			msg:   ClipboardData(bytes.Repeat([]byte("a"), maxClipboardDataLength+1)),
+			fatal: false,
 		},
 		{
 			name: "rejects long Error",
 			msg: Error{
 				Message: string(bytes.Repeat([]byte("a"), tdpMaxNotificationMessageLength+1)),
 			},
+			fatal: false,
 		},
 		{
 			name: "rejects long Notification",
 			msg: Notification{
 				Message: string(bytes.Repeat([]byte("a"), tdpMaxNotificationMessageLength+1)),
 			},
+			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryAnnounce",
 			msg: SharedDirectoryAnnounce{
 				Name: string(bytes.Repeat([]byte("a"), windowsMaxUsernameLength+1)),
 			},
+			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryInfoRequest",
 			msg: SharedDirectoryInfoRequest{
 				Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
 			},
+			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryCreateRequest",
 			msg: SharedDirectoryCreateRequest{
 				Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
 			},
+			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryDeleteRequest",
 			msg: SharedDirectoryDeleteRequest{
 				Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
 			},
+			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryListRequest",
 			msg: SharedDirectoryListRequest{
 				Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
 			},
+			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryReadRequest",
 			msg: SharedDirectoryReadRequest{
 				Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
 			},
+			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryReadResponse",
 			msg: SharedDirectoryReadResponse{
 				ReadDataLength: tdpMaxFileReadWriteLength + 1,
 			},
+			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryWriteRequest",
 			msg: SharedDirectoryWriteRequest{
 				WriteDataLength: tdpMaxFileReadWriteLength + 1,
 			},
+			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryMoveRequest",
 			msg: SharedDirectoryMoveRequest{
 				OriginalPath: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
 			},
+			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryInfoResponse",
@@ -291,6 +310,7 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 					Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
 				},
 			},
+			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryCreateResponse",
@@ -301,6 +321,7 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 					Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
 				},
 			},
+			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryListResponse",
@@ -311,6 +332,7 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 					Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
 				}},
 			},
+			fatal: false,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -318,7 +340,13 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 			require.NoError(t, err)
 			_, err = Decode(bytes)
 			require.True(t, trace.IsLimitExceeded(err))
-			require.True(t, IsNonFatalErr(err))
+			if !test.fatal {
+				require.True(t, IsNonFatalErr(err))
+				require.False(t, IsFatalErr(err))
+			} else {
+				require.False(t, IsNonFatalErr(err))
+				require.True(t, IsFatalErr(err))
+			}
 		})
 	}
 }

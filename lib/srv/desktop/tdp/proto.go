@@ -26,6 +26,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"image"
 	"image/png"
 	"io"
@@ -443,11 +444,17 @@ func (r ClientUsername) Encode() ([]byte, error) {
 func decodeClientUsername(in io.Reader) (ClientUsername, error) {
 	username, err := decodeString(in, windowsMaxUsernameLength)
 	if err != nil {
+		if errors.Is(err, trace.LimitExceeded(stringMaxLenErrMsg)) {
+			// Change the error message here so it's considered a fatal error
+			return ClientUsername{}, trace.LimitExceeded("ClientUsername exceeded maximum length")
+		}
 		return ClientUsername{}, trace.Wrap(err)
 	}
 	return ClientUsername{Username: username}, nil
 }
 
+// Error is a tdp Error. It has been deprecated
+// and replaced with Notification.
 type Error struct {
 	Message string
 }
@@ -477,6 +484,9 @@ const (
 	SeverityError   Severity = 2
 )
 
+// Notification is an informational message sent from Teleport
+// to the Web UI. It can be used for fatal errors or non-fatal
+// warnings.
 type Notification struct {
 	Message  string
 	Severity Severity
@@ -545,7 +555,7 @@ func (c ClipboardData) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-const clipDataMaxLenErr = "clipboard sync failed: clipboard data exceeded maximum length"
+const clipDataMaxLenErrMsg = "clipboard sync failed: clipboard data exceeded maximum length"
 
 func decodeClipboardData(in io.Reader, maxLen uint32) (ClipboardData, error) {
 	var length uint32
@@ -556,8 +566,8 @@ func decodeClipboardData(in io.Reader, maxLen uint32) (ClipboardData, error) {
 	if length > maxLen {
 		// If clipboard data exceeds maxLen,
 		// discard the rest of the message
-		io.CopyN(io.Discard, in, int64(length))
-		return nil, trace.LimitExceeded(clipDataMaxLenErr)
+		_, _ = io.CopyN(io.Discard, in, int64(length))
+		return nil, trace.LimitExceeded(clipDataMaxLenErrMsg)
 	}
 
 	b := make([]byte, int(length))
@@ -615,7 +625,7 @@ func (m MFA) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-const mfaDataMaxLenError = "mfa challenge data exceeds maximum length"
+const mfaDataMaxLenErrMsg = "mfa challenge data exceeds maximum length"
 
 func DecodeMFA(in byteReader) (*MFA, error) {
 	mt, err := in.ReadByte()
@@ -636,8 +646,8 @@ func DecodeMFA(in byteReader) (*MFA, error) {
 	}
 
 	if length > maxMFADataLength {
-		io.CopyN(io.Discard, in, int64(length))
-		return nil, trace.LimitExceeded(mfaDataMaxLenError)
+		_, _ = io.CopyN(io.Discard, in, int64(length))
+		return nil, trace.LimitExceeded(mfaDataMaxLenErrMsg)
 	}
 
 	b := make([]byte, int(length))
@@ -1213,7 +1223,7 @@ func (s SharedDirectoryReadResponse) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-const fileReadWriteMaxLenError = "TDP file read or write message exceeds maximum size limit"
+const fileReadWriteMaxLenErrMsg = "TDP file read or write message exceeds maximum size limit"
 
 func decodeSharedDirectoryReadResponse(in io.Reader, maxLen uint32) (SharedDirectoryReadResponse, error) {
 	var completionID, errorCode, readDataLength uint32
@@ -1234,8 +1244,8 @@ func decodeSharedDirectoryReadResponse(in io.Reader, maxLen uint32) (SharedDirec
 	}
 
 	if readDataLength > maxLen {
-		io.CopyN(io.Discard, in, int64(readDataLength))
-		return SharedDirectoryReadResponse{}, trace.LimitExceeded(fileReadWriteMaxLenError)
+		_, _ = io.CopyN(io.Discard, in, int64(readDataLength))
+		return SharedDirectoryReadResponse{}, trace.LimitExceeded(fileReadWriteMaxLenErrMsg)
 	}
 
 	readData := make([]byte, int(readDataLength))
@@ -1307,8 +1317,8 @@ func decodeSharedDirectoryWriteRequest(in byteReader, maxLen uint32) (SharedDire
 	}
 
 	if writeDataLength > maxLen {
-		io.CopyN(io.Discard, in, int64(writeDataLength))
-		return SharedDirectoryWriteRequest{}, trace.LimitExceeded(fileReadWriteMaxLenError)
+		_, _ = io.CopyN(io.Discard, in, int64(writeDataLength))
+		return SharedDirectoryWriteRequest{}, trace.LimitExceeded(fileReadWriteMaxLenErrMsg)
 	}
 
 	writeData := make([]byte, int(writeDataLength))
@@ -1431,7 +1441,7 @@ func encodeString(w io.Writer, s string) error {
 	return nil
 }
 
-const stringMaxLenError = "TDP string length exceeds allowable limit"
+const stringMaxLenErrMsg = "TDP string length exceeds allowable limit"
 
 func decodeString(r io.Reader, maxLen uint32) (string, error) {
 	var length uint32
@@ -1440,8 +1450,8 @@ func decodeString(r io.Reader, maxLen uint32) (string, error) {
 	}
 
 	if length > maxLen {
-		io.CopyN(io.Discard, r, int64(length))
-		return "", trace.LimitExceeded(stringMaxLenError)
+		_, _ = io.CopyN(io.Discard, r, int64(length))
+		return "", trace.LimitExceeded(stringMaxLenErrMsg)
 	}
 
 	s := make([]byte, int(length))
@@ -1475,8 +1485,9 @@ func writeUint64(b *bytes.Buffer, v uint64) {
 // the browser (Teleport never receives this message, so won't be decoding it)
 const tdpMaxNotificationMessageLength = 10240
 
-// tdpMaxPathLength is currently just an arbitrary value, more research is required
-// (see https://github.com/gravitational/teleport/issues/14950)
+// TODO: tdpMaxPathLength is currently just an arbitrary value for the maximum length of
+// path strings passed over TDP. More research is required,
+// see https://github.com/gravitational/teleport/issues/14950.
 const tdpMaxPathLength = 10240
 
 const maxClipboardDataLength = 1024 * 1024    // 1MB
