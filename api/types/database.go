@@ -605,6 +605,14 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 			d.Spec.Azure.Name = name
 		}
 	}
+
+	// Validate Cloud SQL specific configuration.
+	switch {
+	case d.Spec.GCP.ProjectID != "" && d.Spec.GCP.InstanceID == "":
+		return trace.BadParameter("missing Cloud SQL instance ID for database %q", d.GetName())
+	case d.Spec.GCP.ProjectID == "" && d.Spec.GCP.InstanceID != "":
+		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.GetName())
+	}
 	return nil
 }
 

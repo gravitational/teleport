@@ -1676,6 +1676,7 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
 			conn.Close()
+			log.Infof("Access denied to %v connecting to %v: %v", sshConfig.User, nodeAddress, err)
 			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, sshConfig.User, nodeAddress)
 		}
 		return nil, trace.Wrap(err)
