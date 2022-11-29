@@ -3,7 +3,7 @@
 #  all    : builds all binaries in development mode, without web assets (default)
 #  full   : builds all binaries for PRODUCTION use
 #  release: prepares a release tarball
-#  clean  : removes all buld artifacts
+#  clean  : removes all build artifacts
 #  test   : runs tests
 
 # To update the Teleport version, update VERSION variable:
@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=11.0.3
+VERSION=11.1.0
 
 DOCKER_IMAGE ?= teleport
 

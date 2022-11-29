@@ -95,7 +95,9 @@ func newTestPack(
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			},
 		},
 	}
 	p.a, err = NewServer(authConfig, opts...)
@@ -876,7 +878,9 @@ func TestUpdateConfig(t *testing.T) {
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			},
 		},
 	}
 	authServer, err := NewServer(authConfig)
@@ -1277,7 +1281,7 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
-	_, err = p.a.GenerateHostCert(pub, hostID, "test-node", []string{},
+	_, err = p.a.GenerateHostCert(ctx, pub, hostID, "test-node", []string{},
 		p.clusterName.GetClusterName(), types.RoleNode, time.Minute)
 	require.NoError(t, err)
 
@@ -1298,12 +1302,12 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for lock update.")
 	}
-	_, err = p.a.GenerateHostCert(pub, hostID, "test-node", []string{}, p.clusterName.GetClusterName(), types.RoleNode, time.Minute)
+	_, err = p.a.GenerateHostCert(ctx, pub, hostID, "test-node", []string{}, p.clusterName.GetClusterName(), types.RoleNode, time.Minute)
 	require.Error(t, err)
 	require.EqualError(t, err, services.LockInForceAccessDenied(lock).Error())
 
 	// Locks targeting nodes should not apply to other system roles.
-	_, err = p.a.GenerateHostCert(pub, hostID, "test-proxy", []string{}, p.clusterName.GetClusterName(), types.RoleProxy, time.Minute)
+	_, err = p.a.GenerateHostCert(ctx, pub, hostID, "test-proxy", []string{}, p.clusterName.GetClusterName(), types.RoleProxy, time.Minute)
 	require.NoError(t, err)
 }
 
@@ -2047,6 +2051,7 @@ func TestFilterResources(t *testing.T) {
 }
 
 func TestCAGeneration(t *testing.T) {
+	ctx := context.Background()
 	const (
 		clusterName = "cluster1"
 		HostUUID    = "0000-000-000-0000"
@@ -2057,18 +2062,19 @@ func TestCAGeneration(t *testing.T) {
 	require.NoError(t, err)
 
 	ksConfig := keystore.Config{
-		RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
-			return privKey, pubKey, nil
+		Software: keystore.SoftwareConfig{
+			RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
+				return privKey, pubKey, nil
+			},
 		},
-		HostUUID: HostUUID,
 	}
-	keyStore, err := keystore.NewKeyStore(ksConfig)
+	keyStore, err := keystore.NewManager(ctx, ksConfig)
 	require.NoError(t, err)
 
 	for _, caType := range types.CertAuthTypes {
 		t.Run(string(caType), func(t *testing.T) {
 			testKeySet := suite.NewTestCA(caType, clusterName, privKey).Spec.ActiveKeys
-			keySet, err := newKeySet(keyStore, types.CertAuthID{Type: caType, DomainName: clusterName})
+			keySet, err := newKeySet(ctx, keyStore, types.CertAuthID{Type: caType, DomainName: clusterName})
 			require.NoError(t, err)
 
 			// Don't compare values as those are different. Only check if the key is set/not set in both cases.

@@ -3747,7 +3747,7 @@ func TestGenerateHostCert(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			_, err = client.GenerateHostCert(pub, "", "", test.principals, clusterName, types.RoleNode, 0)
+			_, err = client.GenerateHostCert(ctx, pub, "", "", test.principals, clusterName, types.RoleNode, 0)
 			require.True(t, test.expect(err))
 		})
 	}
