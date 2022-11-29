@@ -67,7 +67,7 @@ func TestRootWatch(t *testing.T) {
 	service, err := New(&Config{
 		Enabled:    true,
 		CgroupPath: dir,
-	})
+	}, &RestrictedSessionConfig{})
 	defer service.Close()
 
 	// Create a fake audit log that can be used to capture the events emitted.
@@ -82,13 +82,14 @@ func TestRootWatch(t *testing.T) {
 	// Create a monitoring session for init. The events we execute should not
 	// have PID 1, so nothing should be captured in the Audit Log.
 	cgroupID, err := service.OpenSession(&SessionContext{
-		Namespace: apidefaults.Namespace,
-		SessionID: uuid.New().String(),
-		ServerID:  uuid.New().String(),
-		Login:     "foo",
-		User:      "foo@example.com",
-		PID:       cmd.Process.Pid,
-		Emitter:   emitter,
+		Namespace:      apidefaults.Namespace,
+		SessionID:      uuid.New().String(),
+		ServerID:       uuid.New().String(),
+		ServerHostname: "ip-172-31-11-148",
+		Login:          "foo",
+		User:           "foo@example.com",
+		PID:            cmd.Process.Pid,
+		Emitter:        emitter,
 		Events: map[string]bool{
 			constants.EnhancedRecordingCommand: true,
 			constants.EnhancedRecordingDisk:    true,
@@ -334,7 +335,7 @@ func TestRootPrograms(t *testing.T) {
 
 		// Start two goroutines. The first will wait for the BPF program event to
 		// arrive, and once it has, signal over the context that it's complete. The
-		// second will continue to execute or an HTTP GET in a loop attempting to
+		// second will continue to execute or an HTTP GET in a processAccessEvents attempting to
 		// trigger an event.
 		go waitForEvent(doneContext, doneFunc, tt.inEventCh)
 		if tt.inHTTP {
