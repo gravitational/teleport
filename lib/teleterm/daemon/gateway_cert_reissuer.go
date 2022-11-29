@@ -136,8 +136,7 @@ func (r *GatewayCertReissuer) reissueAndReloadGatewayCert(ctx context.Context, g
 		return trace.Wrap(err)
 	}
 
-	err = gateway.ReloadCert()
-	return trace.Wrap(err)
+	return trace.Wrap(gateway.ReloadCert())
 }
 
 func (r *GatewayCertReissuer) requestReloginFromElectronApp(ctx context.Context, req *api.ReloginRequest) error {
