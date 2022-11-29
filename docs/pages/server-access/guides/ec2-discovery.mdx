@@ -3,11 +3,14 @@ title: Configure Teleport to Automatically Enroll EC2 instances (Preview)
 description: How to configure Teleport to automatically enroll EC2 instances.
 ---
 
-The Teleport Discovery Service can connect to Amazon EC2 and
-automatically discover and enroll EC2 instances matching configured
-labels. It will then execute an install script on these discovered
-instances using AWS Systems Manager that will install Teleport, start
-it and join the cluster.
+The Teleport Discovery Service can connect to Amazon EC2 and automatically
+discover and enroll EC2 instances matching configured labels. It will then
+execute an install script on these discovered instances using AWS Systems
+Manager that will install Teleport, start it and join the cluster.
+
+In this scenario, Teleport Disocvery Service uses an IAM invite token with a
+long time-to-live (TTL), so that new instances can be discovered and added to
+the Teleport cluster for the lifetime of the token.
 
 ## Prerequisites
 
@@ -24,8 +27,7 @@ install Teleport manually.)
 ## Step 1/6. Create an EC2 invite token
 
 When discovering EC2 instances, Teleport makes use of IAM invite tokens for
-authenticating joining Nodes. Read [Joining Nodes via AWS IAM Role](../../management/guides/joining-nodes-aws-iam.mdx)
-for more information on these tokens.
+authenticating joining Nodes.
 
 Create a file called `token.yaml`:
 
@@ -151,7 +153,7 @@ discovery_service:
 ## Step 5/6. Bootstrap the Discovery Service
 
 On the same Node as above, run `teleport discovery bootstrap`. This command
-will generate and display the additional IAM policies and SSM documents
+will generate and display the additional IAM policies and AWS Systems Manager (SSM) documents
 required to enable the Discovery Service:
 
 ```code
@@ -325,13 +327,15 @@ Select the instance-id of the Target to review Errors.
 
 ## Next steps
 
-Information on IAM best practices on EC2 instances managed by Systems
-Manager can be found for IAM best practices on EC2 instances managed
-by Systems Manager can be found in the [AWS Cloud Operations & Migrations Blog
+- Read [Joining Nodes via AWS IAM Role](../../management/guides/joining-nodes-aws-iam.mdx)
+for more information on IAM Invite Tokens.
+
+- Information on IAM best practices on EC2 instances managed by Systems
+Manager can be found for in the [AWS Cloud Operations & Migrations Blog
 ](https://aws.amazon.com/blogs/mt/applying-managed-instance-policy-best-practices/).
 
-Full documentation on EC2 discovery configuration can be found through the [
+- Full documentation on EC2 discovery configuration can be found through the [
 config file reference documentation](../../reference/config.mdx).
 
-The complete default installer can be found [with the Teleport source
+- The complete default installer can be found [with the Teleport source
 ](https://github.com/gravitational/teleport/blob/master/api/types/installers/installer.sh.tmpl).
