@@ -15,10 +15,10 @@
 package helpers
 
 import (
+	"bytes"
 	"context"
 	"testing"
 	"time"
-	"bytes"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -146,17 +146,15 @@ func WaitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, c
 // TrustedClusterSetup is a grouping of configuration options describing the current trusted
 // clusters being tested used for passing info about the clusters to be tested to helper functions.
 type TrustedClusterSetup struct {
-	Ctx context.Context
-	Aux *TeleInstance
-	Main *TeleInstance
-	Username string
-	ClusterAux string
+	Aux         *TeleInstance
+	Main        *TeleInstance
+	Username    string
+	ClusterAux  string
 	UseJumpHost bool
 }
 
 // CheckTrustedClustersCanConnect check the cluster setup described in tcSetup can connect to each other.
-func CheckTrustedClustersCanConnect(t *testing.T, tcSetup TrustedClusterSetup) {
-	ctx := tcSetup.Ctx
+func CheckTrustedClustersCanConnect(t *testing.T, ctx context.Context, tcSetup TrustedClusterSetup) {
 	aux := tcSetup.Aux
 	main := tcSetup.Main
 	username := tcSetup.Username
