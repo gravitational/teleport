@@ -17,211 +17,171 @@ limitations under the License.
 package aws
 
 import (
-	"bytes"
-	"io"
 	"net/http"
 	"net/url"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/client"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
-	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/gravitational/oxy/forward"
 	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
-// NewSigningService creates a new instance of SigningService.
-func NewSigningService(config SigningServiceConfig) (*SigningService, error) {
+// signerHandler is an http.Handler for signing and forwarding requests to AWS API.
+type signerHandler struct {
+	// fwd is a Forwarder used to forward signed requests to AWS API.
+	fwd *forward.Forwarder
+	// AwsSignerHandlerConfig is the awsSignerHandler configuration.
+	SignerHandlerConfig
+}
+
+// SignerHandlerConfig is the awsSignerHandler configuration.
+type SignerHandlerConfig struct {
+	// Log is a logger for the handler.
+	Log logrus.FieldLogger
+	// RoundTripper is an http.RoundTripper instance used for requests.
+	RoundTripper http.RoundTripper
+	// SigningService is used to sign requests before forwarding them.
+	*awsutils.SigningService
+}
+
+// CheckAndSetDefaults validates the AwsSignerHandlerConfig.
+func (cfg *SignerHandlerConfig) CheckAndSetDefaults() error {
+	if cfg.SigningService == nil {
+		return trace.BadParameter("missing SigningService")
+	}
+	if cfg.RoundTripper == nil {
+		tr, err := defaults.Transport()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.RoundTripper = tr
+	}
+	if cfg.Log == nil {
+		cfg.Log = logrus.WithField(trace.Component, "aws:signer")
+	}
+	return nil
+}
+
+// NewAWSSignerHandler creates a new request handler for signing and forwarding requests to AWS API.
+func NewAWSSignerHandler(config SignerHandlerConfig) (http.Handler, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	svc := &SigningService{
-		SigningServiceConfig: config,
-	}
 
+	handler := &signerHandler{
+		SignerHandlerConfig: config,
+	}
 	fwd, err := forward.New(
-		forward.RoundTripper(svc),
-		forward.ErrorHandler(oxyutils.ErrorHandlerFunc(svc.formatForwardResponseError)),
+		forward.RoundTripper(config.RoundTripper),
+		forward.ErrorHandler(oxyutils.ErrorHandlerFunc(handler.formatForwardResponseError)),
 		forward.PassHostHeader(true),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	svc.Forwarder = fwd
-	return svc, nil
+	handler.fwd = fwd
+	return handler, nil
 }
 
-// SigningService is an AWS CLI proxy service that signs AWS requests
-// based on user identity.
-type SigningService struct {
-	// SigningServiceConfig is the SigningService configuration.
-	SigningServiceConfig
+// formatForwardResponseError converts an error to a status code and writes the code to a response.
+func (s *signerHandler) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {
+	s.Log.WithError(err).Debugf("Failed to process request.")
+	common.SetTeleportAPIErrorHeader(rw, err)
 
-	// Forwarder signs and forwards the request to AWS API.
-	*forward.Forwarder
+	// Convert trace error type to HTTP and write response.
+	code := trace.ErrorToCode(err)
+	http.Error(rw, http.StatusText(code), code)
 }
 
-// SigningServiceConfig is the SigningService configuration.
-type SigningServiceConfig struct {
-	// RoundTripper is an http.RoundTripper instance used for requests.
-	RoundTripper http.RoundTripper
-	// Log is the Logger.
-	Log logrus.FieldLogger
-	// Session is AWS session.
-	Session *awssession.Session
-	// Clock is used to override time in tests.
-	Clock clockwork.Clock
-
-	// getSigningCredentials allows so set the function responsible for obtaining STS credentials.
-	// Used in tests to set static AWS credentials and skip API call.
-	getSigningCredentials getSigningCredentialsFunc
+// ServeHTTP handles incoming requests by signing them and then forwarding them to the proper AWS API.
+func (s *signerHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if err := s.serveHTTP(w, req); err != nil {
+		s.formatForwardResponseError(w, req, err)
+		return
+	}
 }
 
-// CheckAndSetDefaults validates the SigningServiceConfig config.
-func (s *SigningServiceConfig) CheckAndSetDefaults() error {
-	if s.RoundTripper == nil {
-		tr, err := defaults.Transport()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		s.RoundTripper = tr
+// serveHTTP is a helper to simplify error handling in ServeHTTP.
+func (s *signerHandler) serveHTTP(w http.ResponseWriter, req *http.Request) error {
+	sessCtx, err := common.GetSessionContext(req)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	if s.Clock == nil {
-		s.Clock = clockwork.NewRealClock()
+
+	// It's important that we resolve the endpoint before modifying the request headers,
+	// as they may be needed to resolve the endpoint correctly.
+	re, err := resolveEndpoint(req)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	if s.Log == nil {
-		s.Log = logrus.WithField(trace.Component, "aws:signer")
+
+	// rewrite headers before signing the request to avoid signature validation problems.
+	unsignedReq, err := rewriteRequest(req, re)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	if s.Session == nil {
-		ses, err := awssession.NewSessionWithOptions(awssession.Options{
-			SharedConfigState: awssession.SharedConfigEnable,
+
+	signedReq, err := s.SignRequest(unsignedReq,
+		&awsutils.SigningCtx{
+			SigningName:   re.SigningName,
+			SigningRegion: re.SigningRegion,
+			Expiry:        sessCtx.Identity.Expires,
+			SessionName:   sessCtx.Identity.Username,
+			AWSRoleArn:    sessCtx.Identity.RouteToApp.AWSRoleARN,
+			AWSExternalID: sessCtx.App.GetAWSExternalID(),
 		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		s.Session = ses
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	if s.getSigningCredentials == nil {
-		s.getSigningCredentials = getAWSCredentialsFromSTSAPI
+	recorder := httplib.NewResponseStatusRecorder(w)
+	s.fwd.ServeHTTP(recorder, signedReq)
+
+	var auditErr error
+	if isDynamoDBEndpoint(re) {
+		auditErr = sessCtx.Audit.OnDynamoDBRequest(unsignedReq.Context(), sessCtx, unsignedReq, recorder.Status(), re)
+	} else {
+		auditErr = sessCtx.Audit.OnRequest(unsignedReq.Context(), sessCtx, unsignedReq, recorder.Status(), re)
+	}
+	if err != nil {
+		// log but don't return the error, because we already handed off request/response handling to the oxy forwarder.
+		s.Log.WithError(auditErr).Warn("Failed to emit audit event.")
 	}
 	return nil
 }
 
-// RoundTrip handles incoming requests and forwards them to the proper AWS API.
-// Handling steps:
-// 1) Decoded Authorization Header. Authorization Header example:
-//
-//		Authorization: AWS4-HMAC-SHA256
-//		Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,
-//		SignedHeaders=host;range;x-amz-date,
-//		Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024
-//
-//	 2. Extract credential section from credential Authorization Header.
-//	 3. Extract aws-region and aws-service from the credential section.
-//	 4. Build AWS API endpoint based on extracted aws-region and aws-service fields.
-//	    Not that for endpoint resolving the https://github.com/aws/aws-sdk-go/aws/endpoints/endpoints.go
-//	    package is used and when Amazon releases a new API the dependency update is needed.
-//	 5. Sign HTTP request.
-//	 6. Forward the signed HTTP request to the AWS API.
-func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
-	defer req.Body.Close()
-	sessionCtx, err := common.GetSessionContext(req)
+// rewriteRequest rewrites a request to remove Teleport reserved headers, sets the url, and sets host.
+func rewriteRequest(r *http.Request, re *endpoints.ResolvedEndpoint) (*http.Request, error) {
+	// shallow copy request and make a deep copy for header modification.
+	outReq := &http.Request{}
+	*outReq = *r
+	outReq.Header = r.Header.Clone()
+	u, err := urlForResolvedEndpoint(r, re)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resolvedEndpoint, err := resolveEndpoint(req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	payload, err := awsutils.GetAndReplaceReqBody(req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	signedReq, err := s.prepareSignedRequest(req, payload, resolvedEndpoint, sessionCtx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	resp, err := s.RoundTripper.RoundTrip(signedReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// emit audit event with original request, but change the URL since we resolved and rewrote it.
-	signedReq.Body = io.NopCloser(bytes.NewReader(payload))
-	if isDynamoDBEndpoint(resolvedEndpoint) {
-		err = sessionCtx.Audit.OnDynamoDBRequest(req.Context(), sessionCtx, signedReq, resp, resolvedEndpoint)
-	} else {
-		err = sessionCtx.Audit.OnRequest(req.Context(), sessionCtx, signedReq, resp, resolvedEndpoint)
-	}
-	if err != nil {
-		s.Log.WithError(err).Warn("Failed to emit audit event.")
-	}
-	return resp, nil
-}
+	outReq.URL = u
+	outReq.Host = u.Host
 
-func (s *SigningService) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {
-	common.SetTeleportAPIErrorHeader(rw, err)
-
-	switch trace.Unwrap(err).(type) {
-	case *trace.BadParameterError:
-		s.Log.Debugf("Failed to process request: %v.", err)
-		rw.WriteHeader(http.StatusBadRequest)
-	case *trace.AccessDeniedError:
-		s.Log.Infof("Failed to process request: %v.", err)
-		rw.WriteHeader(http.StatusForbidden)
-	default:
-		s.Log.Warnf("Failed to process request: %v.", err)
-		rw.WriteHeader(http.StatusInternalServerError)
-	}
-}
-
-// prepareSignedRequest creates a new HTTP request and rewrites the header from the original request and returns a new
-// HTTP request signed by STS AWS API.
-func (s *SigningService) prepareSignedRequest(r *http.Request, payload []byte, re *endpoints.ResolvedEndpoint, sessionCtx *common.SessionContext) (*http.Request, error) {
-	url, err := urlForResolvedEndpoint(r, re)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	reqCopy, err := http.NewRequest(r.Method, url, bytes.NewReader(payload))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rewriteHeaders(r, reqCopy)
-	// Sign the copy of the request.
-	signer := awsutils.NewSigner(s.getSigningCredentials(s.Session, sessionCtx), re.SigningName)
-	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), re.SigningName, re.SigningRegion, s.Clock.Now())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return reqCopy, nil
-}
-
-func rewriteHeaders(r *http.Request, reqCopy *http.Request) {
-	for key, values := range r.Header {
+	for key := range outReq.Header {
 		// Remove Teleport app headers.
-		if common.IsReservedHeader(key) {
-			continue
-		}
-		for _, v := range values {
-			reqCopy.Header.Add(key, v)
+		if common.IsReservedHeader(key) || http.CanonicalHeaderKey(key) == "Content-Length" {
+			outReq.Header.Del(key)
 		}
 	}
-	reqCopy.Header.Del("Content-Length")
+	return outReq, nil
 }
 
-// urlForResolvedEndpoint creates an URL based on input request and resolved endpoint.
-func urlForResolvedEndpoint(r *http.Request, re *endpoints.ResolvedEndpoint) (string, error) {
+// urlForResolvedEndpoint creates a URL based on input request and resolved endpoint.
+func urlForResolvedEndpoint(r *http.Request, re *endpoints.ResolvedEndpoint) (*url.URL, error) {
 	resolvedURL, err := url.Parse(re.URL)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Replaces scheme and host. Keeps original path etc.
@@ -232,20 +192,5 @@ func urlForResolvedEndpoint(r *http.Request, re *endpoints.ResolvedEndpoint) (st
 	if resolvedURL.Scheme != "" {
 		clone.Scheme = resolvedURL.Scheme
 	}
-	return clone.String(), nil
-}
-
-type getSigningCredentialsFunc func(c client.ConfigProvider, sessionCtx *common.SessionContext) *credentials.Credentials
-
-func getAWSCredentialsFromSTSAPI(provider client.ConfigProvider, sessionCtx *common.SessionContext) *credentials.Credentials {
-	return stscreds.NewCredentials(provider, sessionCtx.Identity.RouteToApp.AWSRoleARN,
-		func(cred *stscreds.AssumeRoleProvider) {
-			cred.RoleSessionName = sessionCtx.Identity.Username
-			cred.Expiry.SetExpiration(sessionCtx.Identity.Expires, 0)
-
-			if externalID := sessionCtx.App.GetAWSExternalID(); externalID != "" {
-				cred.ExternalID = aws.String(externalID)
-			}
-		},
-	)
+	return &clone, nil
 }

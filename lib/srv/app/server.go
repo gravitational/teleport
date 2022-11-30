@@ -50,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/aws"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 type appServerContextKey string
@@ -211,8 +211,8 @@ type Server struct {
 
 	cache *sessionChunkCache
 
-	awsSigner    *appaws.SigningService
-	azureHandler *appazure.Forwarder
+	awsHandler   http.Handler
+	azureHandler http.Handler
 
 	// watcher monitors changes to application resources.
 	watcher *services.AppWatcher
@@ -263,14 +263,19 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		}
 	}()
 
-	awsSigner, err := appaws.NewSigningService(appaws.SigningServiceConfig{})
+	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	awsHandler, err := appaws.NewAWSSignerHandler(appaws.SignerHandlerConfig{
+		SigningService: awsSigner,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	azureHandler, err := appazure.NewForwarder(closeContext, appazure.ForwarderConfig{})
+	azureHandler, err := appazure.NewAzureHandler(closeContext, appazure.HandlerConfig{})
 	if err != nil {
-		closeFunc()
 		return nil, trace.Wrap(err)
 	}
 
@@ -283,7 +288,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		apps:          make(map[string]types.Application),
 		connAuth:      make(map[net.Conn]error),
-		awsSigner:     awsSigner,
+		awsHandler:    awsHandler,
 		azureHandler:  azureHandler,
 		monitoredApps: monitoredApps{
 			static: c.Apps,
@@ -798,8 +803,8 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		//  4 algorithm. AWS CLI and AWS SDKs automatically use SigV4 for all
 		//  services that support it (All services expect Amazon SimpleDB but
 		//  this AWS service has been deprecated)
-		if aws.IsSignedByAWSSigV4(r) {
-			return s.serveSession(w, r, &identity, app, s.withAWSForwarder)
+		if awsutils.IsSignedByAWSSigV4(r) {
+			return s.serveSession(w, r, &identity, app, s.withAWSSigner)
 		}
 
 		// Request for AWS console access originated from Teleport Proxy WebUI
@@ -812,7 +817,6 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	default:
 		return s.serveSession(w, r, &identity, app, s.withJWTTokenForwarder)
 	}
-
 }
 
 // serveAWSWebConsole generates a sign-in URL for AWS management console and
@@ -844,8 +848,16 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request, identity *
 	}
 	defer session.release()
 
+	// Create session context.
+	sessionCtx := &common.SessionContext{
+		Identity: identity,
+		App:      app,
+		ChunkID:  session.id,
+		Audit:    session.audit,
+	}
+
 	// Forward request to the target application.
-	session.fwd.ServeHTTP(w, common.WithSessionContext(r, session.sessionCtx))
+	session.handler.ServeHTTP(w, common.WithSessionContext(r, sessionCtx))
 	return nil
 }
 

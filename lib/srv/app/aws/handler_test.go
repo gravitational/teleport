@@ -23,7 +23,9 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -40,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -59,7 +60,8 @@ func s3Request(url string, provider client.ConfigProvider) error {
 
 func dynamoRequest(url string, provider client.ConfigProvider) error {
 	dynamoClient := dynamodb.New(provider, &aws.Config{
-		Endpoint: &url,
+		Endpoint:   &url,
+		MaxRetries: aws.Int(0),
 	})
 	_, err := dynamoClient.Scan(&dynamodb.ScanInput{
 		TableName: aws.String("test-table"),
@@ -204,7 +206,7 @@ func TestAWSSignerHandler(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			handler := func(writer http.ResponseWriter, request *http.Request) {
+			mockAWSHandler := func(writer http.ResponseWriter, request *http.Request) {
 				require.Equal(t, tc.wantHost, request.Host)
 				awsAuthHeader, err := awsutils.ParseSigV4(request.Header.Get(awsutils.AuthorizationHeader))
 				require.NoError(t, err)
@@ -213,7 +215,7 @@ func TestAWSSignerHandler(t *testing.T) {
 				require.Equal(t, tc.wantAuthCredService, awsAuthHeader.Service)
 			}
 
-			suite := createSuite(t, handler, tc.app)
+			suite := createSuite(t, mockAWSHandler, tc.app, clockwork.NewRealClock())
 
 			err := tc.request(suite.URL, tc.awsClientSession)
 			for _, assertFn := range tc.errAssertionFns {
@@ -257,7 +259,7 @@ func TestURLForResolvedEndpoint(t *testing.T) {
 		inputReq             *http.Request
 		inputResolvedEnpoint *endpoints.ResolvedEndpoint
 		requireError         require.ErrorAssertionFunc
-		expectURL            string
+		expectURL            *url.URL
 	}{
 		{
 			name:     "bad resolved endpoint",
@@ -273,7 +275,12 @@ func TestURLForResolvedEndpoint(t *testing.T) {
 			inputResolvedEnpoint: &endpoints.ResolvedEndpoint{
 				URL: "https://local.test.com",
 			},
-			expectURL:    "https://local.test.com/hello/world?aa=2",
+			expectURL: &url.URL{
+				Scheme:   "https",
+				Host:     "local.test.com",
+				Path:     "/hello/world",
+				RawQuery: "aa=2",
+			},
 			requireError: require.NoError,
 		},
 	}
@@ -295,7 +302,7 @@ func mustNewRequest(t *testing.T, method, url string, body io.Reader) *http.Requ
 	return r
 }
 
-func staticAWSCredentials(client.ConfigProvider, *common.SessionContext) *credentials.Credentials {
+func staticAWSCredentials(client.ConfigProvider, time.Time, string, string, string) *credentials.Credentials {
 	return credentials.NewStaticCredentials("AKIDl", "SECRET", "SESSION")
 }
 
@@ -306,18 +313,34 @@ type suite struct {
 	emitter  *eventstest.ChannelEmitter
 }
 
-func createSuite(t *testing.T, handler http.HandlerFunc, app types.Application) *suite {
+func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Application, clock clockwork.Clock) *suite {
 	emitter := eventstest.NewChannelEmitter(1)
-	user := auth.LocalUser{Username: "user"}
+	identity := tlsca.Identity{
+		Username: "user",
+		Expires:  clock.Now().Add(time.Hour),
+		RouteToApp: tlsca.RouteToApp{
+			AWSRoleARN: "arn:aws:iam::123456789:role/test",
+		},
+	}
 
-	awsAPIMock := httptest.NewUnstartedServer(handler)
+	awsAPIMock := httptest.NewUnstartedServer(mockAWSHandler)
 	awsAPIMock.StartTLS()
 	t.Cleanup(func() {
 		awsAPIMock.Close()
 	})
 
-	svc, err := NewSigningService(SigningServiceConfig{
-		getSigningCredentials: staticAWSCredentials,
+	svc, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
+		GetSigningCredentials: staticAWSCredentials,
+		Clock:                 clock,
+	})
+	require.NoError(t, err)
+
+	audit, err := common.NewAudit(common.AuditConfig{
+		Emitter: emitter,
+	})
+	require.NoError(t, err)
+	signerHandler, err := NewAWSSignerHandler(SignerHandlerConfig{
+		SigningService: svc,
 		RoundTripper: &http.Transport{
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
@@ -326,24 +349,18 @@ func createSuite(t *testing.T, handler http.HandlerFunc, app types.Application) 
 				return net.Dial(awsAPIMock.Listener.Addr().Network(), awsAPIMock.Listener.Addr().String())
 			},
 		},
-		Clock: clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
-
-	audit, err := common.NewAudit(common.AuditConfig{
-		Emitter: emitter,
-	})
-	require.NoError(t, err)
-
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		request = common.WithSessionContext(request, &common.SessionContext{
-			Identity: &user.Identity,
+			Identity: &identity,
 			App:      app,
 			Audit:    audit,
+			ChunkID:  "123abc",
 		})
 
-		svc.ServeHTTP(writer, request)
+		signerHandler.ServeHTTP(writer, request)
 	})
 
 	server := httptest.NewServer(mux)
@@ -353,7 +370,7 @@ func createSuite(t *testing.T, handler http.HandlerFunc, app types.Application) 
 
 	return &suite{
 		Server:   server,
-		identity: &user.Identity,
+		identity: &identity,
 		app:      app,
 		emitter:  emitter,
 	}
