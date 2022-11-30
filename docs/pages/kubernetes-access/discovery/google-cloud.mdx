@@ -57,11 +57,12 @@ includedPermissions:
 - container.clusters.list
 ```
 
-Create the role, replacing `project-id` with the name of your project:
+Create the role, assigning the `--project` flag to the name of your Google Cloud
+project:
 
 ```code
 $ gcloud iam roles create GKEKubernetesAutoDisc \
-  --project=project-id \
+  --project=<Var name="google-cloud-project" /> \
   --file=GKEKubernetesAutoDisc.yaml
 ```
 
@@ -84,13 +85,13 @@ includedPermissions:
 - container.selfSubjectRulesReviews.create
 ```
 
-Create the role, replacing `project-id` with the name of your project. If you
-receive a prompt indicating that certain permissions are in `TESTING`, enter
-`y`:
+Create the role, assigning the `--project` flag to the name of your Google Cloud
+project. If you receive a prompt indicating that certain permissions are in
+`TESTING`, enter `y`:
 
 ```code
 $ gcloud iam roles create GKEAccessManager \
-  --project=project-id \
+  --project=<Var name="google-cloud-project" /> \
   --file=GKEAccessManager.yaml
 ```
 
@@ -108,11 +109,11 @@ $ gcloud iam service-accounts create teleport-discovery-kubernetes \
   --display-name="teleport-discovery-kubernetes"
 ```
 
-Grant the roles you defined earlier to your service account, replacing
-`project-id` with the ID of your project.
+Grant the roles you defined earlier to your service account, assigning
+`PROJECT_ID` to the name of your Google Cloud project:
 
 ```code
-$ PROJECT_ID=project-id
+$ PROJECT_ID=<Var name="google-cloud-project" />
 $ gcloud projects add-iam-policy-binding ${PROJECT_ID?} \
    --member="serviceAccount:teleport-discovery-kubernetes@${PROJECT_ID?}.iam.gserviceaccount.com" \
    --role="projects/${PROJECT_ID?}/roles/GKEKubernetesAutoDisc"
@@ -131,15 +132,15 @@ $ gcloud iam service-accounts create teleport-discovery-service \
   --description="Teleport Discovery Service" \
   --display-name="teleport-discovery-service"
 $ gcloud iam service-accounts create teleport-kubernetes-service \
-  --description="Teleport Discovery Service" \
-  --display-name="teleport-discovery-service"
+  --description="Teleport Kubernetes Service" \
+  --display-name="teleport-kubernetes-service"
 ```
 
-Grant the roles you defined earlier to your service accounts, replacing
-`project-id` with the ID of your project.
+Grant the roles you defined earlier to your service account, assigning
+`PROJECT_ID` to the name of your Google Cloud project:
 
 ```code
-$ PROJECT_ID=project-id
+$ PROJECT_ID=<Var name="google-cloud-project" />
 $ gcloud projects add-iam-policy-binding ${PROJECT_ID?} \
    --member="serviceAccount:teleport-discovery-service@${PROJECT_ID?}.iam.gserviceaccount.com" \
    --role="projects/${PROJECT_ID?}/roles/GKEKubernetesAutoDisc"
@@ -157,7 +158,7 @@ Discovery Service.
 
 The process is different depending on whether you are deploying the Teleport
 Kubernetes Service and Discovery Service on Google Cloud or some other way
-(e.g., via Amazon EC2 or on a home network).
+(e.g., via Amazon EC2 or on a local network).
 
 <Tabs>
 <TabItem label="Google Cloud">
@@ -165,8 +166,8 @@ Kubernetes Service and Discovery Service on Google Cloud or some other way
 Stop your VM so you can attach your service account to it:
 
 ```code
-$ VM_NAME=my-vm
-$ MY_ZONE=my-region
+$ VM_NAME=<Var name="vm-name" />
+$ MY_ZONE=<Var name="google-cloud-region" />
 $ gcloud compute instances stop ${VM_NAME?} --zone=${MY_ZONE?}
 ```
 
@@ -184,7 +185,8 @@ $ gcloud compute instances set-service-account ${VM_NAME?} \
 Stop each VM you plan to use to run the Teleport Kubernetes Service and
 Discovery Service.
 
-Attach your service account to the VM running the Kubernetes Service:
+Attach the `teleport-kubernetes-service` service account to the VM running the
+Kubernetes Service:
 
 ```code
 $ gcloud compute instances set-service-account ${VM1_NAME?} \
@@ -193,7 +195,8 @@ $ gcloud compute instances set-service-account ${VM1_NAME?} \
    --scopes=cloud-platform
 ```
 
-Attach your service account to the VM running the Discovery Service:
+Attach the `teleport-discovery-service` service account to the VM running the
+Discovery Service:
 
 ```code
 $ gcloud compute instances set-service-account ${VM2_NAME?} \
@@ -224,7 +227,7 @@ Download a credentials file for the service account used by the Discovery
 Service and Kubernetes Service:
 
 ```code
-$ PROJECT_ID=project-id
+$ PROJECT_ID=<Var name="google-cloud-project" />
 $ gcloud iam service-accounts keys create google-cloud-credentials.json \
     --iam-account=teleport-discovery-kubernetes@${PROJECT_ID?}.iam.gserviceaccount.com
 ```
@@ -240,7 +243,7 @@ separately?">
 Download separate credentials files for each service:
 
 ```code
-$ PROJECT_ID=project-id
+$ PROJECT_ID=<Var name="google-cloud-project" />
 $ gcloud iam service-accounts keys create discovery-service-credentials.json \
     --iam-account=teleport-discovery-service@${PROJECT_ID?}.iam.gserviceaccount.com
 $ gcloud iam service-accounts keys create kube-service-credentials.json \
@@ -309,6 +312,52 @@ $ echo (=presets.tokens.first=) | sudo tee /tmp/token
 # (=presets.tokens.first=)
 ```
 
+<Details title="Running the Kubernetes and Discovery Services separately?">
+
+Generate separate tokens for the Kubernetes Service and Discovery Service by
+running the following `tctl` commands:
+
+```code
+$ tctl tokens add --type=discovery
+The invite token: (=presets.tokens.second=)
+This token will expire in 60 minutes.
+
+Run this on the new node to join the cluster:
+
+> teleport start \
+   --roles=discovery \
+   --token=(=presets.tokens.second=) \
+   --ca-pin=(=presets.ca_pin=) \
+   --auth-server=192.0.2.255:3025
+
+Please note:
+
+  - This invitation token will expire in 60 minutes
+  - 192.0.2.255:3025 must be reachable from the new node
+$ tctl tokens add --type=kube
+The invite token: (=presets.tokens.third=)
+This token will expire in 60 minutes.
+
+Run this on the new node to join the cluster:
+
+> teleport start \
+   --roles=kube \
+   --token=(=presets.tokens.third=) \
+   --ca-pin=(=presets.ca_pin=) \
+   --auth-server=192.0.2.255:3025
+
+Please note:
+
+  - This invitation token will expire in 60 minutes
+  - 192.0.2.255:3025 must be reachable from the new node
+```
+
+Copy each token (e.g., `(=presets.tokens.first=)` and
+`(=presets.tokens.second=)` above) and save it in `/tmp/token` on the machine
+that will run the appropriate service. 
+
+</Details>
+
 ### Configure the Kubernetes Service and Discovery Service
 
 On the host running the Kubernetes Service and Discovery Service, create a
@@ -341,6 +390,60 @@ kubernetes_service:
   - labels:
       "*": "*"
 ```
+
+<Details title="Running the Kubernetes Service and Discovery Service on
+separate hosts?">
+
+Follow the instructions in this section with two configuration files. The
+configuration file you will save at `/etc/teleport.yaml` on the Kubernetes
+Service host will include the following:
+
+```yaml
+version: v3
+teleport:
+  join_params:
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: "teleport.example.com:443"
+auth_service:
+  enabled: off
+proxy_service:
+  enabled: off
+ssh_service:
+  enabled: off
+kubernetes_service:
+  enabled: "yes"
+  resources:
+  - labels:
+      "*": "*"
+```
+
+On the Discovery Service host, the file will include the following:
+
+```yaml
+version: v3
+teleport:
+  join_params:
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: "teleport.example.com:443"
+auth_service:
+  enabled: off
+proxy_service:
+  enabled: off
+ssh_service:
+  enabled: off
+discovery_service:
+  enabled: "yes"
+  gcp:
+    - types: ["gke"]
+      locations: ["*"]
+      project_ids: ["myproject"] # replace with my project ID
+      tags:
+        "*" : "*"
+```
+
+</Details>
 
 Edit this configuration for your environment as explained below.
 
