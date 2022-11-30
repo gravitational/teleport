@@ -147,6 +147,14 @@ func TestValidateDatabase(t *testing.T) {
 			expectError: false,
 		},
 		{
+			inputName: "invalid-mongodb-srv",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolMongoDB,
+				URI:      "mongodb+srv://valid.but.cannot.be.resolved.com/?readpreference=unknown",
+			},
+			expectError: true,
+		},
+		{
 			inputName: "invalid-mongodb-missing-username",
 			inputSpec: types.DatabaseSpecV3{
 				Protocol: defaults.ProtocolMongoDB,

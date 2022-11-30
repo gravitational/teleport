@@ -198,16 +198,21 @@ func ValidateDatabase(db types.Database) error {
 // validateMongoDB validates MongoDB URIs with "mongodb" schemes.
 func validateMongoDB(db types.Database) error {
 	connString, err := connstring.ParseAndValidate(db.GetURI())
+	// connstring.ParseAndValidate requires DNS resolution on TXT/SRV records
+	// for a full validation for "mongodb+srv" URIs. We will try to skip the
+	// DNS errors here by replacing the scheme and then ParseAndValidate again
+	// to validate as much as we can.
+	if isDNSError(err) {
+		logrus.Warnf("MongoDB database %q (connection string %q) failed validation with DNS error: %v.", db.GetName(), db.GetURI(), err)
+
+		connString, err = connstring.ParseAndValidate(strings.Replace(
+			db.GetURI(),
+			connstring.SchemeMongoDBSRV+"://",
+			connstring.SchemeMongoDB+"://",
+			1,
+		))
+	}
 	if err != nil {
-		// connstring.ParseAndValidate requires DNS resolution on TXT/SRV
-		// records for a full validation for "mongodb+srv" URIs. Log a warning
-		// here when DNS resolution fails as we mostly care if the URI is
-		// "lexically" correct at this point. Full validation is more
-		// approriate for health checks or new connections.
-		if isDNSError(err) {
-			logrus.Warnf("MongoDB database %q (connection string %q) failed validation with DNS error: %v", db.GetName(), db.GetURI(), err)
-			return nil
-		}
 		return trace.BadParameter("invalid MongoDB database %q connection string %q: %v", db.GetName(), db.GetURI(), err)
 	}
 
