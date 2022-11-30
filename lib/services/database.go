@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -33,6 +34,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
@@ -151,15 +153,8 @@ func ValidateDatabase(db types.Database) error {
 	if db.GetProtocol() == defaults.ProtocolMongoDB &&
 		(strings.HasPrefix(db.GetURI(), connstring.SchemeMongoDB+"://") ||
 			strings.HasPrefix(db.GetURI(), connstring.SchemeMongoDBSRV+"://")) {
-		connString, err := connstring.ParseAndValidate(db.GetURI())
-		if err != nil {
-			return trace.BadParameter("invalid MongoDB database %q connection string %q: %v", db.GetName(), db.GetURI(), err)
-		}
-		// Validate read preference to catch typos early.
-		if connString.ReadPreference != "" {
-			if _, err := readpref.ModeFromString(connString.ReadPreference); err != nil {
-				return trace.BadParameter("invalid MongoDB database %q read preference %q", db.GetName(), connString.ReadPreference)
-			}
+		if err := validateMongoDB(db); err != nil {
+			return trace.Wrap(err)
 		}
 	} else if db.GetProtocol() == defaults.ProtocolRedis {
 		_, err := connection.ParseRedisAddress(db.GetURI())
@@ -198,6 +193,40 @@ func ValidateDatabase(db types.Database) error {
 		}
 	}
 	return nil
+}
+
+// validateMongoDB validates MongoDB URIs with "mongodb" schemes.
+func validateMongoDB(db types.Database) error {
+	connString, err := connstring.ParseAndValidate(db.GetURI())
+	if err != nil {
+		// connstring.ParseAndValidate requires DNS resolution on TXT/SRV
+		// records for a full validation for "mongodb+srv" URIs. Log a warning
+		// here when DNS resolution fails as we mostly care if the URI is
+		// "lexically" correct at this point. Full validation is more
+		// approriate for health checks or new connections.
+		if isDNSError(err) {
+			logrus.Warnf("MongoDB database %q (connection string %q) failed validation with DNS error: %v", db.GetName(), db.GetURI(), err)
+			return nil
+		}
+		return trace.BadParameter("invalid MongoDB database %q connection string %q: %v", db.GetName(), db.GetURI(), err)
+	}
+
+	// Validate read preference to catch typos early.
+	if connString.ReadPreference != "" {
+		if _, err := readpref.ModeFromString(connString.ReadPreference); err != nil {
+			return trace.BadParameter("invalid MongoDB database %q read preference %q", db.GetName(), connString.ReadPreference)
+		}
+	}
+	return nil
+}
+
+func isDNSError(err error) bool {
+	if unwrapped := errors.Unwrap(err); unwrapped != nil {
+		err = unwrapped
+	}
+
+	_, ok := err.(*net.DNSError)
+	return ok
 }
 
 // setDBNameByLabel modifies the types.Metadata argument in place, setting the database name.
