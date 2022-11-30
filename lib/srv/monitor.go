@@ -428,7 +428,8 @@ func (t *TrackingReadConn) UpdateClientActivity() {
 
 // GetDisconnectExpiredCertFromIdentity calculates the proper value for DisconnectExpiredCert
 // based on whether a connection is set to disconnect on cert expiry, and whether
-// the cert is a short lived (<1m) one issued for an MFA verified session.
+// the cert is a short lived (<1m) one issued for an MFA verified session. If the session
+// doesn't need to be disconnected on cert expiry it will return the default value for time.Time.
 func GetDisconnectExpiredCertFromIdentity(
 	checker services.AccessChecker,
 	authPref types.AuthPreference,
