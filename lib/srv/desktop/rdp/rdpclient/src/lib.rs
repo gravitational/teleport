@@ -32,9 +32,10 @@
 //!    it didn't allocate but needs to hold on to, is responsible for copying it to its
 //!    own respective heap.
 //!
-//! In practice, this means that all the functions called from Go (those prefixed with
-//! `pub unsafe extern "C"`) MUST NOT hang on to any of the pointers passed in to them after
-//! they return. All pointer data that needs to persist MUST be copied into Rust-owned memory.
+//! In practice, this means that all the functions called from Go (those
+//! prefixed with `pub unsafe extern "C"`) MUST NOT hang on to any of the
+//! pointers passed in to them after they return. All pointer data that needs to
+//! persist MUST be copied into Rust-owned memory.
 
 mod cliprdr;
 mod errors;
