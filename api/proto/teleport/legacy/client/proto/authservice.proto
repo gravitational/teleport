@@ -354,7 +354,7 @@ message PluginDataSeq {
   repeated types.PluginDataV3 PluginData = 1 [(gogoproto.jsontag) = "plugin_data"];
 }
 
-// RequestStateSetter encodes the paramters necessary to update the
+// RequestStateSetter encodes the parameters necessary to update the
 // state of a privilege escalation request.
 message RequestStateSetter {
   // ID is the request ID being targeted
