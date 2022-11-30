@@ -19,10 +19,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
-	"encoding/json"
 	"net/http"
-	"os/exec"
-	"runtime"
 	"strings"
 	"time"
 
@@ -76,26 +73,8 @@ func (s *ForwarderConfig) CheckAndSetDefaults() error {
 	}
 	if s.getAccessToken == nil {
 		s.getAccessToken = getAccessTokenManagedIdentity
-		if func() string { return runtime.GOOS }() != "linux" {
-			s.getAccessToken = getAccessTokenRemoteServer
-		}
 	}
 	return nil
-}
-
-// TODO: remove testing code
-func getAccessTokenRemoteServer(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
-	cmd := exec.Command("ssh", "azureuser@13.74.28.87", "/home/azureuser/teleport/build/tazure", "managed_id_token", managedIdentity, scope)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var token azcore.AccessToken
-	err = json.Unmarshal(out, &token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &token, nil
 }
 
 // Forwarder is an AWS CLI proxy service that signs AWS requests
