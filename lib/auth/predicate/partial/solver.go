@@ -54,6 +54,9 @@ func (s *CachedSolver) PartialSolveForAll(predicate string, resolveIdentifier Re
 	errCh := make(chan error)
 
 	go func() {
+		defer close(outCh)
+		defer close(errCh)
+
 		out, err := s.partialSolveForAllImpl(predicate, resolveIdentifier, querying, to)
 		if err != nil {
 			errCh <- err
@@ -70,6 +73,7 @@ func (s *CachedSolver) PartialSolveForAll(predicate string, resolveIdentifier Re
 		return nil, err
 	case <-time.After(timeout):
 		s.def.Interrupt()
+		<-outCh
 		return nil, trace.LimitExceeded("timeout")
 	}
 }
