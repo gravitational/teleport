@@ -21,7 +21,6 @@ import history from 'teleport/services/history';
 
 import Teleport from './Teleport';
 import TeleportContext from './teleportContext';
-import { instantiateTelemetry } from './telemetry-boot';
 import cfg from './config';
 
 // apply configuration received from the server
@@ -31,7 +30,9 @@ cfg.init(window['GRV_CONFIG']);
 history.init();
 
 if (localStorage.getItem('enable-telemetry') === 'true') {
-  instantiateTelemetry();
+  import(/* webpackChunkName: "telemetry" */ './telemetry-boot').then(m =>
+    m.instantiateTelemetry()
+  );
 }
 
 const teleportContext = new TeleportContext();
