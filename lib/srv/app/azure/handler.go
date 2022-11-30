@@ -17,7 +17,8 @@ package azure
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
+	"crypto"
+	"crypto/x509"
 	"encoding/json"
 	"net/http"
 	"os/exec"
@@ -34,8 +35,10 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -198,7 +201,7 @@ func (s *Forwarder) prepareForwardRequest(r *http.Request, sessionCtx *common.Se
 
 	copyHeaders(r, reqCopy)
 
-	err = s.replaceAuthHeaders(r.Context(), sessionCtx, reqCopy)
+	err = s.replaceAuthHeaders(r, sessionCtx, reqCopy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -206,22 +209,41 @@ func (s *Forwarder) prepareForwardRequest(r *http.Request, sessionCtx *common.Se
 	return reqCopy, trace.Wrap(err)
 }
 
-func (s *Forwarder) replaceAuthHeaders(ctx context.Context, sessionCtx *common.SessionContext, reqCopy *http.Request) error {
+func getPeerKey(certs []*x509.Certificate) (crypto.PublicKey, error) {
+	if len(certs) != 1 {
+		return nil, trace.BadParameter("unexpected number of peer certificates: %v", len(certs))
+	}
+
+	cert := certs[0]
+
+	pk, ok := cert.PublicKey.(crypto.PublicKey)
+	if !ok {
+		return nil, trace.BadParameter("peer cert public key not a crypto.Signer")
+	}
+
+	return pk, nil
+
+}
+
+func (s *Forwarder) replaceAuthHeaders(r *http.Request, sessionCtx *common.SessionContext, reqCopy *http.Request) error {
 	auth := reqCopy.Header.Get("Authorization")
 	if auth == "" {
 		s.Log.Debugf("No Authorization header present, skipping replacement.")
 		return nil
 	}
 
-	scope, teleportUUID, err := parseAuthHeader(auth)
+	pubKey, err := getPeerKey(r.TLS.PeerCertificates)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	claims, err := s.parseAuthHeader(auth, pubKey)
 	if err != nil {
 		return trace.Wrap(err, "failed to parse Authorization header")
 	}
 
-	s.Log.Debugf("Processing request, scope = %q, fingerprint = %q", scope, teleportUUID)
-
-	identity := sessionCtx.Identity.RouteToApp.AzureIdentity
-	token, err := s.getToken(ctx, identity, scope)
+	s.Log.Debugf("Processing request, sessionId = %q, azureIdentity = %q, claims = %v", sessionCtx.Identity.RouteToApp.SessionID, sessionCtx.Identity.RouteToApp.AzureIdentity, claims)
+	token, err := s.getToken(r.Context(), sessionCtx.Identity.RouteToApp.AzureIdentity, claims.Resource)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -231,42 +253,26 @@ func (s *Forwarder) replaceAuthHeaders(ctx context.Context, sessionCtx *common.S
 	return nil
 }
 
-func parseAuthHeader(auth string) (string, string, error) {
-	// TODO: implement parseAuthHeader in a less hackish way.
-	parts := strings.Split(auth, ".")
-	if len(parts) != 3 {
-		return "", "", trace.BadParameter("wrong number of parts in Auth header")
+func (s *Forwarder) parseAuthHeader(token string, pubKey crypto.PublicKey) (*jwt.AzureTokenClaims, error) {
+	before, after, found := strings.Cut(token, " ")
+	if !found {
+		return nil, trace.BadParameter("Unable to parse auth header")
+	}
+	if before != "Bearer" {
+		return nil, trace.BadParameter("Unable to parse auth header")
 	}
 
-	claimsJSON, err := base64.StdEncoding.DecodeString(parts[1])
+	// Create a new key that can sign and verify tokens.
+	key, err := jwt.New(&jwt.Config{
+		Clock:       s.Clock,
+		PublicKey:   pubKey,
+		Algorithm:   defaults.ApplicationTokenAlgorithm,
+		ClusterName: types.TeleportAzureMSIEndpoint,
+	})
 	if err != nil {
-		return "", "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	var claims map[string]any
-	if err := json.Unmarshal(claimsJSON, &claims); err != nil {
-		return "", "", trace.Wrap(err)
-	}
-
-	scopeClaim, ok := claims["resource"]
-	if !ok {
-		return "", "", trace.BadParameter("missing 'resource' in claims")
-	}
-	scope, ok := scopeClaim.(string)
-	if !ok {
-		return "", "", trace.BadParameter("wrong type for 'resource' claim: %T", scopeClaim)
-	}
-
-	teleportUUIDClaim, ok := claims["teleport_mark"]
-	if !ok {
-		return "", "", trace.BadParameter("missing 'teleport_mark' in claims")
-	}
-	teleportUUID, ok := teleportUUIDClaim.(string)
-	if !ok {
-		return "", "", trace.BadParameter("wrong type for 'teleport_mark' claim: %T", teleportUUIDClaim)
-	}
-
-	return scope, teleportUUID, nil
+	return key.VerifyAzureToken(after)
 }
 
 type getAccessTokenFunc func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error)

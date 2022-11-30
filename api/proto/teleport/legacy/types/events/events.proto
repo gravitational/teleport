@@ -3230,7 +3230,7 @@ message RouteToApp {
   string ClusterName = 4 [(gogoproto.jsontag) = "cluster_name"];
   // AWSRoleARN is the AWS role to assume when accessing AWS API.
   string AWSRoleARN = 5 [(gogoproto.jsontag) = "aws_role_arn,omitempty"];
-  // Azureidentity is the Azure identity ot assume when accessing Azure API.
+  // AzureIdentity is the Azure identity ot assume when accessing Azure API.
   string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity,omitempty"];
 }
 

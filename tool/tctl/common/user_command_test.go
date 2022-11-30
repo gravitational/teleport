@@ -152,6 +152,13 @@ func TestUserUpdate(t *testing.T) {
 				constants.TraitAWSRoleARNs: {"a1", "a2", "a3"},
 			},
 		},
+		{
+			name: "new Azure identities",
+			args: []string{"--set-azure-identities", "a1,a2,a3"},
+			wantTraits: map[string][]string{
+				constants.TraitAzureIdentities: {"a1", "a2", "a3"},
+			},
+		},
 	}
 
 	for _, tc := range tests {

@@ -1846,6 +1846,8 @@ func TestApplyTraits(t *testing.T) {
 		outWindowsLogins        []string
 		inRoleARNs              []string
 		outRoleARNs             []string
+		inAzureIdentities       []string
+		outAzureIdentities      []string
 		inLabels                types.Labels
 		outLabels               types.Labels
 		inKubeLabels            types.Labels
@@ -1960,6 +1962,28 @@ func TestApplyTraits(t *testing.T) {
 			deny: rule{
 				inRoleARNs:  []string{"{{external.foo}}", teleport.TraitInternalAWSRoleARNs},
 				outRoleARNs: []string{"bar", "baz"},
+			},
+		},
+		{
+			comment: "Azure identity substitute in allow rule",
+			inTraits: map[string][]string{
+				"foo":                          {"bar"},
+				constants.TraitAzureIdentities: {"baz"},
+			},
+			allow: rule{
+				inAzureIdentities:  []string{"{{external.foo}}", teleport.TraitInternalAzureIdentities},
+				outAzureIdentities: []string{"bar", "baz"},
+			},
+		},
+		{
+			comment: "Azure identity substitute in deny rule",
+			inTraits: map[string][]string{
+				"foo":                          {"bar"},
+				constants.TraitAzureIdentities: {"baz"},
+			},
+			deny: rule{
+				inAzureIdentities:  []string{"{{external.foo}}", teleport.TraitInternalAzureIdentities},
+				outAzureIdentities: []string{"bar", "baz"},
 			},
 		},
 		{
@@ -2344,6 +2368,8 @@ func TestApplyTraits(t *testing.T) {
 						KubeGroups:           tt.allow.inKubeGroups,
 						KubeUsers:            tt.allow.inKubeUsers,
 						AppLabels:            tt.allow.inAppLabels,
+						AWSRoleARNs:          tt.allow.inRoleARNs,
+						AzureIdentities:      tt.allow.inAzureIdentities,
 						DatabaseLabels:       tt.allow.inDBLabels,
 						DatabaseNames:        tt.allow.inDBNames,
 						DatabaseUsers:        tt.allow.inDBUsers,
@@ -2360,6 +2386,8 @@ func TestApplyTraits(t *testing.T) {
 						KubeGroups:           tt.deny.inKubeGroups,
 						KubeUsers:            tt.deny.inKubeUsers,
 						AppLabels:            tt.deny.inAppLabels,
+						AWSRoleARNs:          tt.deny.inRoleARNs,
+						AzureIdentities:      tt.deny.inAzureIdentities,
 						DatabaseLabels:       tt.deny.inDBLabels,
 						DatabaseNames:        tt.deny.inDBNames,
 						DatabaseUsers:        tt.deny.inDBUsers,
@@ -2387,6 +2415,8 @@ func TestApplyTraits(t *testing.T) {
 				require.Equal(t, rule.spec.outKubeGroups, outRole.GetKubeGroups(rule.condition))
 				require.Equal(t, rule.spec.outKubeUsers, outRole.GetKubeUsers(rule.condition))
 				require.Equal(t, rule.spec.outAppLabels, outRole.GetAppLabels(rule.condition))
+				require.Equal(t, rule.spec.outRoleARNs, outRole.GetAWSRoleARNs(rule.condition))
+				require.Equal(t, rule.spec.outAzureIdentities, outRole.GetAzureIdentities(rule.condition))
 				require.Equal(t, rule.spec.outDBLabels, outRole.GetDatabaseLabels(rule.condition))
 				require.Equal(t, rule.spec.outDBNames, outRole.GetDatabaseNames(rule.condition))
 				require.Equal(t, rule.spec.outDBUsers, outRole.GetDatabaseUsers(rule.condition))
@@ -3493,6 +3523,104 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 					AccessMFAParams{},
 					&AWSRoleARNMatcher{RoleARN: access.roleARN})
 				if access.hasAccess {
+					require.NoError(t, err)
+				} else {
+					require.Error(t, err)
+					require.True(t, trace.IsAccessDenied(err))
+				}
+			}
+		})
+	}
+}
+
+// TestCheckAccessToAzureCloud verifies Azure identities access checker.
+func TestCheckAccessToAzureCloud(t *testing.T) {
+	app, err := types.NewAppV3(types.Metadata{Name: "azureapp"}, types.AppSpecV3{Cloud: types.CloudAzure})
+	require.NoError(t, err)
+	readOnlyIdentity := "readonly"
+	fullAccessIdentity := "fullaccess"
+	roleNoAccess := &types.RoleV5{
+		Metadata: types.Metadata{
+			Name:      "noaccess",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:      []string{apidefaults.Namespace},
+				AppLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AzureIdentities: []string{},
+			},
+		},
+	}
+	roleReadOnly := &types.RoleV5{
+		Metadata: types.Metadata{
+			Name:      "readonly",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:      []string{apidefaults.Namespace},
+				AppLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AzureIdentities: []string{readOnlyIdentity},
+			},
+		},
+	}
+	roleFullAccess := &types.RoleV5{
+		Metadata: types.Metadata{
+			Name:      "fullaccess",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:      []string{apidefaults.Namespace},
+				AppLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AzureIdentities: []string{readOnlyIdentity, fullAccessIdentity},
+			},
+		},
+	}
+	tests := []struct {
+		name   string
+		roles  RoleSet
+		access map[string]bool
+	}{
+		{
+			name:  "empty role set",
+			roles: nil,
+			access: map[string]bool{
+				readOnlyIdentity:   false,
+				fullAccessIdentity: false,
+			},
+		},
+		{
+			name:  "no access role",
+			roles: RoleSet{roleNoAccess},
+			access: map[string]bool{
+				readOnlyIdentity:   false,
+				fullAccessIdentity: false,
+			},
+		},
+		{
+			name:  "readonly role",
+			roles: RoleSet{roleReadOnly},
+			access: map[string]bool{
+				readOnlyIdentity:   true,
+				fullAccessIdentity: false,
+			},
+		},
+		{
+			name:  "full access role",
+			roles: RoleSet{roleFullAccess},
+			access: map[string]bool{
+				readOnlyIdentity:   true,
+				fullAccessIdentity: true,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			for identity, hasAccess := range test.access {
+				err := test.roles.checkAccess(app, AccessMFAParams{}, &AzureIdentityMatcher{Identity: identity})
+				if hasAccess {
 					require.NoError(t, err)
 				} else {
 					require.Error(t, err)

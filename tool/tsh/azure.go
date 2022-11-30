@@ -122,10 +122,6 @@ func (a *azureApp) Close() error {
 // GetEnvVars returns required environment variables to configure the
 // clients.
 func (a *azureApp) GetEnvVars() (map[string]string, error) {
-	if a.localALPNProxy == nil {
-		return nil, trace.NotFound("ALPN proxy is not running")
-	}
-
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -136,7 +132,7 @@ func (a *azureApp) GetEnvVars() (map[string]string, error) {
 		// 1. `tsh az login` in one console
 		// 2. `az ...` in another console
 		// without custom config dir the second invocation will hang, attempting to connect to (inaccessible without configuration) MSI.
-		"AZURE_CONFIG_DIR": path.Join(homeDir, ".azure-teleport"),
+		"AZURE_CONFIG_DIR": path.Join(homeDir, ".azure-teleport-"+a.app.Name),
 		// setting MSI_ENDPOINT instructs Azure CLI to make managed identity calls on this address.
 		// the requests will be handled by tsh proxy.
 		"MSI_ENDPOINT": "https://" + types.TeleportAzureMSIEndpoint,
@@ -229,6 +225,17 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
+	// backend expects the tokens to be signed with web session private key
+	ws, err := tc.GetAppSession(a.cf.Context, types.GetAppSessionRequest{SessionID: a.app.SessionID})
+	if err != nil {
+		return err
+	}
+
+	wsPK, err := utils.ParsePrivateKey(ws.GetPriv())
+	if err != nil {
+		return err
+	}
+
 	a.localALPNProxy, err = alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		Listener:           listener,
 		RemoteProxyAddr:    tc.WebProxyAddr,
@@ -238,6 +245,7 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 		SNI:                address.Host(),
 		Certs:              []tls.Certificate{appCerts},
 		HTTPMiddleware: &alpnproxy.AzureMSIMiddleware{
+			Key: wsPK,
 			// we could, in principle, get the actual TenantID either from live data or from static configuration,
 			// but at this moment there is no clear advantage over simply issuing a new random identifier.
 			TenantID: uuid.New().String(),
@@ -388,7 +396,6 @@ func pickActiveAzureApp(cf *CLIConf) (*azureApp, error) {
 		}
 		return newAzureApp(cf, profile, *app)
 	}
-
 	azureApps := getAzureApps(profile.Apps)
 	if len(azureApps) == 0 {
 		return nil, trace.NotFound("Please login to Azure App using 'tsh app login' first")

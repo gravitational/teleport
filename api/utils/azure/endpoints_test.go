@@ -74,3 +74,42 @@ func TestParseMSSQLEndpoint(t *testing.T) {
 		})
 	}
 }
+
+func TestIsAzureEndpoint(t *testing.T) {
+	tests := []struct {
+		name     string
+		hostname string
+		want     bool
+	}{
+		{
+			name:     "empty",
+			hostname: "",
+			want:     false,
+		},
+		{
+			name:     "valid endpoint",
+			hostname: "management.azure.com",
+			want:     true,
+		},
+		{
+			name:     "valid endpoint prefix",
+			hostname: "subdomain.core.windows.net",
+			want:     true,
+		},
+		{
+			name:     "invalid endpoint, with valid prefix",
+			hostname: "core.windows.net.example.com",
+			want:     false,
+		},
+		{
+			name:     "invalid endpoint",
+			hostname: "not-azure.example.com",
+			want:     false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, IsAzureEndpoint(tt.hostname))
+		})
+	}
+}

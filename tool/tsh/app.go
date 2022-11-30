@@ -124,19 +124,27 @@ func onAppLogin(cf *CLIConf) error {
 			return trace.BadParameter("app is Azure Cloud but Azure identity is missing")
 		}
 
+		var args []string
+		if cf.Debug {
+			args = append(args, "--debug")
+		}
+		args = append(args, "az", "login", "--identity", "-u", azureIdentity)
+
 		// automatically login with right identity.
-		cmd := exec.Command(cf.executablePath, "az", "login", "--identity", "-u", azureIdentity)
+		cmd := exec.Command(cf.executablePath, args...)
+		cmd.Stdin = os.Stdin
+		cmd.Stderr = os.Stderr
+		cmd.Stdout = os.Stdout
+
 		log.Debugf("Running automatic az login: %v", cmd.String())
-		output, err := cmd.CombinedOutput()
+		err := cf.RunCommand(cmd)
 		if err != nil {
-			log.WithError(err).Warnf("`az login` output: %q", string(output))
-			return trace.Wrap(err, "failed to automatically login with `az login` using identity %q; run with --debug for details", azureIdentity, string(output))
+			return trace.Wrap(err, "failed to automatically login with `az login` using identity %q; run with --debug for details", azureIdentity)
 		}
 
 		return azureCliTpl.Execute(os.Stdout, map[string]string{
-			"appName":       app.GetName(),
-			"identity":      azureIdentity,
-			"azLoginOutput": string(output),
+			"appName":  app.GetName(),
+			"identity": azureIdentity,
 		})
 	}
 	if app.IsTCP() {
@@ -190,8 +198,6 @@ var azureCliTpl = template.Must(template.New("").Parse(
 	`Logged into Azure app "{{.appName}}".
 Your identity: {{.identity}}
 Example Azure CLI command: tsh az vm list
-
-{{.azLoginOutput}}
 `))
 
 // getRegisteredApp returns the registered application with the specified name.

@@ -16,24 +16,32 @@ package alpnproxy
 
 import (
 	"context"
-	"encoding/base64"
+	"crypto"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/jwt"
 )
 
+// AzureMSIMiddleware implements a simplified version of MSI server serving auth tokens.
 type AzureMSIMiddleware struct {
+	// Identity is the Azure identity to be served by the server. Only single identity will be provided.
 	Identity string
+	// TenantID to be returned in a claim. Doesn't have to match actual TenantID as recognized by Azure.
 	TenantID string
+	// ClientID to be returned in a claim.
 	ClientID string
+
+	// Key used to sign JWT
+	Key crypto.Signer
 
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
@@ -52,6 +60,13 @@ func (m *AzureMSIMiddleware) OnStart(ctx context.Context, lp *LocalProxy) error 
 		m.Clock = lp.cfg.Clock
 	}
 
+	return m.CheckAndSetDefaults()
+}
+
+func (m *AzureMSIMiddleware) CheckAndSetDefaults() error {
+	if m.Key == nil {
+		return trace.BadParameter("missing Key")
+	}
 	if m.Identity == "" {
 		return trace.BadParameter("missing Identity")
 	}
@@ -61,14 +76,12 @@ func (m *AzureMSIMiddleware) OnStart(ctx context.Context, lp *LocalProxy) error 
 	if m.ClientID == "" {
 		return trace.BadParameter("missing ClientID")
 	}
-
 	return nil
 }
 
 func (m *AzureMSIMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request) bool {
 	if req.Host == types.TeleportAzureMSIEndpoint {
-		err := m.msiEndpoint(rw, req)
-		if err != nil {
+		if err := m.msiEndpoint(rw, req); err != nil {
 			m.Log.Warnf("Bad MSI request: %v", err)
 			trace.WriteError(rw, trace.Wrap(err))
 		}
@@ -119,24 +132,20 @@ func (m *AzureMSIMiddleware) msiEndpoint(rw http.ResponseWriter, req *http.Reque
 func (m *AzureMSIMiddleware) fetchMSILoginResp(resource string) ([]byte, error) {
 	now := m.Clock.Now()
 
-	notBefore := now.Add(-time.Minute)
+	notBefore := now.Add(-10 * time.Second)
 	expiresOn := now.Add(time.Hour * 24 * 365)
-	expiresIn := int64(now.Sub(expiresOn).Seconds())
+	expiresIn := int64(expiresOn.Sub(now).Seconds())
 
-	accessToken := map[string]any{
-		"iat":           notBefore.Unix(),
-		"tid":           m.TenantID,
-		"teleport_mark": uuid.New().String(),
-		"resource":      resource,
-	}
-
-	accessTokenJwt, err := m.toJWT(accessToken)
+	accessToken, err := m.toJWT(jwt.AzureTokenClaims{
+		TenantID: m.TenantID,
+		Resource: resource,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	response := map[string]any{
-		"access_token":   accessTokenJwt,
+		"access_token":   accessToken,
 		"client_id":      m.ClientID,
 		"not_before":     notBefore.Unix(),
 		"expires_on":     expiresOn.Unix(),
@@ -154,15 +163,22 @@ func (m *AzureMSIMiddleware) fetchMSILoginResp(resource string) ([]byte, error) 
 	return out, nil
 }
 
-// toJWT TODO: although this works in practice, it is also terribly hackish and in need of proper implementation.
-func (m *AzureMSIMiddleware) toJWT(token map[string]any) (any, error) {
-	bs, err := json.Marshal(token)
+func (m *AzureMSIMiddleware) toJWT(claims jwt.AzureTokenClaims) (string, error) {
+	// Create a new key that can sign and verify tokens.
+	key, err := jwt.New(&jwt.Config{
+		Clock:       m.Clock,
+		PrivateKey:  m.Key,
+		Algorithm:   defaults.ApplicationTokenAlgorithm,
+		ClusterName: types.TeleportAzureMSIEndpoint, // todo get cluster name
+	})
 	if err != nil {
-		return "", err
+		return "", trace.Wrap(err)
 	}
-	claims := base64.StdEncoding.EncodeToString(bs)
 
-	jwt := "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9." + claims + ".NKYW_avp9VriiaaYwL3AGj2JLoZRnlvfJETrGWZJT3JpQi8XC9HwpszxrnQLB689W3e8a481aH6b5C4bWucXlgO5wJ5g28mqEpdVwMypRMoICQrLUo7stPNX6iiWZdjn4YkurFw0FWbOjy-B-t05SiVCB4VikX5uuqA1CqZPzmfKibW1hmhYlsXQIRtz7HKDj7pU3Eu16ggtwOtWeVi9XQiMQ0CA3UfWw80VE_qiQvkVQsPY6dwX9M-7xHgieB7LqdVRy7sr-Ok_UX8oy4nydS-8lKHRBeKp8_EcvCZ3cyY6kcdMEEIuwVDuL2f3oJ3arUwjvzLcudQE9cPBdqdX0g"
+	token, err := key.SignAzureToken(claims)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
 
-	return jwt, nil
+	return token, nil
 }
