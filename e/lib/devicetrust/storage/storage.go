@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"sort"
 	"sync"
 	"time"
 
@@ -24,11 +25,22 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 )
 
-const currentAPIVersion = "v1"
+const (
+	// MaxCollectedDataPerDevice is the maximum number of (non-enrollment)
+	// collected data, for each device.
+	MaxCollectedDataPerDevice = 10
 
-// DeviceEnrollTokenExpireDuration is the default expiration for enrollment
-// tokens.
-const DeviceEnrollTokenExpireDuration = 1 * time.Hour
+	// DeviceEnrollTokenExpireDuration is the default expiration for enrollment
+	// tokens.
+	DeviceEnrollTokenExpireDuration = 1 * time.Hour
+)
+
+const (
+	currentAPIVersion = "v1"
+
+	// enrollmentDataID is the fixed ID used enrollment collected data.
+	enrollmentDataID = "1"
+)
 
 // GetBackendFunc is a function that returns a backend.Backend implementation.
 type GetBackendFunc func() backend.Backend
@@ -336,6 +348,20 @@ func (s *S) DeleteDevice(ctx context.Context, deviceID string) error {
 		// err swallowed on purpose.
 	}
 
+	// Remove collected data.
+	cdStart := collectedDataKeyStart(deviceID)
+	cdEnd := backend.RangeEnd(cdStart)
+	if err := s.backend().DeleteRange(ctx, cdStart, cdEnd); err != nil {
+		s.logger.
+			WithError(err).
+			WithFields(log.Fields{
+				"DeviceID": deviceID,
+				"AssetTag": dev.AssetTag,
+			}).
+			Warn("Failed to remove collected data for device")
+		// err swallowed on purpose.
+	}
+
 	return nil
 }
 
@@ -392,8 +418,33 @@ func (s *S) removeFromAssetTagIndex(ctx context.Context, deviceID, assetTag stri
 // GetDeviceByID reads a device by ID.
 // Returns the stored device or trace.NotFound.
 func (s *S) GetDeviceByID(ctx context.Context, deviceID string) (*devicepb.Device, error) {
+	// Fetch collected data for the device asynchronously.
+	cdCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	cdC := make(chan []*devicepb.DeviceCollectedData)
+	go func() {
+		cd, err := s.getDeviceCollectedData(cdCtx, deviceID)
+		if err != nil {
+			s.logger.
+				WithError(err).
+				WithField("DeviceID", deviceID).
+				Warn("Failed to fetch collected data for device")
+		}
+		cdC <- cd
+	}()
+
+	// Fetch the device.
 	dev, _, _, err := s.getDeviceByID(ctx, deviceID)
-	return dev, trace.Wrap(err)
+	if err != nil {
+		cancel() // Stop and wait for goroutine.
+		<-cdC
+		return nil, trace.Wrap(err)
+	}
+
+	// Add collected data to it.
+	dev.CollectedData = <-cdC
+
+	return dev, nil
 }
 
 // getDeviceByID is the internal version of GetDeviceByID.
@@ -415,6 +466,42 @@ func (s *S) getDeviceByID(ctx context.Context, deviceID string) (*devicepb.Devic
 
 	dev := storedToDevice(deviceIDFromKey(item.Key), stored)
 	return dev, stored, item, nil
+}
+
+func (s *S) getDeviceCollectedData(ctx context.Context, deviceID string) ([]*devicepb.DeviceCollectedData, error) {
+	start := collectedDataKeyStart(deviceID)
+	end := backend.RangeEnd(start)
+	limit := MaxCollectedDataPerDevice * 2 // Give the search some leeway.
+	res, err := s.backend().GetRange(ctx, start, end, limit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cd := make([]*devicepb.DeviceCollectedData, len(res.Items))
+	for i, item := range res.Items {
+		stored := &storedCollectedData{}
+		if err := json.Unmarshal(item.Value, stored); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cd[i] = &devicepb.DeviceCollectedData{
+			CollectTime:  timestamppb.New(stored.CollectTime),
+			RecordTime:   timestamppb.New(stored.RecordTime),
+			OsType:       devicepb.OSType(stored.OSType),
+			SerialNumber: stored.SerialNumber,
+		}
+	}
+
+	// Sort by ascending RecordTime.
+	sort.Slice(cd, func(i, j int) bool {
+		d1 := cd[i]
+		d2 := cd[j]
+		if d1.RecordTime.Seconds == d2.RecordTime.Seconds {
+			return d1.RecordTime.Nanos < d2.RecordTime.Nanos
+		}
+		return d1.RecordTime.Seconds < d2.RecordTime.Seconds
+	})
+
+	return cd, nil
 }
 
 // GetDevicesByAssetTag reads devices by asset tag.
@@ -515,7 +602,7 @@ func (s *S) ListDevices(ctx context.Context, pageSize int, pageToken string, vie
 		startKey = deviceKey(lastID)
 	}
 
-	// Adjust page size so it can't be too large.
+	// Adjust page size, so it can't be too large.
 	const maxPageSize = 200
 	if pageSize <= 0 || pageSize > maxPageSize {
 		pageSize = maxPageSize
@@ -552,6 +639,33 @@ func (s *S) ListDevices(ctx context.Context, pageSize int, pageToken string, vie
 		if err != nil {
 			return nil, "", trace.Wrap(err, "generating next page token")
 		}
+	}
+
+	// Fetch collected data for all devices.
+	if view == devicepb.DeviceView_DEVICE_VIEW_RESOURCE {
+		const maxActiveGoroutines = 10
+		var g errgroup.Group
+		g.SetLimit(maxActiveGoroutines)
+
+		for _, dev := range devices {
+			dev := dev
+			g.Go(func() error {
+				cd, err := s.getDeviceCollectedData(ctx, dev.Id)
+				if err != nil {
+					s.logger.
+						WithError(err).
+						WithField("deviceID", dev.Id).
+						Warn("Failed to fetch collected data for device")
+					return nil // err swallowed on purpose
+				}
+
+				dev.CollectedData = cd
+				return nil
+			})
+		}
+
+		// Wait() should never error, as the goroutines don't themselves.
+		_ = g.Wait()
 	}
 
 	return devices, nextPageToken, nil
@@ -607,9 +721,7 @@ func (s *S) EnrollDevice(
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(codingllama): Write collected data to storage.
-	// TODO(codingllama): Return collected data in our various device queries.
-
+	// Marshal new device first, so we can exit in the off chance it errors.
 	now := s.nowUTC()
 	stored.UpdateTime = now
 	stored.EnrollStatus = int(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED)
@@ -621,6 +733,13 @@ func (s *S) EnrollDevice(
 	if err != nil {
 		return nil, trace.Wrap(err, "marshal device")
 	}
+
+	// Marshal and write collected data.
+	if err := s.recordCollectedData(ctx, deviceID, cd, originEnrollment, now); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Update device.
 	if _, err := s.backend().CompareAndSwap(ctx, *item, backend.Item{
 		Key:   item.Key,
 		Value: val,
@@ -629,6 +748,123 @@ func (s *S) EnrollDevice(
 	}
 
 	return storedToDevice(deviceID, stored), nil
+}
+
+// RecordDeviceAuthnData records collected data gathered during device
+// authentication.
+// Authentication data is limited per-device; once the limit is reached, older
+// data is discarded in favor of new data.
+func (s *S) RecordDeviceAuthnData(ctx context.Context, deviceID string, cd *devicepb.DeviceCollectedData) error {
+	if err := ValidateCollectedData(cd); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Fetch device and verify data against it.
+	dev, _, _, err := s.getDeviceByID(ctx, deviceID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := ValidateCollectedDataAgainstDevice(cd, dev); err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.recordCollectedData(ctx, deviceID, cd, originAuthentication, s.nowUTC())
+	return trace.Wrap(err)
+}
+
+func (s *S) recordCollectedData(ctx context.Context, deviceID string, cd *devicepb.DeviceCollectedData, origin collectedDataOrigin, recordTime time.Time) error {
+	storedCD := &storedCollectedData{
+		Origin:       origin,
+		CollectTime:  cd.CollectTime.AsTime(),
+		RecordTime:   recordTime,
+		OSType:       int(cd.OsType),
+		SerialNumber: cd.SerialNumber,
+	}
+	val, err := json.Marshal(storedCD)
+	if err != nil {
+		return trace.Wrap(err, "marshal collected data")
+	}
+
+	var cdID string
+	if origin == originEnrollment {
+		cdID = enrollmentDataID
+	} else {
+		cdID = uuid.NewString()
+	}
+
+	if _, err := s.backend().Put(ctx, backend.Item{
+		Key:   collectedDataKey(deviceID, cdID),
+		Value: val,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Enrollment data doesn't count for the max data limit.
+	if origin == originEnrollment {
+		return nil
+	}
+
+	if err := s.clearCollectedDataIfNeeded(ctx, deviceID); err != nil {
+		s.logger.
+			WithError(err).
+			WithField("deviceID", deviceID).
+			Warn("Failed to clear collected data for device")
+		// err swallowed on purpose, new data is already written.
+	}
+
+	return nil
+}
+
+// simplifiedCollectedData is used to decide which collected data entries to
+// delete.
+type simplifiedCollectedData struct {
+	Key        []byte    `json:"-"`
+	RecordTime time.Time `json:"record_time"`
+}
+
+func (s *S) clearCollectedDataIfNeeded(ctx context.Context, deviceID string) error {
+	start := collectedDataKeyStart(deviceID)
+	end := backend.RangeEnd(start)
+	limit := MaxCollectedDataPerDevice * 2 // Give the search some leeway.
+	res, err := s.backend().GetRange(ctx, start, end, limit)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Are we above the limit, ignoring enrollment data?
+	if len(res.Items) <= MaxCollectedDataPerDevice+1 {
+		return nil
+	}
+
+	cd := make([]simplifiedCollectedData, 0, len(res.Items))
+	for _, item := range res.Items {
+		if dataID := deviceIDFromKey(item.Key); dataID == enrollmentDataID {
+			continue
+		}
+
+		cd = append(cd, simplifiedCollectedData{
+			Key: item.Key,
+		})
+		scd := &(cd[len(cd)-1])
+		if err := json.Unmarshal(item.Value, scd); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	sort.Slice(cd, func(i, j int) bool {
+		d1 := cd[i]
+		d2 := cd[j]
+		return d1.RecordTime.Before(d2.RecordTime)
+	})
+
+	// From older to newer, delete data until we hit the size limit.
+	for len(cd) > MaxCollectedDataPerDevice {
+		if err := s.backend().Delete(ctx, cd[0].Key); err != nil {
+			return trace.Wrap(err)
+		}
+		cd = cd[1:]
+	}
+
+	return nil
 }
 
 // CreateDeviceEnrollToken creates or replaces the existing enrollment token for
@@ -781,4 +1017,12 @@ func devicesByAssetTagKey(assetTag string) []byte {
 
 func deviceTokenKey(deviceID string) []byte {
 	return backend.Key("devices", "enroll_token", deviceID)
+}
+
+func collectedDataKey(deviceID, cdID string) []byte {
+	return backend.Key("devices", "collected_data", deviceID, cdID)
+}
+
+func collectedDataKeyStart(deviceID string) []byte {
+	return backend.Key("devices", "collected_data", deviceID)
 }

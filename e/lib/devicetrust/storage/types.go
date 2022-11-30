@@ -35,3 +35,24 @@ type devicesRef struct {
 type storedEnrollToken struct {
 	HashedToken []byte `json:"hashed_token"` // Required.
 }
+
+// collectedDataOrigin represents the origin of the collected data.
+type collectedDataOrigin int
+
+const (
+	// originEnrollment is used for collected data acquired during enrollment.
+	originEnrollment collectedDataOrigin = iota + 1
+
+	// originAuthentication is used for collected data acquired during device
+	// authentication.
+	originAuthentication
+)
+
+// storedCollectedData represents a devicepb.DeviceCollectedData in storage.
+type storedCollectedData struct {
+	Origin       collectedDataOrigin `json:"origin"`        // Required.
+	CollectTime  time.Time           `json:"collect_time"`  // Required.
+	RecordTime   time.Time           `json:"record_time"`   // Required.
+	OSType       int                 `json:"os_type"`       // Required. Same as devicepb.OSType.
+	SerialNumber string              `json:"serial_number"` // Required.
+}

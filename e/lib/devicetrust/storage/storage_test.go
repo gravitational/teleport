@@ -2,6 +2,7 @@ package storage_test
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -450,7 +452,7 @@ func TestS_DeleteDevice(t *testing.T) {
 }
 
 // TestS_DeleteDevice_assetTagMappings verifies that device deletion doesn't
-// have undesired side-effects in devices with similar asset tags.
+// have undesired side effects in devices with similar asset tags.
 func TestS_DeleteDevice_assetTagMappings(t *testing.T) {
 	env := mustNewEnv()
 	defer env.Close()
@@ -1017,6 +1019,246 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 			t.Errorf("EnrollDevice: assertErr failed, err=%v", err)
 		}
 		assert.ErrorContains(t, err, test.wantErr, "EnrollDevice error mismatch")
+	}
+}
+
+func TestS_DeviceCollectedData_crud(t *testing.T) {
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+
+	clock := env.Clock
+	clockAdvance := func() {
+		clock.Advance(1 * time.Second)
+	}
+
+	// Use a couple of distinct enrolled devices.
+	dev1, _, err := createAndEnroll(ctx, s, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama",
+	})
+	if err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+	clockAdvance()
+	dev2, _, err := createAndEnroll(ctx, s, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "alpaca",
+	})
+	if err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+
+	// Write additional collected data for each device.
+	// dev1 has a total of 4 data: 1 for enroll and 3 for authn.
+	// dev2 has a total of 6 data: 1 for enroll and 5 for authn.
+	const dev1WantData = 4
+	const dev2WantData = 6
+	for _, item := range []struct {
+		dev *devicepb.Device
+		num int
+	}{
+		{dev: dev1, num: dev1WantData - 1},
+		{dev: dev2, num: dev2WantData - 1},
+	} {
+		for i := 0; i < item.num; i++ {
+			clockAdvance()
+			if err := s.RecordDeviceAuthnData(ctx, item.dev.Id, collectedDataForDevice(item.dev)); err != nil {
+				t.Fatalf("RecordDeviceAuthnData failed: %v", err)
+			}
+		}
+	}
+	devToWantData := map[*devicepb.Device]int{
+		dev1: dev1WantData,
+		dev2: dev2WantData,
+	}
+
+	// Verify Get* reads.
+	for dev, wantData := range devToWantData {
+		// GetDeviceByID returns collected data.
+		t.Run(fmt.Sprintf("GetByID(%v)", dev.AssetTag), func(t *testing.T) {
+			got, err := s.GetDeviceByID(ctx, dev.Id)
+			if err != nil {
+				t.Fatalf("GetDeviceByID failed: %v", err)
+			}
+			if gotData := len(got.CollectedData); gotData != wantData {
+				t.Fatalf("Got %v collected data instances, want %v", gotData, wantData)
+			}
+
+			// Verify collected data instances.
+			for _, cd := range got.CollectedData {
+				if cd.CollectTime == nil {
+					t.Error("Got cd.CollectTime = nil, want non=nil")
+				}
+				if cd.RecordTime == nil {
+					t.Error("Got cd.RecordTime = nil, want non=nil")
+				}
+				wantCD := &devicepb.DeviceCollectedData{
+					CollectTime:  cd.CollectTime,
+					RecordTime:   cd.RecordTime,
+					OsType:       dev.OsType,
+					SerialNumber: dev.AssetTag,
+				}
+				if diff := cmp.Diff(wantCD, cd, protocmp.Transform()); diff != "" {
+					t.Errorf("CollectedData mismatch (-want +got):\n%s", diff)
+				}
+			}
+
+			// Verify that timestamps are in order.
+			prev := got.CollectedData[0].RecordTime.AsTime()
+			for _, cd := range got.CollectedData[1:] {
+				curr := cd.RecordTime.AsTime()
+				if prev.After(curr) {
+					t.Errorf("Got out-of-order collected data instances, want from oldest to newest: %v", got.CollectedData)
+					break
+				}
+				prev = curr
+			}
+		})
+
+		// GetByAssetTag returns collected data.
+		t.Run(fmt.Sprintf("GetByAssetTag(%v)", dev.AssetTag), func(t *testing.T) {
+			devs, err := s.GetDevicesByAssetTag(ctx, dev.AssetTag)
+			if err != nil {
+				t.Fatalf("GetDevicesByAssetTag failed: %v", err)
+			}
+			got := devs[0]
+			if gotData := len(got.CollectedData); gotData != wantData {
+				t.Errorf("Got %v collected data instances, want %v", gotData, wantData)
+			}
+		})
+	}
+
+	// LIST view returns no collected data.
+	t.Run("List with LIST view", func(t *testing.T) {
+		devs, _, err := s.ListDevices(ctx, 100 /* pageSize */, "" /* pageToken */, devicepb.DeviceView_DEVICE_VIEW_LIST)
+		if err != nil {
+			t.Fatalf("ListDevices failed: %v", err)
+		}
+		for _, got := range devs {
+			if gotData := len(got.CollectedData); gotData != 0 {
+				t.Errorf("Device %v: got %v collected data instances, want zero", got.AssetTag, gotData)
+			}
+		}
+	})
+
+	// RESOURCE view returns collected data.
+	t.Run("List with RESOURCE view", func(t *testing.T) {
+		devs, _, err := s.ListDevices(ctx, 100 /* pageSize */, "" /* pageToken */, devicepb.DeviceView_DEVICE_VIEW_RESOURCE)
+		if err != nil {
+			t.Fatalf("ListDevices failed: %v", err)
+		}
+		for _, got := range devs {
+			var want int
+			for dev, wantData := range devToWantData {
+				if dev.Id == got.Id {
+					want = wantData
+					break
+				}
+			}
+			if gotData := len(got.CollectedData); gotData != want {
+				t.Errorf("Device %v: got %v collected data instances, want %v", got.AssetTag, gotData, want)
+			}
+		}
+	})
+
+	// Writing too many collected data instances deletes the older entries.
+	t.Run("RecordDeviceAuthnData replaces older entries", func(t *testing.T) {
+		// Find out the latest timestamp.
+		got, err := s.GetDeviceByID(ctx, dev1.Id)
+		if err != nil {
+			t.Fatalf("GetDeviceByID failed: %v", err)
+		}
+		first := got.CollectedData[0].RecordTime.AsTime()
+		last := got.CollectedData[len(got.CollectedData)-1].RecordTime.AsTime()
+
+		// Write up to MaxCollectedDataPerDevice and then a bit more, so we know the
+		// cap keeps working.
+		for i := 0; i < storage.MaxCollectedDataPerDevice+2; i++ {
+			clockAdvance()
+			if err := s.RecordDeviceAuthnData(ctx, dev1.Id, collectedDataForDevice(dev1)); err != nil {
+				t.Fatalf("RecordDeviceAuthnData failed: %v", err)
+			}
+		}
+
+		// Collected data number got capped?
+		got, err = s.GetDeviceByID(ctx, dev1.Id)
+		if err != nil {
+			t.Fatalf("GetDeviceByID failed: %v", err)
+		}
+		if gotData, want := len(got.CollectedData), storage.MaxCollectedDataPerDevice+1; gotData != want {
+			t.Fatalf("Got %v collected data instances, want %v", gotData, want)
+		}
+
+		// Enrollment entry preserved (it is now the oldest).
+		if ts := got.CollectedData[0].RecordTime.AsTime(); ts != first {
+			t.Error("Enrollment data not preserved during collected data trim")
+		}
+		// All older entries deleted.
+		if ts := got.CollectedData[1].RecordTime.AsTime(); !ts.After(last) {
+			t.Errorf("Unexpected RecordTime after collected data trim, got %v, want > %v", ts, last)
+		}
+	})
+
+	// Finally, delete a device that has collected data to verify that it works.
+	t.Run("DeleteDevice", func(t *testing.T) {
+		if err := s.DeleteDevice(ctx, dev1.Id); err != nil {
+			t.Fatalf("DeleteDevice failed: %v", err)
+		}
+
+		// Collected data cannot be found in storage.
+		storedCD, err := s.GetDeviceCollecteDataForTests(ctx, dev1.Id)
+		switch {
+		case err != nil:
+			t.Errorf("GetDeviceCollecteDataForTests failed: %v", err)
+		case len(storedCD) > 0:
+			t.Errorf("GetDeviceCollecteDataForTests return %v collected data instances, want zero", len(storedCD))
+		}
+
+		// Unrelated device is intact.
+		got, err := s.GetDeviceByID(ctx, dev2.Id)
+		if err != nil {
+			t.Fatalf("GetDeviceByID failed: %v", err)
+		}
+		if gotData, want := len(got.CollectedData), dev2WantData; gotData != want {
+			t.Errorf("Got %v collected data instances, want %v", gotData, want)
+		}
+	})
+}
+
+func createAndEnroll(ctx context.Context, s *storage.S, dev *devicepb.Device) (*devicepb.Device, crypto.PrivateKey, error) {
+	dev, err := s.CreateDevice(ctx, dev)
+	if err != nil {
+		return nil, nil, fmt.Errorf("calling CreateDevice: %v", err)
+	}
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, nil, fmt.Errorf("calling GenerateKey: %v", err)
+	}
+	pubKeyDER, err := x509.MarshalPKIXPublicKey(key.Public())
+	if err != nil {
+		return nil, nil, fmt.Errorf("calling MarshalPKIXPublicKey: %v", err)
+	}
+	cred := &devicepb.DeviceCredential{
+		Id:           uuid.NewString(),
+		PublicKeyDer: pubKeyDER,
+	}
+
+	dev, err = s.EnrollDevice(ctx, dev.Id, cred, collectedDataForDevice(dev))
+	if err != nil {
+		return nil, nil, fmt.Errorf("calling EnrollDevice: %v", err)
+	}
+	return dev, key, nil
+}
+
+func collectedDataForDevice(dev *devicepb.Device) *devicepb.DeviceCollectedData {
+	return &devicepb.DeviceCollectedData{
+		CollectTime:  timestamppb.Now(),
+		OsType:       dev.OsType,
+		SerialNumber: dev.AssetTag,
 	}
 }
 
