@@ -32,9 +32,7 @@ spec:
 Retrieve your Teleport user:
 
 ```code
-# e.g., myuser
-$ TELEPORT_USER=<Var name="teleport-user"/>
-$ tctl get user/${TELEPORT_USER?} > user.yaml
+$ tctl get user/<Var name="teleport-username"/> > user.yaml
 ```
 
 Add `kube-access` to your Teleport user's list of roles:
