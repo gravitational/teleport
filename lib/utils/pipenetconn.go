@@ -19,8 +19,12 @@ package utils
 import (
 	"io"
 	"net"
+	"os"
 	"sync"
+	"syscall"
 	"time"
+
+	"github.com/gravitational/trace"
 )
 
 // PipeNetConn implements net.Conn from a provided io.Reader,io.Writer and
@@ -99,14 +103,33 @@ func (nc *PipeNetConn) SetWriteDeadline(t time.Time) error {
 	return nil
 }
 
-// DualPipeAddrConn creates a net.Pipe to connect a client and a server. The
-// two net.Conn instances are wrapped in an addrConn which holds the source and
+// DualPipeNetConn creates a pipe to connect a client and a server. The
+// two net.Conn instances are wrapped in an PipeNetConn which holds the source and
 // destination addresses.
-func DualPipeNetConn(srcAddr net.Addr, dstAddr net.Addr) (*PipeNetConn, *PipeNetConn) {
-	server, client := net.Pipe()
+//
+// The pipe is constructed from a syscall.Socketpair instead of a net.Pipe because
+// the synchronous nature of net.Pipe causes it to deadlock when attempting to perform
+// TLS or SSH handshakes.
+func DualPipeNetConn(srcAddr net.Addr, dstAddr net.Addr) (net.Conn, net.Conn, error) {
+	fds, err := syscall.Socketpair(syscall.AF_LOCAL, syscall.SOCK_STREAM, 0)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	f1 := os.NewFile(uintptr(fds[0]), srcAddr.String())
+	client, err := net.FileConn(f1)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	f2 := os.NewFile(uintptr(fds[1]), dstAddr.String())
+	server, err := net.FileConn(f2)
+	if err != nil {
+		return nil, nil, trace.NewAggregate(err, client.Close())
+	}
 
 	serverConn := NewPipeNetConn(server, server, server, dstAddr, srcAddr)
 	clientConn := NewPipeNetConn(client, client, client, srcAddr, dstAddr)
 
-	return serverConn, clientConn
+	return serverConn, clientConn, nil
 }
