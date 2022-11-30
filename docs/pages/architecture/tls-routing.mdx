@@ -27,29 +27,9 @@ TLS extensions.
 
 <Admonition
   type="warning"
-  title="TLS routing is incompatible with load balancers and reverse proxies"
+  title="TLS routing is incompatible with layer 7 load balancers and reverse proxies"
 >
-Using Teleport's TLS routing mode behind a layer 7 (HTTP/HTTPS) proxy is generally not supported, due to
-these proxies terminating TLS themselves and then rewriting their requests to the upstream service, stripping
-the additional SNI/ALPN parts of the request in the process. In order for ALPN to work correctly, the Teleport
-proxy must terminate TLS itself.
-
-Broadly, this means that Teleport's TLS routing functionality is incompatible with:
-- AWS ALBs (Application Load Balancers)
-- AWS NLBs (Network Load Balancers), when using a TLS listener and a public ACM (Amazon Certificate Manager) certificate
-- Commonly used HTTP reverse proxies including nginx, Apache, Caddy, Traefik, HAProxy and many others
-- Cloudflare tunnels in their default configuration
-
-Deploying Teleport in TLS routing mode behind an HTTP proxy will result in a Teleport web UI experience that seems
-to work perfectly, but the use of `tsh`, `tctl` and attempting to join remote Teleport services to the cluster will fail
-with errors like `ssh: overflow reading version string` and `EOF`. A functioning Teleport web UI is not always an indication
-of a correctly configured Teleport cluster.
-
-If in doubt, remove all load balancers/proxies from the equation and connect to Teleport's web port directly to isolate the issue.
-
-To use Teleport behind a reverse proxy, you should either:
-- use a layer 4 (TCP) proxy which forwards TCP streams directly to Teleport (which will in turn handle TLS termination itself)
-- deploy Teleport in its [separate ports](../reference/networking.mdx#ports-without-tls-routing) mode by adding `version: v1` to `/etc/teleport.yaml` and removing `proxy_listener_mode: multiplex`
+(!docs/pages/includes/tls-multiplexing-warnings.mdx!)
 </Admonition>
 
 ## How it works
