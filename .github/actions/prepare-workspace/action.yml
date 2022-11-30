@@ -5,6 +5,11 @@ inputs:
     description: Cache infix used in cache actions
     required: false
     default: ${{ github.workflow }}
+    
+  go_version:
+    description: Golang version for cache keys
+    required: false
+    default: go1.19.2
 
 runs:
   using: "composite"
@@ -26,15 +31,15 @@ runs:
       uses: actions/cache@v3
       with:
         path: ${{ steps.go-cache-paths.outputs.go-build }}
-        key: ${{ runner.os }}-go-build-${{ inputs.cache_key }}-${{ hashFiles('**/go.sum') }}
-        restore-keys: ${{ runner.os }}-go-build-${{ inputs.cache_key }}-
+        key: ${{ runner.os }}-go-build-${{ inputs.go_version }}-${{ inputs.cache_key }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: ${{ runner.os }}-go-build-${{ inputs.go_version }}-${{ inputs.cache_key }}-
 
     - name: Go mod cache
       uses: actions/cache@v3
       with:
         path: ${{ steps.go-cache-paths.outputs.go-mod }}
-        key: ${{ runner.os }}-go-mod-${{ inputs.cache_key }}-${{ hashFiles('**/go.sum') }}
-        restore-keys: ${{ runner.os }}-go-mod-${{ inputs.cache_key }}-
+        key: ${{ runner.os }}-go-mod-${{ inputs.go_version }}-${{ inputs.cache_key }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: ${{ runner.os }}-go-mod-${{ inputs.go_version }}-${{ inputs.cache_key }}-
 
     - name: Rust cargo cache
       uses: actions/cache@v3
