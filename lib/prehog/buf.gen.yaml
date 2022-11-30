@@ -13,5 +13,4 @@ plugins:
     path: bin/protoc-gen-connect-go
     out: gen
     opt:
-      #- module=github.com/gravitational/teleport
       - paths=source_relative

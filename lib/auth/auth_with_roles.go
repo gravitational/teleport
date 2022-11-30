@@ -5181,7 +5181,6 @@ func (a *ServerWithRoles) MaintainSessionPresence(ctx context.Context) (proto.Au
 
 // SubmitUsageEvent submits an external usage event.
 func (a *ServerWithRoles) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
-	// TODO: do we really care about authenticating this?
 	if err := a.action(apidefaults.Namespace, types.KindUsageEvent, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}

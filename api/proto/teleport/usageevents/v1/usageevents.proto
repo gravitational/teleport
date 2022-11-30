@@ -25,34 +25,41 @@ message UIBannerClickEvent {
   string alert = 1;
 }
 
-// UIOnboardGetStartedClickEvent
+// UIOnboardGetStartedClickEvent is a UI event sent when the "get started"
+// button is clicked.
 message UIOnboardGetStartedClickEvent {
   // The event username. Not extracted from identity as this is pre-registration.
   string username = 1;
 }
 
-// UIOnboardCompleteGoToDashboardClickEvent
+// UIOnboardCompleteGoToDashboardClickEvent is a UI event sent when initial 
+// registration is complete.
 message UIOnboardCompleteGoToDashboardClickEvent {}
 
-// UIOnboardAddFirstResourceClickEvent
+// UIOnboardAddFirstResourceClickEvent is a UI event sent when a user clicks the
+// "add first resource" button.
 message UIOnboardAddFirstResourceClickEvent {}
 
-// UIOnboardAddFirstResourceLaterClickEvent
+// UIOnboardAddFirstResourceLaterClickEvent is a UI event sent when a user
+// clicks the "add first resource later" button.
 message UIOnboardAddFirstResourceLaterClickEvent {}
 
-// UIOnboardSetCredentialSubmitEvent
+// UIOnboardSetCredentialSubmitEvent is a UI event sent during registration when
+// users configure their credentials.
 message UIOnboardSetCredentialSubmitEvent {
   // The event username. Not extracted from identity as this is pre-registration.
   string username = 1;
 }
 
-// UIOnboardRegisterChallengeSubmitEvent
+// UIOnboardRegisterChallengeSubmitEvent is a UI event sent during registration
+// when the MFA challenge is completed.
 message UIOnboardRegisterChallengeSubmitEvent {
   // The event username. Not extracted from identity as this is pre-registration.
   string username = 1;
 }
 
-// UIOnboardRecoveryCodesContinueClickEvent
+// UIOnboardRecoveryCodesContinueClickEvent is a UI event sent during
+// registration when the user configures cluster recovery codes.
 message UIOnboardRecoveryCodesContinueClickEvent {
   // The event username. Not extracted from identity as this is pre-registration.
   string username = 1;

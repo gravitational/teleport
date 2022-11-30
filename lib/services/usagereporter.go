@@ -44,7 +44,7 @@ type UsageUserLogin prehogv1.UserLoginEvent
 func (u *UsageUserLogin) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 	return &UsageUserLogin{
 		UserName:      a.Anonymize([]byte(u.UserName)),
-		ConnectorType: u.ConnectorType, // TODO: anonymizer connector type?
+		ConnectorType: u.ConnectorType,
 	}
 }
 
@@ -53,7 +53,7 @@ type UsageSSOCreate prehogv1.SSOCreateEvent
 
 func (u *UsageSSOCreate) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 	return &UsageSSOCreate{
-		ConnectorType: u.ConnectorType, // TODO: anonymize connector type?
+		ConnectorType: u.ConnectorType,
 	}
 }
 
@@ -74,7 +74,7 @@ type UsageResourceCreate prehogv1.ResourceCreateEvent
 
 func (u *UsageResourceCreate) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 	return &UsageResourceCreate{
-		ResourceType: u.ResourceType, // TODO: anonymize this?
+		ResourceType: u.ResourceType,
 	}
 }
 
@@ -88,6 +88,8 @@ func (u *UsageUIBannerClick) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 	}
 }
 
+// UsageUIOnboardGetStartedClickEvent is a UI event sent when the "get started"
+// button is clicked.
 type UsageUIOnboardGetStartedClickEvent prehogv1.UIOnboardGetStartedClickEvent
 
 func (u *UsageUIOnboardGetStartedClickEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
@@ -96,6 +98,8 @@ func (u *UsageUIOnboardGetStartedClickEvent) Anonymize(a utils.Anonymizer) Usage
 	}
 }
 
+// UsageUIOnboardCompleteGoToDashboardClickEvent is a UI event sent when
+// onboarding is complete.
 type UsageUIOnboardCompleteGoToDashboardClickEvent prehogv1.UIOnboardCompleteGoToDashboardClickEvent
 
 func (u *UsageUIOnboardCompleteGoToDashboardClickEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
@@ -104,6 +108,8 @@ func (u *UsageUIOnboardCompleteGoToDashboardClickEvent) Anonymize(a utils.Anonym
 	}
 }
 
+// UsageUIOnboardAddFirstResourceClickEvent is a UI event sent when a user
+// clicks the "add first resource" button.
 type UsageUIOnboardAddFirstResourceClickEvent prehogv1.UIOnboardAddFirstResourceClickEvent
 
 func (u *UsageUIOnboardAddFirstResourceClickEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
@@ -112,6 +118,8 @@ func (u *UsageUIOnboardAddFirstResourceClickEvent) Anonymize(a utils.Anonymizer)
 	}
 }
 
+// UsageUIOnboardAddFirstResourceLaterClickEvent is a UI event sent when a user
+// clicks the "add first resource later" button.
 type UsageUIOnboardAddFirstResourceLaterClickEvent prehogv1.UIOnboardAddFirstResourceLaterClickEvent
 
 func (u *UsageUIOnboardAddFirstResourceLaterClickEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
@@ -120,6 +128,8 @@ func (u *UsageUIOnboardAddFirstResourceLaterClickEvent) Anonymize(a utils.Anonym
 	}
 }
 
+// UsageUIOnboardSetCredentialSubmit is an UI event sent during registration
+// when the user configures login credentials.
 type UsageUIOnboardSetCredentialSubmit prehogv1.UIOnboardSetCredentialSubmitEvent
 
 func (u *UsageUIOnboardSetCredentialSubmit) Anonymize(a utils.Anonymizer) UsageAnonymizable {
@@ -128,6 +138,8 @@ func (u *UsageUIOnboardSetCredentialSubmit) Anonymize(a utils.Anonymizer) UsageA
 	}
 }
 
+// UsageUIOnboardRegisterChallengeSubmit is a UI event sent during registration
+// when the MFA challenge is completed.
 type UsageUIOnboardRegisterChallengeSubmit prehogv1.UIOnboardRegisterChallengeSubmitEvent
 
 func (u *UsageUIOnboardRegisterChallengeSubmit) Anonymize(a utils.Anonymizer) UsageAnonymizable {
@@ -136,6 +148,8 @@ func (u *UsageUIOnboardRegisterChallengeSubmit) Anonymize(a utils.Anonymizer) Us
 	}
 }
 
+// UsageUIOnboardRecoveryCodesContinueClick is a UI event sent during initial
+// tenant onboarding when a user configures recovery codes.
 type UsageUIOnboardRecoveryCodesContinueClick prehogv1.UIOnboardRecoveryCodesContinueClickEvent
 
 func (u *UsageUIOnboardRecoveryCodesContinueClick) Anonymize(a utils.Anonymizer) UsageAnonymizable {
