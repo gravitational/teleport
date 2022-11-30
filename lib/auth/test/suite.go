@@ -190,9 +190,8 @@ func (s *AuthSuite) GenerateUserCert(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, parsedCert.Extensions, teleport.CertExtensionMFAVerified)
 	require.Equal(t, "mfa-device-id", parsedCert.Extensions[teleport.CertExtensionMFAVerified])
-	prevIdExpiresStr, ok := parsedCert.Extensions[teleport.CertExtensionPreviousIdentityExpires]
-	require.True(t, ok)
-	prevIdExpires, err := time.Parse(time.RFC3339, prevIdExpiresStr)
+	require.Contains(t, parsedCert.Extensions, teleport.CertExtensionPreviousIdentityExpires)
+	prevIdExpires, err := time.Parse(time.RFC3339, parsedCert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
 	require.NoError(t, err)
 	require.Equal(t, clock.Now().Add(time.Hour), prevIdExpires)
 }
