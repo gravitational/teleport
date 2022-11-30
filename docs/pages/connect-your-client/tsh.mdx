@@ -844,24 +844,22 @@ DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.g
 
 # Interactive Recording
 
-Within the Teleport cluster the `ssh` and `Kubernetes` recorded sessions are available for listing and replay for authorized users via `tsh`.
+Within the Teleport cluster the Server and Kubernetes recorded sessions are available for listing and replay for authorized users via `tsh`.
 The same listings, including Desktop Access sessions, are available in the Web Console under the Audit Log in the Activity section.
 
 ## List and Play Recordings
 
-Get the list of recordings. By default, recordings for the past 24 hours are shown.
+Get the list of recording sessions. By default, recordings for the past 24 hours are shown.
 The time range can be customized with the `--last`, `--from-utc`, and `--to-utc` flags.
 
 ```code
 $ tsh recordings ls
 ID                                   Type Participants Hostname Timestamp           
 ------------------------------------ ---- ------------ -------- ------------------- 
-b0a04442-70dc-4be8-9308-7b7901d2d600      jeff         dev       Nov 26 16:36:16 UTC 
+b0a04442-70dc-4be8-9308-7b7901d2d600 ssh  jeff         dev       Nov 26 16:36:16 UTC 
 c0a02222-70dc-4be8-9308-7b7901d2d600 kube alice                  Nov 26 20:36:16 UTC 
-d0a04442-70dc-4be8-9308-7b7901d2d600      navin        test      Nov 26 16:36:16 UTC 
+d0a04442-70dc-4be8-9308-7b7901d2d600 ssh  navin        test      Nov 26 16:36:16 UTC 
 ```
-
-If no type is specified that is a `ssh` session.
 
 To play sessions, use the `tsh play <sessionid>` command. The screen will reset playing the interactive session with the timestamp in the upper right.
 
@@ -882,20 +880,6 @@ exit
 
 
 end of session playback
-```
-
-### Filtering Recorded sessions
-
-Multiple options are available to get recordings from specific days.  The `--from-utc` and `--to-utc` parameters
-allow specifying the days recordings to list.
-
-```code
-$ tsh recordings ls --from-utc 2022-10-01 --to-utc 2022-10-05
-ID                                   Type Participants Hostname Timestamp           
------------------------------------- ---- ------------ -------- ------------------- 
-b0a04442-70dc-4be8-9308-7b7901d2d600      jeff         dev       Oct 01 16:36:16 UTC 
-c0a02222-70dc-4be8-9308-7b7901d2d600 kube alice                  Oct 03 20:36:16 UTC 
-d0a04442-70dc-4be8-9308-7b7901d2d600      navin        test      Oct 05 16:36:16 UTC 
 ```
 
 ## Further reading
