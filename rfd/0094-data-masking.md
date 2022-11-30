@@ -40,41 +40,48 @@ Some database engines provide native support for data masking:
 
 ### Market Data Masking Solutions:
 1) [Cyral](https://cyral.com/) <br/>
-Cyral is using dynamic data masking approach. According to Cyral Docs data masking is only supported for Redshift, Denodo  and Snowflake.
-> Masking is supported on Redshift and Denodo repositories. An early-access version of masking is available for Snowflake repositories. Contact Cyral support to set up masking in Snowflake.
+    Cyral is using dynamic data masking approach. According to Cyral Docs data masking is only supported for Redshift, Denodo  and Snowflake.
+    > Masking is supported on Redshift and Denodo repositories. An early-access version of masking is available for Snowflake repositories. Contact Cyral support to set up masking in Snowflake.
 
-Data Masking implementation requires to install custom database UDF (user-defined function)
-https://cyral-docs-v2.netlify.app/docs/using-cyral/masking#enable-masking-on-your-repository
-> database> cyral install mask
+    Data Masking implementation requires to install custom database UDF (User-Defined Function)
+    https://cyral-docs-v2.netlify.app/docs/using-cyral/masking#enable-masking-on-your-repository
+    > database> cyral install mask
 
-Cyral seems to leverage Denodo
+    Some `UDF` function example can be found in
+    [cyralinc/database-functions](https://github.com/cyralinc/database-functions) GitHub repository
 
-Some function example can be found in
-[cyralinc/database-functions](https://github.com/cyralinc/database-functions) GitHub repository
-
-Due to license limitation I was unable to test they implementation. 
+    Due to license limitation I was unable to test they implementation but based on description the Native Database Data-Masking functionality is used.
+    In case of Amazon Redshift they're probably using similar approach described at [amazon-redshift-dynamic-data-mas)](https://github.com/aws-samples/amazon-redshift-dynamic-data-mas) 
 
 2) [DataSunrise](https://www.datasunrise.com/data-masking/) <br/>
-They support both static and dynamic data masking. In case of dynamic data masking sql query is rewritten to and masking rules are applied.
-For instance
-```select id, firstname, lastname, phone from people;```
-after applying dynamic masking rule that masks phone number will static "masked" value will be transformed to
-```select people."id", people."firstname", people."lastname", CAST('masked' as text) as "phone" from people;```
+DataSunrise product supports both static and dynamic data masking. <br/>
+In case of dynamic data masking SQL Query is rewritten and masking rules are applied.
+For instance the following query with phone constant 'masked' rule:
+```sql
+SELECT id, firstname, lastname, phone FROM people;
+```
+will be transformed by the proxy to the following SQL Query before it is sent the SQL instance:
+```sql
+SELECT people."id", people."firstname", people."lastname", CAST('masked' AS text) AS "phone" FROM people;
+```
 
-3) [Immuta](https://www.immuta.com/product/secure/orchestration-dynamic-data-masking/) <br/>
+4) [Immuta](https://www.immuta.com/product/secure/orchestration-dynamic-data-masking/) <br/>
 According to the Immuta docs they are using database engines built-in data masking functionality.
 
-3) [Imperva](https://www.imperva.com/)  <br/>
+5) [Imperva](https://www.imperva.com/)  <br/>
 According to https://docs.imperva.com/bundle/v13.2-data-masking-user-guide/page/71264.htm they are using static data masking where they create a copy of the database with all sensitive data masked.
 
-4) [Acra](https://docs.cossacklabs.com/acra/security-controls/masking/) <br/>
+6) [Acra](https://docs.cossacklabs.com/acra/security-controls/masking/) <br/>
 Acra is using dynamic data masking where query is parsed by Acra server before it is sent to the database. Acra server identified the masking data based on parsed query and apply masking rules to the data before it is returned to the client.
 In Acra solution Data Masking is only an additional feature to data encryption functionality where the data is encrypted before is sent to the database and decrypted before it is returned to the client.
 
-###  Dynamic Data Masking Approaches to consider:
+###  Data Masking Approaches to consider
+#### 1) Static Data Masking
+   Static Data Masking requires additional resources, configuration and is less flexible than dynamic data-masking solution we won't consider supporting static-data masking.
+    
+#### 2) Dynamic Data Masking: Masking returned data on the fly in the database agent:
+In this approach Database Agent post process the result of SQL Query and transform the results rows based on masking rules like regular repressions.
 
-#### 1. Masking returned data on the fly in the database agent:
-In this approach database agent  applies masking rules to the data returned from the database.
 ```mermaid
 sequenceDiagram
 participant client as Database Client
@@ -99,10 +106,9 @@ Cons:
 Pros:
 - Easy to implement.
 
-#### 2. Query rewriting:
-In this approach database agent rewrites sql query to apply masking rules to the data returned from the database.
 
-
+#### 3) Dynamic Data Masking - Query rewriting:
+In this approach database agent rewrites SQL QUERY based on the masking rules
 ```mermaid
     sequenceDiagram
     participant client as Database Client
@@ -206,20 +212,68 @@ spec:
 
 
 #### Wildcard select:
-Teleport DB agent doesn't contain any information about the tables scheme apart from masking rules. When a wildcard query is executed:
+Teleport DB agent doesn't contain any information about tables scheme apart from masking rules. When a wildcard query is executed:
 ```sql
 select * from table1;
 ```
-information about the `table1` scheme is required to extend the `*` select from all columns query. At first data masking implementation Teleport won't obtain database schema
+information about the `table1` scheme is required to extend the `*` select from all column query in order to apply masking rules. At first data masking implementation Teleport won't obtain database schema
 and will Teleport block "select from all tables queries" if a selected table contains a masking rule. In this case, Teleport will return the database error "Data masking unambiguous query error".
+
+
+### UX
+Data-Masking configuration will be stored as user role setting in dedicated `database_options` role spec option.
 
 
 ### Security
 Data-masking solution based on altering the SQL query in the proxy before it is sent to the database engine is more flexible but less secure than using native db engine data masking functionality.
 Solution based on query rewriting in proxy side wll introduce several potential vectors of bypassing data masking:
-1) Database user have access to views/procedures that operates/returns data from masked columns
-2) User can create a custom procedure/view from masked table `create table clients_bypass as select name, email, ssn from clients;`
-3) User tries to create a custom view: `create view v_clients as select * from clients;`
+1) Database user have access to views/functions/procedures that operates/returns data from masked columns
+   In order to prevent this a database user should be configured with database privileges that doesn't allow to use views/functions/procedures that allowing to bypass data masking applied on proxy side. 
+   For instance lets consider following table:
+   ```sql
+    CREATE TABLE customers(
+        id       INT             NOT NULL,
+        name     VARCHAR(20)     NOT NULL,
+        email    VARCHAR(100)    NOT NULL,
+        phone    VARCHAR(100)    NOT NULL,
+        age      INT             NOT NULL,
+        address  CHAR (25),
+        ssn.     VARCHAR (50)    NOT NULL,
+        PRIMARY KEY (id)
+    );
+   ```
+   and predefined view `v_customers` and `top_customers` function:
+   ```sql
+   CREATE FUNCTION top_customers() RETURNS customers
+   LANGUAGE SQL
+   AS $$
+     SELECT * FROM customers WHERE ... ;
+   $$;
+   
+   CREATE VIEW v_customers AS SELECT * FROM customers; 
+   ```
+   where Teleport DB masking rules for customer table was configured only for the `customers` table:
+   ```yaml
+    database_options:
+    data_masking:
+      - database: "postgres01"
+      - table:    "customers"
+        columns:
+          - column: email
+            hash: md5
+          - column: phone
+            constant: "XXX-XXX-XXX"
+          - column: ssn
+            constant: "XXX-XXX-XXX"
+    ```
+
+   If a database user has permission to execute the `top_customers` or `v_customers` function the data masking on proxy side can be bypassed by calling `select top_customers()` or `select * from v_customers;`  
+   Teleport DB Proxy doesn't have enough information to apply masking rules for the `SELECT top_customers()` and ` SELECT * FROM v_customers` queries.
+    
+2) User can create a custom procedure/function/view/table from masked table `CREATE TABLE customers_tmp AS SELECT * CUSTOMERS;`
+   or `CREATE VIEW v_customers AS SELECT * FROM customers;`. 
+   In that case Teleport DB Agent can detect CREATE SQL statement and recognise if masked table referenced. If so Teleport DB Agent can reject the SQL Statement. 
+
 
 To narrow ability to bypass data masking on the proxy side by execution views/procedures, creation of a custom tables Teleport can introduce Database Access Model based on parsed SQL Query and allow to interact/execute resource that are in user/role allow list:
 ```yaml
@@ -237,3 +291,5 @@ spec:
         procedures:
         - "calculate_*"
 ```
+
+
