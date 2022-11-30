@@ -1315,11 +1315,11 @@ func TestTerminal(t *testing.T) {
 			termHandler := newTerminalHandler()
 			stream := termHandler.asTerminalStream(ws)
 
-			_, err = io.WriteString(stream, "echo vinsong\r\n")
+			// here we intentionally run a command where the output we're looking
+			// for is not present in the command itself
+			_, err = io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
 			require.NoError(t, err)
-
-			err = waitForOutput(stream, "vinsong")
-			require.NoError(t, err)
+			require.NoError(t, waitForOutput(stream, "teleport"))
 		})
 	}
 }
