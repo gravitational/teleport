@@ -19,28 +19,49 @@ package db
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
-	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// caRenewer renewer which is going to renew cloud-based database CA.
+func (s *Server) caRenewer(ctx context.Context) {
+	schedule := s.cfg.Clock.NewTicker(caRenewInterval)
+	defer schedule.Stop()
+
+	for {
+		select {
+		case <-schedule.Chan():
+			for _, database := range s.getProxiedDatabases() {
+				if err := s.initCACert(ctx, database); err != nil {
+					s.log.WithError(err).Errorf("Failed to renew database %q CA.", database.GetName())
+				}
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
 
 // initCACert initializes the provided server's CA certificate in case of a
 // cloud hosted database instance.
 func (s *Server) initCACert(ctx context.Context, database types.Database) error {
 	// CA certificate may be set explicitly via configuration.
-	if len(database.GetCA()) != 0 {
+	if database.GetCA() != database.GetStatusCA() {
 		return nil
 	}
 	// Can only download it for cloud-hosted instances.
@@ -57,6 +78,8 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 		return nil
 	}
 	// It's not set so download it or see if it's already downloaded.
+	// When initializing the CAs do not update the certificates, instead use the
+	// cached ones.
 	bytes, err := s.getCACerts(ctx, database)
 	if err != nil {
 		return trace.Wrap(err)
@@ -70,8 +93,8 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 	return nil
 }
 
-// getCACerts returns automatically downloaded root certificate for the provided
-// cloud database instance.
+// getCACerts updates and returns automatically downloaded root certificate for
+// the provided cloud database instance.
 func (s *Server) getCACerts(ctx context.Context, database types.Database) ([]byte, error) {
 	// Auto-downloaded certs reside in the data directory.
 	filePaths, err := s.getCACertPaths(database)
@@ -100,8 +123,13 @@ func (s *Server) getCACerts(ctx context.Context, database types.Database) ([]byt
 // The cert can already be cached in the filesystem, otherwise we will attempt
 // to download it.
 func (s *Server) getCACert(ctx context.Context, database types.Database, filePath string) ([]byte, error) {
+	// Try to update the certificate.
+	err := s.updateCACert(ctx, database, filePath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// Check if we already have it.
-	_, err := utils.StatFile(filePath)
+	_, err = utils.StatFile(filePath)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -112,16 +140,15 @@ func (s *Server) getCACert(ctx context.Context, database types.Database, filePat
 	}
 	// Otherwise download it.
 	s.log.Debugf("Downloading CA certificate for %v.", database)
-	bytes, err := s.cfg.CADownloader.Download(ctx, database, filepath.Base(filePath))
+	bytes, version, err := s.cfg.CADownloader.Download(ctx, database, filepath.Base(filePath))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// Save to the filesystem.
-	err = os.WriteFile(filePath, bytes, teleport.FileMaskOwnerOnly)
+	err = s.saveCACert(filePath, bytes, version)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.log.Debugf("Saved CA certificate %v.", filePath)
 	return bytes, nil
 }
 
@@ -168,22 +195,107 @@ func (s *Server) getCACertPaths(database types.Database) ([]string, error) {
 	return nil, trace.BadParameter("%v doesn't support automatic CA download", database)
 }
 
+// saveCACert saves the downloaded certificate to the filesystem.
+func (s *Server) saveCACert(filePath string, content []byte, version []byte) error {
+	// Save CA contents.
+	err := os.WriteFile(filePath, content, teleport.FileMaskOwnerOnly)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Save the CA version.
+	err = os.WriteFile(filePath+versionFileSuffix, version, teleport.FileMaskOwnerOnly)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.log.Debugf("Saved CA certificate %v.", filePath)
+	return nil
+}
+
+// updateCACert updates the database CA contents if it has changed.
+func (s *Server) updateCACert(ctx context.Context, database types.Database, filePath string) error {
+	var contents []byte
+
+	// Get the current CA version.
+	version, err := s.cfg.CADownloader.GetVersion(ctx, database, filePath)
+	// If getting the CA version is not supported, download it.
+	if trace.IsNotImplemented(err) {
+		contents, version, err = s.cfg.CADownloader.Download(ctx, database, filePath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+
+	equal, err := isCAVersionEqual(filePath, version)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	if equal {
+		return nil
+	}
+
+	// Check if the CA contents were already downloaded. If not, download them.
+	if contents == nil {
+		contents, version, err = s.cfg.CADownloader.Download(ctx, database, filePath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	err = s.saveCACert(filePath, contents, version)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.log.Infof("Database %q CA updated.", database.GetName())
+	return nil
+}
+
+// isCAVersionEqual compares the in disk version with the provided one.
+func isCAVersionEqual(filePath string, version []byte) (bool, error) {
+	currentVersion, err := os.ReadFile(filePath + versionFileSuffix)
+	if err != nil {
+		return false, trace.ConvertSystemError(err)
+	}
+
+	return bytes.Equal(currentVersion, version), nil
+}
+
 // CADownloader defines interface for cloud databases CA cert downloaders.
 type CADownloader interface {
 	// Download downloads CA certificate for the provided database instance.
-	Download(context.Context, types.Database, string) ([]byte, error)
+	Download(context.Context, types.Database, string) ([]byte, []byte, error)
+	// GetVersion returns the CA version for the provided database.
+	GetVersion(context.Context, types.Database, string) ([]byte, error)
 }
 
 type realDownloader struct {
+	// httpClient is the HTTP client used to download CA certificates.
+	httpClient *http.Client
+	// sqladminClient is the Cloud SQL Admin API service used to download CA
+	// certificates.
+	sqlAdminClient gcp.SQLAdminClient
 }
 
 // NewRealDownloader returns real cloud database CA downloader.
-func NewRealDownloader() CADownloader {
-	return &realDownloader{}
+func NewRealDownloader(ctx context.Context) (CADownloader, error) {
+	sqlAdminClient, err := gcp.NewSQLAdminClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &realDownloader{
+		httpClient:     http.DefaultClient,
+		sqlAdminClient: sqlAdminClient,
+	}, nil
 }
 
 // Download downloads CA certificate for the provided cloud database instance.
-func (d *realDownloader) Download(ctx context.Context, database types.Database, hint string) ([]byte, error) {
+func (d *realDownloader) Download(ctx context.Context, database types.Database, hint string) ([]byte, []byte, error) {
 	switch database.GetType() {
 	case types.DatabaseTypeRDS:
 		return d.downloadFromURL(rdsCAURLForDatabase(database))
@@ -200,29 +312,62 @@ func (d *realDownloader) Download(ctx context.Context, database types.Database, 
 		} else if strings.HasSuffix(azureCAURLDigiCert, hint) {
 			return d.downloadFromURL(azureCAURLDigiCert)
 		}
-		return nil, trace.BadParameter("unknown Azure CA %q", hint)
+		return nil, nil, trace.BadParameter("unknown Azure CA %q", hint)
 	case types.DatabaseTypeAWSKeyspaces:
 		return d.downloadFromURL(amazonKeyspacesCAURL)
 	}
-	return nil, trace.BadParameter("%v doesn't support automatic CA download", database)
+	return nil, nil, trace.BadParameter("%v doesn't support automatic CA download", database)
+}
+
+// GetVersion returns the CA version for the provided database.
+func (d *realDownloader) GetVersion(ctx context.Context, database types.Database, hint string) ([]byte, error) {
+	switch database.GetType() {
+	case types.DatabaseTypeRDS:
+		return d.getVersionFromURL(database, rdsCAURLForDatabase(database))
+	case types.DatabaseTypeRedshift:
+		return d.getVersionFromURL(database, redshiftCAURLForDatabase(database))
+	case types.DatabaseTypeElastiCache,
+		types.DatabaseTypeMemoryDB:
+		return d.getVersionFromURL(database, amazonRootCA1URL)
+	case types.DatabaseTypeAzure:
+		if strings.HasSuffix(azureCAURLBaltimore, hint) {
+			return d.getVersionFromURL(database, azureCAURLBaltimore)
+		} else if strings.HasSuffix(azureCAURLDigiCert, hint) {
+			return d.getVersionFromURL(database, azureCAURLDigiCert)
+		}
+		return nil, trace.BadParameter("unknown Azure CA %q", hint)
+	case types.DatabaseTypeAWSKeyspaces:
+		return d.getVersionFromURL(database, amazonKeyspacesCAURL)
+	}
+
+	return nil, trace.NotImplemented("%v doesn't support fetching CA version", database)
 }
 
 // downloadFromURL downloads root certificate from the provided URL.
-func (d *realDownloader) downloadFromURL(downloadURL string) ([]byte, error) {
-	resp, err := http.Get(downloadURL)
+func (d *realDownloader) downloadFromURL(downloadURL string) ([]byte, []byte, error) {
+	resp, err := d.httpClient.Get(downloadURL)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, trace.BadParameter("status code %v when fetching from %q",
+		return nil, nil, trace.BadParameter("status code %v when fetching from %q",
 			resp.StatusCode, downloadURL)
 	}
 	bytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
-	return bytes, nil
+
+	// If there is a http response and it does have the "etag" header present,
+	// use it as the CA version.
+	if resp.Header.Get("ETag") != "" {
+		return bytes, []byte(resp.Header.Get("ETag")), nil
+	}
+
+	// Otherwise, hash the contents and return it as the version.
+	hash := sha256.Sum256(bytes)
+	return bytes, hash[:], nil
 }
 
 // downloadForCloudSQL downloads root certificate for the provided Cloud SQL
@@ -230,22 +375,32 @@ func (d *realDownloader) downloadFromURL(downloadURL string) ([]byte, error) {
 //
 // This database service GCP IAM role should have "cloudsql.instances.get"
 // permission in order for this to work.
-func (d *realDownloader) downloadForCloudSQL(ctx context.Context, database types.Database) ([]byte, error) {
-	sqladminService, err := sqladmin.NewService(ctx)
+func (d *realDownloader) downloadForCloudSQL(ctx context.Context, database types.Database) ([]byte, []byte, error) {
+	instance, err := d.sqlAdminClient.GetDatabaseInstance(ctx, database)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	instance, err := sqladmin.NewInstancesService(sqladminService).Get(
-		database.GetGCP().ProjectID, database.GetGCP().InstanceID).Context(ctx).Do()
-	if err != nil {
-		return nil, trace.BadParameter(cloudSQLDownloadError, database.GetName(),
+		return nil, nil, trace.BadParameter(cloudSQLDownloadError, database.GetName(),
 			err, database.GetGCP().InstanceID)
 	}
 	if instance.ServerCaCert != nil {
-		return []byte(instance.ServerCaCert.Cert), nil
+		return []byte(instance.ServerCaCert.Cert), []byte(instance.ServerCaCert.Sha1Fingerprint), nil
 	}
-	return nil, trace.NotFound("Cloud SQL instance %v does not contain server CA certificate info: %v",
+	return nil, nil, trace.NotFound("Cloud SQL instance %v does not contain server CA certificate info: %v",
 		database, instance)
+}
+
+// getVersionFromURL fetches the CA version from the URL without downloading it.
+// If it the CA donwload is required it returns trace.NotImplementedError.
+func (d *realDownloader) getVersionFromURL(database types.Database, url string) ([]byte, error) {
+	resp, err := d.httpClient.Head(url)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if resp.Header.Get("ETag") != "" {
+		return []byte(resp.Header.Get("ETag")), nil
+	}
+
+	return nil, trace.NotImplemented("%v doesn't support fetching CA version", database)
 }
 
 // rdsCAURLForDatabase returns root certificate download URL based on the region
@@ -277,6 +432,12 @@ func redshiftCAURLForDatabase(database types.Database) string {
 }
 
 const (
+	// caRenewInterval is the interval that the cloud-hosted database CAs need
+	// to be renewed.
+	caRenewInterval = 24 * time.Hour
+	// versionFileSuffix is the suffix for the file that contains the
+	// resource version of the CA certificate.
+	versionFileSuffix = ".version"
 	// rdsDefaultCAURLTemplate is the string format template that creates URLs
 	// for region based RDS CA bundles.
 	//

@@ -174,7 +174,10 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		return trace.BadParameter("missing GetRotation")
 	}
 	if c.CADownloader == nil {
-		c.CADownloader = NewRealDownloader()
+		c.CADownloader, err = NewRealDownloader(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if c.LockWatcher == nil {
 		return trace.BadParameter("missing LockWatcher")
@@ -644,6 +647,8 @@ func (s *Server) Start(ctx context.Context) (err error) {
 		s.cfg.OnHeartbeat(nil)
 	}
 
+	// Start the cloud-based databases CA renewer.
+	go s.caRenewer(ctx)
 	return nil
 }
 
