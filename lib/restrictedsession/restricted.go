@@ -83,7 +83,7 @@ type sessionMgr struct {
 }
 
 // New creates a RestrictedSession service.
-func New(config *Config, wc RestrictionsWatcherClient) (Manager, error) {
+func New(config *bpf.RestrictedSessionConfig, wc RestrictionsWatcherClient) (Manager, error) {
 	err := config.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -75,6 +75,8 @@ type TestAuthServerConfig struct {
 	AuditLog events.IAuditLog
 	// TraceClient allows a test to configure the trace client
 	TraceClient otlptrace.Client
+	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
+	AuthPreferenceSpec *types.AuthPreferenceSpecV2
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -90,6 +92,12 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 	}
 	if len(cfg.CipherSuites) == 0 {
 		cfg.CipherSuites = utils.DefaultCipherSuites()
+	}
+	if cfg.AuthPreferenceSpec == nil {
+		cfg.AuthPreferenceSpec = &types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOff,
+		}
 	}
 	return nil
 }
@@ -125,17 +133,35 @@ func NewTestServer(cfg TestServerConfig) (*TestServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var tlsServer *TestTLSServer
-	if cfg.TLS != nil {
-		tlsServer, err = NewTestTLSServer(*cfg.TLS)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		tlsServer, err = authServer.NewTestTLSServer()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// Set the (test) auth server in cfg.TLS and set any defaults that
+	// are not set.
+	tlsCfg := cfg.TLS
+	if tlsCfg == nil {
+		tlsCfg = &TestTLSServerConfig{}
+	}
+	if tlsCfg.APIConfig == nil {
+		tlsCfg.APIConfig = &APIConfig{}
+	}
+
+	tlsCfg.AuthServer = authServer
+	tlsCfg.APIConfig.AuthServer = authServer.AuthServer
+
+	if tlsCfg.APIConfig.Authorizer == nil {
+		tlsCfg.APIConfig.Authorizer = authServer.Authorizer
+	}
+	if tlsCfg.APIConfig.AuditLog == nil {
+		tlsCfg.APIConfig.AuditLog = authServer.AuditLog
+	}
+	if tlsCfg.APIConfig.Emitter == nil {
+		tlsCfg.APIConfig.Emitter = authServer.AuthServer.emitter
+	}
+	if tlsCfg.AcceptedUsage == nil {
+		tlsCfg.AcceptedUsage = authServer.AcceptedUsage
+	}
+
+	tlsServer, err := NewTestTLSServer(*tlsCfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return &TestServer{
 		AuthServer: authServer,
@@ -289,10 +315,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	authPreference, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOff,
-	})
+	authPreference, err := types.NewAuthPreferenceFromConfigFile(*cfg.AuthPreferenceSpec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

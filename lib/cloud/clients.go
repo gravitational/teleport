@@ -58,6 +58,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 )
 
 // Clients provides interface for obtaining cloud provider clients.
@@ -87,10 +88,12 @@ type Clients interface {
 	// GetGCPIAMClient returns GCP IAM client.
 	GetGCPIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
 	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
-	GetGCPSQLAdminClient(context.Context) (GCPSQLAdminClient, error)
+	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
 	// GetInstanceMetadataClient returns instance metadata client based on which
 	// cloud provider Teleport is running on, if any.
 	GetInstanceMetadataClient(ctx context.Context) (InstanceMetadata, error)
+	// GetGCPGKEClient returns GKE client.
+	GetGCPGKEClient(context.Context) (gcp.GKEClient, error)
 	// AzureClients is an interface for Azure-specific API clients
 	AzureClients
 	// Closer closes all initialized clients.
@@ -115,6 +118,12 @@ type AzureClients interface {
 	GetAzureKubernetesClient(subscription string) (azure.AKSClient, error)
 	// GetAzureVirtualMachinesClient returns an Azure Virtual Machines client for the given subscription.
 	GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error)
+	// GetAzureSQLServerClient returns an Azure SQL Server client for the
+	// specified subscription.
+	GetAzureSQLServerClient(subscription string) (azure.SQLServerClient, error)
+	// GetAzureManagedSQLServerClient returns an Azure ManagedSQL Server client
+	// for the specified subscription.
+	GetAzureManagedSQLServerClient(subscription string) (azure.ManagedSQLServerClient, error)
 }
 
 // NewClients returns a new instance of cloud clients retriever.
@@ -122,12 +131,14 @@ func NewClients() Clients {
 	return &cloudClients{
 		awsSessions: make(map[string]*awssession.Session),
 		azureClients: azureClients{
-			azureMySQLClients:           make(map[string]azure.DBServersClient),
-			azurePostgresClients:        make(map[string]azure.DBServersClient),
-			azureRedisClients:           azure.NewClientMap(azure.NewRedisClient),
-			azureRedisEnterpriseClients: azure.NewClientMap(azure.NewRedisEnterpriseClient),
-			azureKubernetesClient:       make(map[string]azure.AKSClient),
-			azureVirtualMachinesClients: azure.NewClientMap(azure.NewVirtualMachinesClient),
+			azureMySQLClients:            make(map[string]azure.DBServersClient),
+			azurePostgresClients:         make(map[string]azure.DBServersClient),
+			azureRedisClients:            azure.NewClientMap(azure.NewRedisClient),
+			azureRedisEnterpriseClients:  azure.NewClientMap(azure.NewRedisEnterpriseClient),
+			azureKubernetesClient:        make(map[string]azure.AKSClient),
+			azureVirtualMachinesClients:  azure.NewClientMap(azure.NewVirtualMachinesClient),
+			azureSQLServerClients:        azure.NewClientMap(azure.NewSQLClient),
+			azureManagedSQLServerClients: azure.NewClientMap(azure.NewManagedSQLClient),
 		},
 	}
 }
@@ -141,9 +152,11 @@ type cloudClients struct {
 	// gcpIAM is the cached GCP IAM client.
 	gcpIAM *gcpcredentials.IamCredentialsClient
 	// gcpSQLAdmin is the cached GCP Cloud SQL Admin client.
-	gcpSQLAdmin GCPSQLAdminClient
+	gcpSQLAdmin gcp.SQLAdminClient
 	// instanceMetadata is the cached instance metadata client.
 	instanceMetadata InstanceMetadata
+	// gcpGKE is the cached GCP Cloud GKE client.
+	gcpGKE gcp.GKEClient
 	// azureClients contains Azure-specific clients.
 	azureClients
 	// mtx is used for locking.
@@ -168,6 +181,11 @@ type azureClients struct {
 	azureKubernetesClient map[string]azure.AKSClient
 	// azureVirtualMachinesClients contains the cached Azure Virtual Machines clients.
 	azureVirtualMachinesClients azure.ClientMap[azure.VirtualMachinesClient]
+	// azureSQLServerClient is the cached Azure SQL Server client.
+	azureSQLServerClients azure.ClientMap[azure.SQLServerClient]
+	// azureManagedSQLServerClient is the cached Azure Managed SQL Server
+	// client.
+	azureManagedSQLServerClients azure.ClientMap[azure.ManagedSQLServerClient]
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -283,7 +301,7 @@ func (c *cloudClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials.Iam
 }
 
 // GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
-func (c *cloudClients) GetGCPSQLAdminClient(ctx context.Context) (GCPSQLAdminClient, error) {
+func (c *cloudClients) GetGCPSQLAdminClient(ctx context.Context) (gcp.SQLAdminClient, error) {
 	c.mtx.RLock()
 	if c.gcpSQLAdmin != nil {
 		defer c.mtx.RUnlock()
@@ -302,6 +320,17 @@ func (c *cloudClients) GetInstanceMetadataClient(ctx context.Context) (InstanceM
 	}
 	c.mtx.RUnlock()
 	return c.initInstanceMetadata(ctx)
+}
+
+// GetGCPGKEClient returns GKE client.
+func (c *cloudClients) GetGCPGKEClient(ctx context.Context) (gcp.GKEClient, error) {
+	c.mtx.RLock()
+	if c.gcpGKE != nil {
+		defer c.mtx.RUnlock()
+		return c.gcpGKE, nil
+	}
+	c.mtx.RUnlock()
+	return c.initGCPGKEClient(ctx)
 }
 
 // GetAzureCredential returns default Azure token credential chain.
@@ -375,6 +404,17 @@ func (c *cloudClients) GetAzureVirtualMachinesClient(subscription string) (azure
 	return c.azureVirtualMachinesClients.Get(subscription, c.GetAzureCredential)
 }
 
+// GetAzureSQLServerClient returns an Azure client for listing SQL servers.
+func (c *cloudClients) GetAzureSQLServerClient(subscription string) (azure.SQLServerClient, error) {
+	return c.azureSQLServerClients.Get(subscription, c.GetAzureCredential)
+}
+
+// GetAzureManagedSQLServerClient returns an Azure client for listing managed
+// SQL servers.
+func (c *cloudClients) GetAzureManagedSQLServerClient(subscription string) (azure.ManagedSQLServerClient, error) {
+	return c.azureManagedSQLServerClients.Get(subscription, c.GetAzureCredential)
+}
+
 // Close closes all initialized clients.
 func (c *cloudClients) Close() (err error) {
 	c.mtx.Lock()
@@ -421,19 +461,34 @@ func (c *cloudClients) initGCPIAMClient(ctx context.Context) (*gcpcredentials.Ia
 	return gcpIAM, nil
 }
 
-func (c *cloudClients) initGCPSQLAdminClient(ctx context.Context) (GCPSQLAdminClient, error) {
+func (c *cloudClients) initGCPSQLAdminClient(ctx context.Context) (gcp.SQLAdminClient, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	if c.gcpSQLAdmin != nil { // If some other thread already got here first.
 		return c.gcpSQLAdmin, nil
 	}
 	logrus.Debug("Initializing GCP Cloud SQL Admin client.")
-	gcpSQLAdmin, err := NewGCPSQLAdminClient(ctx)
+	gcpSQLAdmin, err := gcp.NewSQLAdminClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	c.gcpSQLAdmin = gcpSQLAdmin
 	return gcpSQLAdmin, nil
+}
+
+func (c *cloudClients) initGCPGKEClient(ctx context.Context) (gcp.GKEClient, error) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	if c.gcpGKE != nil { // If some other thread already got here first.
+		return c.gcpGKE, nil
+	}
+	logrus.Debug("Initializing GCP Cloud GKE client.")
+	gcpGKE, err := gcp.NewGKEClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	c.gcpGKE = gcpGKE
+	return gcpGKE, nil
 }
 
 func (c *cloudClients) initAzureCredential() (azcore.TokenCredential, error) {
@@ -581,7 +636,8 @@ type TestCloudClients struct {
 	SecretsManager          secretsmanageriface.SecretsManagerAPI
 	IAM                     iamiface.IAMAPI
 	STS                     stsiface.STSAPI
-	GCPSQL                  GCPSQLAdminClient
+	GCPSQL                  gcp.SQLAdminClient
+	GCPGKE                  gcp.GKEClient
 	EC2                     ec2iface.EC2API
 	SSM                     ssmiface.SSMAPI
 	InstanceMetadata        InstanceMetadata
@@ -596,6 +652,8 @@ type TestCloudClients struct {
 	AzureAKSClientPerSub    map[string]azure.AKSClient
 	AzureAKSClient          azure.AKSClient
 	AzureVirtualMachines    azure.VirtualMachinesClient
+	AzureSQLServer          azure.SQLServerClient
+	AzureManagedSQLServer   azure.ManagedSQLServerClient
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -649,13 +707,18 @@ func (c *TestCloudClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials
 }
 
 // GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
-func (c *TestCloudClients) GetGCPSQLAdminClient(ctx context.Context) (GCPSQLAdminClient, error) {
+func (c *TestCloudClients) GetGCPSQLAdminClient(ctx context.Context) (gcp.SQLAdminClient, error) {
 	return c.GCPSQL, nil
 }
 
 // GetInstanceMetadata returns the instance metadata.
 func (c *TestCloudClients) GetInstanceMetadataClient(ctx context.Context) (InstanceMetadata, error) {
 	return c.InstanceMetadata, nil
+}
+
+// GetGCPGKEClient returns GKE client.
+func (c *TestCloudClients) GetGCPGKEClient(ctx context.Context) (gcp.GKEClient, error) {
+	return c.GCPGKE, nil
 }
 
 // GetAzureCredential returns default Azure token credential chain.
@@ -721,6 +784,17 @@ func (c *TestCloudClients) GetAzureRedisEnterpriseClient(subscription string) (a
 // the given subscription.
 func (c *TestCloudClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
 	return c.AzureVirtualMachines, nil
+}
+
+// GetAzureSQLServerClient returns an Azure client for listing SQL servers.
+func (c *TestCloudClients) GetAzureSQLServerClient(subscription string) (azure.SQLServerClient, error) {
+	return c.AzureSQLServer, nil
+}
+
+// GetAzureManagedSQLServerClient returns an Azure client for listing managed
+// SQL servers.
+func (c *TestCloudClients) GetAzureManagedSQLServerClient(subscription string) (azure.ManagedSQLServerClient, error) {
+	return c.AzureManagedSQLServer, nil
 }
 
 // Close closes all initialized clients.

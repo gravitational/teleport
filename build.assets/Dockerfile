@@ -88,8 +88,12 @@ ARG BUILDARCH
 
 # Install packages.
 # Java JRE is required by gcloud firestore emulator.
+# Latest git 2.18+ is required for GitHub actions
 # NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
-RUN apt-get update -y --fix-missing && \
+RUN apt-get -y update && \
+    apt-get -y install software-properties-common && \
+    add-apt-repository -y ppa:git-core/ppa && \
+    apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -q -y --no-install-recommends \
         apt-utils \
@@ -186,7 +190,7 @@ RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar 
 
 # Install shellcheck.
 RUN scversion='v0.8.0' && \
-    curl -sSL "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.x86_64.tar.xz" | \
+    curl -sSL "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch64"; fi).tar.xz" | \
         tar -xJv && \
     cp "shellcheck-$scversion/shellcheck" /usr/local/bin/ && \
     shellcheck --version
