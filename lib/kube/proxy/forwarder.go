@@ -541,14 +541,14 @@ func (f *Forwarder) formatResponseError(rw http.ResponseWriter, respErr error) {
 	}
 }
 
-func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUser bool, clientIdentity *tlsca.Identity) (*authContext, error) {
-	roles := ctx.Checker
+func (f *Forwarder) setupContext(authCtx auth.Context, req *http.Request, isRemoteUser bool, clientIdentity *tlsca.Identity) (*authContext, error) {
+	roles := authCtx.Checker
 
 	// adjust session ttl to the smaller of two values: the session
 	// ttl requested in tsh or the session ttl for the role.
 	sessionTTL := roles.AdjustSessionTTL(time.Hour)
 
-	identity := ctx.Identity.GetIdentity()
+	identity := authCtx.Identity.GetIdentity()
 	teleportClusterName := identity.RouteToCluster
 	if teleportClusterName == "" {
 		teleportClusterName = f.cfg.ClusterName
@@ -597,7 +597,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	// By default, if no kubernetes_users is set (which will be a majority),
 	// user will impersonate themselves, which is the backwards-compatible behavior.
 	if len(kubeUsers) == 0 {
-		kubeUsers = append(kubeUsers, ctx.User.GetName())
+		kubeUsers = append(kubeUsers, authCtx.User.GetName())
 	}
 
 	// KubeSystemAuthenticated is a builtin group that allows
@@ -676,10 +676,10 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		return nil, trace.Wrap(err)
 	}
 
-	authCtx := &authContext{
+	return &authContext{
 		clientIdleTimeout:     roles.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		sessionTTL:            sessionTTL,
-		Context:               ctx,
+		Context:               authCtx,
 		kubeGroups:            utils.StringsSet(kubeGroups),
 		kubeUsers:             utils.StringsSet(kubeUsers),
 		kubeClusterLabels:     kubeLabels,
@@ -694,9 +694,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 			isRemote:       isRemoteCluster,
 			isRemoteClosed: isRemoteClosed,
 		},
-	}
-
-	return authCtx, nil
+	}, nil
 }
 
 // kubeAccessDetails holds the allowed kube groups/users names and the cluster labels for a local kube cluster.
