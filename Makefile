@@ -546,13 +546,13 @@ $(TEST_LOG_DIR):
 .PHONY: test-helm
 test-helm:
 	@if [ -d /builder/home ] || [ ! -z "${CI}" ]; then export HELM_PLUGINS=/root/.local/share/helm/plugins; fi; \
-		helm unittest examples/chart/teleport-cluster && \
-		helm unittest examples/chart/teleport-kube-agent
+		helm unittest -3 examples/chart/teleport-cluster && \
+		helm unittest -3 examples/chart/teleport-kube-agent
 
 .PHONY: test-helm-update-snapshots
 test-helm-update-snapshots:
-	helm unittest -u examples/chart/teleport-cluster
-	helm unittest -u examples/chart/teleport-kube-agent
+	helm unittest -3 -u examples/chart/teleport-cluster
+	helm unittest -3 -u examples/chart/teleport-kube-agent
 
 #
 # Runs all Go tests except integration, called by CI/CD.

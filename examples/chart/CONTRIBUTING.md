@@ -37,7 +37,7 @@ will ensure that Helm is able to validate values at install-time and can prevent
 4) Document any new values or changes to existing behaviour in the [chart reference](../../docs/pages/kubernetes-access/helm/reference).
 
 5) Run `make lint-helm test-helm` from the root of the repo before raising your PR.
-You will need `yamllint`, `helm` and [helm3-unittest](https://github.com/vbehar/helm3-unittest) installed locally.
+You will need `yamllint`, `helm` and [helm-unittest](https://github.com/quintush/helm-unittest) installed locally.
 
 `make -C build.assets lint-helm test-helm` will run these via Docker if you'd prefer not to install locally.
 

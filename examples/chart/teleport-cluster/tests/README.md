@@ -1,6 +1,6 @@
 ## Unit tests for Helm charts
 
-Helm chart unit tests run here using the [helm3-unittest](https://github.com/vbehar/helm3-unittest) Helm plugin.
+Helm chart unit tests run here using the [helm-unittest](https://github.com/quintush/helm-unittest/) Helm plugin.
 
 If you get a snapshot error during your testing, you should verify that your changes intended to alter the output, then run
 this command from the root of your Teleport checkout to update the snapshots:
