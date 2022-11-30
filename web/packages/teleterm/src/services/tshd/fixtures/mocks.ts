@@ -8,6 +8,7 @@ import {
   Gateway,
   GetDatabasesResponse,
   GetKubesResponse,
+  GetRequestableRolesParams,
   GetServersResponse,
   Kube,
   LoginLocalParams,
@@ -19,6 +20,7 @@ import {
   TshAbortController,
   TshAbortSignal,
   TshClient,
+  GetRequestableRolesResponse,
 } from '../types';
 import { AccessRequest } from '../v1/access_request_pb';
 
@@ -32,7 +34,9 @@ export class MockTshClient implements TshClient {
   getDatabases: (params: ServerSideParams) => Promise<GetDatabasesResponse>;
   listDatabaseUsers: (dbUri: string) => Promise<string[]>;
   getAllServers: (clusterUri: string) => Promise<Server[]>;
-  getRequestableRoles: (clusterUri: string) => Promise<string[]>;
+  getRequestableRoles: (
+    params: GetRequestableRolesParams
+  ) => Promise<GetRequestableRolesResponse>;
   getServers: (params: ServerSideParams) => Promise<GetServersResponse>;
   assumeRole: (
     clusterUri: string,

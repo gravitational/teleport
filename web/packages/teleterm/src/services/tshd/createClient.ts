@@ -334,19 +334,29 @@ export default function createClient(
       });
     },
 
-    async getRequestableRoles(clusterUri: string) {
-      const req = new api.GetRequestableRolesRequest().setClusterUri(
-        clusterUri
+    async getRequestableRoles(params: types.GetRequestableRolesParams) {
+      const req = new api.GetRequestableRolesRequest()
+        .setClusterUri(params.rootClusterUri)
+        .setResourceIdsList(
+          params.resourceIds.map(({ id, clusterName, kind }) => {
+            const resourceId = new ResourceID();
+            resourceId.setName(id);
+            resourceId.setClusterName(clusterName);
+            resourceId.setKind(kind);
+            return resourceId;
+          })
+        );
+      return new Promise<types.GetRequestableRolesResponse>(
+        (resolve, reject) => {
+          tshd.getRequestableRoles(req, (err, response) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(response.toObject());
+            }
+          });
+        }
       );
-      return new Promise<string[]>((resolve, reject) => {
-        tshd.getRequestableRoles(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response.toObject().rolesList);
-          }
-        });
-      });
     },
 
     async addRootCluster(addr: string) {

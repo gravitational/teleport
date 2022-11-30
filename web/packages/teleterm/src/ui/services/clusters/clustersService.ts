@@ -15,6 +15,7 @@ import { NotificationsService } from 'teleterm/ui/services/notifications';
 import {
   Cluster,
   CreateAccessRequestParams,
+  GetRequestableRolesParams,
   ReviewAccessRequestParams,
   ServerSideParams,
 } from 'teleterm/services/tshd/types';
@@ -399,13 +400,13 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     }
   }
 
-  async getRequestableRoles(rootClusterUri: string) {
-    const cluster = this.state.clusters.get(rootClusterUri);
+  async getRequestableRoles(params: GetRequestableRolesParams) {
+    const cluster = this.state.clusters.get(params.rootClusterUri);
     if (!cluster.connected) {
       return;
     }
 
-    return this.client.getRequestableRoles(rootClusterUri);
+    return this.client.getRequestableRoles(params);
   }
 
   getAssumedRequests(rootClusterUri: string) {

@@ -26,6 +26,8 @@ export type AccessRequestReview = apiAccessRequest.AccessRequestReview.AsObject;
 export type GetServersResponse = apiService.GetServersResponse.AsObject;
 export type GetDatabasesResponse = apiService.GetDatabasesResponse.AsObject;
 export type GetKubesResponse = apiService.GetKubesResponse.AsObject;
+export type GetRequestableRolesResponse =
+  apiService.GetRequestableRolesResponse.AsObject;
 // Available types are listed here:
 // https://github.com/gravitational/teleport/blob/v9.0.3/lib/defaults/defaults.go#L513-L530
 //
@@ -84,7 +86,9 @@ export type TshClient = {
     requestIds: string[],
     dropIds: string[]
   ) => Promise<void>;
-  getRequestableRoles: (clusterUri: string) => Promise<string[]>;
+  getRequestableRoles: (
+    params: GetRequestableRolesParams
+  ) => Promise<GetRequestableRolesResponse>;
   getServers: (params: ServerSideParams) => Promise<GetServersResponse>;
   getAccessRequests: (clusterUri: string) => Promise<AccessRequest[]>;
   getAccessRequest: (
@@ -196,6 +200,11 @@ export type CreateAccessRequestParams = {
   roles: string[];
   suggestedReviewers: string[];
   resourceIds: { kind: ResourceKind; clusterName: string; id: string }[];
+};
+
+export type GetRequestableRolesParams = {
+  rootClusterUri: string;
+  resourceIds?: { kind: ResourceKind; clusterName: string; id: string }[];
 };
 
 export type AssumedRequest = {

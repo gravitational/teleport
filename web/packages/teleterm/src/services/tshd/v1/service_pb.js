@@ -355,7 +355,7 @@ if (goog.DEBUG && !COMPILED) {
  * @constructor
  */
 proto.teleport.terminal.v1.GetRequestableRolesRequest = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.terminal.v1.GetRequestableRolesRequest.repeatedFields_, null);
 };
 goog.inherits(proto.teleport.terminal.v1.GetRequestableRolesRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
@@ -3246,6 +3246,13 @@ proto.teleport.terminal.v1.AssumeRoleRequest.prototype.clearDropRequestIdsList =
 
 
 
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.teleport.terminal.v1.GetRequestableRolesRequest.repeatedFields_ = [2];
+
 
 
 if (jspb.Message.GENERATE_TO_OBJECT) {
@@ -3277,7 +3284,9 @@ proto.teleport.terminal.v1.GetRequestableRolesRequest.prototype.toObject = funct
  */
 proto.teleport.terminal.v1.GetRequestableRolesRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    clusterUri: jspb.Message.getFieldWithDefault(msg, 1, "")
+    clusterUri: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    resourceIdsList: jspb.Message.toObjectList(msg.getResourceIdsList(),
+    v1_access_request_pb.ResourceID.toObject, includeInstance)
   };
 
   if (includeInstance) {
@@ -3318,6 +3327,11 @@ proto.teleport.terminal.v1.GetRequestableRolesRequest.deserializeBinaryFromReade
       var value = /** @type {string} */ (reader.readString());
       msg.setClusterUri(value);
       break;
+    case 2:
+      var value = new v1_access_request_pb.ResourceID;
+      reader.readMessage(value,v1_access_request_pb.ResourceID.deserializeBinaryFromReader);
+      msg.addResourceIds(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -3354,6 +3368,14 @@ proto.teleport.terminal.v1.GetRequestableRolesRequest.serializeBinaryToWriter = 
       f
     );
   }
+  f = message.getResourceIdsList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      2,
+      f,
+      v1_access_request_pb.ResourceID.serializeBinaryToWriter
+    );
+  }
 };
 
 
@@ -3375,13 +3397,51 @@ proto.teleport.terminal.v1.GetRequestableRolesRequest.prototype.setClusterUri = 
 };
 
 
+/**
+ * repeated ResourceID resource_ids = 2;
+ * @return {!Array<!proto.teleport.terminal.v1.ResourceID>}
+ */
+proto.teleport.terminal.v1.GetRequestableRolesRequest.prototype.getResourceIdsList = function() {
+  return /** @type{!Array<!proto.teleport.terminal.v1.ResourceID>} */ (
+    jspb.Message.getRepeatedWrapperField(this, v1_access_request_pb.ResourceID, 2));
+};
+
+
+/**
+ * @param {!Array<!proto.teleport.terminal.v1.ResourceID>} value
+ * @return {!proto.teleport.terminal.v1.GetRequestableRolesRequest} returns this
+*/
+proto.teleport.terminal.v1.GetRequestableRolesRequest.prototype.setResourceIdsList = function(value) {
+  return jspb.Message.setRepeatedWrapperField(this, 2, value);
+};
+
+
+/**
+ * @param {!proto.teleport.terminal.v1.ResourceID=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.teleport.terminal.v1.ResourceID}
+ */
+proto.teleport.terminal.v1.GetRequestableRolesRequest.prototype.addResourceIds = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 2, opt_value, proto.teleport.terminal.v1.ResourceID, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.teleport.terminal.v1.GetRequestableRolesRequest} returns this
+ */
+proto.teleport.terminal.v1.GetRequestableRolesRequest.prototype.clearResourceIdsList = function() {
+  return this.setResourceIdsList([]);
+};
+
+
 
 /**
  * List of repeated fields within this message type.
  * @private {!Array<number>}
  * @const
  */
-proto.teleport.terminal.v1.GetRequestableRolesResponse.repeatedFields_ = [1];
+proto.teleport.terminal.v1.GetRequestableRolesResponse.repeatedFields_ = [1,2];
 
 
 
@@ -3414,7 +3474,8 @@ proto.teleport.terminal.v1.GetRequestableRolesResponse.prototype.toObject = func
  */
 proto.teleport.terminal.v1.GetRequestableRolesResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    rolesList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
+    rolesList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f,
+    applicableRolesList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -3455,6 +3516,10 @@ proto.teleport.terminal.v1.GetRequestableRolesResponse.deserializeBinaryFromRead
       var value = /** @type {string} */ (reader.readString());
       msg.addRoles(value);
       break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addApplicableRoles(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -3488,6 +3553,13 @@ proto.teleport.terminal.v1.GetRequestableRolesResponse.serializeBinaryToWriter =
   if (f.length > 0) {
     writer.writeRepeatedString(
       1,
+      f
+    );
+  }
+  f = message.getApplicableRolesList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      2,
       f
     );
   }
@@ -3528,6 +3600,43 @@ proto.teleport.terminal.v1.GetRequestableRolesResponse.prototype.addRoles = func
  */
 proto.teleport.terminal.v1.GetRequestableRolesResponse.prototype.clearRolesList = function() {
   return this.setRolesList([]);
+};
+
+
+/**
+ * repeated string applicable_roles = 2;
+ * @return {!Array<string>}
+ */
+proto.teleport.terminal.v1.GetRequestableRolesResponse.prototype.getApplicableRolesList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 2));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.teleport.terminal.v1.GetRequestableRolesResponse} returns this
+ */
+proto.teleport.terminal.v1.GetRequestableRolesResponse.prototype.setApplicableRolesList = function(value) {
+  return jspb.Message.setField(this, 2, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.teleport.terminal.v1.GetRequestableRolesResponse} returns this
+ */
+proto.teleport.terminal.v1.GetRequestableRolesResponse.prototype.addApplicableRoles = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 2, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.teleport.terminal.v1.GetRequestableRolesResponse} returns this
+ */
+proto.teleport.terminal.v1.GetRequestableRolesResponse.prototype.clearApplicableRolesList = function() {
+  return this.setApplicableRolesList([]);
 };
 
 
