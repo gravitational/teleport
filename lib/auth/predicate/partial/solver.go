@@ -127,7 +127,12 @@ func (s *Solver) partialSolveForAllImpl(predicate string, resolveIdentifier Reso
 	}
 
 	// assert that the expression must evaluate to true
-	ctx.solver.Assert(cond.(z3.Bool))
+	boolCond, ok := cond.(z3.Bool)
+	if !ok {
+		return nil, trace.BadParameter("predicate must evaluate to a boolean value")
+	}
+
+	ctx.solver.Assert(boolCond)
 	var out []z3.Value
 
 	// retrieve all possible values for the unknown identifier
@@ -185,6 +190,8 @@ func (ctx *ctx) resolve(fields []string) (z3.Value, error) {
 	if val := ctx.resolveIdentifier(fields); val != nil {
 		var ident z3.Value
 		switch val := val.(type) {
+		case bool:
+			ident = ctx.def.FromBool(val)
 		case int:
 			ident = ctx.def.FromInt(int64(val), ctx.def.IntSort())
 		case string:
@@ -264,28 +271,52 @@ func lowerBinary(ctx *ctx, node *ast.BinaryExpr) (z3.Value, error) {
 			return nil, trace.BadParameter("type %v does not support equals", ty)
 		}
 	case token.LSS:
-		xi := x.(z3.Int)
-		yi := y.(z3.Int)
+		xi, ok1 := x.(z3.Int)
+		yi, ok2 := y.(z3.Int)
+		if !ok1 || !ok2 {
+			return nil, trace.BadParameter("type invalid, must be int %v, %v", x.Sort().Kind(), y.Sort().Kind())
+		}
+
 		return xi.LT(yi), nil
 	case token.LEQ:
-		xi := x.(z3.Int)
-		yi := y.(z3.Int)
+		xi, ok1 := x.(z3.Int)
+		yi, ok2 := y.(z3.Int)
+		if !ok1 || !ok2 {
+			return nil, trace.BadParameter("type invalid, must be int %v, %v", x.Sort().Kind(), y.Sort().Kind())
+		}
+
 		return xi.LE(yi), nil
 	case token.GTR:
-		xi := x.(z3.Int)
-		yi := y.(z3.Int)
+		xi, ok1 := x.(z3.Int)
+		yi, ok2 := y.(z3.Int)
+		if !ok1 || !ok2 {
+			return nil, trace.BadParameter("type invalid, must be int %v, %v", x.Sort().Kind(), y.Sort().Kind())
+		}
+
 		return xi.GT(yi), nil
 	case token.GEQ:
-		xi := x.(z3.Int)
-		yi := y.(z3.Int)
+		xi, ok1 := x.(z3.Int)
+		yi, ok2 := y.(z3.Int)
+		if !ok1 || !ok2 {
+			return nil, trace.BadParameter("type invalid, must be int %v, %v", x.Sort().Kind(), y.Sort().Kind())
+		}
+
 		return xi.GE(yi), nil
 	case token.LAND:
-		xb := x.(z3.Bool)
-		yb := y.(z3.Bool)
+		xb, ok1 := x.(z3.Bool)
+		yb, ok2 := y.(z3.Bool)
+		if !ok1 || !ok2 {
+			return nil, trace.BadParameter("type invalid, must be bool %v, %v", x.Sort().Kind(), y.Sort().Kind())
+		}
+
 		return xb.And(yb), nil
 	case token.LOR:
-		xb := x.(z3.Bool)
-		yb := y.(z3.Bool)
+		xb, ok1 := x.(z3.Bool)
+		yb, ok2 := y.(z3.Bool)
+		if !ok1 || !ok2 {
+			return nil, trace.BadParameter("type invalid, must be bool %v, %v", x.Sort().Kind(), y.Sort().Kind())
+		}
+
 		return xb.Or(yb), nil
 	default:
 		return nil, trace.NotImplemented("unary op %v unsupported", node.Op)
@@ -300,7 +331,12 @@ func lowerUnary(ctx *ctx, node *ast.UnaryExpr) (z3.Value, error) {
 			return nil, err
 		}
 
-		return x.(z3.Bool).Not(), nil
+		xb, ok := x.(z3.Bool)
+		if !ok {
+			return nil, trace.BadParameter("expected bool, got %T", x)
+		}
+
+		return xb.Not(), nil
 	default:
 		return nil, trace.NotImplemented("unary op %v unsupported", node.Op)
 	}
