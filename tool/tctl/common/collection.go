@@ -17,7 +17,6 @@ limitations under the License.
 package common
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"strconv"
@@ -156,17 +155,12 @@ func (s *serverCollection) writeText(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-func (s *serverCollection) writeYaml(w io.Writer) error {
+func (s *serverCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, s.servers)
 }
 
 func (s *serverCollection) writeJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(s.resources(), "", "    ")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
+	return utils.WriteJSON(w, s.servers)
 }
 
 type userCollection struct {
@@ -436,12 +430,7 @@ func formatLastHeartbeat(t time.Time) string {
 }
 
 func writeJSON(c ResourceCollection, w io.Writer) error {
-	data, err := json.MarshalIndent(c.resources(), "", "    ")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
+	return utils.WriteJSON(w, c.resources())
 }
 
 func writeYAML(c ResourceCollection, w io.Writer) error {
@@ -505,20 +494,11 @@ func (a *appServerCollection) writeText(w io.Writer) error {
 }
 
 func (a *appServerCollection) writeJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(a.toMarshal(), "", "    ")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
-}
-
-func (a *appServerCollection) toMarshal() interface{} {
-	return a.servers
+	return utils.WriteJSON(w, a.servers)
 }
 
 func (a *appServerCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, a.toMarshal())
+	return utils.WriteYAML(w, a.servers)
 }
 
 type appCollection struct {
@@ -675,20 +655,11 @@ func (c *databaseServerCollection) writeText(w io.Writer) error {
 }
 
 func (c *databaseServerCollection) writeJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
-}
-
-func (c *databaseServerCollection) toMarshal() interface{} {
-	return c.servers
+	return utils.WriteJSON(w, c.servers)
 }
 
 func (c *databaseServerCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, c.toMarshal())
+	return utils.WriteYAML(w, c.servers)
 }
 
 type databaseCollection struct {
@@ -836,12 +807,7 @@ func (c *windowsDesktopAndServiceCollection) writeYAML(w io.Writer) error {
 }
 
 func (c *windowsDesktopAndServiceCollection) writeJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(c.desktops, "", "    ")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
+	return utils.WriteJSON(w, c.desktops)
 }
 
 type tokenCollection struct {
@@ -901,10 +867,5 @@ func (c *kubeServerCollection) writeYAML(w io.Writer) error {
 }
 
 func (c *kubeServerCollection) writeJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(c.servers, "", "    ")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
+	return utils.WriteJSON(w, c.servers)
 }
