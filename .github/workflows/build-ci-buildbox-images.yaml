@@ -9,15 +9,8 @@ on:
       - build.assets/images.mk
     branches:
       - master
-  pull_request:
-    paths:
-      - build.assets/Dockerfile
-      - build.assets/Dockerfile-centos7
-      - build.assets/Makefile
-      - build.assets/images.mk
-    branches:
-      - master
-
+  workflow_dispatch:
+  
 env:
   REGISTRY: ghcr.io
   BUILDBOX_BASE_NAME: ghcr.io/gravitational/teleport-buildbox
