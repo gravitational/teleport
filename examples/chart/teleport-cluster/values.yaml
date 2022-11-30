@@ -5,7 +5,7 @@
 # clusterName is a unique cluster name.
 # This value cannot be changed after your cluster starts without rebuilding it from scratch.
 # We recommend using the fully qualified domain name that you use to access your cluster,
-# for example: teleport.example.com
+# for example: teleport.example.com.
 clusterName: ""
 
 # Name for this kubernetes cluster to be used by teleport users.
