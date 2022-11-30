@@ -110,7 +110,7 @@ func TestAzure(t *testing.T) {
 			verifyBody: func(t *testing.T, body []byte) {
 				var req struct {
 					AccessToken  string `json:"access_token"`
-					ClientId     string `json:"client_id"`
+					ClientID     string `json:"client_id"`
 					Resource     string `json:"resource"`
 					TokenType    string `json:"token_type"`
 					ExpiresIn    int    `json:"expires_in"`
@@ -122,7 +122,7 @@ func TestAzure(t *testing.T) {
 				require.NoError(t, json.Unmarshal(body, &req))
 
 				require.NotEmpty(t, req.AccessToken)
-				require.NotEmpty(t, req.ClientId)
+				require.NotEmpty(t, req.ClientID)
 				require.Equal(t, "myresource", req.Resource)
 				require.NotZero(t, req.ExpiresIn)
 				require.NotZero(t, req.ExpiresOn)
@@ -184,6 +184,7 @@ func TestAzure(t *testing.T) {
 					require.Equal(t, tc.expectedCode, resp.StatusCode)
 					body, err := io.ReadAll(resp.Body)
 					require.NoError(t, err)
+					require.NoError(t, resp.Body.Close())
 
 					if tc.verifyBody != nil {
 						tc.verifyBody(t, body)

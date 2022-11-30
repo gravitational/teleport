@@ -111,7 +111,7 @@ func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
 			verifyBody: func(t *testing.T, body []byte) {
 				type request struct {
 					AccessToken  string `json:"access_token"`
-					ClientId     string `json:"client_id"`
+					ClientID     string `json:"client_id"`
 					Resource     string `json:"resource"`
 					TokenType    string `json:"token_type"`
 					ExpiresIn    int    `json:"expires_in"`
@@ -123,7 +123,7 @@ func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
 				require.NoError(t, json.Unmarshal(body, &req))
 
 				expected := request{
-					ClientId:     "decaffff-cafe-4aaa-cafe-cafecafecafe",
+					ClientID:     "decaffff-cafe-4aaa-cafe-cafecafecafe",
 					Resource:     "myresource",
 					TokenType:    "Bearer",
 					ExpiresIn:    31536000,
@@ -154,7 +154,7 @@ func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
 				_, err = fromJWT(req.AccessToken, newPrivateKey())
 				require.Error(t, err)
 
-				require.Equal(t, expected.ClientId, req.ClientId)
+				require.Equal(t, expected.ClientID, req.ClientID)
 				require.Equal(t, expected.Resource, req.Resource)
 				require.Equal(t, expected.TokenType, req.TokenType)
 				require.Equal(t, expected.ExpiresIn, req.ExpiresIn)
@@ -191,6 +191,7 @@ func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
 
 			if tt.verifyBody != nil {
 				tt.verifyBody(t, body)
