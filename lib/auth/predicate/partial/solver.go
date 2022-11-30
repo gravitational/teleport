@@ -50,8 +50,8 @@ func NewCachedSolver() *CachedSolver {
 }
 
 func (s *CachedSolver) PartialSolveForAll(predicate string, resolveIdentifier Resolver, querying string, to Type, timeout time.Duration) ([]z3.Value, error) {
-	outCh := make(chan []z3.Value)
-	errCh := make(chan error)
+	outCh := make(chan []z3.Value, 1)
+	errCh := make(chan error, 1)
 
 	go func() {
 		defer close(outCh)
