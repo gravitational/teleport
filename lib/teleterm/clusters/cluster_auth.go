@@ -90,6 +90,7 @@ func (c *Cluster) LocalLogin(ctx context.Context, user, password, otpToken strin
 		return trace.Wrap(err)
 	}
 
+	c.clusterClient.AuthConnector = constants.LocalConnector
 	// TODO(alex-kovoy): SiteName needs to be reset if trying to login to a cluster with
 	// existing profile for the first time (investigate why)
 	c.clusterClient.SiteName = ""
@@ -138,6 +139,8 @@ func (c *Cluster) SSOLogin(ctx context.Context, providerType, providerName strin
 	if _, err := c.clusterClient.Ping(ctx); err != nil {
 		return trace.Wrap(err)
 	}
+
+	c.clusterClient.AuthConnector = providerName
 
 	key, err := client.GenerateRSAKey()
 	if err != nil {
