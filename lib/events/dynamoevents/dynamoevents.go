@@ -469,7 +469,7 @@ func (l *Log) GetSessionChunk(namespace string, sid session.ID, offsetBytes, max
 //
 // This function is usually used in conjunction with GetSessionReader to
 // replay recorded session streams.
-func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlcudePrintEvents bool) ([]events.EventFields, error) {
+func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error) {
 	var values []events.EventFields
 	query := "SessionID = :sessionID AND EventIndex >= :eventIndex"
 	attributes := map[string]interface{}{
