@@ -188,9 +188,8 @@ func (s *AuthSuite) GenerateUserCert(t *testing.T) {
 	require.NoError(t, err)
 	parsedCert, err = sshutils.ParseCertificate(cert)
 	require.NoError(t, err)
-	devId, ok := parsedCert.Extensions[teleport.CertExtensionMFAVerified]
-	require.True(t, ok)
-	require.Equal(t, "mfa-device-id", devId)
+	require.Contains(t, parsedCert.Extensions, teleport.CertExtensionMFAVerified)
+	require.Equal(t, "mfa-device-id", parsedCert.Extensions[teleport.CertExtensionMFAVerified])
 	prevIdExpiresStr, ok := parsedCert.Extensions[teleport.CertExtensionPreviousIdentityExpires]
 	require.True(t, ok)
 	prevIdExpires, err := time.Parse(time.RFC3339, prevIdExpiresStr)
