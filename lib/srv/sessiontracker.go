@@ -21,13 +21,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/jonboulle/clockwork"
-
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // SessionTracker is a session tracker for a specific session. It tracks
@@ -45,17 +46,15 @@ type SessionTracker struct {
 
 // NewSessionTracker returns a new SessionTracker for the given types.SessionTracker
 func NewSessionTracker(ctx context.Context, trackerSpec types.SessionTrackerSpecV1, service services.SessionTrackerService) (*SessionTracker, error) {
-	if service == nil {
-		return nil, trace.BadParameter("missing parameter service")
-	}
-
 	t, err := types.NewSessionTracker(trackerSpec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if t, err = service.CreateSessionTracker(ctx, t); err != nil {
-		return nil, trace.Wrap(err)
+	if service != nil {
+		if t, err = service.CreateSessionTracker(ctx, t); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return &SessionTracker{
@@ -73,29 +72,94 @@ func (s *SessionTracker) Close(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
-const sessionTrackerExpirationUpdateInterval = apidefaults.SessionTrackerTTL / 6
+const sessionTrackerExpirationUpdateInterval = apidefaults.SessionTrackerTTL / 3
 
-// UpdateExpirationLoop extends the session tracker expiration by 1 hour every 10 minutes
-// until the SessionTracker or ctx is closed.
+// UpdateExpirationLoop extends the session tracker expiration by 30 minutes every 10 minutes
+// until the SessionTracker or ctx is closed. If there is a failure to write the updated
+// SessionTracker to the backend, the write is retried with exponential backoff up until the original
+// SessionTracker expiry.
 func (s *SessionTracker) UpdateExpirationLoop(ctx context.Context, clock clockwork.Clock) error {
 	ticker := clock.NewTicker(sessionTrackerExpirationUpdateInterval)
-	defer ticker.Stop()
-	return s.updateExpirationLoop(ctx, ticker)
-}
+	defer func() {
+		// ensure the correct ticker is stopped due to reassignment below
+		ticker.Stop()
+	}()
 
-// updateExpirationLoop is used in tests
-func (s *SessionTracker) updateExpirationLoop(ctx context.Context, ticker clockwork.Ticker) error {
 	for {
 		select {
-		case time := <-ticker.Chan():
-			expiry := time.Add(apidefaults.SessionTrackerTTL)
+		case t := <-ticker.Chan():
+			expiry := t.Add(apidefaults.SessionTrackerTTL)
 			if err := s.UpdateExpiration(ctx, expiry); err != nil {
-				return trace.Wrap(err)
+				// If the tracker doesn't exist in the backend then
+				// the update loop will never succeed.
+				if trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+
+				// Stop the ticker so that it doesn't
+				// keep accumulating ticks while we are retrying.
+				ticker.Stop()
+
+				if err := s.retryUpdate(ctx, clock); err != nil {
+					return trace.Wrap(err)
+				}
+
+				// Tracker was updated, create a new ticker and proceed with the update
+				// loop.
+				// Note: clockwork.Ticker doesn't support Reset, if and when it does
+				// we should use that instead of creating a new ticker.
+				ticker = clock.NewTicker(sessionTrackerExpirationUpdateInterval)
 			}
 		case <-ctx.Done():
 			return nil
 		case <-s.closeC:
 			return nil
+		}
+	}
+}
+
+// retryUpdate attempts to periodically retry updating the session tracker
+func (s *SessionTracker) retryUpdate(ctx context.Context, clock clockwork.Clock) error {
+	retry, err := utils.NewLinear(utils.LinearConfig{
+		Clock:  clock,
+		Max:    3 * time.Minute,
+		Step:   time.Minute,
+		Jitter: utils.NewHalfJitter(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	originalExpiry := s.tracker.Expiry()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-s.closeC:
+			return nil
+		case <-retry.After():
+			retry.Inc()
+
+			// try sending another update
+			err := s.UpdateExpiration(ctx, clock.Now().Add(apidefaults.SessionTrackerTTL))
+
+			// update was successful return
+			if err == nil {
+				return nil
+			}
+
+			// the tracker wasn't found which means we were
+			// able to reach the auth server, but the tracker
+			// no longer exists and likely expired
+			if trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+
+			// the tracker has grown stale and retrying
+			// can be aborted
+			if clock.Now().UTC().After(originalExpiry.UTC()) {
+				return trace.Wrap(err)
+			}
 		}
 	}
 }
@@ -106,15 +170,18 @@ func (s *SessionTracker) UpdateExpiration(ctx context.Context, expiry time.Time)
 	s.tracker.SetExpiry(expiry)
 	s.trackerCond.Broadcast()
 
-	err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
-		SessionID: s.tracker.GetSessionID(),
-		Update: &proto.UpdateSessionTrackerRequest_UpdateExpiry{
-			UpdateExpiry: &proto.SessionTrackerUpdateExpiry{
-				Expires: &expiry,
+	if s.service != nil {
+		err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
+			SessionID: s.tracker.GetSessionID(),
+			Update: &proto.UpdateSessionTrackerRequest_UpdateExpiry{
+				UpdateExpiry: &proto.SessionTrackerUpdateExpiry{
+					Expires: &expiry,
+				},
 			},
-		},
-	})
-	return trace.Wrap(err)
+		})
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func (s *SessionTracker) AddParticipant(ctx context.Context, p *types.Participant) error {
@@ -123,15 +190,19 @@ func (s *SessionTracker) AddParticipant(ctx context.Context, p *types.Participan
 	s.tracker.AddParticipant(*p)
 	s.trackerCond.Broadcast()
 
-	err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
-		SessionID: s.tracker.GetSessionID(),
-		Update: &proto.UpdateSessionTrackerRequest_AddParticipant{
-			AddParticipant: &proto.SessionTrackerAddParticipant{
-				Participant: p,
+	if s.service != nil {
+		err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
+			SessionID: s.tracker.GetSessionID(),
+			Update: &proto.UpdateSessionTrackerRequest_AddParticipant{
+				AddParticipant: &proto.SessionTrackerAddParticipant{
+					Participant: p,
+				},
 			},
-		},
-	})
-	return trace.Wrap(err)
+		})
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 func (s *SessionTracker) RemoveParticipant(ctx context.Context, participantID string) error {
@@ -140,15 +211,19 @@ func (s *SessionTracker) RemoveParticipant(ctx context.Context, participantID st
 	s.tracker.RemoveParticipant(participantID)
 	s.trackerCond.Broadcast()
 
-	err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
-		SessionID: s.tracker.GetSessionID(),
-		Update: &proto.UpdateSessionTrackerRequest_RemoveParticipant{
-			RemoveParticipant: &proto.SessionTrackerRemoveParticipant{
-				ParticipantID: participantID,
+	if s.service != nil {
+		err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
+			SessionID: s.tracker.GetSessionID(),
+			Update: &proto.UpdateSessionTrackerRequest_RemoveParticipant{
+				RemoveParticipant: &proto.SessionTrackerRemoveParticipant{
+					ParticipantID: participantID,
+				},
 			},
-		},
-	})
-	return trace.Wrap(err)
+		})
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 func (s *SessionTracker) UpdateState(ctx context.Context, state types.SessionState) error {
@@ -157,15 +232,19 @@ func (s *SessionTracker) UpdateState(ctx context.Context, state types.SessionSta
 	s.tracker.SetState(state)
 	s.trackerCond.Broadcast()
 
-	err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
-		SessionID: s.tracker.GetSessionID(),
-		Update: &proto.UpdateSessionTrackerRequest_UpdateState{
-			UpdateState: &proto.SessionTrackerUpdateState{
-				State: state,
+	if s.service != nil {
+		err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
+			SessionID: s.tracker.GetSessionID(),
+			Update: &proto.UpdateSessionTrackerRequest_UpdateState{
+				UpdateState: &proto.SessionTrackerUpdateState{
+					State: state,
+				},
 			},
-		},
-	})
-	return trace.Wrap(err)
+		})
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // WaitForStateUpdate waits for the tracker's state to be updated and returns the new state.
@@ -178,30 +257,6 @@ func (s *SessionTracker) WaitForStateUpdate(initialState types.SessionState) typ
 			return state
 		}
 		s.trackerCond.Wait()
-	}
-}
-
-// WaitOnState waits until the desired state is reached or the context is canceled.
-func (s *SessionTracker) WaitOnState(ctx context.Context, wanted types.SessionState) error {
-	go func() {
-		<-ctx.Done()
-		s.trackerCond.Broadcast()
-	}()
-
-	s.trackerCond.L.Lock()
-	defer s.trackerCond.L.Unlock()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			if s.tracker.GetState() == wanted {
-				return nil
-			}
-
-			s.trackerCond.Wait()
-		}
 	}
 }
 

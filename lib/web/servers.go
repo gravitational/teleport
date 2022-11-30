@@ -21,7 +21,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/trace"
@@ -35,25 +34,16 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindKubernetesCluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clusters, err := types.ResourcesWithLabels(resp.Resources).AsKubeClusters()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	accessChecker, err := ctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return listResourcesGetResponse{
-		Items:      ui.MakeKubeClusters(clusters, accessChecker.Roles()),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
-	}, nil
+	resp, err := handleClusterKubesGet(clt, r, accessChecker.Roles())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
 }
 
 // clusterDatabasesGet returns a list of db servers in a form the UI can present.
@@ -63,27 +53,11 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindDatabaseServer)
+	res, err := handleClusterDatabasesGet(clt, r, h.auth.clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	servers, err := types.ResourcesWithLabels(resp.Resources).AsDatabaseServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Make a list of all proxied databases.
-	var databases []types.Database
-	for _, server := range servers {
-		databases = append(databases, server.GetDatabase())
-	}
-
-	return listResourcesGetResponse{
-		Items:      ui.MakeDatabases(h.auth.clusterName, databases),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
-	}, nil
+	return res, nil
 }
 
 // clusterDesktopsGet returns a list of desktops in a form the UI can present.
@@ -93,21 +67,11 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindWindowsDesktop)
+	res, err := handleClusterDesktopsGet(clt, r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	windowsDesktops, err := types.ResourcesWithLabels(resp.Resources).AsWindowsDesktops()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return listResourcesGetResponse{
-		Items:      ui.MakeDesktops(windowsDesktops),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
-	}, nil
+	return res, nil
 }
 
 // clusterDesktopServicesGet returns a list of desktop services in a form the UI can present.
@@ -131,8 +95,8 @@ func (h *Handler) clusterDesktopServicesGet(w http.ResponseWriter, r *http.Reque
 
 	return listResourcesGetResponse{
 		Items:      ui.MakeDesktopServices(desktopServices),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		StartKey:   &resp.NextKey,
+		TotalCount: &resp.TotalCount,
 	}, nil
 }
 
@@ -180,33 +144,27 @@ func (h *Handler) desktopIsActive(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	checker, err := ctx.GetUserAccessChecker()
+	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-L:
 	for _, tracker := range trackers {
-		desktops, err := h.auth.accessPoint.GetWindowsDesktops(r.Context(), types.WindowsDesktopFilter{Name: tracker.GetDesktopName()})
+		// clt is an auth.ClientI with the role of the user, so
+		// clt.GetWindowsDesktops() can be used to confirm that
+		// the user has access to the requested desktop.
+		desktops, err := clt.GetWindowsDesktops(r.Context(),
+			types.WindowsDesktopFilter{Name: tracker.GetDesktopName()})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		if len(desktops) == 0 {
+			// There are no active sessions for this desktop
+			// or the user doesn't have access to it
 			break
-		}
-
-		err = checker.CheckAccess(desktops[0], services.AccessMFAParams{})
-		switch {
-		case err == nil:
+		} else {
 			return desktopIsActive{true}, nil
-		case trace.IsAccessDenied(err):
-			// Use default behavior of this function
-			// so that information about desktops user
-			// doesn't have access to isn't leaked
-			break L
-		default:
-			return nil, trace.Wrap(err)
 		}
 	}
 

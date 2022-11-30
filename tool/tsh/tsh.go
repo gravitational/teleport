@@ -376,6 +376,12 @@ type CLIConf struct {
 	// cmdRunner is a custom function to execute provided exec.Cmd. Mainly used
 	// in testing.
 	cmdRunner func(*exec.Cmd) error
+
+	// kubeConfigPath is the location of the Kubeconfig for the current test.
+	// Setting this value allows Teleport tests to run `tsh login` commands in
+	// parallel.
+	// It shouldn't be used outside testing.
+	kubeConfigPath string
 }
 
 // Stdout returns the stdout writer.
@@ -1260,18 +1266,21 @@ func exportSession(cf *CLIConf) error {
 		// when playing from a file, id is not included, this
 		// makes the outputs otherwise identical
 		delete(event, "id")
-		var e []byte
-		var err error
-		if format == teleport.JSON {
-			e, err = utils.FastMarshal(event)
-		} else {
-			e, err = yaml.Marshal(event)
-		}
-		if err != nil {
+	}
+
+	switch format {
+	case teleport.JSON:
+		if err := utils.WriteJSON(os.Stdout, events); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(string(e))
+	case teleport.YAML:
+		if err := utils.WriteYAML(os.Stdout, events); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.Errorf("Invalid format %s, only pty, json and yaml are supported", format)
 	}
+
 	return nil
 }
 
