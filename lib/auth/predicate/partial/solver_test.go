@@ -23,8 +23,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestSolverIntEq tests solving for a single integer equality.
 func TestSolverIntEq(t *testing.T) {
-	state := NewCachedSolver()
+	state := NewSolver()
 	x, err := state.PartialSolveForAll("x == 7", func(s []string) any {
 		return nil
 	}, "x", TypeInt, 10*time.Second)
@@ -34,8 +35,9 @@ func TestSolverIntEq(t *testing.T) {
 	require.Equal(t, "7", x[0].String())
 }
 
+// TestSolverStringExpMultiSolution tests solving against a string equality expression with two solutions.
 func TestSolverStringExpMultiSolution(t *testing.T) {
-	state := NewCachedSolver()
+	state := NewSolver()
 	x, err := state.PartialSolveForAll("x == \"blah\" || x == \"root\"", func(s []string) any {
 		return nil
 	}, "x", TypeString, 10*time.Second)
@@ -46,8 +48,9 @@ func TestSolverStringExpMultiSolution(t *testing.T) {
 	require.Equal(t, "\"root\"", x[1].String())
 }
 
+// BenchmarkSolverStringExpMultiSolution benchmarks TestSolverStringExpMultiSolution for performance monitoring.
 func BenchmarkSolverStringExpMultiSolution(b *testing.B) {
-	state := NewCachedSolver()
+	state := NewSolver()
 
 	for i := 0; i < b.N; i++ {
 		x, err := state.PartialSolveForAll("x == \"blah\" || x == \"root\"", func(s []string) any {
