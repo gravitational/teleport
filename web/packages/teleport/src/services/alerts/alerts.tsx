@@ -25,8 +25,8 @@ export type ClusterAlert = {
   metadata: {
     name: string;
     labels: { [key: string]: string }; //"teleport.internal/alert-on-login": "yes",
+    expires: string; //2022-08-31T17:26:05.728149Z
   };
-  expires: string; //2022-08-31T17:26:05.728149Z
   spec: {
     severity: number;
     message: string;
