@@ -20,15 +20,15 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 const (
@@ -136,8 +136,9 @@ func (a *eksFetcher) getEKSClusters(ctx context.Context) (types.KubeClusters, er
 func (a *eksFetcher) ResourceType() string {
 	return types.KindKubernetesCluster
 }
+
 func (a *eksFetcher) Cloud() string {
-	return AWS
+	return types.CloudAWS
 }
 
 // awsEKSTagsToLabels converts EKS tags to a labels map.

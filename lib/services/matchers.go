@@ -17,10 +17,10 @@ limitations under the License.
 package services
 
 import (
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // ResourceMatcher matches cluster resources.
@@ -74,6 +74,18 @@ type AzureMatcher struct {
 	Regions []string
 	// ResourceTags are Azure tags to match.
 	ResourceTags types.Labels
+}
+
+// GCPMatcher matches GCP resources.
+type GCPMatcher struct {
+	// Types are GKE resource types to match: "gke".
+	Types []string `yaml:"types,omitempty"`
+	// Locations are GCP locations to search resources for.
+	Locations []string `yaml:"locations,omitempty"`
+	// Tags are GCP labels to match.
+	Tags types.Labels `yaml:"tags,omitempty"`
+	// ProjectIDs are the GCP project IDs where the resources are deployed.
+	ProjectIDs []string `yaml:"project_ids,omitempty"`
 }
 
 // MatchResourceLabels returns true if any of the provided selectors matches the provided database.

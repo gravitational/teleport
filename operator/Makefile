@@ -20,6 +20,25 @@ SHELL = /usr/bin/env bash -o pipefail
 # include BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables
 include ../build.assets/images.mk
 
+# Configure which compiler and buildbox to use
+OS ?= $(shell go env GOOS)
+ARCH ?= $(shell go env GOARCH)
+ifeq ("$(OS)","linux")
+ifeq ("$(ARCH)","amd64")
+COMPILER ?= x86_64-linux-gnu-gcc
+PLATFORM_BUILDBOX ?= $(BUILDBOX)
+else ifeq ("$(ARCH)","386")
+COMPILER ?= x86_64-linux-gnu-gcc
+PLATFORM_BUILDBOX ?= $(BUILDBOX)
+else ifeq ("$(ARCH)","arm")
+COMPILER ?= arm-linux-gnueabihf-gcc
+PLATFORM_BUILDBOX ?= $(BUILDBOX_ARM)
+else ifeq ("$(ARCH)","arm64")
+COMPILER ?= aarch64-linux-gnu-gcc
+PLATFORM_BUILDBOX ?= $(BUILDBOX_ARM)
+endif
+endif
+
 .PHONY: all
 all: build
 
@@ -65,11 +84,10 @@ manifests: crdgen controller-gen ## Generate WebhookConfiguration, ClusterRole a
 		../api/proto/teleport/legacy/types/types.proto
 	rm -rf $(CUSTOM_IMPORTS_TMP_DIR)
 
-	cp ./config/crd/bases/* ./../examples/chart/teleport-cluster/charts/teleport-operator/templates/
 # Some comments have `{{xyz}}` which triggers the golang templating engine when installing the chart.
 # We don't want that, so we escape them.
-	sed -i 's/`{{/{{ `{{/g' ./../examples/chart/teleport-cluster/charts/teleport-operator/templates/*.yaml
-	sed -i 's/}}`/}}` }}/g' ./../examples/chart/teleport-cluster/charts/teleport-operator/templates/*.yaml
+	$(foreach file, $(wildcard $(CURDIR)/config/crd/bases/*), \
+		$(shell sed 's/`{{/{{ `{{/g;s/}}`/}}` }}/g' $(file) > $(CURDIR)/../examples/chart/teleport-cluster/charts/teleport-operator/templates/$(notdir $(file))))
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -103,7 +121,8 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	docker build --build-arg BUILDBOX=$(BUILDBOX) -t ${IMG} .. -f ./Dockerfile
+	docker buildx build --platform="$(OS)/$(ARCH)" --build-arg BUILDBOX=$(PLATFORM_BUILDBOX) \
+		--build-arg COMPILER_NAME=$(COMPILER) -t ${IMG} --load .. -f ./Dockerfile
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.

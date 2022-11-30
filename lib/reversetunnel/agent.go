@@ -22,22 +22,23 @@ package reversetunnel
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/constants"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 type AgentState string
@@ -637,17 +638,14 @@ func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 				a.log.Infof("Connection closed, returning")
 				return
 			}
-			r, err := unmarshalDiscoveryRequest(req.Payload)
-			if err != nil {
-				a.log.Warningf("Bad payload: %v.", err)
+
+			var r discoveryRequest
+			if err := json.Unmarshal(req.Payload, &r); err != nil {
+				a.log.WithError(err).Warn("Bad payload")
 				return
 			}
 
-			var proxies []string
-			for _, proxy := range r.Proxies {
-				proxies = append(proxies, proxy.GetName())
-			}
-
+			proxies := r.ProxyNames()
 			a.log.Debugf("Received discovery request: %v", proxies)
 			a.tracker.TrackExpected(proxies...)
 		}

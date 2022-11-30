@@ -21,7 +21,6 @@ import (
 	"net/url"
 
 	"github.com/gravitational/trace"
-
 	"github.com/pquerna/otp"
 )
 

@@ -32,6 +32,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"k8s.io/client-go/transport"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -44,18 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
-
-	"k8s.io/client-go/transport"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -678,6 +676,22 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 				"Impersonate-ev": []string{"evil-ev"},
 			},
 			errAssertion: require.Error,
+		},
+		{
+			desc:       "empty impersonated user header ignored",
+			kubeUsers:  []string{"kube-user-a"},
+			kubeGroups: []string{"kube-group-a", "kube-group-b"},
+			inHeaders: http.Header{
+				"Host":                 []string{"example.com"},
+				ImpersonateUserHeader:  []string{""},
+				ImpersonateGroupHeader: []string{"kube-group-b"},
+			},
+			wantHeaders: http.Header{
+				"Host":                 []string{"example.com"},
+				ImpersonateUserHeader:  []string{"kube-user-a"},
+				ImpersonateGroupHeader: []string{"kube-group-b"},
+			},
+			errAssertion: require.NoError,
 		},
 	}
 	for _, tt := range tests {

@@ -27,6 +27,10 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -42,10 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // AuthCommand implements `tctl auth` group of commands
@@ -139,7 +139,6 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 
 	a.authLS = auth.Command("ls", "List connected auth servers")
 	a.authLS.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&a.format)
-
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
@@ -463,7 +462,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 	}
 	clusterName := cn.GetClusterName()
 
-	key.Cert, err = clusterAPI.GenerateHostCert(key.MarshalSSHPublicKey(),
+	key.Cert, err = clusterAPI.GenerateHostCert(ctx, key.MarshalSSHPublicKey(),
 		"", "", principals,
 		clusterName, types.RoleNode, 0)
 	if err != nil {
@@ -800,6 +799,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		Key:                  key,
 		Format:               a.outputFormat,
 		KubeProxyAddr:        a.proxyAddr,
+		KubeClusterName:      a.kubeCluster,
 		KubeTLSServerName:    kubeTLSServerName,
 		OverwriteDestination: a.signOverwrite,
 	})

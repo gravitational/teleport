@@ -29,7 +29,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -45,12 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/testing/protocmp"
 )
 
 type testConfigFiles struct {
@@ -372,6 +371,16 @@ func TestConfigReading(t *testing.T) {
 					},
 					ResourceGroups: []string{"group1"},
 					Subscriptions:  []string{"sub1"},
+				},
+			},
+			GCPMatchers: []GCPMatcher{
+				{
+					Types:     []string{"gke"},
+					Locations: []string{"uswest1"},
+					Tags: map[string]apiutils.Strings{
+						"a": {"b"},
+					},
+					ProjectIDs: []string{"p1", "p2"},
 				},
 			},
 		},
@@ -832,10 +841,10 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 		},
 	}, protocmp.Transform()))
 
-	require.Equal(t, pkcs11LibPath, cfg.Auth.KeyStore.Path)
-	require.Equal(t, "example_token", cfg.Auth.KeyStore.TokenLabel)
-	require.Equal(t, 1, *cfg.Auth.KeyStore.SlotNumber)
-	require.Equal(t, "example_pin", cfg.Auth.KeyStore.Pin)
+	require.Equal(t, pkcs11LibPath, cfg.Auth.KeyStore.PKCS11.Path)
+	require.Equal(t, "example_token", cfg.Auth.KeyStore.PKCS11.TokenLabel)
+	require.Equal(t, 1, *cfg.Auth.KeyStore.PKCS11.SlotNumber)
+	require.Equal(t, "example_pin", cfg.Auth.KeyStore.PKCS11.Pin)
 	require.ElementsMatch(t, []string{"ca-pin-from-string", "ca-pin-from-file1", "ca-pin-from-file2"}, cfg.CAPins)
 
 	require.True(t, cfg.Databases.Enabled)
@@ -1399,6 +1408,17 @@ func makeConfigFixture() string {
 			},
 			ResourceGroups: []string{"group1"},
 			Subscriptions:  []string{"sub1"},
+		},
+	}
+
+	conf.Discovery.GCPMatchers = []GCPMatcher{
+		{
+			Types:     []string{"gke"},
+			Locations: []string{"uswest1"},
+			Tags: map[string]apiutils.Strings{
+				"a": {"b"},
+			},
+			ProjectIDs: []string{"p1", "p2"},
 		},
 	}
 
@@ -2255,7 +2275,7 @@ db_service:
   - name: foo
     protocol: postgres
 `,
-			outError: `invalid database "foo" address`,
+			outError: `database "foo" URI is empty`,
 		},
 		{
 			desc: "invalid database uri (missing port)",
@@ -2340,7 +2360,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				DatabaseName:     "foo",
 				DatabaseProtocol: defaults.ProtocolPostgres,
 			},
-			outError: `invalid database "foo" address`,
+			outError: `database "foo" URI is empty`,
 		},
 		{
 			desc: "invalid database uri (missing port)",
@@ -2691,7 +2711,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			name: "correct config",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
+					PKCS11: &PKCS11{
 						ModulePath: securePKCS11LibPath,
 						TokenLabel: "foo",
 						SlotNumber: &slotNumber,
@@ -2700,17 +2720,19 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 				},
 			},
 			want: keystore.Config{
-				TokenLabel: "foo",
-				SlotNumber: &slotNumber,
-				Pin:        "pin",
-				Path:       securePKCS11LibPath,
+				PKCS11: keystore.PKCS11Config{
+					TokenLabel: "foo",
+					SlotNumber: &slotNumber,
+					Pin:        "pin",
+					Path:       securePKCS11LibPath,
+				},
 			},
 		},
 		{
 			name: "correct config with pin file",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
+					PKCS11: &PKCS11{
 						ModulePath: securePKCS11LibPath,
 						TokenLabel: "foo",
 						SlotNumber: &slotNumber,
@@ -2719,17 +2741,19 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 				},
 			},
 			want: keystore.Config{
-				TokenLabel: "foo",
-				SlotNumber: &slotNumber,
-				Pin:        "secure-pin-file",
-				Path:       securePKCS11LibPath,
+				PKCS11: keystore.PKCS11Config{
+					TokenLabel: "foo",
+					SlotNumber: &slotNumber,
+					Pin:        "secure-pin-file",
+					Path:       securePKCS11LibPath,
+				},
 			},
 		},
 		{
 			name: "err when pin and pin path configured",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
+					PKCS11: &PKCS11{
 						Pin:     "oops",
 						PinPath: securePinFilePath,
 					},
@@ -2741,7 +2765,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			name: "err when pkcs11 world writable",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
+					PKCS11: &PKCS11{
 						ModulePath: worldWritablePKCS11LibPath,
 					},
 				},
@@ -2755,7 +2779,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			name: "err when pin file world-readable",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
+					PKCS11: &PKCS11{
 						PinPath: worldReadablePinFilePath,
 					},
 				},
@@ -2764,6 +2788,45 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 				"HSM pin file (%s) must not be world-readable",
 				worldReadablePinFilePath,
 			),
+		},
+		{
+			name: "correct gcp config",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					GoogleCloudKMS: &GoogleCloudKMS{
+						KeyRing:         "/projects/my-project/locations/global/keyRings/my-keyring",
+						ProtectionLevel: "HSM",
+					},
+				},
+			},
+			want: keystore.Config{
+				GCPKMS: keystore.GCPKMSConfig{
+					KeyRing:         "/projects/my-project/locations/global/keyRings/my-keyring",
+					ProtectionLevel: "HSM",
+				},
+			},
+		},
+		{
+			name: "gcp config no protection level",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					GoogleCloudKMS: &GoogleCloudKMS{
+						KeyRing: "/projects/my-project/locations/global/keyRings/my-keyring",
+					},
+				},
+			},
+			errMessage: "must set protection_level in ca_key_params.gcp_kms",
+		},
+		{
+			name: "gcp config no keyring",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					GoogleCloudKMS: &GoogleCloudKMS{
+						ProtectionLevel: "HSM",
+					},
+				},
+			},
+			errMessage: "must set keyring in ca_key_params.gcp_kms",
 		},
 	}
 

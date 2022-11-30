@@ -35,10 +35,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // STSMock mocks AWS STS API.
@@ -60,16 +61,24 @@ type RDSMock struct {
 	DBClusters        []*rds.DBCluster
 	DBProxies         []*rds.DBProxy
 	DBProxyEndpoints  []*rds.DBProxyEndpoint
+	DBEngineVersions  []*rds.DBEngineVersion
 	DBProxyTargetPort int64
 }
 
 func (m *RDSMock) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, options ...request.Option) (*rds.DescribeDBInstancesOutput, error) {
+	if err := checkEngineFilters(input.Filters, m.DBEngineVersions); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	instances, err := applyInstanceFilters(m.DBInstances, input.Filters)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if aws.StringValue(input.DBInstanceIdentifier) == "" {
 		return &rds.DescribeDBInstancesOutput{
-			DBInstances: m.DBInstances,
+			DBInstances: instances,
 		}, nil
 	}
-	for _, instance := range m.DBInstances {
+	for _, instance := range instances {
 		if aws.StringValue(instance.DBInstanceIdentifier) == aws.StringValue(input.DBInstanceIdentifier) {
 			return &rds.DescribeDBInstancesOutput{
 				DBInstances: []*rds.DBInstance{instance},
@@ -80,19 +89,33 @@ func (m *RDSMock) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.Des
 }
 
 func (m *RDSMock) DescribeDBInstancesPagesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, fn func(*rds.DescribeDBInstancesOutput, bool) bool, options ...request.Option) error {
+	if err := checkEngineFilters(input.Filters, m.DBEngineVersions); err != nil {
+		return trace.Wrap(err)
+	}
+	instances, err := applyInstanceFilters(m.DBInstances, input.Filters)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	fn(&rds.DescribeDBInstancesOutput{
-		DBInstances: m.DBInstances,
+		DBInstances: instances,
 	}, true)
 	return nil
 }
 
 func (m *RDSMock) DescribeDBClustersWithContext(ctx aws.Context, input *rds.DescribeDBClustersInput, options ...request.Option) (*rds.DescribeDBClustersOutput, error) {
+	if err := checkEngineFilters(input.Filters, m.DBEngineVersions); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusters, err := applyClusterFilters(m.DBClusters, input.Filters)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if aws.StringValue(input.DBClusterIdentifier) == "" {
 		return &rds.DescribeDBClustersOutput{
-			DBClusters: m.DBClusters,
+			DBClusters: clusters,
 		}, nil
 	}
-	for _, cluster := range m.DBClusters {
+	for _, cluster := range clusters {
 		if aws.StringValue(cluster.DBClusterIdentifier) == aws.StringValue(input.DBClusterIdentifier) {
 			return &rds.DescribeDBClustersOutput{
 				DBClusters: []*rds.DBCluster{cluster},
@@ -103,8 +126,15 @@ func (m *RDSMock) DescribeDBClustersWithContext(ctx aws.Context, input *rds.Desc
 }
 
 func (m *RDSMock) DescribeDBClustersPagesWithContext(aws aws.Context, input *rds.DescribeDBClustersInput, fn func(*rds.DescribeDBClustersOutput, bool) bool, options ...request.Option) error {
+	if err := checkEngineFilters(input.Filters, m.DBEngineVersions); err != nil {
+		return trace.Wrap(err)
+	}
+	clusters, err := applyClusterFilters(m.DBClusters, input.Filters)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	fn(&rds.DescribeDBClustersOutput{
-		DBClusters: m.DBClusters,
+		DBClusters: clusters,
 	}, true)
 	return nil
 }
@@ -616,4 +646,82 @@ func (m *MemoryDBMock) UpdateUserWithContext(_ aws.Context, input *memorydb.Upda
 		}
 	}
 	return nil, trace.NotFound("user %s not found", aws.StringValue(input.UserName))
+}
+
+// checkEngineFilters checks RDS filters to detect unrecognized engine filters.
+func checkEngineFilters(filters []*rds.Filter, engineVersions []*rds.DBEngineVersion) error {
+	if len(filters) == 0 {
+		return nil
+	}
+	recognizedEngines := make(map[string]struct{})
+	for _, e := range engineVersions {
+		recognizedEngines[aws.StringValue(e.Engine)] = struct{}{}
+	}
+	for _, f := range filters {
+		if aws.StringValue(f.Name) != "engine" {
+			continue
+		}
+		for _, v := range f.Values {
+			if _, ok := recognizedEngines[aws.StringValue(v)]; !ok {
+				return trace.Errorf("unrecognized engine name %q", aws.StringValue(v))
+			}
+		}
+	}
+	return nil
+}
+
+// applyInstanceFilters filters RDS DBInstances using the provided RDS filters.
+func applyInstanceFilters(in []*rds.DBInstance, filters []*rds.Filter) ([]*rds.DBInstance, error) {
+	if len(filters) == 0 {
+		return in, nil
+	}
+	var out []*rds.DBInstance
+	efs := engineFilterSet(filters)
+	for _, instance := range in {
+		if instanceEngineMatches(instance, efs) {
+			out = append(out, instance)
+		}
+	}
+	return out, nil
+}
+
+// applyClusterFilters filters RDS DBClusters using the provided RDS filters.
+func applyClusterFilters(in []*rds.DBCluster, filters []*rds.Filter) ([]*rds.DBCluster, error) {
+	if len(filters) == 0 {
+		return in, nil
+	}
+	var out []*rds.DBCluster
+	efs := engineFilterSet(filters)
+	for _, cluster := range in {
+		if clusterEngineMatches(cluster, efs) {
+			out = append(out, cluster)
+		}
+	}
+	return out, nil
+}
+
+// engineFilterSet builds a string set of engine names from a list of RDS filters.
+func engineFilterSet(filters []*rds.Filter) map[string]struct{} {
+	out := make(map[string]struct{})
+	for _, f := range filters {
+		if aws.StringValue(f.Name) != "engine" {
+			continue
+		}
+		for _, v := range f.Values {
+			out[aws.StringValue(v)] = struct{}{}
+		}
+	}
+	return out
+}
+
+// instanceEngineMatches returns whether an RDS DBInstance engine matches any engine name in a filter set.
+func instanceEngineMatches(instance *rds.DBInstance, filterSet map[string]struct{}) bool {
+	_, ok := filterSet[aws.StringValue(instance.Engine)]
+	return ok
+}
+
+// clusterEngineMatches returns whether an RDS DBCluster engine matches any engine name in a filter set.
+func clusterEngineMatches(cluster *rds.DBCluster, filterSet map[string]struct{}) bool {
+	_, ok := filterSet[aws.StringValue(cluster.Engine)]
+	return ok
 }

@@ -20,17 +20,17 @@ limitations under the License.
 package bpf
 
 import (
+	"encoding/binary"
+	"os"
+	"sync"
+	"unsafe"
+
 	"github.com/aquasecurity/libbpfgo"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
-
-	"encoding/binary"
-	"os"
-	"sync"
-	"unsafe"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -218,7 +218,7 @@ func (c *Counter) Close() {
 }
 
 func (c *Counter) loop() {
-	for _ = range c.doorbellCh {
+	for range c.doorbellCh {
 		var key int32 = 0
 		cntBytes, err := c.arr.GetValue(unsafe.Pointer(&key))
 		if err != nil {

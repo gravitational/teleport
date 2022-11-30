@@ -232,7 +232,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		if firstStart {
 			log.Infof("Applying %v bootstrap resources (first initialization)", len(cfg.Resources))
-			if err := checkResourceConsistency(asrv.keyStore, domainName, cfg.Resources...); err != nil {
+			if err := checkResourceConsistency(ctx, asrv.keyStore, domainName, cfg.Resources...); err != nil {
 				return nil, trace.Wrap(err, "refusing to bootstrap backend")
 			}
 			if err := local.CreateResources(ctx, cfg.Backend, cfg.Resources...); err != nil {
@@ -359,12 +359,16 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 				return nil, trace.Wrap(err)
 			}
 			log.Infof("First start: generating %s certificate authority.", caID.Type)
-			if err := asrv.createSelfSignedCA(caID); err != nil {
+			if err := asrv.createSelfSignedCA(ctx, caID); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		} else {
-			// Already have a CA. Make sure the keyStore has local keys.
-			if !asrv.keyStore.HasLocalActiveKeys(ca) {
+			// Already have a CA. Make sure the keyStore has usable keys.
+			hasUsableActiveKeys, err := asrv.keyStore.HasUsableActiveKeys(ctx, ca)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if !hasUsableActiveKeys {
 				// This could be one of a few cases:
 				// 1. A new auth server with an HSM being added to an HA cluster.
 				// 2. A new auth server with no HSM being added to an HA cluster
@@ -387,15 +391,26 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 					}
 				}
 			}
-			if !asrv.keyStore.HasLocalActiveKeys(ca) && asrv.keyStore.HasLocalAdditionalKeys(ca) {
-				log.Warnf("This auth server has a newly added or removed HSM and will not " +
-					"be able to perform any signing operations. You must rotate all CAs " +
-					"before routing traffic to this auth server. See https://goteleport.com/docs/admin-guide/#certificate-rotation")
+			hasUsableActiveKeys, err = asrv.keyStore.HasUsableActiveKeys(ctx, ca)
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
-			if !ca.AllKeyTypesMatch() {
-				log.Warnf("%s CA contains a combination of raw and PKCS#11 keys. If you are attempting to"+
-					" configure HSM support, make sure it is configured on all auth servers in this"+
-					" cluster and then perform a CA rotation: https://goteleport.com/docs/admin-guide/#certificate-rotation", caID.Type)
+			hasUsableAdditionalKeys, err := asrv.keyStore.HasUsableAdditionalKeys(ctx, ca)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if !hasUsableActiveKeys && hasUsableAdditionalKeys {
+				log.Warn("This auth server has a newly added or removed HSM and will not " +
+					"be able to perform any signing operations. You must rotate all CAs " +
+					"before routing traffic to this auth server. See https://goteleport.com/docs/management/operations/ca-rotation/")
+			}
+			allKeyTypes := ca.AllKeyTypes()
+			numKeyTypes := len(allKeyTypes)
+			if numKeyTypes > 1 {
+				log.Warnf("%s CA contains a combination of %s and %s keys. If you are attempting to"+
+					" configure HSM or KMS support, make sure it is configured on all auth servers in"+
+					" this cluster and then perform a CA rotation: https://goteleport.com/docs/management/operations/ca-rotation/",
+					caID.Type, strings.Join(allKeyTypes[:numKeyTypes-1], ", "), allKeyTypes[numKeyTypes-1])
 			}
 		}
 	}
@@ -578,7 +593,7 @@ func isFirstStart(ctx context.Context, authServer *Server, cfg InitConfig) (bool
 }
 
 // checkResourceConsistency checks far basic conflicting state issues.
-func checkResourceConsistency(keyStore keystore.KeyStore, clusterName string, resources ...types.Resource) error {
+func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, clusterName string, resources ...types.Resource) error {
 	for _, rsc := range resources {
 		switch r := rsc.(type) {
 		case types.CertAuthority:
@@ -590,11 +605,11 @@ func checkResourceConsistency(keyStore keystore.KeyStore, clusterName string, re
 			var signerErr error
 			switch r.GetType() {
 			case types.HostCA, types.UserCA:
-				_, signerErr = keyStore.GetSSHSigner(r)
+				_, signerErr = keyStore.GetSSHSigner(ctx, r)
 			case types.DatabaseCA:
-				_, _, signerErr = keyStore.GetTLSCertAndSigner(r)
+				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
 			case types.JWTSigner:
-				_, signerErr = keyStore.GetJWTSigner(r)
+				_, signerErr = keyStore.GetJWTSigner(ctx, r)
 			default:
 				return trace.BadParameter("unexpected cert_authority type %s for cluster %v", r.GetType(), clusterName)
 			}

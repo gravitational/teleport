@@ -67,7 +67,9 @@ func TestCreateSAMLUser(t *testing.T) {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: authority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
 		},
 	}
 
@@ -193,7 +195,9 @@ func TestPingSAMLWorkaround(t *testing.T) {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: authority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
 		},
 	}
 
@@ -285,7 +289,9 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: authority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
 		},
 	}
 
@@ -405,7 +411,9 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: authority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
 		},
 	}
 

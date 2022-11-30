@@ -35,6 +35,26 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
+	"github.com/gravitational/oxy/forward"
+	fwdutils "github.com/gravitational/oxy/utils"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/http2"
+	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/httpstream"
+	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/client-go/transport/spdy"
+	kubeexec "k8s.io/client-go/util/exec"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -56,26 +76,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
-	"github.com/gravitational/oxy/forward"
-	fwdutils "github.com/gravitational/oxy/utils"
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
-	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/net/http2"
-	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/httpstream"
-	"k8s.io/client-go/tools/remotecommand"
-	"k8s.io/client-go/transport/spdy"
-	kubeexec "k8s.io/client-go/util/exec"
 )
 
 // KubeServiceType specifies a Teleport service type which can forward Kubernetes requests
@@ -842,9 +842,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	f.mu.Lock()
-	session := f.sessions[sessionID]
-	f.mu.Unlock()
+	session := f.getSession(sessionID)
 	if session == nil {
 		return nil, trace.NotFound("session %v not found", sessionID)
 	}
@@ -864,9 +862,9 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		party := newParty(*ctx, stream.Mode, client)
 		go func() {
 			<-stream.Done()
-			session.mu.Lock()
-			defer session.mu.Unlock()
-			session.leave(party.ID)
+			if err := session.leave(party.ID); err != nil {
+				f.log.WithError(err).Debugf("Participant %q was unable to leave session %s", party.ID, session.id)
+			}
 		}()
 
 		err = session.join(party)
@@ -884,6 +882,32 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	}
 
 	return nil, nil
+}
+
+// getSession retrieves the session from in-memory database.
+// If the session was not found, returns nil.
+// This method locks f.mu.
+func (f *Forwarder) getSession(id uuid.UUID) *session {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.sessions[id]
+}
+
+// setSession sets the session into in-memory database.
+// If the session was not found, returns nil.
+// This method locks f.mu.
+func (f *Forwarder) setSession(id uuid.UUID, sess *session) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.sessions[id] = sess
+}
+
+// deleteSession removes a session.
+// This method locks f.mu.
+func (f *Forwarder) deleteSession(id uuid.UUID) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.sessions, id)
 }
 
 // remoteJoin forwards a join request to a remote cluster.
@@ -1247,18 +1271,18 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	f.mu.Lock()
-	f.sessions[session.id] = session
-	f.mu.Unlock()
+	f.setSession(session.id, session)
 	err = session.join(party)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	<-party.closeC
-	f.mu.Lock()
-	delete(f.sessions, session.id)
-	f.mu.Unlock()
+
+	if err := session.leave(party.ID); err != nil {
+		f.log.WithError(err).Debugf("Participant %q was unable to leave session %s", party.ID, session.id)
+	}
+
 	return nil, nil
 }
 
@@ -1415,7 +1439,16 @@ func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers 
 			if len(values) == 0 || len(values) > 1 {
 				return trace.AccessDenied("%v, invalid user header %q", ImpersonationRequestDeniedMessage, values)
 			}
+			// when Kubernetes go-client sends impersonated groups it also sends the impersonated user.
+			// The issue arrises when the impersonated user was not defined and the user want to just impersonate
+			// a subset of his groups. In that case the request would fail because empty user is not on
+			// ctx.kubeUsers. If Teleport receives an empty impersonated user it will ignore it and later will fill it
+			// with the Teleport username.
+			if len(values[0]) == 0 {
+				continue
+			}
 			impersonateUser = values[0]
+
 			if _, ok := ctx.kubeUsers[impersonateUser]; !ok {
 				return trace.AccessDenied("%v, user header %q is not allowed in roles", ImpersonationRequestDeniedMessage, impersonateUser)
 			}

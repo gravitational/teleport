@@ -26,6 +26,9 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/observability/tracing"
 )
 
 func TestRewritePaths(t *testing.T) {
@@ -128,4 +131,78 @@ func TestReadJSON_ContentType(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMakeTracingHandler(t *testing.T) {
+	t.Parallel()
+
+	newRequest := func(t *testing.T) *http.Request {
+		req, err := http.NewRequest(http.MethodGet, "", nil)
+		require.NoError(t, err)
+
+		return req
+	}
+
+	cases := []struct {
+		name            string
+		req             func(t *testing.T) *http.Request
+		headerAssertion func(t *testing.T, req *http.Request)
+	}{
+		{
+			name: "no tracing context provided",
+			req:  newRequest,
+			headerAssertion: func(t *testing.T, req *http.Request) {
+				require.Empty(t, req.Header.Get(tracing.TraceParent))
+			},
+		},
+		{
+			name: "tracing context provided via header",
+			req: func(t *testing.T) *http.Request {
+				req := newRequest(t)
+				req.Header.Add(tracing.TraceParent, "test")
+				return req
+			},
+			headerAssertion: func(t *testing.T, req *http.Request) {
+				require.Equal(t, "test", req.Header.Get(tracing.TraceParent))
+			},
+		},
+		{
+			name: "tracing context provided via parameter",
+			req: func(t *testing.T) *http.Request {
+				req := newRequest(t)
+				q := req.URL.Query()
+				q.Set(tracing.TraceParent, "test")
+				req.URL.RawQuery = q.Encode()
+				return req
+			},
+			headerAssertion: func(t *testing.T, req *http.Request) {
+				require.Equal(t, "test", req.Header.Get(tracing.TraceParent))
+			},
+		},
+		{
+			name: "header has priority",
+			req: func(t *testing.T) *http.Request {
+				req := newRequest(t)
+				q := req.URL.Query()
+				req.Header.Add(tracing.TraceParent, "header")
+				q.Set(tracing.TraceParent, "parameter")
+				req.URL.RawQuery = q.Encode()
+				return req
+			},
+			headerAssertion: func(t *testing.T, req *http.Request) {
+				require.Equal(t, "header", req.Header.Get(tracing.TraceParent))
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := MakeTracingHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				tt.headerAssertion(t, r)
+			}), teleport.ComponentProxy)
+
+			handler.ServeHTTP(httptest.NewRecorder(), tt.req(t))
+		})
+	}
+
 }

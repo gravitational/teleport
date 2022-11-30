@@ -225,9 +225,9 @@ Service reads these parameters to configure its interactions with S3:
 `s3://bucket/path?region=us-east-1&endpoint=mys3.example.com&insecure=false&disablesse=false&acl=private&use_fips_endpoint=true`
 
 - `region=us-east-1` - set the Amazon region to use.
-- `endpoint=mys3.example.com` - connect to a custom S3 endpoint.
-- `insecure=true` - set to `true` or `false`. If `true`, TLS will be disabled.
-- `disablesse=true` - set to `true` or `false`. If `true`, S3 server-side encryption will be disabled. If `false`, aws:kms (Key Management Service) will be used for server-side encryption. Other SSE types are not supported at this time.
+- `endpoint=mys3.example.com` - connect to a custom S3 endpoint. Optional.
+- `insecure=true` - set to `true` or `false`. If `true`, TLS will be disabled. Default value is `false`.
+- `disablesse=true` - set to `true` or `false`. If `true`, S3 server-side encryption will be disabled. If `false`, aws:kms (Key Management Service) will be used for server-side encryption. Other SSE types are not supported at this time. Setting `insecure=true` implicitly sets `disablesse=true`.
 - `sse_kms_key=kms_key_id` - If set to a valid AWS KMS CMK key ID all objects uploaded to S3 will be encrypted with this key. Details can be found below.
 - `acl=private` - set the [canned ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl) to use. Must be one of the predefined ACL values.
 - `use_fips_endpoint=true` -  [Configure S3 FIPS endpoints](#configuring-aws-fips-endpoints)
@@ -669,19 +669,20 @@ teleport:
     audit_events_uri:  ['firestore://Example_TELEPORT_FIRESTORE_EVENTS_TABLE_NAME', 'file:///var/lib/teleport/audit/events', 'stdout://']
 
     # This setting configures Teleport to save the recorded sessions in GCP storage:
-    audit_sessions_uri: gs://Example_TELEPORT_S3_BUCKET/records
+    audit_sessions_uri: gs://Example_TELEPORT_GCS_BUCKET/records
 ```
 
 - Replace `Example_GCP_Project_Name` and `Example_TELEPORT_FIRESTORE_TABLE_NAME`
   with your own settings. Teleport will create the table automatically.
 - `Example_TELEPORT_FIRESTORE_TABLE_NAME` and `Example_TELEPORT_FIRESTORE_EVENTS_TABLE_NAME`
-  **must** be different Firestore tables. The schema is different for each. Using the same table name for both will result in errors.
+  **must** be different Firestore tables. The schema is different for each.
+  Using the same table name for both will result in errors.
 - The GCP authentication setting above can be omitted if the machine itself is
   running on a GCE instance with a Service Account that has access to the
   Firestore table.
-- Audit log settings above are optional. If specified, Teleport will store the audit log in Firestore and the session recordings **must** be stored in a GCP
-  bucket, i.e.both `audit_xxx` settings must be present. If they are not set,
-  Teleport will default to a local file  system for the audit log, i.e.
+- Audit log settings above are optional. If specified, Teleport will store the audit log in Firestore 
+  and the session recordings **must** be stored in a GCS bucket, i.e. both `audit_xxx` settings must 
+  be present. If they are not set, Teleport will default to a local filesystem for the audit log, i.e.
   `/var/lib/teleport/log` on an auth server.
 
 ## SQLite
