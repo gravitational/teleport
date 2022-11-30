@@ -19,6 +19,7 @@ require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/Microsoft/go-winio v0.6.0
 	github.com/ThalesIgnite/crypto11 v1.2.5
+	github.com/aclements/go-z3 v0.0.0-20220809013456-4675d5f90ca5
 	github.com/alicebob/miniredis/v2 v2.23.0
 	github.com/aquasecurity/libbpfgo v0.2.5-libbpf-0.7.0
 	github.com/armon/go-radix v1.0.0
@@ -157,8 +158,6 @@ require (
 	github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd // indirect
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
 )
-
-require github.com/aclements/go-z3 v0.0.0-20220809013456-4675d5f90ca5
 
 require (
 	cloud.google.com/go v0.105.0 // indirect
@@ -367,6 +366,7 @@ require (
 
 // Update also `ignore` in .github/dependabot.yml.
 replace (
+	github.com/aclements/go-z3 => ./go-z3
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.6
 	github.com/datastax/go-cassandra-native-protocol => github.com/gravitational/go-cassandra-native-protocol v0.0.0-20221005103706-b9e66c056e90
 	github.com/denisenkom/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20221006130402-25bef12c7ee1
@@ -379,7 +379,6 @@ replace (
 	github.com/pkg/sftp => github.com/gravitational/sftp v1.13.6-0.20220927202521-0e74d42f8055
 	github.com/sirupsen/logrus => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.2.1
-	github.com/aclements/go-z3 => ./go-z3
 )
 
 // Exclude etcd/v3 from the modules graph.
