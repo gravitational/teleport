@@ -173,7 +173,7 @@ func (s *AuthSuite) GenerateUserCert(t *testing.T) {
 	outImpersonator := parsedCert.Extensions[teleport.CertExtensionImpersonator]
 	require.Empty(t, cmp.Diff(outImpersonator, impersonator))
 
-	// Check that MFAVerified and PreviousIdentityTTL are encoded into ssh cert
+	// Check that MFAVerified and PreviousIdentityExpires are encoded into ssh cert
 	clock := clockwork.NewFakeClock()
 	cert, err = s.A.GenerateUserCert(services.UserCertParams{
 		CASigner:                caSigner,
