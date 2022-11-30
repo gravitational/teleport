@@ -17,65 +17,29 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { TestConnection } from './TestConnection';
+import { TestConnectionView } from './TestConnection';
 
 import type { State } from './useTestConnection';
 
 export default {
-  title: 'Teleport/Discover/Shared/ConnectionDiagnostic/Kube',
+  title: 'Teleport/Discover/Shared/ConnectionDiagnostic/Database',
 };
 
-export const InitWithLocal = () => (
+export const Init = () => (
   <MemoryRouter>
-    <TestConnection {...props} />
+    <TestConnectionView {...props} />
   </MemoryRouter>
 );
 
-export const InitWithSso = () => (
+export const InitWithOnlyDbUsers = () => (
   <MemoryRouter>
-    <TestConnection {...props} authType="sso" />
+    <TestConnectionView {...props} db={{ ...props.db, names: [] }} />
   </MemoryRouter>
 );
 
-export const WithKubeUsers = () => (
+export const InitWithOnlyDbNames = () => (
   <MemoryRouter>
-    <TestConnection
-      {...props}
-      kube={{
-        name: 'some-kube-name',
-        labels: [],
-        users: ['user1', 'user2'],
-        groups: [],
-      }}
-    />
-  </MemoryRouter>
-);
-
-export const WithKubeGroups = () => (
-  <MemoryRouter>
-    <TestConnection
-      {...props}
-      kube={{
-        name: 'some-kube-name',
-        labels: [],
-        users: [],
-        groups: ['group1', 'group2'],
-      }}
-    />
-  </MemoryRouter>
-);
-
-export const WithKubeUsersAndGroups = () => (
-  <MemoryRouter>
-    <TestConnection
-      {...props}
-      kube={{
-        name: 'some-kube-name',
-        labels: [],
-        users: ['user1', 'user2'],
-        groups: ['group1', 'group2'],
-      }}
-    />
+    <TestConnectionView {...props} db={{ ...props.db, users: [] }} />
   </MemoryRouter>
 );
 
@@ -89,13 +53,16 @@ const props: State = {
   prevStep: () => null,
   diagnosis: null,
   canTestConnection: true,
-  kube: {
-    name: 'some-kube-name',
-    labels: [],
-    users: [],
-    groups: [],
-  },
   username: 'teleport-username',
   authType: 'local',
   clusterId: 'some-cluster-id',
+  db: {
+    name: 'dbname',
+    description: 'some desc',
+    type: 'self-hosted',
+    protocol: 'postgres',
+    labels: [],
+    names: ['name1', 'name2'],
+    users: ['user1', 'user2'],
+  },
 };

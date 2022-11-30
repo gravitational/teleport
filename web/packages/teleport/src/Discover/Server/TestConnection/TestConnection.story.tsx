@@ -19,114 +19,17 @@ import { MemoryRouter } from 'react-router';
 
 import { TestConnection } from './TestConnection';
 
-import type { ConnectionDiagnosticTrace } from 'teleport/services/agents';
 import type { State } from './useTestConnection';
 
 export default {
-  title: 'Teleport/Discover/Server/TestConnection',
+  title: 'Teleport/Discover/Shared/ConnectionDiagnostic/Server',
 };
 
-export const LoadedInit = () => (
+export const Init = () => (
   <MemoryRouter>
     <TestConnection {...props} />
   </MemoryRouter>
 );
-
-export const Processing = () => (
-  <MemoryRouter>
-    <TestConnection {...props} attempt={{ status: 'processing' }} />
-  </MemoryRouter>
-);
-
-export const LoadedWithDiagnosisSuccess = () => (
-  <MemoryRouter>
-    <TestConnection {...props} diagnosis={mockDiagnosis} />
-  </MemoryRouter>
-);
-
-export const LoadedWithDiagnosisFailure = () => {
-  const diagnosisWithErr = {
-    ...mockDiagnosis,
-    success: false,
-    traces: [
-      ...mockDiagnosis.traces,
-      {
-        id: '',
-        traceType: 'some trace type',
-        status: 'failed',
-        details:
-          'Invalid user. Please ensure the principal "debian" is a valid Linux login in the target node. Output from Node: Failed to launch: user: unknown user debian.',
-        error: 'ssh: handshake failed: EOF',
-      } as ConnectionDiagnosticTrace,
-      {
-        id: '',
-        traceType: 'some trace type',
-        status: 'failed',
-        details: 'Another error',
-        error: 'some other error',
-      } as ConnectionDiagnosticTrace,
-    ],
-  };
-  return (
-    <MemoryRouter>
-      <TestConnection {...props} diagnosis={diagnosisWithErr} />
-    </MemoryRouter>
-  );
-};
-
-export const LoadedNoPerm = () => (
-  <MemoryRouter>
-    <TestConnection {...props} canTestConnection={false} />
-  </MemoryRouter>
-);
-
-export const Failed = () => (
-  <MemoryRouter>
-    <TestConnection
-      {...props}
-      attempt={{ status: 'failed', statusText: 'some error message' }}
-    />
-  </MemoryRouter>
-);
-
-const mockDiagnosis = {
-  id: 'id',
-  labels: [],
-  success: true,
-  message: 'some diagnosis message',
-  traces: [
-    {
-      traceType: 'rbac node',
-      status: 'success',
-      details: 'Resource exists.',
-    },
-    {
-      traceType: 'network connectivity',
-      status: 'success',
-      details: 'Host is alive and reachable.',
-    },
-    {
-      traceType: 'rbac principal',
-      status: 'success',
-      details: 'Successfully authenticated.',
-    },
-    {
-      traceType: 'node ssh server',
-      status: 'success',
-      details: 'Established an SSH connection.',
-    },
-    {
-      traceType: 'node ssh session',
-      status: 'success',
-      details: 'Created an SSH session.',
-    },
-    {
-      traceType: 'node principal',
-      status: 'success',
-      details: 'User exists message.',
-    },
-  ] as ConnectionDiagnosticTrace[],
-};
 
 const props: State = {
   attempt: {
@@ -135,9 +38,12 @@ const props: State = {
   },
   logins: ['root', 'llama', 'george_washington_really_long_name_testing'],
   startSshSession: () => null,
-  runConnectionDiagnostic: () => null,
+  testConnection: () => null,
   nextStep: () => null,
   prevStep: () => null,
   diagnosis: null,
   canTestConnection: true,
+  username: 'teleport-username',
+  authType: 'local',
+  clusterId: 'some-cluster-id',
 };

@@ -16,8 +16,7 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { ButtonSecondary, Text, Box, Flex, ButtonText } from 'design';
-import * as Icons from 'design/Icon';
+import { Text, Box } from 'design';
 import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
@@ -25,16 +24,13 @@ import FieldSelect from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
-import useTeleport from 'teleport/useTeleport';
 import { generateTshLoginCommand } from 'teleport/lib/util';
-import { YamlReader } from 'teleport/Discover/Shared/SetupAccess/AccessInfo';
 
 import {
   ActionButtons,
-  TextIcon,
   HeaderSubtitle,
-  Mark,
   HeaderWithBackBtn,
+  ConnectionDiagnosticResult,
 } from '../../Shared';
 
 import { useTestConnection, State } from './useTestConnection';
@@ -42,15 +38,14 @@ import { useTestConnection, State } from './useTestConnection';
 import type { AgentStepProps } from '../../types';
 
 export default function Container(props: AgentStepProps) {
-  const ctx = useTeleport();
-  const state = useTestConnection({ ctx, props });
+  const state = useTestConnection(props);
 
   return <TestConnection {...state} />;
 }
 
 export function TestConnection({
   attempt,
-  runConnectionDiagnostic,
+  testConnection,
   diagnosis,
   nextStep,
   prevStep,
@@ -72,38 +67,12 @@ export function TestConnection({
     () => userOpts[0] || { value: username, label: username }
   );
 
-  let $diagnosisStateComponent;
-  if (attempt.status === 'processing') {
-    $diagnosisStateComponent = (
-      <TextIcon>
-        <Icons.Restore fontSize={4} />
-        Testing in-progress
-      </TextIcon>
-    );
-  } else if (attempt.status === 'failed' || (diagnosis && !diagnosis.success)) {
-    $diagnosisStateComponent = (
-      <TextIcon>
-        <Icons.Warning ml={1} color="danger" />
-        Testing failed
-      </TextIcon>
-    );
-  } else if (attempt.status === 'success' && diagnosis?.success) {
-    $diagnosisStateComponent = (
-      <TextIcon>
-        <Icons.CircleCheck ml={1} color="success" />
-        Testing complete
-      </TextIcon>
-    );
-  }
-
-  const showDiagnosisOutput = !!diagnosis || attempt.status === 'failed';
-
   function handleTestConnection(validator: Validator) {
     if (!validator.validate()) {
       return;
     }
 
-    runConnectionDiagnostic({
+    testConnection({
       namespace,
       user: selectedUser?.value,
       groups: selectedGroups?.map(g => g.value),
@@ -181,77 +150,14 @@ export function TestConnection({
               />
             </Box>
           </StyledBox>
-          <StyledBox mb={5}>
-            <Text bold>Step 3</Text>
-            <Text typography="subtitle1" mb={3}>
-              Verify that the Kubernetes is accessible
-            </Text>
-            <Flex alignItems="center" mt={3}>
-              {canTestConnection ? (
-                <>
-                  <ButtonSecondary
-                    width="200px"
-                    onClick={() => handleTestConnection(validator)}
-                    disabled={attempt.status === 'processing'}
-                  >
-                    {diagnosis ? 'Restart Test' : 'Test Connection'}
-                  </ButtonSecondary>
-                  <Box ml={4}>{$diagnosisStateComponent}</Box>
-                </>
-              ) : (
-                <Box>
-                  <Text>
-                    You don't have permission to test connection.
-                    <br />
-                    Please ask your Teleport administrator to update your role
-                    and add the <Mark>connection_diagnostic</Mark> rule:
-                  </Text>
-                  <YamlReader traitKind="ConnDiag" />
-                </Box>
-              )}
-            </Flex>
-            {showDiagnosisOutput && (
-              <Box mt={3}>
-                {attempt.status === 'failed' &&
-                  `Encountered Error: ${attempt.statusText}`}
-                {attempt.status === 'success' && (
-                  <Box>
-                    {diagnosis.traces.map((trace, index) => {
-                      if (trace.status === 'failed') {
-                        return (
-                          <ErrorWithDetails
-                            error={trace.error}
-                            details={trace.details}
-                            key={index}
-                          />
-                        );
-                      }
-                      if (trace.status === 'success') {
-                        return (
-                          <TextIcon
-                            key={index}
-                            css={{ alignItems: 'baseline' }}
-                          >
-                            <Icons.CircleCheck mr={1} color="success" />
-                            {trace.details}
-                          </TextIcon>
-                        );
-                      }
-
-                      // For whatever reason the status is not the value
-                      // of failed or success.
-                      return (
-                        <TextIcon key={index}>
-                          <Icons.Question mr={1} />
-                          {trace.details}
-                        </TextIcon>
-                      );
-                    })}
-                  </Box>
-                )}
-              </Box>
-            )}
-          </StyledBox>
+          <ConnectionDiagnosticResult
+            attempt={attempt}
+            diagnosis={diagnosis}
+            canTestConnection={canTestConnection}
+            testConnection={() => handleTestConnection(validator)}
+            stepNumber={3}
+            stepDescription="Verify that the Kubernetes is accessible"
+          />
           <StyledBox>
             <Text bold mb={3}>
               To Access your Kubernetes cluster
@@ -283,40 +189,9 @@ export function TestConnection({
   );
 }
 
-const ErrorWithDetails = ({
-  details,
-  error,
-}: {
-  details: string;
-  error: string;
-}) => {
-  const [showMore, setShowMore] = useState(false);
-  return (
-    <TextIcon css={{ alignItems: 'baseline' }}>
-      <Icons.CircleCross mr={1} color="danger" />
-      <div>
-        <div>{details}</div>
-        <div>
-          <ButtonShowMore onClick={() => setShowMore(p => !p)}>
-            {showMore ? 'Hide' : 'Click for extra'} details
-          </ButtonShowMore>
-          {showMore && <div>{error}</div>}
-        </div>
-      </div>
-    </TextIcon>
-  );
-};
-
 const StyledBox = styled(Box)`
   max-width: 800px;
   background-color: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
   padding: 20px;
-`;
-
-const ButtonShowMore = styled(ButtonText)`
-  min-height: auto;
-  padding: 0;
-  font-weight: inherit;
-  text-decoration: underline;
 `;

@@ -14,11 +14,9 @@
  * limitations under the License.
  */
 
-import cfg from 'teleport/config';
-import { openNewTab } from 'teleport/lib/util';
 import { useConnectionDiagnostic } from 'teleport/Discover/Shared';
 
-import { NodeMeta } from '../../useDiscover';
+import { DbMeta } from '../../useDiscover';
 
 import type { AgentStepProps } from '../../types';
 
@@ -26,40 +24,20 @@ export function useTestConnection(props: AgentStepProps) {
   const { runConnectionDiagnostic, ...connectionDiagnostic } =
     useConnectionDiagnostic(props);
 
-  function startSshSession(login: string) {
-    const meta = props.agentMeta as NodeMeta;
-    const url = cfg.getSshConnectRoute({
-      clusterId: connectionDiagnostic.clusterId,
-      serverId: meta.node.id,
-      login,
-    });
-
-    openNewTab(url);
-  }
-
-  function testConnection(login: string) {
+  function testConnection() {
     runConnectionDiagnostic({
-      resourceKind: 'node',
+      resourceKind: 'db',
       resourceName: props.agentMeta.resourceName,
-      sshPrincipal: login,
+      // TODO (lisa or ryan): possible more fields specific to database
+      // once backend finalizes.
     });
   }
 
   return {
     ...connectionDiagnostic,
     testConnection,
-    logins: sortLogins((props.agentMeta as NodeMeta).node.sshLogins),
-    startSshSession,
+    db: (props.agentMeta as DbMeta).db,
   };
 }
-
-// sort logins by making 'root' as the first in the list.
-const sortLogins = (logins: string[]) => {
-  const noRoot = logins.filter(l => l !== 'root').sort();
-  if (noRoot.length === logins.length) {
-    return logins;
-  }
-  return ['root', ...noRoot];
-};
 
 export type State = ReturnType<typeof useTestConnection>;

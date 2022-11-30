@@ -14,59 +14,30 @@
  * limitations under the License.
  */
 
-import { useState } from 'react';
-import useAttempt from 'shared/hooks/useAttemptNext';
-
-import TeleportContext from 'teleport/teleportContext';
+import { useConnectionDiagnostic } from 'teleport/Discover/Shared';
 
 import { KubeMeta } from '../../useDiscover';
 
-import type {
-  ConnectionDiagnostic,
-  KubeImpersonation,
-} from 'teleport/services/agents';
+import type { KubeImpersonation } from 'teleport/services/agents';
 import type { AgentStepProps } from '../../types';
 
-export function useTestConnection({ ctx, props }: Props) {
-  const { attempt, run } = useAttempt('');
-  const [diagnosis, setDiagnosis] = useState<ConnectionDiagnostic>();
+export function useTestConnection(props: AgentStepProps) {
+  const { runConnectionDiagnostic, ...connectionDiagnostic } =
+    useConnectionDiagnostic(props);
 
-  const access = ctx.storeUser.getConnectionDiagnosticAccess();
-  const canTestConnection = access.create && access.edit && access.read;
-
-  function runConnectionDiagnostic(impersonate: KubeImpersonation) {
-    const meta = props.agentMeta as KubeMeta;
-    setDiagnosis(null);
-    run(() =>
-      ctx.agentService
-        .createConnectionDiagnostic({
-          resourceKind: 'kube_cluster',
-          resourceName: meta.kube.name,
-          kubeImpersonation: impersonate,
-        })
-        .then(setDiagnosis)
-    );
+  function testConnection(impersonate: KubeImpersonation) {
+    runConnectionDiagnostic({
+      resourceKind: 'kube_cluster',
+      resourceName: props.agentMeta.resourceName,
+      kubeImpersonation: impersonate,
+    });
   }
 
-  const { username, authType, cluster } = ctx.storeUser.state;
-
   return {
-    attempt,
-    runConnectionDiagnostic,
-    diagnosis,
-    nextStep: props.nextStep,
-    prevStep: props.prevStep,
-    canTestConnection,
+    ...connectionDiagnostic,
+    testConnection,
     kube: (props.agentMeta as KubeMeta).kube,
-    username,
-    authType,
-    clusterId: cluster.clusterId,
   };
 }
-
-type Props = {
-  ctx: TeleportContext;
-  props: AgentStepProps;
-};
 
 export type State = ReturnType<typeof useTestConnection>;

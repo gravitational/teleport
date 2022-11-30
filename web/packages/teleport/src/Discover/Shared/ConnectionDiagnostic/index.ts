@@ -14,17 +14,5 @@
  * limitations under the License.
  */
 
-export { ActionButtons } from './ActionButtons';
-export { ButtonBlueText } from './ButtonBlueText';
-export { Header, HeaderSubtitle, HeaderWithBackBtn } from './Header';
-export { Finished } from './Finished';
-export { Mark } from './Mark';
-export { ReadOnlyYamlEditor } from './YAML';
-export { ResourceKind } from './ResourceKind';
-export { Step, StepContainer } from './Step';
-export { TextBox, TextIcon } from './Text';
-export { LabelsCreater } from './LabelsCreater';
-export {
-  ConnectionDiagnosticResult,
-  useConnectionDiagnostic,
-} from './ConnectionDiagnostic';
+export { ConnectionDiagnosticResult } from './ConnectionDiagnosticResult';
+export { useConnectionDiagnostic } from './useConnectionDiagnostic';
