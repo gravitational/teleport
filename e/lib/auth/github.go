@@ -50,6 +50,10 @@ func (c *GithubConnectorE) CheckAndSetDefaults() error {
 		if url.Host == "" {
 			return trace.BadParameter("endpoint_url is missing a host")
 		}
+	} else {
+		// if endpoint URL is empty, set it to 'https://github.com' which
+		// is always returned by [types.GithubConnectorV3.GetEndpointURL]
+		c.Spec.EndpointURL = c.GithubConnectorV3.GetEndpointURL()
 	}
 
 	return nil
