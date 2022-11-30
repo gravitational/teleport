@@ -106,12 +106,15 @@ func precomputeKeys() {
 }
 
 func precomputeTestKeys() {
-	testKeys, err := loadTestKeys()
+	testKeys, err := generateTestKeys()
 	if err != nil {
+		// Use only in tests. Safe to panic.
 		panic(err)
 	}
 
 	for {
+		// Shuffle keys to reduce potential multiple usage of the
+		// same key in one test.
 		mathrand.Shuffle(len(testKeys), func(i, j int) {
 			testKeys[i], testKeys[j] = testKeys[j], testKeys[i]
 		})
@@ -122,15 +125,18 @@ func precomputeTestKeys() {
 	}
 }
 
-const generateTestKeys = 25
+// testKeysNumber is the number of RSA keys generated in tests.
+const testKeysNumber = 25
 
-func loadTestKeys() ([]*rsa.PrivateKey, error) {
-	privateKeys := make([]*rsa.PrivateKey, 0, generateTestKeys)
+func generateTestKeys() ([]*rsa.PrivateKey, error) {
+	privateKeys := make([]*rsa.PrivateKey, 0, testKeysNumber)
 	keysChan := make(chan *rsa.PrivateKey)
 	errs := make(chan error)
 
 	go func() {
-		for i := 0; i < generateTestKeys; i++ {
+		for i := 0; i < testKeysNumber; i++ {
+			// Generate each key in a separate goroutine to take advantage of
+			// multiple cores if possible.
 			go func() {
 				private, err := generateRSAPrivateKey()
 				if err != nil {
@@ -142,7 +148,7 @@ func loadTestKeys() ([]*rsa.PrivateKey, error) {
 		}
 	}()
 
-	for i := 0; i < generateTestKeys; i++ {
+	for i := 0; i < testKeysNumber; i++ {
 		select {
 		case err := <-errs:
 			return nil, trace.Wrap(err)
@@ -155,14 +161,16 @@ func loadTestKeys() ([]*rsa.PrivateKey, error) {
 }
 
 // PrecomputeKeys sets this package into a mode where a small backlog of keys are
-// computed in advance.  This should only be enabled if large spikes in key computation
-// are expected (e.g. in auth/proxy services).  Safe to double-call.
+// computed in advance. This should only be enabled if large spikes in key computation
+// are expected (e.g. in auth/proxy services). Safe to double-call.
 func PrecomputeKeys() {
 	startPrecomputeOnce.Do(func() {
 		go precomputeKeys()
 	})
 }
 
+// PrecomputeTestKeys generates RSA keys and reuse them to reduce CPU usage. This method should
+// only be in tests. Safe to call multiple times.
 func PrecomputeTestKeys() {
 	startPrecomputeOnce.Do(func() {
 		go precomputeTestKeys()
