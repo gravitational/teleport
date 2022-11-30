@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
@@ -1758,6 +1759,118 @@ func Test_setDBName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := setDBName(tt.meta, tt.firstNamePart, tt.extraNameParts...)
 			require.Equal(t, tt.want, result)
+		})
+	}
+}
+
+func TestNewDatabaseFromAzureSQLServer(t *testing.T) {
+	for _, tc := range []struct {
+		desc        string
+		server      *armsql.Server
+		expectedErr require.ErrorAssertionFunc
+		expectedDB  require.ValueAssertionFunc
+	}{
+		{
+			desc: "complete server",
+			server: &armsql.Server{
+				ID:       to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-groupd/providers/Microsoft.Sql/servers/sqlserver"),
+				Name:     to.Ptr("sqlserver"),
+				Location: to.Ptr("westus"),
+				Properties: &armsql.ServerProperties{
+					FullyQualifiedDomainName: to.Ptr("sqlserver.database.windows.net"),
+					Version:                  to.Ptr("12.0"),
+				},
+			},
+			expectedErr: require.NoError,
+			expectedDB: func(t require.TestingT, i interface{}, _ ...interface{}) {
+				db, ok := i.(types.Database)
+				require.True(t, ok, "expected types.Database, got %T", i)
+
+				require.Equal(t, db.GetProtocol(), defaults.ProtocolSQLServer)
+				require.Equal(t, "sqlserver", db.GetName())
+				require.Equal(t, "sqlserver.database.windows.net:1433", db.GetURI())
+				require.Equal(t, "sqlserver", db.GetAzure().Name)
+				require.Equal(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-groupd/providers/Microsoft.Sql/servers/sqlserver", db.GetAzure().ResourceID)
+
+				// Assert labels
+				labels := db.GetMetadata().Labels
+				require.Equal(t, types.OriginCloud, labels[types.OriginLabel])
+				require.Equal(t, "westus", labels[labelRegion])
+				require.Equal(t, "12.0", labels[labelEngineVersion])
+			},
+		},
+		{
+			desc:        "empty properties",
+			server:      &armsql.Server{Properties: nil},
+			expectedErr: require.Error,
+			expectedDB:  require.Nil,
+		},
+		{
+			desc:        "empty FQDN",
+			server:      &armsql.Server{Properties: &armsql.ServerProperties{FullyQualifiedDomainName: nil}},
+			expectedErr: require.Error,
+			expectedDB:  require.Nil,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			database, err := NewDatabaseFromAzureSQLServer(tc.server)
+			tc.expectedErr(t, err)
+			tc.expectedDB(t, database)
+		})
+	}
+}
+
+func TestNewDatabaseFromAzureManagedSQLServer(t *testing.T) {
+	for _, tc := range []struct {
+		desc        string
+		server      *armsql.ManagedInstance
+		expectedErr require.ErrorAssertionFunc
+		expectedDB  require.ValueAssertionFunc
+	}{
+		{
+			desc: "complete server",
+			server: &armsql.ManagedInstance{
+				ID:       to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-groupd/providers/Microsoft.Sql/servers/sqlserver"),
+				Name:     to.Ptr("sqlserver"),
+				Location: to.Ptr("westus"),
+				Properties: &armsql.ManagedInstanceProperties{
+					FullyQualifiedDomainName: to.Ptr("sqlserver.database.windows.net"),
+				},
+			},
+			expectedErr: require.NoError,
+			expectedDB: func(t require.TestingT, i interface{}, _ ...interface{}) {
+				db, ok := i.(types.Database)
+				require.True(t, ok, "expected types.Database, got %T", i)
+
+				require.Equal(t, db.GetProtocol(), defaults.ProtocolSQLServer)
+				require.Equal(t, "sqlserver", db.GetName())
+				require.Equal(t, "sqlserver.database.windows.net:1433", db.GetURI())
+				require.Equal(t, "sqlserver", db.GetAzure().Name)
+				require.Equal(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-groupd/providers/Microsoft.Sql/servers/sqlserver", db.GetAzure().ResourceID)
+
+				// Assert labels
+				labels := db.GetMetadata().Labels
+				require.Equal(t, types.OriginCloud, labels[types.OriginLabel])
+				require.Equal(t, "westus", labels[labelRegion])
+			},
+		},
+		{
+			desc:        "empty properties",
+			server:      &armsql.ManagedInstance{Properties: nil},
+			expectedErr: require.Error,
+			expectedDB:  require.Nil,
+		},
+		{
+			desc:        "empty FQDN",
+			server:      &armsql.ManagedInstance{Properties: &armsql.ManagedInstanceProperties{FullyQualifiedDomainName: nil}},
+			expectedErr: require.Error,
+			expectedDB:  require.Nil,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			database, err := NewDatabaseFromAzureManagedSQLServer(tc.server)
+			tc.expectedErr(t, err)
+			tc.expectedDB(t, database)
 		})
 	}
 }
