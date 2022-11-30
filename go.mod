@@ -33,7 +33,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.72.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.17.5
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
-	github.com/beevik/etree v1.1.0
+	github.com/beevik/etree v1.1.0 // indirect
 	github.com/coreos/go-oidc v2.1.0+incompatible // replaced
 	github.com/coreos/go-semver v0.3.0
 	github.com/creack/pty v1.1.18
@@ -75,7 +75,6 @@ require (
 	github.com/gravitational/trace v1.1.19
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2 v2.0.0-rc.3
-	github.com/hashicorp/golang-lru v0.5.4
 	github.com/jackc/pgconn v1.13.0
 	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa
 	github.com/jackc/pgproto3/v2 v2.3.1
