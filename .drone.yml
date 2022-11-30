@@ -593,7 +593,6 @@ steps:
   - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
   - security find-identity -v
   - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
-  - export DEBUG="electron-*"
   - export CONNECT_TSH_BIN_PATH=$WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build/tsh
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - yarn install && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION
@@ -8043,7 +8042,6 @@ steps:
   - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
   - security find-identity -v
   - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
-  - export DEBUG="electron-*"
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational
   - pkgutil --expand-full tsh-$${VERSION}.pkg tsh
   - export CONNECT_TSH_APP_PATH=$WORKSPACE_DIR/go/src/github.com/gravitational/tsh/Payload/tsh.app
@@ -18269,6 +18267,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: c50cecb03e9ca4c1a58759cd017fb8555b386f1f45938ae84b56bbb396b36ad3
+hmac: 88e09acfb6869d0ff016262f4beb5fbf66b791abcf6513565f6d3ca1eebb09c3
 
 ...
