@@ -19,8 +19,10 @@ package proxy
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -64,11 +66,10 @@ func runPortForwardingWebSocket(req portForwardRequest) error {
 	}
 	defer targetConn.Close()
 
-	// create ReadWriteChannels.
-	channels := make([]wsstream.ChannelType, 0, 2*len(ports))
-	for i := 0; i < len(ports); i++ {
-		// ORDER: DATA,Error
-		channels = append(channels, wsstream.ReadWriteChannel, wsstream.ReadWriteChannel)
+	// One pair of (Data,Error) channels per port.
+	channels := make([]wsstream.ChannelType, 2*len(ports))
+	for i := 0; i < len(channels); i++ {
+		channels[i] = wsstream.ReadWriteChannel
 	}
 
 	// Create a stream upgrader with protocol negotiation.
@@ -120,6 +121,7 @@ func runPortForwardingWebSocket(req portForwardRequest) error {
 			// its components or Kubernetes API server is done using SPDY client
 			// which requires request_id.
 			requestID: fmt.Sprintf("%d", port),
+			podName:   req.podName,
 		}
 
 		portBytes := make([]byte, 2)
@@ -175,9 +177,22 @@ func extractTargetPortsFromStrings(portsStrings []string) ([]uint16, error) {
 // port.
 type websocketChannelPair struct {
 	port        uint16
+	podName     string
 	requestID   string
 	dataStream  io.ReadWriteCloser
 	errorStream io.ReadWriteCloser
+}
+
+func (w *websocketChannelPair) close() {
+	w.dataStream.Close()
+	w.errorStream.Close()
+}
+
+func (w *websocketChannelPair) sendErr(err error) {
+	if err == nil {
+		return
+	}
+	fmt.Fprintf(w.errorStream, "error forwarding port %d to pod %s: %v", w.port, w.podName, err)
 }
 
 // websocketPortforwardHandler is capable of processing a single port forward
@@ -192,7 +207,7 @@ type websocketPortforwardHandler struct {
 	context context.Context
 }
 
-// run ivokes the targetConn SPDY connection and copies the client data into
+// run invokes the targetConn SPDY connection and copies the client data into
 // the targetConn and the responses into the targetConn data stream.
 // If any error occurs, stream is closed an the error is sent via errorStream.
 func (h *websocketPortforwardHandler) run() {
@@ -212,47 +227,45 @@ func (h *websocketPortforwardHandler) run() {
 
 // portForward copies the client and upstream streams.
 func (h *websocketPortforwardHandler) portForward(p *websocketChannelPair) {
-	defer p.dataStream.Close()
-	defer p.errorStream.Close()
-
 	h.Debugf("Forwarding port %v -> %v.", p.requestID, p.port)
-	err := h.forwardStreamPair(p)
-	h.Debugf("Completed forwarding port %v -> %v.", p.requestID, p.port)
+	h.forwardStreamPair(p)
 
-	if err != nil {
-		msg := trace.ConnectionProblem(err, "error forwarding port %d to pod %s", p.port, h.podName)
-		fmt.Fprint(p.errorStream, msg.Error())
-	}
+	h.Debugf("Completed forwarding port %v -> %v.", p.requestID, p.port)
 }
 
-func (h *websocketPortforwardHandler) forwardStreamPair(p *websocketChannelPair) error {
+func (h *websocketPortforwardHandler) forwardStreamPair(p *websocketChannelPair) {
 	// create error stream
 	headers := http.Header{}
 	headers.Set(StreamType, StreamTypeError)
-	headers.Set(PortHeader, fmt.Sprintf("%d", p.port))
+	headers.Set(PortHeader, fmt.Sprint(p.port))
 	headers.Set(PortForwardRequestIDHeader, p.requestID)
 
 	// read and write from the error stream
 	targetErrorStream, err := h.targetConn.CreateStream(headers)
+	h.onPortForward(fmt.Sprintf("%v:%v", h.podName, p.port), err == nil /* success */)
 	if err != nil {
-		h.onPortForward(fmt.Sprintf("%v:%v", h.podName, p.port), false)
-		return trace.ConnectionProblem(err, "error creating error stream for port %d", p.port)
+		p.sendErr(err)
+		p.close()
+		return
 	}
-	h.onPortForward(fmt.Sprintf("%v:%v", h.podName, p.port), true)
 	defer targetErrorStream.Close()
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
 
 	go func() {
+		defer wg.Done()
 		_, err := io.Copy(targetErrorStream, p.errorStream)
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			h.Debugf("Copy stream error: %v.", err)
 		}
 	}()
 
 	errClose := make(chan struct{})
 	go func() {
+		defer wg.Done()
 		defer close(errClose)
 		_, err := io.Copy(p.errorStream, targetErrorStream)
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			h.Debugf("Copy stream error: %v.", err)
 		}
 	}()
@@ -261,28 +274,33 @@ func (h *websocketPortforwardHandler) forwardStreamPair(p *websocketChannelPair)
 	headers.Set(StreamType, StreamTypeData)
 	dataStream, err := h.targetConn.CreateStream(headers)
 	if err != nil {
-		return trace.ConnectionProblem(err, "error creating forwarding stream for port -> %d: %v", p.port, err)
+		p.sendErr(err)
+		p.close()
+		wg.Wait()
+		return
 	}
 	defer dataStream.Close()
 
 	localError := make(chan struct{})
 	remoteDone := make(chan struct{})
-
+	wg.Add(2)
 	go func() {
+		defer wg.Done()
 		// inform the select below that the remote copy is done
 		defer close(remoteDone)
 		// Copy from the remote side to the local port.
-		if _, err := io.Copy(p.dataStream, dataStream); err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
-			h.Errorf("error copying from remote stream to local connection: %v", err)
+		if _, err := io.Copy(p.dataStream, dataStream); err != nil && !errors.Is(err, net.ErrClosed) {
+			h.Errorf("Error copying from remote stream to local connection: %v", err)
 		}
 	}()
 
 	go func() {
+		defer wg.Done()
 		// inform server we're not sending any more data after copy unblocks
 		defer dataStream.Close()
 
 		// Copy from the local port to the target side.
-		if _, err := io.Copy(dataStream, p.dataStream); err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
+		if _, err := io.Copy(dataStream, p.dataStream); err != nil && !errors.Is(err, net.ErrClosed) {
 			h.Warningf("Error copying from local connection to remote stream: %v.", err)
 			// break out of the select below without waiting for the other copy to finish
 			close(localError)
@@ -291,7 +309,7 @@ func (h *websocketPortforwardHandler) forwardStreamPair(p *websocketChannelPair)
 
 	h.Debugf("Streams have been created, Waiting for copy to complete.")
 
-	// wait for either a local->remote error or for copying from remote->local to finish
+	// Wait for either a local->remote error or for copying from remote->local to finish
 	select {
 	case <-remoteDone:
 	case <-localError:
@@ -299,12 +317,23 @@ func (h *websocketPortforwardHandler) forwardStreamPair(p *websocketChannelPair)
 		h.Debugf("Context is closing, cleaning up.")
 	}
 
-	// always expect something on errorChan (it may be nil)
+	// Wait until errClose is terminated indicating the copy is finished.
 	select {
 	case <-errClose:
 	case <-h.context.Done():
 		h.Debugf("Context is closing, cleaning up.")
 	}
+
+	// Close local data stream and error stream.
+	// We need to close the streams first because WebSocket channels are io.Pipes
+	// and if nothing is written or if they are not closed, they will block and the
+	// two goroutines responsible for copying from local connection to upstream
+	// will not complete.
+	// We can safely close the streams because the goroutines responsible
+	// for copying from upstream to local connection already finished.
+	p.close()
+	// Wait until every goroutine exits.
+	wg.Wait()
+
 	h.Infof("Port forwarding pair completed.")
-	return nil
 }

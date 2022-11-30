@@ -52,6 +52,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/httpstream"
+	"k8s.io/apiserver/pkg/util/wsstream"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
 	kubeexec "k8s.io/client-go/util/exec"
@@ -1383,6 +1384,17 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 	}
 	f.log.Debugf("Done %v.", request)
 	return nil, nil
+}
+
+// runPortForwarding checks if the request contains WebSocket upgrade headers and
+// decides which protocol the client expects.
+// Go client uses SPDY while other clients still require WebSockets.
+// This function will run until the end of the execution of the request.
+func runPortForwarding(req portForwardRequest) error {
+	if wsstream.IsWebSocketRequest(req.httpRequest) {
+		return trace.Wrap(runPortForwardingWebSocket(req))
+	}
+	return trace.Wrap(runPortForwardingHTTPStreams(req))
 }
 
 const (

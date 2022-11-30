@@ -23,7 +23,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -74,7 +73,7 @@ func TestPortForwardKubeService(t *testing.T) {
 	require.NoError(t, err)
 
 	type args struct {
-		portforwardBuilder func(*testing.T, portForwardRequestConfig) forwardPorts
+		portforwardClientBuilder func(*testing.T, portForwardRequestConfig) portForwarder
 	}
 	tests := []struct {
 		name string
@@ -83,13 +82,13 @@ func TestPortForwardKubeService(t *testing.T) {
 		{
 			name: "SPDY protocol",
 			args: args{
-				portforwardBuilder: spdyPortForward,
+				portforwardClientBuilder: spdyPortForwardClientBuilder,
 			},
 		},
 		{
 			name: "Websocket protocol",
 			args: args{
-				portforwardBuilder: websocketPortForward,
+				portforwardClientBuilder: websocketPortForwardClientBuilder,
 			},
 		},
 	}
@@ -97,20 +96,15 @@ func TestPortForwardKubeService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// readyCh communicate when the port forward is ready to get traffic
 			readyCh := make(chan struct{})
-			errCh := make(chan error, 1)
-			t.Cleanup(func() {
-				require.NoError(t, trace.Wrap(<-errCh))
-			})
+			// errCh receives a single error from ForwardPorts go routine.
+			errCh := make(chan error)
+			t.Cleanup(func() { require.NoError(t, <-errCh) })
 			// stopCh control the port forwarding lifecycle. When it gets closed the
-			// port forward will terminate
-			stopCh := make(chan struct{}, 1)
-			t.Cleanup(
-				func() {
-					close(stopCh)
-				},
-			)
+			// port forward will terminate.
+			stopCh := make(chan struct{})
+			t.Cleanup(func() { close(stopCh) })
 
-			fw := tt.args.portforwardBuilder(t, portForwardRequestConfig{
+			fw := tt.args.portforwardClientBuilder(t, portForwardRequestConfig{
 				podName:      podName,
 				podNamespace: podNamespace,
 				restConfig:   config,
@@ -130,6 +124,13 @@ func TestPortForwardKubeService(t *testing.T) {
 			case err := <-errCh:
 				require.NoError(t, err)
 			case <-readyCh:
+				// portforward creates a listener at localPort.
+				// Once client dials to localPort, portforward client will connect to
+				// the upstream (Teleport) and copy the data from the local connection
+				// into the upstream and from the upstream into the local connection.
+				// The connection is closed if the upstream reports any error and
+				// ForwardPorts returns it.
+				// Dial a connection to localPort.
 				conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", localPort))
 				require.NoError(t, err)
 				t.Cleanup(func() { conn.Close() })
@@ -138,34 +139,45 @@ func TestPortForwardKubeService(t *testing.T) {
 				p := make([]byte, 1024)
 				n, err := conn.Read(p)
 				require.NoError(t, err)
-				require.Equal(t, fmt.Sprintf(testingkubemock.PortForwardPayload, podName, string(stdinContent)), string(p[:n]))
+				// Make sure we hit the upstream server and that the upstream received
+				// the contents written into the connection.
+				// Expected payload: testingkubemock.PortForwardPayload podName stdinContent
+				expected := fmt.Sprint(testingkubemock.PortForwardPayload, podName, string(stdinContent))
+				require.Equal(t, expected, string(p[:n]))
 			}
 		})
 	}
 }
 
-func portforwardURL(namespace, podName string, host string, query string) *url.URL {
-	path := fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/portforward",
+func portforwardURL(namespace, podName string, host string, query string) (*url.URL, error) {
+	u, err := url.Parse(host)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	u.Scheme = "https"
+	u.Path = fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/portforward",
 		namespace, podName)
-	// trim https://
-	hostIP := strings.TrimLeft(host, "htps:/")
-	return &url.URL{Scheme: "https", Path: path, Host: hostIP, RawQuery: query}
+	u.RawQuery = query
+
+	return u, nil
 }
 
-func spdyPortForward(t *testing.T, req portForwardRequestConfig) forwardPorts {
+func spdyPortForwardClientBuilder(t *testing.T, req portForwardRequestConfig) portForwarder {
 	transport, upgrader, err := spdy.RoundTripperFor(req.restConfig)
 	require.NoError(t, err)
-	u := portforwardURL(req.podNamespace, req.podName, req.restConfig.Host, "")
+	u, err := portforwardURL(req.podNamespace, req.podName, req.restConfig.Host, "")
+	require.NoError(t, err)
 	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, u)
 	fw, err := portforward.New(dialer, []string{fmt.Sprintf("%d:%d", req.localPort, req.podPort)}, req.stopCh, req.readyCh, os.Stdout, os.Stdin)
 	require.NoError(t, err)
 	return fw
 }
 
-func websocketPortForward(t *testing.T, req portForwardRequestConfig) forwardPorts {
+func websocketPortForwardClientBuilder(t *testing.T, req portForwardRequestConfig) portForwarder {
 	// "ports=8080" it's ok to send the mandatory port as anything since the upstream
 	// testing mock does not care about the port.
-	u := portforwardURL(req.podNamespace, req.podName, req.restConfig.Host, "ports=8080")
+	u, err := portforwardURL(req.podNamespace, req.podName, req.restConfig.Host, "ports=8080")
+	require.NoError(t, err)
 	client, err := newWebSocketClient(req.restConfig, "GET", u, withLocalPortforwarding(int32(req.localPort), req.readyCh))
 	require.NoError(t, err)
 	return client
@@ -188,7 +200,7 @@ type portForwardRequestConfig struct {
 	readyCh chan struct{}
 }
 
-type forwardPorts interface {
+type portForwarder interface {
 	ForwardPorts() error
 	Close()
 }

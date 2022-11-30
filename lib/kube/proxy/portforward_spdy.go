@@ -30,7 +30,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
-	"k8s.io/apiserver/pkg/util/wsstream"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
@@ -56,15 +55,16 @@ func (p portForwardRequest) String() string {
 // portForwardCallback is a callback to be called on every port forward request
 type portForwardCallback func(addr string, success bool)
 
-// runPortForwarding checks if the request contains WebSocket upgrade headers and
-// decides which protocol the client expects.
-// Go client uses SPDY while other clients still require WebSockets.
-// This function will run until the end of the execution of the request.
-func runPortForwarding(req portForwardRequest) error {
-	if wsstream.IsWebSocketRequest(req.httpRequest) {
-		return trace.Wrap(runPortForwardingWebSocket(req))
+// parsePortString parses a port from a given string.
+func parsePortString(pString string) (uint16, error) {
+	port, err := strconv.ParseUint(pString, 10, 16)
+	if err != nil {
+		return 0, trace.BadParameter("unable to parse %q as a port: %v", pString, err)
 	}
-	return trace.Wrap(runPortForwardingHTTPStreams(req))
+	if port < 1 {
+		return 0, trace.BadParameter("port %q must be > 0", pString)
+	}
+	return uint16(port), nil
 }
 
 // runPortForwardingHTTPStreams upgrades the clients using SPDY protocol.
@@ -107,18 +107,6 @@ func runPortForwardingHTTPStreams(req portForwardRequest) error {
 	conn.SetIdleTimeout(IdleTimeout)
 	h.run()
 	return nil
-}
-
-// parsePortString parses a port from a given string.
-func parsePortString(pString string) (uint16, error) {
-	port, err := strconv.ParseUint(pString, 10, 16)
-	if err != nil {
-		return 0, trace.BadParameter("unable to parse %q as a port: %v", pString, err)
-	}
-	if port < 1 {
-		return 0, trace.BadParameter("port %q must be > 0", pString)
-	}
-	return uint16(port), nil
 }
 
 // httpStreamReceived is the httpstream.NewStreamHandler for port

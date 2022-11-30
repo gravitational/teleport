@@ -18,6 +18,7 @@ package proxy
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -111,7 +112,7 @@ func newWebSocketClient(config *rest.Config, method string, u *url.URL, opts ...
 // keyword and will return once it's received.
 
 // The protocol docs are at https://pkg.go.dev/k8s.io/apiserver/pkg/util/wsstream#pkg-constants
-// Bellow we have a copy of the implemented binary protocol specification.
+// Below we have a copy of the implemented binary protocol specification.
 
 // The Websocket subprotocol "channel.k8s.io" prepends each binary message with a byte indicating
 // the channel number (zero indexed) the message was sent on. Messages in both directions should
@@ -202,7 +203,7 @@ func (e *wsStreamClient) Close() {
 // keyword and will return once it's received.
 
 // The protocol docs are at https://pkg.go.dev/k8s.io/apiserver/pkg/util/wsstream#pkg-constants
-// Bellow we have a copy of the implemented binary protocol specification.
+// Below we have a copy of the implemented binary protocol specification.
 
 // The Websocket subprotocol "channel.k8s.io" prepends each binary message with a byte indicating
 // the channel number (zero indexed) the message was sent on. Messages in both directions should
@@ -337,7 +338,7 @@ const (
 // concurrent connections.
 func (e *wsStreamClient) portforward(remoteConn *gwebsocket.Conn) (err error) {
 	if e.localPort == nil || e.readyChan == nil {
-		return trace.Errorf("cannot use portforward without proper initialization")
+		return trace.BadParameter("cannot use portforward without proper initialization")
 	}
 
 	e.listener, err = net.Listen("tcp", fmt.Sprintf("localhost:%d", *e.localPort))
@@ -346,8 +347,6 @@ func (e *wsStreamClient) portforward(remoteConn *gwebsocket.Conn) (err error) {
 	}
 	close(e.readyChan)
 	for {
-		wg := sync.WaitGroup{}
-		errChan := make(chan error, 3)
 		conn, err := e.listener.Accept()
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
@@ -355,76 +354,86 @@ func (e *wsStreamClient) portforward(remoteConn *gwebsocket.Conn) (err error) {
 			}
 			return trace.Wrap(err)
 		}
-
-		wg.Add(2)
-
-		go func() {
-			defer wg.Done()
-			p := make([]byte, 1024)
-			for {
-				n, err := conn.Read(p)
-				if err != nil {
-					if errors.Is(err, io.EOF) {
-						err = nil
-					}
-					errChan <- trace.Wrap(err)
-					return
-				}
-				if err := remoteConn.WriteMessage(
-					gwebsocket.BinaryMessage,
-					append([]byte{portforwardDataChan}, p[:n]...),
-				); err != nil {
-					errChan <- trace.Wrap(err)
-					return
-				}
-			}
-		}()
-
-		go func() {
-			defer wg.Done()
-			for {
-				_, buf, err := remoteConn.ReadMessage()
-				// if len(buf)==3, it is the mandatory protocol message. This message
-				// includes the port number from proxy and we can safelly ignore it.
-				// [channel, uint16]
-				if len(buf) > 1 && len(buf) != 3 {
-					// We let the server send the stream number and we choose the desired stream accordingly.
-					// If the stream is nil, we ignore the payload and continue.
-					switch buf[0] {
-					case portforwardDataChan:
-						_, err := conn.Write(buf[1:])
-						if err != nil {
-							errChan <- trace.Wrap(err)
-							return
-						}
-					case portforwardErrChan:
-						err := trace.Errorf(string(buf[1:]))
-						errChan <- trace.Wrap(err)
-						// Once we receive an error from streamErr, we must stop processing.
-						// The server also stops the execution and closes the connection.
-						return
-					}
-				}
-
-				if err != nil {
-					// check the connection was properly closed by server, and if true ignore the error.
-					var websocketErr *gwebsocket.CloseError
-					if errors.As(err, &websocketErr) && websocketErr.Code == gwebsocket.CloseNormalClosure {
-						err = nil
-					}
-					errChan <- trace.Wrap(err)
-					return
-				}
-			}
-		}()
-
-		wg.Wait()
-		close(errChan)
-		err = <-errChan
-		if err != nil {
-			return err
+		if err := e.handlePortForwardRequest(conn, remoteConn); err != nil {
+			return trace.Wrap(err)
 		}
 	}
+}
+
+// handlePortForwardRequest copies data streams from local connection to upstream and
+// vice versa.
+func (e *wsStreamClient) handlePortForwardRequest(conn net.Conn, remoteConn *gwebsocket.Conn) error {
+	wg := sync.WaitGroup{}
+	// errChan will receive the errors returned from 2 goroutines.
+	// It needs to be buffered because we relly on sync.Waitgroup to control
+	// when the two goroutines are terminated and the channel has to have enough
+	// size to not block.
+	errChan := make(chan error, 2)
+
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		p := make([]byte, 1024)
+		for {
+			n, err := conn.Read(p)
+			if n == 0 && err != nil {
+				if errors.Is(err, io.EOF) {
+					err = nil
+				}
+				errChan <- trace.Wrap(err)
+				return
+			}
+			if err := remoteConn.WriteMessage(
+				gwebsocket.BinaryMessage,
+				append([]byte{portforwardDataChan}, p[:n]...),
+			); err != nil {
+				errChan <- trace.Wrap(err)
+				return
+			}
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for {
+			_, buf, err := remoteConn.ReadMessage()
+			if err != nil {
+				// check the connection was properly closed by server, and if true ignore the error.
+				var websocketErr *gwebsocket.CloseError
+				if errors.As(err, &websocketErr) && websocketErr.Code == gwebsocket.CloseNormalClosure {
+					err = nil
+				}
+				errChan <- trace.Wrap(err)
+				return
+			}
+			// if len(buf)==3, it is the mandatory protocol message. This message
+			// includes the port number from proxy and we can safelly ignore it.
+			// [channel, uint16]
+			if len(buf) > 1 && len(buf) != 3 {
+				// We let the server send the stream number and we choose the desired stream accordingly.
+				// If the stream is nil, we ignore the payload and continue.
+				switch buf[0] {
+				case portforwardDataChan:
+					_, err := conn.Write(buf[1:])
+					if err != nil {
+						errChan <- trace.Wrap(err)
+						return
+					}
+				case portforwardErrChan:
+					err := trace.Errorf(string(buf[1:]))
+					errChan <- trace.Wrap(err)
+					// Once we receive an error from streamErr, we must stop processing.
+					// The server also stops the execution and closes the connection.
+					return
+				}
+			}
+		}
+	}()
+
+	wg.Wait()
+	close(errChan)
+	return trace.NewAggregateFromChannel(errChan, context.Background())
 }
 
 func (e *wsStreamClient) connectViaWebsocket() error {
