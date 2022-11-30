@@ -230,7 +230,8 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 					Protocol: "_",
 					URI:      "_",
 					GCP: GCPCloudSQL{
-						ProjectID: "_",
+						ProjectID:  "_",
+						InstanceID: "_",
 					},
 				})
 				require.NoError(t, err)

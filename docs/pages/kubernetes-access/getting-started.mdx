@@ -3,6 +3,21 @@ title: Connect a Kubernetes Cluster to Teleport
 description: Connecting a Kubernetes cluster to Teleport
 ---
 
+In this guide, we will show you how to register a Kubernetes cluster with
+Teleport by deploying the Teleport Kubernetes Service on the Kubernetes cluster
+you want to register.
+
+In this setup, the Teleport Kubernetes Service pod detects that it is running on
+Kubernetes and registers the cluster automatically.
+
+<Notice type="tip">
+
+You can also run the Teleport Kubernetes Service on a Linux host in a separate
+network from your Kubernetes cluster. Learn how in [Kubernetes Access from a
+Standalone Teleport Cluster](./guides/standalone-teleport.mdx).
+
+</Notice>
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)

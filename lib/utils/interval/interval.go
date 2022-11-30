@@ -35,6 +35,7 @@ type Interval struct {
 	cfg       Config
 	ch        chan time.Time
 	reset     chan struct{}
+	fire      chan struct{}
 	closeOnce sync.Once
 	done      chan struct{}
 }
@@ -76,6 +77,7 @@ func New(cfg Config) *Interval {
 		ch:    make(chan time.Time, 1),
 		cfg:   cfg,
 		reset: make(chan struct{}),
+		fire:  make(chan struct{}),
 		done:  make(chan struct{}),
 	}
 
@@ -108,6 +110,15 @@ func (i *Interval) Stop() {
 func (i *Interval) Reset() {
 	select {
 	case i.reset <- struct{}{}:
+	case <-i.done:
+	}
+}
+
+// FireNow forces the interval to fire immediately regardless of how much time is left on
+// the current interval. This also effectively resets the interval.
+func (i *Interval) FireNow() {
+	select {
+	case i.fire <- struct{}{}:
 	case <-i.done:
 	}
 }
@@ -149,6 +160,16 @@ func (i *Interval) run(timer *time.Timer) {
 			timer.Reset(i.duration())
 			// ensure we don't send any pending ticks
 			ch = nil
+		case <-i.fire:
+			// stop and drain timer
+			if !timer.Stop() {
+				<-timer.C
+			}
+			// re-set the timer
+			timer.Reset(i.duration())
+			// simulate firing of the timer
+			tick = time.Now()
+			ch = i.ch
 		case ch <- tick:
 			// tick has been sent, set ch back to nil to prevent
 			// double-send and wait for next timer firing

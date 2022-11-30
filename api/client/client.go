@@ -2903,3 +2903,8 @@ func (c *Client) UpsertClusterAlert(ctx context.Context, alert types.ClusterAler
 	}, c.callOpts...)
 	return trail.FromGRPC(err)
 }
+
+func (c *Client) ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error {
+	_, err := c.grpc.ChangePassword(ctx, req, c.callOpts...)
+	return trail.FromGRPC(err)
+}

@@ -69,7 +69,7 @@ type wsStreamExecutor struct {
 // newWebSocketExecutor allows running exec commands via Websocket protocol.
 // The existing code exists for tests purpose where the final endpoint is a fictional Kubernetes API.
 // The code in question should never be used outside testing.
-func newWebSocketExecutor(config *rest.Config, method string, u *url.URL) (clientremotecommand.Executor, error) {
+func newWebSocketExecutor(config *rest.Config, method string, u *url.URL) (*wsStreamExecutor, error) {
 	return &wsStreamExecutor{
 		config:    config,
 		method:    method,
@@ -239,7 +239,6 @@ func (e *wsStreamExecutor) stream(conn *gwebsocket.Conn, options clientremotecom
 	close(errChan)
 	err := <-errChan
 	return err
-
 }
 
 func (e *wsStreamExecutor) connectViaWebsocket() error {

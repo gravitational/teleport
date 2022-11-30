@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-// Application represents a web app.
+// Application represents a web, TCP or cloud console application.
 type Application interface {
 	// ResourceWithLabels provides common resource methods.
 	ResourceWithLabels

@@ -1586,6 +1586,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		CA:                 cert,
 	}
 
+	var hlrs []service.HostLabelRule
 	for _, rule := range fc.WindowsDesktop.HostLabels {
 		r, err := regexp.Compile(rule.Match)
 		if err != nil {
@@ -1602,11 +1603,12 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			}
 		}
 
-		cfg.WindowsDesktop.HostLabels = append(cfg.WindowsDesktop.HostLabels, service.HostLabelRule{
+		hlrs = append(hlrs, service.HostLabelRule{
 			Regexp: r,
 			Labels: rule.Labels,
 		})
 	}
+	cfg.WindowsDesktop.HostLabels = service.NewHostLabelRules(hlrs...)
 
 	if fc.WindowsDesktop.Labels != nil {
 		cfg.WindowsDesktop.Labels = make(map[string]string)

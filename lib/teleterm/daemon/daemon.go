@@ -317,7 +317,7 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Ga
 		return oldGateway, nil
 	}
 
-	newGateway, err := gateway.NewWithLocalPort(*oldGateway, localPort)
+	newGateway, err := gateway.NewWithLocalPort(oldGateway, localPort)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -384,13 +384,14 @@ func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := cluster.GetRequestableRoles(ctx)
+	response, err := cluster.GetRequestableRoles(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &api.GetRequestableRolesResponse{
-		Roles: response,
+		Roles:           response.RequestableRoles,
+		ApplicableRoles: response.ApplicableRolesForResources,
 	}, nil
 }
 
