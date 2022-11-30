@@ -385,7 +385,7 @@ get_teleport_pid() {
 }
 # returns a command which will start teleport using the config
 get_teleport_start_command() {
-    echo "${TELEPORT_BINARY_DIR}/teleport start --config=${TELEPORT_CONFIG_PATH}"
+    echo "${TELEPORT_BINARY_DIR}/teleport start --config=${TELEPORT_CONFIG_PATH} --insecure"
 }
 # installs the teleport-provided launchd config
 install_launchd_config() {
@@ -879,18 +879,18 @@ else
     install_teleport_node_config
 fi
 
-# install systemd unit if applicable (linux hosts)
-if is_using_systemd; then
-    log "Host is using systemd"
-    # we only need to manually install the systemd config if teleport was installed via tarball
-    # all other packages will deploy it automatically
-    if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
-        install_systemd_unit
-    fi
-    start_teleport_systemd
-    print_welcome_message
+# # install systemd unit if applicable (linux hosts)
+# if is_using_systemd; then
+#     log "Host is using systemd"
+#     # we only need to manually install the systemd config if teleport was installed via tarball
+#     # all other packages will deploy it automatically
+#     if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
+#         install_systemd_unit
+#     fi
+#     start_teleport_systemd
+#     print_welcome_message
 # install launchd config on MacOS hosts
-elif is_macos_host; then
+if is_macos_host; then
     log "Host is running MacOS"
     install_launchd_config
     start_teleport_launchd

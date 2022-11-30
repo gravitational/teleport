@@ -87,7 +87,8 @@ func (s *DatabaseService) CreateDatabase(ctx context.Context, database types.Dat
 		Expires: database.Expiry(),
 		ID:      database.GetResourceID(),
 	}
-	_, err = s.Create(ctx, item)
+
+	_, err = s.Put(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
