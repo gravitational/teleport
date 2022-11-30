@@ -2790,7 +2790,7 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
-	helpers.CheckTrustedClustersCanConnect(t, ctx, helpers.TrustedClusterSetup{
+	helpers.CheckTrustedClustersCanConnect(ctx, t, helpers.TrustedClusterSetup{
 		Aux:         aux,
 		Main:        main,
 		Username:    username,
@@ -2924,7 +2924,7 @@ func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, te
 	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
-	helpers.CheckTrustedClustersCanConnect(t, ctx, helpers.TrustedClusterSetup{
+	helpers.CheckTrustedClustersCanConnect(ctx, t, helpers.TrustedClusterSetup{
 		Aux:         aux,
 		Main:        main,
 		Username:    username,

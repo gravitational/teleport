@@ -154,7 +154,7 @@ type TrustedClusterSetup struct {
 }
 
 // CheckTrustedClustersCanConnect check the cluster setup described in tcSetup can connect to each other.
-func CheckTrustedClustersCanConnect(t *testing.T, ctx context.Context, tcSetup TrustedClusterSetup) {
+func CheckTrustedClustersCanConnect(ctx context.Context, t *testing.T, tcSetup TrustedClusterSetup) {
 	aux := tcSetup.Aux
 	main := tcSetup.Main
 	username := tcSetup.Username
