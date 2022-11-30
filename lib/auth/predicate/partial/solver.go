@@ -135,6 +135,10 @@ func (s *Solver) partialSolveForAllImpl(predicate string, resolveIdentifier Reso
 	ctx.solver.Assert(boolCond)
 	var out []z3.Value
 
+	defer func() {
+		recover()
+	}()
+
 	// retrieve all possible values for the unknown identifier
 	for {
 		// solve the model

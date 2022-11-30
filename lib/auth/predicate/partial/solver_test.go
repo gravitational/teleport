@@ -37,25 +37,36 @@ func TestSolverIntEq(t *testing.T) {
 
 // TestSolverStringExpMultiSolution tests solving against a string equality expression with two solutions.
 func TestSolverStringExpMultiSolution(t *testing.T) {
-	state := NewSolver()
-	x, err := state.PartialSolveForAll("x == \"blah\" || x == \"root\"", func(s []string) any {
+	resolver := func(s []string) any {
+		if len(s) > 0 && s[0] == "jimsName" {
+			return "jims"
+		}
 		return nil
-	}, "x", TypeString, 10*time.Second)
+	}
+
+	state := NewSolver()
+	x, err := state.PartialSolveForAll("x == \"blah\" || x == \"root\" || x == jimsName", resolver, "x", TypeString, 10*time.Second)
 
 	require.NoError(t, err)
-	require.Len(t, x, 2)
+	require.Len(t, x, 3)
 	require.Equal(t, "\"blah\"", x[0].String())
 	require.Equal(t, "\"root\"", x[1].String())
+	require.Equal(t, "\"jims\"", x[2].String())
 }
 
 // BenchmarkSolverStringExpMultiSolution benchmarks TestSolverStringExpMultiSolution for performance monitoring.
 func BenchmarkSolverStringExpMultiSolution(b *testing.B) {
+	resolver := func(s []string) any {
+		if len(s) > 0 && s[0] == "jimsName" {
+			return "jims"
+		}
+		return nil
+	}
+
 	state := NewSolver()
 
 	for i := 0; i < b.N; i++ {
-		x, err := state.PartialSolveForAll("x == \"blah\" || x == \"root\"", func(s []string) any {
-			return nil
-		}, "x", TypeString, 10*time.Second)
+		x, err := state.PartialSolveForAll("x == \"blah\" || x == \"root\" || x == jimsName", resolver, "x", TypeString, 10*time.Second)
 
 		if err != nil {
 			b.Fatal(err)
@@ -63,5 +74,6 @@ func BenchmarkSolverStringExpMultiSolution(b *testing.B) {
 
 		require.Equal(b, "\"blah\"", x[0].String())
 		require.Equal(b, "\"root\"", x[1].String())
+		require.Equal(b, "\"jims\"", x[2].String())
 	}
 }
