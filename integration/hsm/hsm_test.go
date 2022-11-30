@@ -267,12 +267,19 @@ func newHSMAuthConfig(ctx context.Context, t *testing.T, storageConfig *backend.
 		},
 	})
 	require.NoError(t, err)
-	config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
 	config.Log = log
 	if storageConfig != nil {
 		config.Auth.StorageConfig = *storageConfig
 	}
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+
+	if gcpKeyring := os.Getenv("TEST_GCP_KMS_KEYRING"); gcpKeyring != "" {
+		config.Auth.KeyStore.GCPKMS.KeyRing = gcpKeyring
+		config.Auth.KeyStore.GCPKMS.ProtectionLevel = "HSM"
+	} else {
+		config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
+	}
+
 	return config
 }
 
@@ -306,7 +313,7 @@ func etcdBackendConfig(t *testing.T) *backend.Config {
 	cfg := &backend.Config{
 		Type: "etcd",
 		Params: backend.Params{
-			"peers":         []string{"https://127.0.0.1:2379"},
+			"peers":         []string{etcdTestEndpoint()},
 			"prefix":        prefix,
 			"tls_key_file":  "../../examples/etcd/certs/client-key.pem",
 			"tls_cert_file": "../../examples/etcd/certs/client-cert.pem",
@@ -323,6 +330,15 @@ func etcdBackendConfig(t *testing.T) *backend.Config {
 	return cfg
 }
 
+// etcdTestEndpoint returns etcd host used in tests.
+func etcdTestEndpoint() string {
+	host := os.Getenv("TELEPORT_ETCD_TEST_ENDPOINT")
+	if host != "" {
+		return host
+	}
+	return "https://127.0.0.1:2379"
+}
+
 func liteBackendConfig(t *testing.T) *backend.Config {
 	return &backend.Config{
 		Type: lite.GetName(),
@@ -332,11 +348,21 @@ func liteBackendConfig(t *testing.T) *backend.Config {
 	}
 }
 
+func requireHSMAvailable(t *testing.T) {
+	if os.Getenv("SOFTHSM2_PATH") == "" && os.Getenv("TEST_GCP_KMS_KEYRING") == "" {
+		t.Skip("Skipping test because neither SOFTHSM2_PATH or TEST_GCP_KMS_KEYRING are set")
+	}
+}
+
+func requireETCDAvailable(t *testing.T) {
+	if os.Getenv("TELEPORT_ETCD_TEST") == "" {
+		t.Skip("Skipping test because TELEPORT_ETCD_TEST is not set")
+	}
+}
+
 // Tests a single CA rotation with a single HSM auth server
 func TestHSMRotation(t *testing.T) {
-	if os.Getenv("SOFTHSM2_PATH") == "" {
-		t.Skip("Skipping test as SOFTHSM2_PATH is not set")
-	}
+	requireHSMAvailable(t)
 
 	// pick a conservative timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
@@ -399,9 +425,8 @@ func TestHSMRotation(t *testing.T) {
 
 // Tests multiple CA rotations and rollbacks with 2 HSM auth servers in an HA configuration
 func TestHSMDualAuthRotation(t *testing.T) {
-	if os.Getenv("TELEPORT_ETCD_TEST") == "" || os.Getenv("SOFTHSM2_PATH") == "" {
-		t.Skip("Skipping test as either etcd or SoftHSM2 is not enabled")
-	}
+	requireHSMAvailable(t)
+	requireETCDAvailable(t)
 
 	// pick a global timeout for the test
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
@@ -687,9 +712,8 @@ func TestHSMDualAuthRotation(t *testing.T) {
 
 // Tests a dual-auth server migration from raw keys to HSM keys
 func TestHSMMigrate(t *testing.T) {
-	if os.Getenv("TELEPORT_ETCD_TEST") == "" || os.Getenv("SOFTHSM2_PATH") == "" {
-		t.Skip("Skipping test as either etcd or SoftHSM2 is not enabled")
-	}
+	requireHSMAvailable(t)
+	requireETCDAvailable(t)
 
 	// pick a global timeout for the test
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)

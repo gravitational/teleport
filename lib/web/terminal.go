@@ -19,7 +19,9 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -30,12 +32,15 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -43,6 +48,8 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -63,16 +70,10 @@ type TerminalRequest struct {
 	// SessionID is a Teleport session ID to join as.
 	SessionID session.ID `json:"sid"`
 
-	// Namespace is node namespace.
-	Namespace string `json:"namespace"`
-
 	// ProxyHostPort is the address of the server to connect to.
 	ProxyHostPort string `json:"-"`
 
-	// Cluster is the name of the remote cluster to connect to.
-	Cluster string `json:"-"`
-
-	// InteractiveCommand is a command to execut.e
+	// InteractiveCommand is a command to execute
 	InteractiveCommand []string `json:"-"`
 
 	// KeepAliveInterval is the interval for sending ping frames to web client.
@@ -86,64 +87,110 @@ type AuthProvider interface {
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error)
 	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
+	IsMFARequired(ctx context.Context, req *authproto.IsMFARequiredRequest) (*authproto.IsMFARequiredResponse, error)
+	GenerateUserSingleUseCerts(ctx context.Context) (authproto.AuthService_GenerateUserSingleUseCertsClient, error)
 }
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
 // new TerminalHandler.
-func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProvider, sessCtx *SessionContext) (*TerminalHandler, error) {
-	// Make sure whatever session is requested is a valid session.
-	_, err := session.ParseID(string(req.SessionID))
-	if err != nil {
-		return nil, trace.BadParameter("sid: invalid session id")
-	}
-
-	if req.Login == "" {
-		return nil, trace.BadParameter("login: missing login")
-	}
-	if req.Term.W <= 0 || req.Term.H <= 0 {
-		return nil, trace.BadParameter("term: bad term dimensions")
-	}
-
-	servers, err := authProvider.GetNodes(ctx, req.Namespace)
+func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandler, error) {
+	err := cfg.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// DELETE IN: 5.0
-	//
-	// All proxies will support lookup by uuid, so host/port lookup
-	// and fallback can be dropped entirely.
-	hostName, hostPort, err := resolveServerHostPort(req.Server, servers)
-	if err != nil {
-		return nil, trace.BadParameter("invalid server name %q: %v", req.Server, err)
-	}
-
-	var join bool
-	_, err = authProvider.GetSessionTracker(ctx, string(req.SessionID))
-	switch {
-	case trace.IsNotFound(err):
-		join = false
-	case err != nil:
-		return nil, trace.Wrap(err)
-	default:
-		join = true
-	}
+	_, span := cfg.tracer.Start(ctx, "NewTerminal")
+	defer span.End()
 
 	return &TerminalHandler{
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentWebsocket,
+			"session_id":    cfg.SessionData.ID.String(),
 		}),
-		params:       req,
-		ctx:          sessCtx,
-		hostName:     hostName,
-		hostPort:     hostPort,
-		hostUUID:     req.Server,
-		authProvider: authProvider,
-		encoder:      unicode.UTF8.NewEncoder(),
-		decoder:      unicode.UTF8.NewDecoder(),
-		wsLock:       &sync.Mutex{},
-		join:         join,
+		ctx:                cfg.SessionCtx,
+		authProvider:       cfg.AuthProvider,
+		encoder:            unicode.UTF8.NewEncoder(),
+		decoder:            unicode.UTF8.NewDecoder(),
+		wsLock:             &sync.Mutex{},
+		displayLogin:       cfg.DisplayLogin,
+		sessionData:        cfg.SessionData,
+		keepAliveInterval:  cfg.KeepAliveInterval,
+		proxyHostPort:      cfg.ProxyHostPort,
+		interactiveCommand: cfg.InteractiveCommand,
+		term:               cfg.Term,
+		router:             cfg.Router,
+		tracer:             cfg.tracer,
 	}, nil
+}
+
+// TerminalHandlerConfig contains the configuration options necessary to
+// correctly setup the TerminalHandler
+type TerminalHandlerConfig struct {
+	// term is the initial PTY size.
+	Term session.TerminalParams
+	// sctx is the context for the users web session.
+	SessionCtx *SessionContext
+	// authProvider is used to fetch nodes and sessions from the backend.
+	AuthProvider AuthProvider
+	// displayLogin is the login name to display in the UI.
+	DisplayLogin string
+	// sessionData is the data to send to the client on the initial session creation.
+	SessionData session.Session
+	// keepAliveInterval is the interval for sending ping frames to web client.
+	// This value is pulled from the cluster network config and
+	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
+	KeepAliveInterval time.Duration
+	// proxyHostPort is the address of the server to connect to.
+	ProxyHostPort string
+	// interactiveCommand is a command to execute.
+	InteractiveCommand []string
+	// Router determines how connections to nodes are created
+	Router *proxy.Router
+	// TracerProvider is used to create the tracer
+	TracerProvider oteltrace.TracerProvider
+	// tracer is used to create spans
+	tracer oteltrace.Tracer
+}
+
+func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
+	// Make sure whatever session is requested is a valid session id.
+	_, err := session.ParseID(t.SessionData.ID.String())
+	if err != nil {
+		return trace.BadParameter("sid: invalid session id")
+	}
+
+	if t.SessionData.Login == "" {
+		return trace.BadParameter("login: missing login")
+	}
+
+	if t.SessionData.ServerID == "" {
+		return trace.BadParameter("server: missing server")
+	}
+
+	if t.Term.W <= 0 || t.Term.H <= 0 ||
+		t.Term.W >= 4096 || t.Term.H >= 4096 {
+		return trace.BadParameter("term: bad dimensions(%dx%d)", t.Term.W, t.Term.H)
+	}
+
+	if t.AuthProvider == nil {
+		return trace.BadParameter("AuthProvider must be provided")
+	}
+
+	if t.SessionCtx == nil {
+		return trace.BadParameter("SessionCtx must be provided")
+	}
+
+	if t.Router == nil {
+		return trace.BadParameter("Router must be provided")
+	}
+
+	if t.TracerProvider == nil {
+		t.TracerProvider = tracing.DefaultProvider()
+	}
+
+	t.tracer = t.TracerProvider.Tracer("webterminal")
+
+	return nil
 }
 
 // TerminalHandler connects together an SSH session with a web-based
@@ -152,20 +199,11 @@ type TerminalHandler struct {
 	// log holds the structured logger.
 	log *logrus.Entry
 
-	// params describes the request for a PTY
-	params TerminalRequest
-
 	// ctx is a web session context for the currently logged in user.
 	ctx *SessionContext
 
-	// hostName is the hostname of the server.
-	hostName string
-
-	// hostPort is the port of the server.
-	hostPort int
-
-	// hostUUID is the UUID of the server.
-	hostUUID string
+	// displayLogin is the login name to display in the UI.
+	displayLogin string
 
 	// sshSession holds the "shell" SSH channel to the node.
 	sshSession *tracessh.Session
@@ -193,14 +231,34 @@ type TerminalHandler struct {
 
 	wsLock *sync.Mutex
 
-	// join is set if we're joining an existing session
-	join bool
+	// keepAliveInterval is the interval for sending ping frames to web client.
+	// This value is pulled from the cluster network config and
+	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
+	keepAliveInterval time.Duration
+
+	// proxyHostPort is the address of the server to connect to.
+	proxyHostPort string
+
+	// interactiveCommand is a command to execute.
+	interactiveCommand []string
+
+	// term is the initial PTY size.
+	term session.TerminalParams
+
+	// The server data for the active session.
+	sessionData session.Session
+
+	// router is used to dial the host
+	router *proxy.Router
+
+	// tracer creates spans
+	tracer oteltrace.Tracer
 }
 
-// Serve builds a connect to the remote node and then pumps back two types of
+// ServeHTTP builds a connection to the remote node and then pumps back two types of
 // events: raw input/output events for what's happening on the terminal itself
 // and audit log events relevant to this session.
-func (t *TerminalHandler) Serve(w http.ResponseWriter, r *http.Request) {
+func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// This allows closing of the websocket if the user logs out before exiting
 	// the session.
 	t.ctx.AddClosers(t)
@@ -215,12 +273,59 @@ func (t *TerminalHandler) Serve(w http.ResponseWriter, r *http.Request) {
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		errMsg := "Error upgrading to websocket"
-		t.log.Errorf("%v: %v", errMsg, err)
+		t.log.WithError(err).Error(errMsg)
 		http.Error(w, errMsg, http.StatusInternalServerError)
 		return
 	}
 
-	ws.SetReadDeadline(deadlineForInterval(t.params.KeepAliveInterval))
+	err = ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
+	if err != nil {
+		t.log.WithError(err).Error("Error setting websocket readline")
+		return
+	}
+
+	// If the displayLogin is set then use it instead of the login name used in
+	// the SSH connection. This is specifically for the use case when joining
+	// a session to avoid displaying "-teleport-internal-join" as the username.
+	if t.displayLogin != "" {
+		t.sessionData.Login = t.displayLogin
+	}
+
+	sendError := func(errMsg string, err error, ws *websocket.Conn) {
+		envelope := &Envelope{
+			Version: defaults.WebsocketVersion,
+			Type:    defaults.WebsocketError,
+			Payload: fmt.Sprintf("%s: %s", errMsg, err.Error()),
+		}
+
+		envelopeBytes, _ := proto.Marshal(envelope)
+		ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
+	}
+
+	sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: t.sessionData})
+	if err != nil {
+		sendError("unable to marshal session response", err, ws)
+		return
+	}
+
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketSessionMetadata,
+		Payload: string(sessionMetadataResponse),
+	}
+
+	envelopeBytes, err := proto.Marshal(envelope)
+	if err != nil {
+		sendError("unable to marshal session data event for web client", err, ws)
+		return
+	}
+
+	err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
+	if err != nil {
+		sendError("unable to write message to socket", err, ws)
+		return
+	}
+
 	t.handler(ws, r)
 }
 
@@ -244,8 +349,8 @@ func (t *TerminalHandler) Close() error {
 // Interval is determined by the keep_alive_interval config set by user (or default).
 // Loop will terminate when there is an error sending ping frame or when terminal session is closed.
 func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
-	t.log.Debugf("Starting websocket ping loop with interval %v.", t.params.KeepAliveInterval)
-	tickerCh := time.NewTicker(t.params.KeepAliveInterval)
+	t.log.Debugf("Starting websocket ping loop with interval %v.", t.keepAliveInterval)
+	tickerCh := time.NewTicker(t.keepAliveInterval)
 	defer tickerCh.Stop()
 
 	for {
@@ -255,7 +360,7 @@ func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
 			// If this is just a temporary issue, we will retry shortly anyway.
 			deadline := time.Now().Add(time.Second)
 			if err := ws.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
-				t.log.Errorf("Unable to send ping frame to web client: %v.", err)
+				t.log.WithError(err).Error("Unable to send ping frame to web client")
 				t.Close()
 				return
 			}
@@ -272,26 +377,25 @@ func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
 func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	defer ws.Close()
 
-	// Create a context for signaling when the terminal session is over.
-	t.terminalContext, t.terminalCancel = context.WithCancel(context.Background())
+	// Create a context for signaling when the terminal session is over and
+	// link it first with the trace context from the request context
+	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(r.Context()))
+	t.terminalContext, t.terminalCancel = context.WithCancel(tctx)
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
 	tc, err := t.makeClient(ws, r)
 	if err != nil {
-		t.log.WithError(err).Infof("Failed creating a client for session %v.", t.params.SessionID)
-		writeErr := t.writeError(err, ws)
-		if writeErr != nil {
-			t.log.WithError(writeErr).Warnf("Unable to send error to terminal.")
-		}
+		t.log.WithError(err).Info("Failed creating a client for session")
+		t.writeError(err, ws)
 		return
 	}
 
-	t.log.Debugf("Creating websocket stream for %v.", t.params.SessionID)
+	t.log.Debug("Creating websocket stream")
 
 	// Update the read deadline upon receiving a pong message.
 	ws.SetPongHandler(func(_ string) error {
-		ws.SetReadDeadline(deadlineForInterval(t.params.KeepAliveInterval))
+		ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
 		return nil
 	})
 
@@ -304,12 +408,15 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 
 	// Block until the terminal session is complete.
 	<-t.terminalContext.Done()
-	t.log.Debugf("Closing websocket stream for %v.", t.params.SessionID)
+	t.log.Debug("Closing websocket stream")
 }
 
 // makeClient builds a *client.TeleportClient for the connection.
 func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*client.TeleportClient, error) {
-	clientConfig, err := makeTeleportClientConfig(r.Context(), t.ctx)
+	ctx, span := tracing.DefaultProvider().Tracer("terminal").Start(r.Context(), "terminal/makeClient")
+	defer span.End()
+
+	clientConfig, err := makeTeleportClientConfig(ctx, t.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -318,27 +425,23 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	// communicate over the websocket.
 	stream := t.asTerminalStream(ws)
 
-	if t.join {
-		clientConfig.HostLogin = teleport.SSHSessionJoinPrincipal
-	} else {
-		clientConfig.HostLogin = t.params.Login
-	}
-
+	clientConfig.HostLogin = t.sessionData.Login
 	clientConfig.ForwardAgent = client.ForwardAgentLocal
-	clientConfig.Namespace = t.params.Namespace
+	clientConfig.Namespace = apidefaults.Namespace
 	clientConfig.Stdout = stream
 	clientConfig.Stderr = stream
 	clientConfig.Stdin = stream
-	clientConfig.SiteName = t.params.Cluster
-	if err := clientConfig.ParseProxyHost(t.params.ProxyHostPort); err != nil {
+	clientConfig.SiteName = t.sessionData.ClusterName
+	if err := clientConfig.ParseProxyHost(t.proxyHostPort); err != nil {
 		return nil, trace.BadParameter("failed to parse proxy address: %v", err)
 	}
-	clientConfig.Host = t.hostName
-	clientConfig.HostPort = t.hostPort
-	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)}
+	clientConfig.Host = t.sessionData.ServerHostname
+	clientConfig.HostPort = t.sessionData.ServerHostPort
+	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: t.sessionData.ID.String()}
 	clientConfig.ClientAddr = r.RemoteAddr
+	clientConfig.Tracer = t.tracer
 
-	if len(t.params.InteractiveCommand) > 0 {
+	if len(t.interactiveCommand) > 0 {
 		clientConfig.Interactive = true
 	}
 
@@ -352,48 +455,113 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	// to allow future window changes.
 	tc.OnShellCreated = func(s *tracessh.Session, c *tracessh.Client, _ io.ReadWriteCloser) (bool, error) {
 		t.sshSession = s
-		t.windowChange(r.Context(), &t.params.Term)
+		t.windowChange(r.Context(), &t.term)
 
 		return false, nil
-	}
-
-	if err := t.issueSessionMFACerts(tc, ws); err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	return tc, nil
 }
 
-func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *websocket.Conn) error {
-	pc, err := tc.ConnectToProxy(t.terminalContext)
+// issueSessionMFACerts performs the mfa ceremony to retrieve new certs that can be
+// used to access nodes which require per-session mfa. The ceremony is performed directly
+// to make use of the authProvider already established for the session instead of leveraging
+// the TeleportClient which would require dialing the auth server a second time.
+func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.TeleportClient, ws *websocket.Conn) error {
+	ctx, span := t.tracer.Start(ctx, "terminal/issueSessionMFACerts")
+	defer span.End()
+
+	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
+	stream, err := t.authProvider.GenerateUserSingleUseCerts(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer pc.Close()
+	defer func() {
+		stream.CloseSend()
+		stream.Recv()
+	}()
 
 	pk, err := keys.ParsePrivateKey(t.ctx.session.GetPriv())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	key, err := pc.IssueUserCertsWithMFA(t.terminalContext, client.ReissueParams{
-		RouteToCluster: t.params.Cluster,
-		NodeName:       t.params.Server,
-		ExistingCreds: &client.Key{
-			PrivateKey: pk,
-			Cert:       t.ctx.session.GetPub(),
-			TLSCert:    t.ctx.session.GetTLSCert(),
-		},
-	}, promptMFAChallenge(ws, t.wsLock, protobufMFACodec{}))
+	key := &client.Key{
+		PrivateKey: pk,
+		Cert:       t.ctx.session.GetPub(),
+		TLSCert:    t.ctx.session.GetTLSCert(),
+	}
+
+	tlsCert, err := key.TeleportTLSCertificate()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := stream.Send(
+		&authproto.UserSingleUseCertsRequest{
+			Request: &authproto.UserSingleUseCertsRequest_Init{
+				Init: &authproto.UserCertsRequest{
+					PublicKey:      key.MarshalSSHPublicKey(),
+					Username:       tlsCert.Subject.CommonName,
+					Expires:        tlsCert.NotAfter,
+					RouteToCluster: t.sessionData.ClusterName,
+					NodeName:       t.sessionData.ServerID,
+					Usage:          authproto.UserCertsRequest_SSH,
+					Format:         tc.CertificateFormat,
+				},
+			},
+		}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	resp, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	challenge := resp.GetMFAChallenge()
+	if challenge == nil {
+		return trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected MFAChallenge", resp.Response)
+	}
+
+	span.AddEvent("prompting user with mfa challenge")
+	assertion, err := promptMFAChallenge(ws, t.wsLock, protobufMFACodec{})(ctx, tc.WebProxyAddr, challenge)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	span.AddEvent("user completed mfa challenge")
+
+	err = stream.Send(&authproto.UserSingleUseCertsRequest{Request: &authproto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: assertion}})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	resp, err = stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	certResp := resp.GetCert()
+	if certResp == nil {
+		return trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected SingleUseUserCert", resp.Response)
+	}
+
+	switch crt := certResp.Cert.(type) {
+	case *authproto.SingleUseUserCert_SSH:
+		key.Cert = crt.SSH
+	default:
+		return trace.BadParameter("server sent a %T SingleUseUserCert in response", certResp.Cert)
+	}
+
+	key.ClusterName = t.sessionData.ClusterName
 
 	am, err := key.AsAuthMethod()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	tc.AuthMethods = []ssh.AuthMethod{am}
+
 	return nil
 }
 
@@ -447,31 +615,101 @@ func promptMFAChallenge(
 // streamTerminal opens a SSH connection to the remote host and streams
 // events back to the web client.
 func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.TeleportClient) {
+	ctx, span := t.tracer.Start(t.terminalContext, "terminal/streamTerminal")
+	defer span.End()
+
 	defer t.terminalCancel()
+
+	accessChecker, err := t.ctx.GetUserAccessChecker()
+	if err != nil {
+		t.log.WithError(err).Warn("Unable to stream terminal - failed to get access checker")
+		t.writeError(err, ws)
+		return
+	}
+
+	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), t.sessionData.ServerHostname, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, nil)
+	if err != nil {
+		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
+		t.writeError(err, ws)
+		return
+	}
+
+	defer func() {
+		if conn == nil {
+			return
+		}
+
+		if err := conn.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+			t.log.WithError(err).Warn("Failed to close connection to host")
+		}
+	}()
+
+	sshConfig := &ssh.ClientConfig{
+		User:            tc.HostLogin,
+		Auth:            tc.AuthMethods,
+		HostKeyCallback: tc.HostKeyCallback,
+	}
+
+	nc, connectErr := client.NewNodeClient(ctx, sshConfig, conn, net.JoinHostPort(t.sessionData.ServerHostname, strconv.Itoa(t.sessionData.ServerHostPort)), tc, modules.GetModules().IsBoringBinary())
+	switch {
+	case connectErr != nil && !trace.IsAccessDenied(connectErr): // catastrophic error, return it
+		t.log.WithError(connectErr).Warn("Unable to stream terminal - failed to create node client")
+		t.writeError(connectErr, ws)
+		return
+	case connectErr != nil && trace.IsAccessDenied(connectErr): // see if per session mfa would allow access
+		mfaRequiredResp, err := t.authProvider.IsMFARequired(ctx, &authproto.IsMFARequiredRequest{
+			Target: &authproto.IsMFARequiredRequest_Node{
+				Node: &authproto.NodeLogin{
+					Node:  t.sessionData.ServerID,
+					Login: tc.HostLogin,
+				},
+			},
+		})
+		if err != nil {
+			t.log.WithError(err).Warn("Unable to stream terminal - failed to determine if per session mfa is required")
+			// write the original connect error
+			t.writeError(connectErr, ws)
+			return
+		}
+
+		if !mfaRequiredResp.Required {
+			t.log.WithError(connectErr).Warn("Unable to stream terminal - user does not have access to host")
+			// write the original connect error
+			t.writeError(connectErr, ws)
+			return
+		}
+
+		// perform mfa ceremony and retrieve new certs
+		if err := t.issueSessionMFACerts(ctx, tc, ws); err != nil {
+			t.log.WithError(err).Warn("Unable to stream terminal - failed to perform mfa ceremony")
+			t.writeError(err, ws)
+			return
+		}
+
+		// update auth methods
+		sshConfig.Auth = tc.AuthMethods
+
+		// connect to the node again with the new certs
+		conn, err = t.router.DialHost(ctx, ws.RemoteAddr(), t.sessionData.ServerHostname, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, nil)
+		if err != nil {
+			t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host")
+			t.writeError(err, ws)
+			return
+		}
+
+		nc, err = client.NewNodeClient(ctx, sshConfig, conn, net.JoinHostPort(t.sessionData.ServerHostname, strconv.Itoa(t.sessionData.ServerHostPort)), tc, modules.GetModules().IsBoringBinary())
+		if err != nil {
+			t.log.WithError(err).Warn("Unable to stream terminal - failed to create node client")
+			t.writeError(err, ws)
+			return
+		}
+	}
 
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
-	err := tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
-
-	// TODO IN: 5.0
-	//
-	// Make connecting by UUID the default instead of the fallback.
-	//
-	if err != nil && strings.Contains(err.Error(), teleport.NodeIsAmbiguous) {
-		t.log.Debugf("Ambiguous hostname %q, attempting to connect by UUID (%q).", t.hostName, t.hostUUID)
-		tc.Host = t.hostUUID
-		// We don't technically need to zero the HostPort, but future version won't look up
-		// HostPort when connecting by UUID, so its best to keep behavior consistent.
-		tc.HostPort = 0
-		err = tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
-	}
-
-	if err != nil {
-		t.log.Warnf("Unable to stream terminal: %v.", err)
-		er := t.writeError(err, ws)
-		if er != nil {
-			t.log.Warnf("Unable to send error to terminal: %v: %v.", err, er)
-		}
+	if err = nc.RunInteractiveShell(ctx, types.SessionPeerMode, nil); err != nil {
+		t.log.WithError(err).Warn("Unable to stream terminal - failure running interactive shell")
+		t.writeError(err, ws)
 		return
 	}
 
@@ -483,17 +721,19 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 	}
 	envelopeBytes, err := proto.Marshal(envelope)
 	if err != nil {
-		t.log.Errorf("Unable to marshal close event for web client.")
+		t.log.WithError(err).Error("Unable to marshal close event for web client.")
 		return
 	}
+
 	t.wsLock.Lock()
 	err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
 	t.wsLock.Unlock()
 	if err != nil {
-		t.log.Errorf("Unable to send close event to web client.")
+		t.log.WithError(err).Error("Unable to send close event to web client.")
 		return
 	}
-	t.log.Debugf("Sent close event to web client.")
+
+	t.log.Debug("Sent close event to web client.")
 }
 
 // streamEvents receives events over the SSH connection and forwards them to
@@ -506,16 +746,16 @@ func (t *TerminalHandler) streamEvents(ws *websocket.Conn, tc *client.TeleportCl
 			data, err := json.Marshal(event)
 			logger := t.log.WithField("event", event.GetType())
 			if err != nil {
-				logger.Errorf("Unable to marshal audit event: %v.", err)
+				logger.WithError(err).Errorf("Unable to marshal audit event")
 				continue
 			}
 
-			t.log.Debugf("Sending audit event %v to web client.", event.GetType())
+			logger.Debug("Sending audit event to web client.")
 
 			// UTF-8 encode the error message and then wrap it in a raw envelope.
 			encodedPayload, err := t.encoder.String(string(data))
 			if err != nil {
-				logger.Debugf("Unable to send audit event to web client: %v.", err)
+				logger.WithError(err).Debug("Unable to send audit event to web client")
 				continue
 			}
 			envelope := &Envelope{
@@ -525,7 +765,7 @@ func (t *TerminalHandler) streamEvents(ws *websocket.Conn, tc *client.TeleportCl
 			}
 			envelopeBytes, err := proto.Marshal(envelope)
 			if err != nil {
-				logger.Debugf("Unable to send audit event to web client: %v.", err)
+				logger.WithError(err).Debug("Unable to send audit event to web client")
 				continue
 			}
 
@@ -534,7 +774,7 @@ func (t *TerminalHandler) streamEvents(ws *websocket.Conn, tc *client.TeleportCl
 			err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
 			t.wsLock.Unlock()
 			if err != nil {
-				logger.Errorf("Unable to send audit event to web client: %v.", err)
+				logger.WithError(err).Error("Unable to send audit event to web client")
 				continue
 			}
 		// Once the terminal stream is over (and the close envelope has been sent),
@@ -558,16 +798,14 @@ func (t *TerminalHandler) windowChange(ctx context.Context, params *session.Term
 }
 
 // writeError displays an error in the terminal window.
-func (t *TerminalHandler) writeError(err error, ws *websocket.Conn) error {
+func (t *TerminalHandler) writeError(err error, ws *websocket.Conn) {
 	// Replace \n with \r\n so the message correctly aligned.
 	r := strings.NewReplacer("\r\n", "\r\n", "\n", "\r\n")
 	errMessage := r.Replace(err.Error())
-	_, err = t.write([]byte(errMessage), ws)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
-	return nil
+	if _, writeErr := t.write([]byte(errMessage), ws); writeErr != nil {
+		t.log.WithError(writeErr).Warnf("Unable to send error to terminal: %v", err)
+	}
 }
 
 // resolveServerHostPort parses server name and attempts to resolve hostname
@@ -694,7 +932,7 @@ func (t *TerminalHandler) read(out []byte, ws *websocket.Conn) (n int, err error
 
 		// Send the window change request in a goroutine so reads are not blocked
 		// by network connectivity issues.
-		go t.windowChange(context.TODO(), params)
+		go t.windowChange(t.terminalContext, params)
 
 		return 0, nil
 	default:

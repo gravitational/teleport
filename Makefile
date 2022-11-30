@@ -3,7 +3,7 @@
 #  all    : builds all binaries in development mode, without web assets (default)
 #  full   : builds all binaries for PRODUCTION use
 #  release: prepares a release tarball
-#  clean  : removes all buld artifacts
+#  clean  : removes all build artifacts
 #  test   : runs tests
 
 # To update the Teleport version, update VERSION variable:
@@ -334,7 +334,11 @@ endif
 ifeq ("$(with_rdpclient)", "yes")
 .PHONY: rdpclient
 rdpclient:
+ifneq ("$(FIPS)","")
+	cargo build -p rdp-client --features=fips --release $(CARGO_TARGET)
+else
 	cargo build -p rdp-client --release $(CARGO_TARGET)
+endif
 else
 .PHONY: rdpclient
 rdpclient:

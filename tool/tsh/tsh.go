@@ -473,6 +473,7 @@ const (
 	globalTshConfigEnvVar  = "TELEPORT_GLOBAL_TSH_CONFIG"
 	mfaModeEnvVar          = "TELEPORT_MFA_MODE"
 	debugEnvVar            = teleport.VerboseLogsEnvVar // "TELEPORT_DEBUG"
+	identityFileEnvVar     = "TELEPORT_IDENTITY_FILE"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -538,7 +539,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	}).String()
 
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
-	app.Flag("identity", "Identity file").Short('i').StringVar(&cf.IdentityFileIn)
+	app.Flag("identity", "Identity file").Short('i').Envar(identityFileEnvVar).StringVar(&cf.IdentityFileIn)
 	app.Flag("compat", "OpenSSH compatibility flag").Hidden().StringVar(&cf.Compatibility)
 	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
 	app.Flag("trace", "Capture and export distributed traces").Hidden().BoolVar(&cf.SampleTraces)
@@ -1270,18 +1271,21 @@ func exportSession(cf *CLIConf) error {
 		// when playing from a file, id is not included, this
 		// makes the outputs otherwise identical
 		delete(event, "id")
-		var e []byte
-		var err error
-		if format == teleport.JSON {
-			e, err = utils.FastMarshal(event)
-		} else {
-			e, err = yaml.Marshal(event)
-		}
-		if err != nil {
+	}
+
+	switch format {
+	case teleport.JSON:
+		if err := utils.WriteJSON(os.Stdout, events); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(string(e))
+	case teleport.YAML:
+		if err := utils.WriteYAML(os.Stdout, events); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.Errorf("Invalid format %s, only pty, json and yaml are supported", format)
 	}
+
 	return nil
 }
 
