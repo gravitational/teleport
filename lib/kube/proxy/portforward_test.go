@@ -122,7 +122,16 @@ func TestPortForwardKubeService(t *testing.T) {
 
 			select {
 			case err := <-errCh:
-				require.NoError(t, err)
+				// When we receive an error instead of a ready signal, it means that
+				// fw.ForwardPorts() setup failed.
+				// fw.ForwardPorts() setup creates a listener, a connection to the
+				// Teleport Kubernetes Service and upgrades the connection to SPDY
+				// or WebSocket. Either of these cases can return an error.
+				// After the setup finishes readyCh is notified, and fw.ForwardPorts()
+				// runs until the upstream server reports any error or fw.Close executes.
+				// fw.ForwardPorts() only returns err=nil if properly closed using
+				// fw.Close, otherwise err!=nil.
+				t.Fatalf("Received error on errCh instead of a ready signal: %v", err)
 			case <-readyCh:
 				// portforward creates a listener at localPort.
 				// Once client dials to localPort, portforward client will connect to

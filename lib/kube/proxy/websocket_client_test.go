@@ -365,7 +365,7 @@ func (e *wsStreamClient) portforward(remoteConn *gwebsocket.Conn) (err error) {
 func (e *wsStreamClient) handlePortForwardRequest(conn net.Conn, remoteConn *gwebsocket.Conn) error {
 	wg := sync.WaitGroup{}
 	// errChan will receive the errors returned from 2 goroutines.
-	// It needs to be buffered because we relly on sync.Waitgroup to control
+	// It needs to be buffered because we rely on sync.WaitGroup to control
 	// when the two goroutines are terminated and the channel has to have enough
 	// size to not block.
 	errChan := make(chan error, 2)
