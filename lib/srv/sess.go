@@ -55,8 +55,10 @@ import (
 
 const sessionRecorderID = "session-recorder"
 
-const PresenceVerifyInterval = time.Second * 15
-const PresenceMaxDifference = time.Minute
+const (
+	PresenceVerifyInterval = time.Second * 15
+	PresenceMaxDifference  = time.Minute
+)
 
 // SessionControlsInfoBroadcast is sent in tandem with session creation
 // to inform any joining users about the session controls.
@@ -165,6 +167,7 @@ func (s *SessionRegistry) findSessionLocked(id rsession.ID) (*session, bool) {
 	sess, found := s.sessions[id]
 	return sess, found
 }
+
 func (s *SessionRegistry) findSession(id rsession.ID) (*session, bool) {
 	s.sessionsMux.Lock()
 	defer s.sessionsMux.Unlock()
@@ -871,11 +874,11 @@ func (s *session) emitSessionEndEvent() {
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(s.id),
 		},
-		UserMetadata:      ctx.Identity.GetUserMetadata(),
-                ConnectionMetadata: apievents.ConnectionMetadata{
-                        RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
-                        Protocol:   events.EventProtocolSSH,
-                },
+		UserMetadata: ctx.Identity.GetUserMetadata(),
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
+			Protocol:   events.EventProtocolSSH,
+		},
 		EnhancedRecording: s.hasEnhancedRecording,
 		Interactive:       s.term != nil,
 		StartTime:         start,
