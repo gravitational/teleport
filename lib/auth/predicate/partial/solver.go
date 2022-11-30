@@ -163,13 +163,19 @@ func (s *Solver) partialSolveForAllImpl(predicate string, resolveIdentifier Reso
 }
 
 type ctx struct {
-	def               *z3.Context
-	solver            *z3.Solver
-	idents            map[string]z3.Value
-	unkTy             z3.Sort
+	// def is the Z3 context instance
+	def *z3.Context
+	// solver is the Z3 solver instance
+	solver *z3.Solver
+	// idents is a map of identifiers to their Z3 values
+	idents map[string]z3.Value
+	// the type of the unknown identifier, needed for type checking during lowering
+	unkTy z3.Sort
+	// resolveIdentifier is a function which resolves an identifier to a value
 	resolveIdentifier Resolver
 }
 
+// resolve an identifier to a value, if the identifier is not found, the resolver is called to resolve it
 func (ctx *ctx) resolve(fields []string) (z3.Value, error) {
 	full := strings.Join(fields, ".")
 	if v, ok := ctx.idents[full]; ok {
