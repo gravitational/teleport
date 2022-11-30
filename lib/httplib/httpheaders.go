@@ -30,25 +30,16 @@ func SetNoCacheHeaders(h http.Header) {
 	h.Set("Expires", "0")
 }
 
-// SetStaticFileHeaders sets security header flags for static non-html resources
-func SetStaticFileHeaders(h http.Header) {
-	SetNoSniff(h)
-	SetReferrerPolicyOrigin(h)
-	SetSameOriginIFrame(h)
-	SetStrictTransportSecurity(h)
-}
-
-// SetIndexHTMLHeaders sets security header flags for main index.html page
-func SetIndexHTMLHeaders(h http.Header) {
-	SetNoCacheHeaders(h)
-	SetNoSniff(h)
+func SetDefaultSecurityHeaders(h http.Header) {
+	// Prevent web browsers from using content sniffing to discover a file’s MIME type
+	h.Set("X-Content-Type-Options", "nosniff")
 
 	// Only send the origin of the document as the referrer in all cases.
 	// The document https://example.com/page.html will send the referrer https://example.com/.
-	SetReferrerPolicyOrigin(h)
+	h.Set("Referrer-Policy", "origin")
 
 	// X-Frame-Options indicates that the page can only be displayed in iframe on the same origin as the page itself
-	SetSameOriginIFrame(h)
+	h.Set("X-Frame-Options", "SAMEORIGIN")
 
 	// X-XSS-Protection is a feature of Internet Explorer, Chrome and Safari that stops pages
 	// from loading when they detect reflected cross-site scripting (XSS) attacks.
@@ -57,12 +48,14 @@ func SetIndexHTMLHeaders(h http.Header) {
 	// Once a supported browser receives this header that browser will prevent any communications from
 	// being sent over HTTP to the specified domain and will instead send all communications over HTTPS.
 	// It also prevents HTTPS click through prompts on browsers
-	SetStrictTransportSecurity(h)
+	h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 
 	// Prevent web browsers from using content sniffing to discover a file’s MIME type
 	h.Set("X-Content-Type-Options", "nosniff")
+}
 
-	// Set content policy flags
+// SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page
+func SetIndexContentSecurityPolicy(h http.Header) {
 	var cspValue = strings.Join([]string{
 		GetDefaultContentSecurityPolicy(),
 		// 'unsafe-inline' is required by CSS-in-JS to work
@@ -88,38 +81,12 @@ func GetDefaultContentSecurityPolicy() string {
 	}, ";")
 }
 
-// SetStrictTransportSecurity sets the Strict-Transport-Security header as a security best practice to reduce the risk
-// of clients attempting any unencrypted requests.
-func SetStrictTransportSecurity(h http.Header) {
-	h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-}
-
-// SetSameOriginIFrame sets X-Frame-Options flag
-func SetSameOriginIFrame(h http.Header) {
-	// X-Frame-Options indicates that the page can only be displayed in iframe on the same origin as the page itself
-	h.Set("X-Frame-Options", "SAMEORIGIN")
-}
-
-// SetNoSniff sets X-Content-Type-Options flag
-func SetNoSniff(h http.Header) {
-	// Prevent web browsers from using content sniffing to discover a file’s MIME type
-	h.Set("X-Content-Type-Options", "nosniff")
-}
-
 // SetWebConfigHeaders sets headers for webConfig.js
 func SetWebConfigHeaders(h http.Header) {
-	SetStaticFileHeaders(h)
 	h.Set("Content-Type", "application/javascript")
 }
 
 // SetScriptHeaders sets headers for the teleport install script
 func SetScriptHeaders(h http.Header) {
-	SetStaticFileHeaders(h)
 	h.Set("Content-Type", "text/x-shellscript")
-}
-
-// SetReferrerPolicyOrigin sets the Referrer-Policy header to only provide referrer request headers when requests are going
-// to the same origin.
-func SetReferrerPolicyOrigin(h http.Header) {
-	h.Set("Referrer-Policy", "origin")
 }

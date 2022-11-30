@@ -165,10 +165,13 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	cfg.TLS.ClientAuth = tls.VerifyClientCertIfGiven
 	cfg.TLS.NextProtos = []string{http2.NextProtoTLS}
 
+	tracingHandler := httplib.MakeTracingHandler(limiter, teleport.ComponentAuth)
+	securityHeaderHandler := httplib.MakeSecurityHeaderHandler(tracingHandler)
+
 	server := &TLSServer{
 		cfg: cfg,
 		httpServer: &http.Server{
-			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentAuth),
+			Handler:           securityHeaderHandler,
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 		},
 		log: logrus.WithFields(logrus.Fields{

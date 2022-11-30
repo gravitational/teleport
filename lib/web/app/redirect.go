@@ -25,10 +25,10 @@ import (
 )
 
 func SetRedirectPageHeaders(h http.Header, nonce string) {
-	// SetIndexHTMLHeaders will set safe initial defaults
-	httplib.SetIndexHTMLHeaders(h)
+	httplib.SetNoCacheHeaders(h)
+	httplib.SetDefaultSecurityHeaders(h)
 
-	// Replace content security policy flags
+	// Set content security policy flags
 	scriptSrc := "none"
 	if nonce != "" {
 		// Should match the <script> tab nonce (random value).
