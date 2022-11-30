@@ -300,7 +300,7 @@ func (s *CA) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types
 		key = backend.Key(authoritiesPrefix, deactivatedPrefix, string(types.UserCA), name)
 	}
 
-	actualItem, err := s.Get(context.TODO(), key)
+	actualItem, err := s.Get(ctx, key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -320,7 +320,7 @@ func (s *CA) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types
 		Value:   newValue,
 		Expires: actual.Expiry(),
 	}
-	_, err = s.CompareAndSwap(context.TODO(), *actualItem, newItem)
+	_, err = s.CompareAndSwap(ctx, *actualItem, newItem)
 	if err != nil {
 		if trace.IsCompareFailed(err) {
 			return trace.CompareFailed("cluster %v settings have been updated, try again", name)
