@@ -372,13 +372,15 @@ permission to create Node resources.
 The AWS tags on discovered EC2 instances will be included as Teleport labels on the
 discovered Nodes.
 
-The labels will be set by the discovery service after the node has successfully
-registered itself. After registration the discovery service will check hourly if the
-available EC2 instances need have their labels updated.
+In order to achieve this a helper resource named `DiscoveredServer` will be
+introduced with will store metadata about discovered nodes that was retrieved via the
+AWS API.
 
-Nodes that have been registered and include the 'teleport.dev/origin=cloud' label
-will have the labels in their heartbeats ignored and the discovery service will
-manage their labels.
+When Teleport is installed and registers the EC2 instance, the Auth server will check
+for a corresponding `DIscoveredServer` resource by matching on `instance-id` and
+`account-id` labels. If there is a matching `DiscoveredServer`, it will create a
+`Server` resource using the metadata from the `DIscoveredServer` and ignore labels
+sent via heartbeat from the node.
 
 ## UX
 
