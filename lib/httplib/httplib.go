@@ -116,11 +116,6 @@ func MakeHandlerWithErrorWriter(fn HandlerFunc, errWriter ErrorWriter) httproute
 	}
 }
 
-// MakeStdHandler returns a new http.Handle func from http.HandlerFunc
-func MakeStdHandler(fn StdHandlerFunc) http.HandlerFunc {
-	return MakeStdHandlerWithErrorWriter(fn, trace.WriteError)
-}
-
 // MakeStdHandlerWithErrorWriter returns a http.HandlerFunc from the
 // StdHandlerFunc, and sends all errors to ErrorWriter.
 func MakeStdHandlerWithErrorWriter(fn StdHandlerFunc, errWriter ErrorWriter) http.HandlerFunc {

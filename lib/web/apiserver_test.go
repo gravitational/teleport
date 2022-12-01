@@ -484,8 +484,9 @@ func (r *authPack) renewSession(ctx context.Context, t *testing.T) *roundtrip.Re
 }
 
 func (r *authPack) validateAPI(ctx context.Context, t *testing.T) {
-	_, err := r.clt.Get(ctx, r.clt.Endpoint("webapi", "sites"), url.Values{})
+	resp, err := r.clt.Get(ctx, r.clt.Endpoint("webapi", "sites"), url.Values{})
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, resp.Headers())
 }
 
 type authPack struct {
@@ -607,13 +608,8 @@ func verifySecurityResponseHeaders(t *testing.T, h http.Header) {
 	}
 
 	for _, tc := range cases {
-		value := h.Get(tc.header)
-		if value == "" {
-			require.FailNowf(t, "Missing %s header in %v", tc.header, h)
-		}
-		if tc.expectedValue != "" {
-			require.Equal(t, tc.expectedValue, value)
-		}
+		require.Contains(t, h, tc.header)
+		require.Equal(t, tc.expectedValue, h.Get(tc.header))
 	}
 }
 
@@ -1772,6 +1768,7 @@ func TestCreateSession(t *testing.T) {
 	// get site nodes
 	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "nodes"), url.Values{})
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, re.Headers())
 
 	nodes := clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes))
@@ -1863,6 +1860,7 @@ func TestLogin_PrivateKeyEnabledError(t *testing.T) {
 		return clt.Client.HTTPClient().Do(req)
 	})
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, re.Headers())
 	var resErr httpErrorResponse
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resErr))
 	require.Contains(t, resErr.Error.Message, keys.PrivateKeyPolicyHardwareKeyTouch)
@@ -1969,6 +1967,7 @@ func TestEmptyMotD(t *testing.T) {
 	// When I issue a ping request...
 	re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, re.Headers())
 
 	// Expect that the MotD flag in the ping response is *not* set
 	var pingResponse *webclient.PingResponse
@@ -2062,6 +2061,7 @@ func TestMultipleConnectors(t *testing.T) {
 	// hit the ping endpoint to get the auth type and connector name
 	re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, re.Headers())
 	var out *webclient.PingResponse
 	require.NoError(t, json.Unmarshal(re.Bytes(), &out))
 
@@ -2292,6 +2292,7 @@ func TestSearchClusterEvents(t *testing.T) {
 			t.Parallel()
 			response, err := pack.clt.Get(s.ctx, pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "events", "search"), tc.Query)
 			require.NoError(t, err)
+			verifySecurityResponseHeaders(t, response.Headers())
 			var result eventsListGetResponse
 			require.NoError(t, json.Unmarshal(response.Bytes(), &result))
 
@@ -2517,6 +2518,7 @@ func TestInstallDatabaseScriptGeneration(t *testing.T) {
 
 	resp, err := anonHTTPClient.Do(req)
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, resp.Header)
 
 	scriptBytes, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -2541,6 +2543,7 @@ func TestSignMTLS(t *testing.T) {
 		Roles: types.SystemRoles{types.RoleDatabase},
 	})
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, re.Headers())
 
 	var responseToken nodeJoinToken
 	err = json.Unmarshal(re.Bytes(), &responseToken)
@@ -2573,6 +2576,7 @@ func TestSignMTLS(t *testing.T) {
 
 	resp, err := anonHTTPClient.Do(req)
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, resp.Header)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -2604,6 +2608,7 @@ func TestSignMTLS(t *testing.T) {
 
 	respSecondCall, err := anonHTTPClient.Do(req)
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, respSecondCall.Header)
 	defer respSecondCall.Body.Close()
 	require.Equal(t, http.StatusForbidden, respSecondCall.StatusCode)
 }
@@ -2631,6 +2636,7 @@ func TestSignMTLS_failsAccessDenied(t *testing.T) {
 		Roles: types.SystemRoles{types.RoleProxy},
 	})
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, re.Headers())
 
 	var responseToken nodeJoinToken
 	err = json.Unmarshal(re.Bytes(), &responseToken)
@@ -2665,6 +2671,7 @@ func TestSignMTLS_failsAccessDenied(t *testing.T) {
 
 	resp, err := anonHTTPClient.Do(req)
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, resp.Header)
 	defer resp.Body.Close()
 
 	// It fails because we passed a Provision Token with the wrong Role: Proxy
@@ -2708,6 +2715,7 @@ func TestCheckAccessToRegisteredResource_AccessDenied(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "resources", "check")
 	re, err := pack.clt.Get(ctx, endpoint, url.Values{})
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, re.Headers())
 	resp := checkAccessToRegisteredResourceResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.True(t, resp.HasResource)
@@ -2750,6 +2758,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "resources", "check")
 	re, err := pack.clt.Get(ctx, endpoint, url.Values{})
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, re.Headers())
 	resp := checkAccessToRegisteredResourceResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.False(t, resp.HasResource)
@@ -2873,6 +2882,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 
 			re, err := pack.clt.Get(ctx, endpoint, url.Values{})
 			require.NoError(t, err)
+			verifySecurityResponseHeaders(t, re.Headers())
 			resp := checkAccessToRegisteredResourceResponse{}
 			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 			require.True(t, resp.HasResource)
@@ -2987,6 +2997,7 @@ func TestAuthExport(t *testing.T) {
 
 			resp, err := anonHTTPClient.Do(req)
 			require.NoError(t, err)
+			verifySecurityResponseHeaders(t, resp.Header)
 			defer resp.Body.Close()
 
 			bs, err := io.ReadAll(resp.Body)
@@ -3012,6 +3023,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
 	re, err := pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, re.Headers())
 
 	type testResponse struct {
 		Items      []ui.Database `json:"items"`
@@ -3357,6 +3369,7 @@ func TestClusterKubesGet(t *testing.T) {
 
 		re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 		require.NoError(t, err)
+		verifySecurityResponseHeaders(t, re.Headers())
 
 		resp := testResponse{}
 		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
@@ -3426,6 +3439,7 @@ func TestClusterAppsGet(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "apps")
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{"sort": []string{"name"}})
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, re.Headers())
 
 	// Test correct response.
 	resp := testResponse{}
@@ -3634,6 +3648,7 @@ func TestCreatePrivilegeToken(t *testing.T) {
 		SecondFactorToken: totpCode,
 	})
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, re.Headers())
 
 	var privilegeToken string
 	err = json.Unmarshal(re.Bytes(), &privilegeToken)
@@ -3730,13 +3745,14 @@ func TestAddMFADevice(t *testing.T) {
 
 			// Add device.
 			endpoint := pack.clt.Endpoint("webapi", "mfa", "devices")
-			_, err := pack.clt.PostJSON(ctx, endpoint, addMFADeviceRequest{
+			re, err := pack.clt.PostJSON(ctx, endpoint, addMFADeviceRequest{
 				PrivilegeTokenID:         privilegeToken,
 				DeviceName:               tc.deviceName,
 				SecondFactorToken:        totpCode,
 				WebauthnRegisterResponse: webauthnRegResp,
 			})
 			require.NoError(t, err)
+			verifySecurityResponseHeaders(t, re.Headers())
 		})
 	}
 }
@@ -3766,6 +3782,7 @@ func TestDeleteMFA(t *testing.T) {
 		SecondFactorToken: totpCode,
 	})
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, re.Headers())
 
 	var privilegeToken string
 	require.NoError(t, json.Unmarshal(re.Bytes(), &privilegeToken))
@@ -3797,6 +3814,7 @@ func TestGetMFADevicesWithAuth(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "mfa", "devices")
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, re.Headers())
 
 	var devices []ui.MFADevice
 	err = json.Unmarshal(re.Bytes(), &devices)
@@ -3840,6 +3858,7 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 	getDevicesEndpoint := clt.Endpoint("webapi", "mfa", "token", approvedToken.GetName(), "devices")
 	res, err := clt.Get(ctx, getDevicesEndpoint, url.Values{})
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, res.Headers())
 
 	var devices []ui.MFADevice
 	err = json.Unmarshal(res.Bytes(), &devices)
@@ -3925,6 +3944,7 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 			endpoint := tc.clt.Endpoint(tc.ep...)
 			res, err := tc.clt.PostJSON(ctx, endpoint, tc.reqBody)
 			require.NoError(t, err)
+			verifySecurityResponseHeaders(t, res.Headers())
 
 			var chal client.MFAAuthenticateChallenge
 			err = json.Unmarshal(res.Bytes(), &chal)
@@ -3999,6 +4019,7 @@ func TestCreateRegisterChallenge(t *testing.T) {
 			endpoint := clt.Endpoint("webapi", "mfa", "token", token.GetName(), "registerchallenge")
 			res, err := clt.PostJSON(ctx, endpoint, tc.req)
 			require.NoError(t, err)
+			verifySecurityResponseHeaders(t, res.Headers())
 
 			var chal client.MFARegisterChallenge
 			require.NoError(t, json.Unmarshal(res.Bytes(), &chal))
@@ -4444,6 +4465,7 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 		return clt.HTTPClient().Do(httpReq)
 	}))
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, httpRes.Headers())
 
 	var apiRes ui.ChangedUserAuthn
 	require.NoError(t, json.Unmarshal(httpRes.Bytes(), &apiRes))
@@ -4594,6 +4616,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 		})
 
 		require.NoError(t, err)
+		verifySecurityResponseHeaders(t, re.Headers())
 		require.Equal(t, re.Code(), http.StatusOK)
 
 		// check if auth preference connectorName is set
@@ -4706,6 +4729,7 @@ func TestClusterDesktopsGet(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "desktops")
 	re, err := pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, re.Headers())
 
 	// Test correct response.
 	resp := testResponse{}
@@ -4744,6 +4768,7 @@ func TestDesktopActive(t *testing.T) {
 	check := func(match string) {
 		resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "desktops", desktopName, "active"), url.Values{})
 		require.NoError(t, err)
+		verifySecurityResponseHeaders(t, resp.Headers())
 		require.Contains(t, string(resp.Bytes()), match)
 	}
 
@@ -4798,6 +4823,7 @@ func TestGetUserOrResetToken(t *testing.T) {
 
 	resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", username), url.Values{})
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, resp.Headers())
 	require.Contains(t, string(resp.Bytes()), "login1")
 
 	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", "password", "token", resetToken.GetName()), url.Values{})
@@ -4843,6 +4869,7 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 
 	resp, err := pack.clt.Get(ctx, connectionsEndpoint, url.Values{})
 	require.NoError(t, err)
+	verifySecurityResponseHeaders(t, resp.Headers())
 	require.Equal(t, http.StatusOK, resp.Code())
 
 	var receivedConnectionDiagnostic ui.ConnectionDiagnostic
@@ -5088,6 +5115,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				DialTimeout: time.Second,
 			})
 			require.NoError(t, err)
+			verifySecurityResponseHeaders(t, resp.Headers())
 			require.Equal(t, http.StatusOK, resp.Code())
 
 			var connectionDiagnostic ui.ConnectionDiagnostic
@@ -5528,6 +5556,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
+			verifySecurityResponseHeaders(t, resp.Headers())
 			require.Equal(t, http.StatusOK, resp.Code())
 
 			var connectionDiagnostic ui.ConnectionDiagnostic

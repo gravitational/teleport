@@ -357,6 +357,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	}
 
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// ensure security headers are set for all responses
+		httplib.SetDefaultSecurityHeaders(w.Header())
+
 		// request is going to the API?
 		if strings.HasPrefix(r.URL.Path, apiPrefix) {
 			http.StripPrefix(apiPrefix, h).ServeHTTP(w, r)
@@ -391,6 +394,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			}
 			session.XCSRF = csrfToken
 
+			httplib.SetNoCacheHeaders(w.Header())
 			httplib.SetIndexContentSecurityPolicy(w.Header())
 			if err := indexPage.Execute(w, session); err != nil {
 				h.log.WithError(err).Error("Failed to execute index page template.")
