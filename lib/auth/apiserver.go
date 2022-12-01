@@ -161,7 +161,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 
 	// SSO validation handlers
 	srv.POST("/:version/oidc/requests/validate", srv.WithAuth(srv.validateOIDCAuthCallback))
-	srv.POST("/:version/saml/requests/validate", srv.WithAuth(srv.validateSAMLResponse))
 	srv.POST("/:version/github/requests/validate", srv.WithAuth(srv.validateGithubAuthCallback))
 
 	// Audit logs AKA events
@@ -759,40 +758,6 @@ func (s *APIServer) validateOIDCAuthCallback(auth ClientI, w http.ResponseWriter
 		Cert:     response.Cert,
 		TLSCert:  response.TLSCert,
 		Req:      response.Req,
-	}
-	if response.Session != nil {
-		rawSession, err := services.MarshalWebSession(response.Session, services.WithVersion(version))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		raw.Session = rawSession
-	}
-	raw.HostSigners = make([]json.RawMessage, len(response.HostSigners))
-	for i, ca := range response.HostSigners {
-		data, err := services.MarshalCertAuthority(ca, services.WithVersion(version))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		raw.HostSigners[i] = data
-	}
-	return &raw, nil
-}
-
-func (s *APIServer) validateSAMLResponse(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *ValidateSAMLResponseReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response, err := auth.ValidateSAMLResponse(r.Context(), req.Response, req.ConnectorID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	raw := SAMLAuthRawResponse{
-		Username: response.Username,
-		Identity: response.Identity,
-		Cert:     response.Cert,
-		Req:      response.Req,
-		TLSCert:  response.TLSCert,
 	}
 	if response.Session != nil {
 		rawSession, err := services.MarshalWebSession(response.Session, services.WithVersion(version))
