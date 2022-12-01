@@ -278,7 +278,6 @@ func (c *Client) start() {
 		// calls handle_bitmap repeatedly with the incoming bitmaps.
 		if errCode := C.read_rdp_output(c.rustClient); errCode != C.ErrCodeSuccess {
 			c.cfg.Log.Warningf("Failed reading RDP output frame: %v", errCode)
-			c.cfg.Conn.SendError("There was an error reading data from the Windows Desktop")
 		}
 	}()
 
@@ -816,6 +815,26 @@ func (c *Client) sharedDirectoryMoveRequest(req tdp.SharedDirectoryMoveRequest) 
 // the TDP connection to the browser.
 func (c *Client) close() {
 	c.closeOnce.Do(func() {
+		// In the case that the session ends due to an RDP server disconnect,
+		// the TDP connection will still be open at this point. Therefore
+		// we can ask for the RDP server disconnect reason here and send it
+		// back to the user via TDP.
+		res := C.get_server_disconnect_reason(c.rustClient)
+		if res.err != C.ErrCodeSuccess {
+			c.cfg.Log.Errorf("error getting server disconnect reason: %v", res.err)
+		} else {
+			reason := C.GoString(res.reason)
+			C.free_c_string(res.reason)
+			if reason != "" {
+				c.cfg.Log.Errorf("RDP server disconnected with reason: %v", reason)
+				if err := c.cfg.Conn.WriteMessage(tdp.Error{
+					Message: reason,
+				}); err != nil {
+					c.cfg.Log.WithError(err).Error("error sending server disconnect reason over TDP")
+				}
+			}
+		}
+
 		// Ensure the RDP connection is closed
 		if errCode := C.close_rdp(c.rustClient); errCode != C.ErrCodeSuccess {
 			c.cfg.Log.Warningf("error closing the RDP connection")
