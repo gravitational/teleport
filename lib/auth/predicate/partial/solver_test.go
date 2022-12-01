@@ -46,12 +46,13 @@ func TestSolverStringExpMultiSolution(t *testing.T) {
 
 	state := NewSolver()
 	x, err := state.PartialSolveForAll("x == \"blah\" || x == \"root\" || x == jimsName", resolver, "x", TypeString, 10*time.Second)
-
 	require.NoError(t, err)
-	require.Len(t, x, 3)
-	require.Equal(t, "\"blah\"", x[0].String())
-	require.Equal(t, "\"root\"", x[1].String())
-	require.Equal(t, "\"jims\"", x[2].String())
+
+	s := make([]string, len(x))
+	for i, v := range x {
+		s[i] = v.String()
+	}
+	require.ElementsMatch(t, []string{`"blah"`, `"root"`, `"jims"`}, s)
 }
 
 // BenchmarkSolverStringExpMultiSolution benchmarks TestSolverStringExpMultiSolution for performance monitoring.
@@ -72,8 +73,10 @@ func BenchmarkSolverStringExpMultiSolution(b *testing.B) {
 			b.Fatal(err)
 		}
 
-		require.Equal(b, "\"blah\"", x[0].String())
-		require.Equal(b, "\"root\"", x[1].String())
-		require.Equal(b, "\"jims\"", x[2].String())
+		s := make([]string, len(x))
+		for i, v := range x {
+			s[i] = v.String()
+		}
+		require.ElementsMatch(b, []string{`"blah"`, `"root"`, `"jims"`}, s)
 	}
 }

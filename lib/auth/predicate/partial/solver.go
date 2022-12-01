@@ -120,26 +120,27 @@ func (s *Solver) partialSolveForAllImpl(predicate string, resolveIdentifier Reso
 		return nil, trace.BadParameter("unsupported output type %v", to)
 	}
 
-	// lower the Go AST into a Z3 AST
+	// lower the Go AST into a Z3 AST, see the lower godoc for more details
 	cond, err := lower(ctx, ast)
 	if err != nil {
 		return nil, err
 	}
 
-	// assert that the expression must evaluate to true
+	// assert the expression must evaluate to a boolean
 	boolCond, ok := cond.(z3.Bool)
 	if !ok {
 		return nil, trace.BadParameter("predicate must evaluate to a boolean value")
 	}
 
+	// assert the boolean must be equal to true
 	ctx.solver.Assert(boolCond)
-	var out []z3.Value
 
 	defer func() {
 		recover()
 	}()
 
 	// retrieve all possible values for the unknown identifier
+	var out []z3.Value
 	for {
 		// solve the model
 		sat, err := ctx.solver.Check()
@@ -213,6 +214,19 @@ func (ctx *ctx) resolve(fields []string) (z3.Value, error) {
 	return val, nil
 }
 
+// lower lowers a Go AST into a Z3 AST.
+// Lowering is a term commonly used within compiler development/interpreters etc to describe
+// the process of transforming a high level construct into a lower level construct, usually with more primitive operators
+// and more data/constraints. In this case, lowering is the process of converting a Go AST into a set
+// of Z3 variables and constraints. Variables are used to describe the input and output of each primitive
+// operation such as arithmetic or comparisons and constraints are used to define a relationship between them.
+// For the uninitiated, such a constraint set is the usual form that a SMT solver sees problems in.
+//
+// To keep it simple, lower operates by recursively traversing the Go AST depth-first
+// and at each AST node, defining one or more variables and possibly one or more constraints between those variables.
+// To organize this, each lowering operation returns the variable that represents the result of the relation between
+// the input and output variables. Note that this function doesn't actually do any problem computation;
+// it merely converts it into a simpler form that Z3 can grasp.
 func lower(ctx *ctx, node ast.Expr) (z3.Value, error) {
 	switch n := node.(type) {
 	case *ast.ParenExpr:
