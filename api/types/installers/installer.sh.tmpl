@@ -7,6 +7,8 @@
 
   . /etc/os-release
 
+  # old versions of ubuntu require that keys get added by `apt-key add`, without
+  # adding the key apt shows a key signing error when installing teleport.
   LEGACY_UBUNTU=false
   if [ "$VERSION_CODENAME" = "xenial" ] || [ "$VERSION_CODENAME" = "trusty" ]; then
 	  LEGACY_UBUNTU=true
@@ -17,6 +19,7 @@
 		curl -o /tmp/teleport-pubkey.asc https://deb.releases.teleport.dev/teleport-pubkey.asc
 		cat /tmp/teleport-pubkey.asc | sudo apt-key add -
 		echo "deb https://apt.releases.teleport.dev/ubuntu ${VERSION_CODENAME?} stable/{{ .MajorVersion }}" | sudo tee /etc/apt/sources.list.d/teleport.list
+		rm /tmp/teleport-pubkey.asc
 	else
 		sudo curl https://deb.releases.teleport.dev/teleport-pubkey.asc \
 			 -o /usr/share/keyrings/teleport-archive-keyring.asc
