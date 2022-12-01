@@ -228,7 +228,7 @@ $ kubectl --namespace teleport create -f aws-issuer.yaml
 
 <Admonition type="warning" title="Warning">
   
-  Using ACM through a AWS Load Balancer prevents the required traffic for Postgres or MongoDB through the 
+  Using ACM through a AWS Load Balancer prevents the required traffic for Postgres or MongoDB through Teleport's 
   web port.  Add the listener variables with the `true` value that match your required database traffic types
   to the values file in the next step:
   ```yaml
