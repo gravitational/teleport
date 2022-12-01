@@ -35,15 +35,12 @@ import (
 	"math/big"
 	insecurerand "math/rand"
 	"net"
-	"net/url"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
-	"github.com/coreos/go-oidc/oidc"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -251,7 +248,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Authority:       cfg.Authority,
 		AuthServiceName: cfg.AuthServiceName,
 		ServerID:        cfg.HostUUID,
-		oidcClients:     make(map[string]*oidcClient),
 		githubClients:   make(map[string]*githubClient),
 		cancelFunc:      cancelFunc,
 		closeCtx:        closeCtx,
@@ -261,7 +257,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Services:        services,
 		Cache:           services,
 		keyStore:        keyStore,
-		getClaimsFun:    getClaims,
 		inventory:       inventory.NewController(cfg.Presence, inventory.WithAuthServerID(cfg.HostUUID)),
 		traceClient:     cfg.TraceClient,
 		fips:            cfg.FIPS,
@@ -304,6 +299,15 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		AssertionReplayService: as.Unstable.AssertionReplayService,
 	})
 	as.SetSAMLService(sas)
+
+	oas, err := NewOIDCAuthService(&OIDCAuthServiceConfig{
+		Auth:    &as,
+		Emitter: as.emitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	as.SetOIDCService(oas)
 
 	return &as, nil
 }
@@ -418,9 +422,7 @@ var (
 //   - same for users and their sessions
 //   - checks public keys to see if they're signed by it (can be trusted or not)
 type Server struct {
-	lock sync.RWMutex
-	// oidcClients is a map from authID & proxyAddr -> oidcClient
-	oidcClients   map[string]*oidcClient
+	lock          sync.RWMutex
 	githubClients map[string]*githubClient
 	clock         clockwork.Clock
 	bk            backend.Backend
@@ -429,6 +431,7 @@ type Server struct {
 	cancelFunc context.CancelFunc
 
 	samlAuthService SAMLService
+	oidcAuthService OIDCService
 
 	sshca.Authority
 
@@ -479,9 +482,6 @@ type Server struct {
 	// lockWatcher is a lock watcher, used to verify cert generation requests.
 	lockWatcher *services.LockWatcher
 
-	// getClaimsFun is used in tests for overriding the implementation of getClaims method used in OIDC.
-	getClaimsFun func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error)
-
 	inventory *inventory.Controller
 
 	// githubOrgSSOCache is used to cache whether Github organizations use
@@ -507,11 +507,18 @@ type Server struct {
 	loadAllCAs bool
 }
 
-// SetSAMLService registers ss as the SAMLService that provides the SAML
+// SetSAMLService registers svc as the SAMLService that provides the SAML
 // connector implementation. If a SAMLService has already been registered, this
 // will override the previous registration.
 func (a *Server) SetSAMLService(svc SAMLService) {
 	a.samlAuthService = svc
+}
+
+// SetOIDCService registers svc as the OIDCService that provides the OIDC
+// connector implementation. If a OIDCService has already been registered, this
+// will override the previous registration.
+func (a *Server) SetOIDCService(svc OIDCService) {
+	a.oidcAuthService = svc
 }
 
 func (a *Server) CloseContext() context.Context {
@@ -4115,17 +4122,6 @@ const (
 	SessionTokenBytes = 32
 )
 
-// oidcClient is internal structure that stores OIDC client and its config
-type oidcClient struct {
-	client    *oidc.Client
-	connector types.OIDCConnector
-	// syncCtx controls the provider sync goroutine.
-	syncCtx    context.Context
-	syncCancel context.CancelFunc
-	// firstSync will be closed once the first provider sync succeeds
-	firstSync chan struct{}
-}
-
 // githubClient is internal structure that stores Github OAuth 2client and its config
 type githubClient struct {
 	client *oauth2.Client
@@ -4161,19 +4157,6 @@ func oauth2ConfigsEqual(a, b oauth2.Config) bool {
 		return false
 	}
 	return true
-}
-
-// isHTTPS checks if the scheme for a URL is https or not.
-func isHTTPS(u string) error {
-	earl, err := url.Parse(u)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if earl.Scheme != "https" {
-		return trace.BadParameter("expected scheme https, got %q", earl.Scheme)
-	}
-
-	return nil
 }
 
 // WithClusterCAs returns a TLS hello callback that returns a copy of the provided
