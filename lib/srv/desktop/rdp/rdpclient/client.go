@@ -554,8 +554,6 @@ func handle_bitmap(handle C.uintptr_t, cb *C.CGOBitmap) C.CGOErrCode {
 	return cgo.Handle(handle).Value().(*Client).handleBitmap(cb)
 }
 
-var i = 0
-
 func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	// Notify the input forwarding goroutine that we're ready for input.
 	// Input can only be sent after connection was established, which we infer
@@ -601,7 +599,7 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	}
 
 	copy(img.Pix, data)
-	
+
 	if err := c.cfg.Conn.WriteMessage(tdp.NewPNG(img, c.cfg.Encoder)); err != nil {
 		c.cfg.Log.Errorf("failed to send PNG frame %v: %v", img.Rect, err)
 		return C.ErrCodeFailure
