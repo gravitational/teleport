@@ -21,7 +21,7 @@ jobs:
       packages: read
 
     container:
-      image: public.ecr.aws/gravitational/teleport-buildbox:teleport12
+      image: ghcr.io/gravitational/teleport-buildbox:teleport12
       env:
         TELEPORT_ETCD_TEST: yes
         TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379

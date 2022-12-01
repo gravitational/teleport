@@ -59,8 +59,11 @@ ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
 endif
 
-# conditionally force the use of UID/GID 1000:1000 if we're running in Drone
+# conditionally force the use of UID/GID 1000:1000 if we're running in Drone or Github Actions (in which case CI env var will be set)
 ifeq ("$(DRONE)","true")
+CI := true
+endif
+ifeq ("$(CI)","true")
 UID := 1000
 GID := 1000
 NOROOT := -u 1000:1000
@@ -147,6 +150,7 @@ buildbox-fips:
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
 			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+			--build-arg RUST_VERSION=$(RUST_VERSION) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 			--cache-from $(BUILDBOX_FIPS) \
 			--tag $(BUILDBOX_FIPS) -f Dockerfile-fips . ; \

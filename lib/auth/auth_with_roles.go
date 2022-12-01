@@ -1678,11 +1678,14 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 }
 
 // ChangePassword updates users password based on the old password.
-func (a *ServerWithRoles) ChangePassword(req services.ChangePasswordReq) error {
+func (a *ServerWithRoles) ChangePassword(
+	ctx context.Context,
+	req *proto.ChangePasswordRequest,
+) error {
 	if err := a.currentUserAction(req.User); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.ChangePassword(req)
+	return a.authServer.ChangePassword(ctx, req)
 }
 
 func (a *ServerWithRoles) PreAuthenticatedSignIn(ctx context.Context, user string) (types.WebSession, error) {
@@ -2822,7 +2825,7 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector typ
 		return trace.Wrap(err)
 	}
 	if !modules.GetModules().Features().SAML {
-		return trace.AccessDenied("SAML is only available in enterprise subscriptions")
+		return trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 	return a.authServer.UpsertSAMLConnector(ctx, connector)
 }

@@ -1,6 +1,70 @@
 # This Dockerfile makes the FIPS "build box": the container used to build official
 # FIPS releases of Teleport and its documentation.
 
+
+FROM ubuntu:18.04 as boringssl
+# The below tools are required in order to build and compile the module:
+# Clang compiler version 7.0.1
+# Go programming language version 1.12.7
+# Ninja build system version 1.9.0
+#
+# We also need the FIPS 140-2 validated release of BoringSSL: ae223d6138807a13006342edfeef32e813246b39
+# For more information please refer to the section 12. Guidance and Secure Operation of:
+# https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp3678.pdf
+
+RUN apt-get update -y --fix-missing && \
+    apt-get -q -y upgrade && \
+    apt-get install -y --no-install-recommends apt-utils ca-certificates curl && \
+    apt-get install -q -y --no-install-recommends \
+        build-essential \
+        cmake \
+        git \
+        tar \
+        xz-utils \
+        unzip \
+        zip \
+        && \
+    apt-get -y clean && \
+    rm -rf /var/lib/apt/lists/*
+
+
+RUN mkdir -p /opt && cd /opt && \
+    curl -sLO https://releases.llvm.org/7.0.1/clang+llvm-7.0.1-x86_64-linux-gnu-ubuntu-18.04.tar.xz && \
+    echo "e74ce06d99ed9ce42898e22d2a966f71ae785bdf4edbded93e628d696858921a" "clang+llvm-7.0.1-x86_64-linux-gnu-ubuntu-18.04.tar.xz" | sha256sum --check && \
+    tar xJf clang+llvm-7.0.1-x86_64-linux-gnu-ubuntu-18.04.tar.xz && \
+    rm -f clang+llvm-7.0.1-x86_64-linux-gnu-ubuntu-18.04.tar.xz
+ENV PATH="/opt/clang+llvm-7.0.1-x86_64-linux-gnu-ubuntu-18.04/bin:$PATH"
+
+
+RUN mkdir -p /opt && cd /opt && \
+    curl -sLO https://go.dev/dl/go1.12.7.linux-amd64.tar.gz && \
+    echo "66d83bfb5a9ede000e33c6579a91a29e6b101829ad41fffb5c5bb6c900e109d9" "go1.12.7.linux-amd64.tar.gz" | sha256sum --check && \
+    tar xf go1.12.7.linux-amd64.tar.gz && \
+    rm -f go1.12.7.linux-amd64.tar.gz && \
+    chmod a+w /opt/go && \
+    chmod a+w /var/lib && \
+    chmod a-w /
+ENV GOPATH="/go" \
+    GOROOT="/opt/go" \
+    PATH="$PATH:/opt/go/bin:/go/bin"
+
+RUN mkdir -p /opt && cd /opt && \
+    curl -sLO https://github.com/ninja-build/ninja/releases/download/v1.9.0/ninja-linux.zip && \
+    echo "1b1235f2b0b4df55ac6d80bbe681ea3639c9d2c505c7ff2159a3daf63d196305" "ninja-linux.zip" | sha256sum --check && \
+    unzip ninja-linux.zip && \
+    rm -f ninja-linux.zip && \
+    mv /opt/ninja /usr/bin
+
+RUN mkdir -p /opt && cd /opt && \
+    git clone https://github.com/google/boringssl.git && \
+    cd boringssl && \
+    git checkout ae223d6138807a13006342edfeef32e813246b39 && \
+    mkdir build && \
+    cd build && \
+    cmake -DFIPS=1 -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -GNinja .. && \
+    ninja
+
+
 # Use Ubuntu 18.04 as base to get an older glibc version.
 # Using a newer base image will build against a newer glibc, which creates a
 # runtime requirement for the host to have newer glibc too. For example,
@@ -77,6 +141,33 @@ RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
 RUN make -C /opt/pam_teleport install
+
+ARG RUST_VERSION
+ENV RUSTUP_HOME=/usr/local/rustup \
+     CARGO_HOME=/usr/local/cargo \
+     PATH=/usr/local/cargo/bin:$PATH \
+     RUST_VERSION=$RUST_VERSION
+
+RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
+    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+
+# Install Rust using the ci user, as that is the user that
+# will run builds using the Rust toolchains we install here.
+USER ci
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+    rustup --version && \
+    cargo --version && \
+    rustc --version && \
+    rustup component add rustfmt clippy && \
+    rustup target add aarch64-unknown-linux-gnu
+
+# Copy BoringSSL into the final image
+COPY --from=boringssl /opt/boringssl /opt/boringssl
+
+# set boring-rs crate env variables to point to pre-built binaries
+# https://github.com/cloudflare/boring#support-for-pre-built-binaries
+ENV BORING_BSSL_PATH=/opt/boringssl
+ENV BORING_BSSL_INCLUDE_PATH=/opt/boringssl/include
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

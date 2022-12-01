@@ -59,7 +59,7 @@ $ helm install teleport-cluster teleport/teleport-cluster \
         --create-namespace --namespace teleport-cluster \
         --set clusterName=teleport-cluster.teleport-cluster.svc.cluster.local \
         --set operator.enabled=true \
-        --set teleportVersionOverride=(=teleport.version=)
+        --version (=teleport.version=)
 ```
 
 This command installs the required Kubernetes CRDs and deploys the Teleport Kubernetes Operator next to the Teleport

@@ -133,17 +133,35 @@ func NewTestServer(cfg TestServerConfig) (*TestServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var tlsServer *TestTLSServer
-	if cfg.TLS != nil {
-		tlsServer, err = NewTestTLSServer(*cfg.TLS)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		tlsServer, err = authServer.NewTestTLSServer()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// Set the (test) auth server in cfg.TLS and set any defaults that
+	// are not set.
+	tlsCfg := cfg.TLS
+	if tlsCfg == nil {
+		tlsCfg = &TestTLSServerConfig{}
+	}
+	if tlsCfg.APIConfig == nil {
+		tlsCfg.APIConfig = &APIConfig{}
+	}
+
+	tlsCfg.AuthServer = authServer
+	tlsCfg.APIConfig.AuthServer = authServer.AuthServer
+
+	if tlsCfg.APIConfig.Authorizer == nil {
+		tlsCfg.APIConfig.Authorizer = authServer.Authorizer
+	}
+	if tlsCfg.APIConfig.AuditLog == nil {
+		tlsCfg.APIConfig.AuditLog = authServer.AuditLog
+	}
+	if tlsCfg.APIConfig.Emitter == nil {
+		tlsCfg.APIConfig.Emitter = authServer.AuthServer.emitter
+	}
+	if tlsCfg.AcceptedUsage == nil {
+		tlsCfg.AcceptedUsage = authServer.AcceptedUsage
+	}
+
+	tlsServer, err := NewTestTLSServer(*tlsCfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return &TestServer{
 		AuthServer: authServer,
