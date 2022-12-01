@@ -978,7 +978,7 @@ func (c *Client) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, 
 	if err != nil {
 		// Underlying ListResources for kube server was not available, use fallback KubeService.
 		// ListResources returns NotImplemented if ResourceType is unknown.
-		// DELETE IN 12.0.0
+		// DELETE IN 13.0.0
 		if trace.IsNotImplemented(err) {
 			return c.getKubeServersFallback(ctx)
 		}
@@ -1002,7 +1002,7 @@ func (c *Client) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, 
 
 // getKubeServersFallback previous implementation of `GetKubeServers` function
 // using `GetKubeServices` call.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) getKubeServersFallback(ctx context.Context) ([]types.KubeServer, error) {
 	resources, err := c.GetKubeServices(ctx)
 	if err != nil {
@@ -1036,7 +1036,7 @@ func (c *Client) DeleteKubernetesServer(ctx context.Context, hostID, name string
 // deleteKubeServerFallback deletes a named Kube Service using legacy API call
 // `DeleteKubeService`.
 //
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) deleteKubeServerFallback(ctx context.Context, name string) error {
 	err := c.DeleteKubeService(ctx, name)
 	return trace.Wrap(err)
@@ -1057,7 +1057,7 @@ func (c *Client) DeleteAllKubernetesServers(ctx context.Context) error {
 // deleteAllKubeServersFallback deletes all kubernetes servers using legacy API call
 // `DeleteAllKubeServices`.
 //
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) deleteAllKubernetesServersFallback(ctx context.Context) error {
 	err := c.DeleteAllKubeServices(ctx)
 	return trace.Wrap(err)
@@ -1079,7 +1079,7 @@ func (c *Client) UpsertKubernetesServer(ctx context.Context, s types.KubeServer)
 
 // UpsertKubeService is used by kubernetes services to report their presence
 // to other auth servers in form of hearbeat expiring after ttl period.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) UpsertKubeService(ctx context.Context, s types.Server) error {
 	server, ok := s.(*types.ServerV2)
 	if !ok {
@@ -1093,7 +1093,7 @@ func (c *Client) UpsertKubeService(ctx context.Context, s types.Server) error {
 
 // UpsertKubeServiceV2 is used by kubernetes services to report their presence
 // to other auth servers in form of hearbeat expiring after ttl period.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
 	server, ok := s.(*types.ServerV2)
 	if !ok {
@@ -1108,7 +1108,7 @@ func (c *Client) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*type
 
 // GetKubeServices returns the list of kubernetes services registered in the
 // cluster.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 	resources, err := GetResourcesWithFilters(ctx, c, proto.ListResourcesRequest{
 		Namespace:    defaults.Namespace,
@@ -1329,7 +1329,7 @@ func (c *Client) GenerateSnowflakeJWT(ctx context.Context, req types.GenerateSno
 }
 
 // DeleteKubeService deletes a named kubernetes service.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) DeleteKubeService(ctx context.Context, name string) error {
 	_, err := c.grpc.DeleteKubeService(ctx, &proto.DeleteKubeServiceRequest{
 		Name: name,
@@ -1338,7 +1338,7 @@ func (c *Client) DeleteKubeService(ctx context.Context, name string) error {
 }
 
 // DeleteAllKubeServices deletes all registered kubernetes services.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func (c *Client) DeleteAllKubeServices(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllKubeServices(ctx, &proto.DeleteAllKubeServicesRequest{}, c.callOpts...)
 	return trace.Wrap(err)
