@@ -198,12 +198,12 @@ func TestInitCACertCaching(t *testing.T) {
 
 	// Initialize RDS cert for the first time.
 	require.NoError(t, databaseServer.initCACert(ctx, rds))
-	require.Equal(t, 1, databaseServer.cfg.CADownloader.(*fakeDownloader).count)
+	require.Equal(t, int64(1), databaseServer.cfg.CADownloader.(*fakeDownloader).count)
 
 	// Reset it and initialize again, it should already be downloaded.
 	rds.SetStatusCA("")
 	require.NoError(t, databaseServer.initCACert(ctx, rds))
-	require.Equal(t, 1, databaseServer.cfg.CADownloader.(*fakeDownloader).count)
+	require.Equal(t, int64(2), databaseServer.cfg.CADownloader.(*fakeDownloader).count)
 }
 
 // TestUpdateCACerts given a cloud-hosted database, update the cached CA files
