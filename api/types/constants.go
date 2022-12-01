@@ -229,7 +229,7 @@ const (
 	KindState = "state"
 
 	// KindKubeService is a kubernetes service resource
-	// DELETE in 12.0.0
+	// DELETE in 13.0.0
 	KindKubeService = "kube_service"
 
 	// KindMFADevice is an MFA device for a user.
