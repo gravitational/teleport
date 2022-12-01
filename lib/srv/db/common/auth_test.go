@@ -102,11 +102,13 @@ func TestAuthGetAzureCacheForRedisToken(t *testing.T) {
 func TestAuthGetRedshiftServerlessAuthToken(t *testing.T) {
 	t.Parallel()
 
+	clock := clockwork.NewFakeClock()
 	auth, err := NewAuth(AuthConfig{
+		Clock:      clock,
 		AuthClient: new(authClientMock),
 		Clients: &cloud.TestCloudClients{
 			RedshiftServerless: &cloudtest.RedshiftServerlessMock{
-				GetCredentialsOutput: cloudtest.RedshiftServerlessGetCredentialsOutput("IAM:some-user", "some-password"),
+				GetCredentialsOutput: cloudtest.RedshiftServerlessGetCredentialsOutput("IAM:some-user", "some-password", clock),
 			},
 		},
 	})
@@ -118,8 +120,8 @@ func TestAuthGetRedshiftServerlessAuthToken(t *testing.T) {
 		Database:     newRedshiftServerlessDatabase(t),
 	})
 	require.NoError(t, err)
-	require.Equal(t, dbUser, "IAM:some-user")
-	require.Equal(t, dbPassword, "some-password")
+	require.Equal(t, "IAM:some-user", dbUser)
+	require.Equal(t, "some-password", dbPassword)
 }
 
 func TestAuthGetTLSConfig(t *testing.T) {
@@ -399,6 +401,10 @@ func TestRedshiftServerlessUsernameToRoleARN(t *testing.T) {
 			expectError:   true,
 		},
 		{
+			inputUsername: "arn:aws:not-iam::1234567890:role/rolename",
+			expectError:   true,
+		},
+		{
 			inputUsername: "role/rolename",
 			expectRoleARN: "arn:aws:iam::1234567890:role/rolename",
 		},
@@ -412,7 +418,7 @@ func TestRedshiftServerlessUsernameToRoleARN(t *testing.T) {
 		},
 		{
 			inputUsername: "IAMR:rolename",
-			expectRoleARN: "arn:aws:iam::1234567890:role/rolename",
+			expectError:   true,
 		},
 	}
 
@@ -430,6 +436,8 @@ func TestRedshiftServerlessUsernameToRoleARN(t *testing.T) {
 }
 
 func newAzureRedisDatabase(t *testing.T, resourceID string) types.Database {
+	t.Helper()
+
 	database, err := types.NewDatabaseV3(types.Metadata{
 		Name: "test-database",
 	}, types.DatabaseSpecV3{
@@ -444,6 +452,8 @@ func newAzureRedisDatabase(t *testing.T, resourceID string) types.Database {
 }
 
 func newSelfHostedDatabase(t *testing.T, uri string) types.Database {
+	t.Helper()
+
 	database, err := types.NewDatabaseV3(types.Metadata{
 		Name: "test-database",
 	}, types.DatabaseSpecV3{
@@ -455,6 +465,8 @@ func newSelfHostedDatabase(t *testing.T, uri string) types.Database {
 }
 
 func newCloudSQLDatabase(t *testing.T, projectID, instanceID string) types.Database {
+	t.Helper()
+
 	database, err := types.NewDatabaseV3(types.Metadata{
 		Name: "test-database",
 	}, types.DatabaseSpecV3{
@@ -470,6 +482,8 @@ func newCloudSQLDatabase(t *testing.T, projectID, instanceID string) types.Datab
 }
 
 func newElastiCacheRedisDatabase(t *testing.T, ca string) types.Database {
+	t.Helper()
+
 	database, err := types.NewDatabaseV3(types.Metadata{
 		Name: "test-database",
 	}, types.DatabaseSpecV3{
@@ -484,6 +498,8 @@ func newElastiCacheRedisDatabase(t *testing.T, ca string) types.Database {
 }
 
 func newRedshiftDatabase(t *testing.T, ca string) types.Database {
+	t.Helper()
+
 	database, err := types.NewDatabaseV3(types.Metadata{
 		Name: "test-database",
 	}, types.DatabaseSpecV3{
@@ -498,6 +514,8 @@ func newRedshiftDatabase(t *testing.T, ca string) types.Database {
 }
 
 func newRedshiftServerlessDatabase(t *testing.T) types.Database {
+	t.Helper()
+
 	database, err := types.NewDatabaseV3(types.Metadata{
 		Name: "test-database",
 	}, types.DatabaseSpecV3{

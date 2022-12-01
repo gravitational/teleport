@@ -814,24 +814,17 @@ func matchAzureResourceName(resourceID, name string) bool {
 // ARN for a Redshift Serverless database.
 func redshiftServerlessUsernameToRoleARN(aws types.AWS, username string) (string, error) {
 	switch {
-	case strings.HasPrefix(username, "IAM:"):
-		// These are in-database usernames created when logged in as IAM users.
-		return "", trace.BadParameter("only database users mapped to IAM roles are supported")
-
-	case strings.HasPrefix(username, "IAMR:"):
-		// These are in-database usernames created when logged in as IAM roles.
-		return arn.ARN{
-			Partition: awsutils.GetPartitionFromRegion(aws.Region),
-			Service:   iam.ServiceName,
-			AccountID: aws.AccountID,
-			Resource:  fmt.Sprintf("role/%s", strings.TrimPrefix(username, "IAMR:")),
-		}.String(), nil
+	// These are in-database usernames created when logged in as IAM
+	// users/roles. We will enforce Teleport users to provide IAM roles
+	// instead.
+	case strings.HasPrefix(username, "IAM:") || strings.HasPrefix(username, "IAMR:"):
+		return "", trace.BadParameter("expecting name or ARN of an AWS IAM role but got %v", username)
 
 	case arn.IsARN(username):
 		if parsedARN, err := arn.Parse(username); err != nil {
 			return "", trace.Wrap(err)
-		} else if parsedARN.Resource != iam.ServiceName && !strings.HasPrefix(parsedARN.Resource, "role/") {
-			return "", trace.BadParameter("expecting an AWS IAM role ARN but got %v", username)
+		} else if parsedARN.Service != iam.ServiceName || !strings.HasPrefix(parsedARN.Resource, "role/") {
+			return "", trace.BadParameter("expecting name or ARN of an AWS IAM role but got %v", username)
 		}
 		return username, nil
 
