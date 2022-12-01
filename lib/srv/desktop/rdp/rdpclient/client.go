@@ -572,7 +572,7 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	// a byte slice with 4-byte segments representing pixels (RGBA).
 	//
 	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegdi/8ab64b94-59cb-43f4-97ca-79613838e0bd
-
+	//
 	// Also, always force Alpha value to 100% (opaque). On some Windows
 	// versions (e.g. Windows 10) it's sent as 0% after decompression for some reason.
 	for i := 0; i < len(data); i += 4 {
