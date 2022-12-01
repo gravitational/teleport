@@ -219,12 +219,6 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 
 	// Waits for len(clusters) heartbeats to start
 	waitForHeartbeats := len(cfg.clusters)
-	// we must also wait for the legacy heartbeat.
-	// FIXME (tigrato): his check was added to force
-	// the person that removes the legacy heartbeat to adapt this code as well
-	// in order to wait just for len(cfg.clusters).
-	_ = testCtx.kubeServer.legacyHeartbeat
-	waitForHeartbeats++
 
 	testCtx.startKubeService(t)
 
