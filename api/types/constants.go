@@ -276,6 +276,12 @@ const (
 	// KindDevice represents a registered or trusted device.
 	KindDevice = "device"
 
+	// KindOktaGroups represents Okta groups.
+	KindOktaGroups = "oktagroups"
+
+	// KindOktaApps represents Okta applications.
+	KindOktaApps = "oktaapps"
+
 	// V5 is the fifth version of resources.
 	V5 = "v5"
 
@@ -357,6 +363,10 @@ const (
 	// created from the Kubernetes Operator.
 	OriginKubernetes = "kubernetes"
 
+	// OriginOkta is an origin value indicating that the resource was imported
+	// from Okta.
+	OriginOkta = "okta"
+
 	// AWSAccountIDLabel is used to identify nodes by AWS account ID
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
@@ -390,7 +400,7 @@ const (
 )
 
 // OriginValues lists all possible origin values.
-var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud, OriginKubernetes}
+var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud, OriginKubernetes, OriginOkta}
 
 const (
 	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.

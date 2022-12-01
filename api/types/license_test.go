@@ -29,6 +29,7 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 	allFields := []func(License) Bool{
 		License.GetReportsUsage,
 		License.GetCloud,
+		License.GetOkta,
 		License.GetSupportsKubernetes,
 		License.GetSupportsApplicationAccess,
 		License.GetSupportsDatabaseAccess,
@@ -65,6 +66,12 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 			setter:      License.SetCloud,
 			getter:      License.GetCloud,
 			unsetFields: unsetFields(License.GetCloud),
+		},
+		{
+			name:        "Set Okta",
+			setter:      License.SetOkta,
+			getter:      License.GetOkta,
+			unsetFields: unsetFields(License.GetOkta),
 		},
 		{
 			name:        "Set Kubernetes Support",
@@ -119,6 +126,7 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 	require.True(t, bool(license.GetSupportsApplicationAccess()))
 	require.False(t, bool(license.GetReportsUsage()))
 	require.False(t, bool(license.GetCloud()))
+	require.False(t, bool(license.GetOkta()))
 	require.False(t, bool(license.GetSupportsKubernetes()))
 	require.False(t, bool(license.GetSupportsDatabaseAccess()))
 	require.False(t, bool(license.GetSupportsDesktopAccess()))

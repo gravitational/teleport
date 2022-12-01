@@ -44,6 +44,9 @@ import (
 // ResourceCreateHandler is the generic implementation of a resource creation handler
 type ResourceCreateHandler func(context.Context, auth.ClientI, services.UnknownResource) error
 
+// ResourceCreateHandler is the generic implementation of a resource get handler
+type ResourceGetHandler func(context.Context, auth.ClientI, services.Ref) (ResourceCollection, error)
+
 // ResourceKind is the string form of a resource, i.e. "oidc"
 type ResourceKind string
 
@@ -73,6 +76,7 @@ type ResourceCommand struct {
 	verbose bool
 
 	CreateHandlers map[ResourceKind]ResourceCreateHandler
+	GetHandlers    map[ResourceKind]ResourceGetHandler
 
 	// stdout allows to switch standard output source for resource command. Used in tests.
 	stdout io.Writer
@@ -1380,6 +1384,16 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &installerCollection{installers: []types.Installer{inst}}, nil
+	default:
+		// locate a getter function if it's available
+		getter, found := rc.GetHandlers[ResourceKind(rc.ref.Kind)]
+		if found {
+			collection, err := getter(ctx, client, rc.ref)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return collection, nil
+		}
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

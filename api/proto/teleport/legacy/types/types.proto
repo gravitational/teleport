@@ -48,6 +48,7 @@ message KeepAlive {
     DATABASE = 3;
     WINDOWS_DESKTOP = 4;
     KUBERNETES = 5;
+    OKTA = 6;
   }
   KeepAliveType Type = 9 [(gogoproto.jsontag) = "type"];
   // HostID is an optional UUID of the host the resource belongs to.
@@ -4419,4 +4420,83 @@ enum RequireMFAType {
   // rather than only session requests. This touch is different from MFA, so to prevent
   // requiring double touch on session requests, normal Session MFA is disabled.
   HARDWARE_KEY_TOUCH = 3;
+}
+
+// OktaGroupV1 is a group found in Okta.
+message OktaGroupV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Kind is the oktagroup resource kind. Always "oktagroup".
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource subkind.
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is the resource version.
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is the app resource metadata.
+  Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+  // Spec is the app resource spec.
+  OktaGroupSpecV1 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// OktaGroupSpecV1 is a group found in Okta.
+message OktaGroupSpecV1 {
+  // All of the users assigned to the group.
+  repeated string users = 1 [(gogoproto.jsontag) = "users,omitempty"];
+
+  // All of the applications assigned to the group.
+  repeated string applications = 2 [(gogoproto.jsontag) = "applications,omitempty"];
+}
+
+// OktaApplicationV1 is an application found in Okta.
+message OktaApplicationV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Kind is the oktagroup resource kind. Always "oktaapplication".
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource subkind.
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is the resource version.
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is the app resource metadata.
+  Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+  // Spec is the app resource spec.
+  OktaApplicationSpecV1 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// OktaApplication is an application found in Okta.
+message OktaApplicationSpecV1 {
+  // The unique identifier for the application.
+  string id = 1 [(gogoproto.jsontag) = "id"];
+
+  // App links for the application. Each application can have multiple named app links.
+  repeated OktaAppLinkV1 app_links = 2 [(gogoproto.jsontag) = "app_links"];
+
+  // All of the users assigned explicit access to this application.
+  repeated string users = 3 [(gogoproto.jsontag) = "users"];
+
+  // All of the groups assigned explicit access to this application.
+  repeated string groups = 4 [(gogoproto.jsontag) = "groups"];
+}
+
+// OktaAppLink is a named link to an application.
+message OktaAppLinkV1 {
+  // The name of the app link.
+  string name = 1 [(gogoproto.jsontag) = "name"];
+
+  // The URI for the app link.
+  string uri = 2 [(gogoproto.jsontag) = "uri"];
 }

@@ -39,6 +39,11 @@ type License interface {
 	// SetCloud sets cloud flag
 	SetCloud(Bool)
 
+	// GetOkta returns true if the Okta enterprise feature is enabled
+	GetOkta() Bool
+	// SetCloud sets Okta flag
+	SetOkta(Bool)
+
 	// GetAWSProductID returns product id that limits usage to AWS instance
 	// with a similar product ID
 	GetAWSProductID() string
@@ -196,6 +201,16 @@ func (c *LicenseV3) SetCloud(cloud Bool) {
 	c.Spec.Cloud = cloud
 }
 
+// GetOkta returns true if the Okta enterprise feature is enabled
+func (c *LicenseV3) GetOkta() Bool {
+	return c.Spec.Okta
+}
+
+// SetCloud sets Okta flag
+func (c *LicenseV3) SetOkta(okta Bool) {
+	c.Spec.Okta = okta
+}
+
 // SetReportsUsage sets usage report
 func (c *LicenseV3) SetReportsUsage(reports Bool) {
 	c.Spec.ReportsUsage = reports
@@ -326,6 +341,9 @@ func (c *LicenseV3) String() string {
 	if c.GetCloud() {
 		features = append(features, "is hosted by Gravitational")
 	}
+	if c.GetOkta() {
+		features = append(features, "supports Okta application access integration")
+	}
 	if c.GetAWSProductID() != "" {
 		features = append(features, fmt.Sprintf("is limited to AWS product ID %q", c.Spec.AWSProductID))
 	}
@@ -359,5 +377,7 @@ type LicenseSpecV3 struct {
 	ReportsUsage Bool `json:"usage,omitempty"`
 	// Cloud is turned on when teleport is hosted by Gravitational
 	Cloud Bool `json:"cloud,omitempty"`
+	// Okta turns app access Okta integration on or off
+	Okta  Bool `json:"okta,omitempty"`
 	Trial Bool `json:"trial,omitempty"`
 }

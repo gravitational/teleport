@@ -96,6 +96,9 @@ const (
 	// KeepAliveApp is the keep alive type for application server.
 	KeepAliveApp = "app"
 
+	// KeepAliveApp is the keep alive type for the Okta integration service.
+	KeepAliveOkta = "okta"
+
 	// KeepAliveDatabase is the keep alive type for database server.
 	KeepAliveDatabase = "db"
 

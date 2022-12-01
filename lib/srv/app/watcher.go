@@ -66,10 +66,10 @@ func (s *Server) startReconciler(ctx context.Context) error {
 // registers/unregisters the proxied applications accordingly.
 func (s *Server) startResourceWatcher(ctx context.Context) (*services.AppWatcher, error) {
 	if len(s.c.ResourceMatchers) == 0 {
-		s.log.Debug("Not initializing application resource watcher.")
+		s.log.Infof("Not initializing application resource watcher.")
 		return nil, nil
 	}
-	s.log.Debug("Initializing application resource watcher.")
+	s.log.Infof("Initializing application resource watcher.")
 	watcher, err := services.NewAppWatcher(ctx, services.AppWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentApp,

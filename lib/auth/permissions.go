@@ -564,6 +564,21 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					},
 				},
 			})
+	case types.RoleOkta:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV5{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					AppLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+					Rules: []types.Rule{
+						types.NewRule(types.KindAppServer, services.RW()),
+						types.NewRule(types.KindApp, services.RW()),
+						types.NewRule(types.KindOktaGroups, services.RW()),
+						types.NewRule(types.KindOktaApps, services.RW()),
+					},
+				},
+			})
 	case types.RoleDatabase:
 		return services.RoleFromSpec(
 			role.String(),

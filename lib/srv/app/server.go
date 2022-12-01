@@ -936,6 +936,7 @@ func (s *Server) getApp(ctx context.Context, publicAddr string) (types.Applicati
 	defer s.mu.RUnlock()
 
 	for _, a := range s.getApps() {
+		s.log.Infof("Public addr: %s", a.GetPublicAddr())
 		if publicAddr == a.GetPublicAddr() {
 			return s.appWithUpdatedLabels(a), nil
 		}

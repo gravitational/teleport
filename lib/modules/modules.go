@@ -59,6 +59,8 @@ type Features struct {
 	HSM bool
 	// Desktop enables desktop access product
 	Desktop bool
+	// Okta enables app access Okta integration features
+	Okta bool
 }
 
 // ToProto converts Features into proto.Features
