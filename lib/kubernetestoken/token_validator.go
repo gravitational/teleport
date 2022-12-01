@@ -42,7 +42,7 @@ const (
 
 type Validator struct {
 	mu sync.Mutex
-	// client is protected by mu and should only be accessed via the getProvider
+	// client is protected by mu and should only be accessed via the getClient
 	// method.
 	client kubernetes.Interface
 }

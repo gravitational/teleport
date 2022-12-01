@@ -51,7 +51,6 @@ func (a *Server) checkKubernetesJoinRequest(ctx context.Context, req *types.Regi
 		"token":    pt.GetName(),
 	}).Info("Kubernetes workload trying to join cluster")
 
-	// TODO: if pod extradata compare with node name?
 
 	return trace.Wrap(checkKubernetesAllowRules(pt, userInfo))
 }
