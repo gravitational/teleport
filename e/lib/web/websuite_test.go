@@ -19,6 +19,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -65,20 +66,30 @@ func newWebSuite(t *testing.T) *webSuite {
 		cancel: cancel,
 	}
 
+	pluginRegistry := plugin.NewRegistry()
+	webPlugin, err := NewPlugin(Config{})
+	require.NoError(t, err)
+	err = pluginRegistry.Add(webPlugin)
+	require.NoError(t, err)
+	authPlugin, err := eauth.NewPlugin(eauth.Config{
+		GetBackend: func() backend.Backend {
+			return s.testAuthServer.AuthServer.Backend
+		},
+	})
+	require.NoError(t, err)
+	err = pluginRegistry.Add(authPlugin)
+	require.NoError(t, err)
+
 	s.testAuthServer, err = auth.NewTestServer(auth.TestServerConfig{
 		Auth: auth.TestAuthServerConfig{
 			Dir:   t.TempDir(),
 			Clock: s.clock,
 		},
+		TLS: &auth.TestTLSServerConfig{
+			APIConfig: &auth.APIConfig{PluginRegistry: pluginRegistry},
+		},
 	})
 	require.NoError(t, err)
-
-	// Plug in SAML service
-	sas, err := eauth.NewSAMLAuthService(&eauth.SAMLAuthServiceConfig{
-		Auth: s.testAuthServer.Auth(),
-	})
-	require.NoError(t, err)
-	s.testAuthServer.Auth().SetSAMLService(sas)
 
 	err = s.testAuthServer.Auth().UpsertAuthServer(&types.ServerV2{
 		Kind:    types.KindAuthServer,
@@ -101,12 +112,6 @@ func newWebSuite(t *testing.T) *webSuite {
 			Username: "proxy",
 		},
 	})
-	require.NoError(t, err)
-
-	pluginRegistry := plugin.NewRegistry()
-	webPlugin, err := NewPlugin(Config{})
-	require.NoError(t, err)
-	err = pluginRegistry.Add(webPlugin)
 	require.NoError(t, err)
 
 	// Expired sessions are purged immediately

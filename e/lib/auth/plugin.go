@@ -145,6 +145,12 @@ func (p *Plugin) RegisterAuthWebHandlers(handler interface{}) error {
 
 	apiServer.GET("/:version/license/status", httplib.MakeHandler(p.getLicenseCheckResult))
 
+	// Temporary check for the existence of this endpoint in Teleport OSS.
+	// Once removed from there, this check can be removed here.
+	if h, _, _ := apiServer.Lookup("POST", "/:version/saml/requests/validate"); h == nil {
+		apiServer.POST("/:version/saml/requests/validate", apiServer.WithAuth(validateSAMLResponseWeb))
+	}
+
 	return nil
 }
 

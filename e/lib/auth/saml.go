@@ -5,13 +5,16 @@ import (
 	"compress/flate"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"sync"
 
 	"github.com/beevik/etree"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
 	saml2 "github.com/russellhaering/gosaml2"
 	"github.com/sirupsen/logrus"
 
@@ -24,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
@@ -604,4 +608,41 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 
 	diagCtx.Info.Success = true
 	return resp, nil
+}
+
+// validateSAMLResponseWeb provides a HTTP/JSON interface to
+// SAMLAuthService.ValidateSAMLResponse. It is called by a teleport proxy in
+// response to it receiving the SAML callback (ACS) from the identity provider.
+func validateSAMLResponseWeb(authClient auth.ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req *auth.ValidateSAMLResponseReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := authClient.ValidateSAMLResponse(r.Context(), req.Response, req.ConnectorID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	raw := auth.SAMLAuthRawResponse{
+		Username: response.Username,
+		Identity: response.Identity,
+		Cert:     response.Cert,
+		Req:      response.Req,
+		TLSCert:  response.TLSCert,
+	}
+	if response.Session != nil {
+		rawSession, err := services.MarshalWebSession(response.Session, services.WithVersion(version))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		raw.Session = rawSession
+	}
+	raw.HostSigners = make([]json.RawMessage, len(response.HostSigners))
+	for i, ca := range response.HostSigners {
+		data, err := services.MarshalCertAuthority(ca, services.WithVersion(version))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		raw.HostSigners[i] = data
+	}
+	return &raw, nil
 }
