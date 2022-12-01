@@ -461,7 +461,7 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 	case <-u.closeC:
 		return trace.Errorf("operation has been canceled, uploader is closed")
 	case <-stream.Status():
-	case <-time.After(defaults.NetworkRetryDuration):
+	case <-time.After(events.NetworkRetryDuration):
 		return trace.ConnectionProblem(nil, "timeout waiting for stream status update")
 	case <-ctx.Done():
 		return trace.ConnectionProblem(ctx.Err(), "operation has been canceled")
