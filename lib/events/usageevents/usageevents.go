@@ -20,7 +20,7 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -33,7 +33,7 @@ import (
 // audit log events to Teleport.
 type UsageLogger struct {
 	// Entry is a log entry
-	*log.Entry
+	*logrus.Entry
 
 	// inner is a wrapped audit log implementation
 	inner events.IAuditLog
@@ -107,8 +107,12 @@ func (u *UsageLogger) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 // New creates a new usage event IAuditLog impl, which wraps another IAuditLog
 // impl and forwards a subset of audit log events to the cluster UsageReporter
 // service.
-func New(reporter services.UsageReporter, inner events.IAuditLog) (*UsageLogger, error) {
-	l := log.WithField(trace.Component, teleport.Component(teleport.ComponentUsageReporting))
+func New(reporter services.UsageReporter, parentLog logrus.FieldLogger, inner events.IAuditLog) (*UsageLogger, error) {
+	if parentLog == nil {
+		parentLog = logrus.StandardLogger()
+	}
+
+	l := parentLog.WithField(trace.Component, teleport.Component(teleport.ComponentUsageReporting))
 
 	return &UsageLogger{
 		Entry:    l,

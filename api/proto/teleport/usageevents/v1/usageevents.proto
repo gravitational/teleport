@@ -32,7 +32,7 @@ message UIOnboardGetStartedClickEvent {
   string username = 1;
 }
 
-// UIOnboardCompleteGoToDashboardClickEvent is a UI event sent when initial 
+// UIOnboardCompleteGoToDashboardClickEvent is a UI event sent when initial
 // registration is complete.
 message UIOnboardCompleteGoToDashboardClickEvent {}
 

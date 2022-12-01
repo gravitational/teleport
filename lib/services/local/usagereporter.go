@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -133,7 +133,7 @@ type UsageSubmitFunc func(reporter *UsageReporter, batch []*prehogapi.SubmitEven
 
 type UsageReporter struct {
 	// Entry is a log entry
-	*log.Entry
+	*logrus.Entry
 
 	// clock is the clock used for the main batching goroutine
 	clock clockwork.Clock
@@ -319,7 +319,7 @@ func (r *UsageReporter) convertEvent(event services.UsageAnonymizable) (*prehoga
 	event = event.Anonymize(r.anonymizer)
 
 	time := timestamppb.New(r.clock.Now())
-	clusterName := r.anonymizer.Anonymize([]byte(r.clusterName.GetClusterName()))
+	clusterName := r.anonymizer.AnonymizeString(r.clusterName.GetClusterName())
 
 	// "Event" can't be named because protoc doesn't export the interface, so
 	// instead we have a giant, fallible switch statement for something the
@@ -506,10 +506,12 @@ func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *
 
 // NewUsageReporter creates a new usage reporter. `Run()` must be executed to
 // process incoming events.
-func NewUsageReporter(ctx context.Context, clusterName types.ClusterName, submitter UsageSubmitFunc) (*UsageReporter, error) {
-	l := log.WithFields(log.Fields{
-		trace.Component: teleport.Component(teleport.ComponentUsageReporting),
-	})
+func NewUsageReporter(ctx context.Context, parentLog logrus.FieldLogger, clusterName types.ClusterName, submitter UsageSubmitFunc) (*UsageReporter, error) {
+	if parentLog == nil {
+		parentLog = logrus.StandardLogger()
+	}
+
+	l := parentLog.WithField(trace.Component, teleport.Component(teleport.ComponentUsageReporting))
 
 	anonymizer, err := utils.NewHMACAnonymizer(clusterName.GetClusterID())
 	if err != nil {

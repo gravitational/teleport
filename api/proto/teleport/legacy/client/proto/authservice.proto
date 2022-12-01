@@ -1910,7 +1910,7 @@ message AppendDiagnosticTraceRequest {
 
 // SubmitUsageEventRequest is used to submit an external usage event.
 message SubmitUsageEventRequest {
-  teleport.usageevents.v1.UsageEventOneOf event = 1 [(gogoproto.jsontag) = "event"];
+  teleport.usageevents.v1.UsageEventOneOf Event = 1 [(gogoproto.jsontag) = "event"];
 }
 
 // AuthService is authentication/authorization service implementation

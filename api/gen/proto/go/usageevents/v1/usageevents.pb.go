@@ -72,7 +72,8 @@ func (m *UIBannerClickEvent) GetAlert() string {
 	return ""
 }
 
-// UIOnboardGetStartedClickEvent
+// UIOnboardGetStartedClickEvent is a UI event sent when the "get started"
+// button is clicked.
 type UIOnboardGetStartedClickEvent struct {
 	// The event username. Not extracted from identity as this is pre-registration.
 	Username             string   `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
@@ -121,7 +122,8 @@ func (m *UIOnboardGetStartedClickEvent) GetUsername() string {
 	return ""
 }
 
-// UIOnboardCompleteGoToDashboardClickEvent
+// UIOnboardCompleteGoToDashboardClickEvent is a UI event sent when initial
+// registration is complete.
 type UIOnboardCompleteGoToDashboardClickEvent struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -163,7 +165,8 @@ func (m *UIOnboardCompleteGoToDashboardClickEvent) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_UIOnboardCompleteGoToDashboardClickEvent proto.InternalMessageInfo
 
-// UIOnboardAddFirstResourceClickEvent
+// UIOnboardAddFirstResourceClickEvent is a UI event sent when a user clicks the
+// "add first resource" button.
 type UIOnboardAddFirstResourceClickEvent struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -203,7 +206,8 @@ func (m *UIOnboardAddFirstResourceClickEvent) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_UIOnboardAddFirstResourceClickEvent proto.InternalMessageInfo
 
-// UIOnboardAddFirstResourceLaterClickEvent
+// UIOnboardAddFirstResourceLaterClickEvent is a UI event sent when a user
+// clicks the "add first resource later" button.
 type UIOnboardAddFirstResourceLaterClickEvent struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -245,7 +249,8 @@ func (m *UIOnboardAddFirstResourceLaterClickEvent) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_UIOnboardAddFirstResourceLaterClickEvent proto.InternalMessageInfo
 
-// UIOnboardSetCredentialSubmitEvent
+// UIOnboardSetCredentialSubmitEvent is a UI event sent during registration when
+// users configure their credentials.
 type UIOnboardSetCredentialSubmitEvent struct {
 	// The event username. Not extracted from identity as this is pre-registration.
 	Username             string   `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
@@ -294,7 +299,8 @@ func (m *UIOnboardSetCredentialSubmitEvent) GetUsername() string {
 	return ""
 }
 
-// UIOnboardRegisterChallengeSubmitEvent
+// UIOnboardRegisterChallengeSubmitEvent is a UI event sent during registration
+// when the MFA challenge is completed.
 type UIOnboardRegisterChallengeSubmitEvent struct {
 	// The event username. Not extracted from identity as this is pre-registration.
 	Username             string   `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
@@ -343,7 +349,8 @@ func (m *UIOnboardRegisterChallengeSubmitEvent) GetUsername() string {
 	return ""
 }
 
-// UIOnboardRecoveryCodesContinueClickEvent
+// UIOnboardRecoveryCodesContinueClickEvent is a UI event sent during
+// registration when the user configures cluster recovery codes.
 type UIOnboardRecoveryCodesContinueClickEvent struct {
 	// The event username. Not extracted from identity as this is pre-registration.
 	Username             string   `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`

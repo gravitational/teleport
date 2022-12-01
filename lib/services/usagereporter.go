@@ -43,7 +43,7 @@ type UsageUserLogin prehogv1.UserLoginEvent
 
 func (u *UsageUserLogin) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 	return &UsageUserLogin{
-		UserName:      a.Anonymize([]byte(u.UserName)),
+		UserName:      a.AnonymizeString(u.UserName),
 		ConnectorType: u.ConnectorType,
 	}
 }
@@ -63,7 +63,7 @@ type UsageSessionStart prehogv1.SessionStartEvent
 
 func (u *UsageSessionStart) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 	return &UsageSessionStart{
-		UserName:    a.Anonymize([]byte(u.UserName)),
+		UserName:    a.AnonymizeString(u.UserName),
 		SessionType: u.SessionType,
 	}
 }
@@ -83,7 +83,7 @@ type UsageUIBannerClick prehogv1.UIBannerClickEvent
 
 func (u *UsageUIBannerClick) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 	return &UsageUIBannerClick{
-		UserName: a.Anonymize([]byte(u.UserName)),
+		UserName: a.AnonymizeString(u.UserName),
 		Alert:    u.Alert,
 	}
 }
@@ -94,7 +94,7 @@ type UsageUIOnboardGetStartedClickEvent prehogv1.UIOnboardGetStartedClickEvent
 
 func (u *UsageUIOnboardGetStartedClickEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 	return &UsageUIOnboardGetStartedClickEvent{
-		UserName: a.Anonymize([]byte(u.UserName)),
+		UserName: a.AnonymizeString(u.UserName),
 	}
 }
 
@@ -104,7 +104,7 @@ type UsageUIOnboardCompleteGoToDashboardClickEvent prehogv1.UIOnboardCompleteGoT
 
 func (u *UsageUIOnboardCompleteGoToDashboardClickEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 	return &UsageUIOnboardCompleteGoToDashboardClickEvent{
-		UserName: a.Anonymize([]byte(u.UserName)),
+		UserName: a.AnonymizeString(u.UserName),
 	}
 }
 
@@ -114,7 +114,7 @@ type UsageUIOnboardAddFirstResourceClickEvent prehogv1.UIOnboardAddFirstResource
 
 func (u *UsageUIOnboardAddFirstResourceClickEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 	return &UsageUIOnboardAddFirstResourceClickEvent{
-		UserName: a.Anonymize([]byte(u.UserName)),
+		UserName: a.AnonymizeString(u.UserName),
 	}
 }
 
@@ -124,7 +124,7 @@ type UsageUIOnboardAddFirstResourceLaterClickEvent prehogv1.UIOnboardAddFirstRes
 
 func (u *UsageUIOnboardAddFirstResourceLaterClickEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 	return &UsageUIOnboardAddFirstResourceLaterClickEvent{
-		UserName: a.Anonymize([]byte(u.UserName)),
+		UserName: a.AnonymizeString(u.UserName),
 	}
 }
 
@@ -134,7 +134,7 @@ type UsageUIOnboardSetCredentialSubmit prehogv1.UIOnboardSetCredentialSubmitEven
 
 func (u *UsageUIOnboardSetCredentialSubmit) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 	return &UsageUIOnboardSetCredentialSubmit{
-		UserName: a.Anonymize([]byte(u.UserName)),
+		UserName: a.AnonymizeString(u.UserName),
 	}
 }
 
@@ -144,7 +144,7 @@ type UsageUIOnboardRegisterChallengeSubmit prehogv1.UIOnboardRegisterChallengeSu
 
 func (u *UsageUIOnboardRegisterChallengeSubmit) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 	return &UsageUIOnboardRegisterChallengeSubmit{
-		UserName: a.Anonymize([]byte(u.UserName)),
+		UserName: a.AnonymizeString(u.UserName),
 	}
 }
 
@@ -154,18 +154,23 @@ type UsageUIOnboardRecoveryCodesContinueClick prehogv1.UIOnboardRecoveryCodesCon
 
 func (u *UsageUIOnboardRecoveryCodesContinueClick) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 	return &UsageUIOnboardRecoveryCodesContinueClick{
-		UserName: a.Anonymize([]byte(u.UserName)),
+		UserName: a.AnonymizeString(u.UserName),
 	}
 }
 
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
-func ConvertUsageEvent(event *usageevents.UsageEventOneOf, username string) (UsageAnonymizable, error) {
+func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername string) (UsageAnonymizable, error) {
+	// Note: events (especially pre-registration) that embed a username of their
+	// own should generally pass that through rather than using the identity
+	// username provided to the function. It may be the username of a Teleport
+	// component (e.g. proxy) rather than the end user.
+
 	switch e := event.GetEvent().(type) {
 	case *usageevents.UsageEventOneOf_UiBannerClick:
 		return &UsageUIBannerClick{
-			UserName: username,
+			UserName: identityUsername,
 			Alert:    e.UiBannerClick.Alert,
 		}, nil
 	case *usageevents.UsageEventOneOf_UiOnboardGetStartedClick:
@@ -174,15 +179,15 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, username string) (Usa
 		}, nil
 	case *usageevents.UsageEventOneOf_UiOnboardCompleteGoToDashboardClick:
 		return &UsageUIOnboardCompleteGoToDashboardClickEvent{
-			UserName: username,
+			UserName: identityUsername,
 		}, nil
 	case *usageevents.UsageEventOneOf_UiOnboardAddFirstResourceClick:
 		return &UsageUIOnboardAddFirstResourceClickEvent{
-			UserName: username,
+			UserName: identityUsername,
 		}, nil
 	case *usageevents.UsageEventOneOf_UiOnboardAddFirstResourceLaterClick:
 		return &UsageUIOnboardAddFirstResourceLaterClickEvent{
-			UserName: username,
+			UserName: identityUsername,
 		}, nil
 	case *usageevents.UsageEventOneOf_UiOnboardSetCredentialSubmit:
 		return &UsageUIOnboardSetCredentialSubmit{

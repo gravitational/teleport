@@ -143,7 +143,7 @@ func compareUsageEvents(t *testing.T, reporter *UsageReporter, inputs []services
 		anonymized := input.Anonymize(reporter.anonymizer)
 		output := outputs[i]
 
-		expectedClusterName := reporter.anonymizer.Anonymize([]byte(reporter.clusterName.GetClusterName()))
+		expectedClusterName := reporter.anonymizer.AnonymizeString(reporter.clusterName.GetClusterName())
 		require.Equal(t, expectedClusterName, output.ClusterName)
 
 		switch e := output.GetEvent().(type) {
