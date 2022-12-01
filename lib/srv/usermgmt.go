@@ -24,6 +24,7 @@ import (
 	"os/user"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -160,7 +161,7 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		}
 		systemGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
 		if err != nil {
-			if errors.Is(err, user.UnknownGroupError(types.TeleportServiceGroup)) {
+			if isUnknownGroupError(err, types.TeleportServiceGroup) {
 				return nil, nil, trace.AlreadyExists("User %q already exists, however no users are currently managed by teleport", name)
 			}
 			return nil, nil, trace.Wrap(err)
@@ -280,6 +281,14 @@ func (u *HostUserManagement) createGroupIfNotExist(group string) error {
 	return trace.Wrap(err)
 }
 
+// isUnknownGroupError returns whether the error from LookupGroup is an unknown group error.
+func isUnknownGroupError(err error, groupName string) bool {
+	// LookupGroup is supposed to return a UnknownGroupError, but due to an existing issue
+	// may instead return a generic "no such file or directory" error when sssd is installed.
+	// Open github issue - https://github.com/golang/go/issues/40334
+	return errors.Is(err, user.UnknownGroupError(groupName)) || strings.HasSuffix(err.Error(), syscall.ENOENT.Error())
+}
+
 // DeleteAllUsers deletes all host users in the teleport service group.
 func (u *HostUserManagement) DeleteAllUsers() error {
 	users, err := u.backend.GetAllUsers()
@@ -288,7 +297,7 @@ func (u *HostUserManagement) DeleteAllUsers() error {
 	}
 	teleportGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
 	if err != nil {
-		if errors.Is(err, user.UnknownGroupError(types.TeleportServiceGroup)) {
+		if isUnknownGroupError(err, types.TeleportServiceGroup) {
 			log.Debugf("'teleport-service' group not found, not deleting users")
 			return nil
 		}
