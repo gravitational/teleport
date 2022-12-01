@@ -2,12 +2,20 @@ package loginrule
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"io"
+	"os"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type subcommand interface {
@@ -79,5 +87,68 @@ func (t *testCommand) tryRun(ctx context.Context, selectedCommand string, c auth
 		return false, nil
 	}
 
-	return true, trace.NotImplemented("tctl login_rule test command is not yet implemented")
+	return true, trace.Wrap(t.run(ctx, c))
+}
+
+func (t *testCommand) run(ctx context.Context, c auth.ClientI) error {
+	loginRules, err := parseLoginRuleFiles(t.inputFileNames)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO(nklaassen): Implement actual command logic. Printing some
+	// placeholder output for now.
+	for _, rule := range loginRules {
+		fmt.Printf("Parsed login rule: %s\n", rule.Metadata.Name)
+	}
+	return nil
+}
+
+// parseLoginRuleFiles parses login rules from YAML or JSON files. Supports
+// multiple rules per YAML file separated into YAML documents with "---".
+func parseLoginRuleFiles(fileNames []string) ([]*loginrulepb.LoginRule, error) {
+	var rules []*loginrulepb.LoginRule
+	for _, fileName := range fileNames {
+		fileRules, err := parseLoginRuleFile(fileName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		rules = append(rules, fileRules...)
+	}
+	return rules, nil
+}
+
+func parseLoginRuleFile(fileName string) ([]*loginrulepb.LoginRule, error) {
+	f, err := os.Open(fileName)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	defer f.Close()
+
+	rules, err := parseLoginRules(f)
+	return rules, trace.Wrap(err)
+}
+
+func parseLoginRules(r io.Reader) ([]*loginrulepb.LoginRule, error) {
+	var rules []*loginrulepb.LoginRule
+	decoder := kyaml.NewYAMLOrJSONDecoder(r, defaults.LookaheadBufSize)
+	for {
+		var raw services.UnknownResource
+		err := decoder.Decode(&raw)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return rules, nil
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		if raw.Kind != ResourceKind {
+			return nil, trace.BadParameter("found resource kind %q, expected %s", raw.Kind, ResourceKind)
+		}
+		rule, err := unmarshalLoginRule(raw.Raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		rules = append(rules, rule)
+	}
 }
