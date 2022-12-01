@@ -225,6 +225,9 @@ func validateMongoDB(db types.Database) error {
 }
 
 func isDNSError(err error) bool {
+	if err == nil {
+		return false
+	}
 	if unwrapped := errors.Unwrap(err); unwrapped != nil {
 		err = unwrapped
 	}
