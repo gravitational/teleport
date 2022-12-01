@@ -351,3 +351,11 @@ func filterDatabasesByLabels(databases types.Databases, labels types.Labels, log
 	}
 	return matchedDatabases
 }
+
+// flatten flattens a nested slice [][]T to []T.
+func flatten[T any](s [][]T) (result []T) {
+	for i := range s {
+		result = append(result, s[i]...)
+	}
+	return
+}

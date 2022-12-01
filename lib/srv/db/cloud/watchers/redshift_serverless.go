@@ -119,18 +119,10 @@ func (f *redshiftServerlessFetcher) getDatabasesFromWorkgroups(ctx context.Conte
 			continue
 		}
 
-		tags, err := f.getResourceTags(ctx, workgroup.WorkgroupArn)
-		if err != nil {
-			if trace.IsAccessDenied(err) {
-				f.log.WithError(err).Debugf("No Permission to get tags for %v.", workgroup)
-			} else {
-				f.log.WithError(err).Warnf("Failed to get tags for %v.", workgroup)
-			}
-		}
-
+		tags := f.getResourceTags(ctx, workgroup, workgroup.WorkgroupArn)
 		database, err := services.NewDatabaseFromRedshiftServerlessWorkgroup(workgroup, tags)
 		if err != nil {
-			f.log.WithError(err).Infof("Could not convert %q to database resource.", workgroup)
+			f.log.WithError(err).Infof("Could not convert %q to database resource.", libcloudaws.ReadableResourceName(workgroup))
 			continue
 		}
 		databases = append(databases, database)
@@ -148,7 +140,7 @@ func (f *redshiftServerlessFetcher) getDatabasesFromVPCEndpoints(ctx context.Con
 	for _, endpoint := range endpoints {
 		workgroup, found := findWorkgroupWithName(workgroups, aws.StringValue(endpoint.WorkgroupName))
 		if !found {
-			f.log.Debugf("Could not find workgroup for %v. Skipping.", libcloudaws.ReadableResourceName(endpoint))
+			f.log.Debugf("Could not find matching workgroup for %v. Skipping.", libcloudaws.ReadableResourceName(endpoint))
 			continue
 		}
 
@@ -157,18 +149,10 @@ func (f *redshiftServerlessFetcher) getDatabasesFromVPCEndpoints(ctx context.Con
 			continue
 		}
 
-		tags, err := f.getResourceTags(ctx, endpoint.EndpointArn)
-		if err != nil {
-			if trace.IsAccessDenied(err) {
-				f.log.WithError(err).Debugf("No Permission to get tags for %v.", endpoint)
-			} else {
-				f.log.WithError(err).Warnf("Failed to get tags for %v.", endpoint)
-			}
-		}
-
+		tags := f.getResourceTags(ctx, endpoint, endpoint.EndpointArn)
 		database, err := services.NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint, workgroup, tags)
 		if err != nil {
-			f.log.WithError(err).Infof("Could not convert %q to database resource.", endpoint)
+			f.log.WithError(err).Infof("Could not convert %q to database resource.", libcloudaws.ReadableResourceName(endpoint))
 			continue
 		}
 		databases = append(databases, database)
@@ -176,14 +160,20 @@ func (f *redshiftServerlessFetcher) getDatabasesFromVPCEndpoints(ctx context.Con
 	return databases, nil
 }
 
-func (f *redshiftServerlessFetcher) getResourceTags(ctx context.Context, arn *string) ([]*redshiftserverless.Tag, error) {
+func (f *redshiftServerlessFetcher) getResourceTags(ctx context.Context, r interface{}, arn *string) []*redshiftserverless.Tag {
 	output, err := f.cfg.Client.ListTagsForResourceWithContext(ctx, &redshiftserverless.ListTagsForResourceInput{
 		ResourceArn: arn,
 	})
 	if err != nil {
-		return nil, libcloudaws.ConvertRequestFailureError(err)
+		// Log errors here and return nil.
+		if trace.IsAccessDenied(err) {
+			f.log.WithError(err).Debugf("No Permission to get tags for %v.", libcloudaws.ReadableResourceName(r))
+		} else {
+			f.log.WithError(err).Warnf("Failed to get tags for %v.", libcloudaws.ReadableResourceName(r))
+		}
+		return nil
 	}
-	return output.Tags, nil
+	return output.Tags
 }
 
 func (f *redshiftServerlessFetcher) getWorkgroups(ctx context.Context) ([]*redshiftserverless.Workgroup, error) {
@@ -211,11 +201,4 @@ func findWorkgroupWithName(workgroups []*redshiftserverless.Workgroup, name stri
 		}
 	}
 	return nil, false
-}
-
-func flatten[T any](s [][]T) (result []T) {
-	for i := range s {
-		result = append(result, s[i]...)
-	}
-	return
 }

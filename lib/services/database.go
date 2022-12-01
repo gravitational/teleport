@@ -1088,15 +1088,10 @@ func labelsFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.Endpoi
 	return addLabels(labels, libcloudaws.TagsToLabels(tags))
 }
 
-func labelsFromCloud() map[string]string {
-	labels := make(map[string]string)
-	labels[types.OriginLabel] = types.OriginCloud
-	return labels
-}
-
 // labelsFromAWSMetadata returns labels from provided AWS metadata.
 func labelsFromAWSMetadata(meta *types.AWS) map[string]string {
-	labels := labelsFromCloud()
+	labels := make(map[string]string)
+	labels[types.OriginLabel] = types.OriginCloud
 	if meta != nil {
 		labels[labelAccountID] = meta.AccountID
 		labels[labelRegion] = meta.Region
@@ -1117,8 +1112,8 @@ func azureTagsToLabels(tags map[string]string) map[string]string {
 	return addLabels(labels, tags)
 }
 
-func addLabels(labels map[string]string, extraLabels map[string]string) map[string]string {
-	for key, value := range extraLabels {
+func addLabels(labels map[string]string, moreLabels map[string]string) map[string]string {
+	for key, value := range moreLabels {
 		if types.IsValidLabelKey(key) {
 			labels[key] = value
 		} else {
@@ -1215,9 +1210,9 @@ func IsRDSInstanceAvailable(instance *rds.DBInstance) bool {
 		return false
 
 	default:
-		log.Warnf("Unknown status type: %q. Assuming %v is available.",
+		log.Warnf("Unknown status type: %q. Assuming RDS instance %q is available.",
 			aws.StringValue(instance.DBInstanceStatus),
-			libcloudaws.ReadableResourceName(instance),
+			aws.StringValue(instance.DBInstanceIdentifier),
 		)
 		return true
 	}
@@ -1244,9 +1239,9 @@ func IsRDSClusterAvailable(cluster *rds.DBCluster) bool {
 		return false
 
 	default:
-		log.Warnf("Unknown status type: %q. Assuming %v is available.",
+		log.Warnf("Unknown status type: %q. Assuming Aurora cluster %q is available.",
 			aws.StringValue(cluster.Status),
-			libcloudaws.ReadableResourceName(cluster),
+			aws.StringValue(cluster.DBClusterIdentifier),
 		)
 		return true
 	}
@@ -1278,9 +1273,9 @@ func IsRedshiftClusterAvailable(cluster *redshift.Cluster) bool {
 		return false
 
 	default:
-		log.Warnf("Unknown status type: %q. Assuming %v is available.",
+		log.Warnf("Unknown status type: %q. Assuming Redshift cluster %q is available.",
 			aws.StringValue(cluster.ClusterStatus),
-			libcloudaws.ReadableResourceName(cluster),
+			aws.StringValue(cluster.ClusterIdentifier),
 		)
 		return true
 	}
