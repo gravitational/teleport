@@ -28,6 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/client-go/util/retry"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
@@ -340,15 +341,20 @@ func TestUserUpdate(t *testing.T) {
 	})
 
 	// Updating the user in K8S
+	// The modification can fail because of a conflict with the resource controller. We retry if that happens.
 	var k8sUserNewVersion resourcesv2.TeleportUser
-	err = setup.k8sClient.Get(ctx, kclient.ObjectKey{
-		Namespace: setup.namespace.Name,
-		Name:      userName,
-	}, &k8sUserNewVersion)
-	require.NoError(t, err)
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		err := setup.k8sClient.Get(ctx, kclient.ObjectKey{
+			Namespace: setup.namespace.Name,
+			Name:      userName,
+		}, &k8sUserNewVersion)
+		if err != nil {
+			return err
+		}
 
-	k8sUserNewVersion.Spec.Roles = append(k8sUserNewVersion.Spec.Roles, "y")
-	err = setup.k8sClient.Update(ctx, &k8sUserNewVersion)
+		k8sUserNewVersion.Spec.Roles = append(k8sUserNewVersion.Spec.Roles, "y")
+		return setup.k8sClient.Update(ctx, &k8sUserNewVersion)
+	})
 	require.NoError(t, err)
 
 	// Updates the user in Teleport
