@@ -55,8 +55,10 @@ func TestSolverStringExpMultiSolution(t *testing.T) {
 	require.ElementsMatch(t, []string{`"blah"`, `"root"`, `"jims"`}, s)
 }
 
-// BenchmarkSolverStringExpMultiSolution benchmarks TestSolverStringExpMultiSolution for performance monitoring.
-func BenchmarkSolverStringExpMultiSolution(b *testing.B) {
+// BenchmarkSolverStringExpMultiSolutionCached benchmarks TestSolverStringExpMultiSolution for performance monitoring.
+// Example result (M1 Macbook 14 Pro 2021):
+// BenchmarkSolverStringExpMultiSolutionCached-10    	     168	   7087695 ns/op
+func BenchmarkSolverStringExpMultiSolutionCached(b *testing.B) {
 	resolver := func(s []string) any {
 		if len(s) > 0 && s[0] == "jimsName" {
 			return "jims"
@@ -67,6 +69,33 @@ func BenchmarkSolverStringExpMultiSolution(b *testing.B) {
 	state := NewSolver()
 
 	for i := 0; i < b.N; i++ {
+		x, err := state.PartialSolveForAll("x == \"blah\" || x == \"root\" || x == jimsName", resolver, "x", TypeString, 3, 10*time.Second)
+
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		s := make([]string, len(x))
+		for i, v := range x {
+			s[i] = v.String()
+		}
+		require.ElementsMatch(b, []string{`"blah"`, `"root"`, `"jims"`}, s)
+	}
+}
+
+// BenchmarkSolverStringExpMultiSolution benchmarks TestSolverStringExpMultiSolution for performance monitoring.
+// Example result (M1 Macbook 14 Pro 2021):
+// BenchmarkSolverStringExpMultiSolution-10          	     124	   9534720 ns/op
+func BenchmarkSolverStringExpMultiSolution(b *testing.B) {
+	resolver := func(s []string) any {
+		if len(s) > 0 && s[0] == "jimsName" {
+			return "jims"
+		}
+		return nil
+	}
+
+	for i := 0; i < b.N; i++ {
+		state := NewSolver()
 		x, err := state.PartialSolveForAll("x == \"blah\" || x == \"root\" || x == jimsName", resolver, "x", TypeString, 3, 10*time.Second)
 
 		if err != nil {
