@@ -389,12 +389,13 @@ func (d *realDownloader) downloadForCloudSQL(ctx context.Context, database types
 }
 
 // getVersionFromURL fetches the CA version from the URL without downloading it.
-// If it the CA donwload is required it returns trace.NotImplementedError.
+// If it the CA download is required it returns trace.NotImplementedError.
 func (d *realDownloader) getVersionFromURL(database types.Database, url string) ([]byte, error) {
 	resp, err := d.httpClient.Head(url)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer resp.Body.Close()
 
 	if resp.Header.Get("ETag") != "" {
 		return []byte(resp.Header.Get("ETag")), nil
