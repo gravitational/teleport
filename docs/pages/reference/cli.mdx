@@ -325,16 +325,17 @@ $ tsh recordings ls --last=6h0m0s
   scope={["oss", "enterprise"]} scopeOnly
 >
 
-Recorded sessions are linked from the audit events to session recordings files. Self-hosted high availability Teleport
-deployments with directory storage for audit logs and session recordings can result in unavailable playback. That occurs
-since each auth server has its own audit log and recorded session records.
+Recorded sessions are linked from the audit events to session recordings files in their [storage backend](../reference/backends.mdx).
+The following error can occur if a session recording file is not available or when employing multiple auth servers with directory storage
+backend for recorded sessions. When using directory storage backend for audit logs and recorded sessions then only the auth server with that
+recorded session can retrieve it.
 
 ```code
 $ tsh play c8e1b2c5-322a-4095-89e3-391edfd2da9b
 ERROR: Recording for session c8e1b2c5-322a-4095-89e3-391edfd2da9b not found.
 ```
 
-Using a SIEM that combines the audit logs will help consolidate the list of available recordings. Downloaded recorded session are directly playable as a file. 
+Using a Security information and event management (SIEM) service that combines the audit logs will help consolidate the list of available recordings. Downloaded recorded session are directly playable as a file. 
 
 ```code
 $ tsh play c8e1b2c5-322a-4095-89e3-391edfd2da9b.tar
