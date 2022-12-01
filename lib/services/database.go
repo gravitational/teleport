@@ -228,9 +228,6 @@ func isDNSError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if unwrapped := errors.Unwrap(err); unwrapped != nil {
-		err = unwrapped
-	}
 
 	var dnsErr *net.DNSError
 	return errors.As(err, &dnsErr)
