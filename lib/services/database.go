@@ -32,6 +32,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -779,7 +780,7 @@ func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, endpo
 	}, nil
 }
 
-// MetadataFromMemoryDBCluster creates AWS metadata for the providec MemoryDB
+// MetadataFromMemoryDBCluster creates AWS metadata for the provided MemoryDB
 // cluster.
 func MetadataFromMemoryDBCluster(cluster *memorydb.Cluster, endpointType string) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(cluster.ARN))
@@ -795,6 +796,43 @@ func MetadataFromMemoryDBCluster(cluster *memorydb.Cluster, endpointType string)
 			ACLName:      aws.StringValue(cluster.ACLName),
 			TLSEnabled:   aws.BoolValue(cluster.TLSEnabled),
 			EndpointType: endpointType,
+		},
+	}, nil
+}
+
+// MetadataFromRedshiftServerlessWorkgroup creates AWS metadata for the
+// provided Redshift Serverless Workgroup.
+func MetadataFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workgroup) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.StringValue(workgroup.WorkgroupArn))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &types.AWS{
+		Region:    parsedARN.Region,
+		AccountID: parsedARN.AccountID,
+		RedshiftServerless: types.RedshiftServerless{
+			WorkgroupName: aws.StringValue(workgroup.WorkgroupName),
+			WorkgroupID:   aws.StringValue(workgroup.WorkgroupId),
+		},
+	}, nil
+}
+
+// MetadataFromRedshiftServerlessVPCEndpoint creates AWS metadata for the
+// provided Redshift Serverless VPC endpoint.
+func MetadataFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.EndpointAccess, workgroup *redshiftserverless.Workgroup) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.StringValue(endpoint.EndpointArn))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &types.AWS{
+		Region:    parsedARN.Region,
+		AccountID: parsedARN.AccountID,
+		RedshiftServerless: types.RedshiftServerless{
+			WorkgroupName: aws.StringValue(endpoint.WorkgroupName),
+			EndpointName:  aws.StringValue(endpoint.EndpointName),
+			WorkgroupID:   aws.StringValue(workgroup.WorkgroupId),
 		},
 	}, nil
 }
