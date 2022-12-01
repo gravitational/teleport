@@ -28,7 +28,7 @@ func TestSolverIntEq(t *testing.T) {
 	state := NewSolver()
 	x, err := state.PartialSolveForAll("x == 7", func(s []string) any {
 		return nil
-	}, "x", TypeInt, 10*time.Second)
+	}, "x", TypeInt, 1, 10*time.Second)
 
 	require.NoError(t, err)
 	require.Len(t, x, 1)
@@ -45,7 +45,7 @@ func TestSolverStringExpMultiSolution(t *testing.T) {
 	}
 
 	state := NewSolver()
-	x, err := state.PartialSolveForAll("x == \"blah\" || x == \"root\" || x == jimsName", resolver, "x", TypeString, 10*time.Second)
+	x, err := state.PartialSolveForAll("x == \"blah\" || x == \"root\" || x == jimsName", resolver, "x", TypeString, 3, 10*time.Second)
 	require.NoError(t, err)
 
 	s := make([]string, len(x))
@@ -67,7 +67,7 @@ func BenchmarkSolverStringExpMultiSolution(b *testing.B) {
 	state := NewSolver()
 
 	for i := 0; i < b.N; i++ {
-		x, err := state.PartialSolveForAll("x == \"blah\" || x == \"root\" || x == jimsName", resolver, "x", TypeString, 10*time.Second)
+		x, err := state.PartialSolveForAll("x == \"blah\" || x == \"root\" || x == jimsName", resolver, "x", TypeString, 3, 10*time.Second)
 
 		if err != nil {
 			b.Fatal(err)

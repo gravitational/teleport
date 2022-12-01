@@ -63,7 +63,7 @@ func NewSolver() *Solver {
 // PartialSolveForAll solves a given partial predicate expression for all possible values of the given identifier.
 // The expression must have a boolean output type and the type of the unknown identifier must be specified.
 // On timeout, no solutions are returned.
-func (s *Solver) PartialSolveForAll(predicate string, resolveIdentifier Resolver, querying string, to Type, timeout time.Duration) ([]z3.Value, error) {
+func (s *Solver) PartialSolveForAll(predicate string, resolveIdentifier Resolver, querying string, to Type, maxSolutions int, timeout time.Duration) ([]z3.Value, error) {
 	outCh := make(chan []z3.Value, 1)
 	errCh := make(chan error, 1)
 
@@ -72,7 +72,7 @@ func (s *Solver) PartialSolveForAll(predicate string, resolveIdentifier Resolver
 		defer close(outCh)
 		defer close(errCh)
 
-		out, err := s.partialSolveForAllImpl(predicate, resolveIdentifier, querying, to)
+		out, err := s.partialSolveForAllImpl(predicate, resolveIdentifier, querying, to, maxSolutions)
 		if err != nil {
 			errCh <- err
 			return
@@ -95,7 +95,7 @@ func (s *Solver) PartialSolveForAll(predicate string, resolveIdentifier Resolver
 }
 
 // partialSolveForAllImpl is the implementation of PartialSolveForAll that runs logic directly.
-func (s *Solver) partialSolveForAllImpl(predicate string, resolveIdentifier Resolver, querying string, to Type) ([]z3.Value, error) {
+func (s *Solver) partialSolveForAllImpl(predicate string, resolveIdentifier Resolver, querying string, to Type, maxSolutions int) (out []z3.Value, err error) {
 	// parse the predicate expression into a Go AST
 	ast, err := parser.ParseExpr(predicate)
 	if err != nil {
@@ -135,12 +135,16 @@ func (s *Solver) partialSolveForAllImpl(predicate string, resolveIdentifier Reso
 	// assert the boolean must be equal to true
 	ctx.solver.Assert(boolCond)
 
+	// defer a recover here to catch any panics from Z3, this can happen when we call call Interrupt()
+	// on a timeout. The bindings have this unfortunate behaviour but this seems like a reasonable fix.
+	// We don't need to do any additional cleanup here, the defer above will reset the solver state to a usable form.
 	defer func() {
-		recover()
+		if err := recover(); err != nil {
+			err = trace.Errorf("panic from Z3, likely a timeout: %v", err)
+		}
 	}()
 
 	// retrieve all possible values for the unknown identifier
-	var out []z3.Value
 	for {
 		// solve the model
 		sat, err := ctx.solver.Check()
@@ -169,6 +173,11 @@ func (s *Solver) partialSolveForAllImpl(predicate string, resolveIdentifier Reso
 		// assert that the value of the next possible is not equal to the current value, this allows us to retrieve all possible values
 		neq := ctx.def.Distinct(val, last)
 		ctx.solver.Assert(neq)
+
+		// if we have reached the maximum number of solutions, we are done
+		if len(out) == maxSolutions {
+			return out, nil
+		}
 	}
 }
 
