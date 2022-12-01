@@ -1304,7 +1304,7 @@ type PAM struct {
 func (p *PAM) Parse() *pam.Config {
 	serviceName := p.ServiceName
 	if serviceName == "" {
-		serviceName = defaults.ServiceName
+		serviceName = defaults.PAMServiceName
 	}
 	enabled, _ := apiutils.ParseBool(p.Enabled)
 	return &pam.Config{
