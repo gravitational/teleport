@@ -108,9 +108,7 @@ func (u *UsageLogger) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 // impl and forwards a subset of audit log events to the cluster UsageReporter
 // service.
 func New(reporter services.UsageReporter, inner events.IAuditLog) (*UsageLogger, error) {
-	l := log.WithFields(log.Fields{
-		trace.Component: teleport.Component(teleport.ComponentUsageReporting),
-	})
+	l := log.WithField(trace.Component, teleport.Component(teleport.ComponentUsageReporting))
 
 	return &UsageLogger{
 		Entry:    l,
