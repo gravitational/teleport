@@ -20,8 +20,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"path"
-	"reflect"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -41,8 +39,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 	"golang.org/x/exp/slices"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/api/types"
@@ -1177,26 +1173,6 @@ func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
 	return true
 }
 
-// IsAWSResourceAvailable checks if the input status indicates the resource is
-// available for use.
-//
-// Note that this function checks some common values but not necessarily covers
-// everything. For types that have other known status values, separate
-// functions (e.g. IsRDSClusterAvailable) can be implemented.
-func IsAWSResourceAvailable(r interface{}, status *string) bool {
-	switch strings.ToLower(aws.StringValue(status)) {
-	case "available", "modifying", "snapshotting":
-		return true
-
-	case "creating", "deleting", "create-failed":
-		return false
-
-	default:
-		log.Warnf("Unknown status type: %q. Assuming %q is available.", aws.StringValue(status), ReadableAWSResourceName(r))
-		return true
-	}
-}
-
 // IsElastiCacheClusterSupported checks whether the ElastiCache cluster is
 // supported.
 func IsElastiCacheClusterSupported(cluster *elasticache.ReplicationGroup) bool {
@@ -1241,7 +1217,7 @@ func IsRDSInstanceAvailable(instance *rds.DBInstance) bool {
 	default:
 		log.Warnf("Unknown status type: %q. Assuming %v is available.",
 			aws.StringValue(instance.DBInstanceStatus),
-			ReadableAWSResourceName(instance),
+			libcloudaws.ReadableResourceName(instance),
 		)
 		return true
 	}
@@ -1270,7 +1246,7 @@ func IsRDSClusterAvailable(cluster *rds.DBCluster) bool {
 	default:
 		log.Warnf("Unknown status type: %q. Assuming %v is available.",
 			aws.StringValue(cluster.Status),
-			ReadableAWSResourceName(cluster),
+			libcloudaws.ReadableResourceName(cluster),
 		)
 		return true
 	}
@@ -1304,8 +1280,28 @@ func IsRedshiftClusterAvailable(cluster *redshift.Cluster) bool {
 	default:
 		log.Warnf("Unknown status type: %q. Assuming %v is available.",
 			aws.StringValue(cluster.ClusterStatus),
-			ReadableAWSResourceName(cluster),
+			libcloudaws.ReadableResourceName(cluster),
 		)
+		return true
+	}
+}
+
+// IsAWSResourceAvailable checks if the input status indicates the resource is
+// available for use.
+//
+// Note that this function checks some common values but not necessarily covers
+// everything. For types that have other known status values, separate
+// functions (e.g. IsRDSClusterAvailable) can be implemented.
+func IsAWSResourceAvailable(r interface{}, status *string) bool {
+	switch strings.ToLower(aws.StringValue(status)) {
+	case "available", "modifying", "snapshotting":
+		return true
+
+	case "creating", "deleting", "create-failed":
+		return false
+
+	default:
+		log.Warnf("Unknown status type: %q. Assuming %q is available.", aws.StringValue(status), libcloudaws.ReadableResourceName(r))
 		return true
 	}
 }
@@ -1365,69 +1361,6 @@ func GetMySQLEngineVersion(labels map[string]string) string {
 		return ""
 	}
 	return version
-}
-
-// ReadableAWSResourceName returns a human readable string of an AWS resource type.
-func ReadableAWSResourceName(r interface{}) string {
-	switch v := r.(type) {
-	case *rds.DBInstance:
-		return fmt.Sprintf("RDS instance %q", aws.StringValue(v.DBInstanceIdentifier))
-	case *rds.DBCluster:
-		return fmt.Sprintf("Aurora cluster %q", aws.StringValue(v.DBClusterIdentifier))
-	case *rds.DBProxy:
-		return fmt.Sprintf("RDS Proxy %q", aws.StringValue(v.DBProxyName))
-	case *rds.DBProxyEndpoint:
-		return fmt.Sprintf("RDS Proxy endpoint %q (proxy %q)", aws.StringValue(v.DBProxyEndpointName), aws.StringValue(v.DBProxyName))
-	case *memorydb.Cluster:
-		return fmt.Sprintf("MemoryDB %q", aws.StringValue(v.Name))
-	case *elasticache.ReplicationGroup:
-		return fmt.Sprintf("ElastiCache %q", aws.StringValue(v.ReplicationGroupId))
-	case *redshift.Cluster:
-		return fmt.Sprintf("Redshift cluster %q", aws.StringValue(v.ClusterIdentifier))
-	case *redshiftserverless.Workgroup:
-		return fmt.Sprintf("Redshift Serverless workgroup %q (namespace %q)", aws.StringValue(v.WorkgroupName), aws.StringValue(v.NamespaceName))
-	case *redshiftserverless.EndpointAccess:
-		return fmt.Sprintf("Redshift Serverless endpoint %q (workgroup %q)", aws.StringValue(v.EndpointName), aws.StringValue(v.WorkgroupName))
-
-	default:
-		value := reflect.Indirect(reflect.ValueOf(r))
-		return fmt.Sprintf("%s %q", guessAWSResourceType(value), guessAWSResourceName(value))
-	}
-}
-
-func guessAWSResourceType(v reflect.Value) string {
-	resourceType := v.Type().Name()
-	if pkgPath := v.Type().PkgPath(); pkgPath != "" {
-		pkgName := cases.Title(language.Und).String(path.Base(pkgPath))
-		return fmt.Sprintf("%s %s", pkgName, resourceType)
-	}
-	return resourceType
-}
-
-func guessAWSResourceName(v reflect.Value) string {
-	if v.Kind() != reflect.Struct {
-		return "<unknown>"
-	}
-
-	// Try a few attributes to find the name. For example, if resource type is
-	// service.DBCluster, try:
-	// - service.DBCluster.Name
-	// - service.DBCluster.DBClusterName
-	// - service.DBCluster.DBClusterIdentifier
-	resourceType := v.Type().Name()
-	tryFieldNames := []string{
-		"Name",
-		resourceType + "Name",
-		resourceType + "Identifier",
-	}
-
-	for _, tryFieldName := range tryFieldNames {
-		field := reflect.Indirect(v.FieldByName(tryFieldName))
-		if field.IsValid() && field.Kind() == reflect.String {
-			return field.String()
-		}
-	}
-	return "<unknown>"
 }
 
 const (

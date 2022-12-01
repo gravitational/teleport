@@ -115,7 +115,7 @@ func (f *redshiftServerlessFetcher) getDatabasesFromWorkgroups(ctx context.Conte
 	var databases types.Databases
 	for _, workgroup := range workgroups {
 		if !services.IsAWSResourceAvailable(workgroup, workgroup.Status) {
-			f.log.Debugf("The current status of %v is %v. Skipping.", services.ReadableAWSResourceName(workgroup), aws.StringValue(workgroup.Status))
+			f.log.Debugf("The current status of %v is %v. Skipping.", libcloudaws.ReadableResourceName(workgroup), aws.StringValue(workgroup.Status))
 			continue
 		}
 
@@ -148,12 +148,12 @@ func (f *redshiftServerlessFetcher) getDatabasesFromVPCEndpoints(ctx context.Con
 	for _, endpoint := range endpoints {
 		workgroup, found := findWorkgroupWithName(workgroups, aws.StringValue(endpoint.WorkgroupName))
 		if !found {
-			f.log.Debugf("Could not find workgroup for %v. Skipping.", services.ReadableAWSResourceName(endpoint))
+			f.log.Debugf("Could not find workgroup for %v. Skipping.", libcloudaws.ReadableResourceName(endpoint))
 			continue
 		}
 
 		if !services.IsAWSResourceAvailable(endpoint, endpoint.EndpointStatus) {
-			f.log.Debugf("The current status of %v is %v. Skipping.", services.ReadableAWSResourceName(endpoint), aws.StringValue(endpoint.EndpointStatus))
+			f.log.Debugf("The current status of %v is %v. Skipping.", libcloudaws.ReadableResourceName(endpoint), aws.StringValue(endpoint.EndpointStatus))
 			continue
 		}
 

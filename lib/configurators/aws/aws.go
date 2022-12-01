@@ -746,6 +746,14 @@ func buildIAMEditStatements(target awslib.Identity) ([]*awslib.Statement, error)
 	return []*awslib.Statement{statement}, nil
 }
 
+func statementWithAllowedActions(actions []string) *awslib.Statement {
+	return &awslib.Statement{
+		Effect:    awslib.EffectAllow,
+		Actions:   actions,
+		Resources: []string{"*"},
+	}
+}
+
 // buildEC2AutoDiscoveryStatements returns IAM statements necessary for
 // EC2 instance auto-discovery.
 func buildEC2AutoDiscoveryStatements() []*awslib.Statement {
@@ -760,17 +768,6 @@ func buildEC2AutoDiscoveryStatements() []*awslib.Statement {
 
 func buildEC2AutoDiscoveryBoundaryStatements() []*awslib.Statement {
 	return buildEC2AutoDiscoveryStatements()
-}
-
-func statementWithAllowedActions(actions []string, resources ...string) *awslib.Statement {
-	if len(resources) == 0 {
-		resources = append(resources, "*")
-	}
-	return &awslib.Statement{
-		Effect:    awslib.EffectAllow,
-		Actions:   actions,
-		Resources: resources,
-	}
 }
 
 // buildRDSAutoDiscoveryStatements returns IAM statements necessary for

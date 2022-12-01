@@ -1938,7 +1938,7 @@ type ServerSpecV2 struct {
 	// Important: jsontag must not be "kubernetes_clusters", because a
 	// different field with that jsontag existed in 4.4:
 	// https://github.com/gravitational/teleport/issues/4862
-	// DELETE IN 12.0.0. Deprecated, moved to KubernetesServerSpecV3.
+	// DELETE IN 13.0.0. Deprecated, moved to KubernetesServerSpecV3.
 	KubernetesClusters []*KubernetesCluster `protobuf:"bytes,10,rep,name=KubernetesClusters,proto3" json:"kube_clusters,omitempty"`
 	// PeerAddr is the address a proxy server is reachable at by its peer proxies.
 	PeerAddr string `protobuf:"bytes,11,opt,name=PeerAddr,proto3" json:"peer_addr,omitempty"`

@@ -57,16 +57,16 @@ func IsTagValueTrue(value string) bool {
 	}
 }
 
-// settableTag is a generic interface that represents an AWS resource tag with
+// SettableTag is a generic interface that represents an AWS resource tag with
 // SetKey and SetValue functions.
-type settableTag[T any] interface {
+type SettableTag[T any] interface {
 	SetKey(key string) *T
 	SetValue(Value string) *T
 	*T
 }
 
 // LabelsToTags converts a label map to a list of AWS resource tags.
-func LabelsToTags[T any, PT settableTag[T]](labels map[string]string) (tags []*T) {
+func LabelsToTags[T any, PT SettableTag[T]](labels map[string]string) (tags []*T) {
 	keys := maps.Keys(labels)
 	slices.Sort(keys)
 
@@ -80,15 +80,15 @@ func LabelsToTags[T any, PT settableTag[T]](labels map[string]string) (tags []*T
 	return
 }
 
-// resourceTag is a generic interface that represents an AWS resource tag.
-type resourceTag interface {
+// ResourceTag is a generic interface that represents an AWS resource tag.
+type ResourceTag interface {
 	// TODO Go generic does not allow access common fields yet. List all types
 	// here and use a type switch for now.
 	rds.Tag | redshift.Tag | elasticache.Tag | memorydb.Tag | redshiftserverless.Tag
 }
 
 // TagsToLabels converts a list of AWS resource tags to a label map.
-func TagsToLabels[Tag resourceTag](tags []*Tag) map[string]string {
+func TagsToLabels[Tag ResourceTag](tags []*Tag) map[string]string {
 	if len(tags) == 0 {
 		return nil
 	}
@@ -106,7 +106,7 @@ func TagsToLabels[Tag resourceTag](tags []*Tag) map[string]string {
 	return labels
 }
 
-func resourceTagToKeyValue[Tag resourceTag](tag *Tag) (string, string) {
+func resourceTagToKeyValue[Tag ResourceTag](tag *Tag) (string, string) {
 	switch v := any(tag).(type) {
 	case *rds.Tag:
 		return aws.StringValue(v.Key), aws.StringValue(v.Value)

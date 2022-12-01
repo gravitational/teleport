@@ -33,7 +33,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
-	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -1526,7 +1525,7 @@ func TestDatabaseFromRedshiftServerlessVPCEndpoint(t *testing.T) {
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
-		URI:      "my-endpoint-xxxyyyzzz.1234567890.eu-west-2.redshift-serverless.amazonaws.com:5439",
+		URI:      "my-endpoint-endpoint-xxxyyyzzz.1234567890.eu-west-2.redshift-serverless.amazonaws.com:5439",
 		AWS: types.AWS{
 			AccountID: "1234567890",
 			Region:    "eu-west-2",
@@ -1929,43 +1928,6 @@ func TestNewDatabaseFromAzureManagedSQLServer(t *testing.T) {
 			database, err := NewDatabaseFromAzureManagedSQLServer(tc.server)
 			tc.expectedErr(t, err)
 			tc.expectedDB(t, database)
-		})
-	}
-}
-
-func TestReadableAWSResourceName(t *testing.T) {
-	t.Parallel()
-
-	type TypeA struct {
-	}
-
-	tests := []struct {
-		name          string
-		inputResource interface{}
-		expectOutput  string
-	}{
-		{
-			name:          "Redshift Serverless Workgroup",
-			inputResource: cloudtest.RedshiftServerlessWorkgroup("my-workgroup", ""),
-			expectOutput:  "Redshift Serverless Workgroup \"my-workgroup\" (Namespace \"my-namespace\")",
-		},
-		{
-			name: "S3 bucket",
-			inputResource: &s3.Bucket{
-				Name: aws.String("my-bucket"),
-			},
-			expectOutput: "S3 Bucket \"my-bucket\"",
-		},
-		{
-			name:          "unknown type and name",
-			inputResource: &TypeA{},
-			expectOutput:  "Services TypeA \"<unknown>\"",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, test.expectOutput, ReadableAWSResourceName(test.inputResource))
 		})
 	}
 }
