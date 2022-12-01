@@ -411,6 +411,9 @@ func (d *DatabaseV3) getAWSType() (string, bool) {
 	if aws.Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift, true
 	}
+	if aws.RedshiftServerless.WorkgroupName != "" || aws.RedshiftServerless.EndpointName != "" {
+		return DatabaseTypeRedshiftServerless, true
+	}
 	if aws.ElastiCache.ReplicationGroupID != "" {
 		return DatabaseTypeElastiCache, true
 	}
@@ -540,6 +543,24 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.AWS.Region == "" {
 			d.Spec.AWS.Region = region
 		}
+	case awsutils.IsRedshiftServerlessEndpoint(d.Spec.URI):
+		details, err := awsutils.ParseRedshiftServerlessEndpoint(d.Spec.URI)
+		if err != nil {
+			logrus.WithError(err).Warnf("Failed to parse Redshift Serverless endpoint %v.", d.Spec.URI)
+			break
+		}
+		if d.Spec.AWS.RedshiftServerless.WorkgroupName == "" {
+			d.Spec.AWS.RedshiftServerless.WorkgroupName = details.WorkgroupName
+		}
+		if d.Spec.AWS.RedshiftServerless.EndpointName == "" {
+			d.Spec.AWS.RedshiftServerless.EndpointName = details.EndpointName
+		}
+		if d.Spec.AWS.AccountID == "" {
+			d.Spec.AWS.AccountID = details.AccountID
+		}
+		if d.Spec.AWS.Region == "" {
+			d.Spec.AWS.Region = details.Region
+		}
 	case awsutils.IsElastiCacheEndpoint(d.Spec.URI):
 		endpointInfo, err := awsutils.ParseElastiCacheEndpoint(d.Spec.URI)
 		if err != nil {
@@ -647,6 +668,8 @@ const (
 	DatabaseTypeRDSProxy = "rdsproxy"
 	// DatabaseTypeRedshift is AWS Redshift database.
 	DatabaseTypeRedshift = "redshift"
+	// DatabaseTypeRedshiftServerless is AWS Redshift Serverless database.
+	DatabaseTypeRedshiftServerless = "redshift-serverless"
 	// DatabaseTypeCloudSQL is GCP-hosted Cloud SQL database.
 	DatabaseTypeCloudSQL = "gcp"
 	// DatabaseTypeAzure is Azure-hosted database.
