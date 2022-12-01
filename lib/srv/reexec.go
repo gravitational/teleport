@@ -472,11 +472,11 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 	}
 
 	group, err := o.LookupGroup(types.TeleportServiceGroup)
-	if isUnknownGroupError(err, types.TeleportServiceGroup) {
-		// The service group doesn't exist. Auto-provision is disabled, do nothing.
-		return nil
-	}
 	if err != nil {
+		if isUnknownGroupError(err, types.TeleportServiceGroup) {
+			// The service group doesn't exist. Auto-provision is disabled, do nothing.
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 
