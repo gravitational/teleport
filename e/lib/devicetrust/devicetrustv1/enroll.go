@@ -1,7 +1,6 @@
 package devicetrustv1
 
 import (
-	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -53,7 +52,7 @@ func (c *enrollCeremony) EnrollDevice(stream devicepb.DeviceTrustService_EnrollD
 
 	// ...fetch the device...
 	ctx := stream.Context()
-	dev, err := c.findDeviceBySerial(ctx, initReq.DeviceData.OsType, initReq.DeviceData.SerialNumber)
+	dev, err := findDeviceBySerial(ctx, c.storage, initReq.DeviceData.OsType, initReq.DeviceData.SerialNumber)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -68,7 +67,7 @@ func (c *enrollCeremony) EnrollDevice(stream devicepb.DeviceTrustService_EnrollD
 
 	// Perform remaining init validation.
 	if initReq.CredentialId == "" {
-		return nil, trace.BadParameter("credential ID required")
+		return dev, trace.BadParameter("credential ID required")
 	}
 	// Run a few storage validations manually, so we catch errors and mismatches
 	// before continuing the ceremony.
@@ -106,20 +105,6 @@ func (c *enrollCeremony) EnrollDevice(stream devicepb.DeviceTrustService_EnrollD
 		},
 	})
 	return enrolled, trace.Wrap(err)
-}
-
-func (c *enrollCeremony) findDeviceBySerial(ctx context.Context, osType devicepb.OSType, serialNumber string) (*devicepb.Device, error) {
-	devs, err := c.storage.GetDevicesByAssetTag(ctx, serialNumber)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	for _, dev := range devs {
-		if dev.OsType == osType {
-			return dev, nil
-		}
-	}
-	return nil, trace.NotFound("device %v/%v not registered", serialNumber, dtoss.FriendlyOSType(osType))
 }
 
 func (c *enrollCeremony) enrollDeviceMacOS(

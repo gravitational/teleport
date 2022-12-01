@@ -27,9 +27,10 @@ import (
 type E struct {
 	DevicesClient devicepb.DeviceTrustServiceClient
 
-	authorizer auth.Authorizer
-	emitter    apievents.Emitter
-	closers    []func() error
+	augmentCertsFunc devicetrustv1.AugmentContextCertsFunc
+	authorizer       auth.Authorizer
+	emitter          apievents.Emitter
+	closers          []func() error
 }
 
 // Close tears down the test environment.
@@ -46,6 +47,11 @@ func (e *E) Close() error {
 
 // Opt is a creation option for testenv.E.
 type Opt func(*E)
+
+// WithAugmentCertsFunc customizes the testenv.E augment certs function.
+func WithAugmentCertsFunc(f devicetrustv1.AugmentContextCertsFunc) Opt {
+	return func(e *E) { e.augmentCertsFunc = f }
+}
 
 // WithAuthorizer customizes the testenv.E authorizer.
 func WithAuthorizer(a auth.Authorizer) Opt {
@@ -69,8 +75,9 @@ func MustNew(opts ...Opt) *E {
 // New creates a new testenv.E.
 func New(opts ...Opt) (*E, error) {
 	e := &E{
-		authorizer: &noopAuthorizer{},
-		emitter:    &noopEmitter{},
+		augmentCertsFunc: echoAugmentCertsFunc,
+		authorizer:       &noopAuthorizer{},
+		emitter:          &noopEmitter{},
 	}
 	for _, opt := range opts {
 		opt(e)
@@ -97,9 +104,10 @@ func New(opts ...Opt) (*E, error) {
 
 	// Device service.
 	dtV1, err := devicetrustv1.New(devicetrustv1.ServiceParams{
-		Authorizer: e.authorizer,
-		Emitter:    e.emitter,
-		Storage:    dtStorage,
+		AugmentCertsFunc: e.augmentCertsFunc,
+		Authorizer:       e.authorizer,
+		Emitter:          e.emitter,
+		Storage:          dtStorage,
 	})
 	if err != nil {
 		return nil, err
@@ -151,6 +159,10 @@ func New(opts ...Opt) (*E, error) {
 
 	ok = true
 	return e, nil
+}
+
+func echoAugmentCertsFunc(ctx context.Context, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
+	return certs, nil
 }
 
 type noopAuthorizer struct{}

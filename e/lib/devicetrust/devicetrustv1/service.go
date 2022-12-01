@@ -17,6 +17,15 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+// AugmentContextCertsFunc augments the context certificate and the supplied
+// certificates with device extensions.
+// All certificates must be valid, issued by the Teleport CA, match each other,
+// and conform to whatever checks the underlying implementation sees fit to
+// perform.
+// It is implemented by the OSS CAs and exposed via [auth.Server].
+// TODO(codingllama): Tweak signatures and wire it up once the OSS impls are available.
+type AugmentContextCertsFunc func(ctx context.Context, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error)
+
 // Service implements the teleport.devicetrust.v1.DeviceTrustService RPC
 // service.
 type Service struct {
@@ -24,16 +33,18 @@ type Service struct {
 
 	logger *log.Entry
 
-	authorizer auth.Authorizer
-	emitter    apievents.Emitter
-	storage    *storage.S
+	augmentCertsFunc AugmentContextCertsFunc
+	authorizer       auth.Authorizer
+	emitter          apievents.Emitter
+	storage          *storage.S
 }
 
 // ServiceParams holds creation parameters for Service.
 type ServiceParams struct {
-	Authorizer auth.Authorizer
-	Emitter    apievents.Emitter
-	Storage    *storage.S
+	AugmentCertsFunc AugmentContextCertsFunc
+	Authorizer       auth.Authorizer
+	Emitter          apievents.Emitter
+	Storage          *storage.S
 }
 
 // New creates a new DeviceTrustService implementer.
@@ -46,12 +57,21 @@ func New(params ServiceParams) (*Service, error) {
 	case params.Storage == nil:
 		return nil, trace.BadParameter("storage required")
 	}
+	// TODO(codingllama): Make augmentCertsFunc mandatory once the impl is
+	//  available.
+	augmentCertsFunc := params.AugmentCertsFunc
+	if augmentCertsFunc == nil {
+		augmentCertsFunc = func(ctx context.Context, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
+			return nil, trace.NotImplemented("device authentication not implemented")
+		}
+	}
 
 	return &Service{
-		logger:     log.WithField(trace.Component, "devicetrust.service"),
-		authorizer: params.Authorizer,
-		emitter:    params.Emitter,
-		storage:    params.Storage,
+		logger:           log.WithField(trace.Component, "devicetrust.service"),
+		augmentCertsFunc: augmentCertsFunc,
+		authorizer:       params.Authorizer,
+		emitter:          params.Emitter,
+		storage:          params.Storage,
 	}, nil
 }
 
@@ -282,12 +302,42 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 		storage: s.storage,
 	}
 	dev, err := c.EnrollDevice(stream)
+	// err handled below.
 
 	// Emit audit event.
 	s.emitAuditEvent(ctx, &apievents.DeviceEvent{
 		Metadata: apievents.Metadata{
 			Type: events.DeviceEvent,
 			Code: events.DeviceEnrollCode,
+		},
+		Status: &apievents.Status{
+			Success: err == nil,
+		},
+		Device: getDeviceMetadata(dev),
+		User:   getUserMetadata(ctx),
+	})
+
+	return trace.Wrap(err)
+}
+
+func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_AuthenticateDeviceServer) error {
+	// No authorization checks required for this method, any user may authenticate
+	// devices.
+
+	c := &authnCeremony{
+		logger:           s.logger,
+		storage:          s.storage,
+		augmentCertsFunc: s.augmentCertsFunc,
+	}
+	dev, err := c.AuthenticateDevice(stream)
+	// err handled below.
+
+	// Emit audit event.
+	ctx := stream.Context()
+	s.emitAuditEvent(ctx, &apievents.DeviceEvent{
+		Metadata: apievents.Metadata{
+			Type: events.DeviceEvent,
+			Code: events.DeviceAuthenticateCode,
 		},
 		Status: &apievents.Status{
 			Success: err == nil,
