@@ -1,5 +1,5 @@
 ---
-title: Teleport GKE Auto-Discovery (Preview)
+title: Teleport GKE Auto-Discovery
 description: How to configure auto-discovery of Google Kubernetes Engine clusters in Teleport.
 ---
 
@@ -166,9 +166,7 @@ Kubernetes Service and Discovery Service on Google Cloud or some other way
 Stop your VM so you can attach your service account to it:
 
 ```code
-$ VM_NAME=<Var name="vm-name" />
-$ MY_ZONE=<Var name="google-cloud-region" />
-$ gcloud compute instances stop ${VM_NAME?} --zone=${MY_ZONE?}
+$ gcloud compute instances stop <Var name="vm-name" /> --zone=<Var name="google-cloud-region" />
 ```
 
 Attach your service account to the instance:
