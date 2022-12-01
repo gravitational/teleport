@@ -20,12 +20,11 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/websocket"
+	"nhooyr.io/websocket"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -42,31 +41,28 @@ func TestStreamsDesktopEvents(t *testing.T) {
 		&apievents.DesktopRecording{Message: []byte("jkl")},
 	}
 	s := newServer(t, 20*time.Millisecond, events)
-	url := strings.Replace(s.URL, "http", "ws", 1)
-	cfg, err := websocket.NewConfig(url, "http://localhost")
-	require.NoError(t, err)
 
 	// connect to the server and verify that we receive
 	// all 4 JSON-encoded events
-	ws, err := websocket.DialConfig(cfg)
+	ctx := context.Background()
+	ws, _, err := websocket.Dial(ctx, s.URL, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { ws.Close() })
+	t.Cleanup(func() { ws.Close(websocket.StatusNormalClosure, "") })
 
 	for _, evt := range events {
-		b := make([]byte, 4096)
-		n, err := ws.Read(b)
+		_, b, err := ws.Read(ctx)
+
 		require.NoError(t, err)
 
 		var dr apievents.DesktopRecording
-		err = utils.FastUnmarshal(b[:n], &dr)
+		err = utils.FastUnmarshal(b, &dr)
 		require.NoError(t, err)
 		require.Equal(t, evt.(*apievents.DesktopRecording).Message, dr.Message)
 	}
 
-	b := make([]byte, 4096)
-	n, err := ws.Read(b)
+	_, b, err := ws.Read(ctx)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"message":"end"}`, string(b[:n]))
+	require.JSONEq(t, `{"message":"end"}`, string(b))
 }
 
 func newServer(t *testing.T, streamInterval time.Duration, events []apievents.AuditEvent) *httptest.Server {
@@ -77,12 +73,14 @@ func newServer(t *testing.T, streamInterval time.Duration, events []apievents.Au
 		events:   events,
 	}
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		websocket.Handler(func(ws *websocket.Conn) {
+		ws, err := websocket.Accept(w, r, nil)
+		if err == nil {
+			t.Cleanup(func() { ws.Close(websocket.StatusNormalClosure, "") })
 			desktop.NewPlayer("session-id", ws, fs, utils.NewLoggerForTests()).Play(r.Context())
-		}).ServeHTTP(w, r)
+		}
 	}))
-	t.Cleanup(s.Close)
 
+	t.Cleanup(s.Close)
 	return s
 }
 

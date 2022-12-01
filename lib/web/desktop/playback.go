@@ -27,7 +27,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/net/websocket"
+	"nhooyr.io/websocket"
+	"nhooyr.io/websocket/wsjson"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -87,11 +88,10 @@ func NewPlayer(sID string, ws *websocket.Conn, streamer Streamer, log logrus.Fie
 func (pp *Player) Play(ctx context.Context) {
 	defer pp.log.Debug("playbackPlayer.Play returned")
 
-	pp.ws.PayloadType = websocket.BinaryFrame
 	ppCtx, cancel := context.WithCancel(ctx)
 	defer pp.close(cancel)
 
-	go pp.receiveActions(cancel)
+	go pp.receiveActions(ppCtx, cancel)
 	go pp.streamSessionEvents(ppCtx, cancel)
 
 	// Wait until the ctx is canceled, either by
@@ -164,9 +164,9 @@ func (pp *Player) close(cancel context.CancelFunc) {
 		pp.mu.Lock()
 		defer pp.mu.Unlock()
 
-		err := pp.ws.Close()
+		err := pp.ws.Close(websocket.StatusNormalClosure, "")
 		if err != nil {
-			pp.log.WithError(err).Errorf("websocket.Close() failed")
+			pp.log.WithError(err).Errorf("websocket close failed")
 		}
 
 		pp.playState = playStateFinished
@@ -177,16 +177,13 @@ func (pp *Player) close(cancel context.CancelFunc) {
 
 // receiveActions handles logic for receiving playbackAction jsons
 // over the websocket and modifying playbackPlayer's state accordingly.
-func (pp *Player) receiveActions(cancel context.CancelFunc) {
+func (pp *Player) receiveActions(ctx context.Context, cancel context.CancelFunc) {
 	defer pp.log.Debug("playbackPlayer.ReceiveActions returned")
 	defer pp.close(cancel)
 
 	for {
 		var action actionMessage
-		if err := websocket.JSON.Receive(pp.ws, &action); err != nil {
-			// We expect net.ErrClosed if the websocket is closed by another
-			// goroutine and io.EOF if the websocket is closed by the browser
-			// while websocket.JSON.Receive() is hanging.
+		if err := wsjson.Read(ctx, pp.ws, &action); err != nil {
 			if !utils.IsOKNetworkError(err) {
 				pp.log.WithError(err).Error("error reading from websocket")
 			}
@@ -238,7 +235,7 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 				} else {
 					errorText = "server error"
 				}
-				if _, err := pp.ws.Write([]byte(fmt.Sprintf(`{"message": "error", "errorText": "%v"}`, errorText))); err != nil {
+				if err := pp.ws.Write(ctx, websocket.MessageBinary, []byte(fmt.Sprintf(`{"message": "error", "errorText": "%v"}`, errorText))); err != nil {
 					pp.log.WithError(err).Error("failed to write \"error\" message over websocket")
 				}
 			}
@@ -246,7 +243,7 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 		case evt := <-eventsC:
 			if evt == nil {
 				pp.log.Debug("reached end of playback")
-				if _, err := pp.ws.Write([]byte(`{"message":"end"}`)); err != nil {
+				if err := pp.ws.Write(ctx, websocket.MessageBinary, []byte(`{"message":"end"}`)); err != nil {
 					pp.log.WithError(err).Error("failed to write \"end\" message over websocket")
 				}
 				return
@@ -261,12 +258,12 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 				msg, err := utils.FastMarshal(e)
 				if err != nil {
 					pp.log.WithError(err).Errorf("failed to marshal DesktopRecording event into JSON: %v", e)
-					if _, err := pp.ws.Write([]byte(`{"message":"error","errorText":"server error"}`)); err != nil {
+					if err := pp.ws.Write(ctx, websocket.MessageBinary, []byte(`{"message":"error","errorText":"server error"}`)); err != nil {
 						pp.log.WithError(err).Error("failed to write \"error\" message over websocket")
 					}
 					return
 				}
-				if _, err := pp.ws.Write(msg); err != nil {
+				if err := pp.ws.Write(ctx, websocket.MessageBinary, msg); err != nil {
 					// We expect net.ErrClosed to arise when another goroutine returns before
 					// this one or the browser window is closed, both of which cause the websocket to close.
 					if !errors.Is(err, net.ErrClosed) {

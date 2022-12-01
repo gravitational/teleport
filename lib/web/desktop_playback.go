@@ -18,10 +18,11 @@ package web
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	"golang.org/x/net/websocket"
+	"nhooyr.io/websocket"
 
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/desktop"
@@ -44,9 +45,20 @@ func (h *Handler) desktopPlaybackHandle(
 		return nil, trace.Wrap(err)
 	}
 
-	websocket.Handler(func(ws *websocket.Conn) {
-		defer h.log.Debug("desktopPlaybackHandle websocket handler returned")
-		desktop.NewPlayer(sID, ws, clt, h.log).Play(r.Context())
-	}).ServeHTTP(w, r)
+	// Safari doesn't handle compression correctly, so disable it
+	// https://github.com/nhooyr/websocket/issues/218
+	compressionMode := websocket.CompressionContextTakeover
+	if strings.Contains(r.UserAgent(), "Safari") {
+		compressionMode = websocket.CompressionDisabled
+	}
+	ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+		CompressionMode: compressionMode,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer h.log.Debug("desktopPlaybackHandle websocket handler returned")
+	desktop.NewPlayer(sID, ws, clt, h.log).Play(r.Context())
 	return nil, nil
 }
