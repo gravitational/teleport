@@ -78,8 +78,13 @@ $ PROXY_ADDR=tele.example.com:443
 
 # Install Kubernetes agent. It dials back to the Teleport cluster at $PROXY_ADDR
 $ CLUSTER=cookie
-$ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
-  --set proxyAddr=${PROXY_ADDR?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
+$ helm install teleport-agent teleport/teleport-kube-agent \
+  --set kubeClusterName=${CLUSTER?} \
+  --set proxyAddr=${PROXY_ADDR?} \
+  --set authToken=${TOKEN?} \
+  --create-namespace \
+  --namespace=teleport-agent \
+  --version (=teleport.version=) 
 ```
 
 </TabItem>
@@ -94,9 +99,13 @@ $ PROXY_ADDR=mytenant.teleport.sh:443
 # Install Kubernetes agent. It dials back to the Teleport cluster at $PROXY_ADDR
 $ CLUSTER=cookie
 # Run the helm install specifying to match to the Teleport Cloud version of Teleport
-$ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
-  --set proxyAddr=${PROXY_ADDR?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent \
-  --set teleportVersionOverride=(=cloud.version=)
+$ helm install teleport-agent teleport/teleport-kube-agent \
+  --set kubeClusterName=${CLUSTER?} \
+  --set proxyAddr=${PROXY_ADDR?} \
+  --set authToken=${TOKEN?} \
+  --create-namespace \
+  --namespace=teleport-agent \
+  --version (=cloud.version=)
 ```
 
 </TabItem>
