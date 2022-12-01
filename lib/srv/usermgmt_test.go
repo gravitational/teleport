@@ -299,3 +299,10 @@ func TestSudoersSanitization(t *testing.T) {
 		require.Equal(t, tc.userExpected, actual)
 	}
 }
+
+func TestIsUnknownGroupError(t *testing.T) {
+	groupName := "thisgroupdoesnotexist"
+	_, err := user.LookupGroup(groupName)
+	require.Error(t, err)
+	require.True(t, isUnknownGroupError(err, groupName))
+}
