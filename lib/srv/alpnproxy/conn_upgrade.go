@@ -20,15 +20,17 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"net"
+	"net/http"
+	"net/url"
+
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"net"
-	"net/http"
-	"net/url"
 )
 
 // IsALPNConnUpgradeRequired returns true if a tunnel is required through a HTTP

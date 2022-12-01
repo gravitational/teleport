@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"errors"
-	apiclient "github.com/gravitational/teleport/api/client"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -32,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"

@@ -19,11 +19,12 @@ package alpnproxy
 import (
 	"context"
 	"crypto/tls"
-	apiclient "github.com/gravitational/teleport/api/client"
 	"net"
 	"time"
 
 	"github.com/gravitational/trace"
+
+	apiclient "github.com/gravitational/teleport/api/client"
 )
 
 // ContextDialer represents network dialer interface that uses context
