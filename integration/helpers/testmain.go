@@ -29,7 +29,7 @@ import (
 // it as an argument. Otherwise, it will run tests as normal.
 func TestMainImplementation(m *testing.M) {
 	utils.InitLoggerForTests()
-	SetTestTimeouts(100 * time.Millisecond)
+	SetTestTimeouts(3 * time.Second)
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if srv.IsReexec() {

@@ -67,6 +67,13 @@ func IsMemoryDBEndpoint(uri string) bool {
 	return isAWSServiceEndpoint(uri, MemoryDBSServiceName)
 }
 
+// IsKeyspacesEndpoint returns true if input URI is an AWS Keyspaces endpoint.
+// https://docs.aws.amazon.com/keyspaces/latest/devguide/programmatic.endpoints.html
+func IsKeyspacesEndpoint(uri string) bool {
+	hasCassandraPrefix := strings.HasPrefix(uri, "cassandra.") || strings.HasPrefix(uri, "cassandra-fips.")
+	return hasCassandraPrefix && IsAWSEndpoint(uri)
+}
+
 // RDSEndpointDetails contains information about an RDS endpoint.
 type RDSEndpointDetails struct {
 	// InstanceID is the identifier of an RDS instance.
@@ -645,8 +652,7 @@ const (
 // CassandraEndpointURLForRegion returns a Cassandra endpoint based on the provided region.
 // https://docs.aws.amazon.com/keyspaces/latest/devguide/programmatic.endpoints.html
 func CassandraEndpointURLForRegion(region string) string {
-	switch strings.ToLower(region) {
-	case "cn-north-1", "cn-northwest-1":
+	if IsCNRegion(region) {
 		return fmt.Sprintf("cassandra.%s%s:9142", region, AWSCNEndpointSuffix)
 	}
 	return fmt.Sprintf("cassandra.%s%s:9142", region, AWSEndpointSuffix)

@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -111,8 +112,7 @@ func (s *Server) ResetPassword(username string) (string, error) {
 }
 
 // ChangePassword updates users password based on the old password.
-func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
-	ctx := context.TODO()
+func (s *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error {
 	// validate new password
 	if err := services.VerifyPassword(req.NewPassword); err != nil {
 		return trace.Wrap(err)
@@ -122,7 +122,7 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 	user := req.User
 	authReq := AuthenticateUserRequest{
 		Username: user,
-		Webauthn: req.WebauthnResponse,
+		Webauthn: wanlib.CredentialAssertionResponseFromProto(req.Webauthn),
 	}
 	if len(req.OldPassword) > 0 {
 		authReq.Pass = &PassCreds{
