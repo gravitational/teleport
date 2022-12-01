@@ -464,7 +464,7 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 	}
 
 	group, err := o.LookupGroup(types.TeleportServiceGroup)
-	if errors.Is(err, user.UnknownGroupError(types.TeleportServiceGroup)) {
+	if isUnknownGroupError(err, types.TeleportServiceGroup) {
 		// The service group doesn't exist. Auto-provision is disabled, do nothing.
 		return nil
 	}
