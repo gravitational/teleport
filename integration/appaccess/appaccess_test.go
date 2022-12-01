@@ -669,12 +669,16 @@ func TestTCPCertExpiration(t *testing.T) {
 	// Close and re-open the connection
 	require.NoError(t, conn.Close())
 
-	conn, err = net.Dial("tcp", address)
-	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		conn, err := net.Dial("tcp", address)
+		if err != nil {
+			return false
+		}
 
-	// Try to read again, expect a failure.
-	_, err = conn.Read(buf)
-	require.Error(t, err, buf)
+		// Try to read again, expect a failure.
+		_, err = conn.Read(buf)
+		return err != nil
+	}, time.Second*5, time.Millisecond*100)
 }
 
 func testServersHA(p *Pack, t *testing.T) {
