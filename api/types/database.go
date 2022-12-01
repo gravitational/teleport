@@ -592,7 +592,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.Azure.Name == "" {
 			d.Spec.Azure.Name = name
 		}
-	case strings.Contains(d.Spec.URI, awsutils.AWSEndpointSuffix) || strings.Contains(d.Spec.URI, awsutils.AWSCNEndpointSuffix):
+	case awsutils.IsKeyspacesEndpoint(d.Spec.URI):
 		if d.Spec.AWS.AccountID == "" {
 			return trace.BadParameter("database %q AWS account ID is empty", d.GetName())
 		}
@@ -625,6 +625,14 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 			}
 			d.Spec.Azure.Name = name
 		}
+	}
+
+	// Validate Cloud SQL specific configuration.
+	switch {
+	case d.Spec.GCP.ProjectID != "" && d.Spec.GCP.InstanceID == "":
+		return trace.BadParameter("missing Cloud SQL instance ID for database %q", d.GetName())
+	case d.Spec.GCP.ProjectID == "" && d.Spec.GCP.InstanceID != "":
+		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.GetName())
 	}
 	return nil
 }

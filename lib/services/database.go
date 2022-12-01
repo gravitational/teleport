@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"net"
 	"path"
 	"reflect"
 	"strings"
@@ -26,6 +27,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -36,15 +38,21 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 	"golang.org/x/exp/slices"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/api/types"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/db/redis/connection"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -125,6 +133,77 @@ func UnmarshalDatabase(data []byte, opts ...MarshalOption) (types.Database, erro
 		return &database, nil
 	}
 	return nil, trace.BadParameter("unsupported database resource version %q", h.Version)
+}
+
+// ValidateDatabase validates a types.Database.
+func ValidateDatabase(db types.Database) error {
+	if err := db.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Unlike application access proxy, database proxy name doesn't necessarily
+	// need to be a valid subdomain but use the same validation logic for the
+	// simplicity and consistency.
+	if errs := validation.IsDNS1035Label(db.GetName()); len(errs) > 0 {
+		return trace.BadParameter("invalid database %q name: %v", db.GetName(), errs)
+	}
+
+	if !slices.Contains(defaults.DatabaseProtocols, db.GetProtocol()) {
+		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v", db.GetName(), db.GetProtocol(), defaults.DatabaseProtocols)
+	}
+
+	// For MongoDB we support specifying either server address or connection
+	// string in the URI which is useful when connecting to a replica set.
+	if db.GetProtocol() == defaults.ProtocolMongoDB &&
+		(strings.HasPrefix(db.GetURI(), connstring.SchemeMongoDB+"://") ||
+			strings.HasPrefix(db.GetURI(), connstring.SchemeMongoDBSRV+"://")) {
+		connString, err := connstring.ParseAndValidate(db.GetURI())
+		if err != nil {
+			return trace.BadParameter("invalid MongoDB database %q connection string %q: %v", db.GetName(), db.GetURI(), err)
+		}
+		// Validate read preference to catch typos early.
+		if connString.ReadPreference != "" {
+			if _, err := readpref.ModeFromString(connString.ReadPreference); err != nil {
+				return trace.BadParameter("invalid MongoDB database %q read preference %q", db.GetName(), connString.ReadPreference)
+			}
+		}
+	} else if db.GetProtocol() == defaults.ProtocolRedis {
+		_, err := connection.ParseRedisAddress(db.GetURI())
+		if err != nil {
+			return trace.BadParameter("invalid Redis database %q address: %q, error: %v", db.GetName(), db.GetURI(), err)
+		}
+	} else if db.GetProtocol() == defaults.ProtocolSnowflake {
+		if !strings.Contains(db.GetURI(), defaults.SnowflakeURL) {
+			return trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
+		}
+	} else if db.GetProtocol() == defaults.ProtocolCassandra && db.GetAWS().Region != "" && db.GetAWS().AccountID != "" {
+		// In case of cloud hosted Cassandra doesn't require URI validation.
+	} else if _, _, err := net.SplitHostPort(db.GetURI()); err != nil {
+		return trace.BadParameter("invalid database %q address %q: %v", db.GetName(), db.GetURI(), err)
+	}
+
+	if db.GetTLS().CACert != "" {
+		if _, err := tlsca.ParseCertificatePEM([]byte(db.GetTLS().CACert)); err != nil {
+			return trace.BadParameter("provided database %q CA doesn't appear to be a valid x509 certificate: %v", db.GetName(), err)
+		}
+	}
+
+	// Validate Active Directory specific configuration, when Kerberos auth is required.
+	if db.GetProtocol() == defaults.ProtocolSQLServer && (db.GetAD().Domain != "" || !strings.Contains(db.GetURI(), azureutils.MSSQLEndpointSuffix)) {
+		if db.GetAD().KeytabFile == "" {
+			return trace.BadParameter("missing keytab file path for database %q", db.GetName())
+		}
+		if db.GetAD().Krb5File == "" {
+			return trace.BadParameter("missing keytab file path for database %q", db.GetName())
+		}
+		if db.GetAD().Domain == "" {
+			return trace.BadParameter("missing Active Directory domain for database %q", db.GetName())
+		}
+		if db.GetAD().SPN == "" {
+			return trace.BadParameter("missing service principal name for database %q", db.GetName())
+		}
+	}
+	return nil
 }
 
 // setDBNameByLabel modifies the types.Metadata argument in place, setting the database name.
@@ -242,6 +321,68 @@ func NewDatabaseFromAzureRedisEnterprise(cluster *armredisenterprise.Cluster, da
 				Redis: types.AzureRedis{
 					ClusteringPolicy: azure.StringVal(database.Properties.ClusteringPolicy),
 				},
+			},
+		})
+}
+
+// NewDatabaseFromAzureSQLServer creates a database resource from an Azure SQL
+// server.
+func NewDatabaseFromAzureSQLServer(server *armsql.Server) (types.Database, error) {
+	if server.Properties == nil {
+		return nil, trace.BadParameter("missing properties")
+	}
+
+	if server.Properties.FullyQualifiedDomainName == nil {
+		return nil, trace.BadParameter("missing FQDN")
+	}
+
+	labels, err := labelsFromAzureSQLServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return types.NewDatabaseV3(
+		setAzureDBName(types.Metadata{
+			Description: fmt.Sprintf("Azure SQL Server in %v", azure.StringVal(server.Location)),
+			Labels:      labels,
+		}, azure.StringVal(server.Name)),
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolSQLServer,
+			URI:      fmt.Sprintf("%v:%d", azure.StringVal(server.Properties.FullyQualifiedDomainName), azureSQLServerDefaultPort),
+			Azure: types.Azure{
+				Name:       azure.StringVal(server.Name),
+				ResourceID: azure.StringVal(server.ID),
+			},
+		})
+}
+
+// NewDatabaseFromAzureManagedSQLServer creates a database resource from an
+// Azure Managed SQL server.
+func NewDatabaseFromAzureManagedSQLServer(server *armsql.ManagedInstance) (types.Database, error) {
+	if server.Properties == nil {
+		return nil, trace.BadParameter("missing properties")
+	}
+
+	if server.Properties.FullyQualifiedDomainName == nil {
+		return nil, trace.BadParameter("missing FQDN")
+	}
+
+	labels, err := labelsFromAzureManagedSQLServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return types.NewDatabaseV3(
+		setAzureDBName(types.Metadata{
+			Description: fmt.Sprintf("Azure Managed SQL Server in %v", azure.StringVal(server.Location)),
+			Labels:      labels,
+		}, azure.StringVal(server.Name)),
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolSQLServer,
+			URI:      fmt.Sprintf("%v:%d", azure.StringVal(server.Properties.FullyQualifiedDomainName), azureSQLServerDefaultPort),
+			Azure: types.Azure{
+				Name:       azure.StringVal(server.Name),
+				ResourceID: azure.StringVal(server.ID),
 			},
 		})
 }
@@ -697,7 +838,7 @@ func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, endpo
 	}, nil
 }
 
-// MetadataFromMemoryDBCluster creates AWS metadata for the providec MemoryDB
+// MetadataFromMemoryDBCluster creates AWS metadata for the provided MemoryDB
 // cluster.
 func MetadataFromMemoryDBCluster(cluster *memorydb.Cluster, endpointType string) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(cluster.ARN))
@@ -718,7 +859,7 @@ func MetadataFromMemoryDBCluster(cluster *memorydb.Cluster, endpointType string)
 }
 
 // MetadataFromRedshiftServerlessWorkgroup creates AWS metadata for the
-// providec Redshift Serverless Workgroup.
+// provided Redshift Serverless Workgroup.
 func MetadataFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workgroup) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(workgroup.WorkgroupArn))
 	if err != nil {
@@ -736,7 +877,7 @@ func MetadataFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workg
 }
 
 // MetadataFromRedshiftServerlessVPCEndpoint creates AWS metadata for the
-// providec Redshift Serverless VPC endpoint.
+// provided Redshift Serverless VPC endpoint.
 func MetadataFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.EndpointAccess, workgroup *redshiftserverless.Workgroup) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(endpoint.EndpointArn))
 	if err != nil {
@@ -868,6 +1009,25 @@ func labelsFromAzureRedisEnterprise(cluster *armredisenterprise.Cluster, databas
 	labels[labelEngineVersion] = azure.StringVal(cluster.Properties.RedisVersion)
 	labels[labelEndpointType] = azure.StringVal(database.Properties.ClusteringPolicy)
 	return withLabelsFromAzureResourceID(labels, azure.StringVal(cluster.ID))
+}
+
+// labelsFromAzureSQLServer creates database labels from the provided Azure SQL
+// server.
+func labelsFromAzureSQLServer(server *armsql.Server) (map[string]string, error) {
+	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[labelRegion] = azure.StringVal(server.Location)
+	labels[labelEngineVersion] = azure.StringVal(server.Properties.Version)
+	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
+}
+
+// labelsFromAzureManagedSQLServer creates database labels from the provided
+// Azure Managed SQL server.
+func labelsFromAzureManagedSQLServer(server *armsql.ManagedInstance) (map[string]string, error) {
+	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[labelRegion] = azure.StringVal(server.Location)
+	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
 }
 
 // labelsFromRDSInstance creates database labels for the provided RDS instance.
@@ -1357,4 +1517,9 @@ const (
 	labelSubscriptionID = "subscription-id"
 	// labelResourceGroup is the label key for the Azure resource group name.
 	labelResourceGroup = "resource-group"
+)
+
+const (
+	// azureSQLServerDefaultPort is the default port for Azure SQL Server.
+	azureSQLServerDefaultPort = 1433
 )

@@ -228,12 +228,15 @@ propagate):
 
 // GetRedshiftServerlessAuthToken generates Redshift Serverless auth token.
 func (a *dbAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error) {
-	// Redshift Serverless maps IAM users/roles to database users. For example,
-	// an IAM role "arn:aws:iam::1234567890:role/my-role-name" will be mapped
-	// to a Postgres user "IAMR:my-role-name" inside the database. So we first
-	// need to assume another IAM role before getting auth token.
+	// Redshift Serverless maps caller IAM users/roles to database users. For
+	// example, an IAM role "arn:aws:iam::1234567890:role/my-role-name" will be
+	// mapped to a Postgres user "IAMR:my-role-name" inside the database. So we
+	// first need to assume this IAM role before getting auth token.
 	awsMetadata := sessionCtx.Database.GetAWS()
-	roleARN := UsernameToAWSRoleARN(sessionCtx.Database, sessionCtx.DatabaseUser)
+	roleARN, err := redshiftServerlessUsernameToRoleARN(awsMetadata, sessionCtx.DatabaseUser)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
 	client, err := a.cfg.Clients.GetAWSRedshiftServerlessClientForRole(ctx, awsMetadata.Region, roleARN)
 	if err != nil {
 		return "", "", trace.AccessDenied(`Could not generate Redshift Serverless auth token:
@@ -259,7 +262,7 @@ Make sure that IAM role %q has a trust relationship with Teleport database agent
 
   %v
 
-Make sure that IAM role %q has permissions to generate credentials. Here is sample IAM policy:
+Make sure that IAM role %q has permissions to generate credentials. Here is a sample IAM policy:
 
 %v
 `, err, roleARN, policy)
@@ -807,21 +810,35 @@ func matchAzureResourceName(resourceID, name string) bool {
 	return parsedResource.Name == name
 }
 
-// UsernameToAWSRoleARN converts a database username to AWS role ARN.
-func UsernameToAWSRoleARN(database types.Database, username string) string {
-	if arn.IsARN(username) {
-		return username
-	}
-	resource := username
-	if !strings.Contains(resource, "/") {
-		resource = fmt.Sprintf("role/%s", username)
-	}
+// redshiftServerlessUsernameToRoleARN converts a database username to AWS role
+// ARN for a Redshift Serverless database.
+func redshiftServerlessUsernameToRoleARN(aws types.AWS, username string) (string, error) {
+	switch {
+	// These are in-database usernames created when logged in as IAM
+	// users/roles. We will enforce Teleport users to provide IAM roles
+	// instead.
+	case strings.HasPrefix(username, "IAM:") || strings.HasPrefix(username, "IAMR:"):
+		return "", trace.BadParameter("expecting name or ARN of an AWS IAM role but got %v", username)
 
-	aws := database.GetAWS()
-	return arn.ARN{
-		Partition: awsutils.GetPartitionFromRegion(aws.Region),
-		Service:   iam.ServiceName,
-		AccountID: aws.AccountID,
-		Resource:  resource,
-	}.String()
+	case arn.IsARN(username):
+		if parsedARN, err := arn.Parse(username); err != nil {
+			return "", trace.Wrap(err)
+		} else if parsedARN.Service != iam.ServiceName || !strings.HasPrefix(parsedARN.Resource, "role/") {
+			return "", trace.BadParameter("expecting name or ARN of an AWS IAM role but got %v", username)
+		}
+		return username, nil
+
+	default:
+		resource := username
+		if !strings.Contains(resource, "/") {
+			resource = fmt.Sprintf("role/%s", username)
+		}
+
+		return arn.ARN{
+			Partition: awsutils.GetPartitionFromRegion(aws.Region),
+			Service:   iam.ServiceName,
+			AccountID: aws.AccountID,
+			Resource:  resource,
+		}.String(), nil
+	}
 }

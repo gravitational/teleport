@@ -67,6 +67,13 @@ func IsMemoryDBEndpoint(uri string) bool {
 	return isAWSServiceEndpoint(uri, MemoryDBSServiceName)
 }
 
+// IsKeyspacesEndpoint returns true if input URI is an AWS Keyspaces endpoint.
+// https://docs.aws.amazon.com/keyspaces/latest/devguide/programmatic.endpoints.html
+func IsKeyspacesEndpoint(uri string) bool {
+	hasCassandraPrefix := strings.HasPrefix(uri, "cassandra.") || strings.HasPrefix(uri, "cassandra-fips.")
+	return hasCassandraPrefix && IsAWSEndpoint(uri)
+}
+
 // RDSEndpointDetails contains information about an RDS endpoint.
 type RDSEndpointDetails struct {
 	// InstanceID is the identifier of an RDS instance.
@@ -278,7 +285,8 @@ func ParseRedshiftServerlessEndpoint(endpoint string) (details *RedshiftServerle
 	}
 
 	if strings.HasSuffix(endpoint, AWSCNEndpointSuffix) {
-		return parseRedshiftServerlessCNEndpoint(endpoint)
+		// TODO(greedy52) add AWS China support when Redshift Serverless come to those regions.
+		return nil, trace.NotImplemented("failed to parse %v as Redshift Serverless endpoint: AWS China regions are not supported yet", endpoint)
 	}
 	return parseRedshiftServerlessEndpoint(endpoint)
 }
@@ -291,9 +299,6 @@ func ParseRedshiftServerlessEndpoint(endpoint string) (details *RedshiftServerle
 //
 // VPC endpoint looks like this:
 // <vpc-endpoint-name>-endpoint-<some-hash>.<account-id>.<region>.redshift-serverless.amazonaws.com
-//
-// Note that we cannot tell between a workgroup default endpoint or one of its
-// VPC endpoints by the parsing endpoint itself.
 func parseRedshiftServerlessEndpoint(endpoint string) (*RedshiftServerlessEndpointDetails, error) {
 	parts := strings.Split(endpoint, ".")
 	if !strings.HasSuffix(endpoint, AWSEndpointSuffix) || len(parts) != 6 || parts[3] != RedshiftServerlessServiceName {
@@ -311,34 +316,6 @@ func parseRedshiftServerlessEndpoint(endpoint string) (*RedshiftServerlessEndpoi
 		WorkgroupName: parts[0],
 		AccountID:     parts[1],
 		Region:        parts[2],
-	}, nil
-}
-
-// parseRedshiftServerlessCNEndpoint extracts name, AWS account ID, and region
-// from the provided Redshift Serverless endpoint for AWS China regions.
-//
-// Workgroup endpoint looks like this:
-// <workgroup-name>.<account-id>.redshift.<region>.amazonaws.com.cn
-//
-// TODO(greedy52) this is a hypothetical format of what the endpoint may look
-// like. Do validate this when Redshift Serverless comes to AWS China regions.
-func parseRedshiftServerlessCNEndpoint(endpoint string) (*RedshiftServerlessEndpointDetails, error) {
-	parts := strings.Split(endpoint, ".")
-	if !strings.HasSuffix(endpoint, AWSCNEndpointSuffix) || len(parts) != 7 || parts[2] != RedshiftServerlessServiceName {
-		return nil, trace.BadParameter("failed to parse %v as Redshift Serverless CN endpoint", endpoint)
-	}
-	if endpointName, _, found := strings.Cut(parts[0], "-endpoint-"); found {
-		return &RedshiftServerlessEndpointDetails{
-			EndpointName: endpointName,
-			AccountID:    parts[1],
-			Region:       parts[3],
-		}, nil
-	}
-
-	return &RedshiftServerlessEndpointDetails{
-		WorkgroupName: parts[0],
-		AccountID:     parts[1],
-		Region:        parts[3],
 	}, nil
 }
 
@@ -675,8 +652,7 @@ const (
 // CassandraEndpointURLForRegion returns a Cassandra endpoint based on the provided region.
 // https://docs.aws.amazon.com/keyspaces/latest/devguide/programmatic.endpoints.html
 func CassandraEndpointURLForRegion(region string) string {
-	switch strings.ToLower(region) {
-	case "cn-north-1", "cn-northwest-1":
+	if IsCNRegion(region) {
 		return fmt.Sprintf("cassandra.%s%s:9142", region, AWSCNEndpointSuffix)
 	}
 	return fmt.Sprintf("cassandra.%s%s:9142", region, AWSEndpointSuffix)

@@ -376,6 +376,21 @@ func TestCassandraAWSEndpoint(t *testing.T) {
 		require.Equal(t, "us-west-1", database.GetAWS().Region)
 	})
 
+	t.Run("aws cassandra custom fips uri", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "test",
+		}, DatabaseSpecV3{
+			Protocol: "cassandra",
+			URI:      "cassandra-fips.us-west-2.amazonaws.com:9142",
+			AWS: AWS{
+				AccountID: "12345",
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "cassandra-fips.us-west-2.amazonaws.com:9142", database.GetURI())
+		require.Equal(t, "us-west-2", database.GetAWS().Region)
+	})
+
 	t.Run("aws cassandra missing AccountID", func(t *testing.T) {
 		_, err := NewDatabaseV3(Metadata{
 			Name: "test",
@@ -432,14 +447,36 @@ func TestDatabaseFromRedshiftServerlessEndpoint(t *testing.T) {
 			},
 		}, database.GetAWS())
 	})
+}
 
-	t.Run("vpc endpoint mising workgroup name", func(t *testing.T) {
-		_, err := NewDatabaseV3(Metadata{
-			Name: "test",
-		}, DatabaseSpecV3{
-			Protocol: "postgres",
-			URI:      "my-vpc-endpoint-xxxyyyzzz.1234567890.us-east-1.redshift-serverless.amazonaws.com:5439",
+func TestDatabaseSelfHosted(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		inputURI string
+	}{
+		{
+			name:     "localhost",
+			inputURI: "localhost:5432",
+		},
+		{
+			name:     "ec2 hostname",
+			inputURI: "ec2-11-22-33-44.us-east-2.compute.amazonaws.com:5432",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			database, err := NewDatabaseV3(Metadata{
+				Name: "self-hosted-localhost",
+			}, DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      test.inputURI,
+			})
+			require.NoError(t, err)
+			require.Equal(t, DatabaseTypeSelfHosted, database.GetType())
+			require.False(t, database.IsCloudHosted())
 		})
-		require.Error(t, err)
-	})
+	}
 }

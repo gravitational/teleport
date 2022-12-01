@@ -2710,7 +2710,7 @@ func TestSerializeDatabases(t *testing.T) {
         "secret_store": {},
         "memorydb": {},
         "rdsproxy": {},
-        "redshift_serverless": {},
+        "redshift_serverless": {}
       },
       "mysql": {},
       "gcp": {},

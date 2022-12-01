@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless/redshiftserverlessiface"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // RedshiftServerlessMock mocks RedshiftServerless API.
@@ -43,15 +44,15 @@ func (m RedshiftServerlessMock) GetWorkgroupWithContext(_ aws.Context, input *re
 			return new(redshiftserverless.GetWorkgroupOutput).SetWorkgroup(workgroup), nil
 		}
 	}
-	return nil, trace.NotFound("not found")
+	return nil, trace.NotFound("workgroup %q not found", aws.StringValue(input.WorkgroupName))
 }
-func (m *RedshiftServerlessMock) GetEndpointAccessWithContext(_ aws.Context, input *redshiftserverless.GetEndpointAccessInput, _ ...request.Option) (*redshiftserverless.GetEndpointAccessOutput, error) {
+func (m RedshiftServerlessMock) GetEndpointAccessWithContext(_ aws.Context, input *redshiftserverless.GetEndpointAccessInput, _ ...request.Option) (*redshiftserverless.GetEndpointAccessOutput, error) {
 	for _, endpoint := range m.Endpoints {
 		if aws.StringValue(endpoint.EndpointName) == aws.StringValue(input.EndpointName) {
 			return new(redshiftserverless.GetEndpointAccessOutput).SetEndpoint(endpoint), nil
 		}
 	}
-	return nil, trace.NotFound("not found")
+	return nil, trace.NotFound("endpoint %q not found", aws.StringValue(input.EndpointName))
 }
 func (m RedshiftServerlessMock) ListWorkgroupsPagesWithContext(_ aws.Context, input *redshiftserverless.ListWorkgroupsInput, fn func(*redshiftserverless.ListWorkgroupsOutput, bool) bool, _ ...request.Option) error {
 	fn(&redshiftserverless.ListWorkgroupsOutput{
@@ -109,7 +110,7 @@ func RedshiftServerlessWorkgroup(name, region string) *redshiftserverless.Workgr
 // RedshiftServerlessEndpointAccess returns a sample redshiftserverless.EndpointAccess.
 func RedshiftServerlessEndpointAccess(workgroup *redshiftserverless.Workgroup, name, region string) *redshiftserverless.EndpointAccess {
 	return &redshiftserverless.EndpointAccess{
-		Address:            aws.String(fmt.Sprintf("%s-xxxyyyzzz.1234567890.%s.redshift-serverless.amazonaws.com", name, region)),
+		Address:            aws.String(fmt.Sprintf("%s-endpoint-xxxyyyzzz.1234567890.%s.redshift-serverless.amazonaws.com", name, region)),
 		EndpointArn:        aws.String(fmt.Sprintf("arn:aws:redshift-serverless:%s:1234567890:managedvpcendpoint/some-uuid-for-%v", region, name)),
 		EndpointCreateTime: aws.Time(sampleTime),
 		EndpointName:       aws.String(name),
@@ -124,12 +125,15 @@ func RedshiftServerlessEndpointAccess(workgroup *redshiftserverless.Workgroup, n
 }
 
 // RedshiftServerlessGetCredentialsOutput return a sample redshiftserverless.GetCredentialsOutput.
-func RedshiftServerlessGetCredentialsOutput(user, password string) *redshiftserverless.GetCredentialsOutput {
+func RedshiftServerlessGetCredentialsOutput(user, password string, clock clockwork.Clock) *redshiftserverless.GetCredentialsOutput {
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
 	return &redshiftserverless.GetCredentialsOutput{
 		DbUser:          aws.String(user),
 		DbPassword:      aws.String(password),
-		Expiration:      aws.Time(sampleTime.Add(15 * time.Minute)),
-		NextRefreshTime: aws.Time(sampleTime.Add(2 * time.Hour)),
+		Expiration:      aws.Time(clock.Now().Add(15 * time.Minute)),
+		NextRefreshTime: aws.Time(clock.Now().Add(2 * time.Hour)),
 	}
 }
 

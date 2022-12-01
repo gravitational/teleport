@@ -135,6 +135,12 @@ type AzureClients interface {
 	GetAzureKubernetesClient(subscription string) (azure.AKSClient, error)
 	// GetAzureVirtualMachinesClient returns an Azure Virtual Machines client for the given subscription.
 	GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error)
+	// GetAzureSQLServerClient returns an Azure SQL Server client for the
+	// specified subscription.
+	GetAzureSQLServerClient(subscription string) (azure.SQLServerClient, error)
+	// GetAzureManagedSQLServerClient returns an Azure ManagedSQL Server client
+	// for the specified subscription.
+	GetAzureManagedSQLServerClient(subscription string) (azure.ManagedSQLServerClient, error)
 }
 
 // NewClients returns a new instance of cloud clients retriever.
@@ -142,12 +148,14 @@ func NewClients() Clients {
 	return &cloudClients{
 		awsSessions: make(map[string]*awssession.Session),
 		azureClients: azureClients{
-			azureMySQLClients:           make(map[string]azure.DBServersClient),
-			azurePostgresClients:        make(map[string]azure.DBServersClient),
-			azureRedisClients:           azure.NewClientMap(azure.NewRedisClient),
-			azureRedisEnterpriseClients: azure.NewClientMap(azure.NewRedisEnterpriseClient),
-			azureKubernetesClient:       make(map[string]azure.AKSClient),
-			azureVirtualMachinesClients: azure.NewClientMap(azure.NewVirtualMachinesClient),
+			azureMySQLClients:            make(map[string]azure.DBServersClient),
+			azurePostgresClients:         make(map[string]azure.DBServersClient),
+			azureRedisClients:            azure.NewClientMap(azure.NewRedisClient),
+			azureRedisEnterpriseClients:  azure.NewClientMap(azure.NewRedisEnterpriseClient),
+			azureKubernetesClient:        make(map[string]azure.AKSClient),
+			azureVirtualMachinesClients:  azure.NewClientMap(azure.NewVirtualMachinesClient),
+			azureSQLServerClients:        azure.NewClientMap(azure.NewSQLClient),
+			azureManagedSQLServerClients: azure.NewClientMap(azure.NewManagedSQLClient),
 		},
 	}
 }
@@ -190,6 +198,11 @@ type azureClients struct {
 	azureKubernetesClient map[string]azure.AKSClient
 	// azureVirtualMachinesClients contains the cached Azure Virtual Machines clients.
 	azureVirtualMachinesClients azure.ClientMap[azure.VirtualMachinesClient]
+	// azureSQLServerClient is the cached Azure SQL Server client.
+	azureSQLServerClients azure.ClientMap[azure.SQLServerClient]
+	// azureManagedSQLServerClient is the cached Azure Managed SQL Server
+	// client.
+	azureManagedSQLServerClients azure.ClientMap[azure.ManagedSQLServerClient]
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -450,6 +463,17 @@ func (c *cloudClients) GetAzureVirtualMachinesClient(subscription string) (azure
 	return c.azureVirtualMachinesClients.Get(subscription, c.GetAzureCredential)
 }
 
+// GetAzureSQLServerClient returns an Azure client for listing SQL servers.
+func (c *cloudClients) GetAzureSQLServerClient(subscription string) (azure.SQLServerClient, error) {
+	return c.azureSQLServerClients.Get(subscription, c.GetAzureCredential)
+}
+
+// GetAzureManagedSQLServerClient returns an Azure client for listing managed
+// SQL servers.
+func (c *cloudClients) GetAzureManagedSQLServerClient(subscription string) (azure.ManagedSQLServerClient, error) {
+	return c.azureManagedSQLServerClients.Get(subscription, c.GetAzureCredential)
+}
+
 // Close closes all initialized clients.
 func (c *cloudClients) Close() (err error) {
 	c.mtx.Lock()
@@ -688,6 +712,8 @@ type TestCloudClients struct {
 	AzureAKSClientPerSub    map[string]azure.AKSClient
 	AzureAKSClient          azure.AKSClient
 	AzureVirtualMachines    azure.VirtualMachinesClient
+	AzureSQLServer          azure.SQLServerClient
+	AzureManagedSQLServer   azure.ManagedSQLServerClient
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -833,6 +859,17 @@ func (c *TestCloudClients) GetAzureRedisEnterpriseClient(subscription string) (a
 // the given subscription.
 func (c *TestCloudClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
 	return c.AzureVirtualMachines, nil
+}
+
+// GetAzureSQLServerClient returns an Azure client for listing SQL servers.
+func (c *TestCloudClients) GetAzureSQLServerClient(subscription string) (azure.SQLServerClient, error) {
+	return c.AzureSQLServer, nil
+}
+
+// GetAzureManagedSQLServerClient returns an Azure client for listing managed
+// SQL servers.
+func (c *TestCloudClients) GetAzureManagedSQLServerClient(subscription string) (azure.ManagedSQLServerClient, error) {
+	return c.AzureManagedSQLServer, nil
 }
 
 // Close closes all initialized clients.

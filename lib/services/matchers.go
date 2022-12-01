@@ -302,4 +302,6 @@ const (
 	AzureMatcherPostgres = "postgres"
 	// AzureMatcherRedis is the Azure matcher type for Azure Cache for Redis databases.
 	AzureMatcherRedis = "redis"
+	// AzureMatcherSQLServer is the Azure matcher type for SQL Server databases.
+	AzureMatcherSQLServer = "sqlserver"
 )

@@ -39,7 +39,7 @@ mainSteps:
     sourceType: "HTTP"
     destinationPath: "/tmp/installTeleport.sh"
     sourceInfo:
-      url: "%s/webapi/scripts/{{ scriptName }}"
+      url: "%s/webapi/scripts/installer/{{ scriptName }}"
 - action: aws:runShellScript
   name: runShellScript
   inputs:
