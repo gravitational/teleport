@@ -35,7 +35,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
@@ -203,7 +202,7 @@ func validateMongoDB(db types.Database) error {
 	// DNS errors here by replacing the scheme and then ParseAndValidate again
 	// to validate as much as we can.
 	if isDNSError(err) {
-		logrus.Warnf("MongoDB database %q (connection string %q) failed validation with DNS error: %v.", db.GetName(), db.GetURI(), err)
+		log.Warnf("MongoDB database %q (connection string %q) failed validation with DNS error: %v.", db.GetName(), db.GetURI(), err)
 
 		connString, err = connstring.ParseAndValidate(strings.Replace(
 			db.GetURI(),
@@ -230,8 +229,8 @@ func isDNSError(err error) bool {
 		err = unwrapped
 	}
 
-	_, ok := err.(*net.DNSError)
-	return ok
+	var dnsErr *net.DNSError
+	return errors.As(err, &dnsErr)
 }
 
 // setDBNameByLabel modifies the types.Metadata argument in place, setting the database name.
