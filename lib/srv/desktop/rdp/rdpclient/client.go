@@ -65,7 +65,10 @@ package rdpclient
 import "C"
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"image"
 	"io"
 	"os"
@@ -554,6 +557,8 @@ func handle_bitmap(handle C.uintptr_t, cb *C.CGOBitmap) C.CGOErrCode {
 	return cgo.Handle(handle).Value().(*Client).handleBitmap(cb)
 }
 
+var i = 0
+
 func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	// Notify the input forwarding goroutine that we're ready for input.
 	// Input can only be sent after connection was established, which we infer
@@ -565,17 +570,23 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	// copy. This way we only need one copy into img.Pix below.
 	ptr := unsafe.Pointer(cb.data_ptr)
 	uptr := (*uint8)(ptr)
-	data := unsafe.Slice(uptr, C.int(cb.data_len))
+	data := unsafe.Slice(uptr, int(cb.data_len))
+	sum256 := sha256.Sum256(data)
 
 	// Convert BGRA to RGBA. It's likely due to Windows using uint32 values for
 	// pixels (ARGB) and encoding them as big endian. The image.RGBA type uses
 	// a byte slice with 4-byte segments representing pixels (RGBA).
 	//
 	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegdi/8ab64b94-59cb-43f4-97ca-79613838e0bd
-	//
+
+	// Also, always force Alpha value to 100% (opaque). On some Windows
+	// versions (e.g. Windows 10) it's sent as 0% after decompression for some reason.
 	for i := 0; i < len(data); i += 4 {
-		data[i], data[i+2] = data[i+2], data[i]
+		data[i], data[i+2], data[i+3] = data[i+2], data[i], 255
 	}
+
+	//sum256 = sha256.Sum256(data)
+	//c.cfg.Log.Infof("bitmap_go %s", hex.EncodeToString(sum256[:]))
 
 	rect := image.Rectangle{
 		Min: image.Pt(int(cb.dest_left), int(cb.dest_top)),
@@ -597,6 +608,12 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	}
 
 	copy(img.Pix, data)
+
+	hex := hex.EncodeToString(sum256[:])
+	f, _ := os.Create(fmt.Sprintf("build/img/%d_%s.png", i, hex))
+	c.cfg.Encoder.Encode(f, img)
+	f.Close()
+	i++
 
 	if err := c.cfg.Conn.WriteMessage(tdp.NewPNG(img, c.cfg.Encoder)); err != nil {
 		c.cfg.Log.Errorf("failed to send PNG frame %v: %v", img.Rect, err)
