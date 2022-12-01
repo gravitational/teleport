@@ -65,10 +65,7 @@ package rdpclient
 import "C"
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
-	"fmt"
 	"image"
 	"io"
 	"os"
@@ -571,7 +568,6 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	ptr := unsafe.Pointer(cb.data_ptr)
 	uptr := (*uint8)(ptr)
 	data := unsafe.Slice(uptr, int(cb.data_len))
-	sum256 := sha256.Sum256(data)
 
 	// Convert BGRA to RGBA. It's likely due to Windows using uint32 values for
 	// pixels (ARGB) and encoding them as big endian. The image.RGBA type uses
@@ -584,9 +580,6 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	for i := 0; i < len(data); i += 4 {
 		data[i], data[i+2], data[i+3] = data[i+2], data[i], 255
 	}
-
-	//sum256 = sha256.Sum256(data)
-	//c.cfg.Log.Infof("bitmap_go %s", hex.EncodeToString(sum256[:]))
 
 	rect := image.Rectangle{
 		Min: image.Pt(int(cb.dest_left), int(cb.dest_top)),
@@ -608,13 +601,7 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	}
 
 	copy(img.Pix, data)
-
-	hex := hex.EncodeToString(sum256[:])
-	f, _ := os.Create(fmt.Sprintf("build/img/%d_%s.png", i, hex))
-	c.cfg.Encoder.Encode(f, img)
-	f.Close()
-	i++
-
+	
 	if err := c.cfg.Conn.WriteMessage(tdp.NewPNG(img, c.cfg.Encoder)); err != nil {
 		c.cfg.Log.Errorf("failed to send PNG frame %v: %v", img.Rect, err)
 		return C.ErrCodeFailure
