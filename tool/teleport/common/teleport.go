@@ -22,23 +22,25 @@ import (
 	"net/url"
 	"os"
 	"os/user"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
-	dbconfigurators "github.com/gravitational/teleport/lib/configurators/databases"
+	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // Options combines init/start teleport options
@@ -66,13 +68,14 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 
 	// define global flags:
 	var (
-		ccf                             config.CommandLineFlags
-		scpFlags                        scp.Flags
-		dumpFlags                       dumpFlags
-		configureDatabaseAWSPrintFlags  configureDatabaseAWSPrintFlags
-		configureDatabaseAWSCreateFlags configureDatabaseAWSCreateFlags
-		configureDatabaseBootstrapFlags configureDatabaseBootstrapFlags
-		dbConfigCreateFlags             createDatabaseConfigFlags
+		ccf                              config.CommandLineFlags
+		scpFlags                         scp.Flags
+		dumpFlags                        dumpFlags
+		configureDatabaseAWSPrintFlags   configureDatabaseAWSPrintFlags
+		configureDatabaseAWSCreateFlags  configureDatabaseAWSCreateFlags
+		configureDiscoveryBootstrapFlags configureDiscoveryBootstrapFlags
+		dbConfigCreateFlags              createDatabaseConfigFlags
+		systemdInstallFlags              installSystemdFlags
 	)
 
 	// define commands:
@@ -212,6 +215,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbStartCmd.Flag("uri", "Address the proxied database is reachable at.").StringVar(&ccf.DatabaseURI)
 	dbStartCmd.Flag("ca-cert", "Database CA certificate path.").StringVar(&ccf.DatabaseCACertFile)
 	dbStartCmd.Flag("aws-region", "(Only for RDS, Aurora, Redshift, ElastiCache or MemoryDB) AWS region AWS hosted database instance is running in.").StringVar(&ccf.DatabaseAWSRegion)
+	dbStartCmd.Flag("aws-account-id", "(Only for Keyspaces) AWS Account ID.").StringVar(&ccf.DatabaseAWSAccountID)
 	dbStartCmd.Flag("aws-redshift-cluster-id", "(Only for Redshift) Redshift database cluster identifier.").StringVar(&ccf.DatabaseAWSRedshiftClusterID)
 	dbStartCmd.Flag("aws-rds-instance-id", "(Only for RDS) RDS instance identifier.").StringVar(&ccf.DatabaseAWSRDSInstanceID)
 	dbStartCmd.Flag("aws-rds-cluster-id", "(Only for Aurora) Aurora cluster identifier.").StringVar(&ccf.DatabaseAWSRDSClusterID)
@@ -230,12 +234,19 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureCreate := dbConfigure.Command("create", "Creates a sample Database Service configuration.")
 	dbConfigureCreate.Flag("proxy", fmt.Sprintf("Teleport proxy address to connect to [%s].", defaults.ProxyWebListenAddr().Addr)).
 		Default(defaults.ProxyWebListenAddr().Addr).
-		StringsVar(&dbConfigCreateFlags.AuthServersAddr)
+		StringVar(&dbConfigCreateFlags.ProxyServer)
 	dbConfigureCreate.Flag("token", "Invitation token to register with an auth server [none].").Default("/tmp/token").StringVar(&dbConfigCreateFlags.AuthToken)
 	dbConfigureCreate.Flag("rds-discovery", "List of AWS regions in which the agent will discover RDS/Aurora instances.").StringsVar(&dbConfigCreateFlags.RDSDiscoveryRegions)
+	dbConfigureCreate.Flag("rdsproxy-discovery", "List of AWS regions in which the agent will discover RDS Proxies.").StringsVar(&dbConfigCreateFlags.RDSProxyDiscoveryRegions)
 	dbConfigureCreate.Flag("redshift-discovery", "List of AWS regions in which the agent will discover Redshift instances.").StringsVar(&dbConfigCreateFlags.RedshiftDiscoveryRegions)
 	dbConfigureCreate.Flag("elasticache-discovery", "List of AWS regions in which the agent will discover ElastiCache Redis clusters.").StringsVar(&dbConfigCreateFlags.ElastiCacheDiscoveryRegions)
 	dbConfigureCreate.Flag("memorydb-discovery", "List of AWS regions in which the agent will discover MemoryDB clusters.").StringsVar(&dbConfigCreateFlags.MemoryDBDiscoveryRegions)
+	dbConfigureCreate.Flag("azure-mysql-discovery", "List of Azure regions in which the agent will discover MySQL servers.").StringsVar(&dbConfigCreateFlags.AzureMySQLDiscoveryRegions)
+	dbConfigureCreate.Flag("azure-postgres-discovery", "List of Azure regions in which the agent will discover Postgres servers.").StringsVar(&dbConfigCreateFlags.AzurePostgresDiscoveryRegions)
+	dbConfigureCreate.Flag("azure-redis-discovery", "List of Azure regions in which the agent will discover Azure Cache For Redis servers.").StringsVar(&dbConfigCreateFlags.AzureRedisDiscoveryRegions)
+	dbConfigureCreate.Flag("azure-sqlserver-discovery", "List of Azure regions in which the agent will discover Azure SQL Databaes and Managed Instances.").StringsVar(&dbConfigCreateFlags.AzureSQLServerDiscoveryRegions)
+	dbConfigureCreate.Flag("azure-subscription", "List of Azure subscription IDs for Azure discoveries. Default is \"*\".").Default(types.Wildcard).StringsVar(&dbConfigCreateFlags.DatabaseAzureSubscriptions)
+	dbConfigureCreate.Flag("azure-resource-group", "List of Azure resource groups for Azure discoveries. Default is \"*\".").Default(types.Wildcard).StringsVar(&dbConfigCreateFlags.DatabaseAzureResourceGroups)
 	dbConfigureCreate.Flag("ca-pin", "CA pin to validate the auth server (can be repeated for multiple pins).").StringsVar(&dbConfigCreateFlags.CAPins)
 	dbConfigureCreate.Flag("name", "Name of the proxied database.").StringVar(&dbConfigCreateFlags.StaticDatabaseName)
 	dbConfigureCreate.Flag("protocol", fmt.Sprintf("Proxied database protocol. Supported are: %v.", defaults.DatabaseProtocols)).StringVar(&dbConfigCreateFlags.StaticDatabaseProtocol)
@@ -255,12 +266,12 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureCreate.Alias(dbCreateConfigExamples) // We're using "alias" section to display usage examples.
 
 	dbConfigureBootstrap := dbConfigure.Command("bootstrap", "Bootstrap the necessary configuration for the database agent. It reads the provided agent configuration to determine what will be bootstrapped.")
-	dbConfigureBootstrap.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&configureDatabaseBootstrapFlags.config.ConfigPath)
-	dbConfigureBootstrap.Flag("manual", "When executed in \"manual\" mode, it will print the instructions to complete the configuration instead of applying them directly.").BoolVar(&configureDatabaseBootstrapFlags.config.Manual)
-	dbConfigureBootstrap.Flag("policy-name", fmt.Sprintf("Name of the Teleport Database agent policy. Default: %q", dbconfigurators.DefaultPolicyName)).Default(dbconfigurators.DefaultPolicyName).StringVar(&configureDatabaseBootstrapFlags.config.PolicyName)
-	dbConfigureBootstrap.Flag("confirm", "Do not prompt user and auto-confirm all actions.").BoolVar(&configureDatabaseBootstrapFlags.confirm)
-	dbConfigureBootstrap.Flag("attach-to-role", "Role name to attach policy to. Mutually exclusive with --attach-to-user. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.").StringVar(&configureDatabaseBootstrapFlags.config.AttachToRole)
-	dbConfigureBootstrap.Flag("attach-to-user", "User name to attach policy to. Mutually exclusive with --attach-to-role. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.").StringVar(&configureDatabaseBootstrapFlags.config.AttachToUser)
+	dbConfigureBootstrap.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').Default(defaults.ConfigFilePath).ExistingFileVar(&configureDiscoveryBootstrapFlags.config.ConfigPath)
+	dbConfigureBootstrap.Flag("manual", "When executed in \"manual\" mode, it will print the instructions to complete the configuration instead of applying them directly.").BoolVar(&configureDiscoveryBootstrapFlags.config.Manual)
+	dbConfigureBootstrap.Flag("policy-name", fmt.Sprintf("Name of the Teleport Database agent policy. Default: %q", awsconfigurators.DefaultPolicyName)).Default(awsconfigurators.DefaultPolicyName).StringVar(&configureDiscoveryBootstrapFlags.config.PolicyName)
+	dbConfigureBootstrap.Flag("confirm", "Do not prompt user and auto-confirm all actions.").BoolVar(&configureDiscoveryBootstrapFlags.confirm)
+	dbConfigureBootstrap.Flag("attach-to-role", "Role name to attach policy to. Mutually exclusive with --attach-to-user. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.").StringVar(&configureDiscoveryBootstrapFlags.config.AttachToRole)
+	dbConfigureBootstrap.Flag("attach-to-user", "User name to attach policy to. Mutually exclusive with --attach-to-role. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.").StringVar(&configureDiscoveryBootstrapFlags.config.AttachToUser)
 
 	dbConfigureAWS := dbConfigure.Command("aws", "Bootstrap for AWS hosted databases.")
 	dbConfigureAWSPrintIAM := dbConfigureAWS.Command("print-iam", "Generate and show IAM policies.")
@@ -277,11 +288,30 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		fmt.Sprintf("Comma-separated list of database types to include in the policy. Any of %s", strings.Join(awsDatabaseTypes, ","))).
 		Short('r').
 		StringVar(&configureDatabaseAWSCreateFlags.types)
-	dbConfigureAWSCreateIAM.Flag("name", "Created policy name. Defaults to empty. Will be auto-generated if not provided.").Default(dbconfigurators.DefaultPolicyName).StringVar(&configureDatabaseAWSCreateFlags.policyName)
+	dbConfigureAWSCreateIAM.Flag("name", "Created policy name. Defaults to empty. Will be auto-generated if not provided.").Default(awsconfigurators.DefaultPolicyName).StringVar(&configureDatabaseAWSCreateFlags.policyName)
 	dbConfigureAWSCreateIAM.Flag("attach", "Try to attach the policy to the IAM identity.").Default("true").BoolVar(&configureDatabaseAWSCreateFlags.attach)
 	dbConfigureAWSCreateIAM.Flag("confirm", "Do not prompt user and auto-confirm all actions.").BoolVar(&configureDatabaseAWSCreateFlags.confirm)
 	dbConfigureAWSCreateIAM.Flag("role", "IAM role name to attach policy to. Mutually exclusive with --user").StringVar(&configureDatabaseAWSCreateFlags.role)
 	dbConfigureAWSCreateIAM.Flag("user", "IAM user name to attach policy to. Mutually exclusive with --role").StringVar(&configureDatabaseAWSCreateFlags.user)
+
+	// "teleport discovery" bootstrap command and subcommnads.
+	discoveryCmd := app.Command("discovery", "Teleport discovery service commands")
+	discoveryBootstrapCmd := discoveryCmd.Command("bootstrap", "Bootstrap the necessary configuration for the database agent. It reads the provided agent configuration to determine what will be bootstrapped.")
+	discoveryBootstrapCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').Default(defaults.ConfigFilePath).ExistingFileVar(&configureDiscoveryBootstrapFlags.config.ConfigPath)
+	discoveryBootstrapCmd.Flag("confirm", "Do not prompt user and auto-confirm all actions.").BoolVar(&configureDatabaseAWSCreateFlags.confirm)
+	discoveryBootstrapCmd.Flag("attach-to-role", "Role name to attach policy to. Mutually exclusive with --attach-to-user. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.").StringVar(&configureDiscoveryBootstrapFlags.config.AttachToRole)
+	discoveryBootstrapCmd.Flag("attach-to-user", "User name to attach policy to. Mutually exclusive with --attach-to-role. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.").StringVar(&configureDiscoveryBootstrapFlags.config.AttachToUser)
+	discoveryBootstrapCmd.Flag("policy-name", fmt.Sprintf("Name of the Teleport Discovery service policy. Default: %q", awsconfigurators.EC2DiscoveryPolicyName)).Default(awsconfigurators.EC2DiscoveryPolicyName).StringVar(&configureDiscoveryBootstrapFlags.config.PolicyName)
+
+	// "teleport install" command and its subcommands
+	installCmd := app.Command("install", "Teleport install commands.")
+	systemdInstall := installCmd.Command("systemd", "Creates a systemd unit file configuration.")
+	systemdInstall.Flag("env-file", "Full path to the environment file.").Default(config.SystemdDefaultEnvironmentFile).StringVar(&systemdInstallFlags.EnvironmentFile)
+	systemdInstall.Flag("pid-file", "Full path to the PID file.").Default(config.SystemdDefaultPIDFile).StringVar(&systemdInstallFlags.PIDFile)
+	systemdInstall.Flag("fd-limit", "Maximum number of open file descriptors.").Default(fmt.Sprintf("%v", config.SystemdDefaultFileDescriptorLimit)).IntVar(&systemdInstallFlags.FileDescriptorLimit)
+	systemdInstall.Flag("teleport-path", "Full path to the Teleport binary.").StringVar(&systemdInstallFlags.TeleportInstallationFile)
+	systemdInstall.Flag("output", "Write to stdout with -o=stdout or custom path with -o=file:///path").Short('o').Default(teleport.SchemeStdout).StringVar(&systemdInstallFlags.output)
+	systemdInstall.Alias(systemdInstallExamples) // We're using "alias" section to display usage examples.
 
 	// define a hidden 'scp' command (it implements server-side implementation of handling
 	// 'scp' requests)
@@ -306,7 +336,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("acme-email",
 		"Email to receive updates from Letsencrypt.org.").StringVar(&dumpFlags.ACMEEmail)
 	dump.Flag("test", "Path to a configuration file to test.").ExistingFileVar(&dumpFlags.testConfigFile)
-	dump.Flag("version", "Teleport configuration version.").Default(defaults.TeleportConfigVersionV2).StringVar(&dumpFlags.Version)
+	dump.Flag("version", "Teleport configuration version.").Default(defaults.TeleportConfigVersionV3).StringVar(&dumpFlags.Version)
 	dump.Flag("public-addr", "The hostport that the proxy advertises for the HTTP endpoint.").StringVar(&dumpFlags.PublicAddr)
 	dump.Flag("cert-file", "Path to a TLS certificate file for the proxy.").ExistingFileVar(&dumpFlags.CertFile)
 	dump.Flag("key-file", "Path to a TLS key file for the proxy.").ExistingFileVar(&dumpFlags.KeyFile)
@@ -314,6 +344,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("token", "Invitation token to register with an auth server.").StringVar(&dumpFlags.AuthToken)
 	dump.Flag("roles", "Comma-separated list of roles to create config with.").StringVar(&dumpFlags.Roles)
 	dump.Flag("auth-server", "Address of the auth server.").StringVar(&dumpFlags.AuthServer)
+	dump.Flag("proxy", "Address of the proxy.").StringVar(&dumpFlags.ProxyAddress)
 	dump.Flag("app-name", "Name of the application to start when using app role.").StringVar(&dumpFlags.AppName)
 	dump.Flag("app-uri", "Internal address of the application to proxy.").StringVar(&dumpFlags.AppURI)
 	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
@@ -325,11 +356,12 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dumpNodeConfigure.Flag("output",
 		"Write to stdout with -o=stdout, default config file with -o=file or custom path with -o=file:///path").Short('o').Default(
 		teleport.SchemeStdout).StringVar(&dumpFlags.output)
-	dumpNodeConfigure.Flag("version", "Teleport configuration version.").Default(defaults.TeleportConfigVersionV2).StringVar(&dumpFlags.Version)
+	dumpNodeConfigure.Flag("version", "Teleport configuration version.").Default(defaults.TeleportConfigVersionV3).StringVar(&dumpFlags.Version)
 	dumpNodeConfigure.Flag("public-addr", "The hostport that the node advertises for the SSH endpoint.").StringVar(&dumpFlags.PublicAddr)
 	dumpNodeConfigure.Flag("data-dir", "Path to a directory where Teleport keep its data.").Default(defaults.DataDir).StringVar(&dumpFlags.DataDir)
 	dumpNodeConfigure.Flag("token", "Invitation token to register with an auth server.").StringVar(&dumpFlags.AuthToken)
 	dumpNodeConfigure.Flag("auth-server", "Address of the auth server.").StringVar(&dumpFlags.AuthServer)
+	dumpNodeConfigure.Flag("proxy", "Address of the proxy server.").StringVar(&dumpFlags.ProxyAddress)
 	dumpNodeConfigure.Flag("labels", "Comma-separated list of labels to add to newly created nodes ex) env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 	dumpNodeConfigure.Flag("ca-pin", "Comma-separated list of SKPI hashes for the CA used to verify the auth server.").StringVar(&dumpFlags.CAPin)
 	dumpNodeConfigure.Flag("join-method", "Method to use to join the cluster (token, iam, ec2)").Default("token").EnumVar(&dumpFlags.JoinMethod, "token", "iam", "ec2")
@@ -369,7 +401,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 			utils.FatalError(err)
 		}
 		if !options.InitOnly {
-			err = OnStart(conf)
+			err = OnStart(ccf, conf)
 		}
 	case scpc.FullCommand():
 		err = onSCP(&scpFlags)
@@ -399,7 +431,13 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case dbConfigureAWSCreateIAM.FullCommand():
 		err = onConfigureDatabasesAWSCreate(configureDatabaseAWSCreateFlags)
 	case dbConfigureBootstrap.FullCommand():
-		err = onConfigureDatabaseBootstrap(configureDatabaseBootstrapFlags)
+		configureDiscoveryBootstrapFlags.config.DiscoveryService = false
+		err = onConfigureDiscoveryBootstrap(configureDiscoveryBootstrapFlags)
+	case systemdInstall.FullCommand():
+		err = onDumpSystemdUnitFile(systemdInstallFlags)
+	case discoveryBootstrapCmd.FullCommand():
+		configureDiscoveryBootstrapFlags.config.DiscoveryService = true
+		err = onConfigureDiscoveryBootstrap(configureDiscoveryBootstrapFlags)
 	}
 	if err != nil {
 		utils.FatalError(err)
@@ -408,7 +446,19 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 }
 
 // OnStart is the handler for "start" CLI command
-func OnStart(config *service.Config) error {
+func OnStart(clf config.CommandLineFlags, config *service.Config) error {
+	//check to see if the config file is not passed and if the
+	// default config file is available. If available it will be used
+	configFileUsed := clf.ConfigFile
+	if clf.ConfigFile == "" && utils.FileExists(defaults.ConfigFilePath) {
+		configFileUsed = defaults.ConfigFilePath
+	}
+
+	if configFileUsed == "" {
+		config.Log.Infof("Starting Teleport v%s", teleport.Version)
+	} else {
+		config.Log.Infof("Starting Teleport v%s with a config file located at %q", teleport.Version, configFileUsed)
+	}
 	return service.Run(context.TODO(), *config, nil)
 }
 
@@ -468,16 +518,12 @@ func normalizeOutput(output string) string {
 }
 
 func checkConfigurationFileVersion(version string) error {
-	supportedVersions := []string{defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2}
-	switch version {
-	case defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2, "":
-	default:
-		return trace.BadParameter(
-			"unsupported Teleport configuration version %q, supported are: %s",
-			version, strings.Join(supportedVersions, ","))
+	// allow an empty version as we default to v1
+	if version == "" {
+		return nil
 	}
 
-	return nil
+	return defaults.ValidateConfigVersion(version)
 }
 
 // onConfigDump is the handler for "configure" CLI command
@@ -499,7 +545,7 @@ func onConfigDump(flags dumpFlags) error {
 	}
 
 	if modules.GetModules().BuildType() != modules.BuildOSS {
-		flags.LicensePath = filepath.Join(defaults.DataDir, "license.pem")
+		flags.LicensePath = filepath.Join(flags.DataDir, "license.pem")
 	}
 
 	if flags.KeyFile != "" && !filepath.IsAbs(flags.KeyFile) {
@@ -548,11 +594,36 @@ func onConfigDump(flags dumpFlags) error {
 	}
 
 	if configPath != "" {
-		if modules.GetModules().BuildType() == modules.BuildOSS {
-			fmt.Printf("Wrote config to file %q. Now you can start the server. Happy Teleporting!\n", configPath)
-		} else {
-			fmt.Printf("Wrote config to file %q. Add your license file to %v and start the server. Happy Teleporting!\n", configPath, flags.LicensePath)
+		canWriteToDataDir, err := utils.CanUserWriteTo(flags.DataDir)
+		if err != nil && !trace.IsNotImplemented(err) {
+			fmt.Fprintf(os.Stderr, "Failed to check data dir permissions: %+v", err)
 		}
+		canWriteToConfDir, err := utils.CanUserWriteTo(filepath.Dir(configPath))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to check config dir permissions: %+v", err)
+		}
+		requiresRoot := !canWriteToDataDir || !canWriteToConfDir
+
+		fmt.Printf("\nA Teleport configuration file has been created at %q.\n", configPath)
+		if modules.GetModules().BuildType() != modules.BuildOSS {
+			fmt.Printf("Add your Teleport license file to %q.\n", flags.LicensePath)
+		}
+		fmt.Printf("To start Teleport with this configuration file, run:\n\n")
+		if requiresRoot {
+			fmt.Printf("sudo teleport start --config=%q\n\n", configPath)
+			fmt.Printf("Note that starting a Teleport server with this configuration will require root access as:\n")
+			if !canWriteToConfDir {
+				fmt.Printf("- The Teleport configuration is located at %q.\n", configPath)
+			}
+			if !canWriteToDataDir {
+				fmt.Printf("- Teleport will be storing data at %q. To change that, run \"teleport configure\" with the \"--data-dir\" flag.\n", flags.DataDir)
+			}
+			fmt.Println()
+		} else {
+			fmt.Printf("teleport start --config=%q\n\n", configPath)
+		}
+
+		fmt.Printf("Happy Teleporting!\n")
 	}
 
 	return nil
@@ -577,6 +648,18 @@ func dumpConfigFile(outputURI, contents, comment string) (string, error) {
 		if !filepath.IsAbs(uri.Path) {
 			return "", trace.BadParameter("please use absolute path for file %v", uri.Path)
 		}
+
+		configDir := path.Dir(outputURI)
+		err := os.MkdirAll(configDir, 0o755)
+		err = trace.ConvertSystemError(err)
+		if err != nil {
+			if trace.IsAccessDenied(err) {
+				return "", trace.Wrap(err, "permission denied creating directory %s", configDir)
+			}
+
+			return "", trace.Wrap(err, "error creating config file directory %s", configDir)
+		}
+
 		f, err := os.OpenFile(uri.Path, os.O_RDWR|os.O_CREATE|os.O_EXCL, teleport.FileMaskOwnerOnly)
 		err = trace.ConvertSystemError(err)
 		if err != nil {
@@ -652,8 +735,7 @@ func onSCP(scpFlags *scp.Flags) (err error) {
 	return trace.Wrap(cmd.Execute(&StdReadWriter{}))
 }
 
-type StdReadWriter struct {
-}
+type StdReadWriter struct{}
 
 func (rw *StdReadWriter) Read(b []byte) (int, error) {
 	return os.Stdin.Read(b)

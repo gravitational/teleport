@@ -36,9 +36,9 @@ import (
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -57,17 +57,31 @@ func promptPlatform() {
 	}
 }
 
+// AuthContext is an optional, shared authentication context.
+// Allows reusing a single authentication prompt/gesture between different
+// functions, provided the functions are invoked in a short time interval.
+// Only used by native touchid implementations.
+type AuthContext interface {
+	// Guard guards the invocation of fn behind an authentication check.
+	Guard(fn func()) error
+	// Close closes the context, releasing any held resources.
+	Close()
+}
+
 // nativeTID represents the native Touch ID interface.
 // Implementors must provide a global variable called `native`.
 type nativeTID interface {
 	Diag() (*DiagResult, error)
+
+	// NewAuthContext creates a new AuthContext.
+	NewAuthContext() AuthContext
 
 	// Register creates a new credential in the Secure Enclave.
 	Register(rpID, user string, userHandle []byte) (*CredentialInfo, error)
 
 	// Authenticate authenticates using the specified credential.
 	// Requires user interaction.
-	Authenticate(credentialID string, digest []byte) ([]byte, error)
+	Authenticate(actx AuthContext, credentialID string, digest []byte) ([]byte, error)
 
 	// FindCredentials finds credentials without user interaction.
 	// An empty user means "all users".
@@ -99,16 +113,21 @@ type DiagResult struct {
 
 // CredentialInfo holds information about a Secure Enclave credential.
 type CredentialInfo struct {
-	UserHandle   []byte
 	CredentialID string
 	RPID         string
-	User         string
+	User         UserInfo
 	PublicKey    *ecdsa.PublicKey
 	CreateTime   time.Time
 
 	// publicKeyRaw is used internally to return public key data from native
 	// register requests.
 	publicKeyRaw []byte
+}
+
+// UserInfo holds information about a credential owner.
+type UserInfo struct {
+	UserHandle []byte
+	Name       string
 }
 
 var (
@@ -194,6 +213,13 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 		return nil, ErrNotAvailable
 	}
 
+	if origin == "" {
+		return nil, trace.BadParameter("origin required")
+	}
+	if err := cc.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Ignored cc fields:
 	// - Timeout - we don't control touch ID timeouts (also the server is free to
 	//   enforce it)
@@ -202,22 +228,8 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 	// - Extensions - none supported
 	// - Attestation - we always to our best (packed/self-attestation).
 	//   The server is free to ignore/reject.
-	switch {
-	case origin == "":
-		return nil, errors.New("origin required")
-	case cc == nil:
-		return nil, errors.New("credential creation required")
-	case len(cc.Response.Challenge) == 0:
-		return nil, errors.New("challenge required")
-	// Note: we don't need other RelyingParty fields, but technically they would
-	// be required as well.
-	case cc.Response.RelyingParty.ID == "":
-		return nil, errors.New("relying party ID required")
-	case len(cc.Response.User.ID) == 0:
-		return nil, errors.New("user ID required")
-	case cc.Response.User.Name == "":
-		return nil, errors.New("user name required")
-	case cc.Response.AuthenticatorSelection.AuthenticatorAttachment == protocol.CrossPlatform:
+
+	if cc.Response.AuthenticatorSelection.AuthenticatorAttachment == protocol.CrossPlatform {
 		return nil, fmt.Errorf("cannot fulfill authenticator attachment %q", cc.Response.AuthenticatorSelection.AuthenticatorAttachment)
 	}
 	ok := false
@@ -281,7 +293,7 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 	}
 
 	promptPlatform()
-	sig, err := native.Authenticate(credentialID, attData.digest)
+	sig, err := native.Authenticate(nil /* actx */, credentialID, attData.digest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -317,6 +329,24 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 		CCR:          ccr,
 		credentialID: credentialID,
 	}, nil
+}
+
+// HasCredentials checks if there are any credentials registered for given user.
+// If user is empty it checks if there are credentials registered for any user.
+// It does not require user interactions.
+func HasCredentials(rpid, user string) bool {
+	if !IsAvailable() {
+		return false
+	}
+	if rpid == "" {
+		return false
+	}
+	creds, err := native.FindCredentials(rpid, user)
+	if err != nil {
+		log.WithError(err).Debug("Touch ID: Could not find credentials")
+		return false
+	}
+	return len(creds) > 0
 }
 
 func pubKeyFromRawAppleKey(pubKeyRaw []byte) (*ecdsa.PublicKey, error) {
@@ -409,12 +439,29 @@ func makeAttestationData(ceremony protocol.CeremonyType, origin, rpID string, ch
 	}, nil
 }
 
+// CredentialPicker allows users to choose a credential for login.
+type CredentialPicker interface {
+	// PromptCredential prompts the user to pick a credential from the list.
+	// Prompts only happen if there is more than one credential to choose from.
+	// Must return one of the pointers from the slice or an error.
+	PromptCredential(creds []*CredentialInfo) (*CredentialInfo, error)
+}
+
 // Login authenticates using a Secure Enclave-backed biometric credential.
 // It returns the assertion response and the user that owns the credential to
 // sign it.
-func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.CredentialAssertionResponse, string, error) {
+func Login(origin, user string, assertion *wanlib.CredentialAssertion, picker CredentialPicker) (*wanlib.CredentialAssertionResponse, string, error) {
 	if !IsAvailable() {
 		return nil, "", ErrNotAvailable
+	}
+	switch {
+	case origin == "":
+		return nil, "", trace.BadParameter("origin required")
+	case picker == nil:
+		return nil, "", trace.BadParameter("picker required")
+	}
+	if err := assertion.Validate(); err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 
 	// Ignored assertion fields:
@@ -422,19 +469,7 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 	//   enforce it)
 	// - UserVerification - always performed
 	// - Extensions - none supported
-	switch {
-	case origin == "":
-		return nil, "", errors.New("origin required")
-	case assertion == nil:
-		return nil, "", errors.New("assertion required")
-	case len(assertion.Response.Challenge) == 0:
-		return nil, "", errors.New("challenge required")
-	case assertion.Response.RelyingPartyID == "":
-		return nil, "", errors.New("relying party ID required")
-	}
 
-	// TODO(codingllama): Share the same LAContext between search and
-	//  authentication, so we can protect both with user interaction.
 	rpID := assertion.Response.RelyingPartyID
 	infos, err := native.FindCredentials(rpID, user)
 	switch {
@@ -452,10 +487,25 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 		return i1.CreateTime.After(i2.CreateTime)
 	})
 
-	// Verify infos against allowed credentials, if any.
-	cred, ok := findAllowedCredential(infos, assertion.Response.AllowedCredentials)
-	if !ok {
-		return nil, "", ErrCredentialNotFound
+	// Prepare authentication context and prompt for the credential picker.
+	actx := native.NewAuthContext()
+	defer actx.Close()
+
+	var prompted bool
+	promptOnce := func() {
+		if prompted {
+			return
+		}
+		promptPlatform()
+		prompted = true
+	}
+
+	cred, err := pickCredential(
+		actx,
+		infos, assertion.Response.AllowedCredentials,
+		picker, promptOnce, user != "" /* userRequested */)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 	log.Debugf("Touch ID: using credential %q", cred.CredentialID)
 
@@ -464,8 +514,8 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 		return nil, "", trace.Wrap(err)
 	}
 
-	promptPlatform()
-	sig, err := native.Authenticate(cred.CredentialID, attData.digest)
+	promptOnce() // In case the picker prompt didn't happen.
+	sig, err := native.Authenticate(actx, cred.CredentialID, attData.digest)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -484,26 +534,73 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 			},
 			AuthenticatorData: attData.rawAuthData,
 			Signature:         sig,
-			UserHandle:        cred.UserHandle,
+			UserHandle:        cred.User.UserHandle,
 		},
-	}, cred.User, nil
+	}, cred.User.Name, nil
 }
 
-func findAllowedCredential(infos []CredentialInfo, allowedCredentials []protocol.CredentialDescriptor) (CredentialInfo, bool) {
-	if len(infos) > 0 && len(allowedCredentials) == 0 {
-		// Default to "first" credential for passwordless
-		return infos[0], true
-	}
-
-	for _, info := range infos {
-		for _, cred := range allowedCredentials {
-			if info.CredentialID == string(cred.CredentialID) {
-				return info, true
+func pickCredential(
+	actx AuthContext,
+	infos []CredentialInfo, allowedCredentials []protocol.CredentialDescriptor,
+	picker CredentialPicker, promptOnce func(), userRequested bool) (*CredentialInfo, error) {
+	// Handle early exits.
+	switch l := len(infos); {
+	// MFA.
+	case len(allowedCredentials) > 0:
+		for _, info := range infos {
+			for _, cred := range allowedCredentials {
+				if info.CredentialID == string(cred.CredentialID) {
+					return &info, nil
+				}
 			}
 		}
+		return nil, ErrCredentialNotFound
+
+	// Single credential or specific user requested.
+	// A requested user means that all credentials are for that user, so there
+	// would be nothing to pick.
+	case l == 1 || userRequested:
+		return &infos[0], nil
 	}
 
-	return CredentialInfo{}, false
+	// Dedup users to avoid confusion.
+	// This assumes credentials are sorted from most to less preferred.
+	knownUsers := make(map[string]struct{})
+	deduped := make([]*CredentialInfo, 0, len(infos))
+	for _, c := range infos {
+		if _, ok := knownUsers[c.User.Name]; ok {
+			continue
+		}
+		knownUsers[c.User.Name] = struct{}{}
+
+		c := c // Avoid capture-by-reference errors
+		deduped = append(deduped, &c)
+	}
+	if len(deduped) == 1 {
+		return deduped[0], nil
+	}
+
+	promptOnce()
+	var choice *CredentialInfo
+	var choiceErr error
+	if err := actx.Guard(func() {
+		choice, choiceErr = picker.PromptCredential(deduped)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if choiceErr != nil {
+		return nil, trace.Wrap(choiceErr)
+	}
+
+	// Is choice a pointer within the slice?
+	// We could work around this requirement, but it seems better to constrain the
+	// picker API from the start.
+	for _, c := range deduped {
+		if c == choice {
+			return choice, nil
+		}
+	}
+	return nil, fmt.Errorf("picker returned invalid credential: %#v", choice)
 }
 
 // ListCredentials lists all registered Secure Enclave credentials.

@@ -24,12 +24,12 @@ import (
 	"net/http/httptest"
 	"net/url"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -42,6 +42,10 @@ const (
 	// LoginFailedBadCallbackRedirectURL is a redirect URL when an SSO error specific to
 	// auth connector's callback was encountered.
 	LoginFailedBadCallbackRedirectURL = "/web/msg/error/login/callback"
+
+	// LoginFailedUnauthorizedRedirectURL is a redirect URL for when an SSO authenticates successfully,
+	// but the user has no matching roles in Teleport.
+	LoginFailedUnauthorizedRedirectURL = "/web/msg/error/login/auth"
 )
 
 // Redirector handles SSH redirect flow with the Teleport server
@@ -162,13 +166,14 @@ func (rd *Redirector) Start() error {
 	u.RawQuery = query.Encode()
 
 	req := SSOLoginConsoleReq{
-		RedirectURL:       u.String(),
-		PublicKey:         rd.PubKey,
-		CertTTL:           rd.TTL,
-		ConnectorID:       rd.ConnectorID,
-		Compatibility:     rd.Compatibility,
-		RouteToCluster:    rd.RouteToCluster,
-		KubernetesCluster: rd.KubernetesCluster,
+		RedirectURL:          u.String(),
+		PublicKey:            rd.PubKey,
+		CertTTL:              rd.TTL,
+		ConnectorID:          rd.ConnectorID,
+		Compatibility:        rd.Compatibility,
+		RouteToCluster:       rd.RouteToCluster,
+		KubernetesCluster:    rd.KubernetesCluster,
+		AttestationStatement: rd.AttestationStatement,
 	}
 
 	response, err := rd.SSOLoginConsoleRequestFn(req)

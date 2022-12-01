@@ -132,7 +132,7 @@ readloop:
 			if args.report == byTest {
 				switch event.Action {
 				case actionPass, actionFail, actionSkip:
-					fmt.Printf("%s (in %.2fs): %s\n", event.Action, event.ElapsedSeconds, event.FullName())
+					fmt.Printf("%s (in %6.2fs): %s\n", event.Action, event.ElapsedSeconds, event.FullName())
 				}
 			}
 
@@ -162,7 +162,7 @@ readloop:
 						}
 
 						// only display package results as progress messages
-						fmt.Printf("%s %s (in %.2fs): %s\n", covText, event.Action, event.ElapsedSeconds, event.Package)
+						fmt.Printf("%s %s (in %6.2fs): %s\n", covText, event.Action, event.ElapsedSeconds, event.Package)
 					}
 
 					// Don't need this no more

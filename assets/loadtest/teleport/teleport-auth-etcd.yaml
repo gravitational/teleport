@@ -1,6 +1,8 @@
 teleport:
   log:
     severity: DEBUG
+    format:
+      output: json
 
   data_dir: /var/lib/teleport
 

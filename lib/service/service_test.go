@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,10 +30,15 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/teleport/api/breaker"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -43,11 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -95,7 +95,7 @@ func TestMonitor(t *testing.T) {
 	var err error
 	cfg.DataDir = t.TempDir()
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Auth.Enabled = true
 	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
@@ -276,10 +276,10 @@ func TestServiceInitExternalLog(t *testing.T) {
 		{events: []string{"file://localhost"}, isErr: true},
 	}
 
-	backend, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-
 	for _, tt := range tts {
+		backend, err := memory.New(memory.Config{})
+		require.NoError(t, err)
+
 		t.Run(strings.Join(tt.events, ","), func(t *testing.T) {
 			// isErr implies isNil.
 			if tt.isErr {
@@ -290,7 +290,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
-			loggers, err := initExternalLog(context.Background(), auditConfig, logrus.New(), backend)
+			loggers, err := initAuthAuditLog(context.Background(), auditConfig, backend)
 			if tt.isErr {
 				require.Error(t, err)
 			} else {
@@ -459,7 +459,7 @@ func TestDesktopAccessFIPS(t *testing.T) {
 
 	// Create and configure a default Teleport configuration.
 	cfg := MakeDefaultConfig()
-	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Clock = clockwork.NewFakeClock()
 	cfg.DataDir = t.TempDir()
 	cfg.Auth.Enabled = false
@@ -491,37 +491,59 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			name:        "ACME enabled, teleport ALPN protocols should be appended",
 			acmeEnabled: true,
 			wantNextProtos: []string{
-				// Ensure h2 has precedence over http/1.1.
-				"h2",
+				// Ensure http/1.1 has precedence over http2.
 				"http/1.1",
+				"h2",
 				"acme-tls/1",
+				"teleport-postgres-ping",
+				"teleport-mysql-ping",
+				"teleport-mongodb-ping",
+				"teleport-redis-ping",
+				"teleport-sqlserver-ping",
+				"teleport-snowflake-ping",
+				"teleport-cassandra-ping",
+				"teleport-elasticsearch-ping",
+				"teleport-proxy-ssh",
+				"teleport-reversetunnel",
+				"teleport-auth@",
+				"teleport-tcp",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
 				"teleport-redis",
 				"teleport-sqlserver",
 				"teleport-snowflake",
-				"teleport-proxy-ssh",
-				"teleport-reversetunnel",
-				"teleport-auth@",
+				"teleport-cassandra",
+				"teleport-elasticsearch",
 			},
 		},
 		{
 			name:        "ACME disabled",
 			acmeEnabled: false,
 			wantNextProtos: []string{
-				// Ensure h2 has precedence over http/1.1.
-				"h2",
+				"teleport-postgres-ping",
+				"teleport-mysql-ping",
+				"teleport-mongodb-ping",
+				"teleport-redis-ping",
+				"teleport-sqlserver-ping",
+				"teleport-snowflake-ping",
+				"teleport-cassandra-ping",
+				"teleport-elasticsearch-ping",
+				// Ensure http/1.1 has precedence over http2.
 				"http/1.1",
+				"h2",
+				"teleport-proxy-ssh",
+				"teleport-reversetunnel",
+				"teleport-auth@",
+				"teleport-tcp",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
 				"teleport-redis",
 				"teleport-sqlserver",
 				"teleport-snowflake",
-				"teleport-proxy-ssh",
-				"teleport-reversetunnel",
-				"teleport-auth@",
+				"teleport-cassandra",
+				"teleport-elasticsearch",
 			},
 		},
 	}
@@ -562,7 +584,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	// Create and configure a default Teleport configuration.
 	cfg := MakeDefaultConfig()
-	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Clock = clock
 	cfg.DataDir = t.TempDir()
 	cfg.Auth.Enabled = false
@@ -623,9 +645,9 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 
 	// Create Node process.
 	nodeCfg := MakeDefaultConfig()
-	nodeCfg.AuthServers = []utils.NetAddr{listenAddr}
+	nodeCfg.SetAuthServerAddress(listenAddr)
 	nodeCfg.DataDir = t.TempDir()
-	nodeCfg.Token = token
+	nodeCfg.SetToken(token)
 	nodeCfg.Auth.Enabled = false
 	nodeCfg.Proxy.Enabled = false
 	nodeCfg.SSH.Enabled = true
@@ -651,7 +673,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	require.NoError(t, err)
 
 	authCfg := MakeDefaultConfig()
-	authCfg.AuthServers = []utils.NetAddr{listenAddr}
+	authCfg.SetAuthServerAddress(listenAddr)
 	authCfg.DataDir = t.TempDir()
 	authCfg.Auth.Enabled = true
 	authCfg.Auth.StaticTokens = staticTokens
@@ -711,4 +733,171 @@ func getFreePort() (string, error) {
 	defer l.Close()
 
 	return l.Addr().(*net.TCPAddr).String(), nil
+}
+
+func Test_readOrGenerateHostID(t *testing.T) {
+	var (
+		id          = uuid.New().String()
+		hostUUIDKey = "/host_uuid"
+	)
+	type args struct {
+		kubeBackend   *fakeKubeBackend
+		hostIDContent string
+		identity      []*auth.Identity
+	}
+	tests := []struct {
+		name             string
+		args             args
+		wantFunc         func(string) bool
+		wantKubeItemFunc func(*backend.Item) bool
+	}{
+		{
+			name: "load from storage without kube backend",
+			args: args{
+				kubeBackend:   nil,
+				hostIDContent: id,
+			},
+			wantFunc: func(receivedID string) bool {
+				return receivedID == id
+			},
+		},
+		{
+			name: "Kube Backend is available but key is missing. Load from local storage and store in lube",
+			args: args{
+				kubeBackend: &fakeKubeBackend{
+					getData: nil,
+					getErr:  fmt.Errorf("key not found"),
+				},
+				hostIDContent: id,
+			},
+			wantFunc: func(receivedID string) bool {
+				return receivedID == id
+			},
+			wantKubeItemFunc: func(i *backend.Item) bool {
+				return cmp.Diff(&backend.Item{
+					Key:   []byte(hostUUIDKey),
+					Value: []byte(id),
+				}, i) == ""
+			},
+		},
+		{
+			name: "Kube Backend is available with key. Load from kube storage",
+			args: args{
+				kubeBackend: &fakeKubeBackend{
+					getData: &backend.Item{
+						Key:   []byte(hostUUIDKey),
+						Value: []byte(id),
+					},
+					getErr: nil,
+				},
+			},
+			wantFunc: func(receivedID string) bool {
+				return receivedID == id
+			},
+			wantKubeItemFunc: func(i *backend.Item) bool {
+				return i == nil
+			},
+		},
+		{
+			name: "No hostID available. Generate one and store it into Kube and Local Storage",
+			args: args{
+				kubeBackend: &fakeKubeBackend{
+					getData: nil,
+					getErr:  fmt.Errorf("key not found"),
+				},
+			},
+			wantFunc: func(receivedID string) bool {
+				_, err := uuid.Parse(receivedID)
+				return err == nil
+			},
+			wantKubeItemFunc: func(i *backend.Item) bool {
+				_, err := uuid.Parse(string(i.Value))
+				return err == nil && string(i.Key) == hostUUIDKey
+			},
+		},
+		{
+			name: "No hostID available. Generate one and store it into Local Storage",
+			args: args{
+				kubeBackend: nil,
+			},
+			wantFunc: func(receivedID string) bool {
+				_, err := uuid.Parse(receivedID)
+				return err == nil
+			},
+			wantKubeItemFunc: nil,
+		},
+		{
+			name: "No hostID available. Grab from provided static identity",
+			args: args{
+				kubeBackend: &fakeKubeBackend{
+					getData: nil,
+					getErr:  fmt.Errorf("key not found"),
+				},
+
+				identity: []*auth.Identity{
+					{
+						ID: auth.IdentityID{
+							HostUUID: id,
+						},
+					},
+				},
+			},
+			wantFunc: func(receivedID string) bool {
+				return receivedID == id
+			},
+			wantKubeItemFunc: func(i *backend.Item) bool {
+				_, err := uuid.Parse(string(i.Value))
+				return err == nil && string(i.Key) == hostUUIDKey
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dataDir := t.TempDir()
+			// write host_uuid file to temp dir.
+			if len(tt.args.hostIDContent) > 0 {
+				err := utils.WriteHostUUID(dataDir, tt.args.hostIDContent)
+				require.NoError(t, err)
+			}
+
+			cfg := &Config{
+				DataDir:    dataDir,
+				Log:        logrus.New(),
+				JoinMethod: types.JoinMethodToken,
+				Identities: tt.args.identity,
+			}
+
+			var kubeBackend kubernetesBackend
+			if tt.args.kubeBackend != nil {
+				kubeBackend = tt.args.kubeBackend
+			}
+
+			err := readOrGenerateHostID(context.Background(), cfg, kubeBackend)
+			require.NoError(t, err)
+
+			require.True(t, tt.wantFunc(cfg.HostUUID))
+
+			if tt.args.kubeBackend != nil {
+				require.True(t, tt.wantKubeItemFunc(tt.args.kubeBackend.putData))
+			}
+		})
+	}
+}
+
+type fakeKubeBackend struct {
+	putData *backend.Item
+	getData *backend.Item
+	getErr  error
+}
+
+// Put puts value into backend (creates if it does not
+// exists, updates it otherwise)
+func (f *fakeKubeBackend) Put(ctx context.Context, i backend.Item) (*backend.Lease, error) {
+	f.putData = &i
+	return &backend.Lease{}, nil
+}
+
+// Get returns a single item or not found error
+func (f *fakeKubeBackend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+	return f.getData, f.getErr
 }

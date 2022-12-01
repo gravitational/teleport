@@ -17,12 +17,18 @@ limitations under the License.
 package gateway
 
 import (
+	"context"
+	"runtime"
+
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/lib/teleterm/api/uri"
-
 	"github.com/gravitational/trace"
-
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // Config describes gateway configuration
@@ -36,7 +42,7 @@ type Config struct {
 	// TargetUser is the target user name
 	TargetUser string
 	// TargetSubresourceName points at a subresource of the remote resource, for example a database
-	// name on a database server.
+	// name on a database server. It is used only for generating the CLI command.
 	TargetSubresourceName string
 
 	// Port is the gateway port
@@ -55,7 +61,25 @@ type Config struct {
 	WebProxyAddr string
 	// Log is a component logger
 	Log *logrus.Entry
+	// CLICommandProvider returns a CLI command for the gateway
+	CLICommandProvider CLICommandProvider
+	// TCPPortAllocator creates listeners on the given ports. This interface lets us avoid occupying
+	// hardcoded ports in tests.
+	TCPPortAllocator TCPPortAllocator
+	// Clock is used by Gateway.localProxy to check cert expiration.
+	Clock clockwork.Clock
+	// OnExpiredCert is called when a new downstream connection is accepted by the
+	// gateway but cannot be proxied because the cert used by the gateway has expired.
+	//
+	// Handling of the connection is blocked until OnExpiredCert returns.
+	OnExpiredCert OnExpiredCertFunc
 }
+
+// OnExpiredCertFunc is the type of a function that is called when a new downstream connection is
+// accepted by the gateway but cannot be proxied because the cert used by the gateway has expired.
+//
+// Handling of the connection is blocked until the function returns.
+type OnExpiredCertFunc func(context.Context, *Gateway) error
 
 // CheckAndSetDefaults checks and sets the defaults
 func (c *Config) CheckAndSetDefaults() error {
@@ -65,6 +89,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.LocalAddress == "" {
 		c.LocalAddress = "localhost"
+		// SQL Server Management Studio won't connect to localhost:12345, so use 127.0.0.1:12345 instead.
+		if runtime.GOOS == constants.WindowsOS && c.Protocol == defaults.ProtocolSQLServer {
+			c.LocalAddress = "127.0.0.1"
+		}
 	}
 
 	if c.LocalPort == "" {
@@ -72,8 +100,13 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.WithField("gateway", c.URI.String())
+		c.Log = logrus.NewEntry(logrus.StandardLogger())
 	}
+
+	c.Log = c.Log.WithFields(logrus.Fields{
+		"resource": c.TargetURI,
+		"gateway":  c.URI.String(),
+	})
 
 	if c.TargetName == "" {
 		return trace.BadParameter("missing target name")
@@ -83,5 +116,29 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing target URI")
 	}
 
+	if c.CLICommandProvider == nil {
+		return trace.BadParameter("missing CLICommandProvider")
+	}
+
+	if c.TCPPortAllocator == nil {
+		c.TCPPortAllocator = NetTCPPortAllocator{}
+	}
+
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+
 	return nil
+}
+
+// RouteToDatabase returns tlsca.RouteToDatabase based on the config of the gateway.
+//
+// The tlsca.RouteToDatabase.Database field is skipped, as it's an optional field and gateways can
+// change their Config.TargetSubresourceName at any moment.
+func (c *Config) RouteToDatabase() tlsca.RouteToDatabase {
+	return tlsca.RouteToDatabase{
+		ServiceName: c.TargetName,
+		Protocol:    c.Protocol,
+		Username:    c.TargetUser,
+	}
 }

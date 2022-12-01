@@ -21,11 +21,11 @@ import (
 	"context"
 	"fmt"
 	"io"
-
-	"go.mongodb.org/mongo-driver/x/mongo/driver"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
+	"math"
 
 	"github.com/gravitational/trace"
+	"go.mongodb.org/mongo-driver/x/mongo/driver"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
 )
 
 // Message defines common interface for MongoDB wire protocol messages.
@@ -95,6 +95,17 @@ func readHeaderAndPayload(reader io.Reader) (*MessageHeader, []byte, error) {
 	length, requestID, responseTo, opCode, _, ok := wiremessage.ReadHeader(header[:])
 	if !ok {
 		return nil, nil, trace.BadParameter("failed to read message header %v", header)
+	}
+
+	// Check if the payload size will underflow when we extract the header size from it.
+	if length < math.MinInt32+headerSizeBytes {
+		return nil, nil, trace.BadParameter("invalid header size %v", header)
+	}
+
+	// Max BSON document size is 16MB
+	// https://www.mongodb.com/docs/manual/reference/limits/#mongodb-limit-BSON-Document-Size
+	if length-headerSizeBytes >= 16*1024*1024 {
+		return nil, nil, trace.BadParameter("exceeded the maximum document size, got length: %d", length)
 	}
 
 	if length-headerSizeBytes <= 0 {

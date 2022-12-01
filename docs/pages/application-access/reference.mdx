@@ -53,6 +53,10 @@ app_service:
     - name: "hostname"
       command: ["hostname"]
       period: 1m0s
+    # Optional AWS-specific configurations.
+    aws:
+      # External ID used when assuming AWS roles for this application.
+      external_id: "example-external-id"
 ```
 
 ## Application resource

@@ -17,11 +17,11 @@ package handler
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-
-	"github.com/gravitational/trace"
 )
 
 // CreateGateway creates a gateway
@@ -38,7 +38,7 @@ func (s *Handler) CreateGateway(ctx context.Context, req *api.CreateGatewayReque
 		return nil, trace.Wrap(err)
 	}
 
-	apiGateway, err := newAPIGateway(gateway)
+	apiGateway, err := newAPIGateway(*gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -48,10 +48,7 @@ func (s *Handler) CreateGateway(ctx context.Context, req *api.CreateGatewayReque
 
 // ListGateways lists all gateways
 func (s *Handler) ListGateways(ctx context.Context, req *api.ListGatewaysRequest) (*api.ListGatewaysResponse, error) {
-	gws, err := s.DaemonService.ListGateways(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	gws := s.DaemonService.ListGateways()
 
 	apiGws := make([]*api.Gateway, 0, len(gws))
 	for _, gw := range gws {
@@ -70,34 +67,34 @@ func (s *Handler) ListGateways(ctx context.Context, req *api.ListGatewaysRequest
 
 // RemoveGateway removes cluster gateway
 func (s *Handler) RemoveGateway(ctx context.Context, req *api.RemoveGatewayRequest) (*api.EmptyResponse, error) {
-	if err := s.DaemonService.RemoveGateway(ctx, req.GatewayUri); err != nil {
+	if err := s.DaemonService.RemoveGateway(req.GatewayUri); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &api.EmptyResponse{}, nil
 }
 
-func newAPIGateway(gateway *gateway.Gateway) (*api.Gateway, error) {
+func newAPIGateway(gateway gateway.Gateway) (*api.Gateway, error) {
 	command, err := gateway.CLICommand()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &api.Gateway{
-		Uri:                   gateway.URI.String(),
-		TargetUri:             gateway.TargetURI,
-		TargetName:            gateway.TargetName,
-		TargetUser:            gateway.TargetUser,
-		TargetSubresourceName: gateway.TargetSubresourceName,
-		Protocol:              gateway.Protocol,
-		LocalAddress:          gateway.LocalAddress,
-		LocalPort:             gateway.LocalPort,
+		Uri:                   gateway.URI().String(),
+		TargetUri:             gateway.TargetURI(),
+		TargetName:            gateway.TargetName(),
+		TargetUser:            gateway.TargetUser(),
+		TargetSubresourceName: gateway.TargetSubresourceName(),
+		Protocol:              gateway.Protocol(),
+		LocalAddress:          gateway.LocalAddress(),
+		LocalPort:             gateway.LocalPort(),
 		CliCommand:            command,
 	}, nil
 }
 
-// RestartGateway stops a gateway and starts a new with identical parameters, keeping the original
-// URI.
+// RestartGateway stops a gateway and starts a new with identical parameters but fresh certs,
+// keeping the original URI.
 func (s *Handler) RestartGateway(ctx context.Context, req *api.RestartGatewayRequest) (*api.EmptyResponse, error) {
 	if err := s.DaemonService.RestartGateway(ctx, req.GatewayUri); err != nil {
 		return nil, trace.Wrap(err)
@@ -111,12 +108,27 @@ func (s *Handler) RestartGateway(ctx context.Context, req *api.RestartGatewayReq
 //
 // In Connect this is used to update the db name of a db connection along with the CLI command.
 func (s *Handler) SetGatewayTargetSubresourceName(ctx context.Context, req *api.SetGatewayTargetSubresourceNameRequest) (*api.Gateway, error) {
-	gateway, err := s.DaemonService.SetGatewayTargetSubresourceName(ctx, req.GatewayUri, req.TargetSubresourceName)
+	gateway, err := s.DaemonService.SetGatewayTargetSubresourceName(req.GatewayUri, req.TargetSubresourceName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	apiGateway, err := newAPIGateway(gateway)
+	apiGateway, err := newAPIGateway(*gateway)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return apiGateway, nil
+}
+
+// SetGatewayLocalPort restarts the gateway under the new port without fetching new certs.
+func (s *Handler) SetGatewayLocalPort(ctx context.Context, req *api.SetGatewayLocalPortRequest) (*api.Gateway, error) {
+	gateway, err := s.DaemonService.SetGatewayLocalPort(req.GatewayUri, req.LocalPort)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	apiGateway, err := newAPIGateway(*gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

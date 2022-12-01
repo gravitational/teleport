@@ -26,16 +26,17 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
 )
 
 // onAppLogin implements "tsh app login" command.
@@ -61,7 +62,7 @@ func onAppLogin(cf *CLIConf) error {
 	var arn string
 	if app.IsAWSConsole() {
 		var err error
-		arn, err = getARNFromFlags(cf, profile)
+		arn, err = getARNFromFlags(cf, profile, app)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -100,46 +101,59 @@ func onAppLogin(cf *CLIConf) error {
 			"awsCmd":     "s3 ls",
 		})
 	}
+	if app.IsTCP() {
+		return appLoginTCPTpl.Execute(os.Stdout, map[string]string{
+			"appName": app.GetName(),
+		})
+	}
 	curlCmd, err := formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return appLoginTpl.Execute(os.Stdout, map[string]string{
-		"appName": app.GetName(),
-		"curlCmd": curlCmd,
+	return appLoginTpl.Execute(os.Stdout, map[string]interface{}{
+		"appName":  app.GetName(),
+		"curlCmd":  curlCmd,
+		"insecure": cf.InsecureSkipVerify,
 	})
 }
 
-// appLoginTpl is the message that gets printed to a user upon successful app login.
+// appLoginTpl is the message that gets printed to a user upon successful login
+// into an HTTP application.
 var appLoginTpl = template.Must(template.New("").Parse(
 	`Logged into app {{.appName}}. Example curl command:
 
-{{.curlCmd}}
+{{.curlCmd}}{{ if .insecure }}
+
+WARNING: tsh was called with --insecure, so this curl command will be unable to validate the certificate presented by Teleport.
+{{- end }}
 `))
 
-// awsCliTpl is the message that gets printed to a user upon successful aws app login.
-var awsCliTpl = template.Must(template.New("").Parse(
-	`Logged into AWS app {{.awsAppName}}. Example AWS cli command:
+// appLoginTCPTpl is the message that gets printed to a user upon successful
+// login into a TCP application.
+var appLoginTCPTpl = template.Must(template.New("").Parse(
+	`Logged into TCP app {{.appName}}. Start the local TCP proxy for it:
 
-tsh aws {{.awsCmd}}
+  tsh proxy app {{.appName}}
+
+Then connect to the application through this proxy.
+`))
+
+// awsCliTpl is the message that gets printed to a user upon successful login
+// into an AWS Console application.
+var awsCliTpl = template.Must(template.New("").Parse(
+	`Logged into AWS app {{.awsAppName}}. Example AWS CLI command:
+
+  tsh aws {{.awsCmd}}
 `))
 
 // getRegisteredApp returns the registered application with the specified name.
 func getRegisteredApp(cf *CLIConf, tc *client.TeleportClient) (app types.Application, err error) {
 	var apps []types.Application
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		allApps, err := tc.ListApps(cf.Context, &proto.ListResourcesRequest{
+		apps, err = tc.ListApps(cf.Context, &proto.ListResourcesRequest{
 			Namespace:           tc.Namespace,
 			PredicateExpression: fmt.Sprintf(`name == "%s"`, cf.AppName),
 		})
-		// Kept for fallback in case older auth does not apply filters.
-		// DELETE IN 11.0.0
-		for _, a := range allApps {
-			if a.GetName() == cf.AppName {
-				apps = append(apps, a)
-				return nil
-			}
-		}
 		return trace.Wrap(err)
 	})
 	if err != nil {
@@ -225,12 +239,17 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 	} else {
 		uri = fmt.Sprintf("https://%v:%v", appPublicAddr, port)
 	}
-	curlCmd := fmt.Sprintf(`curl \
-  --cacert %v \
+
+	var curlInsecureFlag string
+	if tc.InsecureSkipVerify {
+		curlInsecureFlag = "--insecure "
+	}
+
+	curlCmd := fmt.Sprintf(`curl %s\
   --cert %v \
   --key %v \
   %v`,
-		profile.CACertPathForCluster(cluster),
+		curlInsecureFlag,
 		profile.AppCertPath(appName),
 		profile.KeyPath(),
 		uri)
@@ -255,7 +274,7 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
-		return fmt.Sprintf("%s\n", out), nil
+		return out, nil
 	}
 	return fmt.Sprintf(`Name:      %v
 URI:       %v
@@ -280,7 +299,12 @@ func serializeAppConfig(configInfo *appConfigInfo, format string) (string, error
 	var err error
 	if format == appFormatJSON {
 		out, err = utils.FastMarshalIndent(configInfo, "", "  ")
+		// This JSON marshaling returns a string without a newline at the end, which
+		// makes display of the string look wonky. Let's append it here.
+		out = append(out, '\n')
 	} else {
+		// The YAML marshaling does return a string with a newline, so no need to append
+		// another.
 		out, err = yaml.Marshal(configInfo)
 	}
 	return string(out), trace.Wrap(err)
@@ -337,9 +361,9 @@ func loadAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClien
 	caPath := profile.AppLocalCAPath(appName)
 	keyPath := profile.KeyPath()
 
-	localCA, err := tls.LoadX509KeyPair(caPath, keyPath)
+	caTLSCert, err := keys.LoadX509KeyPair(caPath, keyPath)
 	if err == nil {
-		return localCA, nil
+		return caTLSCert, trace.Wrap(err)
 	}
 
 	// Generate and load again.
@@ -348,11 +372,11 @@ func loadAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClien
 		return tls.Certificate{}, err
 	}
 
-	localCA, err = tls.LoadX509KeyPair(caPath, keyPath)
+	caTLSCert, err = keys.LoadX509KeyPair(caPath, keyPath)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
-	return localCA, nil
+	return caTLSCert, nil
 }
 
 // generateAppSelfSignedCA generates a new self-signed CA for provided app and
@@ -373,7 +397,7 @@ func generateAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportC
 		return trace.Wrap(err)
 	}
 
-	key, err := utils.ParsePrivateKey(keyPem)
+	key, err := keys.ParsePrivateKey(keyPem)
 	if err != nil {
 		return trace.Wrap(err)
 	}

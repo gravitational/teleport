@@ -21,8 +21,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"sync"
 	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -31,9 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
 )
 
 type Bot struct {
@@ -63,6 +65,11 @@ func New(cfg *config.BotConfig, log logrus.FieldLogger, reloadChan chan struct{}
 
 		_cas: map[types.CertAuthType][]types.CertAuthority{},
 	}
+}
+
+// Config returns the current bot config
+func (b *Bot) Config() *config.BotConfig {
+	return b.cfg
 }
 
 // Client retrieves the current auth client.
@@ -218,35 +225,67 @@ func (b *Bot) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	if err := b.initialize(ctx); err != nil {
+	unlock, err := b.initialize(ctx)
+	defer func() {
+		if unlock != nil {
+			if err := unlock(); err != nil {
+				b.log.WithError(err).Warn("Failed to release lock. Future starts of tbot may fail.")
+			}
+		}
+	}()
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	// Maintain a context that we can cancel if the bot is running in one shot.
+	ctx, cancel := context.WithCancel(ctx)
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
 		return trace.Wrap(b.caRotationLoop(egCtx))
 	})
 	eg.Go(func() error {
-		return trace.Wrap(b.renewLoop(egCtx))
+		err := b.renewLoop(egCtx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// If `renewLoop` exits with nil, the bot is running in "one-shot", so
+		// we should indicate to other long-running processes that they can
+		// finish up.
+		cancel()
+		return nil
 	})
 
 	return eg.Wait()
 }
 
-func (b *Bot) initialize(ctx context.Context) error {
+// initialize returns an unlock function which must be deferred.
+func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 	if b.cfg.AuthServer == "" {
-		return trace.BadParameter("an auth or proxy server must be set via --auth-server or configuration")
+		return nil, trace.BadParameter(
+			"an auth or proxy server must be set via --auth-server or configuration",
+		)
 	}
 
 	// First, try to make sure all destinations are usable.
 	if err := checkDestinations(b.cfg); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Start by loading the bot's primary destination.
 	dest, err := b.cfg.Storage.GetDestination()
 	if err != nil {
-		return trace.Wrap(err, "could not read bot storage destination from config")
+		return nil, trace.Wrap(
+			err, "could not read bot storage destination from config",
+		)
+	}
+
+	// Now attempt to lock the destination so we have sole use of it
+	unlock, err := dest.TryLock()
+	if err != nil {
+		if errors.Is(err, utils.ErrUnsuccessfulLockTry) {
+			return unlock, trace.WrapWithMessage(err, "Failed to acquire exclusive lock for tbot destination directory - is tbot already running?")
+		}
+		return unlock, trace.Wrap(err)
 	}
 
 	var authClient auth.ClientI
@@ -275,22 +314,22 @@ func (b *Bot) initialize(ctx context.Context) error {
 		if !fetchNewIdentity {
 			identStr, err := describeTLSIdentity(ident)
 			if err != nil {
-				return trace.Wrap(err)
+				return unlock, trace.Wrap(err)
 			}
 
 			b.log.Infof("Successfully loaded bot identity, %s", identStr)
 
 			if err := b.checkIdentity(ident); err != nil {
-				return trace.Wrap(err)
+				return unlock, trace.Wrap(err)
 			}
 
 			if b.cfg.Onboarding != nil {
 				b.log.Warn("Note: onboarding config ignored as identity was loaded from persistent storage")
 			}
 
-			authClient, err = b.authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
+			authClient, err = b.AuthenticatedUserClientFromIdentity(ctx, ident)
 			if err != nil {
-				return trace.Wrap(err)
+				return unlock, trace.Wrap(err)
 			}
 		}
 	}
@@ -304,47 +343,51 @@ func (b *Bot) initialize(ctx context.Context) error {
 			// and try to fetch a fresh identity.
 			b.log.Debugf("Identity %s is not found or empty and could not be loaded, will start from scratch: %+v", dest, err)
 		} else {
-			return trace.Wrap(err)
+			return unlock, trace.Wrap(err)
 		}
 
 		// Verify we can write to the destination.
 		if err := identity.VerifyWrite(dest); err != nil {
-			return trace.Wrap(err, "Could not write to destination %s, aborting.", dest)
+			return unlock, trace.Wrap(
+				err, "Could not write to destination %s, aborting.", dest,
+			)
 		}
 
 		// Get first identity
 		ident, err = b.getIdentityFromToken()
 		if err != nil {
-			return trace.Wrap(err)
+			return unlock, trace.Wrap(err)
 		}
 
 		b.log.Debug("Attempting first connection using initial auth client")
-		authClient, err = b.authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
+		authClient, err = b.AuthenticatedUserClientFromIdentity(ctx, ident)
 		if err != nil {
-			return trace.Wrap(err)
+			return unlock, trace.Wrap(err)
 		}
 
 		// Attempt a request to make sure our client works.
 		if _, err := authClient.Ping(ctx); err != nil {
-			return trace.Wrap(err, "unable to communicate with auth server")
+			return unlock, trace.Wrap(err, "unable to communicate with auth server")
 		}
 
 		identStr, err := describeTLSIdentity(ident)
 		if err != nil {
-			return trace.Wrap(err)
+			return unlock, trace.Wrap(err)
 		}
 		b.log.Infof("Successfully generated new bot identity, %s", identStr)
 
 		b.log.Debugf("Storing new bot identity to %s", dest)
 		if err := identity.SaveIdentity(ident, dest, identity.BotKinds()...); err != nil {
-			return trace.Wrap(err, "unable to save generated identity back to destination")
+			return unlock, trace.Wrap(
+				err, "unable to save generated identity back to destination",
+			)
 		}
 	}
 
 	b.setClient(authClient)
 	b.setIdent(ident)
 
-	return nil
+	return unlock, nil
 }
 
 func hasTokenChanged(configTokenBytes, identityBytes []byte) bool {

@@ -18,11 +18,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/gravitational/trace"
 )
 
 // DbcmdCLICommandProvider provides CLI commands for database gateways. It needs Storage to read
@@ -44,28 +44,28 @@ func NewDbcmdCLICommandProvider(storage StorageByResourceURI, execer dbcmd.Exece
 }
 
 func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (string, error) {
-	cluster, err := d.storage.GetByResourceURI(gateway.TargetURI)
+	cluster, err := d.storage.GetByResourceURI(gateway.TargetURI())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
 	routeToDb := tlsca.RouteToDatabase{
-		ServiceName: gateway.TargetName,
-		Protocol:    gateway.Protocol,
-		Username:    gateway.TargetUser,
-		Database:    gateway.TargetSubresourceName,
+		ServiceName: gateway.TargetName(),
+		Protocol:    gateway.Protocol(),
+		Username:    gateway.TargetUser(),
+		Database:    gateway.TargetSubresourceName(),
 	}
 
 	cmd, err := dbcmd.NewCmdBuilder(cluster.clusterClient, &cluster.status, &routeToDb,
-		// TODO(ravicious): Pass the root cluster name here. GetActualName returns leaf name for leaf
+		// TODO(ravicious): Pass the root cluster name here. cluster.Name returns leaf name for leaf
 		// clusters.
 		//
 		// At this point it doesn't matter though because this argument is used only for
 		// generating correct CA paths. We use dbcmd.WithNoTLS here which means that the CA paths aren't
 		// included in the returned CLI command.
-		cluster.GetActualName(),
-		dbcmd.WithLogger(gateway.Log),
-		dbcmd.WithLocalProxy(gateway.LocalAddress, gateway.LocalPortInt(), ""),
+		cluster.Name,
+		dbcmd.WithLogger(gateway.Log()),
+		dbcmd.WithLocalProxy(gateway.LocalAddress(), gateway.LocalPortInt(), ""),
 		dbcmd.WithNoTLS(),
 		dbcmd.WithPrintFormat(),
 		dbcmd.WithTolerateMissingCLIClient(),

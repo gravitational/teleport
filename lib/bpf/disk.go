@@ -20,14 +20,14 @@ limitations under the License.
 package bpf
 
 import (
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
+	_ "embed"
 
 	"github.com/aquasecurity/libbpfgo"
+	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
-	_ "embed"
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 var (
@@ -75,7 +75,7 @@ type open struct {
 // startOpen will compile, load, start, and pull events off the perf buffer
 // for the BPF program.
 func startOpen(bufferSize int) (*open, error) {
-	err := utils.RegisterPrometheusCollectors(lostDiskEvents)
+	err := metrics.RegisterPrometheusCollectors(lostDiskEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

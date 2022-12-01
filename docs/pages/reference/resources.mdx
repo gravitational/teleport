@@ -1,0 +1,191 @@
+---
+title: Teleport Resources Reference
+description: The detailed reference documentation for Teleport Configuration Resources
+h1: Teleport Configuration Resources Reference
+---
+
+## Introduction
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
+A Teleport administrator has two tools to configure a Teleport cluster:
+
+- The [configuration file](./config.mdx) is used for static configuration
+  settings such as the cluster name.
+- The [`tctl`](./cli.mdx#tctl) admin tool is used for configuring the Teleport
+  Auth Service, and can be used to manage dynamic records like Teleport users.
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+
+A Teleport administrator can configure a Teleport cluster by using the
+[`tctl`](./cli.mdx#tctl) admin tool to manage dynamic records like Teleport
+users.
+
+</TabItem>
+</Tabs>
+
+(!docs/pages/includes/tctl.mdx!)
+
+### `tctl` concepts
+
+[`tctl`](./cli.mdx#tctl) has convenient sub-commands for dynamic
+configuration, such as `tctl users` or `tctl nodes`.
+
+For more advanced management tasks, like connecting clusters together or
+troubleshooting trust, [`tctl`](./cli.mdx#tctl) offers the more powerful,
+lower-level CLI interface called `resources`.
+
+The concept is borrowed from the REST programming pattern. A cluster is composed
+of different objects (i.e., resources) and there are three common operations
+that can be performed on them: `get` , `create` , and `remove` .
+
+A resource is defined as a [YAML](https://en.wikipedia.org/wiki/YAML) file.
+Every resource in Teleport has three required fields:
+
+- `kind`: The type of resource
+- `name`: A required field in the `metadata` to uniquely identify the resource
+- `version`: The version of the resource format
+
+Everything else is resource specific and any component of a Teleport cluster can
+be manipulated with just three CLI commands:
+
+| Command | Description | Examples |
+| - | - | - |
+| [`tctl get`](./cli.mdx#tctl-get) | Get one or multiple resources. | `tctl get users` or `tctl get user/joe` |
+| [`tctl rm`](./cli.mdx#tctl-rm) | Delete a resource by type/name. | `tctl rm user/joe` |
+| [`tctl create`](./cli.mdx#tctl-create) | Create a new resource from a YAML file. Use the `-f` flag to update existing resources. | `tctl create -f joe.yaml` |
+
+<Admonition
+  type="warning"
+  title="YAML Format"
+>
+
+  By default, Teleport uses [YAML format](https://en.wikipedia.org/wiki/YAML) to
+  describe resources. YAML is a human-readable alternative to JSON or XML, but
+  it's sensitive to white space. Pay attention to spaces versus tabs.
+
+</Admonition>
+
+### `tctl` example
+
+Here's an example of a YAML resource definition for a user named `joe`. It can
+be retrieved by executing `tctl get user/joe`.
+
+```yaml
+kind: user
+version: v2
+metadata:
+  name: joe
+spec:
+  roles: admin
+  status:
+    # Users can be temporarily locked in a Teleport system, but this
+    # functionality is reserved for internal use for now.
+    is_locked: false
+    lock_expires: 0001-01-01T00:00:00Z
+    locked_time: 0001-01-01T00:00:00Z
+  traits:
+    # These are "allowed logins" which are usually specified as the
+    # last argument to `tctl users add`.
+    logins:
+    - joe
+    - root
+  # Any resource in Teleport can automatically expire.
+  expires: 0001-01-01T00:00:00Z
+  # For internal use only
+  created_by:
+    time: 0001-01-01T00:00:00Z
+    user:
+      name: builtin-Admin
+```
+
+<Admonition
+  type="tip"
+  title="Note"
+>
+  Some of the fields you will see when printing resources are used only internally and are not meant to be changed. Others are reserved for future use.
+</Admonition>
+
+## Dynamic resources
+
+Here's the list of resources currently exposed via [`tctl`](./cli.mdx#tctl):
+
+| Resource Kind | Description |
+| - | - |
+| [user](#user) | A user record in the internal Teleport user DB. |
+| [role](#role) | A role assumed by interactive and non-interactive users. |
+| connector | Authentication connectors for [Single Sign-On](../access-controls/sso.mdx) (SSO) for SAML, OIDC and GitHub. |
+| node | A registered SSH node. The same record is displayed via `tctl nodes ls` |
+| cluster | A trusted cluster. See [here](../management/admin/trustedclusters.mdx) for more details on connecting clusters together. |
+
+**Examples:**
+
+```code
+# List all connectors:
+$ tctl get connectors
+
+# Dump a SAML connector called "okta":
+$ tctl get saml/okta
+
+# Delete a SAML connector called "okta":
+$ tctl rm saml/okta
+
+# Delete an OIDC connector called "gworkspace":
+$ tctl rm oidc/gworkspace
+
+# Delete a github connector called "myteam":
+$ tctl rm github/myteam
+
+# Delete a local user called "admin":
+$ tctl rm users/admin
+```
+
+<Admonition type="note">
+  Although `tctl get connectors` will show you every connector, when working with an individual connector you must use the correct `kind`, such as `saml` or `oidc`. You can see each connector's `kind` at the top of its YAML output from `tctl get connectors`.
+</Admonition>
+
+### User
+
+Teleport supports interactive local users, non-interactive local users (bots)
+and single-sign on users that are represented as a resource.
+
+```yaml
+kind: user
+version: v2
+metadata:
+  name: joe
+spec:
+  # roles is a list of roles assigned to this user
+  roles:
+  - admin
+  # status sets user temporarily locked in a Teleport system, for example
+  # when users exceed predefined amount of failed login attempts
+  status:
+    is_locked: false
+    lock_expires: 0001-01-01T00:00:00Z
+    locked_time: 0001-01-01T00:00:00Z
+  # traits are key, list of values pairs assigned to a user resource.
+  # Traits can be used in role templates as variables.
+  traits:
+    logins:
+    - joe
+    - root
+  # expires, if not empty, sets automatic expiry of the resource
+  expires: 0001-01-01T00:00:00Z
+  # created_by is a system property that tracks
+  # identity of the author of this user resource.
+  created_by:
+    time: 0001-01-01T00:00:00Z
+    user:
+      name: builtin-Admin
+```
+
+### Role
+
+Interactive and non-interactive users (bots) assume one or many roles.
+
+Roles govern access to databases, SSH servers, Kubernetes clusters, web services and applications and Windows Desktops.
+
+(!docs/pages/includes/role-spec.mdx!)

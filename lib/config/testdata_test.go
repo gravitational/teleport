@@ -20,13 +20,12 @@ const StaticConfigString = `
 #
 # Some comments
 #
+version: v3
 teleport:
   nodename: edsger.example.com
   advertise_ip: 10.10.10.1:3022
   pid_file: /var/run/teleport.pid
-  auth_servers:
-    - auth0.server.example.org:3024
-    - auth1.server.example.org:3024
+  auth_server: auth0.server.example.org:3024
   auth_token: xxxyyy
   log:
     output: stderr
@@ -84,14 +83,13 @@ ssh_service:
 `
 
 const SmallConfigString = `
+version: v3
 teleport:
   nodename: cat.example.com
   advertise_ip: 10.10.10.1
   pid_file: /var/run/teleport.pid
   auth_token: %v
-  auth_servers:
-    - auth0.server.example.org:3024
-    - auth1.server.example.org:3024
+  auth_server: auth0.server.example.org:3024
   log:
     output: stderr
     severity: INFO
@@ -124,9 +122,10 @@ auth_service:
       slot_number: 1
       pin: "example_pin"
   authentication:
-    u2f:
-      app_id: "app-id"
-      device_attestation_cas:
+    second_factor: "optional"
+    webauthn:
+      rp_id: "goteleport.com"
+      attestation_allowed_cas:
       - "testdata/u2f_attestation_ca.pem"
       - |
         -----BEGIN CERTIFICATE-----
@@ -157,12 +156,39 @@ proxy_service:
   web_listen_addr: webhost
   tunnel_listen_addr: tunnelhost:1001
   peer_listen_addr: peerhost:1234
+  peer_public_addr: peer.example:1234
   public_addr: web3:443
   postgres_public_addr: postgres.example:5432
   mysql_listen_addr: webhost:3336
   mysql_public_addr: mysql.example:3306
   mongo_listen_addr: webhost:27017
   mongo_public_addr: mongo.example:27017
+
+db_service:
+  enabled: yes
+  resources:
+    - labels:
+        "*": "*"
+  azure:
+    - subscriptions: ["sub1", "sub2"]
+      resource_groups: ["group1", "group2"]
+      types: ["postgres", "mysql"]
+      regions: ["eastus", "centralus"]
+      tags:
+        "a": "b"
+    - types: ["postgres", "mysql"]
+      regions: ["westus"]
+      tags:
+        "c": "d"
+
+kubernetes_service:
+    enabled: yes
+    resources:
+      - labels:
+          "*": "*"
+    kubeconfig_file: /tmp/kubeconfig
+    labels:
+      'testKey': 'testValue'
 `
 
 // NoServicesConfigString is a configuration file with no services enabled
@@ -242,4 +268,25 @@ proxy_service:
   web_listen_addr: webhost
   tunnel_listen_addr: tunnelhost:1001
   public_addr: web3:443
+`
+
+const configSessionRecording = `
+teleport:
+  nodename: node.example.com
+
+auth_service:
+  enabled: yes
+  %v
+  %v
+
+ssh_service:
+  enabled: no
+  public_addr: "ssh.example.com"
+
+proxy_service:
+  enabled: no
+  public_addr: "proxy.example.com"
+
+app_service:
+  enabled: no
 `

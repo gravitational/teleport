@@ -17,25 +17,29 @@ limitations under the License.
 package daemon
 
 import (
-	"github.com/gravitational/teleport/lib/teleterm/clusters"
-
 	"github.com/gravitational/trace"
-
-	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+
+	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/teleterm/gateway"
 )
 
 // Config is the cluster service config
 type Config struct {
 	// Storage is a storage service that reads/writes to tsh profiles
 	Storage *clusters.Storage
-	// Clock is a clock for time-related operations
-	Clock clockwork.Clock
-	// InsecureSkipVerify is an option to skip HTTPS cert check
-	InsecureSkipVerify bool
 	// Log is a component logger
-	Log *logrus.Entry
+	Log              *logrus.Entry
+	GatewayCreator   GatewayCreator
+	TCPPortAllocator gateway.TCPPortAllocator
+	// CreateTshdEventsClientCredsFunc lazily creates creds for the tshd events server ran by the
+	// Electron app. This is to ensure that the server public key is written to the disk under the
+	// expected location by the time we get around to creating the client.
+	CreateTshdEventsClientCredsFunc CreateTshdEventsClientCredsFunc
 }
+
+type CreateTshdEventsClientCredsFunc func() (grpc.DialOption, error)
 
 // CheckAndSetDefaults checks the configuration for its validity and sets default values if needed
 func (c *Config) CheckAndSetDefaults() error {
@@ -43,8 +47,12 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing cluster storage")
 	}
 
-	if c.Clock == nil {
-		c.Clock = clockwork.NewRealClock()
+	if c.GatewayCreator == nil {
+		c.GatewayCreator = clusters.NewGatewayCreator(c.Storage)
+	}
+
+	if c.TCPPortAllocator == nil {
+		c.TCPPortAllocator = gateway.NetTCPPortAllocator{}
 	}
 
 	if c.Log == nil {

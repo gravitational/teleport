@@ -1,0 +1,57 @@
+name: Unit Tests (Go)
+run-name: Unit Tests (Go) - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+
+jobs:
+  test:
+    name: Unit Tests (Go)
+    runs-on: ubuntu-22.04-32core
+
+    permissions:
+      contents: read
+      packages: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport12
+      env:
+        TELEPORT_ETCD_TEST: yes
+        TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
+        TELEPORT_XAUTH_TEST: yes
+        TELEPORT_BPF_TEST: yes
+      options: --cap-add=SYS_ADMIN --privileged
+
+    services:
+      etcd0:
+        image: ghcr.io/gravitational/ci-etcd:3.3.9
+        options: >-
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --add-host etcd0:127.0.0.1
+        ports:
+          - 2379:2379
+          - 2380:2380
+          - 3379:3379
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Mount debugfs
+        run: mount -t debugfs none /sys/kernel/debug/
+
+      - name: Run tests
+        timeout-minutes: 40
+        run: make test-go test-sh test-api

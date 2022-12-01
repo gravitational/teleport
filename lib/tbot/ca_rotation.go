@@ -22,11 +22,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
-	libUtils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
 // See https://github.com/gravitational/teleport/blob/1aa38f4bc56997ba13b26a1ef1b4da7a3a078930/lib/auth/rotate.go#L135
@@ -105,7 +106,7 @@ func (b *Bot) caRotationLoop(ctx context.Context) error {
 		},
 		debouncePeriod: time.Second * 10,
 	}
-	jitter := libUtils.NewJitter()
+	jitter := retryutils.NewJitter()
 
 	for {
 		err := b.watchCARotations(ctx, rd.attempt)
@@ -190,7 +191,7 @@ func filterCAEvent(log logrus.FieldLogger, event types.Event, clusterName string
 
 	// We want to update for all phases but init and update_servers
 	phase := ca.GetRotation().Phase
-	if utils.SliceContainsStr([]string{
+	if slices.Contains([]string{
 		"", types.RotationPhaseInit, types.RotationPhaseUpdateServers,
 	}, phase) {
 		return fmt.Sprintf("skipping due to phase '%s'", phase)
@@ -206,7 +207,7 @@ func filterCAEvent(log logrus.FieldLogger, event types.Event, clusterName string
 	}
 
 	// We want to skip anything that is not host, user, db
-	if !utils.SliceContainsStr([]string{
+	if !slices.Contains([]string{
 		string(types.HostCA),
 		string(types.UserCA),
 		string(types.DatabaseCA),

@@ -27,13 +27,15 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
+	"github.com/gravitational/teleport/lib/srv/db/redis/connection"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
-	"github.com/gravitational/trace"
 )
 
 // Commands with additional processing in Teleport when using cluster mode.
@@ -99,22 +101,30 @@ type clusterClient struct {
 
 // newClient creates a new Redis client based on given ConnectionMode. If connection mode is not supported
 // an error is returned.
-func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsConfig *tls.Config, onConnect onClientConnectFunc) (redis.UniversalClient, error) {
-	connectionAddr := net.JoinHostPort(connectionOptions.address, connectionOptions.port)
+func newClient(ctx context.Context, connectionOptions *connection.Options, tlsConfig *tls.Config, onConnect onClientConnectFunc) (redis.UniversalClient, error) {
+	connectionAddr := net.JoinHostPort(connectionOptions.Address, connectionOptions.Port)
 	// TODO(jakub): Investigate Redis Sentinel.
-	switch connectionOptions.mode {
-	case Standalone:
+	switch connectionOptions.Mode {
+	case connection.Standalone:
 		return redis.NewClient(&redis.Options{
 			Addr:      connectionAddr,
 			TLSConfig: tlsConfig,
 			OnConnect: onConnect,
+
+			// Auth should be done by the `OnConnect` callback here. So disable
+			// "automatic" auth by the client.
+			DisableAuthOnConnect: true,
 		}), nil
-	case Cluster:
+	case connection.Cluster:
 		client := &clusterClient{
 			ClusterClient: *redis.NewClusterClient(&redis.ClusterOptions{
 				Addrs:     []string{connectionAddr},
 				TLSConfig: tlsConfig,
 				OnConnect: onConnect,
+				NewClient: func(opt *redis.Options) *redis.Client {
+					opt.DisableAuthOnConnect = true
+					return redis.NewClient(opt)
+				},
 			}),
 		}
 		// Load cluster information.
@@ -123,7 +133,7 @@ func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsCon
 		return client, nil
 	default:
 		// We've checked that while validating the config, but checking again can help with regression.
-		return nil, trace.BadParameter("incorrect connection mode %s", connectionOptions.mode)
+		return nil, trace.BadParameter("incorrect connection mode %s", connectionOptions.Mode)
 	}
 }
 
@@ -189,11 +199,11 @@ func authConnection(ctx context.Context, conn *redis.Conn, username, password st
 // go-redis `Process()` function which doesn't handel all Cluster commands like for ex. DBSIZE, FLUSHDB, etc.
 // This function provides additional processing for those commands enabling more Redis commands in Cluster mode.
 // Commands are override by a simple rule:
-// * If command work only on a single slot (one shard) without any modifications and returns a CROSSSLOT error if executed on
-//   multiple keys it's send the Redis client as it is, and it's the client responsibility to make sure keys are in a single slot.
-// * If a command returns incorrect result in the Cluster mode (for ex. DBSIZE as it would return only size of one shard not whole cluster)
-//   then it's handled by Teleport or blocked if reasonable processing is not possible.
-// * Otherwise a commands is sent to Redis without any modifications.
+//   - If command work only on a single slot (one shard) without any modifications and returns a CROSSSLOT error if executed on
+//     multiple keys it's send the Redis client as it is, and it's the client responsibility to make sure keys are in a single slot.
+//   - If a command returns incorrect result in the Cluster mode (for ex. DBSIZE as it would return only size of one shard not whole cluster)
+//     then it's handled by Teleport or blocked if reasonable processing is not possible.
+//   - Otherwise a commands is sent to Redis without any modifications.
 func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 	cmd, ok := inCmd.(*redis.Cmd)
 	if !ok {

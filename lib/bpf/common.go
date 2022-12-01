@@ -16,22 +16,18 @@ limitations under the License.
 
 package bpf
 
-// #cgo LDFLAGS: -ldl
-// #include <dlfcn.h>
-// #include <stdlib.h>
 import "C"
 
 import (
 	"context"
 
+	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"github.com/coreos/go-semver/semver"
 )
 
 // BPF implements an interface to open and close a recording session.
@@ -63,6 +59,9 @@ type SessionContext struct {
 
 	// ServerID is the UUID of the server this session is executing on.
 	ServerID string
+
+	// ServerHostname is the hostname of the server this session is executing on.
+	ServerHostname string
 
 	// Login is the Unix login for this session.
 	Login string
@@ -121,6 +120,26 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
+// RestrictedSessionConfig holds configuration for the RestrictedSession service.
+type RestrictedSessionConfig struct {
+	// Enabled if this service will try and install BPF programs on this system.
+	Enabled bool
+
+	// EventsBufferSize is the size (in pages) of the perf buffer for events.
+	EventsBufferSize *int
+}
+
+// CheckAndSetDefaults checks BPF configuration.
+func (c *RestrictedSessionConfig) CheckAndSetDefaults() error {
+	var perfBufferPageCount = defaults.PerfBufferPageCount
+
+	if c.EventsBufferSize == nil {
+		c.EventsBufferSize = &perfBufferPageCount
+	}
+
+	return nil
+}
+
 // NOP is used on either non-Linux systems or when BPF support is not enabled.
 type NOP struct {
 }
@@ -131,12 +150,12 @@ func (s *NOP) Close() error {
 }
 
 // OpenSession opens a NOP session. Note this function does nothing.
-func (s *NOP) OpenSession(ctx *SessionContext) (uint64, error) {
+func (s *NOP) OpenSession(_ *SessionContext) (uint64, error) {
 	return 0, nil
 }
 
 // CloseSession closes a NOP session. Note this function does nothing.
-func (s *NOP) CloseSession(ctx *SessionContext) error {
+func (s *NOP) CloseSession(_ *SessionContext) error {
 	return nil
 }
 

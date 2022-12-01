@@ -23,11 +23,12 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/tools/remotecommand"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // metaMessage is a control message containing one or more payloads.
@@ -215,12 +216,11 @@ func (s *SessionStream) Write(data []byte) (int, error) {
 	defer s.writeSync.Unlock()
 
 	err := s.conn.WriteMessage(websocket.BinaryMessage, data)
-
 	if err != nil {
-		return len(data), s.conn.WriteMessage(websocket.BinaryMessage, data)
+		return 0, trace.Wrap(err)
 	}
 
-	return 0, trace.Wrap(err)
+	return len(data), nil
 }
 
 // Resize sends a resize request to the other party.

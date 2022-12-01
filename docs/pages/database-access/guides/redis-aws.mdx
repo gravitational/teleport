@@ -12,7 +12,6 @@ This guide will help you to:
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access RDS Self-Hosted](../../../img/database-access/guides/redis_elasticache_selfhosted.png)
 </ScopedBlock>
-
 <ScopedBlock scope={["cloud"]}>
 ![Teleport Database Access RDS Cloud](../../../img/database-access/guides/redis_elasticache_cloud.png)
 </ScopedBlock>
@@ -22,6 +21,7 @@ This guide will help you to:
 - AWS account with at least one ElastiCache or MemoryDB for Redis clusters
   **In-transit encryption via (TLS) must be enabled**.
 - Permissions to create and attach IAM policies.
+- `redis-cli` version `6.2` or newer installed and added to your system's `PATH` environment variable.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
 
@@ -174,27 +174,17 @@ $ tsh db ls
 
 </ScopedBlock>
 
-To connect to a particular database, first retrieve its certificate using the
-`tsh db login` command:
+<Admonition type="note" title="Note">
+  You can override the database name by applying the `teleport.dev/database_name` AWS tag to the resource. The value of the tag will be used as the database name.
+</Admonition>
+
+To retrieve credentials for a database and connect to it:
 
 ```code
-$ tsh db login --db-user=my-database-user my-elasticache
+$ tsh db connect --db-user=my-database-user my-elasticache
 ```
 
 If flag `--db-user` is not provided, Teleport logs in as the `default` user.
-
-<Admonition type="tip" title="Tip">
-  You can be logged in to multiple databases simultaneously.
-</Admonition>
-
-Once logged in, connect to the database:
-
-```code
-$ tsh db connect my-elasticache
-```
-
-The `redis-cli` command-line client should be available in the system `PATH` in order to be
-able to connect.
 
 Now, depending on the authentication configurations, you may need to send an
 `AUTH` command to authenticate with the Redis server:
@@ -205,7 +195,7 @@ Now, depending on the authentication configurations, you may need to send an
     with the Redis server. No `AUTH` command is required after successful
     connection.
 
-    If you are connecting as a non-Teleport-mangaed user, the connection
+    If you are connecting as a non-Teleport-managed user, the connection
     normally starts as the `default` user. Now you can authenticate the
     database user with its password:
 
@@ -237,6 +227,10 @@ $ tsh db logout my-elasticache
 # Remove credentials for all database instances.
 $ tsh db logout
 ```
+
+## Troubleshooting
+
+(!docs/pages/includes/database-access/aws-troubleshooting.mdx!)
 
 ## Next steps
 

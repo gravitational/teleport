@@ -23,8 +23,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// DatabaseConfig is the config for a database access request.
-type DatabaseConfig struct {
+// Database is the config for a database access request.
+type Database struct {
 	// Service is the service name of the Teleport database. Generally this is
 	// the name of the Teleport resource.
 	Service string `yaml:"service,omitempty"`
@@ -36,7 +36,7 @@ type DatabaseConfig struct {
 	Username string `yaml:"username,omitempty"`
 }
 
-func (dc *DatabaseConfig) CheckAndSetDefaults() error {
+func (dc *Database) CheckAndSetDefaults() error {
 	if dc.Service == "" {
 		return trace.BadParameter("database `service` field must specify a database service name")
 	}
@@ -78,6 +78,37 @@ func (kc *KubernetesCluster) CheckAndSetDefaults() error {
 	return nil
 }
 
+// App is a cert request for app access.
+type App struct {
+	App string `yaml:"app,omitempty"`
+}
+
+func (ac *App) UnmarshalYAML(node *yaml.Node) error {
+	// As with KubernetesCluster, this is a plain string field that we want to
+	// implement CheckAndSetDefaults().
+
+	var app string
+	if err := node.Decode(&app); err != nil {
+		return trace.Wrap(err)
+	}
+
+	ac.App = app
+	return nil
+}
+
+func (ac *App) MarshalYAML() (interface{}, error) {
+	// The marshaler needs to match the unmarshaler.
+	return ac.App, nil
+}
+
+func (ac *App) CheckAndSetDefaults() error {
+	if ac.App == "" {
+		return trace.BadParameter("app name must not be empty")
+	}
+
+	return nil
+}
+
 // DestinationConfig configures a user certificate destination.
 type DestinationConfig struct {
 	DestinationMixin `yaml:",inline"`
@@ -85,18 +116,17 @@ type DestinationConfig struct {
 	Roles   []string         `yaml:"roles,omitempty"`
 	Configs []TemplateConfig `yaml:"configs,omitempty"`
 
-	// Kinds is a deprecated and unused field that remains for compatibility
-	// reasons.
-	// DELETE IN 11.0.0: Kinds should be removed after a grace period.
-	Kinds []string `yaml:"kinds,omitempty"`
-
 	// Database is a database to request access to. Mutually exclusive with
 	// `kubernetes_cluster` and other special cert requests.
-	Database *DatabaseConfig `yaml:"database,omitempty"`
+	Database *Database `yaml:"database,omitempty"`
 
 	// KubernetesCluster is a cluster to request access to. Mutually exclusive
 	// with `database` and other special cert requests.
 	KubernetesCluster *KubernetesCluster `yaml:"kubernetes_cluster,omitempty"`
+
+	// App is an app access request. Mutually exclusive with `database`,
+	// `kubernetes_cluster`, and other special cert requests.
+	App *App `yaml:"app,omitempty"`
 }
 
 // destinationDefaults applies defaults for an output sink's destination. Since
@@ -145,6 +175,7 @@ func (dc *DestinationConfig) CheckAndSetDefaults() error {
 	certRequests := []interface{ CheckAndSetDefaults() error }{
 		dc.Database,
 		dc.KubernetesCluster,
+		dc.App,
 	}
 	notNilCount := 0
 	for _, request := range certRequests {
@@ -178,12 +209,6 @@ func (dc *DestinationConfig) CheckAndSetDefaults() error {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
-	}
-
-	if len(dc.Kinds) > 0 {
-		log.Warnf("The `kinds` configuration field has been deprecated and " +
-			"will be removed in a future release. It is now a no-op and can " +
-			"safely be removed from the configuration file.")
 	}
 
 	return nil

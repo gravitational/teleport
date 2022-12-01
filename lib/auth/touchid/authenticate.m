@@ -22,8 +22,10 @@
 #import <Security/Security.h>
 
 #include "common.h"
+#include "context.h"
 
-int Authenticate(AuthenticateRequest req, char **sigB64Out, char **errOut) {
+int Authenticate(AuthContext *actx, AuthenticateRequest req, char **sigB64Out,
+                 char **errOut) {
   NSData *appLabel = [NSData dataWithBytes:req.app_label
                                     length:strlen(req.app_label)];
   NSDictionary *query = @{
@@ -32,7 +34,10 @@ int Authenticate(AuthenticateRequest req, char **sigB64Out, char **errOut) {
     (id)kSecMatchLimit : (id)kSecMatchLimitOne,
     (id)kSecReturnRef : @YES,
     (id)kSecAttrApplicationLabel : appLabel,
+    // ctx takes effect in the SecKeyCreateSignature call below.
+    (id)kSecUseAuthenticationContext : (id)GetLAContextFromAuth(actx),
   };
+
   SecKeyRef privateKey = NULL;
   OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)query,
                                         (CFTypeRef *)&privateKey);

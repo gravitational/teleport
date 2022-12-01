@@ -25,13 +25,13 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 func TestLoadTLS(t *testing.T) {
@@ -251,7 +251,13 @@ func getExpectedTLSConfig(t *testing.T) *tls.Config {
 }
 
 func getExpectedSSHConfig(t *testing.T) *ssh.ClientConfig {
-	config, err := sshutils.ProxyClientSSHConfig(sshCert, keyPEM, [][]byte{sshCACert})
+	cert, err := sshutils.ParseCertificate(sshCert)
+	require.NoError(t, err)
+
+	priv, err := keys.ParsePrivateKey(keyPEM)
+	require.NoError(t, err)
+
+	config, err := sshutils.ProxyClientSSHConfig(cert, priv, sshCACert)
 	require.NoError(t, err)
 
 	return config

@@ -9,9 +9,9 @@ factor. WebAuthn can be used for logging in to Teleport (`tsh login` or the
 login page on the Web UI) and for logging in to individual SSH nodes or
 Kubernetes clusters (`tsh ssh` and `kubectl`).
 
-WebAuthn support includes hardware devices, such as YubiKeys or SoloKeys (`tsh`
-and Web UI), as well as biometric authenticators like Touch ID and Windows Hello
-(Web UI only).
+WebAuthn support includes hardware devices, such as YubiKeys or SoloKeys as
+well as biometric authenticators like Touch ID and Windows Hello (`tsh` and Web
+UI).
 
 ## Prerequisites
 
@@ -68,7 +68,7 @@ Teleport configuration as below:
   spec:
     type: local
     # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
-    second_factor: on
+    second_factor: "on"
     webauthn:
       rp_id: example.com
       attestation_allowed_cas:
@@ -108,7 +108,7 @@ metadata:
 spec:
   type: local
   # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
-  second_factor: on
+  second_factor: "on"
   webauthn:
     rp_id: example.com
     attestation_allowed_cas:
@@ -215,7 +215,7 @@ $ tsh login --proxy=mytenant.teleport.sh
 
 <Admonition type="note">
   WebAuthn for logging in to Teleport is only required for [local users](
-  ../../setup/reference/authentication.mdx#local-no-authentication-connector).
+  ../../reference/authentication.mdx#local-no-authentication-connector).
   SSO users should configure multi-factor authentication in their SSO provider.
 </Admonition>
 
@@ -280,7 +280,7 @@ The migrated WebAuthn configuration is:
       name: cluster-auth-preference
     spec:
       type: local
-      second_factor: on # changed from "u2f"
+      second_factor: "on" # changed from "u2f"
       u2f:
         # Keep the app_id to avoid re-registering U2F devices.
         app_id: https://example.com
@@ -303,7 +303,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factor: on # changed from "u2f"
+  second_factor: "on" # changed from "u2f"
   u2f:
     # Keep the app_id to avoid re-registering U2F devices.
     app_id: https://example.com
@@ -319,4 +319,4 @@ spec:
 ## Next steps
 
 - [Passwordless](./passwordless.mdx)
-- [Setup per-session MFA checks](./per-session-mfa.mdx)
+- [Set up per-session MFA checks](./per-session-mfa.mdx)

@@ -17,6 +17,13 @@ limitations under the License.
 // Package constants defines Teleport-specific constants
 package constants
 
+import (
+	"encoding/json"
+	"time"
+
+	"github.com/gravitational/trace"
+)
+
 const (
 	// DefaultImplicitRole is implicit role that gets added to all service.RoleSet
 	// objects.
@@ -120,6 +127,13 @@ const (
 
 	// AWSConsoleURL is the URL of AWS management console.
 	AWSConsoleURL = "https://console.aws.amazon.com"
+	// AWSUSGovConsoleURL is the URL of AWS management console for AWS GovCloud
+	// (US) Partition.
+	AWSUSGovConsoleURL = "https://console.amazonaws-us-gov.com"
+	// AWSCNConsoleURL is the URL of AWS management console for AWS China
+	// Partition.
+	AWSCNConsoleURL = "https://console.amazonaws.cn"
+
 	// AWSAccountIDLabel is the key of the label containing AWS account ID.
 	AWSAccountIDLabel = "aws_account_id"
 
@@ -151,9 +165,10 @@ const (
 	// SecondFactorOTP means that only OTP is supported for 2FA and 2FA is
 	// required for all users.
 	SecondFactorOTP = SecondFactorType("otp")
-	// SecondFactorU2F means that only U2F is supported for 2FA and 2FA is
-	// required for all users.
-	// U2F is marked for removal. It currently works as an alias for "webauthn".
+	// SecondFactorU2F means that only Webauthn is supported for 2FA and 2FA
+	// is required for all users.
+	// Deprecated: "u2f" is aliased to "webauthn". Prefer using
+	// SecondFactorWebauthn instead.
 	SecondFactorU2F = SecondFactorType("u2f")
 	// SecondFactorWebauthn means that only Webauthn is supported for 2FA and 2FA
 	// is required for all users.
@@ -165,6 +180,48 @@ const (
 	// is required only for users that have MFA devices registered.
 	SecondFactorOptional = SecondFactorType("optional")
 )
+
+// UnmarshalYAML supports parsing off|on into string on SecondFactorType.
+func (sft *SecondFactorType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var tmp interface{}
+	if err := unmarshal(&tmp); err != nil {
+		return err
+	}
+	switch v := tmp.(type) {
+	case string:
+		*sft = SecondFactorType(v)
+	case bool:
+		if v {
+			*sft = SecondFactorOn
+		} else {
+			*sft = SecondFactorOff
+		}
+	default:
+		return trace.BadParameter("SecondFactorType invalid type %T", v)
+	}
+	return nil
+}
+
+// UnmarshalJSON supports parsing off|on into string on SecondFactorType.
+func (sft *SecondFactorType) UnmarshalJSON(data []byte) error {
+	var tmp interface{}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	switch v := tmp.(type) {
+	case string:
+		*sft = SecondFactorType(v)
+	case bool:
+		if v {
+			*sft = SecondFactorOn
+		} else {
+			*sft = SecondFactorOff
+		}
+	default:
+		return trace.BadParameter("SecondFactorType invalid type %T", v)
+	}
+	return nil
+}
 
 // LockingMode determines how a (possibly stale) set of locks should be applied
 // to an interaction.
@@ -203,22 +260,10 @@ const (
 
 const (
 	// KubeSNIPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
-	// DELETE IN 11.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
+	// DELETE IN 13.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
 	KubeSNIPrefix = "kube."
 	// KubeTeleportProxyALPNPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
 	KubeTeleportProxyALPNPrefix = "kube-teleport-proxy-alpn."
-)
-
-const (
-	// HTTPSProxy is an environment variable pointing to a HTTPS proxy.
-	HTTPSProxy = "HTTPS_PROXY"
-
-	// HTTPProxy is an environment variable pointing to a HTTP proxy.
-	HTTPProxy = "HTTP_PROXY"
-
-	// NoProxy is an environment variable matching the cases
-	// when HTTPS_PROXY or HTTP_PROXY is ignored
-	NoProxy = "NO_PROXY"
 )
 
 // SessionRecordingService is used to differentiate session recording services.
@@ -272,4 +317,38 @@ const (
 	// TraitAWSRoleARNs is the name of the role variable used to store
 	// allowed AWS role ARNs.
 	TraitAWSRoleARNs = "aws_role_arns"
+)
+
+// Constants for AWS discovery
+const (
+	AWSServiceTypeEC2 = "ec2"
+	AWSServiceTypeEKS = "eks"
+)
+
+// SupportedAWSDiscoveryServices is list of AWS services currently
+// supported by the Teleport discovery service
+var SupportedAWSDiscoveryServices = []string{AWSServiceTypeEC2, AWSServiceTypeEKS}
+
+// Constants for Azure discovery.
+const (
+	AzureServiceTypeKubernetes = "aks"
+	AzureServiceTypeVM         = "vm"
+)
+
+// SupportedAzureDiscoveryServices is list of Azure services currently
+// supported by the Teleport discovery service.
+var SupportedAzureDiscoveryServices = []string{AzureServiceTypeKubernetes, AzureServiceTypeVM}
+
+// Constants for GCP discovery.
+const (
+	GCPServiceTypeKubernetes = "gke"
+)
+
+// SupportedGCPDiscoveryServices is list of GCP services currently
+// supported by the Teleport discovery service.
+var SupportedGCPDiscoveryServices = []string{GCPServiceTypeKubernetes}
+
+const (
+	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh
+	TimeoutGetClusterAlerts = time.Millisecond * 500
 )

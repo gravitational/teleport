@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -138,7 +139,7 @@ func TestDatabaseResource(t *testing.T) {
 	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
 
 	dbA, err := types.NewDatabaseV3(types.Metadata{
-		Name:   "dbA",
+		Name:   "db-a",
 		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
@@ -147,7 +148,7 @@ func TestDatabaseResource(t *testing.T) {
 	require.NoError(t, err)
 
 	dbB, err := types.NewDatabaseV3(types.Metadata{
-		Name:   "dbB",
+		Name:   "db-b",
 		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolMySQL,
@@ -178,7 +179,7 @@ func TestDatabaseResource(t *testing.T) {
 	))
 
 	// Fetch specific database.
-	buf, err = runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("%v/dbB", types.KindDatabase), "--format=json"})
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("%v/db-b", types.KindDatabase), "--format=json"})
 	require.NoError(t, err)
 	mustDecodeJSON(t, buf, &out)
 	require.Empty(t, cmp.Diff([]*types.DatabaseV3{dbB}, out,
@@ -186,7 +187,7 @@ func TestDatabaseResource(t *testing.T) {
 	))
 
 	// Remove a database.
-	_, err = runResourceCommand(t, fileConfig, []string{"rm", fmt.Sprintf("%v/dbA", types.KindDatabase)})
+	_, err = runResourceCommand(t, fileConfig, []string{"rm", fmt.Sprintf("%v/db-a", types.KindDatabase)})
 	require.NoError(t, err)
 
 	// Fetch all databases again, should have 1.
@@ -330,7 +331,7 @@ const (
 	dbYAML = `kind: db
 version: v3
 metadata:
-  name: dbA
+  name: db-a
 spec:
   protocol: "postgres"
   uri: "localhost:5432"
@@ -338,7 +339,7 @@ spec:
 kind: db
 version: v3
 metadata:
-  name: dbB
+  name: db-b
 spec:
   protocol: "mysql"
   uri: "localhost:3306"`
@@ -357,3 +358,95 @@ metadata:
 spec:
   uri: "localhost2"`
 )
+
+func TestCreateClusterAuthPreferencet_WithSupportForSecondFactorWithoutQuotes(t *testing.T) {
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: mustGetFreeLocalListenerAddr(t),
+			},
+		},
+	}
+
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+
+	tests := []struct {
+		desc               string
+		input              string
+		expectError        require.ErrorAssertionFunc
+		expectSecondFactor require.ValueAssertionFunc
+	}{
+		{desc: "handle off with quotes", input: `
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  second_factor: "off"
+  type: local
+version: v2`,
+			expectError:        require.NoError,
+			expectSecondFactor: requireEqual(constants.SecondFactorOff)},
+		{desc: "handle off without quotes", input: `
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  second_factor: off
+  type: local
+version: v2`,
+			expectError:        require.NoError,
+			expectSecondFactor: requireEqual(constants.SecondFactorOff)},
+		{desc: "handle on without quotes", input: `
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  second_factor: on
+  webauthn:
+    rp_id: localhost
+  type: local
+version: v2`,
+			expectError:        require.NoError,
+			expectSecondFactor: requireEqual(constants.SecondFactorOn)},
+		{desc: "unsupported numeric type as second_factor", input: `
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  second_factor: 4.3
+  type: local
+version: v2`,
+			expectError: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			capYAMLPath := filepath.Join(t.TempDir(), "cap.yaml")
+			require.NoError(t, os.WriteFile(capYAMLPath, []byte(tt.input), 0644))
+
+			_, err := runResourceCommand(t, fileConfig, []string{"create", "-f", capYAMLPath})
+			tt.expectError(t, err)
+
+			if tt.expectSecondFactor != nil {
+				buf, err := runResourceCommand(t, fileConfig, []string{"get", "cap", "--format=json"})
+				require.NoError(t, err)
+				var authPreferences []types.AuthPreferenceV2
+				mustDecodeJSON(t, buf, &authPreferences)
+				require.NotZero(t, len(authPreferences))
+				tt.expectSecondFactor(t, authPreferences[0].Spec.SecondFactor)
+			}
+		})
+	}
+}
+
+// requireEqual creates an assertion function with a bound `expected` value
+// for use with table-driven tests
+func requireEqual(expected interface{}) require.ValueAssertionFunc {
+	return func(t require.TestingT, actual interface{}, msgAndArgs ...interface{}) {
+		require.Equal(t, expected, actual, msgAndArgs...)
+	}
+}

@@ -31,13 +31,13 @@ import (
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/keys-pub/go-libfido2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
@@ -108,7 +108,7 @@ var (
 // simplePicker is a credential picker that always picks the first credential.
 type simplePicker struct{}
 
-func (p simplePicker) PromptCredential(creds []*wancli.Credential) (*wancli.Credential, error) {
+func (p simplePicker) PromptCredential(creds []*wancli.CredentialInfo) (*wancli.CredentialInfo, error) {
 	return creds[0], nil
 }
 
@@ -120,7 +120,7 @@ func (p noopPrompt) PromptPIN() (string, error) {
 	return "", nil
 }
 
-func (p noopPrompt) PromptTouch() {}
+func (p noopPrompt) PromptTouch() error { return nil }
 
 // pinCancelPrompt exercises cancellation after device selection.
 type pinCancelPrompt struct {
@@ -135,8 +135,9 @@ func (p *pinCancelPrompt) PromptPIN() (string, error) {
 	return p.pin, nil
 }
 
-func (p pinCancelPrompt) PromptTouch() {
+func (p pinCancelPrompt) PromptTouch() error {
 	// 2nd touch never happens
+	return nil
 }
 
 func TestIsFIDO2Available(t *testing.T) {
@@ -811,9 +812,9 @@ type countingPrompt struct {
 	count int
 }
 
-func (cp *countingPrompt) PromptTouch() {
+func (cp *countingPrompt) PromptTouch() error {
 	cp.count++
-	cp.LoginPrompt.PromptTouch()
+	return cp.LoginPrompt.PromptTouch()
 }
 
 func TestFIDO2Login_PromptTouch(t *testing.T) {
@@ -944,6 +945,172 @@ func TestFIDO2Login_PromptTouch(t *testing.T) {
 	}
 }
 
+func TestFIDO2Login_u2fDevice(t *testing.T) {
+	resetFIDO2AfterTests(t)
+
+	dev := mustNewFIDO2Device("/u2f", "" /* pin */, nil /* info */)
+	dev.u2fOnly = true
+
+	f2 := newFakeFIDO2(dev).withNonMeteredLocations()
+	f2.setCallbacks()
+
+	const rpID = "example.com"
+	const origin = "https://example.com"
+
+	// Set a ctx timeout in case something goes wrong.
+	// Under normal circumstances the test gets nowhere near this timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cc := &wanlib.CredentialCreation{
+		Response: protocol.PublicKeyCredentialCreationOptions{
+			Challenge: []byte{1, 2, 3, 4, 5}, // arbitrary
+			RelyingParty: protocol.RelyingPartyEntity{
+				ID: rpID,
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "rp name",
+				},
+			},
+			Parameters: []protocol.CredentialParameter{
+				{
+					Type:      protocol.PublicKeyCredentialType,
+					Algorithm: webauthncose.AlgES256,
+				},
+			},
+			User: protocol.UserEntity{
+				ID: []byte{1, 2, 3, 4, 1}, // arbitrary,
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "user name",
+				},
+				DisplayName: "user display name",
+			},
+			AuthenticatorSelection: protocol.AuthenticatorSelection{
+				UserVerification: protocol.VerificationDiscouraged,
+			},
+			Attestation: protocol.PreferNoAttestation,
+		},
+	}
+
+	dev.setUP() // simulate touch
+	ccr, err := wancli.FIDO2Register(ctx, origin, cc, dev /* prompt */)
+	require.NoError(t, err, "FIDO2Register errored")
+
+	assertion := &wanlib.CredentialAssertion{
+		Response: protocol.PublicKeyCredentialRequestOptions{
+			Challenge:      []byte{1, 2, 3, 4, 5}, // arbitrary
+			RelyingPartyID: rpID,
+			AllowedCredentials: []protocol.CredentialDescriptor{
+				{
+					Type:         protocol.PublicKeyCredentialType,
+					CredentialID: ccr.GetWebauthn().GetRawId(),
+				},
+			},
+			UserVerification: protocol.VerificationDiscouraged,
+		},
+	}
+
+	dev.setUP() // simulate touch
+	_, _, err = wancli.FIDO2Login(ctx, origin, assertion, dev /* prompt */, nil /* opts */)
+	assert.NoError(t, err, "FIDO2Login errored")
+}
+
+func TestFIDO2Login_bioErrorHandling(t *testing.T) {
+	resetFIDO2AfterTests(t)
+
+	// bio is a biometric authenticator with configured resident credentials.
+	bio := mustNewFIDO2Device("/bio", "supersecretBIOpin", &libfido2.DeviceInfo{
+		Options: bioOpts,
+	}, &libfido2.Credential{
+		User: libfido2.User{
+			ID:   []byte{1, 2, 3, 4, 5}, // unimportant
+			Name: "llama",
+		},
+	})
+
+	f2 := newFakeFIDO2(bio).withNonMeteredLocations()
+	f2.setCallbacks()
+
+	// Prepare a passwordless assertion.
+	// MFA would do as well; both are realistic here.
+	const origin = "https://example.com"
+	assertion := &wanlib.CredentialAssertion{
+		Response: protocol.PublicKeyCredentialRequestOptions{
+			Challenge:          []byte{1, 2, 3, 4, 5},
+			RelyingPartyID:     "example.com",
+			AllowedCredentials: nil,                           // passwordless
+			UserVerification:   protocol.VerificationRequired, // passwordless
+		},
+	}
+
+	tests := []struct {
+		name               string
+		setAssertionErrors func()
+		wantMsg            string
+	}{
+		{
+			name:               "success (sanity check)",
+			setAssertionErrors: func() { bio.assertionErrors = nil },
+		},
+		{
+			name: "libfido2 error 60 fails with custom message",
+			setAssertionErrors: func() {
+				bio.assertionErrors = []error{
+					libfido2.Error{Code: 60},
+				}
+			},
+			wantMsg: "user verification function",
+		},
+		{
+			name: "libfido2 error 63 retried",
+			setAssertionErrors: func() {
+				bio.assertionErrors = []error{
+					libfido2.Error{Code: 63},
+					libfido2.Error{Code: 63},
+				}
+			},
+		},
+		{
+			name: "error retry has a limit",
+			setAssertionErrors: func() {
+				bio.assertionErrors = []error{
+					libfido2.Error{Code: 63},
+					libfido2.Error{Code: 63},
+					libfido2.Error{Code: 63},
+					libfido2.Error{Code: 63},
+					libfido2.Error{Code: 63},
+				}
+			},
+			wantMsg: "libfido2 error 63",
+		},
+		{
+			name: "retry on operation denied",
+			setAssertionErrors: func() {
+				bio.assertionErrors = []error{
+					// Note: this happens only for UV=false assertions. UV=true failures
+					// return error 63.
+					libfido2.ErrOperationDenied,
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.setAssertionErrors()
+
+			// Use a ctx with timeout just to be safe. We shouldn't hit the timeout.
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			defer cancel()
+
+			_, _, err := wancli.FIDO2Login(ctx, origin, assertion, bio /* prompt */, nil /* opts */)
+			if test.wantMsg == "" {
+				require.NoError(t, err, "FIDO2Login returned non-nil error")
+			} else {
+				require.ErrorContains(t, err, test.wantMsg, "FIDO2Login returned an unexpected error")
+			}
+		})
+	}
+}
+
 func TestFIDO2Login_errors(t *testing.T) {
 	resetFIDO2AfterTests(t)
 
@@ -990,10 +1157,10 @@ func TestFIDO2Login_errors(t *testing.T) {
 			wantErr:   "origin",
 		},
 		{
-			name:    "nil assertion",
-			origin:  origin,
-			prompt:  prompt,
-			wantErr: "assertion required",
+			name:      "nil prompt",
+			origin:    origin,
+			assertion: okAssertion,
+			wantErr:   "prompt",
 		},
 		{
 			name:      "assertion without challenge",
@@ -1001,19 +1168,6 @@ func TestFIDO2Login_errors(t *testing.T) {
 			assertion: &nilChallengeAssertion,
 			prompt:    prompt,
 			wantErr:   "challenge",
-		},
-		{
-			name:      "assertion without RPID",
-			origin:    origin,
-			assertion: &emptyRPIDAssertion,
-			prompt:    prompt,
-			wantErr:   "relying party ID",
-		},
-		{
-			name:      "nil prompt",
-			origin:    origin,
-			assertion: okAssertion,
-			wantErr:   "prompt",
 		},
 	}
 	for _, test := range tests {
@@ -1024,6 +1178,213 @@ func TestFIDO2Login_errors(t *testing.T) {
 			_, _, err := wancli.FIDO2Login(ctx, test.origin, test.assertion, test.prompt, nil /* opts */)
 			require.Error(t, err, "FIDO2Login returned err = nil, want %q", test.wantErr)
 			assert.Contains(t, err.Error(), test.wantErr, "FIDO2Login returned err = %q, want %q", err, test.wantErr)
+		})
+	}
+}
+
+// TestFIDO2_LoginRegister_interactionErrors tests scenarios where the user
+// picks a security key that cannot be used for that particular flow (and the
+// subsequent error message).
+func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
+	resetFIDO2AfterTests(t)
+
+	notRegistered := mustNewFIDO2Device("/notregistered", "mysupersecretpinLLAMA", &libfido2.DeviceInfo{
+		Options: pinOpts,
+	})
+	// PIN capable but unset.
+	noPIN := mustNewFIDO2Device("/nouv", "" /* pin */, &libfido2.DeviceInfo{
+		Options: authOpts,
+	})
+	// fictional PIN capable, RK incapable device.
+	noRK := mustNewFIDO2Device("/nork", "" /* pin */, &libfido2.DeviceInfo{
+		Options: []libfido2.Option{
+			{Name: "rk", Value: "false"},       // not capable
+			{Name: "up", Value: "true"},        // expected setting
+			{Name: "plat", Value: "false"},     // expected setting
+			{Name: "clientPin", Value: "true"}, // supported and configured
+		},
+	})
+	// U2F only device (no FIDO2 capabilities).
+	u2f := mustNewFIDO2Device("/u2f", "" /* pin */, nil /* info */)
+	u2f.u2fOnly = true
+
+	f2 := newFakeFIDO2(notRegistered, noPIN, noRK, u2f).withNonMeteredLocations()
+	f2.setCallbacks()
+
+	const rpID = "goteleport.com"
+	const origin = "https://goteleport.com"
+	mfaCC := &wanlib.CredentialCreation{
+		Response: protocol.PublicKeyCredentialCreationOptions{
+			Challenge: []byte{1, 2, 3, 4, 5}, // arbitrary
+			RelyingParty: protocol.RelyingPartyEntity{
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "Teleport",
+				},
+				ID: rpID,
+			},
+			User: protocol.UserEntity{
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "llama",
+				},
+				DisplayName: "Llama",
+				ID:          []byte{1, 1, 1, 1, 1}, // arbitrary
+			},
+			Parameters: []protocol.CredentialParameter{
+				{
+					Type:      protocol.PublicKeyCredentialType,
+					Algorithm: webauthncose.AlgES256,
+				},
+			},
+			AuthenticatorSelection: protocol.AuthenticatorSelection{
+				RequireResidentKey: protocol.ResidentKeyUnrequired(),
+				ResidentKey:        protocol.ResidentKeyRequirementDiscouraged,
+				UserVerification:   protocol.VerificationDiscouraged,
+			},
+			Attestation: protocol.PreferNoAttestation,
+		},
+	}
+
+	// Setup: register all devices (except "notRegistered") for MFA.
+	// A typical MFA registration allows all kinds of devices.
+	ctx := context.Background()
+	var registeredCreds [][]byte
+	for _, dev := range []*fakeFIDO2Device{noPIN, noRK, u2f} {
+		resp, err := wancli.FIDO2Register(ctx, origin, mfaCC, dev)
+		if err != nil {
+			t.Fatalf("FIDO2Register failed, device %v: %v", dev.path, err)
+		}
+		registeredCreds = append(registeredCreds, resp.GetWebauthn().RawId)
+	}
+
+	mfaAssertion := &wanlib.CredentialAssertion{
+		Response: protocol.PublicKeyCredentialRequestOptions{
+			Challenge:        []byte{1, 2, 3, 4, 5}, // arbitrary
+			RelyingPartyID:   rpID,
+			UserVerification: protocol.VerificationDiscouraged,
+		},
+	}
+	for _, cred := range registeredCreds {
+		mfaAssertion.Response.AllowedCredentials = append(mfaAssertion.Response.AllowedCredentials, protocol.CredentialDescriptor{
+			Type:         protocol.PublicKeyCredentialType,
+			CredentialID: cred,
+		})
+	}
+
+	pwdlessAssertion := *mfaAssertion
+	pwdlessAssertion.Response.AllowedCredentials = nil
+	pwdlessAssertion.Response.UserVerification = protocol.VerificationRequired
+
+	// FIDO2Login interaction tests.
+	for _, test := range []struct {
+		name            string
+		createAssertion func() *wanlib.CredentialAssertion
+		prompt          wancli.LoginPrompt
+		wantErr         string
+	}{
+		{
+			name:            "no registered credential",
+			createAssertion: func() *wanlib.CredentialAssertion { return mfaAssertion },
+			prompt:          notRegistered,
+			wantErr:         "lacks registered credential",
+		},
+		{
+			// Theoretically could happen, but not something we do today.
+			name: "mfa lacks UV",
+			createAssertion: func() *wanlib.CredentialAssertion {
+				mfaUV := *mfaAssertion
+				mfaUV.Response.UserVerification = protocol.VerificationRequired
+				return &mfaUV
+			},
+			prompt:  noPIN, // PIN unset means it cannot do UV
+			wantErr: "user verification",
+		},
+		{
+			name:            "passwordless lacks UV",
+			createAssertion: func() *wanlib.CredentialAssertion { return &pwdlessAssertion },
+			prompt:          noPIN, // PIN unset means it cannot do UV
+			wantErr:         "passwordless",
+		},
+		{
+			// Fictional scenario, no real-world authenticators match.
+			name:            "passwordless lacks RK",
+			createAssertion: func() *wanlib.CredentialAssertion { return &pwdlessAssertion },
+			prompt:          noRK,
+			wantErr:         "passwordless",
+		},
+		{
+			name:            "passwordless U2F",
+			createAssertion: func() *wanlib.CredentialAssertion { return &pwdlessAssertion },
+			prompt:          u2f,
+			wantErr:         context.DeadlineExceeded.Error(), // silently filtered, times out
+		},
+	} {
+		t.Run("login/"+test.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+			defer cancel()
+
+			_, _, err := wancli.FIDO2Login(ctx, origin, test.createAssertion(), test.prompt, nil /* opts */)
+			assert.ErrorContains(t, err, test.wantErr, "FIDO2Login error mismatch")
+		})
+	}
+
+	excludeCC := *mfaCC
+	for _, cred := range registeredCreds {
+		excludeCC.Response.CredentialExcludeList = append(excludeCC.Response.CredentialExcludeList, protocol.CredentialDescriptor{
+			Type:         protocol.PublicKeyCredentialType,
+			CredentialID: cred,
+		})
+	}
+
+	pwdlessCC := *mfaCC
+	pwdlessCC.Response.AuthenticatorSelection.RequireResidentKey = protocol.ResidentKeyRequired()
+	pwdlessCC.Response.AuthenticatorSelection.ResidentKey = protocol.ResidentKeyRequirementRequired
+	pwdlessCC.Response.AuthenticatorSelection.UserVerification = protocol.VerificationRequired
+
+	// FIDO2Register interaction tests.
+	for _, test := range []struct {
+		name     string
+		createCC func() *wanlib.CredentialCreation
+		prompt   wancli.RegisterPrompt
+		wantErr  string
+	}{
+		{
+			name:     "excluded credential",
+			createCC: func() *wanlib.CredentialCreation { return &excludeCC },
+			prompt:   noPIN,
+			wantErr:  "registered credential",
+		},
+		{
+			name:     "excluded credential (U2F)",
+			createCC: func() *wanlib.CredentialCreation { return &excludeCC },
+			prompt:   u2f,
+			wantErr:  context.DeadlineExceeded.Error(), // silently filtered, times out
+		},
+		{
+			name:     "passwordless lacks UV",
+			createCC: func() *wanlib.CredentialCreation { return &pwdlessCC },
+			prompt:   noPIN, // PIN unset means it cannot do UV
+			wantErr:  "user verification",
+		},
+		{
+			// Fictional scenario, no real-world authenticators match.
+			name:     "passwordless lacks RK",
+			createCC: func() *wanlib.CredentialCreation { return &pwdlessCC },
+			prompt:   noRK,
+			wantErr:  "resident key",
+		},
+		{
+			name:     "passwordless U2F",
+			createCC: func() *wanlib.CredentialCreation { return &pwdlessCC },
+			prompt:   u2f,
+			wantErr:  context.DeadlineExceeded.Error(), // silently filtered, times out
+		},
+	} {
+		t.Run("register/"+test.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+			defer cancel()
+
+			_, err := wancli.FIDO2Register(ctx, origin, test.createCC(), test.prompt)
+			assert.ErrorContains(t, err, test.wantErr, "FIDO2Register error mismatch")
 		})
 	}
 }
@@ -1073,12 +1434,22 @@ func TestFIDO2Register(t *testing.T) {
 			Challenge: challenge,
 			RelyingParty: protocol.RelyingPartyEntity{
 				ID: rpID,
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "rp name",
+				},
 			},
 			Parameters: []protocol.CredentialParameter{
 				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
 			},
 			AuthenticatorSelection: protocol.AuthenticatorSelection{
 				UserVerification: protocol.VerificationDiscouraged,
+			},
+			User: protocol.UserEntity{
+				ID: []byte{1, 2, 3, 4, 1}, // arbitrary,
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "user name",
+				},
+				DisplayName: "user display name",
 			},
 			Attestation: protocol.PreferDirectAttestation,
 		},
@@ -1279,6 +1650,23 @@ func TestFIDO2Register(t *testing.T) {
 				assert.Equal(t, cred.ID, ccr.RawId, "RawId mismatch (want bio1 resident credential)")
 			},
 		},
+		{
+			name:  "passwordless ResidentKey=required",
+			fido2: newFakeFIDO2(pin2),
+			setUP: pin2.setUP,
+			createCredential: func() *wanlib.CredentialCreation {
+				cp := pwdlessCC
+				cp.Response.AuthenticatorSelection.RequireResidentKey = nil
+				cp.Response.AuthenticatorSelection.ResidentKey = protocol.ResidentKeyRequirementRequired
+				return &cp
+			},
+			prompt: pin2,
+			assertResponse: func(t *testing.T, ccr *wanpb.CredentialCreationResponse, attObj *protocol.AttestationObject) {
+				require.NotEmpty(t, pin2.credentials, "no resident credentials added to pin2")
+				cred := pin2.credentials[len(pin2.credentials)-1]
+				assert.Equal(t, cred.ID, ccr.RawId, "RawId mismatch (want pin2 resident credential)")
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1351,12 +1739,22 @@ func TestFIDO2Register_errors(t *testing.T) {
 			Challenge: make([]byte, 32),
 			RelyingParty: protocol.RelyingPartyEntity{
 				ID: "example.com",
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "rp name",
+				},
 			},
 			Parameters: []protocol.CredentialParameter{
 				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
 			},
 			AuthenticatorSelection: protocol.AuthenticatorSelection{
 				UserVerification: protocol.VerificationDiscouraged,
+			},
+			User: protocol.UserEntity{
+				ID: []byte{1, 2, 3, 4, 1}, // arbitrary,
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "user name",
+				},
+				DisplayName: "user display name",
 			},
 			Attestation: protocol.PreferNoAttestation,
 		},
@@ -1398,13 +1796,6 @@ func TestFIDO2Register_errors(t *testing.T) {
 			wantErr:  "origin",
 		},
 		{
-			name:     "nil cc",
-			origin:   origin,
-			createCC: func() *wanlib.CredentialCreation { return nil },
-			prompt:   prompt,
-			wantErr:  "credential creation required",
-		},
-		{
 			name:   "cc without challenge",
 			origin: origin,
 			createCC: func() *wanlib.CredentialCreation {
@@ -1414,17 +1805,6 @@ func TestFIDO2Register_errors(t *testing.T) {
 			},
 			prompt:  prompt,
 			wantErr: "challenge",
-		},
-		{
-			name:   "cc without RPID",
-			origin: origin,
-			createCC: func() *wanlib.CredentialCreation {
-				cp := *okCC
-				cp.Response.RelyingParty.ID = ""
-				return &cp
-			},
-			prompt:  prompt,
-			wantErr: "relying party ID",
 		},
 		{
 			name:   "cc unsupported parameters",
@@ -1445,50 +1825,6 @@ func TestFIDO2Register_errors(t *testing.T) {
 			createCC: func() *wanlib.CredentialCreation { return okCC },
 			wantErr:  "prompt",
 		},
-		{
-			name:   "rrk empty RP name",
-			origin: origin,
-			createCC: func() *wanlib.CredentialCreation {
-				cp := pwdlessOK
-				cp.Response.RelyingParty.Name = ""
-				return &cp
-			},
-			prompt:  prompt,
-			wantErr: "relying party name",
-		},
-		{
-			name:   "rrk empty user name",
-			origin: origin,
-			createCC: func() *wanlib.CredentialCreation {
-				cp := pwdlessOK
-				cp.Response.User.Name = ""
-				return &cp
-			},
-			prompt:  prompt,
-			wantErr: "user name",
-		},
-		{
-			name:   "rrk empty user display name",
-			origin: origin,
-			createCC: func() *wanlib.CredentialCreation {
-				cp := pwdlessOK
-				cp.Response.User.DisplayName = ""
-				return &cp
-			},
-			prompt:  prompt,
-			wantErr: "user display name",
-		},
-		{
-			name:   "rrk nil user ID",
-			origin: origin,
-			createCC: func() *wanlib.CredentialCreation {
-				cp := pwdlessOK
-				cp.Response.User.ID = nil
-				return &cp
-			},
-			prompt:  prompt,
-			wantErr: "user ID",
-		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1500,6 +1836,65 @@ func TestFIDO2Register_errors(t *testing.T) {
 			assert.Contains(t, err.Error(), test.wantErr, "FIDO2Register returned err = %q, want %q", err, test.wantErr)
 		})
 	}
+}
+
+func TestFIDO2Register_u2fExcludedCredentials(t *testing.T) {
+	resetFIDO2AfterTests(t)
+
+	u2fDev := mustNewFIDO2Device("/u2f", "" /* pin */, nil /* info */)
+	u2fDev.u2fOnly = true
+
+	// otherDev is FIDO2 in this test, but it could be any non-registered device.
+	otherDev := mustNewFIDO2Device("/fido2", "" /* pin */, &libfido2.DeviceInfo{
+		Options: authOpts,
+	})
+
+	f2 := newFakeFIDO2(u2fDev, otherDev).withNonMeteredLocations()
+	f2.setCallbacks()
+
+	const origin = "https://example.com"
+	cc := &wanlib.CredentialCreation{
+		Response: protocol.PublicKeyCredentialCreationOptions{
+			Challenge: make([]byte, 32),
+			RelyingParty: protocol.RelyingPartyEntity{
+				ID: "example.com",
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "rp name",
+				},
+			},
+			Parameters: []protocol.CredentialParameter{
+				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
+			},
+			AuthenticatorSelection: protocol.AuthenticatorSelection{
+				UserVerification: protocol.VerificationDiscouraged,
+			},
+			User: protocol.UserEntity{
+				ID: []byte{1, 2, 3, 4, 1}, // arbitrary,
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "user name",
+				},
+				DisplayName: "user display name",
+			},
+			Attestation: protocol.PreferNoAttestation,
+		},
+	}
+
+	ctx := context.Background()
+
+	// Setup: register the U2F device.
+	resp, err := wancli.FIDO2Register(ctx, origin, cc, u2fDev)
+	require.NoError(t, err, "FIDO2Register errored")
+
+	// Setup: mark the registered credential as excluded.
+	cc.Response.CredentialExcludeList = append(cc.Response.CredentialExcludeList, protocol.CredentialDescriptor{
+		Type:         protocol.PublicKeyCredentialType,
+		CredentialID: resp.GetWebauthn().GetRawId(),
+	})
+
+	// Register a new device, making sure a failed excluded credential assertion
+	// won't break the ceremony.
+	_, err = wancli.FIDO2Register(ctx, origin, cc, otherDev)
+	require.NoError(t, err, "FIDO2Register errored, expected a successful registration")
 }
 
 func resetFIDO2AfterTests(t *testing.T) {
@@ -1584,6 +1979,16 @@ type fakeFIDO2Device struct {
 	// conditions.
 	failUV bool
 
+	// Set to true to simulate an U2F-only device.
+	// Causes libfido2.ErrNotFIDO2 on Info.
+	u2fOnly bool
+
+	// assertionErrors is a chain of errors to return from Assertion.
+	// Errors are returned from start to end and removed, one-by-one, on each
+	// invocation of the Assertion method.
+	// If the slice is empty, Assertion runs normally.
+	assertionErrors []error
+
 	path        string
 	info        *libfido2.DeviceInfo
 	pin         string
@@ -1645,8 +2050,9 @@ func (f *fakeFIDO2Device) PromptPIN() (string, error) {
 	return f.pin, nil
 }
 
-func (f *fakeFIDO2Device) PromptTouch() {
+func (f *fakeFIDO2Device) PromptTouch() error {
 	f.setUP()
+	return nil
 }
 
 func (f *fakeFIDO2Device) credentialID() []byte {
@@ -1658,6 +2064,9 @@ func (f *fakeFIDO2Device) cert() []byte {
 }
 
 func (f *fakeFIDO2Device) Info() (*libfido2.DeviceInfo, error) {
+	if f.u2fOnly {
+		return nil, libfido2.ErrNotFIDO2
+	}
 	return f.info, nil
 }
 
@@ -1695,6 +2104,9 @@ func (f *fakeFIDO2Device) MakeCredential(
 		return nil, libfido2.ErrUnsupportedOption
 	case opts.UV == libfido2.True && !f.hasUV():
 		return nil, libfido2.ErrUnsupportedOption // PIN authenticators don't like UV
+	case opts.RK == libfido2.True && !f.hasRK():
+		// TODO(codingllama): Confirm scenario with a real authenticator.
+		return nil, libfido2.ErrUnsupportedOption
 	}
 
 	// Validate PIN regardless of opts.
@@ -1747,11 +2159,16 @@ func (f *fakeFIDO2Device) Assertion(
 	pin string,
 	opts *libfido2.AssertionOpts,
 ) ([]*libfido2.Assertion, error) {
+	// Give preference to simulated errors.
+	if len(f.assertionErrors) > 0 {
+		err := f.assertionErrors[0]
+		f.assertionErrors = f.assertionErrors[1:]
+		return nil, err
+	}
+
 	switch {
 	case rpID == "":
 		return nil, errors.New("rp.ID required")
-	case f.wantRPID != "" && f.wantRPID != rpID:
-		return nil, libfido2.ErrNoCredentials
 	case len(clientDataHash) == 0:
 		return nil, errors.New("clientDataHash required")
 	}
@@ -1785,6 +2202,12 @@ func (f *fakeFIDO2Device) Assertion(
 		return nil, err
 	}
 
+	// Does our explicitly set RPID match?
+	// Used to simulate U2F App ID.
+	if f.wantRPID != "" && f.wantRPID != rpID {
+		return nil, libfido2.ErrNoCredentials
+	}
+
 	// Index credentialIDs for easier use.
 	credIDs := make(map[string]struct{})
 	for _, cred := range credentialIDs {
@@ -1796,6 +2219,11 @@ func (f *fakeFIDO2Device) Assertion(
 
 	// "base" credential. Only add an assertion if explicitly requested.
 	if _, ok := credIDs[string(f.key.KeyHandle)]; ok {
+		// Simulate Yubikey4 and require UP, even if UP==false is set.
+		if f.u2fOnly && opts.UP == libfido2.False {
+			return nil, libfido2.ErrUserPresenceRequired
+		}
+
 		assertions = append(assertions, &libfido2.Assertion{
 			AuthDataCBOR: assertionAuthDataCBOR,
 			Sig:          assertionSig,
@@ -1865,6 +2293,10 @@ func (f *fakeFIDO2Device) hasClientPin() bool {
 	return f.hasBoolOpt("clientPin")
 }
 
+func (f *fakeFIDO2Device) hasRK() bool {
+	return f.hasBoolOpt("rk")
+}
+
 func (f *fakeFIDO2Device) hasUV() bool {
 	return f.hasBoolOpt("uv")
 }
@@ -1874,6 +2306,10 @@ func (f *fakeFIDO2Device) isBio() bool {
 }
 
 func (f *fakeFIDO2Device) hasBoolOpt(name string) bool {
+	if f.info == nil {
+		return false
+	}
+
 	for _, opt := range f.info.Options {
 		if opt.Name == name {
 			return opt.Value == libfido2.True

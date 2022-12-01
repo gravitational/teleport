@@ -22,25 +22,27 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 )
 
 // TestClientWithExpiredCredentialsAndDetailedErrorMessage creates and connects to the Auth service
 // using an expired user identity
 // We should receive an error message which contains the real cause (ssh: handshake)
 func TestClientWithExpiredCredentialsAndDetailedErrorMessage(t *testing.T) {
-	rc := helpers.NewInstance(helpers.InstanceConfig{
+	cfg := helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
 		Log:         utils.NewLoggerForTests(),
-		Ports:       helpers.SingleProxyPortSetup(),
-	})
+	}
+	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
+	rc := helpers.NewInstance(t, cfg)
 
 	rcConf := service.MakeDefaultConfig()
 	rcConf.DataDir = t.TempDir()
@@ -50,7 +52,7 @@ func TestClientWithExpiredCredentialsAndDetailedErrorMessage(t *testing.T) {
 	rcConf.SSH.Enabled = true
 	rcConf.Version = "v2"
 
-	username := mustGetCurrentUser(t).Username
+	username := helpers.MustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
 
 	err := rc.CreateEx(t, nil, rcConf)
@@ -60,12 +62,12 @@ func TestClientWithExpiredCredentialsAndDetailedErrorMessage(t *testing.T) {
 	defer rc.StopAll()
 
 	// Create an expired identity file: ttl is 1 second in the past
-	identityFilePath := mustCreateUserIdentityFile(t, rc, username, -time.Second)
+	identityFilePath := helpers.MustCreateUserIdentityFile(t, rc, username, -time.Second)
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
 	defer cancelFunc()
 	_, err = client.New(ctx, client.Config{
-		Addrs:       []string{rc.GetAuthAddr()},
+		Addrs:       []string{rc.Auth},
 		Credentials: []client.Credentials{client.LoadIdentityFile(identityFilePath)},
 		DialOpts: []grpc.DialOption{
 			// ask for underlying errors

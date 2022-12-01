@@ -21,14 +21,13 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/web/ui"
-
-	"github.com/gravitational/trace"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestExtractResourceAndValidate(t *testing.T) {
@@ -79,6 +78,7 @@ spec:
   client_id: ""
   client_secret: ""
   display: ""
+  endpoint_url: ""
   redirect_url: ""
   teams_to_logins:
   - logins:
@@ -141,6 +141,7 @@ spec:
     record_session:
       default: best_effort
       desktop: true
+    ssh_file_copy: true
 version: v3
 `
 	role, err := types.NewRoleV3("roleName", types.RoleSpecV5{
@@ -375,7 +376,6 @@ func TestListResources(t *testing.T) {
 			expected: proto.ListResourcesRequest{
 				ResourceType:        types.KindNode,
 				Limit:               defaults.MaxIterationLimit,
-				NeedTotalCount:      true,
 				PredicateExpression: "(labels[`\"test\"`] == \"+:',#*~%^\" && !exists(labels.tier)) || resource.spec.description != \"weird example https://foo.dev:3080?bar=a,b&baz=banana\"",
 			},
 		},
@@ -390,36 +390,32 @@ func TestListResources(t *testing.T) {
 				PredicateExpression: `labels.env == "prod"`,
 				SortBy:              types.SortBy{Field: "foo", IsDesc: true},
 				UseSearchAsRoles:    true,
-				NeedTotalCount:      true,
 			},
 		},
 		{
 			name: "all query param defined but empty",
 			url:  `https://dev:3080/login?query=&startKey=&search=&sort=&limit=&startKey=`,
 			expected: proto.ListResourcesRequest{
-				ResourceType:   types.KindNode,
-				Limit:          defaults.MaxIterationLimit,
-				NeedTotalCount: true,
+				ResourceType: types.KindNode,
+				Limit:        defaults.MaxIterationLimit,
 			},
 		},
 		{
 			name: "sort partially defined: fieldName",
 			url:  `https://dev:3080/login?sort=foo`,
 			expected: proto.ListResourcesRequest{
-				ResourceType:   types.KindNode,
-				Limit:          defaults.MaxIterationLimit,
-				SortBy:         types.SortBy{Field: "foo", IsDesc: false},
-				NeedTotalCount: true,
+				ResourceType: types.KindNode,
+				Limit:        defaults.MaxIterationLimit,
+				SortBy:       types.SortBy{Field: "foo", IsDesc: false},
 			},
 		},
 		{
 			name: "sort partially defined: fieldName with colon",
 			url:  `https://dev:3080/login?sort=foo:`,
 			expected: proto.ListResourcesRequest{
-				ResourceType:   types.KindNode,
-				Limit:          defaults.MaxIterationLimit,
-				SortBy:         types.SortBy{Field: "foo", IsDesc: false},
-				NeedTotalCount: true,
+				ResourceType: types.KindNode,
+				Limit:        defaults.MaxIterationLimit,
+				SortBy:       types.SortBy{Field: "foo", IsDesc: false},
 			},
 		},
 		{

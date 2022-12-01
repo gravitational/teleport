@@ -27,8 +27,11 @@ import (
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/go-mysql-org/go-mysql/packet"
 	"github.com/go-mysql-org/go-mysql/server"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
@@ -36,9 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 func init() {
@@ -154,10 +154,8 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mfaParams := services.AccessMFAParams{
-		Verified:       sessionCtx.Identity.MFAVerified != "",
-		AlwaysRequired: ap.GetRequireSessionMFA(),
-	}
+
+	mfaParams := sessionCtx.MFAParams(ap.GetRequireMFAType())
 	dbRoleMatchers := role.DatabaseRoleMatchers(
 		defaults.ProtocolMySQL,
 		sessionCtx.DatabaseUser,
@@ -189,7 +187,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 	var dialer client.Dialer
 	var password string
 	switch {
-	case sessionCtx.Database.IsRDS():
+	case sessionCtx.Database.IsRDS(), sessionCtx.Database.IsRDSProxy():
 		password, err = e.Auth.GetRDSAuthToken(sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -418,7 +416,7 @@ func (e *Engine) makeAcquireSemaphoreConfig(sessionCtx *common.Session) services
 		},
 		// If multiple connections are being established simultaneously to the
 		// same database as the same user, retry for a few seconds.
-		Retry: utils.LinearConfig{
+		Retry: retryutils.LinearConfig{
 			Step:  time.Second,
 			Max:   time.Second,
 			Clock: e.Clock,

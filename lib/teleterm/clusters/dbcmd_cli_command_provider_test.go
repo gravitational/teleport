@@ -20,14 +20,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-
-	"github.com/gravitational/trace"
-
-	"github.com/stretchr/testify/require"
+	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type fakeExec struct{}
@@ -62,18 +63,21 @@ func (f fakeStorage) GetByResourceURI(resourceURI string) (*Cluster, error) {
 
 func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 	testCases := []struct {
+		name                  string
 		targetSubresourceName string
 	}{
 		{
+			name:                  "empty name",
 			targetSubresourceName: "",
 		},
 		{
+			name:                  "with name",
 			targetSubresourceName: "bar",
 		},
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.targetSubresourceName, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			cluster := Cluster{
 				URI:  uri.NewClusterURI("quux"),
 				Name: "quux",
@@ -83,49 +87,86 @@ func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 					},
 				},
 			}
-			localPort := "1337"
-			gateway := gateway.Gateway{
-				Config: gateway.Config{
-					TargetURI:             cluster.URI.AppendDB("foo").String(),
-					TargetName:            "foo",
-					TargetSubresourceName: tc.targetSubresourceName,
-					Protocol:              defaults.ProtocolPostgres,
-					LocalAddress:          "localhost",
-					LocalPort:             localPort,
-				},
-			}
 			fakeStorage := fakeStorage{
 				clusters: []*Cluster{&cluster},
 			}
 			dbcmdCLICommandProvider := NewDbcmdCLICommandProvider(fakeStorage, fakeExec{})
 
-			command, err := dbcmdCLICommandProvider.GetCommand(&gateway)
+			keyPairPaths := gatewaytest.MustGenAndSaveCert(t, tlsca.Identity{
+				Username: "alice",
+				Groups:   []string{"test-group"},
+				RouteToDatabase: tlsca.RouteToDatabase{
+					ServiceName: "foo",
+					Protocol:    defaults.ProtocolPostgres,
+					Username:    "alice",
+				},
+			})
+
+			gateway, err := gateway.New(
+				gateway.Config{
+					TargetURI:             cluster.URI.AppendDB("foo").String(),
+					TargetName:            "foo",
+					TargetUser:            "alice",
+					TargetSubresourceName: tc.targetSubresourceName,
+					Protocol:              defaults.ProtocolPostgres,
+					LocalAddress:          "localhost",
+					WebProxyAddr:          "localhost:1337",
+					Insecure:              true,
+					CertPath:              keyPairPaths.CertPath,
+					KeyPath:               keyPairPaths.KeyPath,
+					CLICommandProvider:    dbcmdCLICommandProvider,
+					TCPPortAllocator:      gateway.NetTCPPortAllocator{},
+				},
+			)
+			require.NoError(t, err)
+			t.Cleanup(func() { gateway.Close() })
+
+			command, err := dbcmdCLICommandProvider.GetCommand(gateway)
 
 			require.NoError(t, err)
 			require.NotEmpty(t, command)
 			require.Contains(t, command, tc.targetSubresourceName)
-			require.Contains(t, command, localPort)
+			require.Contains(t, command, gateway.LocalPort())
 		})
 	}
 }
 
 func TestDbcmdCLICommandProviderGetCommand_ReturnsErrorIfClusterIsNotFound(t *testing.T) {
-	gateway := gateway.Gateway{
-		Config: gateway.Config{
-			TargetURI:             uri.NewClusterURI("quux").AppendDB("foo").String(),
-			TargetName:            "foo",
-			TargetSubresourceName: "",
-			Protocol:              defaults.ProtocolPostgres,
-			LocalAddress:          "localhost",
-			LocalPort:             "12345",
-		},
-	}
 	fakeStorage := fakeStorage{
 		clusters: []*Cluster{},
 	}
 	dbcmdCLICommandProvider := NewDbcmdCLICommandProvider(fakeStorage, fakeExec{})
 
-	_, err := dbcmdCLICommandProvider.GetCommand(&gateway)
+	keyPairPaths := gatewaytest.MustGenAndSaveCert(t, tlsca.Identity{
+		Username: "alice",
+		Groups:   []string{"test-group"},
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: "foo",
+			Protocol:    defaults.ProtocolPostgres,
+			Username:    "alice",
+		},
+	})
+
+	gateway, err := gateway.New(
+		gateway.Config{
+			TargetURI:             uri.NewClusterURI("quux").AppendDB("foo").String(),
+			TargetName:            "foo",
+			TargetUser:            "alice",
+			TargetSubresourceName: "",
+			Protocol:              defaults.ProtocolPostgres,
+			LocalAddress:          "localhost",
+			WebProxyAddr:          "localhost:1337",
+			Insecure:              true,
+			CertPath:              keyPairPaths.CertPath,
+			KeyPath:               keyPairPaths.KeyPath,
+			CLICommandProvider:    dbcmdCLICommandProvider,
+			TCPPortAllocator:      gateway.NetTCPPortAllocator{},
+		},
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { gateway.Close() })
+
+	_, err = dbcmdCLICommandProvider.GetCommand(gateway)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err), "err is not trace.NotFound")
 }

@@ -31,13 +31,24 @@ import (
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/trace"
 	"github.com/keys-pub/go-libfido2"
+	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	log "github.com/sirupsen/logrus"
+)
+
+// User-friendly device filter errors.
+var (
+	errHasExcludedCredential   = errors.New("device already holds a registered credential")
+	errNoPasswordless          = errors.New("device not registered for passwordless")
+	errNoPlatform              = errors.New("device cannot fulfill platform attachment requirement")
+	errNoRK                    = errors.New("device lacks resident key capabilities")
+	errNoRegisteredCredentials = errors.New("device lacks registered credentials")
+	errNoUV                    = errors.New("device lacks PIN or user verification capabilities")
+	errPasswordlessU2F         = errors.New("U2F devices cannot do passwordless")
 )
 
 // FIDODevice abstracts *libfido2.Device for testing.
@@ -72,8 +83,8 @@ var fidoNewDevice = func(path string) (FIDODevice, error) {
 	return libfido2.NewDevice(path)
 }
 
-// IsFIDO2Available returns true if libfido2 is available in the current build.
-func IsFIDO2Available() bool {
+// isLibfido2Enabled returns true if libfido2 is available in the current build.
+func isLibfido2Enabled() bool {
 	val, ok := os.LookupEnv("TELEPORT_FIDO2")
 	// Default to enabled, otherwise obey the env variable.
 	return !ok || val == "1"
@@ -87,14 +98,11 @@ func fido2Login(
 	switch {
 	case origin == "":
 		return nil, "", trace.BadParameter("origin required")
-	case assertion == nil:
-		return nil, "", trace.BadParameter("assertion required")
 	case prompt == nil:
 		return nil, "", trace.BadParameter("prompt required")
-	case len(assertion.Response.Challenge) == 0:
-		return nil, "", trace.BadParameter("assertion challenge required")
-	case assertion.Response.RelyingPartyID == "":
-		return nil, "", trace.BadParameter("assertion relying party ID required")
+	}
+	if err := assertion.Validate(); err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 	if opts == nil {
 		opts = &LoginOpts{}
@@ -106,6 +114,7 @@ func fido2Login(
 	// Presence of any allowed credential is interpreted as the user identity
 	// being partially established, aka non-passwordless.
 	passwordless := len(allowedCreds) == 0
+	log.Debugf("FIDO2: assertion: passwordless=%v, uv=%v", passwordless, uv)
 
 	// Prepare challenge data for the device.
 	ccdJSON, err := json.Marshal(&CollectedClientData{
@@ -130,28 +139,32 @@ func fido2Login(
 	var usedAppID bool
 
 	pathToRPID := &sync.Map{} // map[string]string
-	filter := func(dev FIDODevice, info *deviceInfo) (bool, error) {
+	filter := func(dev FIDODevice, info *deviceInfo) error {
 		switch {
+		case info.u2f && (uv || passwordless):
+			return errPasswordlessU2F
+		case passwordless && (!info.uvCapable() || !info.rk):
+			return errNoPasswordless
 		case uv && !info.uvCapable():
-			log.Debugf("FIDO2: Device %v: filtered due to lack of UV", info.path)
-			return false, nil
-		case passwordless && !info.rk:
-			log.Debugf("FIDO2: Device %v: filtered due to lack of RK", info.path)
-			return false, nil
-		case len(allowedCreds) == 0: // Nothing else to check
-			return true, nil
+			// Unlikely that we would ask for UV without passwordless, but let's check
+			// just in case.
+			// If left unchecked this causes libfido2.ErrUnsupportedOption.
+			return errNoUV
+		case passwordless: // Nothing else to check
+			return nil
 		}
 
+		// TODO(codingllama): Kill discoverRPID? It makes behavioral assumptions
+		//  that caused problems before.
 		// Does the device have a suitable credential?
 		const pin = ""
-		actualRPID, err := discoverRPID(dev, pin, rpID, appID, allowedCreds)
+		actualRPID, err := discoverRPID(dev, info, pin, rpID, appID, allowedCreds)
 		if err != nil {
-			log.Debugf("FIDO2: Device %v: filtered due to lack of allowed credential", info.path)
-			return false, nil
+			return errNoRegisteredCredentials
 		}
 		pathToRPID.Store(info.path, actualRPID)
 
-		return true, nil
+		return nil
 	}
 
 	user := opts.User
@@ -236,7 +249,7 @@ func fido2Login(
 	}, actualUser, nil
 }
 
-func discoverRPID(dev FIDODevice, pin, rpID, appID string, allowedCreds [][]byte) (string, error) {
+func discoverRPID(dev FIDODevice, info *deviceInfo, pin, rpID, appID string, allowedCreds [][]byte) (string, error) {
 	// The actual hash is not necessary here.
 	const cdh = "00000000000000000000000000000000"
 
@@ -247,8 +260,15 @@ func discoverRPID(dev FIDODevice, pin, rpID, appID string, allowedCreds [][]byte
 		if id == "" {
 			continue
 		}
-		if _, err := dev.Assertion(id, []byte(cdh), allowedCreds, pin, opts); err == nil {
+		switch _, err := dev.Assertion(id, []byte(cdh), allowedCreds, pin, opts); {
+		// Yubikey4 returns ErrUserPresenceRequired if the credential exists,
+		// despite the UP=false opts above.
+		case err == nil, errors.Is(err, libfido2.ErrUserPresenceRequired):
 			return id, nil
+		case errors.Is(err, libfido2.ErrNoCredentials):
+			// Device not registered for RPID=id, keep trying.
+		default:
+			log.WithError(err).Debugf("FIDO2: Device %v: attempt RPID = %v", info.path, id)
 		}
 	}
 	return "", libfido2.ErrNoCredentials
@@ -280,14 +300,14 @@ func pickAssertion(
 	}
 
 	// Prepare credentials and show picker.
-	creds := make([]*Credential, len(assertions))
-	credToAssertion := make(map[*Credential]*libfido2.Assertion)
+	creds := make([]*CredentialInfo, len(assertions))
+	credToAssertion := make(map[*CredentialInfo]*libfido2.Assertion)
 	for i, assertion := range assertions {
-		cred := &Credential{
+		cred := &CredentialInfo{
 			ID: assertion.CredentialID,
-			User: User{
-				ID:   assertion.User.ID,
-				Name: assertion.User.Name,
+			User: UserInfo{
+				UserHandle: assertion.User.ID,
+				Name:       assertion.User.Name,
 			},
 		}
 		credToAssertion[cred] = assertion
@@ -312,31 +332,17 @@ func fido2Register(
 	switch {
 	case origin == "":
 		return nil, trace.BadParameter("origin required")
-	case cc == nil:
-		return nil, trace.BadParameter("credential creation required")
 	case prompt == nil:
 		return nil, trace.BadParameter("prompt required")
-	case len(cc.Response.Challenge) == 0:
-		return nil, trace.BadParameter("credential creation challenge required")
-	case cc.Response.RelyingParty.ID == "":
-		return nil, trace.BadParameter("credential creation relying party ID required")
 	}
-
-	rrk := cc.Response.AuthenticatorSelection.RequireResidentKey != nil && *cc.Response.AuthenticatorSelection.RequireResidentKey
-	if rrk {
-		// Be more pedantic with resident keys, some of this info gets recorded with
-		// the credential.
-		switch {
-		case len(cc.Response.RelyingParty.Name) == 0:
-			return nil, trace.BadParameter("relying party name required for resident credential")
-		case len(cc.Response.User.Name) == 0:
-			return nil, trace.BadParameter("user name required for resident credential")
-		case len(cc.Response.User.DisplayName) == 0:
-			return nil, trace.BadParameter("user display name required for resident credential")
-		case len(cc.Response.User.ID) == 0:
-			return nil, trace.BadParameter("user ID required for resident credential")
-		}
+	if err := cc.Validate(); err != nil {
+		return nil, trace.Wrap(err)
 	}
+	rrk, err := cc.RequireResidentKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Debugf("FIDO2: registration: resident key=%v", rrk)
 
 	// Can we create ES256 keys?
 	// TODO(codingllama): Consider supporting other algorithms and respecting
@@ -385,13 +391,18 @@ func fido2Register(
 	var mu sync.Mutex
 	var attestation *libfido2.Attestation
 
-	filter := func(dev FIDODevice, info *deviceInfo) (bool, error) {
+	filter := func(dev FIDODevice, info *deviceInfo) error {
 		switch {
-		case (plat && !info.plat) || (rrk && !info.rk) || (uv && !info.uvCapable()):
-			log.Debugf("FIDO2: Device %v: filtered due to options", info.path)
-			return false, nil
+		case info.u2f && (rrk || uv):
+			return errPasswordlessU2F
+		case plat && !info.plat:
+			return errNoPlatform
+		case rrk && !info.rk:
+			return errNoRK
+		case uv && !info.uvCapable():
+			return errNoUV
 		case len(excludeList) == 0:
-			return true, nil
+			return nil
 		}
 
 		// Does the device hold an excluded credential?
@@ -400,12 +411,20 @@ func fido2Register(
 			UP: libfido2.False,
 		}); {
 		case errors.Is(err, libfido2.ErrNoCredentials):
-			return true, nil
-		case err == nil:
+			return nil
+		case errors.Is(err, libfido2.ErrUserPresenceRequired):
+			// Yubikey4 does this when the credential exists.
+			return errHasExcludedCredential
+		case err != nil:
+			// Swallow unexpected errors: a double registration is better than
+			// aborting the ceremony.
+			log.Debugf(
+				"FIDO2: Device %v: excluded credential assertion failed, letting device through: err=%q",
+				info.path, err)
+			return nil
+		default:
 			log.Debugf("FIDO2: Device %v: filtered due to presence of excluded credential", info.path)
-			return false, nil
-		default: // unexpected error
-			return false, trace.Wrap(err)
+			return errHasExcludedCredential
 		}
 	}
 
@@ -521,8 +540,9 @@ type deviceWithInfo struct {
 	info *deviceInfo
 }
 
-type deviceFilterFunc func(dev FIDODevice, info *deviceInfo) (ok bool, err error)
+type deviceFilterFunc func(dev FIDODevice, info *deviceInfo) error
 type deviceCallbackFunc func(dev FIDODevice, info *deviceInfo, pin string) error
+type pinAwareCallbackFunc func(dev FIDODevice, info *deviceInfo, pin string) (requiresPIN bool, err error)
 
 // runPrompt defines the prompt operations necessary for runOnFIDO2Devices.
 // (RegisterPrompt happens to match the minimal interface required.)
@@ -533,26 +553,14 @@ func runOnFIDO2Devices(
 	prompt runPrompt,
 	filter deviceFilterFunc,
 	deviceCallback deviceCallbackFunc) error {
-	// Do we have readily available devices?
-	knownPaths := make(map[string]struct{}) // filled by findSuitableDevices*
-	prompted := false
-	devices, err := findSuitableDevices(filter, knownPaths)
-	if err != nil {
-		// No readily available devices means we need to prompt, otherwise the
-		// user gets no feedback whatsoever.
-		prompt.PromptTouch()
-		prompted = true
-
-		devices, err = findSuitableDevicesOrTimeout(ctx, filter, knownPaths)
-	}
-	if err != nil {
+	// About to select, prompt user.
+	if err := prompt.PromptTouch(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if !prompted {
-		prompt.PromptTouch() // about to select
-	}
-	dev, requiresPIN, err := selectDevice(ctx, "" /* pin */, devices, deviceCallback)
+	// List/select devices.
+	cb := withPINHandler(withRetries(deviceCallback))
+	dev, requiresPIN, err := findAndSelectDevice(ctx, filter, cb)
 	switch {
 	case err != nil:
 		return trace.Wrap(err)
@@ -571,98 +579,69 @@ func runOnFIDO2Devices(
 	}
 
 	// Prompt a second touch after reading the PIN.
-	prompt.PromptTouch()
+	if err := prompt.PromptTouch(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Run the callback again with the informed PIN.
 	// selectDevice is used since it correctly deals with cancellation.
-	_, _, err = selectDevice(ctx, pin, []deviceWithInfo{dev}, deviceCallback)
+	cb = withoutPINHandler(withRetries(deviceCallback))
+	_, err = selectDevice(ctx, pin, dev, cb)
 	return trace.Wrap(err)
 }
 
-func findSuitableDevicesOrTimeout(
-	ctx context.Context, filter deviceFilterFunc, knownPaths map[string]struct{}) ([]deviceWithInfo, error) {
-	ticker := time.NewTicker(FIDO2PollInterval)
-	defer ticker.Stop()
-
-	for {
-		devices, err := findSuitableDevices(filter, knownPaths)
-		if err == nil {
-			return devices, nil
-		}
-		log.WithError(err).Debug("FIDO2: Selecting devices")
-
-		select {
-		case <-ctx.Done():
-			return nil, trace.Wrap(ctx.Err())
-		case <-ticker.C:
-		}
-	}
-}
-
-func findSuitableDevices(filter deviceFilterFunc, knownPaths map[string]struct{}) ([]deviceWithInfo, error) {
-	locs, err := fidoDeviceLocations()
-	if err != nil {
-		return nil, trace.Wrap(err, "device locations")
-	}
-
-	var devs []deviceWithInfo
-	for _, loc := range locs {
-		path := loc.Path
-		if _, ok := knownPaths[path]; ok {
-			continue
-		}
-		knownPaths[path] = struct{}{}
-
-		dev, err := fidoNewDevice(path)
-		if err != nil {
-			return nil, trace.Wrap(err, "device %v: open", path)
-		}
-
-		var info *libfido2.DeviceInfo
-		const infoAttempts = 3
-		for i := 0; i < infoAttempts; i++ {
-			info, err = dev.Info()
-			switch {
-			case errors.Is(err, libfido2.ErrTX):
-				// Happens occasionally, give the device a short grace period and retry.
-				time.Sleep(1 * time.Millisecond)
-				continue
-			case err != nil: // unexpected error
-				return nil, trace.Wrap(err, "device %v: info", path)
+// withRetries wraps callback with retries and error handling for commonly seen
+// errors.
+func withRetries(callback deviceCallbackFunc) deviceCallbackFunc {
+	return func(dev FIDODevice, info *deviceInfo, pin string) error {
+		const maxRetries = 3
+		var err error
+		for i := 0; i < maxRetries; i++ {
+			err = callback(dev, info, pin)
+			if err == nil {
+				return nil
 			}
-			break // err == nil
-		}
-		if info == nil {
-			return nil, trace.Wrap(libfido2.ErrTX, "device %v: max info attempts reached", path)
-		}
-		log.Debugf("FIDO2: Info for device %v: %#v", path, info)
 
-		di := makeDevInfo(path, info)
-		switch ok, err := filter(dev, di); {
-		case err != nil:
-			return nil, trace.Wrap(err, "device %v: filter", path)
-		case !ok:
-			continue // Skip device.
+			// Handle errors mapped by go-libfido2.
+			// ErrOperationDenied happens when fingerprint reading fails (UV=false).
+			if errors.Is(err, libfido2.ErrOperationDenied) {
+				fmt.Println("Gesture validation failed, make sure you use a registered fingerprint")
+				log.Debug("FIDO2: Retrying libfido2 error 'operation denied'")
+				continue
+			}
+
+			// Handle generic libfido2.Error instances.
+			var fidoErr libfido2.Error
+			if !errors.As(err, &fidoErr) {
+				return err
+			}
+
+			// See https://github.com/Yubico/libfido2/blob/main/src/fido/err.h#L32.
+			switch fidoErr.Code {
+			case 60: // FIDO_ERR_UV_BLOCKED, 0x3c
+				const msg = "" +
+					"The user verification function in your security key is blocked. " +
+					"This is likely due to too many failed authentication attempts. " +
+					"Consult your manufacturer documentation for how to unblock your security key. " +
+					"Alternatively, you may unblock your device by using it in the Web UI."
+				return trace.Wrap(err, msg)
+			case 63: // FIDO_ERR_UV_INVALID, 0x3f
+				log.Debug("FIDO2: Retrying libfido2 error 63")
+				continue
+			default: // Unexpected code.
+				return err
+			}
 		}
-		devs = append(devs, deviceWithInfo{FIDODevice: dev, info: di})
+
+		return fmt.Errorf("max retry attempts reached: %w", err)
 	}
-
-	l := len(devs)
-	if l == 0 {
-		return nil, errors.New("no suitable devices found")
-	}
-	log.Debugf("FIDO2: Found %v suitable devices", l)
-
-	return devs, nil
 }
 
-func selectDevice(
-	ctx context.Context,
-	pin string, devices []deviceWithInfo, deviceCallback deviceCallbackFunc) (deviceWithInfo, bool, error) {
-	callbackWrapper := func(dev FIDODevice, info *deviceInfo, pin string) (requiresPIN bool, err error) {
+func withPINHandler(cb deviceCallbackFunc) pinAwareCallbackFunc {
+	return func(dev FIDODevice, info *deviceInfo, pin string) (requiresPIN bool, err error) {
 		// Attempt to select a device by running "deviceCallback" on it.
 		// For most scenarios this works, saving a touch.
-		err = deviceCallback(dev, info, pin)
+		err = cb(dev, info, pin)
 		switch {
 		case errors.Is(err, libfido2.ErrPinRequired):
 			// Continued below.
@@ -679,66 +658,270 @@ func selectDevice(
 		// mechanism. Let's run a different operation to ask for a touch.
 		requiresPIN = true
 
-		// TODO(codingllama): What we really want here is fido_dev_get_touch_begin.
-		//  Another option is to put the authenticator into U2F mode.
-		const rpID = "7f364cc0-958c-4177-b3ea-b2d8d7f15d4a" // arbitrary, unlikely to collide with a real RP
-		const cdh = "00000000000000000000000000000000"      // "random", size 32
-		_, err = dev.Assertion(rpID, []byte(cdh), nil /* credentials */, "", &libfido2.AssertionOpts{
-			UP: libfido2.True,
-		})
+		err = waitForTouch(dev)
 		if errors.Is(err, libfido2.ErrNoCredentials) {
 			err = nil // OK, selected successfully
 		}
 		return
 	}
+}
+
+func withoutPINHandler(cb deviceCallbackFunc) pinAwareCallbackFunc {
+	return func(dev FIDODevice, info *deviceInfo, pin string) (bool, error) {
+		return false, cb(dev, info, pin)
+	}
+}
+
+// nonInteractiveError tags device errors that happen before user interaction.
+// These are are usually ignored in the context of selecting devices.
+type nonInteractiveError struct {
+	err error
+}
+
+func (e *nonInteractiveError) Error() string {
+	return e.err.Error()
+}
+
+func (e *nonInteractiveError) Is(err error) bool {
+	_, ok := err.(*nonInteractiveError)
+	return ok
+}
+
+func withInteractiveError(filter deviceFilterFunc, cb pinAwareCallbackFunc) pinAwareCallbackFunc {
+	return func(dev FIDODevice, info *deviceInfo, pin string) (bool, error) {
+		filterErr := filter(dev, info)
+		if filterErr == nil {
+			return cb(dev, info, pin)
+		}
+
+		// U2F devices tend to cause problems with the waitForTouch strategy below,
+		// so we filter them silently, as we used to do with all devices in previous
+		// versions.
+		if info.u2f {
+			log.Warnf("FIDO2: Device %v: U2F device filtered due to lack of capabilities", info.path)
+			return false, &nonInteractiveError{filterErr}
+		}
+
+		// Device got filtered out, let's see if the user chooses it and provide a
+		// nice error message.
+		switch waitErr := waitForTouch(dev); {
+		case errors.Is(waitErr, libfido2.ErrKeepaliveCancel):
+			// Device not chosen.
+			return false, &nonInteractiveError{filterErr}
+		case errors.Is(waitErr, libfido2.ErrNoCredentials):
+			// Device chosen, error is useful in this case.
+		default:
+			log.Warnf("FIDO2: Device %v: unexpected wait error: %q", info.path, waitErr)
+		}
+
+		return false, trace.Wrap(filterErr)
+	}
+}
+
+func waitForTouch(dev FIDODevice) error {
+	// TODO(codingllama): What we really want here is fido_dev_get_touch_begin.
+	const rpID = "7f364cc0-958c-4177-b3ea-b2d8d7f15d4a" // arbitrary, unlikely to collide with a real RP
+	const cdh = "00000000000000000000000000000000"      // "random", size 32
+	_, err := dev.Assertion(rpID, []byte(cdh), nil /* credentials */, "", &libfido2.AssertionOpts{
+		UP: libfido2.True,
+	})
+	return err
+}
+
+func findAndSelectDevice(ctx context.Context, filter deviceFilterFunc, deviceCallback pinAwareCallbackFunc) (dev *deviceWithInfo, requiresPIN bool, err error) {
+	innerCtx, innerCancel := context.WithCancel(ctx)
+	// innerCancel handled below.
+
+	type devicesResp struct {
+		devs []*deviceWithInfo
+		err  error
+	}
+	// devicesC transport newly-found devices.
+	// Closed on exit by the device poll goroutine below.
+	devicesC := make(chan devicesResp)
+
+	// Poll for new devices until the user selects one (via touch).
+	// Runs until innerCtx is closed.
+	go func() {
+		defer close(devicesC)
+
+		// knownPaths is retained between findDevices calls so only "new" devices
+		// are returned.
+		knownPaths := make(map[string]struct{})
+
+		ticker := time.NewTicker(FIDO2PollInterval)
+		defer ticker.Stop()
+
+		for {
+			devs, err := findDevices(knownPaths)
+			devicesC <- devicesResp{
+				devs: devs,
+				err:  err,
+			}
+
+			select {
+			case <-innerCtx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
 
 	type selectResp struct {
-		dev         deviceWithInfo
+		dev         *deviceWithInfo
 		requiresPIN bool
 		err         error
 	}
+	selectC := make(chan selectResp)
+	selectGoroutines := 0
 
-	respC := make(chan selectResp)
-	numGoroutines := len(devices)
-	for _, dev := range devices {
-		dev := dev
-		go func() {
-			requiresPIN, err := callbackWrapper(dev, dev.info, pin)
-			respC <- selectResp{
-				dev:         dev,
-				requiresPIN: requiresPIN,
-				err:         err,
+	defer func() {
+		innerCancel() // Cancel all goroutines
+
+		// Collect select goroutines.
+		for selectGoroutines > 0 {
+			<-selectC
+			selectGoroutines--
+		}
+
+		// Empty devicesC, if blocked.
+		for {
+			if _, open := <-devicesC; !open {
+				break
 			}
-		}()
+		}
+	}()
+
+	cb := withInteractiveError(filter, deviceCallback)
+	for {
+		select {
+		// New devices found.
+		case resp := <-devicesC:
+			if resp.err != nil {
+				return nil, false, trace.Wrap(resp.err)
+			}
+			for _, dev := range resp.devs {
+				dev := dev
+				selectGoroutines++
+				go func() {
+					requiresPIN, err := selectDevice(innerCtx, "" /* pin */, dev, cb)
+					selectC <- selectResp{
+						dev:         dev,
+						requiresPIN: requiresPIN,
+						err:         err,
+					}
+				}()
+			}
+
+		// User selected device.
+		case resp := <-selectC:
+			selectGoroutines--
+			if errors.Is(resp.err, &nonInteractiveError{}) {
+				continue
+			}
+			return resp.dev, resp.requiresPIN, trace.Wrap(resp.err)
+
+		// Timed out.
+		case <-ctx.Done():
+			return nil, false, trace.Wrap(ctx.Err())
+		}
+	}
+}
+
+func findDevices(knownPaths map[string]struct{}) ([]*deviceWithInfo, error) {
+	locs, err := fidoDeviceLocations()
+	if err != nil {
+		return nil, trace.Wrap(err, "device locations")
 	}
 
-	// Stop on timeout or first interaction, whatever comes first wins and gets
-	// returned.
-	var resp selectResp
-	select {
-	case <-ctx.Done():
-		resp.err = ctx.Err()
-	case resp = <-respC:
-		numGoroutines--
-	}
-
-	// Cancel ongoing operations and wait for goroutines to complete.
-	for _, dev := range devices {
-		if dev == resp.dev {
+	var devs []*deviceWithInfo
+	for _, loc := range locs {
+		path := loc.Path
+		if _, ok := knownPaths[path]; ok {
 			continue
 		}
-		if err := dev.Cancel(); err != nil {
-			log.WithError(err).Tracef("FIDO2: Device cancel")
+		knownPaths[path] = struct{}{}
+
+		dev, err := fidoNewDevice(path)
+		if err != nil {
+			return nil, trace.Wrap(err, "device %v: open", path)
 		}
-	}
-	for i := 0; i < numGoroutines; i++ {
-		cancelResp := <-respC
-		if err := cancelResp.err; err != nil && !errors.Is(err, libfido2.ErrKeepaliveCancel) {
-			log.WithError(err).Debugf("FIDO2: Device errored on cancel")
+
+		var info *libfido2.DeviceInfo
+		var u2f bool
+		const infoAttempts = 3
+		for i := 0; i < infoAttempts; i++ {
+			info, err = dev.Info()
+			switch {
+			case errors.Is(err, libfido2.ErrNotFIDO2):
+				u2f = true
+			case errors.Is(err, libfido2.ErrTX):
+				// Happens occasionally, let's retry.
+				fallthrough
+			case err != nil:
+				// Unexpected error, retry anyway.
+				// Note that U2F devices fail in a variety of different ways.
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			break // err == nil
 		}
+		if !u2f && info == nil {
+			log.Warnf("FIDO2: Device %v: max info attempts reached, treating as U2F", path)
+			u2f = true
+		}
+		log.Debugf("FIDO2: Info for device %v: %#v", path, info)
+
+		devs = append(devs, &deviceWithInfo{
+			FIDODevice: dev,
+			info:       makeDevInfo(path, info, u2f),
+		})
 	}
 
-	return resp.dev, resp.requiresPIN, trace.Wrap(resp.err)
+	if l := len(devs); l > 0 {
+		log.Debugf("FIDO2: Found %v new devices", l)
+	}
+
+	return devs, nil
+}
+
+func selectDevice(
+	ctx context.Context,
+	pin string, dev *deviceWithInfo, cb pinAwareCallbackFunc) (requiresPIN bool, err error) {
+	// Spin a goroutine to run the callback so we can deal with context
+	// cancellation.
+	done := make(chan struct{})
+	go func() {
+		requiresPIN, err = cb(dev, dev.info, pin)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		log.Debugf("FIDO2: device %v: selected with err=%v", dev.info.path, err)
+	case <-ctx.Done():
+		log.Debugf("FIDO2: device %v: requesting cancel", dev.info.path)
+		if err := dev.Cancel(); err != nil {
+			log.Debugf("FIDO2: device %v: cancel errored: %v", dev.info.path, err)
+		}
+
+		// Give the device a grace period to cancel/cleanup, but do not wait
+		// forever.
+		timer := time.NewTimer(500 * time.Millisecond)
+		defer timer.Stop()
+		select {
+		case <-done:
+		case <-timer.C:
+			log.Warnf("FIDO2: " +
+				"Timed out waiting for device cancels. " +
+				"It's possible some devices are left blinking.")
+		}
+
+		return false, trace.Wrap(ctx.Err())
+	}
+
+	// Returns variables captured by goroutine.
+	return
 }
 
 // deviceInfo contains an aggregate of a device's information and capabilities.
@@ -746,6 +929,7 @@ func selectDevice(
 // https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#authenticatorGetInfo.
 type deviceInfo struct {
 	path                           string
+	u2f                            bool
 	plat                           bool
 	rk                             bool
 	clientPinCapable, clientPinSet bool
@@ -758,8 +942,17 @@ func (di *deviceInfo) uvCapable() bool {
 	return di.uv || di.clientPinSet
 }
 
-func makeDevInfo(path string, info *libfido2.DeviceInfo) *deviceInfo {
-	di := &deviceInfo{path: path}
+func makeDevInfo(path string, info *libfido2.DeviceInfo, u2f bool) *deviceInfo {
+	di := &deviceInfo{
+		path: path,
+		u2f:  u2f,
+	}
+
+	// U2F devices don't respond to dev.Info().
+	if u2f {
+		return di
+	}
+
 	for _, opt := range info.Options {
 		// See
 		// https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#authenticatorGetInfo.

@@ -31,10 +31,14 @@ type Provisioner interface {
 	// UpsertToken adds provisioning tokens for the auth server
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error
 
+	// CreateToken adds provisioning tokens for the auth server
+	CreateToken(ctx context.Context, token types.ProvisionToken) error
+
 	// GetToken finds and returns token by id
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
 
 	// DeleteToken deletes provisioning token
+	// Imlementations must guarantee that this returns trace.NotFound error if the token doesn't exist
 	DeleteToken(ctx context.Context, token string) error
 
 	// DeleteAllTokens deletes all provisioning tokens

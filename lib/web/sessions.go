@@ -26,11 +26,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -44,11 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
 )
 
 // SessionContext is a context associated with a user's
@@ -106,8 +105,8 @@ func (c *SessionContext) RemoveCloser(closer io.Closer) {
 
 // Invalidate invalidates this context by removing the underlying session
 // and closing all underlying closers
-func (c *SessionContext) Invalidate() error {
-	return c.parent.invalidateSession(c)
+func (c *SessionContext) Invalidate(ctx context.Context) error {
+	return c.parent.invalidateSession(ctx, c)
 }
 
 func (c *SessionContext) validateBearerToken(ctx context.Context, token string) error {
@@ -268,22 +267,24 @@ func (c *SessionContext) GetUser() string {
 
 // extendWebSession creates a new web session for this user
 // based on the previous session
-func (c *SessionContext) extendWebSession(ctx context.Context, accessRequestID string, switchback bool) (types.WebSession, error) {
+func (c *SessionContext) extendWebSession(ctx context.Context, req renewSessionRequest) (types.WebSession, error) {
 	session, err := c.clt.ExtendWebSession(ctx, auth.WebSessionReq{
 		User:            c.user,
 		PrevSessionID:   c.session.GetName(),
-		AccessRequestID: accessRequestID,
-		Switchback:      switchback,
+		AccessRequestID: req.AccessRequestID,
+		Switchback:      req.Switchback,
+		ReloadUser:      req.ReloadUser,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return session, nil
 }
 
 // GetAgent returns agent that can be used to answer challenges
 // for the web to ssh connection as well as certificate
-func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
+func (c *SessionContext) GetAgent() (agent.ExtendedAgent, *ssh.Certificate, error) {
 	cert, err := c.GetSSHCertificate()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -296,7 +297,10 @@ func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
 		return nil, nil, trace.Wrap(err, "failed to parse SSH private key")
 	}
 
-	keyring := agent.NewKeyring()
+	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
+	if !ok {
+		return nil, nil, trace.Errorf("unexpected keyring type: %T, expected agent.ExtendedKeyring", keyring)
+	}
 	err = keyring.Add(agent.AddedKey{
 		PrivateKey:  privateKey,
 		Certificate: cert,
@@ -345,7 +349,7 @@ func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromLocalCertificate(cert, c.unsafeCachedAuthClient)
+	accessInfo, err := services.AccessInfoFromLocalCertificate(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -353,7 +357,11 @@ func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.NewAccessChecker(accessInfo, clusterName.GetClusterName()), nil
+	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), c.unsafeCachedAuthClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return accessChecker, nil
 }
 
 // GetProxyListenerMode returns cluster proxy listener mode form cluster networking config.
@@ -551,10 +559,11 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 // AuthWithOTP authenticates the specified user with the given password and OTP token.
 // Returns a new web session if successful.
 func (s *sessionCache) AuthWithOTP(
+	ctx context.Context,
 	user, pass, otpToken string,
 	clientMeta *auth.ForwardedClientMetadata,
 ) (types.WebSession, error) {
-	return s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
+	return s.proxyClient.AuthenticateWebUser(ctx, auth.AuthenticateUserRequest{
 		Username: user,
 		Pass:     &auth.PassCreds{Password: []byte(pass)},
 		OTP: &auth.OTPCreds{
@@ -568,9 +577,9 @@ func (s *sessionCache) AuthWithOTP(
 // AuthWithoutOTP authenticates the specified user with the given password.
 // Returns a new web session if successful.
 func (s *sessionCache) AuthWithoutOTP(
-	user, pass string, clientMeta *auth.ForwardedClientMetadata,
+	ctx context.Context, user, pass string, clientMeta *auth.ForwardedClientMetadata,
 ) (types.WebSession, error) {
-	return s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
+	return s.proxyClient.AuthenticateWebUser(ctx, auth.AuthenticateUserRequest{
 		Username: user,
 		Pass: &auth.PassCreds{
 			Password: []byte(pass),
@@ -580,7 +589,7 @@ func (s *sessionCache) AuthWithoutOTP(
 }
 
 func (s *sessionCache) AuthenticateWebUser(
-	req *client.AuthenticateWebUserRequest, clientMeta *auth.ForwardedClientMetadata,
+	ctx context.Context, req *client.AuthenticateWebUserRequest, clientMeta *auth.ForwardedClientMetadata,
 ) (types.WebSession, error) {
 	authReq := auth.AuthenticateUserRequest{
 		Username:       req.User,
@@ -589,14 +598,14 @@ func (s *sessionCache) AuthenticateWebUser(
 	if req.WebauthnAssertionResponse != nil {
 		authReq.Webauthn = req.WebauthnAssertionResponse
 	}
-	return s.proxyClient.AuthenticateWebUser(authReq)
+	return s.proxyClient.AuthenticateWebUser(ctx, authReq)
 }
 
 // GetCertificateWithoutOTP returns a new user certificate for the specified request.
 func (s *sessionCache) GetCertificateWithoutOTP(
-	c client.CreateSSHCertReq, clientMeta *auth.ForwardedClientMetadata,
+	ctx context.Context, c client.CreateSSHCertReq, clientMeta *auth.ForwardedClientMetadata,
 ) (*auth.SSHLoginResponse, error) {
-	return s.proxyClient.AuthenticateSSHUser(auth.AuthenticateSSHRequest{
+	return s.proxyClient.AuthenticateSSHUser(ctx, auth.AuthenticateSSHRequest{
 		AuthenticateUserRequest: auth.AuthenticateUserRequest{
 			Username: c.User,
 			Pass: &auth.PassCreds{
@@ -604,20 +613,21 @@ func (s *sessionCache) GetCertificateWithoutOTP(
 			},
 			ClientMetadata: clientMeta,
 		},
-		PublicKey:         c.PubKey,
-		CompatibilityMode: c.Compatibility,
-		TTL:               c.TTL,
-		RouteToCluster:    c.RouteToCluster,
-		KubernetesCluster: c.KubernetesCluster,
+		PublicKey:            c.PubKey,
+		CompatibilityMode:    c.Compatibility,
+		TTL:                  c.TTL,
+		RouteToCluster:       c.RouteToCluster,
+		KubernetesCluster:    c.KubernetesCluster,
+		AttestationStatement: c.AttestationStatement,
 	})
 }
 
 // GetCertificateWithOTP returns a new user certificate for the specified request.
 // The request is used with the given OTP token.
 func (s *sessionCache) GetCertificateWithOTP(
-	c client.CreateSSHCertReq, clientMeta *auth.ForwardedClientMetadata,
+	ctx context.Context, c client.CreateSSHCertReq, clientMeta *auth.ForwardedClientMetadata,
 ) (*auth.SSHLoginResponse, error) {
-	return s.proxyClient.AuthenticateSSHUser(auth.AuthenticateSSHRequest{
+	return s.proxyClient.AuthenticateSSHUser(ctx, auth.AuthenticateSSHRequest{
 		AuthenticateUserRequest: auth.AuthenticateUserRequest{
 			Username: c.User,
 			OTP: &auth.OTPCreds{
@@ -626,17 +636,17 @@ func (s *sessionCache) GetCertificateWithOTP(
 			},
 			ClientMetadata: clientMeta,
 		},
-		PublicKey:         c.PubKey,
-		CompatibilityMode: c.Compatibility,
-		TTL:               c.TTL,
-		RouteToCluster:    c.RouteToCluster,
-		KubernetesCluster: c.KubernetesCluster,
+		PublicKey:            c.PubKey,
+		CompatibilityMode:    c.Compatibility,
+		TTL:                  c.TTL,
+		RouteToCluster:       c.RouteToCluster,
+		KubernetesCluster:    c.KubernetesCluster,
+		AttestationStatement: c.AttestationStatement,
 	})
 }
 
 func (s *sessionCache) AuthenticateSSHUser(
-	c client.AuthenticateSSHUserRequest,
-	clientMeta *auth.ForwardedClientMetadata,
+	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *auth.ForwardedClientMetadata,
 ) (*auth.SSHLoginResponse, error) {
 	authReq := auth.AuthenticateUserRequest{
 		Username:       c.User,
@@ -654,13 +664,14 @@ func (s *sessionCache) AuthenticateSSHUser(
 			Token:    c.TOTPCode,
 		}
 	}
-	return s.proxyClient.AuthenticateSSHUser(auth.AuthenticateSSHRequest{
+	return s.proxyClient.AuthenticateSSHUser(ctx, auth.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authReq,
 		PublicKey:               c.PubKey,
 		CompatibilityMode:       c.Compatibility,
 		TTL:                     c.TTL,
 		RouteToCluster:          c.RouteToCluster,
 		KubernetesCluster:       c.KubernetesCluster,
+		AttestationStatement:    c.AttestationStatement,
 	})
 }
 
@@ -683,28 +694,28 @@ func (s *sessionCache) validateSession(ctx context.Context, user, sessionID stri
 	if !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	return s.newSessionContext(user, sessionID)
+	return s.newSessionContext(ctx, user, sessionID)
 }
 
-func (s *sessionCache) invalidateSession(ctx *SessionContext) error {
-	defer ctx.Close()
-	clt, err := ctx.GetClient()
+func (s *sessionCache) invalidateSession(ctx context.Context, scx *SessionContext) error {
+	defer scx.Close()
+	clt, err := scx.GetClient()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Delete just the session - leave the bearer token to linger to avoid
 	// failing a client query still using the old token.
-	err = clt.WebSessions().Delete(context.TODO(), types.DeleteWebSessionRequest{
-		User:      ctx.user,
-		SessionID: ctx.session.GetName(),
+	err = clt.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
+		User:      scx.user,
+		SessionID: scx.session.GetName(),
 	})
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
-	if err := clt.DeleteUserAppSessions(context.TODO(), &proto.DeleteUserAppSessionsRequest{Username: ctx.user}); err != nil {
+	if err := clt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: scx.user}); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.releaseResources(ctx.GetUser(), ctx.session.GetName()); err != nil {
+	if err := s.releaseResources(scx.GetUser(), scx.session.GetName()); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -789,8 +800,8 @@ func (s *sessionCache) upsertSessionContext(user string) *sessionResources {
 }
 
 // newSessionContext creates a new web session context for the specified user/session ID
-func (s *sessionCache) newSessionContext(user, sessionID string) (*SessionContext, error) {
-	session, err := s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
+func (s *sessionCache) newSessionContext(ctx context.Context, user, sessionID string) (*SessionContext, error) {
+	session, err := s.proxyClient.AuthenticateWebUser(ctx, auth.AuthenticateUserRequest{
 		Username: user,
 		Session: &auth.SessionCreds{
 			ID: sessionID,

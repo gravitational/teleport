@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-// Application represents a web app.
+// Application represents a web, TCP or cloud console application.
 type Application interface {
 	// ResourceWithLabels provides common resource methods.
 	ResourceWithLabels
@@ -61,8 +61,14 @@ type Application interface {
 	GetRewrite() *Rewrite
 	// IsAWSConsole returns true if this app is AWS management console.
 	IsAWSConsole() bool
+	// IsTCP returns true if this app represents a TCP endpoint.
+	IsTCP() bool
+	// GetProtocol returns the application protocol.
+	GetProtocol() string
 	// GetAWSAccountID returns value of label containing AWS account ID on this app.
 	GetAWSAccountID() string
+	// GetAWSExternalID returns the AWS External ID configured for this app.
+	GetAWSExternalID() string
 	// Copy returns a copy of this app resource.
 	Copy() *AppV3
 }
@@ -77,23 +83,6 @@ func NewAppV3(meta Metadata, spec AppSpecV3) (*AppV3, error) {
 		return nil, trace.Wrap(err)
 	}
 	return app, nil
-}
-
-// NewAppV3FromLegacyApp creates a new app resource from legacy app struct.
-//
-// DELETE IN 9.0.
-func NewAppV3FromLegacyApp(app *App) (*AppV3, error) {
-	return NewAppV3(Metadata{
-		Name:        app.Name,
-		Description: app.Description,
-		Labels:      app.StaticLabels,
-	}, AppSpecV3{
-		URI:                app.URI,
-		PublicAddr:         app.PublicAddr,
-		DynamicLabels:      app.DynamicLabels,
-		InsecureSkipVerify: app.InsecureSkipVerify,
-		Rewrite:            app.Rewrite,
-	})
 }
 
 // GetVersion returns the app resource version.
@@ -231,12 +220,44 @@ func (a *AppV3) GetRewrite() *Rewrite {
 
 // IsAWSConsole returns true if this app is AWS management console.
 func (a *AppV3) IsAWSConsole() bool {
-	return strings.HasPrefix(a.Spec.URI, constants.AWSConsoleURL)
+	// TODO(greedy52) support region based console URL like:
+	// https://us-east-1.console.aws.amazon.com/
+	for _, consoleURL := range []string{
+		constants.AWSConsoleURL,
+		constants.AWSUSGovConsoleURL,
+		constants.AWSCNConsoleURL,
+	} {
+		if strings.HasPrefix(a.Spec.URI, consoleURL) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsTCP returns true if this app represents a TCP endpoint.
+func (a *AppV3) IsTCP() bool {
+	return strings.HasPrefix(a.Spec.URI, "tcp://")
+}
+
+// GetProtocol returns the application protocol.
+func (a *AppV3) GetProtocol() string {
+	if a.IsTCP() {
+		return "TCP"
+	}
+	return "HTTP"
 }
 
 // GetAWSAccountID returns value of label containing AWS account ID on this app.
 func (a *AppV3) GetAWSAccountID() string {
 	return a.Metadata.Labels[constants.AWSAccountIDLabel]
+}
+
+// GetAWSExternalID returns the AWS External ID configured for this app.
+func (a *AppV3) GetAWSExternalID() string {
+	if a.Spec.AWS == nil {
+		return ""
+	}
+	return a.Spec.AWS.ExternalID
 }
 
 // String returns the app string representation.

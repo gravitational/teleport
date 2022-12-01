@@ -147,8 +147,9 @@ func run() error {
 	if err != nil {
 		return trace.Wrap(err, "Failed analyzing code")
 	}
+	log.Printf("Detected changes: %+v", ch)
 
-	if !ch.Code {
+	if !ch.HasCodeChanges() {
 		log.Println("No code changes detected. Skipping tests.")
 		return nil
 	}
@@ -178,7 +179,7 @@ func run() error {
 	}
 
 	log.Printf("Running unit tests...")
-	err = runUnitTests(args.workspace)
+	err = runUnitTests(args.workspace, ch)
 	if err != nil {
 		return trace.Wrap(err, "unit tests failed")
 	}
@@ -188,14 +189,37 @@ func run() error {
 	return nil
 }
 
-func runUnitTests(workspace string) error {
+func runUnitTests(workspace string, ch changes.Changes) error {
 	enableTests := []string{
 		"TELEPORT_ETCD_TEST=yes",
 		"TELEPORT_XAUTH_TEST=yes",
 		"TELEPORT_BPF_TEST=yes",
 	}
 
-	cmd := exec.Command("make", "test")
+	var targets []string
+	if ch.Code {
+		targets = append(targets, "test-go", "test-sh", "test-api")
+	}
+	if ch.Helm {
+		targets = append(targets, "test-helm")
+	}
+	if ch.CI {
+		targets = append(targets, "test-ci")
+	}
+	if ch.Rust {
+		targets = append(targets, "test-rust")
+	}
+	if ch.Operator {
+		targets = append(targets, "test-operator")
+	}
+
+	if len(targets) == 0 {
+		log.Printf("No tests to run: %+v", ch)
+		return nil
+	}
+
+	log.Printf("Running test targets: %v", strings.Join(targets, " "))
+	cmd := exec.Command("make", targets...)
 	cmd.Dir = workspace
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, enableTests...)

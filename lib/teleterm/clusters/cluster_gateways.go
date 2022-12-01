@@ -19,9 +19,10 @@ package clusters
 import (
 	"context"
 
-	"github.com/gravitational/teleport/lib/teleterm/gateway"
-
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type CreateGatewayParams struct {
@@ -35,6 +36,8 @@ type CreateGatewayParams struct {
 	// LocalPort is the gateway local port
 	LocalPort          string
 	CLICommandProvider gateway.CLICommandProvider
+	TCPPortAllocator   gateway.TCPPortAllocator
+	OnExpiredCert      gateway.OnExpiredCertFunc
 }
 
 // CreateGateway creates a gateway
@@ -44,7 +47,13 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		return nil, trace.Wrap(err)
 	}
 
-	if err := c.ReissueDBCerts(ctx, params.TargetUser, db); err != nil {
+	routeToDatabase := tlsca.RouteToDatabase{
+		ServiceName: db.GetName(),
+		Protocol:    db.GetProtocol(),
+		Username:    params.TargetUser,
+	}
+
+	if err := c.ReissueDBCerts(ctx, routeToDatabase); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -59,8 +68,12 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		CertPath:              c.status.DatabaseCertPathForCluster(c.clusterClient.SiteName, db.GetName()),
 		Insecure:              c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:          c.clusterClient.WebProxyAddr,
-		Log:                   c.Log.WithField("gateway", params.TargetURI),
-	}, params.CLICommandProvider)
+		Log:                   c.Log,
+		CLICommandProvider:    params.CLICommandProvider,
+		TCPPortAllocator:      params.TCPPortAllocator,
+		OnExpiredCert:         params.OnExpiredCert,
+		Clock:                 c.clock,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

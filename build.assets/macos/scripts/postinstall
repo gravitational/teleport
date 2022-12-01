@@ -1,10 +1,6 @@
 #!/bin/sh
 set -eu
 
-# VERSION is dynamically updated when the installer is created.
-# Includes "-v" after edit, eg: "-v1.2.3".
-VERSION=''
-
 main() {
   BIN=/usr/local/bin/
   [ ! -d "$BIN" ] && mkdir -p "$BIN"
@@ -17,7 +13,7 @@ main() {
 
   # Link package to $BIN.
   rm -f "$BIN/tsh"  # in case link exists
-  ln -s "/Applications/tsh$VERSION.app/Contents/MacOS/tsh" "$BIN/tsh"
+  ln -s "/Applications/tsh.app/Contents/MacOS/tsh" "$BIN/tsh"
 }
 
 main "$@"

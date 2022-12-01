@@ -2,7 +2,6 @@
 # Warning to maintainers, any changes to this file that are not specific to the StatefulSet need to also be duplicated
 # in the deployment.yaml file.
 #
-{{- if .Values.storage.enabled }}
 {{- $replicaCount := (coalesce .Values.replicaCount .Values.highAvailability.replicaCount "1") }}
 apiVersion: apps/v1
 kind: StatefulSet
@@ -72,6 +71,10 @@ spec:
       tolerations:
         {{- toYaml .Values.tolerations | nindent 6 }}
       {{- end }}
+{{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+  {{- toYaml .Values.imagePullSecrets | nindent 6 }}
+{{- end }}
 {{- if .Values.initContainers }}
       initContainers: {{- toYaml .Values.initContainers | nindent 6 }}
   {{- if .Values.resources }}
@@ -95,6 +98,11 @@ spec:
           readOnly: true
         - mountPath: /var/lib/teleport
           name: "{{ .Release.Name }}-teleport-data"
+          {{- if .Values.tls.existingCASecretName }}
+        - mountPath: /etc/teleport-tls-ca
+          name: "teleport-tls-ca"
+          readOnly: true
+          {{- end }}
   {{- if .Values.extraVolumeMounts }}
     {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
   {{- end }}
@@ -102,7 +110,7 @@ spec:
 {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
 {{- end }}
-      serviceAccountName: {{ .Values.serviceAccountName | default .Release.Name }}
+      serviceAccountName: {{ template "teleport.serviceAccountName" . }}
       {{- if .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
@@ -113,10 +121,24 @@ spec:
         {{- if .Values.imagePullPolicy }}
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
         {{- end }}
-        {{- if .Values.extraEnv }}
         env:
-          {{- toYaml .Values.extraEnv | nindent 10 }}
-        {{- end }}
+          - name: TELEPORT_REPLICA_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: KUBE_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: RELEASE_NAME
+            value: {{ .Release.Name }}
+          {{- if .Values.tls.existingCASecretName }}
+          - name: SSL_CERT_FILE
+            value: /etc/teleport-tls-ca/ca.pem
+          {{- end }}
+          {{- if .Values.extraEnv }}
+            {{- toYaml .Values.extraEnv | nindent 10 }}
+          {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
         {{- if .Values.insecureSkipProxyTLSVerify }}
@@ -164,8 +186,18 @@ spec:
         - mountPath: /etc/teleport-secrets
           name: "auth-token"
           readOnly: true
+{{- if .Values.storage.enabled }}
         - mountPath: /var/lib/teleport
           name: "{{ .Release.Name }}-teleport-data"
+{{- else }}
+        - mountPath: /var/lib/teleport
+          name: "data"
+{{- end }}
+{{- if .Values.tls.existingCASecretName }}
+        - mountPath: /etc/teleport-tls-ca
+          name: "teleport-tls-ca"
+          readOnly: true
+{{- end }}
 {{- if .Values.extraVolumeMounts }}
   {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
 {{- end }}
@@ -176,9 +208,19 @@ spec:
       - name: "auth-token"
         secret:
           secretName: {{ .Values.secretName }}
+{{- if not .Values.storage.enabled }}
+      - name: "data"
+        emptyDir: {}
+{{- end}}
+{{- if .Values.tls.existingCASecretName }}
+      - name: "teleport-tls-ca"
+        secret:
+          secretName: {{ .Values.tls.existingCASecretName }}
+{{- end }}
 {{- if .Values.extraVolumes }}
   {{- toYaml .Values.extraVolumes | nindent 6 }}
 {{- end }}
+{{- if and .Values.storage.enabled }}
   volumeClaimTemplates:
   - metadata:
       name: "{{ .Release.Name }}-teleport-data"

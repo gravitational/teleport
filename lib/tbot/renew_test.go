@@ -21,6 +21,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	libconfig "github.com/gravitational/teleport/lib/config"
@@ -28,8 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/tlsca"
 	libutils "github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 // TestOnboardViaToken ensures a bot can join using token auth.
@@ -133,7 +134,7 @@ func TestDatabaseRequest(t *testing.T) {
 	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
 
 	dest := botConfig.Destinations[0]
-	dest.Database = &config.DatabaseConfig{
+	dest.Database = &config.Database{
 		Service:  "foo",
 		Database: "bar",
 		Username: "baz",
@@ -161,4 +162,79 @@ func TestDatabaseRequest(t *testing.T) {
 	require.Equal(t, "bar", route.Database)
 	require.Equal(t, "baz", route.Username)
 	require.Equal(t, "mysql", route.Protocol)
+}
+
+func TestAppRequest(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const appName = "foo"
+	log := libutils.NewLoggerForTests()
+	// Make a new auth server.
+	fc, fds := testhelpers.DefaultConfig(t)
+	fc.Apps.Service = libconfig.Service{
+		EnabledFlag: "true",
+	}
+	fc.Apps.Apps = []*libconfig.App{
+		{
+			Name:       appName,
+			PublicAddr: "foo.example.com",
+			URI:        "http://foo.example.com:1234",
+			StaticLabels: map[string]string{
+				"env": "dev",
+			},
+		},
+	}
+	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+
+	// Wait for the app to become available. Sometimes this takes a bit
+	// of time in CI.
+	require.Eventually(t, func() bool {
+		_, err := getApp(ctx, rootClient, appName)
+		return err == nil
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// Create a role to grant access to the app.
+	const roleName = "app-role"
+	role, err := types.NewRole(roleName, types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				"env": utils.Strings{"dev"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, rootClient.UpsertRole(ctx, role))
+
+	// Make and join a new bot instance.
+	botParams := testhelpers.MakeBot(t, rootClient, "test", roleName)
+	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
+
+	dest := botConfig.Destinations[0]
+	dest.App = &config.App{
+		App: appName,
+	}
+
+	// Onboard the bot.
+	b := New(botConfig, log, nil)
+	ident, err := b.getIdentityFromToken()
+	require.NoError(t, err)
+
+	b._client = testhelpers.MakeBotAuthClient(t, fc, ident)
+	b._ident = ident
+
+	impersonatedIdent, err := b.generateImpersonatedIdentity(
+		ctx, ident.X509Cert.NotAfter, dest, []string{roleName},
+	)
+	require.NoError(t, err)
+
+	tlsIdent, err := tlsca.FromSubject(impersonatedIdent.X509Cert.Subject, impersonatedIdent.X509Cert.NotAfter)
+	require.NoError(t, err)
+
+	route := tlsIdent.RouteToApp
+	require.Equal(t, appName, route.Name)
+	require.Equal(t, "foo.example.com", route.PublicAddr)
+	require.NotEmpty(t, route.SessionID)
 }

@@ -26,12 +26,12 @@ allow:
 ```
 
 If this rule was declared in the `deny` section of a role definition, it
-would prohibit users from getting a list of trusted clusters and
+would prohibit users from getting a list of Trusted Clusters and
 sessions. You can see all of the available resources and verbs under the `allow`
 section in the example role configuration below.
 
 To manage cluster roles, a Teleport administrator can use the Web UI or the
-command line using [tctl resource commands](../setup/reference/resources.mdx).
+command line using [tctl resource commands](../reference/resources.mdx).
 To see the list of roles in a Teleport cluster, an administrator can execute:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
@@ -99,22 +99,23 @@ The table below documents the behavior of each option if multiple roles are assi
 | `max_session_ttl` | Max. time to live (TTL) of a user's SSH certificates | The shortest TTL wins |
 | `forward_agent` | Allow SSH agent forwarding | Logical "OR" i.e. if any role allows agent forwarding, it's allowed |
 | `port_forwarding` | Allow TCP port forwarding | Logical "OR" i.e. if any role allows port forwarding, it's allowed |
+| `ssh_file_copy` | Allow SCP/SFTP | Logical "AND" i.e. if all roles allows file copying, it's allowed |
 | `client_idle_timeout` | Forcefully terminate active SSH sessions after an idle interval | The shortest timeout value wins, i.e. the most restrictive value is selected |
 | `disconnect_expired_cert` | Forcefully terminate active SSH sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `max_sessions` | Total number of session channels which can be established across a single SSH connection via Teleport | |
 | `enhanced_recording` | Indicates which events should be recorded by the BFP-based session recorder | |
 | `permit_x11_forwarding` | Allow users to enable X11 forwarding with OpenSSH clients and servers | |
-| `require_session_mfa` | Require additional MFA tap before initiating a session | Logical "OR" i.e. evaluates to "yes" if at least one role requires session MFA |
+| `require_session_mfa` | Enforce per-session MFA or PIV-hardware key restrictions on user login sessions (`no`, `yes`, `hardware_key`, `hardware_key_touch`) | For per-session MFA, Logical "OR" i.e. evaluates to "yes" if at least one role requires session MFA |
 | `lock` | Locking mode (`strict` or `best_effort`) | `strict` wins in case of conflict |
-| `request_access` | Enterprise-only access request strategy (`optional`, `always` or `reason`) | |
-| `request_prompt` | Prompt for the access request "reason" field | |
+| `request_access` | Enterprise-only Access Request strategy (`optional`, `always` or `reason`) | |
+| `request_prompt` | Prompt for the Access Request "reason" field | |
 | `max_connections` | Enterprise-only limit on how many concurrent sessions can be started via Teleport | |
 | `max_kubernetes_connections` | Defines the maximum number of concurrent Kubernetes sessions per user | |
-| `record_session` | Configures session recording behavior | |
+| `record_session` |Defines the [Session recording mode](../reference/audit.mdx#modes).|The strictest value takes precedence.|
 | `desktop_clipboard` | Allow clipboard sharing for desktop sessions | Logical "AND" i.e. evaluates to "yes" if all roles enable clipboard sharing |
-| `pin_source_ip` | Enable source IP pinning for SSH certificates | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
+| `pin_source_ip` | Enable source IP pinning for SSH certificates. **Note:** IP pinning is currently in Preview mode | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `cert_extensions` | Specifies extensions to be included in SSH certificates | |
-| `create_host_user` | Allow users to be automatically created on a host | |
+| `create_host_user` | Allow users to be automatically created on a host |  Logical "AND" i.e. evaluates to "yes" if all roles matching a Node enable host user creation |
 
 ## Preset roles
 
@@ -154,7 +155,7 @@ Label              | `v3` Default   | `v4` and `v5` Default
 ## RBAC for hosts
 
 A Teleport role can also define which hosts (nodes) a user can have access to.
-This works by [labeling nodes](../setup/admin/labels.mdx) and listing
+This works by [labeling nodes](../management/admin/labels.mdx) and listing
 allow/deny labels in a role definition.
 
 Consider the following use case:
@@ -238,13 +239,16 @@ allow:
         - node
       verbs: [list, create, read, update, delete]
     - resources:
-        - app_server
+        - app
       verbs: [list, create, read, update, delete]
     - resources:
         - kube_service
       verbs: [list, create, read, update, delete]
     - resources:
-        - db_server
+        - kube_cluster
+      verbs: [list, create, read, update, delete]
+    - resources:
+        - db
       verbs: [list, create, read, update, delete]
     - resources:
         - windows_desktop
@@ -283,7 +287,7 @@ allow:
 ## RBAC for sessions
 
 It is possible to further limit access to
-[shared sessions](../server-access/guides/tsh.mdx#sharing-sessions) and
+[shared sessions](../connect-your-client/tsh.mdx#sharing-sessions) and
 [session recordings](../architecture/nodes.mdx#ssh-session-recording).
 The examples below illustrate how to restrict session access only for the user
 who created the session.
@@ -353,12 +357,12 @@ have a cluster using the legacy U2F support.
 
 Here is an explanation of the fields used in the `where` and `filter` conditions within this guide.
 
-| Field                      | Description                                         |
-|----------------------------|-----------------------------------------------------|
-| `user.roles`               | The list of roles assigned to a user              |
+| Field                      | Description                                       |
+| -------------------------- | ------------------------------------------------- |
+| `user.spec.roles`          | The list of roles assigned to a user              |
 | `session.participants`     | The list of participants from a session recording |
-| `ssh_session.participants` | The list of participants from an SSH session       |
-| `user.metadata.name`       | The user's name                                     |
+| `ssh_session.participants` | The list of participants from an SSH session      |
+| `user.metadata.name`       | The user's name                                   |
 
-Check out our [predicate language](../setup/reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources)
+Check out our [predicate language](../reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources)
 guide for a more in depth explanation of the language.

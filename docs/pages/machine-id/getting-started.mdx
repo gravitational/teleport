@@ -93,10 +93,14 @@ editor                                                            user:list,crea
 
 Machine ID can join with a token or the [IAM Method](https://goteleport.com/docs/setup/guides/joining-nodes-aws) on AWS.
 
+Assuming that you are using the default `access` role, ensure that you use the 
+`--logins` flag when adding your bot to specify the SSH logins that you wish to 
+allow the bot to access on hosts. For our example, we will be using `root`.
+
 <Tabs>
   <TabItem label="Token-based Joining">
   ```code
-  $ tctl bots add robot --roles=access
+  $ tctl bots add robot --roles=access --logins=root
   ```
   </TabItem>
   <TabItem label="IAM Method">
@@ -135,7 +139,7 @@ Machine ID can join with a token or the [IAM Method](https://goteleport.com/docs
   Next, create the bot user.
 
   ```
-  $ tctl bots add robot --token=iam-token --roles=access
+  $ tctl bots add robot --token=iam-token --roles=access --logins=root
   ```
   </TabItem>
 </Tabs>
@@ -287,14 +291,19 @@ ssh -F /opt/machine-id/ssh_config root@node-name.example.com
 ```
 
 <Admonition type="note" title="Roles must have logins defined">
-  If you see the below error, it means the user you are trying to log in as is
-  not specified under `logins` in the role you are using.
+  The below error can occur when the bot does not have permission to log in to
+  a node as the requested user:
 
   ```code
   $ ssh -F /opt/machine-id/ssh_config root@node-name.example.com
   root@node-name: Permission denied (publickey).
   kex_exchange_identification: Connection closed by remote host
   ```
+  This can happen in two circumstances:
+  - The user you are trying to log in as is not specified under `logins` in the
+   role you are using
+  - If you have used `--logins` when creating the bot user, the role the bot is 
+  impersonating does not have the `{{ internal.logins }}` variable specified.
 
   If you have been following along with the `access` role, do the following.
 

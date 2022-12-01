@@ -19,12 +19,13 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth/touchid"
-	"github.com/gravitational/trace"
-
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	log "github.com/sirupsen/logrus"
+	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 )
 
 // AuthenticatorAttachment allows callers to choose a specific attachment.
@@ -35,6 +36,49 @@ const (
 	AttachmentCrossPlatform
 	AttachmentPlatform
 )
+
+func (a AuthenticatorAttachment) String() string {
+	switch a {
+	case AttachmentAuto:
+		return "auto"
+	case AttachmentCrossPlatform:
+		return "cross-platform"
+	case AttachmentPlatform:
+		return "platform"
+	}
+	return ""
+}
+
+// CredentialInfo holds information about a WebAuthn credential, typically a
+// resident public key credential.
+type CredentialInfo struct {
+	ID   []byte
+	User UserInfo
+}
+
+// UserInfo holds information about a credential owner.
+type UserInfo struct {
+	// UserHandle is the WebAuthn user handle (also referred as user ID).
+	UserHandle []byte
+	Name       string
+}
+
+// LoginPrompt is the user interface for FIDO2Login.
+//
+// Prompts can have remote implementations, thus all methods may error.
+type LoginPrompt interface {
+	// PromptPIN prompts the user for their PIN.
+	PromptPIN() (string, error)
+	// PromptTouch prompts the user for a security key touch.
+	// In certain situations multiple touches may be required (PIN-protected
+	// devices, passwordless flows, etc).
+	PromptTouch() error
+	// PromptCredential prompts the user to choose a credential, in case multiple
+	// credentials are available.
+	// Callers are free to modify the slice, such as by sorting the credentials,
+	// but must return one of the pointers contained within.
+	PromptCredential(creds []*CredentialInfo) (*CredentialInfo, error)
+}
 
 // LoginOpts groups non-mandatory options for Login.
 type LoginOpts struct {
@@ -79,16 +123,23 @@ func Login(
 		user = opts.User
 	}
 
+	if webauthnwin.IsAvailable() {
+		log.Debug("WebAuthnWin: Using windows webauthn for credential assertion")
+		return webauthnwin.Login(ctx, origin, assertion, &webauthnwin.LoginOpts{
+			AuthenticatorAttachment: webauthnwin.AuthenticatorAttachment(attachment),
+		})
+	}
+
 	switch attachment {
 	case AttachmentCrossPlatform:
 		log.Debug("Cross-platform login")
 		return crossPlatformLogin(ctx, origin, assertion, prompt, opts)
 	case AttachmentPlatform:
 		log.Debug("Platform login")
-		return platformLogin(origin, user, assertion)
+		return platformLogin(origin, user, assertion, prompt)
 	default:
 		log.Debug("Attempting platform login")
-		resp, credentialUser, err := platformLogin(origin, user, assertion)
+		resp, credentialUser, err := platformLogin(origin, user, assertion, prompt)
 		if !errors.Is(err, &touchid.ErrAttemptFailed{}) {
 			return resp, credentialUser, trace.Wrap(err)
 		}
@@ -102,18 +153,20 @@ func crossPlatformLogin(
 	ctx context.Context,
 	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
-	if IsFIDO2Available() {
+	if isLibfido2Enabled() {
 		log.Debug("FIDO2: Using libfido2 for assertion")
 		return FIDO2Login(ctx, origin, assertion, prompt, opts)
 	}
 
-	prompt.PromptTouch()
+	if err := prompt.PromptTouch(); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
 	resp, err := U2FLogin(ctx, origin, assertion)
 	return resp, "" /* credentialUser */, err
 }
 
-func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, string, error) {
-	resp, credentialUser, err := touchid.AttemptLogin(origin, user, assertion)
+func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
+	resp, credentialUser, err := touchid.AttemptLogin(origin, user, assertion, ToTouchIDCredentialPicker(prompt))
 	if err != nil {
 		return nil, "", err
 	}
@@ -122,6 +175,18 @@ func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion) (
 			Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
 		},
 	}, credentialUser, nil
+}
+
+// RegisterPrompt is the user interface for FIDO2Register.
+//
+// Prompts can have remote implementations, thus all methods may error.
+type RegisterPrompt interface {
+	// PromptPIN prompts the user for their PIN.
+	PromptPIN() (string, error)
+	// PromptTouch prompts the user for a security key touch.
+	// In certain situations multiple touches may be required (eg, PIN-protected
+	// devices)
+	PromptTouch() error
 }
 
 // Register performs client-side, U2F-compatible, Webauthn registration.
@@ -134,11 +199,30 @@ func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion) (
 func Register(
 	ctx context.Context,
 	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt) (*proto.MFARegisterResponse, error) {
-	if IsFIDO2Available() {
+	if webauthnwin.IsAvailable() {
+		log.Debug("WebAuthnWin: Using windows webauthn for credential creation")
+		return webauthnwin.Register(ctx, origin, cc)
+	}
+
+	if isLibfido2Enabled() {
 		log.Debug("FIDO2: Using libfido2 for credential creation")
 		return FIDO2Register(ctx, origin, cc, prompt)
 	}
 
-	prompt.PromptTouch()
+	if err := prompt.PromptTouch(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return U2FRegister(ctx, origin, cc)
+}
+
+// HasPlatformSupport returns true if the platform supports client-side
+// WebAuthn-compatible logins.
+func HasPlatformSupport() bool {
+	return IsFIDO2Available() || touchid.IsAvailable() || isU2FAvailable()
+}
+
+// IsFIDO2Available returns true if FIDO2 is implemented either via native
+// libfido2 library or Windows WebAuthn API.
+func IsFIDO2Available() bool {
+	return isLibfido2Enabled() || webauthnwin.IsAvailable()
 }

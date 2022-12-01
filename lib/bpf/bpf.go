@@ -19,8 +19,6 @@ limitations under the License.
 
 package bpf
 
-// #cgo LDFLAGS: -ldl
-// #include <stdlib.h>
 import "C"
 
 import (
@@ -34,13 +32,13 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
+
 	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	controlgroup "github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/events"
-
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
 )
 
 //go:embed bytecode
@@ -63,10 +61,10 @@ func NewSessionWatch() SessionWatch {
 	}
 }
 
-func (w *SessionWatch) Get(cgoupID uint64) (ctx *SessionContext, ok bool) {
+func (w *SessionWatch) Get(cgroupID uint64) (ctx *SessionContext, ok bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	ctx, ok = w.watch[cgoupID]
+	ctx, ok = w.watch[cgroupID]
 	return
 }
 
@@ -111,13 +109,17 @@ type Service struct {
 	open *open
 
 	// conn is a BPF programs that hooks connect.
+	// conn is set only when restricted sessions are enabled.
 	conn *conn
 }
 
 // New creates a BPF service.
-func New(config *Config) (BPF, error) {
-	err := config.CheckAndSetDefaults()
-	if err != nil {
+func New(config *Config, restrictedSession *RestrictedSessionConfig) (BPF, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := restrictedSession.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -129,8 +131,7 @@ func New(config *Config) (BPF, error) {
 	}
 
 	// Check if the host can run BPF programs.
-	err = IsHostCompatible()
-	if err != nil {
+	if err := IsHostCompatible(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -173,19 +174,32 @@ func New(config *Config) (BPF, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.conn, err = startConn(*config.NetworkBufferSize)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	log.Debugf("Started enhanced session recording with buffer sizes (command=%v, "+
-		"disk=%v, network=%v) and cgroup mount path: %v. Took %v.",
-		*s.CommandBufferSize, *s.DiskBufferSize, *s.NetworkBufferSize, s.CgroupPath,
-		time.Since(start))
+	if restrictedSession.Enabled {
+		// Load network BPF modules only when required.
+		s.conn, err = startConn(*config.NetworkBufferSize)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		log.Debugf("Started enhanced session recording with buffer sizes (command=%v, "+
+			"disk=%v, network=%v), restricted session (bufferSize=%v) "+
+			"and cgroup mount path: %v. Took %v.",
+			*s.CommandBufferSize, *s.DiskBufferSize, *s.NetworkBufferSize,
+			restrictedSession.EventsBufferSize,
+			s.CgroupPath, time.Since(start))
+
+		go s.processNetworkEvents()
+	} else {
+		log.Debugf("Started enhanced session recording with buffer sizes (command=%v, "+
+			"disk=%v) and cgroup mount path: %v. Took %v.",
+			*s.CommandBufferSize, *s.DiskBufferSize, s.CgroupPath,
+			time.Since(start))
+	}
 
 	// Start pulling events off the perf buffers and emitting them to the
 	// Audit Log.
-	go s.loop()
+	go s.processAccessEvents()
 
 	return s, nil
 }
@@ -197,12 +211,16 @@ func (s *Service) Close() error {
 	// Unload the BPF programs.
 	s.exec.close()
 	s.open.close()
-	s.conn.close()
+	if s.conn != nil {
+		s.conn.close()
+	}
 
 	// Close cgroup service.
-	s.cgroup.Close()
+	if err := s.cgroup.Close(); err != nil {
+		log.WithError(err).Warn("Failed to close cgroup")
+	}
 
-	// Signal to the loop pulling events off the perf buffer to shutdown.
+	// Signal to the processAccessEvents pulling events off the perf buffer to shutdown.
 	s.closeFunc()
 
 	return nil
@@ -254,9 +272,9 @@ func (s *Service) CloseSession(ctx *SessionContext) error {
 	return nil
 }
 
-// loop pulls events off the perf ring buffer, parses them, and emits them to
+// processAccessEvents pulls events off the perf ring buffer, parses them, and emits them to
 // the audit log.
-func (s *Service) loop() {
+func (s *Service) processAccessEvents() {
 	for {
 		select {
 		// Program execution.
@@ -265,10 +283,21 @@ func (s *Service) loop() {
 		// Disk access.
 		case event := <-s.open.events():
 			s.emitDiskEvent(event)
+		case <-s.closeContext.Done():
+			return
+		}
+	}
+}
+
+// processNetworkEvents pulls networks events of the ring buffer and emits them
+// to the audit log.
+func (s *Service) processNetworkEvents() {
+	for {
+		select {
 		// Network access (IPv4).
 		case event := <-s.conn.v4Events():
 			s.emit4NetworkEvent(event)
-		// Network access (IPv4).
+		// Network access (IPv6).
 		case event := <-s.conn.v6Events():
 			s.emit6NetworkEvent(event)
 		case <-s.closeContext.Done():
@@ -301,7 +330,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 
 	switch event.Type {
 	// Args are sent in their own event by execsnoop to save stack space. Store
-	// the args in a ttlmap so they can be retrieved when the return event arrives.
+	// the args in a ttlmap, so they can be retrieved when the return event arrives.
 	case eventArg:
 		var buf []string
 		buffer, ok := s.argsCache.Get(strconv.FormatUint(event.PID, 10))
@@ -333,6 +362,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			},
 			ServerMetadata: apievents.ServerMetadata{
 				ServerID:        ctx.ServerID,
+				ServerHostname:  ctx.ServerHostname,
 				ServerNamespace: ctx.Namespace,
 			},
 			SessionMetadata: apievents.SessionMetadata{
@@ -390,6 +420,7 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 		},
 		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.ServerID,
+			ServerHostname:  ctx.ServerHostname,
 			ServerNamespace: ctx.Namespace,
 		},
 		SessionMetadata: apievents.SessionMetadata{
@@ -422,7 +453,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		return
 	}
 
-	// If the event comes from a unmonitored process/cgroup, don't process it.
+	// If the event comes from an unmonitored process/cgroup, don't process it.
 	ctx, ok := s.watch.Get(event.CgroupID)
 	if !ok {
 		return
@@ -436,12 +467,12 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 
 	// Source.
 	src := make([]byte, 4)
-	binary.LittleEndian.PutUint32(src, uint32(event.SrcAddr))
+	binary.LittleEndian.PutUint32(src, event.SrcAddr)
 	srcAddr := net.IP(src)
 
 	// Destination.
 	dst := make([]byte, 4)
-	binary.LittleEndian.PutUint32(dst, uint32(event.DstAddr))
+	binary.LittleEndian.PutUint32(dst, event.DstAddr)
 	dstAddr := net.IP(dst)
 
 	sessionNetworkEvent := &apievents.SessionNetwork{
@@ -451,6 +482,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		},
 		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.ServerID,
+			ServerHostname:  ctx.ServerHostname,
 			ServerNamespace: ctx.Namespace,
 		},
 		SessionMetadata: apievents.SessionMetadata{
@@ -485,7 +517,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		return
 	}
 
-	// If the event comes from a unmonitored process/cgroup, don't process it.
+	// If the event comes from an unmonitored process/cgroup, don't process it.
 	ctx, ok := s.watch.Get(event.CgroupID)
 	if !ok {
 		return
@@ -520,6 +552,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		},
 		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.ServerID,
+			ServerHostname:  ctx.ServerHostname,
 			ServerNamespace: ctx.Namespace,
 		},
 		SessionMetadata: apievents.SessionMetadata{

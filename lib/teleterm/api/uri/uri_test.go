@@ -18,14 +18,15 @@ package uri_test
 
 import (
 	"fmt"
-	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
-func TestURI(t *testing.T) {
-	testCases := []struct {
+func TestString(t *testing.T) {
+	tests := []struct {
 		in  uri.ResourceURI
 		out string
 	}{
@@ -43,12 +44,88 @@ func TestURI(t *testing.T) {
 		},
 	}
 
-	for _, tt := range testCases {
+	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%v", tt.in), func(t *testing.T) {
 			out := tt.in.String()
-			if !reflect.DeepEqual(out, tt.out) {
-				t.Errorf("out %#v, want %#v", out, tt.out)
-			}
+			require.Equal(t, tt.out, out)
+		})
+	}
+}
+
+func TestParseClusterURI(t *testing.T) {
+	tests := []struct {
+		in  string
+		out uri.ResourceURI
+	}{
+		{
+			"/clusters/cluster.sh",
+			uri.NewClusterURI("cluster.sh"),
+		},
+		{
+			"/clusters/cluster.sh/servers/server1",
+			uri.NewClusterURI("cluster.sh"),
+		},
+		{
+			"/clusters/cluster.sh/leaves/leaf.sh",
+			uri.NewClusterURI("cluster.sh").AppendLeafCluster("leaf.sh"),
+		},
+		{
+			"/clusters/cluster.sh/leaves/leaf.sh/dbs/postgres",
+			uri.NewClusterURI("cluster.sh").AppendLeafCluster("leaf.sh"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			out, err := uri.ParseClusterURI(tt.in)
+			require.NoError(t, err)
+			require.Equal(t, tt.out, out)
+		})
+	}
+}
+
+func TestGetDbName(t *testing.T) {
+	tests := []struct {
+		name string
+		in   uri.ResourceURI
+		out  string
+	}{
+		{
+			name: "returns root cluster db name",
+			in:   uri.NewClusterURI("foo").AppendDB("postgres"),
+			out:  "postgres",
+		},
+		{
+			name: "returns leaf cluster db name",
+			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendDB("postgres"),
+			out:  "postgres",
+		},
+		{
+			name: "returns empty string when given root cluster URI",
+			in:   uri.NewClusterURI("foo"),
+			out:  "",
+		},
+		{
+			name: "returns empty string when given leaf cluster URI",
+			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar"),
+			out:  "",
+		},
+		{
+			name: "returns empty string when given root cluster non-db resource URI",
+			in:   uri.NewClusterURI("foo").AppendKube("k8s"),
+			out:  "",
+		},
+		{
+			name: "returns empty string when given leaf cluster non-db resource URI",
+			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendKube("k8s"),
+			out:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := tt.in.GetDbName()
+			require.Equal(t, tt.out, out)
 		})
 	}
 }
