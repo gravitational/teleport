@@ -65,7 +65,7 @@ The following variables can be used with `logins` and `windows_desktop_logins` f
 
 | Variable | Description |
 | - | - |
-| `{{internal.logins}}` | Substitutes with a value stored in Teleport's own local user database and logins from a root cluster.  For local users that will substitute in the "allowed logins" parameter used in `tctl users add [user] <allowed logins>` command. If the role is within a leaf cluster in [Trusted Clusters](../setup/admin/trustedclusters.mdx) the logins from the root cluster will substitute whether the user is a local user or from a SSO provider. As an example if the user has `ubuntu` user in the root cluster then `ubuntu` will be substituted in the leaf cluster with this variable. |
+| `{{internal.logins}}` | Substituted with a value stored in Teleport's local user database and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the "allowed logins" parameter used in the `tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [Trusted Cluster](../setup/admin/trustedclusters.mdx), Teleport will substitute the logins from the root cluster whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root cluster, then `ubuntu` will be substituted in the leaf cluster with this variable. |
 | `{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, this will be expanded a value of "xyz" claim. |
 
 Both variables above are there to deliver the same benefit: they allow Teleport
