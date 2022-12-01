@@ -285,10 +285,11 @@ func (u *HostUserManagement) createGroupIfNotExist(group string) error {
 }
 
 // isUnknownGroupError returns whether the error from LookupGroup is an unknown group error.
+//
+// LookupGroup is supposed to return an UnknownGroupError, but due to an existing issue
+// may instead return a generic "no such file or directory" error when sssd is installed.
+// See github issue - https://github.com/golang/go/issues/40334
 func isUnknownGroupError(err error, groupName string) bool {
-	// LookupGroup is supposed to return an UnknownGroupError, but due to an existing issue
-	// may instead return a generic "no such file or directory" error when sssd is installed.
-	// Open github issue - https://github.com/golang/go/issues/40334
 	return errors.Is(err, user.UnknownGroupError(groupName)) || strings.HasSuffix(err.Error(), syscall.ENOENT.Error())
 }
 
