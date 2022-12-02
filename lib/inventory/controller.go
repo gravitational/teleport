@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
@@ -36,7 +35,12 @@ import (
 // to the controller in order for it to be able to handle control streams.
 type Auth interface {
 	UpsertNode(context.Context, types.Server) (*types.KeepAlive, error)
+
 	KeepAliveServer(context.Context, types.KeepAlive) error
+
+	GetRawInstance(ctx context.Context, serverID string) (types.Instance, []byte, error)
+
+	CompareAndSwapInstance(ctx context.Context, instance types.Instance, expect []byte) ([]byte, error)
 }
 
 type testEvent string
@@ -51,22 +55,48 @@ const (
 	sshUpsertRetryOk  testEvent = "ssh-upsert-retry-ok"
 	sshUpsertRetryErr testEvent = "ssh-upsert-retry-err"
 
+	instanceHeartbeatOk  testEvent = "instance-heartbeat-ok"
+	instanceHeartbeatErr testEvent = "instance-heartbeat-err"
+
+	instanceCompareFailed testEvent = "instance-compare-failed"
+
 	handlerStart = "handler-start"
 	handlerClose = "handler-close"
 )
 
+// intervalKey is used to uniquely identify the subintervals registered with the interval.MultiInterval
+// instance that we use for managing periodics associated with upstream handles.
+type intervalKey int
+
+const (
+	instanceHeartbeatKey intervalKey = 1 + iota
+	serverKeepAliveKey
+)
+
 type controllerOptions struct {
-	serverKeepAlive  time.Duration
-	testEvents       chan testEvent
-	maxKeepAliveErrs int
+	serverKeepAlive    time.Duration
+	instanceHBInterval time.Duration
+	testEvents         chan testEvent
+	maxKeepAliveErrs   int
+	authID             string
 }
 
 func (options *controllerOptions) SetDefaults() {
+	baseKeepAlive := apidefaults.ServerKeepAliveTTL()
 	if options.serverKeepAlive == 0 {
-		baseKeepAlive := apidefaults.ServerKeepAliveTTL()
 		// use 1.5x standard server keep alive since we use a jitter that
 		// shortens the actual average interval.
 		options.serverKeepAlive = baseKeepAlive + (baseKeepAlive / 2)
+	}
+
+	if options.instanceHBInterval == 0 {
+		// we use 3.5x the server keep alive ttl in order to limit the amount of instance
+		// hbs since they are potentially more costly. 3.5x is arbitrary, but since server expiry
+		// is 10x keepalive TTL under standard configuration, this lets us be certain that we'll
+		// heartbeat at most 3 times within that window, which is a reasonable target
+		// when trying to strike a balance between reliable heartbeating and minimizing the increased
+		// resource utilization incurred by this feature.
+		options.instanceHBInterval = (baseKeepAlive * 3) + (baseKeepAlive / 2)
 	}
 
 	if options.maxKeepAliveErrs == 0 {
@@ -78,9 +108,21 @@ func (options *controllerOptions) SetDefaults() {
 
 type ControllerOption func(c *controllerOptions)
 
+func WithAuthServerID(serverID string) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.authID = serverID
+	}
+}
+
 func withServerKeepAlive(d time.Duration) ControllerOption {
 	return func(opts *controllerOptions) {
 		opts.serverKeepAlive = d
+	}
+}
+
+func withInstanceHBInterval(d time.Duration) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.instanceHBInterval = d
 	}
 }
 
@@ -93,14 +135,16 @@ func withTestEventsChannel(ch chan testEvent) ControllerOption {
 // Controller manages the inventory control streams registered with a given auth instance. Incoming
 // messages are processed by invoking the appropriate methods on the Auth interface.
 type Controller struct {
-	store            *Store
-	auth             Auth
-	serverKeepAlive  time.Duration
-	serverTTL        time.Duration
-	maxKeepAliveErrs int
-	testEvents       chan testEvent
-	closeContext     context.Context
-	cancel           context.CancelFunc
+	store              *Store
+	auth               Auth
+	authID             string
+	serverKeepAlive    time.Duration
+	serverTTL          time.Duration
+	instanceHBInterval time.Duration
+	maxKeepAliveErrs   int
+	testEvents         chan testEvent
+	closeContext       context.Context
+	cancel             context.CancelFunc
 }
 
 // NewController sets up a new controller instance.
@@ -113,20 +157,33 @@ func NewController(auth Auth, opts ...ControllerOption) *Controller {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Controller{
-		store:            NewStore(),
-		serverKeepAlive:  options.serverKeepAlive,
-		serverTTL:        apidefaults.ServerAnnounceTTL,
-		maxKeepAliveErrs: options.maxKeepAliveErrs,
-		auth:             auth,
-		testEvents:       options.testEvents,
-		closeContext:     ctx,
-		cancel:           cancel,
+		store:              NewStore(),
+		serverKeepAlive:    options.serverKeepAlive,
+		serverTTL:          apidefaults.ServerAnnounceTTL,
+		instanceHBInterval: options.instanceHBInterval,
+		maxKeepAliveErrs:   options.maxKeepAliveErrs,
+		auth:               auth,
+		authID:             options.authID,
+		testEvents:         options.testEvents,
+		closeContext:       ctx,
+		cancel:             cancel,
 	}
 }
 
 // RegisterControlStream registers a new control stream with the controller.
 func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) {
-	handle := newUpstreamHandle(stream, hello)
+	// set up ticker with instance HB sub-interval. additional sub-intervals are added as needed.
+	// note that we are using fullJitter on the first duration to spread out initial instance heartbeats
+	// as much as possible. this is intended to mitigate load spikes on auth restart, and is reasonably
+	// safe to do since the instance resource is not directly relied upon for use of any particular teleport
+	// service.
+	ticker := interval.NewMulti(interval.SubInterval[intervalKey]{
+		Key:           instanceHeartbeatKey,
+		Duration:      c.instanceHBInterval,
+		FirstDuration: fullJitter(c.instanceHBInterval),
+		Jitter:        seventhJitter,
+	})
+	handle := newUpstreamHandle(stream, hello, ticker)
 	c.store.Insert(handle)
 	go c.handleControlStream(handle)
 }
@@ -159,14 +216,13 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	defer func() {
 		c.store.Remove(handle)
 		handle.Close() // no effect if CloseWithError was called below
+		handle.ticker.Stop()
 		c.testEvent(handlerClose)
 	}()
-	keepAliveInterval := interval.New(interval.Config{
-		Duration:      c.serverKeepAlive,
-		FirstDuration: utils.HalfJitter(c.serverKeepAlive),
-		Jitter:        retryutils.NewSeventhJitter(),
-	})
-	defer keepAliveInterval.Stop()
+
+	// keepAliveInit tracks wether or not we've initialized the server keepalive sub-interval. we do this lazily
+	// upon receipt of the first heartbeat since not all servers send heartbeats.
+	var keepAliveInit bool
 
 	for {
 		select {
@@ -177,9 +233,19 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				handle.CloseWithError(trace.BadParameter("unexpected upstream hello"))
 				return
 			case proto.InventoryHeartbeat:
-				if err := c.handleHeartbeat(handle, m); err != nil {
+				if err := c.handleHeartbeatMsg(handle, m); err != nil {
 					handle.CloseWithError(err)
 					return
+				}
+				if !keepAliveInit {
+					// this is the first heartbeat, so we need to initialize the keepalive sub-interval
+					handle.ticker.Push(interval.SubInterval[intervalKey]{
+						Key:           serverKeepAliveKey,
+						Duration:      c.serverKeepAlive,
+						FirstDuration: halfJitter(c.serverKeepAlive),
+						Jitter:        seventhJitter,
+					})
+					keepAliveInit = true
 				}
 			case proto.UpstreamInventoryPong:
 				c.handlePong(handle, m)
@@ -188,10 +254,20 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				handle.CloseWithError(trace.BadParameter("unexpected upstream message type %T", m))
 				return
 			}
-		case <-keepAliveInterval.Next():
-			if err := c.handleKeepAlive(handle); err != nil {
-				handle.CloseWithError(err)
-				return
+		case tick := <-handle.ticker.Next():
+			switch tick.Key {
+			case instanceHeartbeatKey:
+				if err := c.heartbeatInstanceState(handle, tick.Time); err != nil {
+					handle.CloseWithError(err)
+					return
+				}
+			case serverKeepAliveKey:
+				if err := c.keepAliveServer(handle, tick.Time); err != nil {
+					handle.CloseWithError(err)
+					return
+				}
+			default:
+				log.Warnf("Unexpected sub-interval key '%v' in control stream handler of server %q (this is a bug).", tick.Key, handle.Hello().ServerID)
 			}
 		case req := <-handle.pingC:
 			// pings require multiplexing, so we need to do the sending from this
@@ -208,6 +284,116 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	}
 }
 
+func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Time) error {
+	tracker := handle.StateTracker()
+	tracker.MU.Lock()
+	defer tracker.MU.Unlock()
+
+	// withoutLock is used to perform backend I/O outside of the tracker lock. use of this
+	// helper rather than a manual lock/unlock is useful if we ever have a panic in backend logic,
+	// since it preserves the original normal panic rather than causing the less helpful and unrecoverable
+	// 'unlock of unlocked mutex' we would otherwise experience.
+	withoutLock := func(fn func()) {
+		tracker.MU.Unlock()
+		defer tracker.MU.Lock()
+		fn()
+	}
+
+	if tracker.LastHeartbeat == nil {
+		// if we don't know the current heartbeat value, either this is our first time heartbeating this
+		// instance, or we had to reset due to a concurrent update.
+
+		var (
+			lastHB    types.Instance
+			lastRawHB []byte
+			err       error
+		)
+		// perform backend I/O outside of lock
+		withoutLock(func() {
+			lastHB, lastRawHB, err = c.auth.GetRawInstance(c.closeContext, handle.Hello().ServerID)
+		})
+		if err != nil && !trace.IsNotFound(err) {
+			log.Warnf("Failed to load resource for instance %q: %v", handle.Hello().ServerID, err)
+			if !tracker.retryHeartbeat {
+				// suppress failure and retry exactly once
+				tracker.retryHeartbeat = true
+				return nil
+			}
+			// we've already retried, problem is less likely to be transient. close the stream.
+			return trace.Wrap(err)
+		}
+		if err == nil {
+			tracker.LastHeartbeat = lastHB
+			tracker.lastRawHeartbeat = lastRawHB
+			// tracker was advertising nil prev state, but prev state was non-nil, so the qualified
+			// control log is invalidated and must be reset. see comments on InstanceStateTracker.QualifiedPendingControlLog
+			// for details.
+			tracker.QualifiedPendingControlLog = nil
+		}
+	}
+
+	instance, err := tracker.nextHeartbeat(now, handle.Hello(), c.authID)
+	if err != nil {
+		log.Warnf("Failed to construct next heartbeat value for instance %q: %v (this is a bug)", handle.Hello().ServerID, err)
+		return trace.Wrap(err)
+	}
+
+	// update expiry values using serverTTL as default resource/log ttl.
+	instance.SyncLogAndResourceExpiry(c.serverTTL)
+
+	// record the length of the pending control logs at the time our heartbeat was
+	// built. since I/O is performed outside of the lock, we need to be able to distinguish
+	// which entries are old when we re-enter the lock.
+	qn := len(tracker.QualifiedPendingControlLog)
+	un := len(tracker.UnqualifiedPendingControlLog)
+
+	var raw []byte
+
+	// perform backend I/O outside of lock
+	withoutLock(func() {
+		raw, err = c.auth.CompareAndSwapInstance(c.closeContext, instance, tracker.lastRawHeartbeat)
+	})
+
+	if err != nil {
+		if trace.IsCompareFailed(err) {
+			// previous hb values are outdated and must be cleared (will be reloaded on next tick).
+			tracker.LastHeartbeat = nil
+			tracker.lastRawHeartbeat = nil
+
+			// tracker was advertising incorrect prev state, so the qualified control log is invalidated
+			// and must be reset. see comments on InstanceStateTracker.QualifiedPendingControlLog for details.
+			tracker.QualifiedPendingControlLog = nil
+
+			log.Debugf("Failed to hb instance %q: %v", handle.Hello().ServerID, err)
+			c.testEvent(instanceCompareFailed)
+			return nil
+		}
+
+		// all other error variants cause us to drop the control stream, so just log the error and
+		// don't bother resetting anything.
+		log.Warnf("Failed to hb instance %q: %v", handle.Hello().ServerID, err)
+		c.testEvent(instanceHeartbeatErr)
+		if !tracker.retryHeartbeat {
+			// suppress failure and retry exactly once
+			tracker.retryHeartbeat = true
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	// trim pending control log elements that have now been successfully written
+	tracker.QualifiedPendingControlLog = tracker.QualifiedPendingControlLog[qn:]
+	tracker.UnqualifiedPendingControlLog = tracker.UnqualifiedPendingControlLog[un:]
+
+	// update 'last heartbeat' values.
+	tracker.LastHeartbeat = instance
+	tracker.lastRawHeartbeat = raw
+	tracker.retryHeartbeat = false
+
+	c.testEvent(instanceHeartbeatOk)
+	return nil
+}
+
 func (c *Controller) handlePong(handle *upstreamHandle, msg proto.UpstreamInventoryPong) {
 	pending, ok := handle.pings[msg.ID]
 	if !ok {
@@ -221,9 +407,8 @@ func (c *Controller) handlePong(handle *upstreamHandle, msg proto.UpstreamInvent
 }
 
 func (c *Controller) handlePingRequest(handle *upstreamHandle, req pingRequest) error {
-	handle.pingCounter++
 	ping := proto.DownstreamInventoryPing{
-		ID: handle.pingCounter,
+		ID: req.id,
 	}
 	start := time.Now()
 	if err := handle.Send(c.closeContext, ping); err != nil {
@@ -232,14 +417,18 @@ func (c *Controller) handlePingRequest(handle *upstreamHandle, req pingRequest) 
 		}
 		return trace.Wrap(err)
 	}
-	handle.pings[handle.pingCounter] = pendingPing{
+	handle.pings[req.id] = pendingPing{
 		start: start,
 		rspC:  req.rspC,
 	}
 	return nil
 }
 
-func (c *Controller) handleHeartbeat(handle *upstreamHandle, hb proto.InventoryHeartbeat) error {
+func (c *Controller) handleHeartbeatMsg(handle *upstreamHandle, hb proto.InventoryHeartbeat) error {
+	// XXX: when adding new services to the heartbeat logic, make sure to also update the
+	// 'icsServiceToMetricName' mapping in auth/grpcserver.go in order to ensure that metrics
+	// start counting the control stream as a registered keepalive stream for that service.
+
 	if hb.SSHServer != nil {
 		if err := c.handleSSHServerHB(handle, hb.SSHServer); err != nil {
 			return trace.Wrap(err)
@@ -265,7 +454,9 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 		sshServer.SetAddr(utils.ReplaceLocalhost(sshServer.GetAddr(), handle.PeerAddr()))
 	}
 
-	sshServer.SetExpiry(time.Now().Add(c.serverTTL).UTC())
+	now := time.Now()
+
+	sshServer.SetExpiry(now.Add(c.serverTTL).UTC())
 
 	lease, err := c.auth.UpsertNode(c.closeContext, sshServer)
 	if err == nil {
@@ -286,10 +477,10 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 	return nil
 }
 
-func (c *Controller) handleKeepAlive(handle *upstreamHandle) error {
+func (c *Controller) keepAliveServer(handle *upstreamHandle, now time.Time) error {
 	if handle.sshServerLease != nil {
 		lease := *handle.sshServerLease
-		lease.Expires = time.Now().Add(c.serverTTL).UTC()
+		lease.Expires = now.Add(c.serverTTL).UTC()
 		if err := c.auth.KeepAliveServer(c.closeContext, lease); err != nil {
 			c.testEvent(sshKeepAliveErr)
 			handle.sshServerKeepAliveErrs++

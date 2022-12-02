@@ -76,6 +76,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
 					types.NewRule(types.KindLicense, RO()),
 					types.NewRule(types.KindDownload, RO()),
+					types.NewRule(types.KindInstance, RO()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -120,6 +121,7 @@ func NewPresetAccessRole() types.Role {
 						Verbs:     []string{types.VerbRead, types.VerbList},
 						Where:     "contains(session.participants, user.metadata.name)",
 					},
+					types.NewRule(types.KindInstance, RO()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},

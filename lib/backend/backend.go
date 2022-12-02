@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"time"
@@ -28,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -103,6 +105,36 @@ func IterateRange(ctx context.Context, bk Backend, startKey []byte, endKey []byt
 		}
 		startKey = nextKey(rslt.Items[limit-1].Key)
 	}
+}
+
+// StreamRange constructs a Stream for the given key range. This helper just
+// uses standard pagination under the hood, lazily loading pages as needed. Streams
+// are currently only used for periodic operations, but if they become more widely
+// used in the future, it may become worthwhile to optimize the streaming of backend
+// items further. Two potential improvements of note:
+//
+// 1. update this helper to concurrently load the next page in the background while
+// items from the current page are being yielded.
+//
+// 2. allow individual backends to expose custom streaming methods s.t. the most performant
+// impl for a given backend may be used.
+//
+func StreamRange(ctx context.Context, bk Backend, startKey, endKey []byte, pageSize int) stream.Stream[Item] {
+	return stream.PageFunc[Item](func() ([]Item, error) {
+		if startKey == nil {
+			return nil, io.EOF
+		}
+		rslt, err := bk.GetRange(ctx, startKey, endKey, pageSize)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if len(rslt.Items) < pageSize {
+			startKey = nil
+		} else {
+			startKey = nextKey(rslt.Items[pageSize-1].Key)
+		}
+		return rslt.Items, nil
+	})
 }
 
 // Batch implements some batch methods

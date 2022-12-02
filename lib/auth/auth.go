@@ -219,7 +219,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	services := &Services{
 		Trust:                 cfg.Trust,
-		Presence:              cfg.Presence,
+		PresenceInternal:      cfg.Presence,
 		Provisioner:           cfg.Provisioner,
 		Identity:              cfg.Identity,
 		Access:                cfg.Access,
@@ -255,7 +255,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Services:        services,
 		Cache:           services,
 		keyStore:        keyStore,
-		inventory:       inventory.NewController(cfg.Presence),
+		inventory:       inventory.NewController(cfg.Presence, inventory.WithAuthServerID(cfg.HostUUID)),
 		traceClient:     cfg.TraceClient,
 		fips:            cfg.FIPS,
 		loadAllCAs:      cfg.LoadAllCAs,
@@ -299,7 +299,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 type Services struct {
 	services.Trust
-	services.Presence
+	services.PresenceInternal
 	services.Provisioner
 	services.Identity
 	services.Access
@@ -2612,15 +2612,94 @@ func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStat
 }
 
 func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
+	const pingAttempt = "ping-attempt"
+	const pingSuccess = "ping-success"
+	const pingFailure = "ping-failure"
+	const maxAttempts = 16
 	stream, ok := a.inventory.GetControlStream(req.ServerID)
 	if !ok {
 		return proto.InventoryPingResponse{}, trace.NotFound("no control stream found for server %q", req.ServerID)
 	}
 
-	d, err := stream.Ping(ctx)
+	id := insecurerand.Uint64()
+
+	if !req.ControlLog {
+		// this ping doesn't pass through the control log, so just execute it immediately.
+		d, err := stream.Ping(ctx, id)
+		return proto.InventoryPingResponse{
+			Duration: d,
+		}, trace.Wrap(err)
+	}
+
+	// matchEntry is used to check if our log entry has been included
+	// in the control log.
+	matchEntry := func(entry types.InstanceControlLogEntry) bool {
+		return entry.Type == pingAttempt && entry.ID == id
+	}
+
+	tracker := stream.StateTracker()
+
+	var included bool
+	for i := 1; i <= maxAttempts; i++ {
+		tracker.WithLock(func() {
+			// check if we've already successfully included the ping entry
+			if tracker.LastHeartbeat != nil {
+				if slices.IndexFunc(tracker.LastHeartbeat.GetControlLog(), matchEntry) >= 0 {
+					included = true
+					return
+				}
+			}
+
+			// if the entry pending already, we just need to wait
+			if slices.IndexFunc(tracker.QualifiedPendingControlLog, matchEntry) >= 0 {
+				return
+			}
+
+			// either this is the first iteration, or the pending control log was reset.
+			tracker.QualifiedPendingControlLog = append(tracker.QualifiedPendingControlLog, types.InstanceControlLogEntry{
+				Type: pingAttempt,
+				ID:   id,
+				Time: time.Now(),
+			})
+			stream.HeartbeatInstance()
+		})
+
+		if included {
+			// entry appeared in control log
+			break
+		}
+
+		// pause briefly, then re-sync our state. note that this strategy is not scalable. control log usage is intended only
+		// for periodic operations. control-log based pings are a mechanism for testing/debugging only, hence the use of a
+		// simple sleep loop.
+		select {
+		case <-time.After(time.Millisecond * 100 * time.Duration(i)):
+		case <-stream.Done():
+			return proto.InventoryPingResponse{}, trace.Errorf("control stream closed during ping attempt")
+		case <-ctx.Done():
+			return proto.InventoryPingResponse{}, trace.Wrap(ctx.Err())
+		}
+	}
+
+	if !included {
+		return proto.InventoryPingResponse{}, trace.LimitExceeded("failed to include ping %d in control log for instance %q (max attempts exceeded)", id, req.ServerID)
+	}
+
+	d, err := stream.Ping(ctx, id)
 	if err != nil {
 		return proto.InventoryPingResponse{}, trace.Wrap(err)
 	}
+
+	tracker.WithLock(func() {
+		tracker.UnqualifiedPendingControlLog = append(tracker.UnqualifiedPendingControlLog, types.InstanceControlLogEntry{
+			Type: pingSuccess,
+			ID:   id,
+			Labels: map[string]string{
+				"duration": fmt.Sprintf("%s", d),
+			},
+		})
+	})
+	stream.HeartbeatInstance()
 
 	return proto.InventoryPingResponse{
 		Duration: d,

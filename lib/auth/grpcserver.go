@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -499,6 +500,12 @@ func (g *GRPCServer) UnstableAssertSystemRole(ctx context.Context, req *proto.Un
 	return &emptypb.Empty{}, nil
 }
 
+// icsServicesToKeepAlives is a helper for translating service names to keepalive names for control-stream
+// purposes. When new services switch to using control-stream based heartbeats, they should be added here.
+var icsServiceToMetricName = map[types.SystemRole]string{
+	types.RoleNode: constants.KeepAliveNode,
+}
+
 func (g *GRPCServer) InventoryControlStream(stream proto.AuthService_InventoryControlStreamServer) error {
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
@@ -512,9 +519,33 @@ func (g *GRPCServer) InventoryControlStream(stream proto.AuthService_InventoryCo
 
 	ics := client.NewUpstreamInventoryControlStream(stream, p.Addr.String())
 
-	if err := auth.RegisterInventoryControlStream(ics); err != nil {
+	hello, err := auth.RegisterInventoryControlStream(ics)
+	if err != nil {
 		return trail.ToGRPC(err)
 	}
+
+	// we use a different name for a service in our metrics than we do in certs/hellos. the subset of
+	// services that currently use ics for heartbeats are registered in the icsServiceToMetricName
+	// mapping for translation.
+	var metricServices []string
+	for _, service := range hello.Services {
+		if name, ok := icsServiceToMetricName[service]; ok {
+			metricServices = append(metricServices, name)
+		}
+	}
+
+	// the heartbeatConnectionsReceived metric counts individual services as individual connections.
+	heartbeatConnectionsReceived.Add(float64(len(metricServices)))
+
+	for _, service := range metricServices {
+		connectedResources.WithLabelValues(service).Inc()
+	}
+
+	defer func() {
+		for _, service := range metricServices {
+			connectedResources.WithLabelValues(service).Dec()
+		}
+	}()
 
 	// hold open the stream until it completes
 	<-ics.Done()
@@ -552,6 +583,32 @@ func (g *GRPCServer) PingInventory(ctx context.Context, req *proto.InventoryPing
 	}
 
 	return &rsp, nil
+}
+
+func (g *GRPCServer) GetInstances(filter *types.InstanceFilter, stream proto.AuthService_GetInstancesServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	instances := auth.GetInstances(stream.Context(), *filter)
+
+	for instances.Next() {
+		instance, ok := instances.Item().(*types.InstanceV1)
+		if !ok {
+			log.Warnf("Skipping unexpected instance type %T, expected %T.", instances.Item(), instance)
+			continue
+		}
+		if err := stream.Send(instance); err != nil {
+			instances.Done()
+			if trace.IsEOF(err) {
+				return nil
+			}
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.Wrap(instances.Done())
 }
 
 func (g *GRPCServer) GetClusterAlerts(ctx context.Context, query *types.GetClusterAlertsRequest) (*proto.GetClusterAlertsResponse, error) {

@@ -544,6 +544,111 @@ message MySQLOptions {
   string ServerVersion = 1 [(gogoproto.jsontag) = "server_version,omitempty"];
 }
 
+// InstanceV1 represents the state of a running teleport instance independent
+// of the specific services that instance exposes.
+message InstanceV1 {
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  InstanceSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+message InstanceSpecV1 {
+  // Version is the version of teleport this instance most recently advertised.
+  string Version = 1 [(gogoproto.jsontag) = "version,omitempty"];
+
+  // Services is the list of active services this instance most recently advertised.
+  repeated string Services = 2 [
+    (gogoproto.casttype) = "SystemRole",
+    (gogoproto.jsontag) = "services,omitemtpy"
+  ];
+
+  // Hostname is the hostname this instance most recently advertised.
+  string Hostname = 3 [(gogoproto.jsontag) = "hostname,omitempty"];
+
+  // AuthID is the ID of the auth server that most recently observed this instance.
+  string AuthID = 4 [(gogoproto.jsontag) = "auth_id,omitempty"];
+
+  // LastSeen is the last time an auth server reported observing this instance.
+  google.protobuf.Timestamp LastSeen = 5 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "last_seen,omitempty"
+  ];
+
+  // ControlLog is the log of recent important instance control events related to this instance. See comments
+  // on the InstanceControlLogEntry type for details.
+  repeated InstanceControlLogEntry ControlLog = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "control_log,omitempty"
+  ];
+}
+
+// InstanceControlLogEntry represents an entry in a given instance's control log. The control log of
+// an instance is protected by CompareAndSwap semantics, allowing entries to function as a means of
+// synchronization as well as recordkeeping. For example, an auth server intending to trigger an upgrade
+// for a given instance can check its control log for 'upgrade-attempt' entries. If no such entry exists,
+// it can attempt to write an 'upgrade-attempt' entry of its own. If that entry successfully writes without
+// hiting a CompareFailed, the auth server knows that no other auth servers will make concurrent upgrade
+// attempts while that entry persists.
+//
+// NOTE: Due to resource size and backend throughput limitations, care should be taken to minimize the
+// use and size of instance control log entries.
+//
+message InstanceControlLogEntry {
+  // Type represents the type of control log entry this is (e.g. 'upgrade-attempt').
+  string Type = 1 [(gogoproto.jsontag) = "type,omitempty"];
+
+  // ID is a random identifier used to assist in uniquely identifying entries. This value may
+  // be unique, or it may be used to associate a collection of related entries (e.g. an upgrade
+  // attempt entry may use the same ID as an associated upgrade failure entry if appropriate).
+  uint64 ID = 2 [(gogoproto.jsontag) = "id,omitempty"];
+
+  // Time is the time at which the event represented by this entry occurred (used in determining
+  // ordering and expiry).
+  google.protobuf.Timestamp Time = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "time,omitempty"
+  ];
+
+  // TTL is an optional custom time to live for this control log entry. Some control log entries
+  // (e.g. an upgrade failure) may require longer than normal TTLs in order to ensure visibility.
+  // If a log entry's TTL results in it having an intended expiry further in the future than the
+  // expiry of the enclosing Instance resource, the instance resource's expiry will be bumped
+  // to accommodate preservation of the log. Because of this fact, custom entry TTLs should be
+  // used sparingly, as excess usage could result in unexpected backend growth for high churn
+  // clusters.
+  int64 TTL = 4 [
+    (gogoproto.jsontag) = "ttl,omitempty",
+    (gogoproto.casttype) = "time.Duration"
+  ];
+
+  // Labels is an arbitrary collection of key-value pairs. The expected labels are determined by the
+  // type of the entry. Use of labels is preferable to adding new fields in some cases in order to
+  // preserve fields across auth downgrades (this is mostly relevant for the version-control system).
+  map<string, string> Labels = 5 [(gogoproto.jsontag) = "labels,omitempty"];
+}
+
+// InstanceFilter matches instance resources.
+message InstanceFilter {
+  // ServerID matches exactly one instance by server ID if specified.
+  string ServerID = 1;
+
+  // Version matches instance version if specified.
+  string Version = 2;
+
+  // Services matches the instance services if specified. Note that this field matches all instances which
+  // expose *at least* one of the listed services. This is in contrast to service matching in version
+  // directives which match instances that expose a *at most* the listed services.
+  repeated string Services = 3 [(gogoproto.casttype) = "SystemRole"];
+}
+
 // ServerV2 represents a Node, App, Database, Proxy or Auth server in a Teleport cluster.
 message ServerV2 {
   option (gogoproto.goproto_stringer) = false;

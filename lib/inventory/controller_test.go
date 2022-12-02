@@ -17,6 +17,7 @@ limitations under the License.
 package inventory
 
 import (
+	"bytes"
 	"context"
 	"sync"
 	"testing"
@@ -29,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type fakeAuth struct {
@@ -42,6 +44,12 @@ type fakeAuth struct {
 
 	expectAddr      string
 	unexpectedAddrs int
+
+	failGetRawInstance         int
+	failCompareAndSwapInstance int
+
+	lastInstance    types.Instance
+	lastRawInstance []byte
 }
 
 func (a *fakeAuth) UpsertNode(_ context.Context, server types.Server) (*types.KeepAlive, error) {
@@ -71,12 +79,48 @@ func (a *fakeAuth) KeepAliveServer(_ context.Context, _ types.KeepAlive) error {
 	return a.err
 }
 
-// TestControllerBasics verifies basic expected behaviors for a single control stream.
-func TestControllerBasics(t *testing.T) {
+func (a *fakeAuth) GetRawInstance(ctx context.Context, serverID string) (types.Instance, []byte, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.failGetRawInstance > 0 {
+		a.failGetRawInstance--
+		return nil, nil, trace.Errorf("get raw instance failed as test condition")
+	}
+	if a.lastRawInstance == nil {
+		return nil, nil, trace.NotFound("no instance in fake/test auth")
+	}
+	return a.lastInstance, a.lastRawInstance, nil
+}
+
+func (a *fakeAuth) CompareAndSwapInstance(ctx context.Context, instance types.Instance, expect []byte) ([]byte, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.failCompareAndSwapInstance > 0 {
+		a.failCompareAndSwapInstance--
+		return nil, trace.Errorf("cas instance failed as test condition")
+	}
+	if !bytes.Equal(a.lastRawInstance, expect) {
+		return nil, trace.CompareFailed("expect value does not match")
+	}
+
+	a.lastInstance = instance.Clone()
+	var err error
+	a.lastRawInstance, err = utils.FastMarshal(instance)
+	if err != nil {
+		panic("fastmarshal of instance should be infallible")
+	}
+	return a.lastRawInstance, nil
+}
+
+// TestSSHServerBasics verifies basic expected behaviors for a single control stream heartbeating
+// an ssh service.
+func TestSSHServerBasics(t *testing.T) {
 	const serverID = "test-server"
 	const zeroAddr = "0.0.0.0:123"
 	const peerAddr = "1.2.3.4:456"
 	const wantAddr = "1.2.3.4:123"
+
+	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -174,8 +218,9 @@ func TestControllerBasics(t *testing.T) {
 	// limit time of ping call
 	pingCtx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
+
 	// execute ping
-	_, err = handle.Ping(pingCtx)
+	_, err = handle.Ping(pingCtx, 1)
 	require.NoError(t, err)
 
 	// set up to induce enough consecutive errors to cause stream closure
@@ -221,6 +266,239 @@ func TestControllerBasics(t *testing.T) {
 	unexpectedAddrs := auth.unexpectedAddrs
 	auth.mu.Unlock()
 	require.Zero(t, unexpectedAddrs)
+}
+
+// TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
+func TestInstanceHeartbeat(t *testing.T) {
+	const serverID = "test-instance"
+	const peerAddr = "1.2.3.4:456"
+	const includeAttempts = 16
+
+	t.Parallel()
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+
+	controller := NewController(
+		auth,
+		withInstanceHBInterval(time.Millisecond*200),
+		withTestEventsChannel(events),
+	)
+	defer controller.Close()
+
+	// set up fake in-memory control stream
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleNode},
+	})
+
+	// verify that control stream handle is now accessible
+	handle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// verify that instance heartbeat succeeds
+	awaitEvents(t, events,
+		expect(instanceHeartbeatOk),
+		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
+	)
+
+	auth.mu.Lock()
+	auth.lastInstance.AppendControlLog(types.InstanceControlLogEntry{
+		Type: "concurrent-test-event",
+		ID:   1,
+		Time: time.Now(),
+	})
+	auth.lastRawInstance, _ = utils.FastMarshal(auth.lastInstance)
+	auth.mu.Unlock()
+
+	// wait for us to hit CompareFailed
+	awaitEvents(t, events,
+		expect(instanceCompareFailed),
+		deny(instanceHeartbeatErr, handlerClose),
+	)
+
+	// expect that we immediately recover on next iteration
+	awaitEvents(t, events,
+		expect(instanceHeartbeatOk),
+		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
+	)
+
+	// attempt qualified event inclusion
+	tracker := handle.StateTracker()
+	var included bool
+	for i := 0; i < includeAttempts; i++ {
+		tracker.WithLock(func() {
+			// check if we've already successfully included the ping entry
+			if tracker.LastHeartbeat != nil {
+				for _, entry := range tracker.LastHeartbeat.GetControlLog() {
+					if entry.Type == "qualified" && entry.ID == 2 {
+						included = true
+						return
+					}
+				}
+			}
+			// check if the ping entry is in the pinding log
+			for _, entry := range tracker.QualifiedPendingControlLog {
+				if entry.Type == "qualified" && entry.ID == 2 {
+					return
+				}
+			}
+			tracker.QualifiedPendingControlLog = append(tracker.QualifiedPendingControlLog, types.InstanceControlLogEntry{
+				Type: "qualified",
+				ID:   2,
+			})
+			handle.HeartbeatInstance()
+		})
+
+		if included {
+			break
+		}
+
+		awaitEvents(t, events,
+			expect(instanceHeartbeatOk),
+			deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
+		)
+	}
+
+	require.True(t, included)
+
+	// attempt unqualified event inclusion
+	tracker.WithLock(func() {
+		tracker.UnqualifiedPendingControlLog = append(tracker.UnqualifiedPendingControlLog, types.InstanceControlLogEntry{
+			Type: "unqualified",
+			ID:   3,
+		})
+		handle.HeartbeatInstance()
+	})
+	included = false
+	for i := 0; i < includeAttempts; i++ {
+		awaitEvents(t, events,
+			expect(instanceHeartbeatOk),
+			deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
+		)
+		tracker.WithLock(func() {
+			if tracker.LastHeartbeat != nil {
+				for _, entry := range tracker.LastHeartbeat.GetControlLog() {
+					if entry.Type == "unqualified" && entry.ID == 3 {
+						included = true
+						return
+					}
+				}
+			}
+		})
+		if included {
+			break
+		}
+	}
+
+	require.True(t, included)
+
+	// set up single failure of CAS. stream should recover.
+	auth.mu.Lock()
+	auth.failCompareAndSwapInstance = 1
+	auth.mu.Unlock()
+
+	// verify that heartbeat error occurs
+	awaitEvents(t, events,
+		expect(instanceHeartbeatErr),
+		deny(instanceCompareFailed, handlerClose),
+	)
+
+	// verify that recovery happens
+	awaitEvents(t, events,
+		expect(instanceHeartbeatOk),
+		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
+	)
+
+	var unqualifiedCount int
+	// confirm that qualified pending control log is reset on failed CompareAndSwap but
+	// unqualified pending control log is not.
+	for i := 0; i < includeAttempts; i++ {
+		tracker.WithLock(func() {
+			if i%2 == 0 {
+				tracker.QualifiedPendingControlLog = append(tracker.QualifiedPendingControlLog, types.InstanceControlLogEntry{
+					Type: "never",
+					ID:   4,
+				})
+			} else {
+				unqualifiedCount++
+				tracker.UnqualifiedPendingControlLog = append(tracker.UnqualifiedPendingControlLog, types.InstanceControlLogEntry{
+					Type: "always",
+					ID:   uint64(unqualifiedCount),
+				})
+			}
+			// inject concurrent update to cause CompareAndSwap to fail. we do this while the tracker
+			// lock is held to prevent concurrent injection of the qualified control log event.
+			auth.mu.Lock()
+			auth.lastInstance.AppendControlLog(types.InstanceControlLogEntry{
+				Type: "concurrent-test-event",
+				ID:   1,
+				Time: time.Now(),
+			})
+			auth.lastRawInstance, _ = utils.FastMarshal(auth.lastInstance)
+			auth.mu.Unlock()
+			handle.HeartbeatInstance()
+		})
+
+		// wait to hit CompareFailed.
+		awaitEvents(t, events,
+			expect(instanceCompareFailed),
+			deny(instanceHeartbeatErr, handlerClose),
+		)
+
+		// wait for recovery.
+		awaitEvents(t, events,
+			expect(instanceHeartbeatOk),
+			deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
+		)
+	}
+
+	// verify that none of the qualified events were ever heartbeat because
+	// a reset always occurred.
+	var unqualifiedIncludes int
+	tracker.WithLock(func() {
+		require.NotNil(t, tracker.LastHeartbeat)
+		for _, entry := range tracker.LastHeartbeat.GetControlLog() {
+			require.NotEqual(t, entry.Type, "never")
+			if entry.Type == "always" {
+				unqualifiedIncludes++
+			}
+		}
+	})
+	require.Equal(t, unqualifiedCount, unqualifiedIncludes)
+
+	// set up double failure of CAS. stream should not recover.
+	auth.mu.Lock()
+	auth.failCompareAndSwapInstance = 2
+	auth.mu.Unlock()
+
+	// expect failure and handle closure
+	awaitEvents(t, events,
+		expect(instanceHeartbeatErr, handlerClose),
+	)
+
+	// verify that closure propagates to server and client side interfaces
+	closeTimeout := time.After(time.Second * 10)
+	select {
+	case <-handle.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+	select {
+	case <-downstream.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+
+	// verify that control log entries survived the above sequence
+	auth.mu.Lock()
+	logSize := len(auth.lastInstance.GetControlLog())
+	auth.mu.Unlock()
+	require.Greater(t, logSize, 2)
 }
 
 type eventOpts struct {

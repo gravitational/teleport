@@ -106,7 +106,7 @@ type InitConfig struct {
 	Trust services.Trust
 
 	// Presence service is a discovery and heartbeat tracker
-	Presence services.Presence
+	Presence services.PresenceInternal
 
 	// Provisioner is a service that keeps track of provisioning tokens
 	Provisioner services.Provisioner
