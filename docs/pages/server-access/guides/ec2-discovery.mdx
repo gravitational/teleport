@@ -244,6 +244,7 @@ Discovery Service must include the `AmazonSSMManagedInstanceCore` IAM policy
 in order to receive commands from the Discovery Service.
 
 This policy includes the following permissions:
+
 ```js
 {
     "Version": "2012-10-17",
@@ -295,13 +296,10 @@ This policy includes the following permissions:
 }
 ```
 
-
 Once Teleport is configured for discovery, it can be started and EC2 instances
 matching the tags specified in the AWS section will begin to be added to the
 Teleport cluster automatically. You can start Teleport now, or follow the next
 section to customize the Teleport installation script first.
-
-
 
 ## Step 6/6. [Optional] Customize the default installer script
 
