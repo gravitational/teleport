@@ -398,7 +398,7 @@ func TestEC2Labels(t *testing.T) {
 		// dedupClusters is required because GetKubernetesServers returns duplicated servers
 		// because it lists the KindKubeServer and KindKubeService.
 		// We must remove this once legacy heartbeat is removed.
-		// DELETE IN 12.0.0
+		// DELETE IN 13.0.0
 		var dedupClusters []types.KubeServer
 		dedup := map[string]struct{}{}
 		for _, kube := range kubes {

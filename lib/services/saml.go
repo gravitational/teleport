@@ -103,6 +103,10 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
 	if rg != nil {
 		for _, mapping := range sc.GetAttributesToRoles() {
 			for _, role := range mapping.Roles {
+				if utils.ContainsExpansion(role) {
+					// Role is a template so we cannot check for existence of that literal name.
+					continue
+				}
 				_, err := rg.GetRole(context.Background(), role)
 				switch {
 				case trace.IsNotFound(err):

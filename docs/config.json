@@ -239,7 +239,8 @@
           "entries": [
             {
               "title": "GitHub SSO",
-              "slug": "/access-controls/sso/github-sso/"
+              "slug": "/access-controls/sso/github-sso/",
+              "forScopes": ["enterprise", "cloud", "oss"]
             },
             {
               "title": "Azure Active Directory (AD)",
@@ -327,6 +328,11 @@
             {
               "title": "Email",
               "slug": "/access-controls/access-request-plugins/ssh-approval-email/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Discord",
+              "slug": "/access-controls/access-request-plugins/ssh-approval-discord/",
               "forScopes": ["enterprise", "cloud"]
             }
           ]
@@ -722,6 +728,10 @@
             {
               "title": "Azure",
               "slug": "/kubernetes-access/discovery/azure/"
+            },
+            {
+              "title": "Google Cloud",
+              "slug": "/kubernetes-access/discovery/google-cloud/"
             }
           ]
         }

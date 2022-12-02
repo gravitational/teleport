@@ -416,13 +416,14 @@ auth_service:
         - "auth:yyyy"
 
     # Optional setting for configuring session recording. Possible values are:
-    #    "node"      : sessions will be recorded on the node level  (the
-    #                  default)
+    #    "node"      : (default) sessions will be recorded on the node 
+    #                  and periodically cleaned up after they are uploaded 
+    #                  to the storage service.
     #    "node-sync" : session recordings will be streamed from
     #                  node -> auth -> storage service without being stored on
     #                  disk at all.
-    #    "proxy"     : recording on the proxy level, see "Recording Proxy Mode"
-    #                  (https://goteleport.com/docs/architecture/proxy/#recording-proxy-mode).
+    #    "proxy"     : sessions will be recorded on the proxy and periodically 
+    #                  cleaned up after they are uploaded to the storage service.
     #    "proxy-sync : session recordings will be streamed from
     #                  proxy -> auth -> storage service without being stored on
     #                  disk at all.
@@ -557,9 +558,8 @@ ssh_service:
       command: ['/bin/uname', '-p']
       period: 1h0m0s
 
-    # Enables reading ~/.tsh/environment before creating a session.
-    # By default it's set to false can be set true here or through the
-    # command-line flag.
+    # Enables reading ~/.tsh/environment on the server before creating a session.
+    # Disabled by default. Can be enabled here or via the `--permit-user-env` flag.
     permit_user_env: false
 
     # Disables automatic creation of host users on this SSH node.

@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	clients "github.com/gravitational/teleport/lib/cloud"
+	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -2011,14 +2012,15 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		OnReconcile: p.OnReconcile,
 		LockWatcher: lockWatcher,
 		CloudClients: &clients.TestCloudClients{
-			STS:            &cloud.STSMock{},
-			RDS:            &cloud.RDSMock{},
-			Redshift:       &cloud.RedshiftMock{},
-			ElastiCache:    &cloud.ElastiCacheMock{},
-			MemoryDB:       &cloud.MemoryDBMock{},
-			SecretsManager: secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
-			IAM:            &cloud.IAMMock{},
-			GCPSQL:         p.GCPSQL,
+			STS:                &cloud.STSMock{},
+			RDS:                &cloud.RDSMock{},
+			Redshift:           &cloud.RedshiftMock{},
+			RedshiftServerless: &cloudtest.RedshiftServerlessMock{},
+			ElastiCache:        &cloud.ElastiCacheMock{},
+			MemoryDB:           &cloud.MemoryDBMock{},
+			SecretsManager:     secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
+			IAM:                &cloud.IAMMock{},
+			GCPSQL:             p.GCPSQL,
 		},
 	})
 	require.NoError(t, err)

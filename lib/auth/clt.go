@@ -770,12 +770,6 @@ func (c *Client) CompareAndSwapUser(ctx context.Context, new, expected types.Use
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// ChangePassword updates users password based on the old password.
-func (c *Client) ChangePassword(req services.ChangePasswordReq) error {
-	_, err := c.PutJSON(context.TODO(), c.Endpoint("users", req.User, "web", "password"), req)
-	return trace.Wrap(err)
-}
-
 // ExtendWebSession creates a new web session for a user based on another
 // valid web session
 func (c *Client) ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error) {
@@ -879,13 +873,13 @@ func (c *Client) GenerateHostCert(
 
 // ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
 func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
-	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
+	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "requests", "validate"), ValidateOIDCAuthCallbackReq{
 		Query: q,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var rawResponse *oidcAuthRawResponse
+	var rawResponse *OIDCAuthRawResponse
 	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1448,7 +1442,7 @@ type IdentityService interface {
 	GetUsers(withSecrets bool) ([]types.User, error)
 
 	// ChangePassword changes user password
-	ChangePassword(req services.ChangePasswordReq) error
+	ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error
 
 	// GenerateToken creates a special provisioning token for a new SSH server
 	// that is valid for ttl period seconds.
