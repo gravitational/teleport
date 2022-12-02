@@ -1540,7 +1540,7 @@ type AWSRoleARNMatcher struct {
 	RoleARN string
 }
 
-// Match matches database account name against provided role and condition.
+// Match matches AWS role ARN against provided role and condition.
 func (m *AWSRoleARNMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
 	match, _ := MatchAWSRoleARN(role.GetAWSRoleARNs(condition), m.RoleARN)
 	return match, nil
@@ -1556,7 +1556,7 @@ type AzureIdentityMatcher struct {
 	Identity string
 }
 
-// Match matches database account name against provided role and condition.
+// Match matches Azure identity against provided role and condition.
 func (m *AzureIdentityMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
 	match, _ := MatchAzureIdentity(role.GetAzureIdentities(condition), m.Identity)
 	return match, nil

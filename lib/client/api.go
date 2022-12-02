@@ -2738,12 +2738,15 @@ func (tc *TeleportClient) CreateAppSession(ctx context.Context, req types.Create
 	return proxyClient.CreateAppSession(ctx, req)
 }
 
-// GetAppSession creates a new application access session.
+// GetAppSession returns an existing application access session.
 func (tc *TeleportClient) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/GetAppSession",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("session", req.SessionID),
+		),
 	)
 	defer span.End()
 
