@@ -29,7 +29,7 @@ import (
 
 // clusterKubesGet returns a list of kube clusters in a form the UI can present.
 func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := ctx.GetUserClient(site)
+	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -57,7 +57,7 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 
 // clusterDatabasesGet returns a list of db servers in a form the UI can present.
 func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := ctx.GetUserClient(site)
+	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -92,7 +92,7 @@ func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.BadParameter("database name is required")
 	}
 
-	clt, err := ctx.GetUserClient(site)
+	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -127,7 +127,7 @@ func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p h
 
 // clusterDesktopsGet returns a list of desktops in a form the UI can present.
 func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := ctx.GetUserClient(site)
+	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -153,7 +153,7 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 func (h *Handler) clusterDesktopServicesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of desktop services.
-	clt, err := ctx.GetUserClient(site)
+	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -177,7 +177,7 @@ func (h *Handler) clusterDesktopServicesGet(w http.ResponseWriter, r *http.Reque
 
 // getDesktopHandle returns a desktop.
 func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := ctx.GetUserClient(site)
+	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -219,7 +219,7 @@ func (h *Handler) desktopIsActive(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := ctx.GetUserClient(site)
+	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

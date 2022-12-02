@@ -57,7 +57,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		namespace:      defaults.Namespace,
 	}
 
-	clt, err := ctx.GetUserClient(site)
+	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
