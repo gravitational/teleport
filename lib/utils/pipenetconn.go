@@ -111,6 +111,7 @@ func (nc *PipeNetConn) SetWriteDeadline(t time.Time) error {
 // the synchronous nature of net.Pipe causes it to deadlock when attempting to perform
 // TLS or SSH handshakes.
 func DualPipeNetConn(srcAddr net.Addr, dstAddr net.Addr) (net.Conn, net.Conn, error) {
+	// File descriptor ownership is transfer to the net.FileConn created below.
 	fds, err := syscall.Socketpair(syscall.AF_LOCAL, syscall.SOCK_STREAM, 0)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -128,6 +129,8 @@ func DualPipeNetConn(srcAddr net.Addr, dstAddr net.Addr) (net.Conn, net.Conn, er
 		return nil, nil, trace.NewAggregate(err, client.Close())
 	}
 
+	// By passing the net.FileConn as closers we are ensuring that when
+	// the connection is closed the file descriptors will be cleaned up.
 	serverConn := NewPipeNetConn(server, server, server, dstAddr, srcAddr)
 	clientConn := NewPipeNetConn(client, client, client, srcAddr, dstAddr)
 
