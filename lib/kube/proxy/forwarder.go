@@ -807,7 +807,7 @@ func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
 	f.log.Debugf("Using async streamer for session.")
 	dir := filepath.Join(
 		f.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, apidefaults.Namespace,
+		events.StreamingSessionsDir, apidefaults.Namespace,
 	)
 	fileStreamer, err := filesessions.NewStreamer(dir)
 	if err != nil {

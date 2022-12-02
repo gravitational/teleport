@@ -212,7 +212,16 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 			testCtx.kubeServer.DataDir,
 			teleport.LogsDir,
 			teleport.ComponentUpload,
-			events.StreamingLogsDir,
+			events.StreamingSessionsDir,
+			apidefaults.Namespace,
+		), os.ModePerm)
+	require.NoError(t, err)
+	err = os.MkdirAll(
+		filepath.Join(
+			testCtx.kubeServer.DataDir,
+			teleport.LogsDir,
+			teleport.ComponentUpload,
+			events.CorruptedSessionsDir,
 			apidefaults.Namespace,
 		), os.ModePerm)
 	require.NoError(t, err)
