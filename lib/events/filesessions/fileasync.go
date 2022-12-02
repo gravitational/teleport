@@ -92,6 +92,13 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if err := os.MkdirAll(cfg.ScanDir, teleport.SharedDirMode); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	if err := os.MkdirAll(cfg.CorruptedDir, teleport.SharedDirMode); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+
 	uploader := &Uploader{
 		cfg: cfg,
 		log: log.WithFields(log.Fields{
