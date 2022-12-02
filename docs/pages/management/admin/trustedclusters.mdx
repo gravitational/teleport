@@ -125,7 +125,7 @@ how to set up this cluster, see one of our
 
 (!docs/pages/includes/permission-warning.mdx!)
 
-## Step 1/5. Prepare your environment
+## Step 1/6. Prepare your environment
 
 In this guide, we will enable users of your root cluster to SSH into the
 Teleport Node in your leaf cluster as the user `visitor`. First, we will create
@@ -249,7 +249,7 @@ $ tctl create -f user.yaml
 In the next section, we will allow users on the root cluster to access your Node
 while assuming the `visitor` role.
 
-## Step 2/5. Establish trust between clusters
+## Step 2/6. Establish trust between clusters
 
 Teleport establishes trust between the root cluster and a leaf cluster using
 a **join token**. 
@@ -576,25 +576,6 @@ Here is an example of creating trust between a leaf and a root node.
 ![Tunnels](../../../img/trusted-clusters/setting-up-trust.png)
 </Details>
 
-<Details title="Updating your Trusted Cluster role mapping">
-
-To update the role map for a Trusted Cluster, run the following commands on the
-leaf cluster.
-
-First, remove the cluster:
-
-```code
-$ tctl rm tc/root-cluster
-```
-
-When this is complete, we can re-create the cluster:
-
-```code
-$ tctl create root-user-updated-role.yaml
-```
-
-</Details>
-
 Log out of the leaf cluster and log back in to the root cluster. When you run
 `tsh clusters`, you should see listings for both the root cluster and the leaf
 cluster:
@@ -621,7 +602,7 @@ leafcluster.teleport.sh                               online leaf
 ```
 </ScopedBlock>
 
-## Step 3/5. Manage access to your Trusted Cluster
+## Step 3/6. Manage access to your Trusted Cluster
 
 ### Apply labels
 
@@ -750,7 +731,7 @@ status:
 version: v3
 ```
 
-## Step 4/5. Access a Node in your remote cluster
+## Step 4/6. Access a Node in your remote cluster
 
 With the `trusted_cluster` resource you created earlier, you can log in to the
 Node in your leaf cluster as a user of your root cluster.
@@ -846,7 +827,18 @@ these pieces of data from it. It then performs the following actions:
   
 </Admonition>
 
-## Step 5/5. Remove trust between your clusters
+## Step 5/6. Updating role mappings
+
+You can update the role mappings by modifying the cluster.yaml file we created
+earlier to contain the new role mapping.
+
+After logging into the leaf cluster:
+
+```code
+$ tctl create --force updated_cluster.yaml
+```
+
+## Step 6/6. Remove trust between your clusters
 
 ### Temporarily disable a Trusted Cluster
 
