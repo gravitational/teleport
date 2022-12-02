@@ -36,10 +36,17 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+type CertAuthoritiesGetter interface {
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+}
 
 // Config is a multiplexer config
 type Config struct {
@@ -53,10 +60,12 @@ type Config struct {
 	// Clock is a clock to override in tests, set to real time clock
 	// by default
 	Clock clockwork.Clock
-	// EnableProxyProtocol enables proxy protocol
-	EnableProxyProtocol bool
+	// EnableExternalProxyProtocol enables proxy protocol from external (unsigned) sources
+	EnableExternalProxyProtocol bool
 	// ID is an identifier used for debugging purposes
 	ID string
+	// CertAuthoritiesGetter is used to get CAs to verify singed PROXY headers sent internally by teleport
+	CertAuthoritiesGetter CertAuthoritiesGetter
 }
 
 // CheckAndSetDefaults verifies configuration and sets defaults
@@ -218,7 +227,8 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 		conn.Close()
 		return
 	}
-	connWrapper, err := detect(conn, m.EnableProxyProtocol)
+
+	connWrapper, err := m.detect(conn)
 	if err != nil {
 		if trace.Unwrap(err) != io.EOF {
 			m.Warning(trace.DebugReport(err))
@@ -246,16 +256,72 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 	listener.HandleConnection(m.context, connWrapper)
 }
 
-func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
+type PROXYSigner interface {
+	SignPROXY(p jwt.PROXYSignParams) (string, error)
+}
+
+func getTCPAddr(a net.Addr) net.TCPAddr {
+	addr, ok := a.(*net.TCPAddr)
+	if ok { // Hot path
+		return *addr
+	}
+
+	parsedAddr := utils.FromAddr(a)
+	return net.TCPAddr{
+		IP:   net.ParseIP(parsedAddr.Host()),
+		Port: parsedAddr.Port(-1),
+	}
+}
+
+func GetSignedPROXYHeader(sourceAddress, destinationAddress net.Addr, clusterName string, signingCert []byte, signer PROXYSigner) ([]byte, error) {
+	sAddr := getTCPAddr(sourceAddress)
+	dAddr := getTCPAddr(destinationAddress)
+	if sAddr.Port < 0 || dAddr.Port < 0 {
+		return nil, trace.BadParameter("could not parse port (source:%q, destination: %q)",
+			sourceAddress.String(), destinationAddress.String())
+	}
+
+	signature, err := signer.SignPROXY(jwt.PROXYSignParams{
+		SourceAddress:      sourceAddress.String(),
+		DestinationAddress: destinationAddress.String(),
+		ClusterName:        clusterName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "could not sign jwt token for PROXY line")
+	}
+
+	pl := ProxyLine{
+		Protocol:    TCP4,
+		Source:      sAddr,
+		Destination: dAddr,
+	}
+	err = pl.AddSignature([]byte(signature), signingCert)
+	if err != nil {
+		return nil, trace.Wrap(err, "could not add signature to proxy line")
+	}
+
+	b, err := pl.Bytes()
+	if err != nil {
+		return nil, trace.Wrap(err, "could not get bytes from proxy line")
+	}
+
+	return b, nil
+}
+
+const maxPROXYPasses = 10 // Arbitrary amount that is larger than what realistically we can get
+
+// detect finds out a type of the connection and returns wrapper that support PROXY protocol
+// We pass `casGetter` as function instead of certs themselves, so it could be called only if it's needed.
+func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 	reader := bufio.NewReader(conn)
 
-	// the first attempt is to parse optional proxy
-	// protocol line that is injected by load balancers
-	// before actual protocol traffic flows.
-	// if the first attempt encounters proxy it
-	// goes to the second pass to do protocol detection
+	// Before actual protocol traffic flows, we try to parse optional PROXY protocol headers,
+	// that can be injected by load balancers or our own proxies. There can be multiple PROXY
+	// headers. After they are parsed, last pass does the actual protocol detection itself.
+	// We allow only one unsigned PROXY header from external sources, if it's enabled, and unlimited
+	// amount (within maxPROXYPasses) of signed headers from our own proxies, which take precedence.
 	var proxyLine *ProxyLine
-	for i := 0; i < 2; i++ {
+	for i := 0; i < maxPROXYPasses; i++ {
 		proto, err := detectProto(reader)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -263,9 +329,10 @@ func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
 
 		switch proto {
 		case ProtoProxy:
-			if !enableProxyProtocol {
+			if !m.EnableExternalProxyProtocol {
 				return nil, trace.BadParameter("proxy protocol support is disabled")
 			}
+			// We allow only one unsigned proxy line
 			if proxyLine != nil {
 				return nil, trace.BadParameter("duplicate proxy line")
 			}
@@ -273,17 +340,62 @@ func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			// repeat the cycle to detect the protocol
 		case ProtoProxyV2:
-			if !enableProxyProtocol {
-				return nil, trace.BadParameter("proxy protocol support is disabled")
-			}
-			if proxyLine != nil {
-				return nil, trace.BadParameter("duplicate proxy line")
-			}
-			proxyLine, err = ReadProxyLineV2(reader)
+			newProxyLine, err := ReadProxyLineV2(reader)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+
+			verified := false
+			// If TLVs are empty we know it can't be signed, so we don't try to verify to avoid unnecessary load
+			if m.CertAuthoritiesGetter != nil && len(newProxyLine.TLVs) > 0 {
+				hostCACerts := [][]byte{}
+				certAuthorities, err := m.CertAuthoritiesGetter.GetCertAuthorities(m.context, types.HostCA, false)
+				if err != nil {
+					return nil, trace.Wrap(err, "could not get certificate authorities")
+				}
+
+				for _, ca := range certAuthorities {
+					caCerts := services.GetTLSCerts(ca)
+					hostCACerts = append(hostCACerts, caCerts...)
+				}
+				verified, err = newProxyLine.VerifySignature(hostCACerts, m.Clock)
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			// If proxy line is signed and successfully verified, it's always accepted as current proxy line
+			if verified {
+				proxyLine = newProxyLine
+				continue
+			}
+
+			// If proxy line was signed but couldn't be verified it's ignored
+			if !verified && newProxyLine.isSigned() {
+				m.Warnf("Rejected signed PROXY header, incoming connection remote/local: %q, PROXY source/destination: %q",
+					conn.RemoteAddr().String()+"->"+conn.LocalAddr().String(),
+					newProxyLine.Source.String()+"->"+newProxyLine.Destination.String())
+				continue
+			}
+
+			// This is unsigned proxy line, return error if external PROXY protocol is not enabled
+			if !m.EnableExternalProxyProtocol {
+				return nil, trace.BadParameter("external proxy protocol support is disabled")
+			}
+
+			// If current proxy line was signed and verified, it takes precedence over new not signed proxy line
+			if proxyLine != nil && proxyLine.IsVerified {
+				continue
+			}
+
+			// We allow only one unsigned proxy line
+			if proxyLine != nil {
+				return nil, trace.BadParameter("duplicate proxy line")
+			}
+
+			proxyLine = newProxyLine
 			// repeat the cycle to detect the protocol
 		case ProtoTLS, ProtoSSH, ProtoHTTP:
 			return &Conn{

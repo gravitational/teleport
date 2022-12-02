@@ -200,6 +200,29 @@ func (k *Key) SignSnowflake(p SignParams, issuer string) (string, error) {
 	return k.sign(claims)
 }
 
+type PROXYSignParams struct {
+	ClusterName        string
+	SourceAddress      string
+	DestinationAddress string
+}
+
+const expirationPROXY = time.Second * 60
+
+// SignPROXY will create short lived signed JWT that is used in signed PROXY header
+func (k *Key) SignPROXY(p PROXYSignParams) (string, error) {
+	claims := Claims{
+		Claims: jwt.Claims{
+			Subject:   fmt.Sprintf("%s/%s", p.SourceAddress, p.DestinationAddress),
+			Issuer:    p.ClusterName,
+			NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+			Expiry:    jwt.NewNumericDate(k.config.Clock.Now().Add(expirationPROXY)),
+			IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now()),
+		},
+	}
+
+	return k.sign(claims)
+}
+
 // VerifyParams are the parameters needed to pass the token and data needed to verify.
 type VerifyParams struct {
 	// Username is the Teleport identity.
@@ -249,6 +272,24 @@ func (p *SnowflakeVerifyParams) Check() error {
 	return nil
 }
 
+type PROXYVerifyParams struct {
+	ClusterName        string
+	SourceAddress      string
+	DestinationAddress string
+	RawToken           string
+}
+
+func (p *PROXYVerifyParams) Check() error {
+	if p.ClusterName == "" {
+		return trace.BadParameter("cluster name missing")
+	}
+	if p.SourceAddress == "" {
+		return trace.BadParameter("source address missing")
+	}
+
+	return nil
+}
+
 func (k *Key) verify(rawToken string, expectedClaims jwt.Expected) (*Claims, error) {
 	if k.config.PublicKey == nil {
 		return nil, trace.BadParameter("can not verify token without public key")
@@ -284,6 +325,21 @@ func (k *Key) Verify(p VerifyParams) (*Claims, error) {
 		Subject:  p.Username,
 		Audience: jwt.Audience{p.URI},
 		Time:     k.config.Clock.Now(),
+	}
+
+	return k.verify(p.RawToken, expectedClaims)
+}
+
+// VerifyPROXY will validate the passed JWT for signed PROXY header
+func (k *Key) VerifyPROXY(p PROXYVerifyParams) (*Claims, error) {
+	if err := p.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	expectedClaims := jwt.Expected{
+		Issuer:  p.ClusterName,
+		Subject: fmt.Sprintf("%s/%s", p.SourceAddress, p.DestinationAddress),
+		Time:    k.config.Clock.Now(),
 	}
 
 	return k.verify(p.RawToken, expectedClaims)

@@ -125,6 +125,81 @@ func TestPublicOnlyVerify(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestKey_SignAndVerifyPROXY(t *testing.T) {
+	_, privateBytes, err := GenerateKeyPair()
+	require.NoError(t, err)
+	privateKey, err := utils.ParsePrivateKey(privateBytes)
+	require.NoError(t, err)
+
+	clock := clockwork.NewFakeClockAt(time.Now())
+	const clusterName = "teleport-test"
+
+	// Create a new key that can sign and verify tokens.
+	key, err := New(&Config{
+		PrivateKey:  privateKey,
+		Algorithm:   defaults.ApplicationTokenAlgorithm,
+		ClusterName: clusterName,
+		Clock:       clock,
+	})
+	require.NoError(t, err)
+	source := "1.2.3.4:555"
+	destination := "4.3.2.1:666:"
+
+	// Sign a token with the new key.
+	token, err := key.SignPROXY(PROXYSignParams{
+		ClusterName:        clusterName,
+		SourceAddress:      source,
+		DestinationAddress: destination,
+	})
+	require.NoError(t, err)
+
+	// Successfully verify
+	_, err = key.VerifyPROXY(PROXYVerifyParams{
+		ClusterName:        clusterName,
+		SourceAddress:      source,
+		DestinationAddress: destination,
+		RawToken:           token,
+	})
+	require.NoError(t, err)
+
+	// Check that if params don't match verification fails
+	_, err = key.VerifyPROXY(PROXYVerifyParams{
+		ClusterName:        clusterName + "1",
+		SourceAddress:      source,
+		DestinationAddress: destination,
+		RawToken:           token,
+	})
+	require.ErrorContains(t, err, "invalid issuer")
+
+	_, err = key.VerifyPROXY(PROXYVerifyParams{
+		ClusterName:        clusterName,
+		SourceAddress:      destination,
+		DestinationAddress: source,
+		RawToken:           token,
+	})
+	require.ErrorContains(t, err, "invalid subject")
+
+	// Rewind clock backward and verify that token is not valid yet
+	clock.Advance(time.Minute * -2)
+	_, err = key.VerifyPROXY(PROXYVerifyParams{
+		ClusterName:        clusterName,
+		SourceAddress:      source,
+		DestinationAddress: destination,
+		RawToken:           token,
+	})
+	require.ErrorContains(t, err, "token not valid yet")
+
+	// Advance clock and verify that token is expired now
+	clock.Advance(time.Minute*2 + expirationPROXY*2)
+	_, err = key.VerifyPROXY(PROXYVerifyParams{
+		ClusterName:        clusterName,
+		SourceAddress:      source,
+		DestinationAddress: destination,
+		RawToken:           token,
+	})
+	require.ErrorContains(t, err, "token is expired")
+}
+
 // TestExpiry checks that token expiration works.
 func TestExpiry(t *testing.T) {
 	_, privateBytes, err := GenerateKeyPair()

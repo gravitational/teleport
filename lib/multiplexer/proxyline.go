@@ -21,6 +21,7 @@ package multiplexer
 import (
 	"bufio"
 	"bytes"
+	"crypto/x509"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -33,10 +34,18 @@ import (
 	"unsafe"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // PP2Type is the PROXY protocol v2 TLV type
 type PP2Type byte
+
+type PP2TeleportSubtype PP2Type
 
 const (
 	// TCP4 is TCP over IPv4
@@ -54,6 +63,9 @@ const (
 	PP2TypeAzure PP2Type = 0xEE // https://learn.microsoft.com/en-us/azure/private-link/private-link-service-overview
 
 	PP2TypeTeleport PP2Type = 0xE4 // Teleport own type for transferring our custom data such as connection metadata
+
+	PP2TeleportSubtypeSigningCert PP2TeleportSubtype = 0x01 // Certificate used to sign JWT
+	PP2TeleportSubtypeJWT         PP2TeleportSubtype = 0x02 // JWT used to verify information sent in plain PROXY header
 )
 
 var (
@@ -73,6 +85,7 @@ type ProxyLine struct {
 	Source      net.TCPAddr
 	Destination net.TCPAddr
 	TLVs        []TLV // PROXY protocol extensions
+	IsVerified  bool
 }
 
 // TLV (Type-Length-Value) is an extension mechanism in PROXY protocol v2, see end of section 2.2
@@ -360,4 +373,161 @@ func MarshalTLVs(tlvs []TLV) ([]byte, error) {
 		raw = append(raw, tlv.Value...)
 	}
 	return raw, nil
+}
+
+// AddSignature adds provided signature and cert to the proxy line, marshaling it
+// into appropriate TLV structure.
+func (p *ProxyLine) AddSignature(signature, signingCert []byte) error {
+	if len(signature) == 0 {
+		return trace.BadParameter("missing signature")
+	}
+	if len(signingCert) == 0 {
+		return trace.BadParameter("missing signing certificate")
+	}
+
+	signatureTLVs := []TLV{
+		{
+			Type:  PP2Type(PP2TeleportSubtypeSigningCert),
+			Value: signingCert,
+		},
+		{
+			Type:  PP2Type(PP2TeleportSubtypeJWT),
+			Value: signature,
+		},
+	}
+	signatureBytes, err := MarshalTLVs(signatureTLVs)
+	if err != nil {
+		return err
+	}
+
+	// If there's already signature among TLVs, we replace it
+	for i := range p.TLVs {
+		if p.TLVs[i].Type == PP2TypeTeleport {
+			p.TLVs[i].Value = signatureBytes
+			return nil
+		}
+	}
+
+	// Otherwise we append it
+	p.TLVs = append(p.TLVs, TLV{Type: PP2TypeTeleport, Value: signatureBytes})
+
+	return nil
+}
+
+// isSigned returns true if proxy line's TLV contains signature.
+// Does not take into account if signature is valid or not, just the presence of it.
+func (p *ProxyLine) isSigned() bool {
+	token, proxyCert, _ := p.getSignatureAndSigningCert()
+	return len(token) > 0 || proxyCert != nil
+}
+
+// getSignatureAndSigningCert finds signature and signing certificate in TLVs if they are present
+func (p *ProxyLine) getSignatureAndSigningCert() (string, []byte, error) {
+	var proxyCert []byte
+	var token string
+	for _, tlv := range p.TLVs {
+		if tlv.Type == PP2TypeTeleport {
+			teleportSubTLVs, err := UnmarshalTLVs(tlv.Value)
+			if err != nil {
+				return "", nil, err
+			}
+
+			for _, subTLV := range teleportSubTLVs {
+				if subTLV.Type == PP2Type(PP2TeleportSubtypeSigningCert) {
+					proxyCert = subTLV.Value
+				}
+
+				if subTLV.Type == PP2Type(PP2TeleportSubtypeJWT) {
+					token = string(subTLV.Value)
+				}
+			}
+			break
+		}
+	}
+	return token, proxyCert, nil
+}
+
+// VerifySignature checks that signature contained in the proxy line is securely signed.
+func (p *ProxyLine) VerifySignature(hostCACerts [][]byte, clock clockwork.Clock) (bool, error) {
+	// If there's no TLVs it can't be verified
+	if len(p.TLVs) == 0 {
+		return false, nil
+	}
+
+	token, proxyCert, err := p.getSignatureAndSigningCert()
+	if err != nil {
+		return false, err
+	}
+	if len(token) == 0 || proxyCert == nil {
+		return false, nil
+	}
+
+	signingCert, err := tlsca.ParseCertificatePEM(proxyCert)
+	if err != nil {
+		return false, err
+	}
+
+	roots := x509.NewCertPool()
+	for _, cert := range hostCACerts {
+		ok := roots.AppendCertsFromPEM(cert)
+		if !ok {
+			return false, nil
+		}
+	}
+
+	// Make sure that transmitted proxy cert is signed by one of the provided HostCAs
+	chains, err := signingCert.Verify(x509.VerifyOptions{Roots: roots})
+	if err != nil && !errors.As(err, &x509.UnknownAuthorityError{}) {
+		return false, err
+	}
+	if chains == nil {
+		return false, nil
+	}
+
+	identity, err := tlsca.FromSubject(signingCert.Subject, signingCert.NotAfter)
+	if err != nil {
+		return false, err
+	}
+	clusterName := identity.TeleportCluster
+
+	foundRole := checkForSystemRole(identity, types.RoleProxy)
+	if !foundRole {
+		return false, nil
+	}
+
+	// Check JWT using proxy cert's public key
+	jwtVerifier, err := jwt.New(&jwt.Config{
+		Clock:       clock,
+		PublicKey:   signingCert.PublicKey,
+		Algorithm:   defaults.ApplicationTokenAlgorithm,
+		ClusterName: clusterName,
+	})
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	_, err = jwtVerifier.VerifyPROXY(jwt.PROXYVerifyParams{
+		ClusterName:        clusterName,
+		SourceAddress:      p.Source.String(),
+		DestinationAddress: p.Destination.String(),
+		RawToken:           token,
+	})
+	if err != nil {
+		return false, nil
+	}
+
+	p.IsVerified = true
+	return true, nil
+}
+
+func checkForSystemRole(identity *tlsca.Identity, roleToFind types.SystemRole) bool {
+	findRole := func(roles []string) bool {
+		for _, role := range roles {
+			if roleToFind == types.SystemRole(role) {
+				return true
+			}
+		}
+
+		return false
+	}
+	return findRole(identity.Groups) || findRole(identity.SystemRoles)
 }
