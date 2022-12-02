@@ -14,6 +14,10 @@
 
 package utils
 
+import (
+	"net"
+)
+
 // DualPipeAddrConn creates a net.Pipe to connect a client and a server. The
 // two net.Conn instances are wrapped in an addrConn which holds the source and
 // destination addresses.
