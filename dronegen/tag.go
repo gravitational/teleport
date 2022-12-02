@@ -394,7 +394,7 @@ find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r fi
   fi
   shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-  curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="%[2]s" -F arch="%[3]s" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+  release_params="" # List of "-F releaseId=XXX" parameters to curl
 
   for product in $products; do
     status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -403,8 +403,11 @@ find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r fi
       cat $WORKSPACE_DIR/curl_out.txt
       exit 1
     fi
-    curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%%20/g')"
+
+    release_params="$release_params -F releaseId=$product@$VERSION"
   done
+
+  curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="%[2]s" -F arch="%[3]s" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
 done`,
 			b.Description(packageType, extraQualifications...), b.os, b.arch),
 	}
@@ -424,11 +427,9 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 	}
 
 	environment := map[string]value{
-		"ARCH":                  {raw: b.arch},
-		"TMPDIR":                {raw: "/go"},
-		"ENT_TARBALL_PATH":      {raw: "/go/artifacts"},
-		"AWS_ACCESS_KEY_ID":     {fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_KEY"},
-		"AWS_SECRET_ACCESS_KEY": {fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_SECRET"},
+		"ARCH":             {raw: b.arch},
+		"TMPDIR":           {raw: "/go"},
+		"ENT_TARBALL_PATH": {raw: "/go/artifacts"},
 	}
 
 	dependentPipeline := fmt.Sprintf("build-%s-%s", b.os, b.arch)
@@ -495,6 +496,34 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 		panic("packageType is not set")
 	}
 
+	assumeDownloadRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+		awsRoleSettings: awsRoleSettings{
+			awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+			awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+			role:               value{fromSecret: "AWS_ROLE"},
+		},
+		configVolume: volumeRefAwsConfig,
+		name:         "Assume Download AWS Role",
+	})
+	assumeBuildRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+		awsRoleSettings: awsRoleSettings{
+			awsAccessKeyID:     value{fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_KEY"},
+			awsSecretAccessKey: value{fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_SECRET"},
+			role:               value{fromSecret: "TELEPORT_BUILD_READ_ONLY_AWS_ROLE"},
+		},
+		configVolume: volumeRefAwsConfig,
+		name:         "Assume Build AWS Role",
+	})
+	assumeUploadRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+		awsRoleSettings: awsRoleSettings{
+			awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+			awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+			role:               value{fromSecret: "AWS_ROLE"},
+		},
+		configVolume: volumeRefAwsConfig,
+		name:         "Assume Upload AWS Role",
+	})
+
 	pipelineName := fmt.Sprintf("%s-%s", dependentPipeline, packageType)
 
 	p := newKubePipeline(pipelineName)
@@ -515,14 +544,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Commands: tagCheckoutCommands(b),
 		},
 		waitForDockerStep(),
-		kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
-			awsRoleSettings: awsRoleSettings{
-				awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
-				awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
-				role:               value{fromSecret: "AWS_ROLE"},
-			},
-			configVolume: volumeRefAwsConfig,
-		}),
+		assumeDownloadRoleStep,
 		{
 			Name:  "Download artifacts from S3",
 			Image: "amazon/aws-cli",
@@ -533,6 +555,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Commands: tagDownloadArtifactCommands(b),
 			Volumes:  []volumeRef{volumeRefAwsConfig},
 		},
+		assumeBuildRoleStep,
 		{
 			Name:        "Build artifacts",
 			Image:       "docker",
@@ -545,6 +568,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Image:    "docker",
 			Commands: tagCopyPackageArtifactCommands(b, packageType),
 		},
+		assumeUploadRoleStep,
 		kubernetesUploadToS3Step(kubernetesS3Settings{
 			region:       "us-west-2",
 			source:       "/go/artifacts/",

@@ -23,6 +23,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -36,15 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -334,6 +334,7 @@ func ForDiscovery(cfg Config) Config {
 		{Kind: types.KindClusterName},
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNode},
+		{Kind: types.KindKubernetesCluster},
 	}
 	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg
@@ -1827,7 +1828,7 @@ func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns [
 
 // GetKubeServices is a part of auth.Cache implementation
 //
-// DELETE IN 12.0.0 Deprecated, use GetKubernetesServers.
+// DELETE IN 13.0.0 Deprecated, use GetKubernetesServers.
 func (c *Cache) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubeServices")
 	defer span.End()

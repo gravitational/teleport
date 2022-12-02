@@ -24,6 +24,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -37,13 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -156,7 +154,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	}
 
 	identity.Impersonator = certificate.Extensions[teleport.CertExtensionImpersonator]
-	accessRequestIDs, err := parseAccessRequestIDs(certificate.Extensions[teleport.CertExtensionTeleportActiveRequests])
+	accessRequestIDs, err := ParseAccessRequestIDs(certificate.Extensions[teleport.CertExtensionTeleportActiveRequests])
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
@@ -628,7 +626,7 @@ type AccessRequests struct {
 	IDs []string `json:"access_requests"`
 }
 
-func parseAccessRequestIDs(str string) ([]string, error) {
+func ParseAccessRequestIDs(str string) ([]string, error) {
 	var accessRequestIDs []string
 	var ar AccessRequests
 

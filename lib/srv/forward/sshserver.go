@@ -23,6 +23,12 @@ import (
 	"net"
 	"sync"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -33,21 +39,16 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
-	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 // Server is a forwarding server. Server is used to create a single in-memory
@@ -421,21 +422,12 @@ func (s *Server) UseTunnel() bool {
 	return s.useTunnel
 }
 
-// OpenBPFSession is a nop since the session must be run on the actual node
-func (s *Server) OpenBPFSession(ctx *srv.ServerContext) (uint64, error) {
-	return 0, nil
+// GetBPF returns the BPF service used by enhanced session recording. BPF
+// for the forwarding server makes no sense (it has to run on the actual
+// node), so return a NOP implementation.
+func (s Server) GetBPF() bpf.BPF {
+	return &bpf.NOP{}
 }
-
-// CloseBPFSession is a nop since the session must be run on the actual node
-func (s *Server) CloseBPFSession(ctx *srv.ServerContext) error {
-	return nil
-}
-
-// OpenRestrictedSession is a nop since the session must be run on the actual node
-func (s *Server) OpenRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {}
-
-// CloseRestrictedSession is a nop since the session must be run on the actual node
-func (s *Server) CloseRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {}
 
 // GetCreateHostUser determines whether users should be created on the
 // host automatically
@@ -443,10 +435,17 @@ func (s *Server) GetCreateHostUser() bool {
 	return false
 }
 
-// GetHostUsers returns the HostUsers instance being used to manage
+// GetHostUser returns the HostUsers instance being used to manage
 // host user provisioning, unimplemented for the forwarder server.
 func (s *Server) GetHostUsers() srv.HostUsers {
 	return nil
+}
+
+// GetRestrictedSessionManager returns a NOP manager since for a
+// forwarding server it makes no sense (it has to run on the actual
+// node).
+func (s Server) GetRestrictedSessionManager() restricted.Manager {
+	return &restricted.NOP{}
 }
 
 // GetInfo returns a services.Server that represents this server.
@@ -604,7 +603,7 @@ func (s *Server) Close() error {
 	return trace.NewAggregate(errs...)
 }
 
-// newRemoteSession will create and return a *ssh.Client and *ssh.Session
+// newRemoteClient creates and returns a *ssh.Client and *ssh.Session
 // with a remote host.
 func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*tracessh.Client, error) {
 	// the proxy will use the agent that has been forwarded to it as the auth
@@ -612,7 +611,13 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*trac
 	if s.userAgent == nil {
 		return nil, trace.AccessDenied("agent must be forwarded to proxy")
 	}
-	authMethod := ssh.PublicKeysCallback(s.userAgent.Signers)
+
+	signers, err := s.userAgent.Signers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authMethod := ssh.PublicKeysCallback(signersWithSHA1Fallback(signers))
 
 	clientConfig := &ssh.ClientConfig{
 		User: systemLogin,
@@ -637,8 +642,28 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*trac
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return client, nil
+
+}
+
+// signersWithSHA1Fallback returns the signers provided by signersCb and appends
+// the same signers with forced SHA-1 signature to the end. This behavior is
+// required as older OpenSSH version <= 7.6 don't support SHA-2 signed certificates.
+func signersWithSHA1Fallback(signers []ssh.Signer) func() ([]ssh.Signer, error) {
+	return func() ([]ssh.Signer, error) {
+		var sha1Signers []ssh.Signer
+		for _, signer := range signers {
+			if s, ok := signer.(ssh.AlgorithmSigner); ok && s.PublicKey().Type() == ssh.CertAlgoRSAv01 {
+				// If certificate signer supports SignWithAlgorithm(rand io.Reader, data []byte, algorithm string)
+				// method from the ssh.AlgorithmSigner interface add SHA-1 signer.
+				sha1Signers = append(sha1Signers, &sshutils.LegacySHA1Signer{Signer: s})
+			}
+		}
+
+		// Merge original signers with the SHA-1 we created.
+		// Order is important here as we want SHA2 signers to be used first.
+		return append(signers, sha1Signers...), nil
+	}
 }
 
 func (s *Server) handleConnection(ctx context.Context, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {

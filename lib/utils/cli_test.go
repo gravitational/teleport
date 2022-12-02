@@ -24,7 +24,6 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )

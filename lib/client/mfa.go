@@ -24,6 +24,8 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -76,13 +78,25 @@ type PromptMFAChallengeOpts struct {
 // promptMFAStandalone is used to mock PromptMFAChallenge for tests.
 var promptMFAStandalone = PromptMFAChallenge
 
+// hasPlatformSupport is used to mock wancli.HasPlatformSupport for tests.
+var hasPlatformSupport = wancli.HasPlatformSupport
+
 // PromptMFAChallenge prompts the user to complete MFA authentication
 // challenges.
 // If proxyAddr is empty, the TeleportClient.WebProxyAddr is used.
 // See client.PromptMFAChallenge.
-func (tc *TeleportClient) PromptMFAChallenge(
-	ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge,
-	applyOpts func(opts *PromptMFAChallengeOpts)) (*proto.MFAAuthenticateResponse, error) {
+func (tc *TeleportClient) PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge, applyOpts func(opts *PromptMFAChallengeOpts)) (*proto.MFAAuthenticateResponse, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/PromptMFAChallenge",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("cluster", tc.SiteName),
+			attribute.Bool("prefer_otp", tc.PreferOTP),
+		),
+	)
+	defer span.End()
+
 	addr := proxyAddr
 	if addr == "" {
 		addr = tc.WebProxyAddr
@@ -121,9 +135,9 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 
 	// Does the current platform support hardware MFA? Adjust accordingly.
 	switch {
-	case !hasTOTP && !wancli.HasPlatformSupport():
+	case !hasTOTP && !hasPlatformSupport():
 		return nil, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
-	case !wancli.HasPlatformSupport():
+	case !hasPlatformSupport():
 		// Do not prompt for hardware devices, it won't work.
 		hasWebauthn = false
 	}

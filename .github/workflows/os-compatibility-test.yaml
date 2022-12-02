@@ -1,0 +1,63 @@
+name: OS Compatibility Test
+run-name: OS Compatibility Test
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  build:
+    name: Build Artifacts
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport12
+      env:
+        GOCACHE: /tmp/gocache
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Run make
+        run: |
+          make build/tctl build/tsh build/tbot build/teleport
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v3
+        with:
+          name: build
+          path: ${{ github.workspace }}/build/
+
+  test-compat:
+    needs: build
+    name: Run Compatibility Test
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Download binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: build
+          path: ${{ github.workspace }}/build
+
+      - name: chmod +x
+        run: chmod +x ${GITHUB_WORKSPACE}/build/*
+
+      - name: Run compat matrix
+        timeout-minutes: 10
+        run: |
+          cd ${GITHUB_WORKSPACE} && ./build.assets/build-test-compat.sh

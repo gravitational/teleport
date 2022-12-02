@@ -20,10 +20,11 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
 )
 
 // databaseConfigTemplateFunc list of template functions used on the database
@@ -57,7 +58,7 @@ db_service:
   resources:
   - labels:
       "*": "*"
-  {{- if or .RDSDiscoveryRegions .RedshiftDiscoveryRegions .ElastiCacheDiscoveryRegions}}
+  {{- if or .RDSDiscoveryRegions .RDSProxyDiscoveryRegions .RedshiftDiscoveryRegions .ElastiCacheDiscoveryRegions}}
   # Matchers for registering AWS-hosted databases.
   aws:
   {{- end }}
@@ -68,6 +69,19 @@ db_service:
     # AWS regions to register databases from.
     regions:
     {{- range .RDSDiscoveryRegions }}
+    - {{ . }}
+    {{- end }}
+    # AWS resource tags to match when registering databases.
+    tags:
+      "*": "*"
+  {{- end }}
+  {{- if .RDSProxyDiscoveryRegions }}
+  # RDS Proxies auto-discovery.
+  # For more information about RDS Proxy auto-discovery: https://goteleport.com/docs/database-access/guides/rdsproxy/
+  - types: ["rdsproxy"]
+    # AWS regions to register databases from.
+    regions:
+    {{- range .RDSProxyDiscoveryRegions }}
     - {{ . }}
     {{- end }}
     # AWS resource tags to match when registering databases.
@@ -180,6 +194,29 @@ db_service:
     # Azure regions to register databases from.
     regions:
     {{- range .AzureRedisDiscoveryRegions }}
+    - "{{ . }}"
+    {{- end }}
+    # Azure resource tags to match when registering databases.
+    tags:
+      "*": "*"
+  {{- end }}
+  {{- if or .AzureSQLServerDiscoveryRegions }}
+  # Azure SQL server and Managed instances auto-discovery.
+  # For more information about SQL server and Managed instances auto-discovery: https://goteleport.com/docs/database-access/guides/azure-sql-server-ad/
+  - types: ["sqlserver"]
+    # Azure subscription IDs to match.
+    subscriptions:
+    {{- range .DatabaseAzureSubscriptions }}
+    - "{{ . }}"
+    {{- end }}
+    # Azure resource groups to match.
+    resource_groups:
+    {{- range .DatabaseAzureResourceGroups }}
+    - "{{ . }}"
+    {{- end }}
+    # Azure regions to register databases from.
+    regions:
+    {{- range .AzureSQLServerDiscoveryRegions }}
     - "{{ . }}"
     {{- end }}
     # Azure resource tags to match when registering databases.
@@ -373,9 +410,15 @@ type DatabaseSampleFlags struct {
 	// AzureRedisDiscoveryRegions is a list of regions Azure auto-discovery is
 	// configured to discover Azure Cache for Redis servers in.
 	AzureRedisDiscoveryRegions []string
+	// AzureSQLServerDiscoveryRegions is a list of regions Azure auto-discovery is
+	// configured to discover Azure SQL servers and managed instances.
+	AzureSQLServerDiscoveryRegions []string
 	// RDSDiscoveryRegions is a list of regions the RDS auto-discovery is
 	// configured.
 	RDSDiscoveryRegions []string
+	// RDSProxyDiscoveryRegions is a list of regions the RDS Proxy
+	// auto-discovery is configured.
+	RDSProxyDiscoveryRegions []string
 	// RedshiftDiscoveryRegions is a list of regions the Redshift
 	// auto-discovery is configured.
 	RedshiftDiscoveryRegions []string

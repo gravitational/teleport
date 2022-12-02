@@ -30,6 +30,7 @@ import (
 	"strings"
 
 	elastic "github.com/elastic/go-elasticsearch/v8/typedapi/types"
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -40,8 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/ghodss/yaml"
 )
 
 func init() {
@@ -76,8 +75,9 @@ func (e *Engine) SendError(err error) {
 		return
 	}
 
+	reason := err.Error()
 	cause := elastic.ErrorCause{
-		Reason: err.Error(),
+		Reason: &reason,
 		Type:   "internal_server_error_exception",
 	}
 

@@ -17,12 +17,14 @@ limitations under the License.
 package common
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -31,8 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 type ResourceCollection interface {
@@ -156,17 +156,12 @@ func (s *serverCollection) writeText(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-func (s *serverCollection) writeYaml(w io.Writer) error {
+func (s *serverCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, s.servers)
 }
 
 func (s *serverCollection) writeJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(s.resources(), "", "    ")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
+	return utils.WriteJSON(w, s.servers)
 }
 
 type userCollection struct {
@@ -436,12 +431,7 @@ func formatLastHeartbeat(t time.Time) string {
 }
 
 func writeJSON(c ResourceCollection, w io.Writer) error {
-	data, err := json.MarshalIndent(c.resources(), "", "    ")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
+	return utils.WriteJSON(w, c.resources())
 }
 
 func writeYAML(c ResourceCollection, w io.Writer) error {
@@ -505,20 +495,11 @@ func (a *appServerCollection) writeText(w io.Writer) error {
 }
 
 func (a *appServerCollection) writeJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(a.toMarshal(), "", "    ")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
-}
-
-func (a *appServerCollection) toMarshal() interface{} {
-	return a.servers
+	return utils.WriteJSON(w, a.servers)
 }
 
 func (a *appServerCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, a.toMarshal())
+	return utils.WriteYAML(w, a.servers)
 }
 
 type appCollection struct {
@@ -675,20 +656,11 @@ func (c *databaseServerCollection) writeText(w io.Writer) error {
 }
 
 func (c *databaseServerCollection) writeJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
-}
-
-func (c *databaseServerCollection) toMarshal() interface{} {
-	return c.servers
+	return utils.WriteJSON(w, c.servers)
 }
 
 func (c *databaseServerCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, c.toMarshal())
+	return utils.WriteYAML(w, c.servers)
 }
 
 type databaseCollection struct {
@@ -836,12 +808,7 @@ func (c *windowsDesktopAndServiceCollection) writeYAML(w io.Writer) error {
 }
 
 func (c *windowsDesktopAndServiceCollection) writeJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(c.desktops, "", "    ")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
+	return utils.WriteJSON(w, c.desktops)
 }
 
 type tokenCollection struct {
@@ -910,11 +877,46 @@ func (c *kubeServerCollection) writeYAML(w io.Writer) error {
 }
 
 func (c *kubeServerCollection) writeJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(c.servers, "", "    ")
-	if err != nil {
-		return trace.Wrap(err)
+	return utils.WriteJSON(w, c.servers)
+}
+
+type kubeClusterCollection struct {
+	clusters []types.KubeCluster
+	verbose  bool
+}
+
+func (c *kubeClusterCollection) resources() (r []types.Resource) {
+	for _, resource := range c.clusters {
+		r = append(r, resource)
 	}
-	_, err = w.Write(data)
+	return r
+}
+
+// writeText formats the dynamic kube clusters into a table and writes them into w.
+// Name          Labels
+// ------------- ----------------------------------------------------------------------------------------------------------
+// cluster1      region=eastus,resource-group=cluster1,subscription-id=subID
+// cluster2      region=westeurope,resource-group=cluster2,subscription-id=subID
+// cluster3      region=northcentralus,resource-group=cluster3,subscription-id=subID
+// cluster4      owner=cluster4,region=southcentralus,resource-group=cluster4,subscription-id=subID
+// If verbose is disabled, labels column can be truncated to fit into the console.
+func (c *kubeClusterCollection) writeText(w io.Writer) error {
+	sort.Sort(types.KubeClusters(c.clusters))
+	var rows [][]string
+	for _, cluster := range c.clusters {
+		labels := stripInternalTeleportLabels(c.verbose, cluster.GetAllLabels())
+		rows = append(rows, []string{
+			cluster.GetName(), labels,
+		})
+	}
+	headers := []string{"Name", "Labels"}
+	var t asciitable.Table
+	if c.verbose {
+		t = asciitable.MakeTable(headers, rows...)
+	} else {
+		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
+	}
+	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
 

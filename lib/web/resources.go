@@ -21,6 +21,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
@@ -29,11 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
-
-	"github.com/gravitational/trace"
-
-	"github.com/julienschmidt/httprouter"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // checkAccessToRegisteredResource checks if calling user has access to at least one registered resource.
@@ -339,20 +338,7 @@ func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string)
 		return nil, trace.Wrap(err)
 	}
 
-	// Sort is expected in format `<fieldName>:<asc|desc>` where
-	// index 0 is fieldName and index 1 is direction.
-	// If a direction is not set, or is not recognized, it defaults to ASC.
-	var sortBy types.SortBy
-	sortParam := values.Get("sort")
-	if sortParam != "" {
-		vals := strings.Split(sortParam, ":")
-		if vals[0] != "" {
-			sortBy.Field = vals[0]
-			if len(vals) > 1 && vals[1] == "desc" {
-				sortBy.IsDesc = true
-			}
-		}
-	}
+	sortBy := types.GetSortByFromString(values.Get("sort"))
 
 	startKey := values.Get("startKey")
 	req := proto.ListResourcesRequest{

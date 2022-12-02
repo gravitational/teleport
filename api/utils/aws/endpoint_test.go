@@ -28,23 +28,62 @@ func TestParseRDSEndpoint(t *testing.T) {
 		name                string
 		endpoint            string
 		expectIsRDSEndpoint bool
-		expectInstanceID    string
-		expectRegion        string
+		expectDetails       *RDSEndpointDetails
 		expectParseErrorIs  func(error) bool
 	}{
 		{
-			name:                "standard",
+			name:                "RDS instance",
 			endpoint:            "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
 			expectIsRDSEndpoint: true,
-			expectInstanceID:    "aurora-instance-1",
-			expectRegion:        "us-west-1",
+			expectDetails: &RDSEndpointDetails{
+				InstanceID: "aurora-instance-1",
+				Region:     "us-west-1",
+			},
 		},
 		{
-			name:                "cn-north-1",
+			name:                "RDS instance in cn-north-1",
 			endpoint:            "aurora-instance-2.abcdefghijklmnop.rds.cn-north-1.amazonaws.com.cn",
 			expectIsRDSEndpoint: true,
-			expectInstanceID:    "aurora-instance-2",
-			expectRegion:        "cn-north-1",
+			expectDetails: &RDSEndpointDetails{
+				InstanceID: "aurora-instance-2",
+				Region:     "cn-north-1",
+			},
+		},
+		{
+			name:                "RDS cluster",
+			endpoint:            "my-cluster.cluster-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+			expectIsRDSEndpoint: true,
+			expectDetails: &RDSEndpointDetails{
+				ClusterID: "my-cluster",
+				Region:    "us-west-1",
+			},
+		},
+		{
+			name:                "RDS cluster custom endpoint",
+			endpoint:            "my-custom.cluster-custom-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+			expectIsRDSEndpoint: true,
+			expectDetails: &RDSEndpointDetails{
+				ClusterCustomEndpointName: "my-custom",
+				Region:                    "us-west-1",
+			},
+		},
+		{
+			name:                "RDS proxy",
+			endpoint:            "my-proxy.proxy-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+			expectIsRDSEndpoint: true,
+			expectDetails: &RDSEndpointDetails{
+				ProxyName: "my-proxy",
+				Region:    "us-west-1",
+			},
+		},
+		{
+			name:                "RDS proxy custom endpoint",
+			endpoint:            "my-custom.endpoint.proxy-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+			expectIsRDSEndpoint: true,
+			expectDetails: &RDSEndpointDetails{
+				ProxyCustomEndpointName: "my-custom",
+				Region:                  "us-west-1",
+			},
 		},
 		{
 			name:                "localhost:5432",
@@ -67,14 +106,13 @@ func TestParseRDSEndpoint(t *testing.T) {
 
 			require.Equal(t, test.expectIsRDSEndpoint, IsRDSEndpoint(test.endpoint))
 
-			instanceID, region, err := ParseRDSEndpoint(test.endpoint)
+			actualDetails, err := ParseRDSEndpoint(test.endpoint)
 			if test.expectParseErrorIs != nil {
 				require.Error(t, err)
 				require.True(t, test.expectParseErrorIs(err))
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, test.expectInstanceID, instanceID)
-				require.Equal(t, test.expectRegion, region)
+				require.Equal(t, test.expectDetails, actualDetails)
 			}
 		})
 	}
@@ -390,6 +428,12 @@ func TestCassandraEndpointRegion(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name:        "us-gov-east-1",
+			inputURI:    "cassandra.us-gov-east-1.amazonaws.com",
+			wantRegion:  "us-gov-east-1",
+			expectError: false,
+		},
+		{
 			name:        "invalid uri",
 			inputURI:    "foo.cassandra.us-east-1.amazonaws.com",
 			wantRegion:  "us-east-1",
@@ -401,11 +445,66 @@ func TestCassandraEndpointRegion(t *testing.T) {
 			got, err := CassandraEndpointRegion(test.inputURI)
 			if test.expectError {
 				require.Error(t, err)
+				require.False(t, IsKeyspacesEndpoint(test.inputURI))
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, got, test.wantRegion)
+				require.True(t, IsKeyspacesEndpoint(test.inputURI))
 			}
 		})
 	}
 
+}
+
+func TestRedshiftServerlessEndpoint(t *testing.T) {
+	tests := []struct {
+		name                               string
+		endpoint                           string
+		expectIsRedshiftServerlessEndpoint bool
+		expectDetails                      *RedshiftServerlessEndpointDetails
+	}{
+		{
+			name:                               "workgroup endpoint",
+			endpoint:                           "my-workgroup.1234567890.us-east-1.redshift-serverless.amazonaws.com:5439",
+			expectIsRedshiftServerlessEndpoint: true,
+			expectDetails: &RedshiftServerlessEndpointDetails{
+				WorkgroupName: "my-workgroup",
+				AccountID:     "1234567890",
+				Region:        "us-east-1",
+			},
+		},
+		{
+			name:                               "vpc endpoint",
+			endpoint:                           "my-vpc-endpoint-xxxyyyzzz.1234567890.us-east-1.redshift-serverless.amazonaws.com",
+			expectIsRedshiftServerlessEndpoint: true,
+			expectDetails: &RedshiftServerlessEndpointDetails{
+				EndpointName: "my-vpc",
+				AccountID:    "1234567890",
+				Region:       "us-east-1",
+			},
+		},
+		{
+			name:                               "localhost:5432",
+			endpoint:                           "localhost",
+			expectIsRedshiftServerlessEndpoint: false,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, test.expectIsRedshiftServerlessEndpoint, IsRedshiftServerlessEndpoint(test.endpoint))
+
+			actualDetails, err := ParseRedshiftServerlessEndpoint(test.endpoint)
+			if !test.expectIsRedshiftServerlessEndpoint {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err))
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expectDetails, actualDetails)
+			}
+		})
+	}
 }

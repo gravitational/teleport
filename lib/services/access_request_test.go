@@ -21,14 +21,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/fixtures"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/fixtures"
 )
 
 // mockGetter mocks the UserAndRoleGetter interface.
@@ -1393,12 +1393,19 @@ func TestPruneRequestRoles(t *testing.T) {
 
 			req.SetLoginHint(tc.loginHint)
 
+			accessCaps, err := CalculateAccessCapabilities(ctx, g, types.AccessCapabilitiesRequest{User: user, ResourceIDs: tc.requestResourceIDs})
+			require.NoError(t, err)
+
 			err = ValidateAccessRequestForUser(ctx, g, req, ExpandVars(true))
 			if tc.expectError {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
+
+			if tc.loginHint == "" {
+				require.ElementsMatch(t, tc.expectRoles, accessCaps.ApplicableRolesForResources)
+			}
 
 			require.ElementsMatch(t, tc.expectRoles, req.GetRoles(),
 				"Pruned roles %v don't match expected roles %v", req.GetRoles(), tc.expectRoles)

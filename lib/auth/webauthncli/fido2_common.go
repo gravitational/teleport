@@ -21,9 +21,9 @@ import (
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
@@ -67,7 +67,7 @@ type FIDO2DiagResult struct {
 // User interaction is required.
 func FIDO2Diag(ctx context.Context, promptOut io.Writer) (*FIDO2DiagResult, error) {
 	res := &FIDO2DiagResult{}
-	if !IsFIDO2Available() {
+	if !isLibfido2Enabled() {
 		return res, nil
 	}
 	res.Available = true

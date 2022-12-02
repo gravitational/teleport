@@ -17,18 +17,16 @@ limitations under the License.
 package service
 
 import (
-	"time"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery"
-	"github.com/gravitational/trace"
 )
 
 func (process *TeleportProcess) shouldInitDiscovery() bool {
-	return process.Config.Discovery.Enabled && len(process.Config.Discovery.AWSMatchers) != 0
+	return process.Config.Discovery.Enabled && !process.Config.Discovery.IsEmpty()
 }
 
 func (process *TeleportProcess) initDiscovery() {
@@ -51,25 +49,6 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		return trace.Wrap(err)
 	}
 
-	nodeWatcher, err := services.NewNodeWatcher(process.ExitContext(), services.NodeWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentDiscovery,
-			Log:       process.log.WithField(trace.Component, teleport.ComponentDiscovery),
-			Client:    accessPoint,
-		},
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// wait for nodeWatcher to complete initialization so the
-	// discovery server doesnt get an empty list of nodes and attempt
-	// to perform an installation on all the nodes that do actually
-	// exist.
-	for !nodeWatcher.IsInitialized() {
-		time.Sleep(1 * time.Second)
-	}
-
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
 	asyncEmitter, err := process.newAsyncEmitter(conn.Client)
@@ -78,13 +57,14 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	}
 
 	discoveryService, err := discovery.New(process.ExitContext(), &discovery.Config{
-		Clients:     cloud.NewClients(),
-		Matchers:    process.Config.Discovery.AWSMatchers,
-		NodeWatcher: nodeWatcher,
-		Emitter:     asyncEmitter,
-		AccessPoint: accessPoint,
+		Clients:       cloud.NewClients(),
+		AWSMatchers:   process.Config.Discovery.AWSMatchers,
+		AzureMatchers: process.Config.Discovery.AzureMatchers,
+		GCPMatchers:   process.Config.Discovery.GCPMatchers,
+		Emitter:       asyncEmitter,
+		AccessPoint:   accessPoint,
+		Log:           process.log,
 	})
-
 	if err != nil {
 		return trace.Wrap(err)
 	}

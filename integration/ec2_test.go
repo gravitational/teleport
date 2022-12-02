@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -44,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 func newSilentLogger() utils.Logger {
@@ -317,6 +317,10 @@ func (m *mockIMDSClient) GetType() types.InstanceMetadataType {
 	return types.InstanceMetadataTypeEC2
 }
 
+func (m *mockIMDSClient) GetID(ctx context.Context) (string, error) {
+	return "", nil
+}
+
 // TestEC2Labels is an integration test which asserts that Teleport correctly picks up
 // EC2 tags when running on an EC2 instance.
 func TestEC2Labels(t *testing.T) {
@@ -394,7 +398,7 @@ func TestEC2Labels(t *testing.T) {
 		// dedupClusters is required because GetKubernetesServers returns duplicated servers
 		// because it lists the KindKubeServer and KindKubeService.
 		// We must remove this once legacy heartbeat is removed.
-		// DELETE IN 12.0.0
+		// DELETE IN 13.0.0
 		var dedupClusters []types.KubeServer
 		dedup := map[string]struct{}{}
 		for _, kube := range kubes {

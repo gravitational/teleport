@@ -25,6 +25,8 @@ import (
 
 var pathClusters = urlpath.New("/clusters/:cluster/*")
 var pathLeafClusters = urlpath.New("/clusters/:cluster/leaves/:leaf/*")
+var pathDbs = urlpath.New("/clusters/:cluster/dbs/:dbName")
+var pathLeafDbs = urlpath.New("/clusters/:cluster/leaves/:leaf/dbs/:dbName")
 
 // New creates an instance of ResourceURI
 func New(path string) ResourceURI {
@@ -92,6 +94,21 @@ func (r ResourceURI) GetLeafClusterName() string {
 	return result.Params["leaf"]
 }
 
+// GetDbName extracts the database name from r. Returns an empty string if path is not a database URI.
+func (r ResourceURI) GetDbName() string {
+	result, ok := pathDbs.Match(r.path)
+	if ok {
+		return result.Params["dbName"]
+	}
+
+	result, ok = pathLeafDbs.Match(r.path)
+	if ok {
+		return result.Params["dbName"]
+	}
+
+	return ""
+}
+
 // AppendServer appends server segment to the URI
 func (r ResourceURI) AppendServer(id string) ResourceURI {
 	r.path = fmt.Sprintf("%v/servers/%v", r.path, id)
@@ -125,6 +142,12 @@ func (r ResourceURI) AddGateway(id string) ResourceURI {
 // AppendApp appends app segment to the URI
 func (r ResourceURI) AppendApp(name string) ResourceURI {
 	r.path = fmt.Sprintf("%v/apps/%v", r.path, name)
+	return r
+}
+
+// AppendAccessRequest appends access request segment to the URI
+func (r ResourceURI) AppendAccessRequest(id string) ResourceURI {
+	r.path = fmt.Sprintf("%v/access_requests/%v", r.path, id)
 	return r
 }
 

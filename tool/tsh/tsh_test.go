@@ -40,6 +40,7 @@ import (
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	yamlv2 "gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
@@ -51,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -767,33 +767,47 @@ func TestMakeClient(t *testing.T) {
 	require.Greater(t, len(agentKeys), 0)
 }
 
-// approveAllAccessRequests starts a loop which gets all pending AccessRequests
-// from access and approves them. It accepts a stop channel, which will stop the
-// loop and cancel all active requests when it is closed.
-func approveAllAccessRequests(ctx context.Context, access services.DynamicAccess) (err error) {
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
+// accessApprover allows watching and updating access requests
+type accessApprover interface {
+	types.Events
+	SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error
+}
+
+// approveAllAccessRequests starts a loop which watches for pending AccessRequests
+// and automatically approves them.
+func approveAllAccessRequests(ctx context.Context, approver accessApprover) error {
+	watcher, err := approver.NewWatcher(ctx, types.Watch{
+		Name:  types.KindAccessRequest,
+		Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}},
+	})
+	if err != nil {
+		return err
+	}
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
-		}
-		requests, err := access.GetAccessRequests(ctx,
-			types.AccessRequestFilter{
-				State: types.RequestState_PENDING,
-			})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, req := range requests {
-			err = access.SetAccessRequestState(ctx,
-				types.AccessRequestUpdate{
-					RequestID: req.GetName(),
-					State:     types.RequestState_APPROVED,
-				})
-			if err != nil {
+		case <-watcher.Done():
+			return watcher.Error()
+		case evt := <-watcher.Events():
+			if evt.Type != types.OpPut {
+				continue
+			}
+
+			request, ok := evt.Resource.(types.AccessRequest)
+			if !ok {
+				return trace.BadParameter("unexpected event type received: %q", evt.Resource.GetKind())
+			}
+
+			if request.GetState() == types.RequestState_APPROVED {
+				continue
+			}
+
+			if err := approver.SetAccessRequestState(ctx, types.AccessRequestUpdate{
+				RequestID: request.GetName(),
+				State:     types.RequestState_APPROVED,
+			}); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -866,7 +880,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			require.NoError(t, err)
 			foundCount := 0
 			for _, node := range nodes {
-				if apiutils.SliceContainsStr(hostIDs, node.GetName()) {
+				if slices.Contains(hostIDs, node.GetName()) {
 					foundCount++
 				}
 			}
@@ -1155,7 +1169,6 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			tt.stdoutAssertion(t, stdout.String())
 			require.Equal(t, tt.deviceSignCount, int(device.Counter()), "device sign count mismatch")
 		})
-
 	}
 }
 
@@ -1244,7 +1257,7 @@ func TestSSHAccessRequest(t *testing.T) {
 			require.NoError(t, err)
 			foundCount := 0
 			for _, node := range nodes {
-				if apiutils.SliceContainsStr(hostIDs, node.GetName()) {
+				if slices.Contains(hostIDs, node.GetName()) {
 					foundCount++
 				}
 			}
@@ -1868,10 +1881,54 @@ func TestKubeConfigUpdate(t *testing.T) {
 				Credentials:         creds,
 				ClusterAddr:         "https://a.example.com:3026",
 				TeleportClusterName: "a.example.com",
+				KubeClusters:        []string{"dev"},
+				SelectCluster:       "dev",
 				Exec: &kubeconfig.ExecValues{
 					TshBinaryPath: "/bin/tsh",
-					KubeClusters:  []string{"dev", "prod"},
-					SelectCluster: "dev",
+					Env:           make(map[string]string),
+				},
+			},
+		},
+		{
+			desc: "selected cluster with impersonation and namespace",
+			cf: &CLIConf{
+				executablePath:    "/bin/tsh",
+				KubernetesCluster: "dev",
+				kubeNamespace:     "namespace1",
+				kubernetesImpersonationConfig: impersonationConfig{
+					kubernetesUser:   "user1",
+					kubernetesGroups: []string{"group1", "group2"},
+				},
+			},
+			kubeStatus: &kubernetesStatus{
+				clusterAddr:         "https://a.example.com:3026",
+				teleportClusterName: "a.example.com",
+				kubeClusters: []types.KubeCluster{
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name: "dev",
+						},
+					},
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name: "prod",
+						},
+					},
+				},
+				credentials: creds,
+			},
+			errorAssertion: require.NoError,
+			expectedValues: &kubeconfig.Values{
+				Credentials:         creds,
+				ClusterAddr:         "https://a.example.com:3026",
+				TeleportClusterName: "a.example.com",
+				Impersonate:         "user1",
+				ImpersonateGroups:   []string{"group1", "group2"},
+				Namespace:           "namespace1",
+				KubeClusters:        []string{"dev"},
+				SelectCluster:       "dev",
+				Exec: &kubeconfig.ExecValues{
+					TshBinaryPath: "/bin/tsh",
 					Env:           make(map[string]string),
 				},
 			},
@@ -1904,10 +1961,10 @@ func TestKubeConfigUpdate(t *testing.T) {
 				Credentials:         creds,
 				ClusterAddr:         "https://a.example.com:3026",
 				TeleportClusterName: "a.example.com",
+				KubeClusters:        []string{"dev", "prod"},
+				SelectCluster:       "",
 				Exec: &kubeconfig.ExecValues{
 					TshBinaryPath: "/bin/tsh",
-					KubeClusters:  []string{"dev", "prod"},
-					SelectCluster: "",
 					Env:           make(map[string]string),
 				},
 			},
@@ -1936,7 +1993,7 @@ func TestKubeConfigUpdate(t *testing.T) {
 				credentials: creds,
 			},
 			errorAssertion: func(t require.TestingT, err error, _ ...interface{}) {
-				require.True(t, trace.IsBadParameter(err))
+				require.True(t, trace.IsNotFound(err))
 			},
 			expectedValues: nil,
 		},
@@ -1989,6 +2046,7 @@ func TestKubeConfigUpdate(t *testing.T) {
 				ClusterAddr:         "https://a.example.com:3026",
 				TeleportClusterName: "a.example.com",
 				Exec:                nil,
+				SelectCluster:       "dev",
 			},
 		},
 	}
@@ -2503,6 +2561,13 @@ func setHomePath(path string) cliOption {
 	}
 }
 
+func setKubeConfigPath(path string) cliOption {
+	return func(cf *CLIConf) error {
+		cf.kubeConfigPath = path
+		return nil
+	}
+}
+
 func setIdentity(path string) cliOption {
 	return func(cf *CLIConf) error {
 		cf.IdentityFileIn = path
@@ -2624,7 +2689,7 @@ func TestSerializeAppConfig(t *testing.T) {
 }
 
 func TestSerializeDatabases(t *testing.T) {
-	expected := `
+	expectedFmt := `
 	[{
     "kind": "db",
     "version": "v3",
@@ -2643,7 +2708,9 @@ func TestSerializeDatabases(t *testing.T) {
         },
         "elasticache": {},
         "secret_store": {},
-        "memorydb": {}
+        "memorydb": {},
+        "rdsproxy": {},
+        "redshift_serverless": {}
       },
       "mysql": {},
       "gcp": {},
@@ -2668,12 +2735,14 @@ func TestSerializeDatabases(t *testing.T) {
         },
         "elasticache": {},
         "secret_store": {},
-        "memorydb": {}
+        "memorydb": {},
+        "rdsproxy": {},
+        "redshift_serverless": {}
       },
       "azure": {
 	    "redis": {}
 	  }
-    }
+    }%v
   }]
 	`
 	db, err := types.NewDatabaseV3(types.Metadata{
@@ -2685,14 +2754,137 @@ func TestSerializeDatabases(t *testing.T) {
 		URI:      "mongodb://example.com",
 	})
 	require.NoError(t, err)
-	testSerialization(t, expected, func(f string) (string, error) {
-		return serializeDatabases([]types.Database{db}, f)
-	})
+
+	tests := []struct {
+		name        string
+		dbUsersData string
+		roles       services.RoleSet
+	}{
+		{
+			name: "without db users",
+		},
+		{
+			name: "with wildcard in allowed db users",
+			dbUsersData: `,
+    "users": {
+      "allowed": [
+        "*",
+        "bar",
+        "foo"
+      ],
+      "denied": [
+        "baz",
+        "qux"
+      ]
+     }`,
+			roles: services.RoleSet{
+				&types.RoleV5{
+					Metadata: types.Metadata{Name: "role1", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							Namespaces:     []string{apidefaults.Namespace},
+							DatabaseLabels: types.Labels{"*": []string{"*"}},
+							DatabaseUsers:  []string{"foo", "bar", "*"},
+						},
+						Deny: types.RoleConditions{
+							Namespaces:    []string{apidefaults.Namespace},
+							DatabaseUsers: []string{"baz", "qux"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "without wildcard in allowed db users",
+			dbUsersData: `,
+    "users": {
+      "allowed": [
+        "bar",
+        "foo"
+      ]
+     }`,
+			roles: services.RoleSet{
+				&types.RoleV5{
+					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							Namespaces:     []string{apidefaults.Namespace},
+							DatabaseLabels: types.Labels{"*": []string{"*"}},
+							DatabaseUsers:  []string{"foo", "bar"},
+						},
+						Deny: types.RoleConditions{
+							Namespaces:    []string{apidefaults.Namespace},
+							DatabaseUsers: []string{"baz", "qux"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "with no denied db users",
+			dbUsersData: `,
+    "users": {
+      "allowed": [
+        "*",
+        "bar",
+        "foo"
+      ]
+     }`,
+			roles: services.RoleSet{
+				&types.RoleV5{
+					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							Namespaces:     []string{apidefaults.Namespace},
+							DatabaseLabels: types.Labels{"*": []string{"*"}},
+							DatabaseUsers:  []string{"*", "foo", "bar"},
+						},
+						Deny: types.RoleConditions{
+							Namespaces:    []string{apidefaults.Namespace},
+							DatabaseUsers: []string{},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "with no allowed db users",
+			dbUsersData: `,
+    "users": {}`,
+			roles: services.RoleSet{
+				&types.RoleV5{
+					Metadata: types.Metadata{Name: "role2", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							Namespaces:     []string{apidefaults.Namespace},
+							DatabaseLabels: types.Labels{"*": []string{"*"}},
+							DatabaseUsers:  []string{},
+						},
+						Deny: types.RoleConditions{
+							Namespaces:    []string{apidefaults.Namespace},
+							DatabaseUsers: []string{"baz", "qux"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			expected := fmt.Sprintf(expectedFmt, tt.dbUsersData)
+			testSerialization(t, expected, func(f string) (string, error) {
+				return serializeDatabases([]types.Database{db}, f, tt.roles)
+			})
+		})
+	}
 }
 
 func TestSerializeDatabasesEmpty(t *testing.T) {
 	testSerialization(t, "[]", func(f string) (string, error) {
-		return serializeDatabases(nil, f)
+		return serializeDatabases(nil, f, nil)
 	})
 }
 
@@ -3202,7 +3394,8 @@ func TestSerializeMFADevices(t *testing.T) {
 	})
 }
 
-func Test_getUsersForDb(t *testing.T) {
+func TestListDatabasesWithUsers(t *testing.T) {
+	t.Parallel()
 	dbStage, err := types.NewDatabaseV3(types.Metadata{
 		Name:   "stage",
 		Labels: map[string]string{"env": "stage"},
@@ -3246,60 +3439,76 @@ func Test_getUsersForDb(t *testing.T) {
 		},
 	}
 
-	testCases := []struct {
-		name     string
-		roles    services.RoleSet
-		database types.Database
-		result   string
+	tests := []struct {
+		name      string
+		roles     services.RoleSet
+		database  types.Database
+		wantUsers *dbUsers
+		wantText  string
 	}{
 		{
 			name:     "developer allowed any username in stage database except superuser",
 			roles:    services.RoleSet{roleDevStage, roleDevProd},
 			database: dbStage,
-			result:   "[* dev], except: [superuser]",
+			wantUsers: &dbUsers{
+				Allowed: []string{"*", "dev"},
+				Denied:  []string{"superuser"},
+			},
+			wantText: "[* dev], except: [superuser]",
 		},
 		{
 			name:     "developer allowed only specific username/database in prod database",
 			roles:    services.RoleSet{roleDevStage, roleDevProd},
 			database: dbProd,
-			result:   "[dev]",
+			wantUsers: &dbUsers{
+				Allowed: []string{"dev"},
+			},
+			wantText: "[dev]",
 		},
 		{
 			name:     "roleDevStage x dbStage",
 			roles:    services.RoleSet{roleDevStage},
 			database: dbStage,
-			result:   "[*], except: [superuser]",
+			wantUsers: &dbUsers{
+				Allowed: []string{"*"},
+				Denied:  []string{"superuser"},
+			},
+			wantText: "[*], except: [superuser]",
 		},
 		{
-			name:     "roleDevStage x dbProd",
-			roles:    services.RoleSet{roleDevStage},
-			database: dbProd,
-			result:   "(none)",
+			name:      "roleDevStage x dbProd",
+			roles:     services.RoleSet{roleDevStage},
+			database:  dbProd,
+			wantUsers: &dbUsers{},
+			wantText:  "(none)",
 		},
 		{
-			name:     "roleDevProd x dbStage",
-			roles:    services.RoleSet{roleDevProd},
-			database: dbStage,
-			result:   "(none)",
+			name:      "roleDevProd x dbStage",
+			roles:     services.RoleSet{roleDevProd},
+			database:  dbStage,
+			wantUsers: &dbUsers{},
+			wantText:  "(none)",
 		},
 		{
 			name:     "roleDevProd x dbProd",
 			roles:    services.RoleSet{roleDevProd},
 			database: dbProd,
-			result:   "[dev]",
-		},
-		{
-			name:     "no role set",
-			roles:    nil,
-			database: dbProd,
-			result:   "(unknown)",
+			wantUsers: &dbUsers{
+				Allowed: []string{"dev"},
+			},
+			wantText: "[dev]",
 		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := getUsersForDb(tc.database, tc.roles)
-			require.Equal(t, tc.result, got)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			gotUsers := getDBUsers(tt.database, tt.roles)
+			require.Equal(t, tt.wantUsers, gotUsers)
+
+			gotText := formatUsersForDB(tt.database, tt.roles)
+			require.Equal(t, tt.wantText, gotText)
 		})
 	}
 }

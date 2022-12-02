@@ -12,7 +12,7 @@ options:
 steps:
   # Run the integration tests. Actual content of this job depends on the changes
   # detected in the PR
-  - name: public.ecr.aws/gravitational/teleport-buildbox:teleport11
+  - name: public.ecr.aws/gravitational/teleport-buildbox:teleport12
     id: run-tests
     dir: /workspace/.cloudbuild/scripts
     entrypoint: bash

@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
@@ -32,9 +31,11 @@ import (
 	"google.golang.org/api/googleapi"
 	"google.golang.org/grpc/status"
 
+	"github.com/gravitational/teleport/api/types"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	azurelib "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
+	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 )
 
 // ConvertError converts errors to trace errors.
@@ -133,10 +134,12 @@ func ConvertConnectError(err error, sessionCtx *Session) error {
 	err = ConvertError(err)
 
 	if trace.IsAccessDenied(err) {
-		switch {
-		case sessionCtx.Database.IsRDS():
+		switch sessionCtx.Database.GetType() {
+		case types.DatabaseTypeRDS:
 			return createRDSAccessDeniedError(err, sessionCtx)
-		case sessionCtx.Database.IsAzure():
+		case types.DatabaseTypeRDSProxy:
+			return createRDSProxyAccessDeniedError(err, sessionCtx)
+		case types.DatabaseTypeAzure:
 			return createAzureAccessDeniedError(err, sessionCtx)
 		}
 	}
@@ -147,7 +150,7 @@ func ConvertConnectError(err error, sessionCtx *Session) error {
 // createRDSAccessDeniedError creates an error with help message to setup IAM
 // auth for RDS.
 func createRDSAccessDeniedError(err error, sessionCtx *Session) error {
-	policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
+	policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocument(sessionCtx.Database)
 	if getPolicyErr != nil {
 		policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
 	}
@@ -182,6 +185,34 @@ take a few minutes to propagate):
 	}
 }
 
+// createRDSProxyAccessDeniedError creates an error with help message to setup
+// IAM auth for RDS Proxy.
+func createRDSProxyAccessDeniedError(err error, sessionCtx *Session) error {
+	policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocument(sessionCtx.Database)
+	if getPolicyErr != nil {
+		policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
+	}
+
+	return trace.AccessDenied(`Could not connect to database:
+
+  %v
+
+Make sure credentials for %v user %q is available in one of the Secrets Manager
+secrets associated with the RDS Proxy and the IAM Authentication is set to
+"required" for that secret.
+
+Also, make sure the Teleport database agent's IAM policy has "rds-connect"
+permissions (note that IAM changes may take a few minutes to propagate):
+
+%v
+`,
+		err,
+		defaults.ReadableDatabaseProtocol(sessionCtx.Database.GetProtocol()),
+		sessionCtx.DatabaseUser,
+		policy,
+	)
+}
+
 // createAzureAccessDeniedError creates an error with help message to setup AAD
 // auth for PostgreSQL/MySQL.
 func createAzureAccessDeniedError(err error, sessionCtx *Session) error {
@@ -205,4 +236,13 @@ agent's service principal. See: https://goteleport.com/docs/database-access/guid
 	default:
 		return trace.Wrap(err)
 	}
+}
+
+// IsUnrecognizedAWSEngineNameError checks if the err is non-nil and came from using an engine filter that the
+// AWS region does not recognize.
+func IsUnrecognizedAWSEngineNameError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "unrecognized engine name")
 }

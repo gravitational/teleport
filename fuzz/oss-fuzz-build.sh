@@ -4,10 +4,10 @@ TELEPORT_PREFIX="github.com/gravitational/teleport"
 
 prepare_teleport() {
 
-  go get github.com/AdamKorcz/go-118-fuzz-build/utils
+  go get github.com/AdamKorcz/go-118-fuzz-build/testing
   go get -u all || true
   go mod tidy
-  go get github.com/AdamKorcz/go-118-fuzz-build/utils
+  go get github.com/AdamKorcz/go-118-fuzz-build/testing
 
   # Fix /root/go/pkg/mod/github.com/aws/aws-sdk-go-v2/internal/ini@v1.3.0/fuzz.go:13:21:
   # not enough arguments in call to Parse
@@ -17,7 +17,7 @@ prepare_teleport() {
 
 prepare_teleport_api() {
 
-  (cd api; go get github.com/AdamKorcz/go-118-fuzz-build/utils)
+  (cd api; go get github.com/AdamKorcz/go-118-fuzz-build/testing)
 
 }
 
@@ -25,9 +25,6 @@ build_teleport_fuzzers() {
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/services \
     FuzzParserEvalBoolPredicate fuzz_parser_eval_bool_predicate
-
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/auth \
-    FuzzParseSAMLInResponseTo fuzz_parse_saml_in_response_to
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/restrictedsession \
     FuzzParseIPSpec fuzz_parse_ip_spec

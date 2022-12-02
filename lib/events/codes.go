@@ -108,6 +108,8 @@ const (
 	AppSessionEndCode = "T2011I"
 	// SessionRecordingAccessCode is the session recording view data event code.
 	SessionRecordingAccessCode = "T2012I"
+	// AppSessionDynamoDBRequestCode is the application request/response code.
+	AppSessionDynamoDBRequestCode = "T2013I"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
@@ -184,6 +186,9 @@ const (
 	// ElasticsearchRequestCode is the db.session.elasticsearch.request event code.
 	ElasticsearchRequestCode = "TES00I"
 
+	// DynamoDBRequestCode is the db.session.dynamodb.request event code.
+	DynamoDBRequestCode = "TDY01I"
+
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
 	// DatabaseUpdateCode is the db.update event code.
@@ -202,6 +207,24 @@ const (
 	DesktopClipboardSendCode = "TDP02I"
 	// DesktopClipboardReceiveCode is the desktop clipboard receive code.
 	DesktopClipboardReceiveCode = "TDP03I"
+	// DesktopSharedDirectoryStartCode is the desktop directory start code.
+	DesktopSharedDirectoryStartCode = "TDP04I"
+	// DesktopSharedDirectoryStartFailureCode is the desktop directory start code
+	// for when a start operation fails, or for when the internal cache state was corrupted
+	// causing information loss, or for when the internal cache has exceeded its max size.
+	DesktopSharedDirectoryStartFailureCode = "TDP04W"
+	// DesktopSharedDirectoryReadCode is the desktop directory read code.
+	DesktopSharedDirectoryReadCode = "TDP05I"
+	// DesktopSharedDirectoryReadFailureCode is the desktop directory read code
+	// for when a read operation fails, or for if the internal cache state was corrupted
+	// causing information loss, or for when the internal cache has exceeded its max size.
+	DesktopSharedDirectoryReadFailureCode = "TDP05W"
+	// DesktopSharedDirectoryWriteCode is the desktop directory write code.
+	DesktopSharedDirectoryWriteCode = "TDP06I"
+	// DesktopSharedDirectoryWriteFailureCode is the desktop directory write code
+	// for when a write operation fails, or for if the internal cache state was corrupted
+	// causing information loss, or for when the internal cache has exceeded its max size.
+	DesktopSharedDirectoryWriteFailureCode = "TDP06W"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
@@ -354,6 +377,19 @@ const (
 	SSMRunSuccessCode = "TDS00I"
 	// SSMRunFailCode is the discovery script success code.
 	SSMRunFailCode = "TDS00W"
+
+	// DeviceCreateCode is the device creation/registration code.
+	DeviceCreateCode = "TV001I"
+	// DeviceDeleteCode is the device deletion code.
+	DeviceDeleteCode = "TV002I"
+	// DeviceEnrollTokenCreateCode is the device enroll token creation code
+	DeviceEnrollTokenCreateCode = "TV003I"
+	// DeviceEnrollTokenSpentCode is the device enroll token spent code.
+	DeviceEnrollTokenSpentCode = "TV004I"
+	// DeviceEnrollCode is the device enrollment completion code.
+	DeviceEnrollCode = "TV005I"
+	// DeviceAuthenticateCode is the device authentication code.
+	DeviceAuthenticateCode = "TV006I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

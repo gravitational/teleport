@@ -19,10 +19,11 @@ package auth
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/githubactions"
 )
 
 type ghaIDTokenValidator interface {
@@ -54,7 +55,7 @@ func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.Register
 func checkGithubAllowRules(pt types.ProvisionToken, claims *githubactions.IDTokenClaims) error {
 	token, ok := pt.(*types.ProvisionTokenV2)
 	if !ok {
-		return trace.BadParameter("github join method only supports ProvisionTokenV2")
+		return trace.BadParameter("github join method only supports ProvisionTokenV2, '%T' was provided", pt)
 	}
 
 	// If a single rule passes, accept the IDToken

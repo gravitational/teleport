@@ -24,6 +24,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -38,16 +44,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 // TestLocalUserCanReissueCerts tests that local users can reissue
@@ -154,181 +153,6 @@ func TestSSOUserCanReissueCert(t *testing.T) {
 		Expires:   time.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
-}
-
-func TestSAMLAuthRequest(t *testing.T) {
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
-
-	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
-	require.NoError(t, err)
-
-	_, err = CreateRole(ctx, srv.Auth(), "baz", types.RoleSpecV5{})
-	require.NoError(t, err)
-
-	access1Role, err := CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV5{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindSAMLRequest},
-					Verbs:     []string{types.VerbCreate},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	access2Role, err := CreateRole(ctx, srv.Auth(), "test-access-2", types.RoleSpecV5{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindSAML},
-					Verbs:     []string{types.VerbCreate},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	access3Role, err := CreateRole(ctx, srv.Auth(), "test-access-3", types.RoleSpecV5{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindSAML, types.KindSAMLRequest},
-					Verbs:     []string{types.VerbCreate},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	readerRole, err := CreateRole(ctx, srv.Auth(), "test-access-4", types.RoleSpecV5{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindSAMLRequest},
-					Verbs:     []string{types.VerbRead},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	conn, err := types.NewSAMLConnector("foo", types.SAMLConnectorSpecV2{
-		Issuer:                   "test",
-		SSO:                      "test",
-		Cert:                     fixtures.TLSCACertPEM,
-		AssertionConsumerService: "test",
-		AttributesToRoles: []types.AttributeMapping{{
-			Name:  "foo",
-			Value: "bar",
-			Roles: []string{"baz"},
-		}},
-	})
-	require.NoError(t, err)
-
-	err = srv.Auth().UpsertSAMLConnector(ctx, conn)
-	require.NoError(t, err)
-
-	reqNormal := types.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML}
-	reqTest := types.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML, SSOTestFlow: true, ConnectorSpec: &types.SAMLConnectorSpecV2{
-		Issuer:                   "test",
-		Audience:                 "test",
-		ServiceProviderIssuer:    "test",
-		SSO:                      "test",
-		Cert:                     fixtures.TLSCACertPEM,
-		AssertionConsumerService: "test",
-		AttributesToRoles: []types.AttributeMapping{{
-			Name:  "foo",
-			Value: "bar",
-			Roles: []string{"baz"},
-		}},
-	}}
-
-	tests := []struct {
-		desc               string
-		roles              []string
-		request            types.SAMLAuthRequest
-		expectAccessDenied bool
-	}{
-		{
-			desc:               "empty role - no access",
-			roles:              []string{emptyRole.GetName()},
-			request:            reqNormal,
-			expectAccessDenied: true,
-		},
-		{
-			desc:               "can create regular request with normal access",
-			roles:              []string{access1Role.GetName()},
-			request:            reqNormal,
-			expectAccessDenied: false,
-		},
-		{
-			desc:               "cannot create sso test request with normal access",
-			roles:              []string{access1Role.GetName()},
-			request:            reqTest,
-			expectAccessDenied: true,
-		},
-		{
-			desc:               "cannot create normal request with connector access",
-			roles:              []string{access2Role.GetName()},
-			request:            reqNormal,
-			expectAccessDenied: true,
-		},
-		{
-			desc:               "cannot create sso test request with connector access",
-			roles:              []string{access2Role.GetName()},
-			request:            reqTest,
-			expectAccessDenied: true,
-		},
-		{
-			desc:               "can create regular request with combined access",
-			roles:              []string{access3Role.GetName()},
-			request:            reqNormal,
-			expectAccessDenied: false,
-		},
-		{
-			desc:               "can create sso test request with combined access",
-			roles:              []string{access3Role.GetName()},
-			request:            reqTest,
-			expectAccessDenied: false,
-		},
-	}
-
-	user, err := CreateUser(srv.Auth(), "dummy")
-	require.NoError(t, err)
-
-	userReader, err := CreateUser(srv.Auth(), "dummy-reader", readerRole)
-	require.NoError(t, err)
-
-	clientReader, err := srv.NewClient(TestUser(userReader.GetName()))
-	require.NoError(t, err)
-
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			user.SetRoles(tt.roles)
-			err = srv.Auth().UpsertUser(user)
-			require.NoError(t, err)
-
-			client, err := srv.NewClient(TestUser(user.GetName()))
-			require.NoError(t, err)
-
-			request, err := client.CreateSAMLAuthRequest(ctx, tt.request)
-			if tt.expectAccessDenied {
-				require.Error(t, err)
-				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
-				return
-			}
-
-			require.NoError(t, err)
-			require.NotEmpty(t, request.ID)
-			require.Equal(t, tt.request.ConnectorID, request.ConnectorID)
-
-			requestCopy, err := clientReader.GetSAMLAuthRequest(ctx, request.ID)
-			require.NoError(t, err)
-			require.Equal(t, request, requestCopy)
-		})
-	}
 }
 
 func TestInstaller(t *testing.T) {
@@ -2779,7 +2603,7 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test nodes.
-	const numTestNodes = 2
+	const numTestNodes = 3
 	for i := 0; i < numTestNodes; i++ {
 		name := fmt.Sprintf("node%d", i)
 		node, err := types.NewServerWithLabels(
@@ -2812,53 +2636,95 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 	searchAsRole.SetLogins(types.Allow, []string{"user"})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, searchAsRole))
 
-	role.SetSearchAsRoles([]string{searchAsRole.GetName()})
+	// create a third role which can see the third node
+	previewAsRole := services.RoleForUser(user)
+	previewAsRole.SetName("test_preview_role")
+	previewAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[2].GetName()}})
+	previewAsRole.SetLogins(types.Allow, []string{"user"})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, previewAsRole))
+
+	role.SetSearchAsRoles(types.Allow, []string{searchAsRole.GetName()})
+	role.SetPreviewAsRoles(types.Allow, []string{previewAsRole.GetName()})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
 	clt, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
 
-	// Regular ListResources returns first node, which user normally has
-	// permission for
-	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType: types.KindNode,
-		Limit:        int32(len(testNodes)),
-	})
-	require.NoError(t, err)
-	require.Len(t, resp.Resources, 1)
-	require.Equal(t, resp.Resources[0].GetName(), testNodes[0].GetName())
+	for _, tc := range []struct {
+		desc                   string
+		requestOpt             func(*proto.ListResourcesRequest)
+		expectNodes            []string
+		expectSearchEventRoles []string
+	}{
+		{
+			desc:        "basic",
+			expectNodes: []string{testNodes[0].GetName()},
+		},
+		{
+			desc: "search as roles",
+			requestOpt: func(req *proto.ListResourcesRequest) {
+				req.UseSearchAsRoles = true
+			},
+			expectNodes:            []string{testNodes[0].GetName(), testNodes[1].GetName()},
+			expectSearchEventRoles: []string{role.GetName(), searchAsRole.GetName()},
+		},
+		{
+			desc: "preview as roles",
+			requestOpt: func(req *proto.ListResourcesRequest) {
+				req.UsePreviewAsRoles = true
+			},
+			expectNodes:            []string{testNodes[0].GetName(), testNodes[2].GetName()},
+			expectSearchEventRoles: []string{role.GetName(), previewAsRole.GetName()},
+		},
+		{
+			desc: "both",
+			requestOpt: func(req *proto.ListResourcesRequest) {
+				req.UseSearchAsRoles = true
+				req.UsePreviewAsRoles = true
+			},
+			expectNodes:            []string{testNodes[0].GetName(), testNodes[1].GetName(), testNodes[2].GetName()},
+			expectSearchEventRoles: []string{role.GetName(), searchAsRole.GetName(), previewAsRole.GetName()},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			req := proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Limit:        int32(len(testNodes)),
+			}
+			if tc.requestOpt != nil {
+				tc.requestOpt(&req)
+			}
+			resp, err := clt.ListResources(ctx, req)
+			require.NoError(t, err)
+			require.Len(t, resp.Resources, len(tc.expectNodes))
+			var gotNodes []string
+			for _, node := range resp.Resources {
+				gotNodes = append(gotNodes, node.GetName())
+			}
+			require.ElementsMatch(t, tc.expectNodes, gotNodes)
 
-	// ListResources with UseSearchAsRoles returns both nodes
-	resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType:     types.KindNode,
-		Limit:            int32(len(testNodes)),
-		UseSearchAsRoles: true,
-	})
-	require.NoError(t, err)
-	require.Len(t, resp.Resources, len(testNodes))
-	var expectedNodes []string
-	for _, node := range testNodes {
-		expectedNodes = append(expectedNodes, node.GetName())
+			if len(tc.expectSearchEventRoles) > 0 {
+				require.Eventually(t, func() bool {
+					// make sure an audit event is logged for the search
+					auditEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(time.Time{}, time.Now(), "", []string{events.AccessRequestResourceSearch}, 10, 0, "")
+					require.NoError(t, err)
+					if len(auditEvents) == 0 {
+						t.Log("no search audit events found")
+						return false
+					}
+					lastEvent := auditEvents[len(auditEvents)-1].(*apievents.AccessRequestResourceSearch)
+					diff := cmp.Diff(tc.expectSearchEventRoles, lastEvent.SearchAsRoles)
+					if diff == "" {
+						// Found the event we're looking for.
+						return true
+					}
+					t.Logf("most recent search event does not have the expected roles, diff: %s", diff)
+					return false
+				}, 10*time.Second, 250*time.Millisecond, "did not find expected search event")
+			}
+		})
 	}
-	var gotNodes []string
-	for _, node := range resp.Resources {
-		gotNodes = append(gotNodes, node.GetName())
-	}
-	require.ElementsMatch(t, expectedNodes, gotNodes)
 
-	// make sure an audit event is logged for the search
-	auditEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(time.Time{}, time.Now(), "", nil, 10, 0, "")
-	require.NoError(t, err)
-	foundAuditEvent := false
-	for _, event := range auditEvents {
-		if searchEvent, ok := event.(*apievents.AccessRequestResourceSearch); ok {
-			foundAuditEvent = true
-			require.ElementsMatch(t,
-				[]string{role.GetName(), searchAsRole.GetName()},
-				searchEvent.SearchAsRoles)
-		}
-	}
-	require.True(t, foundAuditEvent)
 }
 
 func TestGetAndList_WindowsDesktops(t *testing.T) {
@@ -3701,7 +3567,7 @@ func TestGenerateHostCert(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			_, err = client.GenerateHostCert(pub, "", "", test.principals, clusterName, types.RoleNode, 0)
+			_, err = client.GenerateHostCert(ctx, pub, "", "", test.principals, clusterName, types.RoleNode, 0)
 			require.True(t, test.expect(err))
 		})
 	}

@@ -623,11 +623,19 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 
 func showOTPQRCode(k *otp.Key) (cleanup func(), retErr error) {
 	var imageViewer string
+	// imageViewerArgs is used to send additional arguments to exec command.
+	var imageViewerArgs []string
 	switch runtime.GOOS {
 	case "linux":
 		imageViewer = "xdg-open"
 	case "darwin":
 		imageViewer = "open"
+	case "windows":
+		// On windows start and many other commands are not executable files,
+		// rather internal commands of Command prompt. In order to use internal
+		// command it need to executed as: `cmd.exe /c start filename`
+		imageViewer = "cmd.exe"
+		imageViewerArgs = []string{"/c", "start"}
 	default:
 		return func() {}, trace.NotImplemented("showing QR codes is not implemented on %s", runtime.GOOS)
 	}
@@ -655,13 +663,13 @@ func showOTPQRCode(k *otp.Key) (cleanup func(), retErr error) {
 	}
 	log.Debugf("Wrote OTP QR code to %s", imageFile.Name())
 
-	cmd := exec.Command(imageViewer, imageFile.Name())
+	cmd := exec.Command(imageViewer, append(imageViewerArgs, imageFile.Name())...)
 	if err := cmd.Start(); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 	log.Debugf("Opened QR code via %q", imageViewer)
 	return func() {
-		if err := os.Remove(imageFile.Name()); err != nil {
+		if err := utils.RemoveSecure(imageFile.Name()); err != nil {
 			log.WithError(err).Debugf("Failed to clean up temporary QR code file %q", imageFile.Name())
 		}
 		if err := cmd.Process.Kill(); err != nil {

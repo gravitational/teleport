@@ -32,9 +32,10 @@
 //!    it didn't allocate but needs to hold on to, is responsible for copying it to its
 //!    own respective heap.
 //!
-//! In practice, this means that all the functions called from Go (those prefixed with
-//! `pub unsafe extern "C"`) MUST NOT hang on to any of the pointers passed in to them after
-//! they return. All pointer data that needs to persist MUST be copied into Rust-owned memory.
+//! In practice, this means that all the functions called from Go (those
+//! prefixed with `pub unsafe extern "C"`) MUST NOT hang on to any of the
+//! pointers passed in to them after they return. All pointer data that needs to
+//! persist MUST be copied into Rust-owned memory.
 
 mod cliprdr;
 mod errors;
@@ -264,7 +265,7 @@ fn connect_rdp_inner(
         .tcp
         .set_read_timeout(Some(RDP_HANDSHAKE_TIMEOUT))?;
     let tcp = Link::new(Stream::Raw(shared_tcp.clone()));
-    let protocols = x224::Protocols::ProtocolSSL as u32 | x224::Protocols::ProtocolRDP as u32;
+    let protocols = x224::Protocols::ProtocolSSL as u32;
     let x224 = x224::Client::connect(tpkt::Client::new(tcp), protocols, false, None, false, false)?;
     let mut mcs = mcs::Client::new(x224);
 
@@ -667,61 +668,76 @@ impl<S: Read + Write> RdpClient<S> {
         }
     }
 
-    pub fn write_client_device_list_announce(
+    fn write_rdpdr(&mut self, messages: Messages) -> RdpResult<()> {
+        let chan = &rdpdr::CHANNEL_NAME.to_string();
+        for message in messages {
+            self.mcs.write(chan, message)?;
+        }
+        Ok(())
+    }
+
+    pub fn handle_client_device_list_announce(
         &mut self,
         req: rdpdr::ClientDeviceListAnnounce,
     ) -> RdpResult<()> {
-        self.rdpdr
-            .write_client_device_list_announce(req, &mut self.mcs)
+        let messages = self.rdpdr.handle_client_device_list_announce(req)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_info_response(
         &mut self,
         res: SharedDirectoryInfoResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_info_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_info_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_create_response(
         &mut self,
         res: SharedDirectoryCreateResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_create_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_create_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_delete_response(
         &mut self,
         res: SharedDirectoryDeleteResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_delete_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_delete_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_list_response(
         &mut self,
         res: SharedDirectoryListResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_list_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_list_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_read_response(
         &mut self,
         res: SharedDirectoryReadResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_read_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_read_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_write_response(
         &mut self,
         res: SharedDirectoryWriteResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_write_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_write_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_move_response(
         &mut self,
         res: SharedDirectoryMoveResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_move_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_move_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn shutdown(&mut self) -> RdpResult<()> {
@@ -878,7 +894,7 @@ pub unsafe extern "C" fn handle_tdp_sd_announce(
         rdpdr::ClientDeviceListAnnounce::new_drive(sd_announce.directory_id, sd_announce.name);
 
     let mut rdp_client = client.rdp_client.lock().unwrap();
-    match rdp_client.write_client_device_list_announce(new_drive) {
+    match rdp_client.handle_client_device_list_announce(new_drive) {
         Ok(()) => CGOErrCode::ErrCodeSuccess,
         Err(e) => {
             error!("failed to announce new drive: {:?}", e);
@@ -1882,6 +1898,6 @@ pub(crate) type Message = Vec<u8>;
 pub(crate) type Messages = Vec<Message>;
 
 /// Encode is an object that can be encoded for sending to the RDP server.
-trait Encode: std::fmt::Debug {
+pub(crate) trait Encode: std::fmt::Debug {
     fn encode(&self) -> RdpResult<Message>;
 }
