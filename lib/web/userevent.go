@@ -119,8 +119,8 @@ func (h *Handler) createPreUserEventHandle(w http.ResponseWriter, r *http.Reques
 			},
 		}
 	case recoveryCodesContinueClickEvent:
-		typedEvent.Event = &v1.UsageEventOneOf_UiOnboardRecoveryCodesContinueClick{
-			UiOnboardRecoveryCodesContinueClick: &v1.UIOnboardRecoveryCodesContinueClickEvent{
+		typedEvent.Event = &v1.UsageEventOneOf_UiRecoveryCodesContinueClick{
+			UiRecoveryCodesContinueClick: &v1.UIRecoveryCodesContinueClickEvent{
 				Username: req.Username,
 			},
 		}

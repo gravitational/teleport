@@ -84,7 +84,7 @@ message UIOnboardRegisterChallengeSubmitEvent {
   string user_name = 1;
 }
 
-message UIOnboardRecoveryCodesContinueClickEvent {
+message UIRecoveryCodesContinueClickEvent {
   // anonymized
   string user_name = 1;
 }
@@ -109,7 +109,7 @@ message SubmitEventRequest {
     UIOnboardAddFirstResourceLaterClickEvent ui_onboard_add_first_resource_later_click = 11;
     UIOnboardSetCredentialSubmitEvent ui_onboard_set_credential_submit = 12;
     UIOnboardRegisterChallengeSubmitEvent ui_onboard_register_challenge_submit = 13;
-    UIOnboardRecoveryCodesContinueClickEvent ui_onboard_recovery_codes_continue_click = 14;
+    UIRecoveryCodesContinueClickEvent ui_recovery_codes_continue_click = 14;
   }
 }
 message SubmitEventResponse {}

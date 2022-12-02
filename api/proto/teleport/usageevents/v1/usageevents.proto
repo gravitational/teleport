@@ -58,9 +58,9 @@ message UIOnboardRegisterChallengeSubmitEvent {
   string username = 1;
 }
 
-// UIOnboardRecoveryCodesContinueClickEvent is a UI event sent during
+// UIRecoveryCodesContinueClickEvent is a UI event sent during
 // registration when the user configures cluster recovery codes.
-message UIOnboardRecoveryCodesContinueClickEvent {
+message UIRecoveryCodesContinueClickEvent {
   // The event username. Not extracted from identity as this is pre-registration.
   string username = 1;
 }
@@ -76,6 +76,6 @@ message UsageEventOneOf {
     UIOnboardAddFirstResourceLaterClickEvent ui_onboard_add_first_resource_later_click = 5;
     UIOnboardSetCredentialSubmitEvent ui_onboard_set_credential_submit = 6;
     UIOnboardRegisterChallengeSubmitEvent ui_onboard_register_challenge_submit = 7;
-    UIOnboardRecoveryCodesContinueClickEvent ui_onboard_recovery_codes_continue_click = 8;
+    UIRecoveryCodesContinueClickEvent ui_recovery_codes_continue_click = 8;
   }
 }

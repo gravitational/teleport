@@ -413,12 +413,12 @@ func (r *UsageReporter) convertEvent(event services.UsageAnonymizable) (*prehoga
 				UiOnboardRegisterChallengeSubmit: (*prehogapi.UIOnboardRegisterChallengeSubmitEvent)(e),
 			},
 		}, nil
-	case *services.UsageUIOnboardRecoveryCodesContinueClick:
+	case *services.UsageUIRecoveryCodesContinueClick:
 		return &prehogapi.SubmitEventRequest{
 			ClusterName: clusterName,
 			Timestamp:   time,
-			Event: &prehogapi.SubmitEventRequest_UiOnboardRecoveryCodesContinueClick{
-				UiOnboardRecoveryCodesContinueClick: (*prehogapi.UIOnboardRecoveryCodesContinueClickEvent)(e),
+			Event: &prehogapi.SubmitEventRequest_UiRecoveryCodesContinueClick{
+				UiRecoveryCodesContinueClick: (*prehogapi.UIRecoveryCodesContinueClickEvent)(e),
 			},
 		}, nil
 	default:

@@ -148,12 +148,11 @@ func (u *UsageUIOnboardRegisterChallengeSubmit) Anonymize(a utils.Anonymizer) Us
 	}
 }
 
-// UsageUIOnboardRecoveryCodesContinueClick is a UI event sent during initial
-// tenant onboarding when a user configures recovery codes.
-type UsageUIOnboardRecoveryCodesContinueClick prehogv1.UIOnboardRecoveryCodesContinueClickEvent
+// UsageUIRecoveryCodesContinueClick is a UI event sent when a user configures recovery codes.
+type UsageUIRecoveryCodesContinueClick prehogv1.UIRecoveryCodesContinueClickEvent
 
-func (u *UsageUIOnboardRecoveryCodesContinueClick) Anonymize(a utils.Anonymizer) UsageAnonymizable {
-	return &UsageUIOnboardRecoveryCodesContinueClick{
+func (u *UsageUIRecoveryCodesContinueClick) Anonymize(a utils.Anonymizer) UsageAnonymizable {
+	return &UsageUIRecoveryCodesContinueClick{
 		UserName: a.AnonymizeString(u.UserName),
 	}
 }
@@ -197,9 +196,9 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 		return &UsageUIOnboardRegisterChallengeSubmit{
 			UserName: e.UiOnboardRegisterChallengeSubmit.Username,
 		}, nil
-	case *usageevents.UsageEventOneOf_UiOnboardRecoveryCodesContinueClick:
-		return &UsageUIOnboardRecoveryCodesContinueClick{
-			UserName: e.UiOnboardRecoveryCodesContinueClick.Username,
+	case *usageevents.UsageEventOneOf_UiRecoveryCodesContinueClick:
+		return &UsageUIRecoveryCodesContinueClick{
+			UserName: e.UiRecoveryCodesContinueClick.Username,
 		}, nil
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
