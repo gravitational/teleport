@@ -9,9 +9,9 @@ Broadly, this means that Teleport's TLS routing functionality is incompatible wi
 - Commonly used HTTP reverse proxies including nginx, Apache, Caddy, Traefik, HAProxy and many others
 - Cloudflare tunnels in their default configuration
 
-Deploying Teleport in TLS routing mode behind an HTTP proxy will result in a Teleport web UI experience that seems
+Deploying Teleport in TLS routing mode behind an HTTP proxy will result in a Teleport Web UI experience that seems
 to work perfectly, but the use of `tsh`, `tctl` and attempting to join remote Teleport services to the cluster will fail
-with errors like `ssh: overflow reading version string` and `EOF`. A functioning Teleport web UI is not always an indication
+with errors like `ssh: overflow reading version string` and `EOF`. A functioning Teleport Web UI is not always an indication
 of a correctly configured Teleport cluster.
 
 If in doubt, remove all load balancers/proxies from the equation and connect to Teleport's web port directly to isolate the issue.
@@ -19,5 +19,6 @@ If in doubt, remove all load balancers/proxies from the equation and connect to 
 To use Teleport behind a reverse proxy, you should either:
 - use a layer 4 (TCP) proxy which forwards TCP streams directly to Teleport (which will in turn handle TLS termination itself)
 - disable Teleport's TLS routing mode by adding `version: v1` to your config file and removing `proxy_listener_mode: multiplex`
-  - You can get an example v1 config file using `teleport configure --version=v1 --public-addr=teleport.example.com:443` (change the public address to your own domain)
-  - A list of ports which will be used can be found here: [ports without TLS routing](../reference/networking.mdx#ports-without-tls-routing)
+ 
+You can get an example v1 config file using `teleport configure --version=v1 --public-addr=teleport.example.com:443` (change the public address to your own domain)
+If disabling TLS routing, you can find a list of ports to use for connecting different Teleport services at [ports without TLS routing](../reference/networking.mdx#ports-without-tls-routing)
