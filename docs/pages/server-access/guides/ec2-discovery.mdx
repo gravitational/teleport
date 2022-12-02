@@ -239,10 +239,69 @@ Confirm? [y/N]: y
 ✅[AWS] Attach IAM policies to "alex-discovery-role"... done.
 ```
 
+All EC2 instances that are to be added to the Teleport cluster by the
+Discovery Service must include the `AmazonSSMManagedInstanceCore` IAM policy
+in order to receive commands from the Discovery Service.
+
+This policy includes the following permissions:
+```js
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ssm:DescribeAssociation",
+                "ssm:GetDeployablePatchSnapshotForInstance",
+                "ssm:GetDocument",
+                "ssm:DescribeDocument",
+                "ssm:GetManifest",
+                "ssm:GetParameter",
+                "ssm:GetParameters",
+                "ssm:ListAssociations",
+                "ssm:ListInstanceAssociations",
+                "ssm:PutInventory",
+                "ssm:PutComplianceItems",
+                "ssm:PutConfigurePackageResult",
+                "ssm:UpdateAssociationStatus",
+                "ssm:UpdateInstanceAssociationStatus",
+                "ssm:UpdateInstanceInformation"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ssmmessages:CreateControlChannel",
+                "ssmmessages:CreateDataChannel",
+                "ssmmessages:OpenControlChannel",
+                "ssmmessages:OpenDataChannel"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2messages:AcknowledgeMessage",
+                "ec2messages:DeleteMessage",
+                "ec2messages:FailMessage",
+                "ec2messages:GetEndpoint",
+                "ec2messages:GetMessages",
+                "ec2messages:SendReply"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+
 Once Teleport is configured for discovery, it can be started and EC2 instances
 matching the tags specified in the AWS section will begin to be added to the
 Teleport cluster automatically. You can start Teleport now, or follow the next
 section to customize the Teleport installation script first.
+
+
 
 ## Step 6/6. [Optional] Customize the default installer script
 
