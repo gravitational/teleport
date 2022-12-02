@@ -77,7 +77,7 @@ func (s *ForwarderConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Forwarder is an AWS CLI proxy service that signs AWS requests
+// Forwarder is an Azure CLI proxy service that forwards the requests to Azure API, but updates the authorization headers
 // based on user identity.
 type Forwarder struct {
 	// ForwarderConfig is the Forwarder configuration.
