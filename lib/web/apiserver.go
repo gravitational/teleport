@@ -3327,6 +3327,7 @@ func makeTeleportClientConfig(ctx context.Context, sesCtx *SessionContext) (*cli
 	callback, err := apisshutils.NewHostKeyCallback(
 		apisshutils.HostKeyCallbackConfig{
 			GetHostCheckers: sesCtx.getCheckers,
+			Clock:           sesCtx.parent.clock,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -9,14 +9,7 @@ on:
       - build.assets/images.mk
     branches:
       - master
-  pull_request:
-    paths:
-      - build.assets/Dockerfile
-      - build.assets/Dockerfile-centos7
-      - build.assets/Makefile
-      - build.assets/images.mk
-    branches:
-      - master
+      - branch/**
 
 env:
   REGISTRY: ghcr.io

@@ -160,11 +160,16 @@ manager or via a TAR archive:
 ```code
 $ sudo systemctl start teleport
 ```
+
 </TabItem>
 <TabItem label="TAR archive">
+
 ```code
-$ sudo teleport start
+$ sudo teleport install systemd --output=/etc/systemd/system/teleport.service;
+$ sudo systemctl enable teleport; 
+$ sudo systemctl start teleport; 
 ```
+
 </TabItem>
 </Tabs>
 
@@ -279,7 +284,7 @@ will use to generate the kubeconfig:
 
 ```code
 $ curl -OL \
-https://raw.githubusercontent.com/gravitational/teleport/master/examples/k8s-auth/get-kubeconfig.sh
+https://raw.githubusercontent.com/gravitational/teleport/v(=teleport.version=)/examples/k8s-auth/get-kubeconfig.sh
 ```
 
 The script creates a service account for the Teleport Kubernetes Service that

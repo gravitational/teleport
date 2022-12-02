@@ -635,7 +635,6 @@ func (t *remoteTerminal) windowChange(ctx context.Context, w int, h int) error {
 func (t *remoteTerminal) prepareRemoteSession(ctx context.Context, session *tracessh.Session, scx *ServerContext) {
 	envs := map[string]string{
 		teleport.SSHTeleportUser:        scx.Identity.TeleportUser,
-		teleport.SSHSessionWebproxyAddr: scx.ProxyPublicAddress(),
 		teleport.SSHTeleportHostUUID:    scx.srv.ID(),
 		teleport.SSHTeleportClusterName: scx.ClusterName,
 		teleport.SSHSessionID:           string(scx.SessionID()),
