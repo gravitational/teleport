@@ -103,7 +103,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.7.0
 	go.opentelemetry.io/proto/otlp v0.16.0
 	go.uber.org/atomic v1.7.0
-	golang.org/x/crypto v0.0.0-20220126234351-aa10faf2a1f8
+	golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4
 	golang.org/x/net v0.0.0-20221002022538-bcab6841153b
 	golang.org/x/oauth2 v0.0.0-20220622183110-fd043fe589d2
