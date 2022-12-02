@@ -59,6 +59,8 @@ type Features struct {
 	HSM bool
 	// Desktop enables desktop access product
 	Desktop bool
+	// RecoveryCodes enables account recovery codes
+	RecoveryCodes bool
 }
 
 // ToProto converts Features into proto.Features
@@ -74,6 +76,7 @@ func (f Features) ToProto() *proto.Features {
 		Cloud:                   f.Cloud,
 		HSM:                     f.HSM,
 		Desktop:                 f.Desktop,
+		RecoveryCodes:           f.RecoveryCodes,
 	}
 }
 
