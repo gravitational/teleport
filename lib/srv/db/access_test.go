@@ -76,7 +76,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	tlsutils "github.com/gravitational/teleport/lib/utils/tls"
+	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 func TestMain(m *testing.M) {
@@ -1742,7 +1742,7 @@ func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, userN
 
 // makeTLSConfig returns tls configuration for the test's tls listener.
 func (c *testContext) makeTLSConfig(t *testing.T) *tls.Config {
-	creds, err := tlsutils.GenerateSelfSignedCert([]string{"localhost"})
+	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"})
 	require.NoError(t, err)
 	cert, err := tls.X509KeyPair(creds.Cert, creds.PrivateKey)
 	require.NoError(t, err)

@@ -26,7 +26,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/utils/keys"
-	tlsutils "github.com/gravitational/teleport/lib/utils/tls"
+	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 const (
@@ -108,7 +108,7 @@ func generateAndSaveCert(targetPath string) (tls.Certificate, error) {
 	}
 	defer os.Remove(tempFile.Name())
 
-	cert, err := tlsutils.GenerateSelfSignedCert([]string{"localhost"})
+	cert, err := cert.GenerateSelfSignedCert([]string{"localhost"})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "failed to generate the certificate")
 	}

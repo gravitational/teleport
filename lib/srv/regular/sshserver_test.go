@@ -70,7 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/tls"
+	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 // teleportTestUser is additional user used for tests
@@ -1205,7 +1205,7 @@ func TestKeyAlgorithms(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 
-	_, ellipticSigner, err := tls.CreateEllipticCertificate("foo", ssh.UserCert)
+	_, ellipticSigner, err := cert.CreateEllipticCertificate("foo", ssh.UserCert)
 	require.NoError(t, err)
 
 	sshConfig := &ssh.ClientConfig{
