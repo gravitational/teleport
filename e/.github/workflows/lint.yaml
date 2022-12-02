@@ -1,0 +1,45 @@
+name: Lint
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport12
+      env:
+        GO_LINT_FLAGS: --timeout=30m
+
+    steps:
+      - name: Checkout OSS Teleport
+        uses: actions/checkout@v3
+        with:
+          repository: gravitational/teleport
+          ref: ${{ github.base_ref }}
+
+      - name: Checkout Enterprise Teleport
+        uses: actions/checkout@v3
+        with:
+          path: e
+
+      - name: Rust cargo cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            /usr/local/cargo/registry
+            /usr/local/cargo/git
+            ${{ github.workspace }}/target
+          key: ${{ runner.os }}-cargo-lint-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-lint-
+
+      - name: Run linter
+        run: make lint

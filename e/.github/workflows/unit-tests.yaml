@@ -1,0 +1,61 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport12
+      options: --cap-add=SYS_ADMIN --privileged
+
+    steps:
+      - name: Checkout OSS Teleport
+        uses: actions/checkout@v3
+        with:
+          repository: gravitational/teleport
+          ref: ${{ github.base_ref }}
+
+      - name: Checkout Enterprise Teleport
+        uses: actions/checkout@v3
+        with:
+          path: e
+
+      - name: Fetch go cache paths
+        id: go-cache-paths
+        shell: bash
+        run: |
+          echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+
+      - name: Go build cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          key: ${{ runner.os }}-go-build-unit-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-build-unit-
+
+      - name: Go mod cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-go-mod-unit-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-mod-unit-
+
+      - name: Build
+        run: |
+          go build ${GITHUB_WORKSPACE}/e/tool/tctl
+          go build ${GITHUB_WORKSPACE}/e/tool/teleport
+
+      - name: Run tests
+        timeout-minutes: 40
+        run: make -C ${GITHUB_WORKSPACE}/e/ test
