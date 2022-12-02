@@ -22,11 +22,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/stretchr/testify/require"
 )
 
 type mockHostCertAuth struct {
@@ -34,6 +35,7 @@ type mockHostCertAuth struct {
 }
 
 func (m *mockHostCertAuth) GenerateHostCert(
+	ctx context.Context,
 	key []byte, hostID, nodeName string, principals []string,
 	clusterName string, role types.SystemRole, ttl time.Duration,
 ) ([]byte, error) {

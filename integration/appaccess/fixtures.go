@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -34,8 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/stretchr/testify/require"
 )
 
 type AppTestOptions struct {
@@ -43,7 +42,6 @@ type AppTestOptions struct {
 	ExtraLeafApps        []service.App
 	RootClusterListeners helpers.InstanceListenerSetupFunc
 	LeafClusterListeners helpers.InstanceListenerSetupFunc
-	CertificateTTL       time.Duration
 	Clock                clockwork.FakeClock
 	MonitorCloseChannel  chan struct{}
 

@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
@@ -237,4 +236,13 @@ agent's service principal. See: https://goteleport.com/docs/database-access/guid
 	default:
 		return trace.Wrap(err)
 	}
+}
+
+// IsUnrecognizedAWSEngineNameError checks if the err is non-nil and came from using an engine filter that the
+// AWS region does not recognize.
+func IsUnrecognizedAWSEngineNameError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "unrecognized engine name")
 }

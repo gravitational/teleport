@@ -32,13 +32,13 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
+
 	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	controlgroup "github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/events"
-
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
 )
 
 //go:embed bytecode
@@ -61,10 +61,10 @@ func NewSessionWatch() SessionWatch {
 	}
 }
 
-func (w *SessionWatch) Get(cgoupID uint64) (ctx *SessionContext, ok bool) {
+func (w *SessionWatch) Get(cgroupID uint64) (ctx *SessionContext, ok bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	ctx, ok = w.watch[cgoupID]
+	ctx, ok = w.watch[cgroupID]
 	return
 }
 
@@ -331,6 +331,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			},
 			ServerMetadata: apievents.ServerMetadata{
 				ServerID:        ctx.ServerID,
+				ServerHostname:  ctx.ServerHostname,
 				ServerNamespace: ctx.Namespace,
 			},
 			SessionMetadata: apievents.SessionMetadata{
@@ -388,6 +389,7 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 		},
 		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.ServerID,
+			ServerHostname:  ctx.ServerHostname,
 			ServerNamespace: ctx.Namespace,
 		},
 		SessionMetadata: apievents.SessionMetadata{
@@ -449,6 +451,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		},
 		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.ServerID,
+			ServerHostname:  ctx.ServerHostname,
 			ServerNamespace: ctx.Namespace,
 		},
 		SessionMetadata: apievents.SessionMetadata{
@@ -518,6 +521,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		},
 		ServerMetadata: apievents.ServerMetadata{
 			ServerID:        ctx.ServerID,
+			ServerHostname:  ctx.ServerHostname,
 			ServerNamespace: ctx.Namespace,
 		},
 		SessionMetadata: apievents.SessionMetadata{

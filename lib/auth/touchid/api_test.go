@@ -31,10 +31,10 @@ import (
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/duo-labs/webauthn/webauthn"
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/lib/auth/touchid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/auth/touchid"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
@@ -96,7 +96,7 @@ func TestRegisterAndLogin(t *testing.T) {
 
 			reg, err := touchid.Register(origin, (*wanlib.CredentialCreation)(cc))
 			require.NoError(t, err, "Register failed")
-			assert.Equal(t, 1, fake.userPrompts, "unexpected number of Registation prompts")
+			assert.Equal(t, 1, fake.userPrompts, "unexpected number of Registration prompts")
 
 			// We have to marshal and parse ccr due to an unavoidable quirk of the
 			// webauthn API.

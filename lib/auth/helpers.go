@@ -76,6 +76,8 @@ type TestAuthServerConfig struct {
 	AuditLog events.IAuditLog
 	// TraceClient allows a test to configure the trace client
 	TraceClient otlptrace.Client
+	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
+	AuthPreferenceSpec *types.AuthPreferenceSpecV2
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -91,6 +93,12 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 	}
 	if len(cfg.CipherSuites) == 0 {
 		cfg.CipherSuites = utils.DefaultCipherSuites()
+	}
+	if cfg.AuthPreferenceSpec == nil {
+		cfg.AuthPreferenceSpec = &types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOff,
+		}
 	}
 	return nil
 }
@@ -257,7 +265,9 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		Emitter:                emitter,
 		TraceClient:            cfg.TraceClient,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: authority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
 		},
 	}, WithClock(cfg.Clock))
 	if err != nil {
@@ -295,10 +305,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	authPreference, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOff,
-	})
+	authPreference, err := types.NewAuthPreferenceFromConfigFile(*cfg.AuthPreferenceSpec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

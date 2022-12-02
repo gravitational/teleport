@@ -86,8 +86,24 @@ metadata:
   name: terraform
 spec:
   allow:
+    db_labels:
+      '*': '*'
+    app_labels:
+      '*': '*'
     rules:
-      - resources: ['user', 'role', 'token', 'trusted_cluster', 'github', 'oidc', 'saml']
+      - resources:
+        - app
+        - cluster_auth_preference
+        - cluster_networking_config
+        - db
+        - github
+        - oidc
+        - role
+        - saml
+        - session_recording_config
+        - token
+        - trusted_cluster
+        - user
         verbs: ['list','create','read','update','delete']
 version: v5
 ---

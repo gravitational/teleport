@@ -19,12 +19,13 @@ package fetchers
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 type aksFetcher struct {
@@ -132,6 +133,7 @@ func (a *aksFetcher) isRegionSupported(region string) bool {
 func (a *aksFetcher) ResourceType() string {
 	return types.KindKubernetesCluster
 }
+
 func (a *aksFetcher) Cloud() string {
-	return Azure
+	return types.CloudAzure
 }

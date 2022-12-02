@@ -98,6 +98,11 @@
               "forScopes": ["enterprise"]
             },
             {
+              "title": "Google Cloud KMS",
+              "slug": "/deploy-a-cluster/teleport-enterprise/gcp-kms/",
+              "forScopes": ["enterprise"]
+            },
+            {
               "title": "Enterprise License File",
               "slug": "/deploy-a-cluster/teleport-enterprise/license/",
               "forScopes": ["enterprise"]
@@ -234,7 +239,8 @@
           "entries": [
             {
               "title": "GitHub SSO",
-              "slug": "/access-controls/sso/github-sso/"
+              "slug": "/access-controls/sso/github-sso/",
+              "forScopes": ["enterprise", "cloud", "oss"]
             },
             {
               "title": "Azure Active Directory (AD)",
@@ -322,6 +328,11 @@
             {
               "title": "Email",
               "slug": "/access-controls/access-request-plugins/ssh-approval-email/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Discord",
+              "slug": "/access-controls/access-request-plugins/ssh-approval-discord/",
               "forScopes": ["enterprise", "cloud"]
             }
           ]
@@ -519,6 +530,10 @@
       "title": "Connect your Client",
       "entries": [
         {
+          "title": "Introduction",
+          "slug": "/connect-your-client/introduction/"
+        },
+        {
           "title": "Using tsh",
           "slug": "/connect-your-client/tsh/"
         },
@@ -566,7 +581,7 @@
               "slug": "/application-access/guides/aws-console/"
             },
             {
-              "title": "Dynamic Registration",
+              "title": "Dynamic Registration (Preview)",
               "slug": "/application-access/guides/dynamic-registration/"
             }
           ]
@@ -691,6 +706,10 @@
             {
               "title": "Standalone",
               "slug": "/kubernetes-access/guides/standalone-teleport/"
+            },
+            {
+              "title": "Dynamic Registration",
+              "slug": "/kubernetes-access/guides/dynamic-registration/"
             }
           ]
         },
@@ -709,6 +728,10 @@
             {
               "title": "Azure",
               "slug": "/kubernetes-access/discovery/azure/"
+            },
+            {
+              "title": "Google Cloud",
+              "slug": "/kubernetes-access/discovery/google-cloud/"
             }
           ]
         }
@@ -875,6 +898,10 @@
         {
           "title": "Getting Started",
           "slug": "/desktop-access/getting-started/"
+        },
+        {
+          "title": "Manual Setup",
+          "slug": "/desktop-access/manual-setup/"
         },
         {
           "title": "Access Controls",
@@ -1168,8 +1195,42 @@
   ],
   "variables": {
     "version": "7.0",
-    "terraform": {
-      "version": "1.0.0"
+    "ansible": {
+      "min_version": "2.9.6"
+    },
+    "aws": {
+      "aws_access_key": "abcd1234-this-is-an-example",
+      "aws_secret_access_key": "zyxw9876-this-is-an-example"
+    },
+    "cloud": {
+      "version": "10.3.8",
+      "major_version": "10",
+      "sla": {
+        "monthly_percentage": "99.5%",
+        "monthly_downtime": "3 hours 40 minutes"
+      }
+    },
+    "docker": {
+      "version": "20.10.7",
+      "compose": {
+        "version": "1.25.0"
+      }
+    },
+    "fedramp": {
+      "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
+    },
+    "fluentd": {
+      "version": "1.12.4"
+    },
+    "helm": {
+      "version": "3.4.2"
+    },
+    "kubernetes": {
+      "major_version": "1",
+      "minor_version": "17"
+    },
+    "mongodb": {
+      "min_version": "3.6"
     },
     "presets": {
       "tokens": {
@@ -1179,52 +1240,22 @@
       },
       "ca_pin": "sha256:abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678"
     },
-    "fedramp": {
-      "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
-    },
     "soc2": {
       "last_report": "August 9th, 2022"
     },
-    "cloud": {
-      "version": "10.3.6",
-      "major_version": "10",
-      "sla": {
-        "monthly_percentage": "99.5%",
-        "monthly_downtime": "3 hours 40 minutes"
-      }
-    },
-    "fluentd": {
-      "version": "1.12.4"
-    },
-    "docker": {
-      "version": "20.10.7",
-      "compose": {
-        "version": "1.25.0"
-      }
-    },
-    "helm": {
-      "version": "3.4.2"
-    },
-    "kubernetes": {
-      "major_version": "1",
-      "minor_version": "17"
-    },
-    "ansible": {
-      "min_version": "2.9.6"
-    },
-    "mongodb": {
-      "min_version": "3.6"
-    },
     "teleport": {
       "major_version": "11",
-      "version": "11.0.1",
+      "version": "11.1.1",
       "golang": "1.19",
       "plugin": {
-        "version": "11.0.1"
+        "version": "11.1.1"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport:11.0.1",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent:11.0.1"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport:11.1.1",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent:11.1.1"
+    },
+    "terraform": {
+      "version": "1.0.0"
     }
   },
   "redirects": [

@@ -29,6 +29,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -46,11 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
-
-	"github.com/gravitational/trace"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
 
 type appServerContextKey string
@@ -359,17 +358,6 @@ func (s *Server) startDynamicLabels(ctx context.Context, app types.Application) 
 	return nil
 }
 
-// getDynamicLabels returns dynamic labels for the specified app.
-func (s *Server) getDynamicLabels(name string) *labels.Dynamic {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	dynamic, ok := s.dynamicLabels[name]
-	if !ok {
-		return nil
-	}
-	return dynamic
-}
-
 // stopDynamicLabels stops dynamic labels for the specified app.
 func (s *Server) stopDynamicLabels(name string) {
 	s.mu.Lock()
@@ -431,16 +419,8 @@ func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
 	s.mu.RLock()
-	copy := app.Copy()
+	copy := s.appWithUpdatedLabels(app)
 	s.mu.RUnlock()
-	// Update dynamic labels if the app has them.
-	labels := s.getDynamicLabels(copy.GetName())
-	if labels != nil {
-		copy.SetDynamicLabels(labels.Get())
-	}
-	if s.c.CloudLabels != nil {
-		s.c.CloudLabels.Apply(copy)
-	}
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	server, err := types.NewAppServerV3(types.Metadata{
 		Name:    copy.GetName(),
@@ -960,10 +940,31 @@ func (s *Server) getApp(ctx context.Context, publicAddr string) (types.Applicati
 
 	for _, a := range s.getApps() {
 		if publicAddr == a.GetPublicAddr() {
-			return a, nil
+			return s.appWithUpdatedLabels(a), nil
 		}
 	}
 	return nil, trace.NotFound("no application at %v found", publicAddr)
+}
+
+// appWithUpdatedLabels will inject updated dynamic and cloud labels into an application
+// object. The caller must invoke an RLock on `s.mu` before calling this function.
+func (s *Server) appWithUpdatedLabels(app types.Application) *types.AppV3 {
+	// Create a copy of the application to modify
+	copy := app.Copy()
+
+	// Update dynamic labels if the app has them.
+	labels := s.dynamicLabels[copy.GetName()]
+
+	if labels != nil {
+		copy.SetDynamicLabels(labels.Get())
+	}
+
+	// Add in the cloud labels if the app has them.
+	if s.c.CloudLabels != nil {
+		s.c.CloudLabels.Apply(copy)
+	}
+
+	return copy
 }
 
 // newHTTPServer creates an *http.Server that can authorize and forward

@@ -30,6 +30,9 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/oxy/forward"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -38,9 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/web/app"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 )
 
 // TestAppAccess runs the full application access integration test suite.
@@ -623,7 +623,6 @@ func TestTCPCertExpiration(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Now())
 	mCloseChannel := make(chan struct{})
 	pack := SetupWithOptions(t, AppTestOptions{
-		CertificateTTL:      5 * time.Second,
 		Clock:               clock,
 		MonitorCloseChannel: mCloseChannel,
 	})

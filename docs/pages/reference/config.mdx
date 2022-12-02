@@ -416,13 +416,14 @@ auth_service:
         - "auth:yyyy"
 
     # Optional setting for configuring session recording. Possible values are:
-    #    "node"      : sessions will be recorded on the node level  (the
-    #                  default)
+    #    "node"      : (default) sessions will be recorded on the node 
+    #                  and periodically cleaned up after they are uploaded 
+    #                  to the storage service.
     #    "node-sync" : session recordings will be streamed from
     #                  node -> auth -> storage service without being stored on
     #                  disk at all.
-    #    "proxy"     : recording on the proxy level, see "Recording Proxy Mode"
-    #                  (https://goteleport.com/docs/architecture/proxy/#recording-proxy-mode).
+    #    "proxy"     : sessions will be recorded on the proxy and periodically 
+    #                  cleaned up after they are uploaded to the storage service.
     #    "proxy-sync : session recordings will be streamed from
     #                  proxy -> auth -> storage service without being stored on
     #                  disk at all.
@@ -437,22 +438,21 @@ auth_service:
     # (https://goteleport.com/docs/architecture/proxy/#recording-proxy-mode).
     proxy_checks_host_keys: yes
 
-    # Determines if SSH sessions to cluster nodes are forcefully terminated
-    # after no activity from a client (idle client).
+    # Determines if sessions to cluster resources are forcefully terminated after
+    # no activity from a client (idle client).
     # Examples: "30m", "1h" or "1h30m"
     client_idle_timeout: never
 
     # Send a custom message to the client when they are disconnected due to
     # inactivity. The empty string indicates that no message will be sent.
-    # (Currently only supported for SSH connections)
+    # (Currently only supported for Server Access connections)
     client_idle_timeout_message: ""
 
     # Sets an idle timeout for the Web UI. The default is 10m.
     web_idle_timeout: 10m
 
     # Determines if the clients will be forcefully disconnected when their
-    # certificates expire in the middle of an active SSH session. (default is
-    # 'no')
+    # certificates expire in the middle of an active session. (default is 'no')
     disconnect_expired_cert: no
 
     # Determines the interval at which Teleport will send keep-alive messages.
@@ -558,9 +558,8 @@ ssh_service:
       command: ['/bin/uname', '-p']
       period: 1h0m0s
 
-    # Enables reading ~/.tsh/environment before creating a session.
-    # By default it's set to false can be set true here or through the
-    # command-line flag.
+    # Enables reading ~/.tsh/environment on the server before creating a session.
+    # Disabled by default. Can be enabled here or via the `--permit-user-env` flag.
     permit_user_env: false
 
     # Disables automatic creation of host users on this SSH node.
@@ -770,12 +769,18 @@ app_service:
       - name: "os"
         command: ["/usr/bin/uname"]
         period: "5s"
-      # Optional simple rewriting of Location header
-      # Rewrite the "Location" header on redirect responses replacing the
-      # host with the public address of this application.
-      # redirect:
-      #   - "localhost"
-      #   - "jenkins.internal.dev"
+      ## Optional list of rewrite rules to apply to requests and responses
+      # rewrite:
+        ## Optional simple rewriting of Location header
+        ## Rewrite the "Location" header on redirect responses replacing the
+        ## host with the public address of this application.
+        # redirect:
+        #   - "localhost"
+        #   - "jenkins.internal.dev"
+        ## Optional list of extra headers to inject in to requests.
+        # headers:
+        #   For example:
+        #   - "Host: jenkins.example.com"
 
 ## This section configures the 'kubernetes service'
 (!docs/pages/includes/kubernetes-access/kubernetes-config.yaml!)

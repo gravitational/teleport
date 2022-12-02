@@ -22,19 +22,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/tlsca"
-
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func setup(t *testing.T) (string, clientcmdapi.Config) {
@@ -265,9 +264,9 @@ func TestUpdateWithExec(t *testing.T) {
 				Impersonate:         tt.impersonatedUser,
 				ImpersonateGroups:   tt.impersonatedGroups,
 				Namespace:           tt.namespace,
+				KubeClusters:        []string{kubeCluster},
 				Exec: &ExecValues{
 					TshBinaryPath: tshPath,
-					KubeClusters:  []string{kubeCluster},
 					Env: map[string]string{
 						homeEnvVar: home,
 					},
@@ -291,7 +290,8 @@ func TestUpdateWithExec(t *testing.T) {
 				Exec: &clientcmdapi.ExecConfig{
 					APIVersion: "client.authentication.k8s.io/v1beta1",
 					Command:    tshPath,
-					Args: []string{"kube", "credentials",
+					Args: []string{
+						"kube", "credentials",
 						fmt.Sprintf("--kube-cluster=%s", kubeCluster),
 						fmt.Sprintf("--teleport-cluster=%s", clusterName),
 					},
@@ -314,6 +314,7 @@ func TestUpdateWithExec(t *testing.T) {
 		)
 	}
 }
+
 func TestUpdateWithExecAndProxy(t *testing.T) {
 	const (
 		clusterName = "teleport-cluster"
@@ -332,9 +333,9 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 		ClusterAddr:         clusterAddr,
 		Credentials:         creds,
 		ProxyAddr:           proxy,
+		KubeClusters:        []string{kubeCluster},
 		Exec: &ExecValues{
 			TshBinaryPath: tshPath,
-			KubeClusters:  []string{kubeCluster},
 			Env: map[string]string{
 				homeEnvVar: home,
 			},
@@ -356,7 +357,8 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 		Exec: &clientcmdapi.ExecConfig{
 			APIVersion: "client.authentication.k8s.io/v1beta1",
 			Command:    tshPath,
-			Args: []string{"kube", "credentials",
+			Args: []string{
+				"kube", "credentials",
 				fmt.Sprintf("--kube-cluster=%s", kubeCluster),
 				fmt.Sprintf("--teleport-cluster=%s", clusterName),
 				fmt.Sprintf("--proxy=%s", proxy),

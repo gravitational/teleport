@@ -18,14 +18,15 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 // UserCreds holds user client credentials
@@ -97,8 +98,6 @@ type UserCredsRequest struct {
 	RouteToCluster string
 	// SourceIP is an optional source IP to use in SSH certs
 	SourceIP string
-	// CertificateTTL is an optional TTL for the generated user certificate.
-	CertificateTTL time.Duration
 }
 
 // GenerateUserCreds generates key to be used by client
@@ -109,12 +108,8 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 	}
 	a := req.Process.GetAuthServer()
 	sshPub := ssh.MarshalAuthorizedKey(priv.SSHPublicKey())
-	ttl := time.Hour
-	if req.CertificateTTL != 0 {
-		ttl = req.CertificateTTL
-	}
 	sshCert, x509Cert, err := a.GenerateUserTestCerts(
-		sshPub, req.Username, ttl, constants.CertificateFormatStandard, req.RouteToCluster, req.SourceIP)
+		sshPub, req.Username, time.Hour, constants.CertificateFormatStandard, req.RouteToCluster, req.SourceIP)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

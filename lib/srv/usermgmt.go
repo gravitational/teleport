@@ -118,7 +118,7 @@ type HostUsers interface {
 	doWithUserLock(func(types.SemaphoreLease) error) error
 
 	// SetHostUserDeletionGrace sets the grace period before a user
-	// can be deleted, used so integration tests dont need to sleep
+	// can be deleted, used so integration tests don't need to sleep
 	SetHostUserDeletionGrace(time.Duration)
 }
 

@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -32,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // DBCertChecker is a middleware that ensures that the local proxy has valid TLS database certs.
@@ -71,39 +69,9 @@ func (c *DBCertChecker) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) e
 	return trace.Wrap(c.ensureValidCerts(ctx, lp))
 }
 
-// checkCerts checks if the local proxy TLS certs are configured, not expired, and match the db route.
-func (c *DBCertChecker) checkCerts(lp *alpnproxy.LocalProxy) error {
-	log.Debug("checking local proxy database certs")
-	certs := lp.GetCerts()
-	if len(certs) == 0 {
-		return trace.Wrap(trace.NotFound("local proxy has no TLS certificates configured"))
-	}
-	cert, err := utils.TLSCertToX509(certs[0])
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = utils.VerifyCertificateExpiry(cert, c.clock)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if c.dbRoute.Username != "" && c.dbRoute.Username != identity.RouteToDatabase.Username {
-		msg := fmt.Sprintf("certificate subject is for user %s, but need %s", identity.RouteToDatabase.Username, c.dbRoute.Username)
-		return trace.Wrap(errors.New(msg))
-	}
-	if c.dbRoute.Database != "" && c.dbRoute.Database != identity.RouteToDatabase.Database {
-		msg := fmt.Sprintf("certificate subject is for database name %s, but need %s", identity.RouteToDatabase.Database, c.dbRoute.Database)
-		return trace.Wrap(errors.New(msg))
-	}
-	return nil
-}
-
 // ensureValidCerts ensures that the local proxy is configured with valid certs.
 func (c *DBCertChecker) ensureValidCerts(ctx context.Context, lp *alpnproxy.LocalProxy) error {
-	if err := c.checkCerts(lp); err != nil {
+	if err := lp.CheckDBCerts(c.dbRoute); err != nil {
 		log.WithError(err).Debug("local proxy tunnel certificates need to be reissued")
 	} else {
 		return nil

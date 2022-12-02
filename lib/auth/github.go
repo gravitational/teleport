@@ -43,10 +43,65 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const githubOrgsURL = "https://github.com/orgs"
-
 // ErrGithubNoTeams results from a github user not belonging to any teams.
 var ErrGithubNoTeams = trace.BadParameter("user does not belong to any teams configured in connector; the configuration may have typos.")
+
+// GithubConverter is a thin wrapper around the ClientI interface that
+// ensures GitHub auth connectors use the registered implementation.
+type GithubConverter struct {
+	ClientI
+}
+
+// WithGithubConnectorConversions takes a ClientI and returns one that
+// ensures returned or passed [types.GithubConnector] interfaces
+// use the registered implementation for the following methods:
+//
+//   - ClientI.GetGithubConnector
+//   - ClientI.GetGithubConnectors
+//   - ClientI.UpsertGithubConnector
+//
+// This is function is necessary so that the
+// [github.com/gravitational/teleport/api] module does not import
+// [github.com/gravitational/teleport/lib/services].
+func WithGithubConnectorConversions(c ClientI) ClientI {
+	return &GithubConverter{
+		ClientI: c,
+	}
+}
+
+func (g *GithubConverter) GetGithubConnector(ctx context.Context, name string, withSecrets bool) (types.GithubConnector, error) {
+	connector, err := g.ClientI.GetGithubConnector(ctx, name, withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connector, err = services.InitGithubConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return connector, nil
+}
+
+func (g *GithubConverter) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
+	connectors, err := g.ClientI.GetGithubConnectors(ctx, withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for i, connector := range connectors {
+		connectors[i], err = services.InitGithubConnector(connector)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return connectors, nil
+}
+
+func (g *GithubConverter) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
+	convertedConnector, err := services.ConvertGithubConnector(connector)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return g.ClientI.UpsertGithubConnector(ctx, convertedConnector)
+}
 
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
@@ -144,7 +199,7 @@ func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, u
 
 	for org := range orgs {
 		usesSSO, err := utils.FnCacheGet(ctx, orgCache, org, func(ctx context.Context) (bool, error) {
-			return orgUsesExternalSSO(ctx, org, client)
+			return orgUsesExternalSSO(ctx, conn.GetEndpointURL(), org, client)
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -163,12 +218,12 @@ func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, u
 
 // orgUsesExternalSSO returns true if the Github organization org
 // uses external SSO.
-func orgUsesExternalSSO(ctx context.Context, org string, client httpRequester) (bool, error) {
+func orgUsesExternalSSO(ctx context.Context, endpointURL, org string, client httpRequester) (bool, error) {
 	// A Github organization will have a "sso" page reachable if it
 	// supports external SSO. There doesn't seem to be any way to get this
 	// information from the Github REST API without being an owner of the
 	// Github organization, so check if this exists instead.
-	ssoURL := fmt.Sprintf("%s/%s/sso", githubOrgsURL, url.PathEscape(org))
+	ssoURL := fmt.Sprintf("%s/orgs/%s/sso", endpointURL, url.PathEscape(org))
 
 	const retries = 3
 	var resp *http.Response
@@ -365,7 +420,7 @@ func (a *Server) getGithubConnectorAndClient(ctx context.Context, request types.
 		}
 
 		// stateless test flow
-		connector, err := types.NewGithubConnector(request.ConnectorID, *request.ConnectorSpec)
+		connector, err := services.NewGithubConnector(request.ConnectorID, *request.ConnectorSpec)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -382,6 +437,10 @@ func (a *Server) getGithubConnectorAndClient(ctx context.Context, request types.
 
 	// regular execution flow
 	connector, err := a.GetGithubConnector(ctx, request.ConnectorID, true)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	connector, err = services.InitGithubConnector(connector)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -402,8 +461,8 @@ func newGithubOAuth2Config(connector types.GithubConnector) oauth2.Config {
 		},
 		RedirectURL: connector.GetRedirectURL(),
 		Scope:       GithubScopes,
-		AuthURL:     GithubAuthURL,
-		TokenURL:    GithubTokenURL,
+		AuthURL:     fmt.Sprintf("%s/%s", connector.GetEndpointURL(), GithubAuthPath),
+		TokenURL:    fmt.Sprintf("%s/%s", connector.GetEndpointURL(), GithubTokenPath),
 	}
 }
 
@@ -494,9 +553,14 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 
 	// Get the Github organizations the user is a member of so we don't
 	// make unnecessary API requests
+	endpointURL, err := url.Parse(connector.GetEndpointURL())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	ghClient := &githubAPIClient{
-		token:      token.AccessToken,
-		authServer: a,
+		token:            token.AccessToken,
+		authServer:       a,
+		endpointHostname: endpointURL.Host,
 	}
 	userResp, err := ghClient.getUser()
 	if err != nil {
@@ -756,6 +820,8 @@ type githubAPIClient struct {
 	token string
 	// authServer points to the Auth Server.
 	authServer *Server
+	// endpointHostname is the Github hostname to connect to.
+	endpointHostname string
 }
 
 // userResponse represents response from "user" API call
@@ -767,7 +833,7 @@ type userResponse struct {
 // getEmails retrieves a list of emails for authenticated user
 func (c *githubAPIClient) getUser() (*userResponse, error) {
 	// Ignore pagination links, we should never get more than a single user here.
-	bytes, _, err := c.get("/user")
+	bytes, _, err := c.get("user")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -799,7 +865,7 @@ type orgResponse struct {
 func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
 	var result []teamResponse
 
-	bytes, nextPage, err := c.get("/user/teams")
+	bytes, nextPage, err := c.get("user/teams")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -867,7 +933,7 @@ func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
 
 // get makes a GET request to the provided URL using the client's token for auth
 func (c *githubAPIClient) get(url string) ([]byte, string, error) {
-	request, err := http.NewRequest("GET", fmt.Sprintf("%v%v", GithubAPIURL, url), nil)
+	request, err := http.NewRequest("GET", fmt.Sprintf("https://api.%s/%s", c.endpointHostname, url), nil)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -894,14 +960,11 @@ func (c *githubAPIClient) get(url string) ([]byte, string, error) {
 }
 
 const (
-	// GithubAuthURL is the Github authorization endpoint
-	GithubAuthURL = "https://github.com/login/oauth/authorize"
+	// GithubAuthPath is the GitHub authorization endpoint
+	GithubAuthPath = "login/oauth/authorize"
 
-	// GithubTokenURL is the Github token exchange endpoint
-	GithubTokenURL = "https://github.com/login/oauth/access_token"
-
-	// GithubAPIURL is the Github base API URL
-	GithubAPIURL = "https://api.github.com"
+	// GithubTokenPath is the GitHub token exchange endpoint
+	GithubTokenPath = "login/oauth/access_token"
 
 	// MaxPages is the maximum number of pagination links that will be followed.
 	MaxPages = 99

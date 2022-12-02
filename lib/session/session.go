@@ -28,14 +28,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/moby/term"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/gravitational/trace"
 )
 
 // ID is a unique session ID.
@@ -97,6 +96,8 @@ type Session struct {
 	ServerID string `json:"server_id"`
 	// ServerHostname of session
 	ServerHostname string `json:"server_hostname"`
+	// ServerHostPort of session
+	ServerHostPort int `json:"server_hostport"`
 	// ServerAddr of session
 	ServerAddr string `json:"server_addr"`
 	// ClusterName is the name of the Teleport cluster that this session belongs to.

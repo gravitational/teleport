@@ -242,9 +242,8 @@ func (p *Pack) initWebSession(t *testing.T) {
 // credentials.
 func (p *Pack) initTeleportClient(t *testing.T, opts AppTestOptions) {
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
-		Process:        p.rootCluster.Process,
-		Username:       p.user.GetName(),
-		CertificateTTL: opts.CertificateTTL,
+		Process:  p.rootCluster.Process,
+		Username: p.user.GetName(),
 	})
 	require.NoError(t, err)
 
@@ -391,6 +390,14 @@ func (p *Pack) makeTLSConfig(t *testing.T, publicAddr, clusterName string) *tls.
 		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
+
+	// Make sure the session ID can be seen in the backend before we continue onward.
+	require.Eventually(t, func() bool {
+		_, err := p.rootCluster.Process.GetAuthServer().GetAppSession(context.Background(), types.GetAppSessionRequest{
+			SessionID: ws.GetMetadata().Name,
+		})
+		return err == nil
+	}, 5*time.Second, 100*time.Millisecond)
 
 	certificate, err := p.rootCluster.Process.GetAuthServer().GenerateUserAppTestCert(
 		auth.AppTestCertRequest{

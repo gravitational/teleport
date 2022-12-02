@@ -25,9 +25,10 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/stretchr/testify/require"
 )
 
 // simple test to verify that compatibility layer is reading and dumping the keys.

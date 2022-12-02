@@ -25,16 +25,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"gopkg.in/square/go-jose.v2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"gopkg.in/square/go-jose.v2"
 )
 
 // Default port numbers used by all teleport tools
@@ -694,6 +693,12 @@ const (
 
 	// WebsocketWebauthnChallenge is sending a webauthn challenge.
 	WebsocketWebauthnChallenge = "n"
+
+	// WebsocketSessionMetadata is sending the data for a ssh session.
+	WebsocketSessionMetadata = "s"
+
+	// WebsocketError is sending an error message.
+	WebsocketError = "e"
 )
 
 // The following are cryptographic primitives Teleport does not support in
