@@ -106,6 +106,16 @@ func TestIsAzureEndpoint(t *testing.T) {
 			hostname: "not-azure.example.com",
 			want:     false,
 		},
+		{
+			name:     "invalid endpoint, suffix match without dot",
+			hostname: "my-azurefd.net",
+			want:     false,
+		},
+		{
+			name:     "valid endpoint, suffix matches with dot",
+			hostname: "my.azurefd.net",
+			want:     true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

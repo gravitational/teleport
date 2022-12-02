@@ -144,7 +144,6 @@ func (a *azureApp) GetEnvVars() (map[string]string, error) {
 	// Set proxy settings.
 	if a.localForwardProxy != nil {
 		envVars["HTTPS_PROXY"] = "http://" + a.localForwardProxy.GetAddr()
-		envVars["HTTP_PROXY"] = "http://" + a.localForwardProxy.GetAddr()
 	}
 	return envVars, nil
 }

@@ -151,7 +151,6 @@ func TestAzure(t *testing.T) {
 			require.Equal(t, "https://azure-msi.teleport.dev", getEnvValue("MSI_ENDPOINT"))
 			require.Equal(t, path.Join(tmpHomePath, "keys/127.0.0.1/alice@example.com-app/localhost/azure-api-localca.pem"), getEnvValue("REQUESTS_CA_BUNDLE"))
 			require.True(t, strings.HasPrefix(getEnvValue("HTTPS_PROXY"), "http://127.0.0.1:"))
-			require.True(t, strings.HasPrefix(getEnvValue("HTTP_PROXY"), "http://127.0.0.1:"))
 
 			// Validate MSI endpoint can be reached
 			caPool, err := utils.NewCertPoolFromPath(getEnvValue("REQUESTS_CA_BUNDLE"))

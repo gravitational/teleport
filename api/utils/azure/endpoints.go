@@ -52,7 +52,12 @@ func IsAzureEndpoint(hostname string) bool {
 	}
 
 	for _, suffix := range suffixes {
-		if strings.HasSuffix(hostname, suffix) {
+		// exact match
+		if hostname == suffix {
+			return true
+		}
+		// .suffix match
+		if strings.HasSuffix(hostname, "."+suffix) {
 			return true
 		}
 	}
