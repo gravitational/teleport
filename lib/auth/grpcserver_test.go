@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -1181,117 +1180,6 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 	// When unauthorized, expect a silent `false`.
 	require.NoError(t, err)
 	require.False(t, resp.Required)
-}
-
-// TestRoleVersions tests that downgraded V4 roles are returned to older
-// clients, and V5 roles are returned to newer clients.
-func TestRoleVersions(t *testing.T) {
-	srv := newTestTLSServer(t)
-
-	role := &types.RoleV5{
-		Kind:    types.KindRole,
-		Version: types.V5,
-		Metadata: types.Metadata{
-			Name: "test_role",
-		},
-		Spec: types.RoleSpecV5{
-			Allow: types.RoleConditions{
-				Rules: []types.Rule{
-					types.NewRule(types.KindRole, services.RO()),
-					types.NewRule(types.KindEvent, services.RW()),
-				},
-			},
-		},
-	}
-	user, err := CreateUser(srv.Auth(), "test_user", role)
-	require.NoError(t, err)
-
-	client, err := srv.NewClient(TestUser(user.GetName()))
-	require.NoError(t, err)
-
-	testCases := []struct {
-		desc                string
-		clientVersion       string
-		disableMetadata     bool
-		expectedRoleVersion string
-		assertErr           require.ErrorAssertionFunc
-	}{
-		{
-			desc:                "old",
-			clientVersion:       "7.1.1",
-			expectedRoleVersion: "v4",
-			assertErr:           require.NoError,
-		},
-		{
-			desc:                "new",
-			clientVersion:       "9.0.0",
-			expectedRoleVersion: "v5",
-			assertErr:           require.NoError,
-		},
-		{
-			desc:                "alpha",
-			clientVersion:       "7.2.4-alpha.0",
-			expectedRoleVersion: "v4",
-			assertErr:           require.NoError,
-		},
-		{
-			desc:                "greater than 10",
-			clientVersion:       "10.0.0-beta",
-			expectedRoleVersion: "v5",
-			assertErr:           require.NoError,
-		},
-		{
-			desc:          "empty version",
-			clientVersion: "",
-			assertErr:     require.Error,
-		},
-		{
-			desc:          "invalid version",
-			clientVersion: "foo",
-			assertErr:     require.Error,
-		},
-		{
-			desc:                "no version metadata",
-			disableMetadata:     true,
-			expectedRoleVersion: "v4",
-			assertErr:           require.NoError,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.desc, func(t *testing.T) {
-			// setup client metadata
-			ctx := context.Background()
-			if tc.disableMetadata {
-				ctx = context.WithValue(ctx, metadata.DisableInterceptors{}, struct{}{})
-			} else {
-				ctx = metadata.AddMetadataToContext(ctx, map[string]string{
-					metadata.VersionKey: tc.clientVersion,
-				})
-			}
-
-			// test GetRole
-			gotRole, err := client.GetRole(ctx, role.GetName())
-			tc.assertErr(t, err)
-			if err == nil {
-				require.Equal(t, tc.expectedRoleVersion, gotRole.GetVersion())
-			}
-
-			// test GetRoles
-			gotRoles, err := client.GetRoles(ctx)
-			tc.assertErr(t, err)
-			if err == nil {
-				foundTestRole := false
-				for _, gotRole := range gotRoles {
-					if gotRole.GetName() == role.GetName() {
-						require.Equal(t, tc.expectedRoleVersion, gotRole.GetVersion())
-						foundTestRole = true
-					}
-				}
-				require.True(t, foundTestRole)
-			}
-		})
-	}
 }
 
 // testOriginDynamicStored tests setting a ResourceWithOrigin via the server

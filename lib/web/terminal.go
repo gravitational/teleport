@@ -51,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -437,7 +436,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	}
 	clientConfig.Host = t.sessionData.ServerHostname
 	clientConfig.HostPort = t.sessionData.ServerHostPort
-	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: t.sessionData.ID.String()}
+	clientConfig.SessionID = t.sessionData.ID.String()
 	clientConfig.ClientAddr = r.RemoteAddr
 	clientConfig.Tracer = t.tracer
 

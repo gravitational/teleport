@@ -51,9 +51,10 @@ import (
 )
 
 type OIDCSuite struct {
-	a *Server
-	b backend.Backend
-	c clockwork.FakeClock
+	a   *Server
+	b   backend.Backend
+	c   clockwork.FakeClock
+	oas *OIDCAuthService
 }
 
 func setUpSuite(t *testing.T) *OIDCSuite {
@@ -87,6 +88,11 @@ func setUpSuite(t *testing.T) *OIDCSuite {
 	}
 	s.a, err = NewServer(authConfig)
 	require.NoError(t, err)
+
+	var ok bool
+	s.oas, ok = s.a.oidcAuthService.(*OIDCAuthService)
+	require.True(t, ok, "Server.oidcAuthService is not type *OIDCAuthService")
+
 	return &s
 }
 
@@ -112,7 +118,7 @@ func TestCreateOIDCUser(t *testing.T) {
 	s := setUpSuite(t)
 
 	// Dry-run creation of OIDC user.
-	user, err := s.a.createOIDCUser(&CreateUserParams{
+	user, err := s.oas.createOIDCUser(&CreateUserParams{
 		ConnectorName: "oidcService",
 		Username:      "foo@example.com",
 		Roles:         []string{"admin"},
@@ -126,7 +132,7 @@ func TestCreateOIDCUser(t *testing.T) {
 	require.Error(t, err)
 
 	// Create OIDC user with 1 minute expiry.
-	_, err = s.a.createOIDCUser(&CreateUserParams{
+	_, err = s.oas.createOIDCUser(&CreateUserParams{
 		ConnectorName: "oidcService",
 		Username:      "foo@example.com",
 		Roles:         []string{"admin"},
@@ -153,6 +159,7 @@ func TestUserInfoBlockHTTP(t *testing.T) {
 
 	ctx := context.Background()
 	s := setUpSuite(t)
+
 	// Create configurable IdP to use in tests.
 	idp := newFakeIDP(t, false /* tls */)
 
@@ -166,7 +173,7 @@ func TestUserInfoBlockHTTP(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	oidcClient, err := s.a.getCachedOIDCClient(ctx, connector, "")
+	oidcClient, err := s.oas.getCachedOIDCClient(ctx, connector, "")
 	require.NoError(t, err)
 
 	// Verify HTTP endpoints return trace.NotFound.
@@ -232,6 +239,7 @@ func TestSSODiagnostic(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 			s := setUpSuite(t)
+
 			// Create configurable IdP to use in tests.
 			idp := newFakeIDP(t, false /* tls */)
 
@@ -274,7 +282,7 @@ func TestSSODiagnostic(t *testing.T) {
 			}
 
 			// override getClaimsFun.
-			s.a.getClaimsFun = func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
+			s.oas.getClaimsFun = func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
 				cc := map[string]interface{}{
 					"email_verified": true,
 					"groups":         []string{"everyone", "idp-admin", "idp-dev"},
@@ -285,7 +293,7 @@ func TestSSODiagnostic(t *testing.T) {
 				return cc, nil
 			}
 
-			resp, err := s.a.ValidateOIDCAuthCallback(ctx, values)
+			resp, err := s.oas.ValidateOIDCAuthCallback(ctx, values)
 			if tc.wantValidateErr != nil {
 				require.ErrorIs(t, err, tc.wantValidateErr)
 				return
@@ -304,7 +312,7 @@ func TestSSODiagnostic(t *testing.T) {
 
 			diagCtx := SSODiagContext{}
 
-			resp, err = s.a.validateOIDCAuthCallback(ctx, &diagCtx, values)
+			resp, err = s.oas.validateOIDCAuthCallback(ctx, &diagCtx, values)
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 			require.Equal(t, &OIDCAuthResponse{
@@ -377,6 +385,7 @@ func TestPingProvider(t *testing.T) {
 
 	ctx := context.Background()
 	s := setUpSuite(t)
+
 	// Create configurable IdP to use in tests.
 	idp := newFakeIDP(t, false /* tls */)
 
@@ -410,7 +419,7 @@ func TestPingProvider(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("Test SSOFlow: %v", req.SSOTestFlow), func(t *testing.T) {
-			oidcConnector, oidcClient, err := s.a.getOIDCConnectorAndClient(ctx, req)
+			oidcConnector, oidcClient, err := s.oas.getOIDCConnectorAndClient(ctx, req)
 			require.NoError(t, err)
 
 			oac, err := getOAuthClient(oidcClient, oidcConnector)
@@ -487,6 +496,7 @@ func TestOIDCClientCache(t *testing.T) {
 
 	ctx := context.Background()
 	s := setUpSuite(t)
+
 	// Create configurable IdP to use in tests.
 	idp := newFakeIDP(t, false /* tls */)
 	connectorSpec := types.OIDCConnectorSpecV3{
@@ -501,17 +511,17 @@ func TestOIDCClientCache(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create and cache a new oidc client
-	client, err := s.a.getCachedOIDCClient(ctx, connector, "proxy.example.com")
+	client, err := s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com")
 	require.NoError(t, err)
 
 	// The next call should return the same client (compare memory address)
-	cachedClient, err := s.a.getCachedOIDCClient(ctx, connector, "proxy.example.com")
+	cachedClient, err := s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com")
 	require.NoError(t, err)
 	require.True(t, client == cachedClient)
 
 	// Canceling provider sync on a cached client should cause it to be replaced
 	client.syncCancel()
-	cachedClient, err = s.a.getCachedOIDCClient(ctx, connector, "proxy.example.com")
+	cachedClient, err = s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com")
 	require.NoError(t, err)
 	require.False(t, client == cachedClient)
 
@@ -560,12 +570,12 @@ func TestOIDCClientCache(t *testing.T) {
 			require.NoError(t, err)
 			tc.mutateConnector(newConnector)
 
-			client, err = s.a.getCachedOIDCClient(ctx, newConnector, "proxy.example.com")
+			client, err = s.oas.getCachedOIDCClient(ctx, newConnector, "proxy.example.com")
 			require.NoError(t, err)
 			require.True(t, (client == originalClient) == tc.expectNoRefresh)
 
 			// reset cached client to the original client for remaining tests
-			originalClient, err = s.a.getCachedOIDCClient(ctx, connector, "proxy.example.com")
+			originalClient, err = s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com")
 			require.NoError(t, err)
 		})
 	}
@@ -880,13 +890,112 @@ func TestUsernameClaim(t *testing.T) {
 			require.NoError(t, err)
 
 			// Generate the userCreateParams for the OIDC user.
-			createUserParams, err := s.a.calculateOIDCUser(&diagCtx, connector, claims, ident, request)
+			createUserParams, err := s.oas.calculateOIDCUser(&diagCtx, connector, claims, ident, request)
 			if tc.expectedError != "" {
 				require.ErrorContains(t, err, tc.expectedError)
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, tc.expectedUsername, createUserParams.Username)
 			}
+		})
+	}
+}
+
+func TestValidateACRValues(t *testing.T) {
+	tests := []struct {
+		comment       string
+		inIDToken     string
+		inACRValue    string
+		inACRProvider string
+		outIsValid    require.ErrorAssertionFunc
+	}{
+		{
+			"0 - default, acr values match",
+			`
+{
+	"acr": "foo",
+	"aud": "00000000-0000-0000-0000-000000000000",
+    "exp": 1111111111
+}
+			`,
+			"foo",
+			"",
+			require.NoError,
+		},
+		{
+			"1 - default, acr values do not match",
+			`
+{
+	"acr": "foo",
+	"aud": "00000000-0000-0000-0000-000000000000",
+    "exp": 1111111111
+}
+			`,
+			"bar",
+			"",
+			require.Error,
+		},
+		{
+			"2 - netiq, acr values match",
+			`
+{
+    "acr": {
+        "values": [
+            "foo/bar/baz"
+        ]
+    },
+    "aud": "00000000-0000-0000-0000-000000000000",
+    "exp": 1111111111
+}
+			`,
+			"foo/bar/baz",
+			"netiq",
+			require.NoError,
+		},
+		{
+			"3 - netiq, invalid format",
+			`
+{
+    "acr": {
+        "values": "foo/bar/baz"
+    },
+    "aud": "00000000-0000-0000-0000-000000000000",
+    "exp": 1111111111
+}
+			`,
+			"foo/bar/baz",
+			"netiq",
+			require.Error,
+		},
+		{
+			"4 - netiq, invalid value",
+			`
+{
+    "acr": {
+        "values": [
+            "foo/bar/baz/qux"
+        ]
+    },
+    "aud": "00000000-0000-0000-0000-000000000000",
+    "exp": 1111111111
+}
+			`,
+			"foo/bar/baz",
+			"netiq",
+			require.Error,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.comment, func(t *testing.T) {
+			t.Parallel()
+			var claims jose.Claims
+			err := json.Unmarshal([]byte(tt.inIDToken), &claims)
+			require.NoError(t, err)
+
+			err = validateACRValues(tt.inACRValue, tt.inACRProvider, claims)
+			tt.outIsValid(t, err)
 		})
 	}
 }
