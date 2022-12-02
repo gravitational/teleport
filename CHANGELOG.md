@@ -86,13 +86,13 @@ This release of Teleport contains multiple improvements and bug fixes.
 
 This release of Teleport contains a security fix and multiple bug fixes.
 
-## Block SFTP in Moderated Sessions
+### Block SFTP in Moderated Sessions
 
 Teleport did not block SFTP protocol in Moderated Sessions.
 
 [#17727](https://github.com/gravitational/teleport/pull/17727)
 
-## Other fixes
+### Other fixes
 
 * Fixed issue with agent forwarding not working for auto-created users. [#17586](https://github.com/gravitational/teleport/pull/17586)
 * Fixed "traits missing" error in Application Access. [#17737](https://github.com/gravitational/teleport/pull/17737)
