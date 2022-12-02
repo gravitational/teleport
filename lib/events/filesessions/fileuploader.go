@@ -62,6 +62,10 @@ func (s *Config) CheckAndSetDefaults() error {
 
 // NewHandler returns new file sessions handler
 func NewHandler(cfg Config) (*Handler, error) {
+	if err := os.MkdirAll(cfg.Directory, teleport.SharedDirMode); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

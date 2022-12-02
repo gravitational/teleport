@@ -290,7 +290,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	s.node = node
 	s.srvID = node.ID()
 	require.NoError(t, s.node.Start())
-	require.NoError(t, auth.CreateUploaderDirs(nodeDataDir))
 
 	// create reverse tunnel service:
 	proxyID := "proxy"
@@ -6052,7 +6051,6 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 
 	require.NoError(t, node.Start())
 	t.Cleanup(func() { require.NoError(t, node.Close()) })
-	require.NoError(t, auth.CreateUploaderDirs(nodeDataDir))
 
 	var proxies []*testProxy
 	for p := 0; p < numProxies; p++ {
