@@ -84,18 +84,16 @@ func newAzureApp(cf *CLIConf, profile *client.ProfileStatus, app tlsca.RouteToAp
 
 // StartLocalProxies sets up local proxies for serving Azure clients.
 //
-// There are two ways clients can connect to the local proxies.
+// At minimum clients should work with these variables set:
+// - HTTPS_PROXY, for routing the traffic through the proxy
+// - MSI_ENDPOINT, for informing the client about credential provider endpoint
 //
-// 1. client can send Azure requests to our local forward proxy by configuring
-// HTTPS_PROXY (or equivalent). The API flow looks like this:
+// The request flow to remote server (i.e. Azure APIs) looks like this:
 // clients -> local forward proxy -> local ALPN proxy -> remote server
 //
-// 2. client can send Azure requests to our local ALPN proxy directly by
-// configuring Azure endpoint URLs. The API flow looks like this.
-// clients -> local ALPN proxy -> remote server
-//
-// The first method is always preferred as the original hostname is preserved
-// through forward proxy.
+// However, with MSI_ENDPOINT variable set, clients will reach out to this address for tokens.
+// We intercept calls to https://azure-msi.teleport.dev using alpnproxy.AzureMSIMiddleware.
+// These calls are served entirely locally, which helps the overall performance experienced by the user.
 func (a *azureApp) StartLocalProxies() error {
 	// HTTPS proxy mode
 	if err := a.startLocalALPNProxy(""); err != nil {
@@ -137,7 +135,10 @@ func (a *azureApp) GetEnvVars() (map[string]string, error) {
 		// the requests will be handled by tsh proxy.
 		"MSI_ENDPOINT": "https://" + types.TeleportAzureMSIEndpoint,
 
-		// Needed for az cli to accept certs.
+		// Needed for az CLI to accept our certs.
+		// This isn't portable and applications other than az CLI may have to set different env variables,
+		// add the application cert to system root store (not recommended, ultimate fallback)
+		// or use equivalent of --insecure flag.
 		"REQUESTS_CA_BUNDLE": a.profile.AppLocalCAPath(a.app.Name),
 	}
 
