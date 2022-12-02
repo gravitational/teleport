@@ -2272,7 +2272,7 @@ func (h *Handler) siteNodeConnect(
 
 	// start the websocket session with a web-based terminal:
 	h.log.Infof("Getting terminal to %#v.", req)
-	term.Serve(w, r)
+	term.ServeHTTP(w, r)
 
 	return nil, nil
 }
@@ -3186,6 +3186,7 @@ func makeTeleportClientConfig(ctx context.Context, sctx *SessionContext) (*clien
 	callback, err := apisshutils.NewHostKeyCallback(
 		apisshutils.HostKeyCallbackConfig{
 			GetHostCheckers: sctx.getCheckers,
+			Clock:           sctx.cfg.Parent.clock,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
