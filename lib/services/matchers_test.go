@@ -522,3 +522,41 @@ func TestMatchResourceByFilters(t *testing.T) {
 		})
 	}
 }
+
+func TestIsMatcherOfResourceKind(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		matcherType        string
+		expectResourceKind string
+	}{
+		{
+			matcherType:        AWSMatcherRDS,
+			expectResourceKind: types.KindDatabase,
+		},
+		{
+			matcherType:        AzureMatcherMySQL,
+			expectResourceKind: types.KindDatabase,
+		},
+		{
+			matcherType:        AWSMatcherEC2,
+			expectResourceKind: types.KindNode,
+		},
+		{
+			matcherType:        GCPMatcherGKE,
+			expectResourceKind: types.KindKubernetesCluster,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.matcherType, func(t *testing.T) {
+			for _, kind := range []string{types.KindNode, types.KindDatabase, types.KindKubernetesCluster} {
+				if kind == test.expectResourceKind {
+					require.True(t, isMatcherOfResourceKind(test.matcherType, kind))
+				} else {
+					require.False(t, isMatcherOfResourceKind(test.matcherType, kind))
+				}
+			}
+		})
+	}
+}

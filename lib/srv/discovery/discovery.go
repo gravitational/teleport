@@ -209,7 +209,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []services.Azur
 		for _, subscription := range subscriptions {
 			for _, t := range matcher.Types {
 				switch t {
-				case services.AzureMatcherAKS:
+				case services.AzureMatcherKubernetes:
 					kubeClient, err := s.Clients.GetAzureKubernetesClient(subscription)
 					if err != nil {
 						return trace.Wrap(err)
@@ -248,7 +248,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []services.GCPMat
 			for _, location := range matcher.Locations {
 				for _, t := range matcher.Types {
 					switch t {
-					case services.GCPMatcherGKE:
+					case services.GCPMatcherKubernetes:
 						fetcher, err := fetchers.NewGKEFetcher(fetchers.GKEFetcherConfig{
 							Client:       kubeClient,
 							Location:     location,
@@ -464,12 +464,28 @@ func (s *Server) initTeleportNodeWatcher() (err error) {
 	return trace.Wrap(err)
 }
 
-func splitMatcherTypes(matcherTypes []string) (node, db, other []string) {
+// splitAWSMatcherTypes splits the matcher types between EC2 matchers, database matchers, and others.
+func splitAWSMatcherTypes(matcherTypes []string) (ec2, db, other []string) {
 	for _, matcherType := range matcherTypes {
 		switch {
-		case services.IsNodeMatcher(matcherType):
-			node = append(node, matcherType)
-		case services.IsDatabaseMatcher(matcherType):
+		case matcherType == services.AWSMatcherEC2:
+			ec2 = append(ec2, matcherType)
+		case dbwatchers.IsAWSMatcher(matcherType):
+			db = append(db, matcherType)
+		default:
+			other = append(other, matcherType)
+		}
+	}
+	return
+}
+
+// splitAzureMatcherTypes splits the matcher types between Azure VM matchers, database matchers, and others.
+func splitAzureMatcherTypes(matcherTypes []string) (vm, db, other []string) {
+	for _, matcherType := range matcherTypes {
+		switch {
+		case matcherType == services.AzureMatcherVM:
+			vm = append(vm, matcherType)
+		case dbwatchers.IsAzureMatcher(matcherType):
 			db = append(db, matcherType)
 		default:
 			other = append(other, matcherType)
@@ -481,10 +497,10 @@ func splitMatcherTypes(matcherTypes []string) (node, db, other []string) {
 // splitAWSMatchers splits the matchers between EC2 matchers, database matchers, and others.
 func splitAWSMatchers(matchers []services.AWSMatcher) (ec2, db, other []services.AWSMatcher) {
 	for _, matcher := range matchers {
-		nodeTypes, dbTypes, otherTypes := splitMatcherTypes(matcher.Types)
+		ec2Types, dbTypes, otherTypes := splitAWSMatcherTypes(matcher.Types)
 
-		if len(nodeTypes) > 0 {
-			ec2 = append(ec2, copyAWSMatcherWithNewTypes(matcher, nodeTypes))
+		if len(ec2Types) > 0 {
+			ec2 = append(ec2, copyAWSMatcherWithNewTypes(matcher, ec2Types))
 		}
 		if len(dbTypes) > 0 {
 			db = append(db, copyAWSMatcherWithNewTypes(matcher, dbTypes))
@@ -499,10 +515,10 @@ func splitAWSMatchers(matchers []services.AWSMatcher) (ec2, db, other []services
 // splitAzureMatchers splits the matchers between Azure VM matchers and others.
 func splitAzureMatchers(matchers []services.AzureMatcher) (vm, db, other []services.AzureMatcher) {
 	for _, matcher := range matchers {
-		nodeTypes, dbTypes, otherTypes := splitMatcherTypes(matcher.Types)
+		vmTypes, dbTypes, otherTypes := splitAzureMatcherTypes(matcher.Types)
 
-		if len(nodeTypes) > 0 {
-			vm = append(vm, copyAzureMatcherWithNewTypes(matcher, nodeTypes))
+		if len(vmTypes) > 0 {
+			vm = append(vm, copyAzureMatcherWithNewTypes(matcher, vmTypes))
 		}
 		if len(dbTypes) > 0 {
 			db = append(db, copyAzureMatcherWithNewTypes(matcher, dbTypes))
@@ -512,6 +528,17 @@ func splitAzureMatchers(matchers []services.AzureMatcher) (vm, db, other []servi
 		}
 	}
 	return
+}
+
+// excludeFromSlice excludes entry from the slice.
+func excludeFromSlice[T comparable](slice []T, entry T) []T {
+	newSlice := make([]T, 0, len(slice))
+	for _, val := range slice {
+		if val != entry {
+			newSlice = append(newSlice, val)
+		}
+	}
+	return newSlice
 }
 
 // copyAWSMatcherWithNewTypes copies an AWS Matcher and replaces the types with newTypes

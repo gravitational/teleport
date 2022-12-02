@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
@@ -152,6 +153,35 @@ func (w *Watcher) DatabasesC() <-chan types.Databases {
 	return w.databasesC
 }
 
+type makeAWSFetcherFunc func(cloud.Clients, string, types.Labels) (Fetcher, error)
+
+var makeAWSFetcherFuncs = map[string][]makeAWSFetcherFunc{
+	services.AWSMatcherRDS:         {makeRDSInstanceFetcher, makeRDSAuroraFetcher},
+	services.AWSMatcherRDSProxy:    {makeRDSProxyFetcher},
+	services.AWSMatcherRedshift:    {makeRedshiftFetcher},
+	services.AWSMatcherElastiCache: {makeElastiCacheFetcher},
+	services.AWSMatcherMemoryDB:    {makeMemoryDBFetcher},
+}
+
+type makeAzureFetcherFunc func(azureFetcherConfig) (Fetcher, error)
+
+var makeAzureFetcherFuncs = map[string][]makeAzureFetcherFunc{
+	services.AzureMatcherMySQL:     {newAzureMySQLFetcher},
+	services.AzureMatcherPostgres:  {newAzurePostgresFetcher},
+	services.AzureMatcherRedis:     {newAzureRedisFetcher, newAzureRedisEnterpriseFetcher},
+	services.AzureMatcherSQLServer: {newAzureSQLServerFetcher, newAzureManagedSQLServerFetcher},
+}
+
+// IsAWSMatcher returns true if provided matcher is an AWS database matcher type.
+func IsAWSMatcher(matcherType string) bool {
+	return slices.Contains(maps.Keys(makeAWSFetcherFuncs), matcherType)
+}
+
+// IsAzureMatcher returns true if provided matcher is an Azure database matcher type.
+func IsAzureMatcher(matcherType string) bool {
+	return slices.Contains(maps.Keys(makeAzureFetcherFuncs), matcherType)
+}
+
 // makeFetchers returns cloud fetchers for the provided matchers.
 func makeFetchers(ctx context.Context, config *WatcherConfig) (result []Fetcher, err error) {
 	fetchers, err := makeAWSFetchers(config.Clients, config.AWSMatchers)
@@ -170,23 +200,15 @@ func makeFetchers(ctx context.Context, config *WatcherConfig) (result []Fetcher,
 }
 
 func makeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (result []Fetcher, err error) {
-	type makeFetcherFunc func(cloud.Clients, string, types.Labels) (Fetcher, error)
-	makeFetcherFuncs := map[string][]makeFetcherFunc{
-		services.AWSMatcherRDS:         {makeRDSInstanceFetcher, makeRDSAuroraFetcher},
-		services.AWSMatcherRDSProxy:    {makeRDSProxyFetcher},
-		services.AWSMatcherRedshift:    {makeRedshiftFetcher},
-		services.AWSMatcherElastiCache: {makeElastiCacheFetcher},
-		services.AWSMatcherMemoryDB:    {makeMemoryDBFetcher},
-	}
-
 	for _, matcher := range matchers {
-		for _, region := range matcher.Regions {
-			for matcherType, makeFetchers := range makeFetcherFuncs {
-				if !slices.Contains(matcher.Types, matcherType) {
-					continue
-				}
+		for _, matcherType := range matcher.Types {
+			makeFetchers, found := makeAWSFetcherFuncs[matcherType]
+			if !found {
+				return nil, trace.BadParameter("unknown AWS database matcher type %q, supported types are: %v", maps.Keys(makeAWSFetcherFuncs))
+			}
 
-				for _, makeFetcher := range makeFetchers {
+			for _, makeFetcher := range makeFetchers {
+				for _, region := range matcher.Regions {
 					fetcher, err := makeFetcher(clients, region, matcher.Tags)
 					if err != nil {
 						return nil, trace.Wrap(err)
@@ -200,18 +222,11 @@ func makeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (res
 }
 
 func makeAzureFetchers(ctx context.Context, clients cloud.Clients, matchers []services.AzureMatcher) (result []Fetcher, err error) {
-	type makeFetcherFunc func(azureFetcherConfig) (Fetcher, error)
-	makeFetcherFuncs := map[string][]makeFetcherFunc{
-		services.AzureMatcherMySQL:     {newAzureMySQLFetcher},
-		services.AzureMatcherPostgres:  {newAzurePostgresFetcher},
-		services.AzureMatcherRedis:     {newAzureRedisFetcher, newAzureRedisEnterpriseFetcher},
-		services.AzureMatcherSQLServer: {newAzureSQLServerFetcher, newAzureManagedSQLServerFetcher},
-	}
 	for _, matcher := range matchers {
 		for _, matcherType := range matcher.Types {
-			makeFetchers, found := makeFetcherFuncs[matcherType]
+			makeFetchers, found := makeAzureFetcherFuncs[matcherType]
 			if !found {
-				return nil, trace.BadParameter("unknown matcher type %q", matcherType)
+				return nil, trace.BadParameter("unknown Azure database matcher type %q, supported types are: %v", matcherType, maps.Keys(makeAzureFetcherFuncs))
 			}
 
 			for _, makeFetcher := range makeFetchers {
