@@ -36,18 +36,20 @@ func DualPipeNetConn(srcAddr net.Addr, dstAddr net.Addr) (net.Conn, net.Conn, er
 	}
 
 	f1 := os.NewFile(uintptr(fds[0]), srcAddr.String())
+	defer f1.Close()
+
+	f2 := os.NewFile(uintptr(fds[1]), dstAddr.String())
+	defer f2.Close()
+
 	client, err := net.FileConn(f1)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	defer f1.Close()
 
-	f2 := os.NewFile(uintptr(fds[1]), dstAddr.String())
 	server, err := net.FileConn(f2)
 	if err != nil {
 		return nil, nil, trace.NewAggregate(err, client.Close())
 	}
-	defer f2.Close()
 
 	serverConn := NewPipeNetConn(server, server, server, dstAddr, srcAddr)
 	clientConn := NewPipeNetConn(client, client, client, srcAddr, dstAddr)
