@@ -1378,7 +1378,7 @@ func (k *kubeChecker) CanAccess(resource types.Resource) error {
 }
 
 // canAccessKubernetesLegacy checks if the user has access to Kubernetes Cluster when represented by `types.ServerV2`.
-// DELETE in 12.0.0
+// DELETE in 13.0.0
 func (k *kubeChecker) canAccessKubernetesLegacy(server types.Server) error {
 	// Filter out agents that don't have support for moderated sessions access
 	// checking if the user has any roles that require it.
@@ -4283,7 +4283,7 @@ func (a *ServerWithRoles) DeleteAllKubernetesServers(ctx context.Context) error 
 
 // GetKubeServices returns all Servers representing teleport kubernetes
 // services.
-// DELETE in 12.0.0
+// DELETE in 13.0.0
 func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 	if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)

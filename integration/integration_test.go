@@ -75,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -1688,32 +1689,41 @@ func enterInput(ctx context.Context, person *Terminal, command, pattern string) 
 // TestInvalidLogins validates that you can't login with invalid login or
 // with invalid 'site' parameter
 func testEnvironmentVariables(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	teleport := suite.newTeleport(t, nil, true)
-	defer teleport.StopAll()
-
-	testKey, testVal := "TELEPORT_TEST_ENV", "howdy"
-	cmd := []string{"printenv", testKey}
+	s := suite.newTeleport(t, nil, true)
+	defer s.StopAll()
 
 	// make sure sessions set run command
-	tc, err := teleport.NewClient(helpers.ClientConfig{
+	tc, err := s.NewClient(helpers.ClientConfig{
 		Login:   suite.Me.Username,
 		Cluster: helpers.Site,
 		Host:    Host,
-		Port:    helpers.Port(t, teleport.SSH),
+		Port:    helpers.Port(t, s.SSH),
 	})
 	require.NoError(t, err)
 
-	tc.Env = map[string]string{testKey: testVal}
+	// if SessionID is provided, it should be set in the session env vars.
+	tc.SessionID = uuid.NewString()
+	cmd := []string{"printenv", sshutils.SessionEnvVar}
 	out := &bytes.Buffer{}
 	tc.Stdout = out
 	tc.Stdin = nil
-	err = tc.SSH(context.TODO(), cmd, false)
+	err = tc.SSH(ctx, cmd, false /* runLocally */)
 
 	require.NoError(t, err)
-	require.Equal(t, testVal, strings.TrimSpace(out.String()))
+	require.Equal(t, tc.SessionID, strings.TrimSpace(out.String()))
+
+	// The proxy url should be set in the session env vars.
+	cmd = []string{"printenv", teleport.SSHSessionWebproxyAddr}
+	out = &bytes.Buffer{}
+	tc.Stdout = out
+	err = tc.SSH(ctx, cmd, false /* runLocally */)
+
+	require.NoError(t, err)
+	require.Equal(t, tc.WebProxyAddr, strings.TrimSpace(out.String()))
 }
 
 // TestInvalidLogins validates that you can't login with invalid login or
