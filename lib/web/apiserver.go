@@ -35,6 +35,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -42,18 +43,24 @@ import (
 	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -64,12 +71,13 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/plugin"
+	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -205,6 +213,19 @@ type Config struct {
 	// ALPNHandler is the ALPN connection handler for handling upgraded ALPN
 	// connection through a HTTP upgrade call.
 	ALPNHandler ConnectionHandler
+
+	// TraceClient is used to forward spans to the upstream collector for the UI
+	TraceClient otlptrace.Client
+
+	// Router is used to route ssh sessions to hosts
+	Router *proxy.Router
+
+	// SessionControl is used to determine if users are
+	// allowed to spawn new sessions
+	SessionControl *srv.SessionController
+
+	// TracerProvider generates tracers to create spans with
+	TracerProvider oteltrace.TracerProvider
 }
 
 type APIHandler struct {
@@ -248,6 +269,7 @@ func (h *APIHandler) Close() error {
 // NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
+	cfg.ProxyClient = auth.WithGithubConnectorConversions(cfg.ProxyClient)
 	h := &Handler{
 		cfg:             cfg,
 		log:             newPackageLogger(),
@@ -479,6 +501,9 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	// Migrated this endpoint to /webapi/sessions/web below.
 	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createWebSession))
 
+	// Forwards traces to the configured upstream collector
+	h.POST("/webapi/traces", h.WithAuth(h.traces))
+
 	// Web sessions
 	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.createWebSession))
 	h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
@@ -491,8 +516,8 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.DELETE("/webapi/users/:username", h.WithAuth(h.deleteUserHandle))
 
 	// We have an overlap route here, please see godoc of handleGetUserOrResetToken
-	//h.GET("/webapi/users/:username", h.WithAuth(h.getUserHandle))
-	//h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
+	// h.GET("/webapi/users/:username", h.WithAuth(h.getUserHandle))
+	// h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
 	h.GET("/webapi/users/*wildcard", h.handleGetUserOrResetToken)
 
 	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changeUserAuthentication))
@@ -521,8 +546,11 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.GET("/webapi/sites/:site/alerts", h.WithClusterAuth(h.clusterLoginAlertsGet))
 
 	// active sessions handlers
-	h.GET("/webapi/sites/:site/connect", h.WithClusterAuth(h.siteNodeConnect))       // connect to an active session (via websocket)
-	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionsGet))      // get active list of sessions
+	h.GET("/webapi/sites/:site/connect", h.WithClusterAuth(h.siteNodeConnect))  // connect to an active session (via websocket)
+	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionsGet)) // get active list of sessions
+	// TODO POSTS to `/webapi/sites/:site/sessions` should no longer be required
+	// but this endpoint is still used by the UI. When time allows evaluate the
+	// removal of this handler and the associated methods here and in the UI.
 	h.POST("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionGenerate)) // create active session metadata
 	h.GET("/webapi/sites/:site/sessions/:sid", h.WithClusterAuth(h.siteSessionGet))  // get active session metadata
 
@@ -551,12 +579,17 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	// join scripts
 	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(h.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(h.getAppJoinScriptHandle))
+	h.GET("/scripts/:token/install-database.sh", httplib.MakeHandler(h.getDatabaseJoinScriptHandle))
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
 	h.GET("/webapi/sites/:site/resources/check", h.WithClusterAuth(h.checkAccessToRegisteredResource))
 
 	// Database access handlers.
 	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.clusterDatabasesGet))
+	h.POST("/webapi/sites/:site/databases", h.WithClusterAuth(h.handleDatabaseCreate))
+	h.PUT("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.handleDatabaseUpdate))
+	h.GET("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.clusterDatabaseGet))
+	h.GET("/webapi/sites/:site/databases/:database/iam/policy", h.WithClusterAuth(h.handleDatabaseGetIAMPolicy))
 
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
@@ -904,6 +937,70 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 	return as, nil
 }
 
+// traces forwards spans from the web ui to the upstream collector configured for the proxy. If tracing is
+// disabled then the forwarding is a noop.
+func (h *Handler) traces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *SessionContext) (interface{}, error) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, teleport.MaxHTTPRequestSize))
+	if err != nil {
+		h.log.WithError(err).Error("Failed to read traces request")
+		w.WriteHeader(http.StatusBadRequest)
+		return nil, nil
+	}
+
+	if err := r.Body.Close(); err != nil {
+		h.log.WithError(err).Warn("Failed to close traces request body")
+	}
+
+	var data tracepb.TracesData
+	if err := protojson.Unmarshal(body, &data); err != nil {
+		h.log.WithError(err).Error("Failed to unmarshal traces request")
+		w.WriteHeader(http.StatusBadRequest)
+		return nil, nil
+	}
+
+	if len(data.ResourceSpans) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return nil, nil
+	}
+
+	// Unmarshalling of TraceId, SpanId, and ParentSpanId might all yield incorrect values. The raw values from
+	// OpenTelemetry-js are hex encoded, but the unmarshal call above will decode them as base64.
+	// In order to ensure the ids are in the right format and won't be rejected by the upstream collector
+	// we attempt to convert them back into the base64 and then hex decode them.
+	for _, resourceSpan := range data.ResourceSpans {
+		for _, scopeSpan := range resourceSpan.ScopeSpans {
+			for _, span := range scopeSpan.Spans {
+
+				// attempt to convert the trace id to the right format
+				if tid, err := oteltrace.TraceIDFromHex(base64.StdEncoding.EncodeToString(span.TraceId)); err == nil {
+					span.TraceId = tid[:]
+				}
+
+				// attempt to convert the span id to the right format
+				if sid, err := oteltrace.SpanIDFromHex(base64.StdEncoding.EncodeToString(span.SpanId)); err == nil {
+					span.SpanId = sid[:]
+				}
+
+				// attempt to convert the parent span id to the right format
+				if len(span.ParentSpanId) > 0 {
+					if psid, err := oteltrace.SpanIDFromHex(base64.StdEncoding.EncodeToString(span.ParentSpanId)); err == nil {
+						span.ParentSpanId = psid[:]
+					}
+				}
+			}
+		}
+	}
+
+	go func() {
+		if err := h.cfg.TraceClient.UploadTraces(r.Context(), data.ResourceSpans); err != nil {
+			h.log.WithError(err).Error("Failed to upload traces")
+		}
+	}()
+
+	w.WriteHeader(http.StatusOK)
+	return nil, nil
+}
+
 func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var err error
 	authSettings, err := getAuthSettings(r.Context(), h.cfg.ProxyClient)
@@ -970,7 +1067,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	hasMessageOfTheDay := cap.GetMessageOfTheDay() != ""
-	if apiutils.SliceContainsStr(constants.SystemConnectors, connectorName) {
+	if slices.Contains(constants.SystemConnectors, connectorName) {
 		response.Auth, err = localSettings(cap)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1107,6 +1204,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			AuthType:           authType,
 			PreferredLocalMFA:  cap.GetPreferredLocalMFA(),
 			LocalConnectorName: localConnectorName,
+			PrivateKeyPolicy:   cap.GetPrivateKeyPolicy(),
 		}
 	}
 
@@ -1570,6 +1668,12 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 	if err != nil {
 		h.log.WithError(err).Warnf("Access attempt denied for user %q.", req.User)
+		// Since checking for private key policy meant that they passed authn,
+		// return policy error as is to help direct user.
+		if keys.IsPrivateKeyPolicyError(err) {
+			return nil, trace.Wrap(err)
+		}
+		// Obscure all other errors.
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
@@ -1721,10 +1825,30 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
+	if res.PrivateKeyPolicyEnabled {
+		if res.GetRecovery() == nil {
+			return &ui.ChangedUserAuthn{
+				PrivateKeyPolicyEnabled: res.PrivateKeyPolicyEnabled,
+			}, nil
+		}
+		return &ui.ChangedUserAuthn{
+			Recovery: ui.RecoveryCodes{
+				Codes:   res.GetRecovery().GetCodes(),
+				Created: &res.GetRecovery().Created,
+			},
+			PrivateKeyPolicyEnabled: res.PrivateKeyPolicyEnabled,
+		}, nil
+	}
+
 	sess := res.WebSession
 	ctx, err := h.auth.newSessionContext(r.Context(), sess.GetUser(), sess.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	err = h.trySettingConnectorNameToPasswordless(r.Context(), ctx, req)
+	if err != nil {
+		h.log.WithError(err).Error("Failed to set passwordless as connector name.")
 	}
 
 	if err := SetSessionCookie(w, sess.GetUser(), sess.GetName()); err != nil {
@@ -1737,13 +1861,54 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	}
 
 	if res.GetRecovery() == nil {
-		return &ui.RecoveryCodes{}, nil
+		return &ui.ChangedUserAuthn{}, nil
 	}
 
-	return &ui.RecoveryCodes{
-		Codes:   res.Recovery.Codes,
-		Created: &res.Recovery.Created,
+	return &ui.ChangedUserAuthn{
+		Recovery: ui.RecoveryCodes{
+			Codes:   res.GetRecovery().GetCodes(),
+			Created: &res.GetRecovery().Created,
+		},
 	}, nil
+}
+
+// trySettingConnectorNameToPasswordless sets cluster_auth_preference connectorName to `passwordless` when the first cloud user chooses passwordless as the authentication method.
+// This simplifies UX for cloud users, as they will not need to select a passwordless connector when logging in.
+func (h *Handler) trySettingConnectorNameToPasswordless(ctx context.Context, sessCtx *SessionContext, req changeUserAuthenticationRequest) error {
+	// We use the presence of a WebAuthn response, along with the absence of a
+	// password, as a proxy to determine that a passwordless registration took
+	// place, as it is not possible to infer that just from the WebAuthn response.
+	isPasswordlessRegistration := req.WebauthnCreationResponse != nil && len(req.Password) == 0
+	if !isPasswordlessRegistration {
+		return nil
+	}
+
+	if !h.ClusterFeatures.GetCloud() {
+		return nil
+	}
+
+	authPreference, err := sessCtx.clt.GetAuthPreference(ctx)
+	if err != nil {
+		return nil
+	}
+
+	if connector := authPreference.GetConnectorName(); connector != "" && connector != constants.LocalConnector {
+		return nil
+	}
+
+	users, err := h.cfg.ProxyClient.GetUsers(false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(users) != 1 {
+		return nil
+	}
+
+	authPreference.SetConnectorName(constants.PasswordlessConnector)
+
+	err = sessCtx.clt.SetAuthPreference(ctx, authPreference)
+	return trace.Wrap(err)
 }
 
 // createResetPasswordToken allows a UI user to reset a user's password.
@@ -1896,6 +2061,12 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	clientMeta := clientMetaFromReq(r)
 	session, err := h.auth.AuthenticateWebUser(r.Context(), req, clientMeta)
 	if err != nil {
+		// Since checking for private key policy meant that they passed authn,
+		// return policy error as is to help direct user.
+		if keys.IsPrivateKeyPolicyError(err) {
+			return nil, trace.Wrap(err)
+		}
+		// Obscure all other errors.
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
@@ -1909,6 +2080,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}
+
 	return newSessionResponse(ctx)
 }
 
@@ -2024,13 +2196,46 @@ func (h *Handler) clusterLoginAlertsGet(w http.ResponseWriter, r *http.Request, 
 			types.AlertOnLogin: "yes",
 		},
 	})
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return getLoginAlertsResponse{
 		Alerts: alerts,
+	}, nil
+}
+
+// createIdentityContext creates a srv.IdentityContext from the ssh cert of the user
+// stored within the SessionContext.
+func createIdentityContext(login string, sessionCtx *SessionContext) (srv.IdentityContext, error) {
+	accessChecker, err := sessionCtx.GetUserAccessChecker()
+	if err != nil {
+		return srv.IdentityContext{}, trace.Wrap(err)
+	}
+
+	sshCert, err := sessionCtx.GetSSHCertificate()
+	if err != nil {
+		return srv.IdentityContext{}, trace.Wrap(err)
+	}
+
+	unmappedRoles, err := services.ExtractRolesFromCert(sshCert)
+	if err != nil {
+		return srv.IdentityContext{}, trace.Wrap(err)
+	}
+
+	accessRequestIDs, err := srv.ParseAccessRequestIDs(sshCert.Extensions[teleport.CertExtensionTeleportActiveRequests])
+	if err != nil {
+		return srv.IdentityContext{}, trace.Wrap(err)
+	}
+
+	return srv.IdentityContext{
+		AccessChecker:  accessChecker,
+		TeleportUser:   sessionCtx.user,
+		Login:          login,
+		Certificate:    sshCert,
+		UnmappedRoles:  unmappedRoles,
+		ActiveRequests: accessRequestIDs,
+		Impersonator:   sshCert.Extensions[teleport.CertExtensionImpersonator],
 	}, nil
 }
 
@@ -2048,7 +2253,7 @@ func (h *Handler) siteNodeConnect(
 	w http.ResponseWriter,
 	r *http.Request,
 	p httprouter.Params,
-	ctx *SessionContext,
+	sessionCtx *SessionContext,
 	site reversetunnel.RemoteSite,
 ) (interface{}, error) {
 	q := r.URL.Query()
@@ -2061,8 +2266,42 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	h.log.Debugf("New terminal request for ns=%s, server=%s, login=%s, sid=%s, websid=%s.",
-		req.Namespace, req.Server, req.Login, req.SessionID, ctx.GetSessionID())
+	clt, err := sessionCtx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity, err := createIdentityContext(req.Login, sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ctx, err := h.cfg.SessionControl.AcquireSessionContext(r.Context(), identity, h.cfg.ProxyWebAddr.Addr, r.RemoteAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var sessionData session.Session
+	var displayLogin string
+
+	clusterName := site.GetName()
+
+	if req.SessionID.IsZero() {
+		// An existing session ID was not provided so we need to create a new one.
+		sessionData, err = h.generateSession(ctx, clt, req, clusterName)
+		if err != nil {
+			h.log.WithError(err).Debug("Unable to generate new ssh session.")
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		sessionData, displayLogin, err = h.fetchExistingSession(ctx, clt, req, clusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	h.log.Debugf("New terminal request for server=%s, login=%s, sid=%s, websid=%s.",
+		req.Server, req.Login, sessionData.ID, sessionCtx.GetSessionID())
 
 	authAccessPoint, err := site.CachingAccessPoint()
 	if err != nil {
@@ -2070,23 +2309,26 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(h.cfg.Context)
+	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
 		return nil, trace.Wrap(err)
 	}
 
-	req.KeepAliveInterval = netConfig.GetKeepAliveInterval()
-	req.Namespace = apidefaults.Namespace
-	req.ProxyHostPort = h.ProxyHostPort()
-	req.Cluster = site.GetName()
-
-	clt, err := ctx.GetUserClient(site)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	terminalConfig := TerminalHandlerConfig{
+		Term:               req.Term,
+		SessionCtx:         sessionCtx,
+		AuthProvider:       clt,
+		DisplayLogin:       displayLogin,
+		SessionData:        sessionData,
+		KeepAliveInterval:  netConfig.GetKeepAliveInterval(),
+		ProxyHostPort:      h.ProxyHostPort(),
+		InteractiveCommand: req.InteractiveCommand,
+		Router:             h.cfg.Router,
+		TracerProvider:     h.cfg.TracerProvider,
 	}
 
-	term, err := NewTerminal(r.Context(), *req, clt, ctx)
+	term, err := NewTerminal(ctx, terminalConfig)
 	if err != nil {
 		h.log.WithError(err).Error("Unable to create terminal.")
 		return nil, trace.Wrap(err)
@@ -2094,9 +2336,88 @@ func (h *Handler) siteNodeConnect(
 
 	// start the websocket session with a web-based terminal:
 	h.log.Infof("Getting terminal to %#v.", req)
-	term.Serve(w, r)
+	httplib.MakeTracingHandler(term, teleport.ComponentProxy).ServeHTTP(w, r)
 
 	return nil, nil
+}
+
+func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, clusterName string) (session.Session, error) {
+	var (
+		host string
+		port int
+	)
+	h.log.Infof("Generating new session for %s\n", clusterName)
+	// req.Server will be either an IP, hostname, or server UUID.
+	_, err := uuid.Parse(req.Server)
+	if err != nil {
+		// TODO(hatched) Investigate using ListResources instead of GetNodes as we can
+		// provide more filters that may reduce the work to do on the client side.
+		servers, err := clt.GetNodes(ctx, apidefaults.Namespace)
+		if err != nil {
+			return session.Session{}, trace.Wrap(err)
+		}
+		host, port, err = resolveServerHostPort(req.Server, servers)
+		if err != nil {
+			return session.Session{}, trace.Wrap(err)
+		}
+	} else {
+		// If the user has passed in a UUID then query for that node directly. We
+		// can connect to `uuid:0` directly. with `host = req.Server` however we will
+		// not have the proper hostname and the UI will display the UUID instead.
+		// This is why we have to query for the node. In a future update we can query
+		// for a uuid:hostname to dramatically improve performance in large environments.
+		server, err := clt.GetNode(ctx, apidefaults.Namespace, req.Server)
+		if err != nil {
+			return session.Session{}, trace.Wrap(err)
+		}
+		host, port, err = resolveServerHostPort(req.Server, []types.Server{server})
+		if err != nil {
+			return session.Session{}, trace.Wrap(err)
+		}
+	}
+
+	return session.Session{
+		Login:          req.Login,
+		ServerID:       req.Server,
+		ClusterName:    clusterName,
+		ServerHostname: host,
+		ServerHostPort: port,
+		ID:             session.NewID(),
+		Created:        time.Now().UTC(),
+		LastActive:     time.Now().UTC(),
+		Namespace:      apidefaults.Namespace,
+	}, nil
+}
+
+func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, siteName string) (session.Session, string, error) {
+	sessionID, err := session.ParseID(req.SessionID.String())
+	if err != nil {
+		return session.Session{}, "", trace.Wrap(err)
+	}
+	h.log.Infof("Attempting to join existing session: %s\n", sessionID)
+
+	tracker, err := clt.GetSessionTracker(ctx, string(*sessionID))
+	if err != nil {
+		return session.Session{}, "", trace.Wrap(err)
+	}
+
+	if tracker.GetSessionKind() != types.SSHSessionKind || tracker.GetState() == types.SessionState_SessionStateTerminated {
+		return session.Session{}, "", trace.NotFound("SSH session %v not found", sessionID)
+	}
+
+	sessionData := trackerToLegacySession(tracker, siteName)
+	// When joining an existing session use the specially handled
+	// `SSHSessionJoinPrincipal` login instead of the provided login so that
+	// users are able to join sessions without having permissions to create
+	// new ones themselves for auditing purposes. Otherwise the user would
+	// fail the SSH lib username validation step.
+	sessionData.Login = teleport.SSHSessionJoinPrincipal
+	// Using the Login above will then display `-teleport-internal-join` as the
+	// username that the user is logging in as, so we need to instead show the
+	// session username in the UI.
+	displayLogin := tracker.GetLogin()
+
+	return sessionData, displayLogin, nil
 }
 
 type siteSessionGenerateReq struct {
@@ -2132,6 +2453,7 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 			return nil, trace.Wrap(err)
 		}
 
+		req.Session.Kind = types.SSHSessionKind
 		req.Session.ServerHostname = hostname
 	}
 
@@ -2178,6 +2500,9 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 		ServerAddr:            tracker.GetAddress(),
 		ClusterName:           clusterName,
 		KubernetesClusterName: tracker.GetKubeCluster(),
+		DesktopName:           tracker.GetDesktopName(),
+		AppName:               tracker.GetAppName(),
+		DatabaseName:          tracker.GetDatabaseName(),
 	}
 }
 
@@ -2202,9 +2527,7 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 
 	sessions := make([]session.Session, 0, len(trackers))
 	for _, tracker := range trackers {
-		// Only return ssh and k8s session type.
-		isSSHOrK8s := tracker.GetSessionKind() == types.SSHSessionKind || tracker.GetSessionKind() == types.KubernetesSessionKind
-		if isSSHOrK8s && tracker.GetState() != types.SessionState_SessionStateTerminated {
+		if tracker.GetState() != types.SessionState_SessionStateTerminated {
 			sessions = append(sessions, trackerToLegacySession(tracker, p.ByName("site")))
 		}
 	}
@@ -3023,7 +3346,7 @@ func makeTeleportClientConfig(ctx context.Context, sesCtx *SessionContext) (*cli
 		DefaultPrincipal:  cert.ValidPrincipals[0],
 		HostKeyCallback:   callback,
 		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
-		Tracer:            tracing.NoopProvider().Tracer("test"),
+		Tracer:            apitracing.DefaultProvider().Tracer("webterminal"),
 	}
 
 	return config, nil

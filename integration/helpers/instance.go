@@ -252,6 +252,8 @@ type TeleInstance struct {
 
 // InstanceConfig is an instance configuration
 type InstanceConfig struct {
+	// Clock is an optional clock to use
+	Clock clockwork.Clock
 	// ClusterName is a cluster name of the instance
 	ClusterName string
 	// HostID is a host id of the instance
@@ -320,7 +322,10 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 		Username: fmt.Sprintf("%v.%v", cfg.HostID, cfg.ClusterName),
 		Groups:   []string{string(types.RoleAdmin)},
 	}
-	clock := clockwork.NewRealClock()
+	clock := cfg.Clock
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
 	subject, err := identity.Subject()
 	fatalIf(err)
 	tlsCert, err := tlsCA.GenerateCertificate(tlsca.CertificateRequest{
@@ -669,8 +674,8 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *service.Config, authPort s
 		return nil, trace.Wrap(err)
 	}
 
-	log.Debugf("Teleport node (in instance %v) started: %v/%v events received.",
-		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+	log.Debugf("Teleport node %s (in instance %s) started: %v/%v expected events received.",
+		process.Config.Hostname, i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
 	return process, nil
 }
 
@@ -1122,7 +1127,7 @@ func (i *TeleInstance) AddUser(username string, mappings []string) *User {
 func (i *TeleInstance) Start() error {
 	// Build a list of expected events to wait for before unblocking based off
 	// the configuration passed in.
-	expectedEvents := []string{}
+	var expectedEvents []string
 	if i.Config.Auth.Enabled {
 		expectedEvents = append(expectedEvents, service.AuthTLSReady)
 	}
@@ -1146,6 +1151,8 @@ func (i *TeleInstance) Start() error {
 	if i.Config.Kube.Enabled {
 		expectedEvents = append(expectedEvents, service.KubernetesReady)
 	}
+
+	expectedEvents = append(expectedEvents, service.InstanceReady)
 
 	// Start the process and block until the expected events have arrived.
 	receivedEvents, err := StartAndWait(i.Process, expectedEvents)

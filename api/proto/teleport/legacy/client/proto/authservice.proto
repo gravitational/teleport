@@ -335,6 +335,15 @@ message GetUsersRequest {
   bool WithSecrets = 1 [(gogoproto.jsontag) = "with_secrets"];
 }
 
+// ChangePasswordRequest specifies the parameters for the ChangePassword method.
+message ChangePasswordRequest {
+  string User = 1 [(gogoproto.jsontag) = "name"];
+  bytes OldPassword = 2 [(gogoproto.jsontag) = "old_password"];
+  bytes NewPassword = 3 [(gogoproto.jsontag) = "new_password"];
+  string SecondFactorToken = 4 [(gogoproto.jsontag) = "second_factor_token"];
+  webauthn.CredentialAssertionResponse Webauthn = 5 [(gogoproto.jsontag) = "webauthn"];
+}
+
 // AccessRequests is a collection of AccessRequest values.
 message AccessRequests {
   repeated types.AccessRequestV3 AccessRequests = 1 [(gogoproto.jsontag) = "access_requests"];
@@ -345,7 +354,7 @@ message PluginDataSeq {
   repeated types.PluginDataV3 PluginData = 1 [(gogoproto.jsontag) = "plugin_data"];
 }
 
-// RequestStateSetter encodes the paramters necessary to update the
+// RequestStateSetter encodes the parameters necessary to update the
 // state of a privilege escalation request.
 message RequestStateSetter {
   // ID is the request ID being targeted
@@ -740,20 +749,20 @@ message GetWebTokensResponse {
 
 // UpsertKubeServiceRequest are the parameters used to add or update a
 // kubernetes service.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 message UpsertKubeServiceRequest {
   types.ServerV2 Server = 1 [(gogoproto.jsontag) = "server"];
 }
 
 // DeleteKubeServiceRequest are the parameters used to remove a kubernetes service.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 message DeleteKubeServiceRequest {
   // Name is the name of the kubernetes service to delete.
   string Name = 2 [(gogoproto.jsontag) = "name"];
 }
 
 // DeleteAllKubeServicesRequest are the parameters used to remove all kubernetes services.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 message DeleteAllKubeServicesRequest {}
 
 // UpsertKubernetesServerRequest are the parameters used to add or update a
@@ -1373,6 +1382,9 @@ message ChangeUserAuthenticationResponse {
   //  - cloud feature is enabled
   //  - username is in valid email format
   RecoveryCodes Recovery = 2 [(gogoproto.jsontag) = "recovery,omitempty"];
+  // PrivateKeyPolicyEnabled is a flag that when true means one of the private key policy was
+  // set in either through cluster config or through a user's assigned role.
+  bool PrivateKeyPolicyEnabled = 3 [(gogoproto.jsontag) = "private_key_policy_enabled,omitempty"];
 }
 
 // StartAccountRecoveryRequest defines a request to create a recovery start token for a user who is
@@ -1538,7 +1550,7 @@ message PaginatedResource {
     // Nodes represents a Server resource.
     types.ServerV2 Node = 3 [(gogoproto.jsontag) = "node,omitempty"];
     // KubeService represents a KubernetesService resource.
-    // DELETE IN 12.0.0. Deprecated, use KubernetesService field.
+    // DELETE IN 13.0.0. Deprecated, use KubernetesService field.
     types.ServerV2 KubeService = 4 [(gogoproto.jsontag) = "kube_service,omitempty"];
     // WindowsDesktop represents a WindowsDesktop resource.
     types.WindowsDesktopV3 WindowsDesktop = 5 [(gogoproto.jsontag) = "windows_desktop,omitempty"];
@@ -2013,6 +2025,8 @@ service AuthService {
   rpc UpdateUser(types.UserV2) returns (google.protobuf.Empty);
   // DeleteUser deletes an existing user in a backend by username.
   rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
+  // ChangePassword allows a user to change their own password.
+  rpc ChangePassword(ChangePasswordRequest) returns (google.protobuf.Empty);
 
   // AcquireSemaphore acquires lease with requested resources from semaphore.
   rpc AcquireSemaphore(types.AcquireSemaphoreRequest) returns (types.SemaphoreLease);
@@ -2094,19 +2108,19 @@ service AuthService {
   }
 
   // UpsertKubeServiceV2 adds or updates a kubernetes service.
-  // DELETE IN 12.0. Deprecated, use UpsertKubernetesServer
+  // DELETE IN 13.0. Deprecated, use UpsertKubernetesServer
   rpc UpsertKubeServiceV2(UpsertKubeServiceRequest) returns (types.KeepAlive) {
     option deprecated = true;
   }
 
   // DeleteKubeService removes a kubernetes service.
-  // DELETE IN 12.0. Deprecated, use DeleteKubernetesServer
+  // DELETE IN 13.0. Deprecated, use DeleteKubernetesServer
   rpc DeleteKubeService(DeleteKubeServiceRequest) returns (google.protobuf.Empty) {
     option deprecated = true;
   }
 
   // DeleteAllKubeServices removes all kubernetes services.
-  // DELETE IN 12.0. Deprecated, use DeleteAllKubernetesServers
+  // DELETE IN 13.0. Deprecated, use DeleteAllKubernetesServers
   rpc DeleteAllKubeServices(DeleteAllKubeServicesRequest) returns (google.protobuf.Empty) {
     option deprecated = true;
   }
@@ -2331,7 +2345,7 @@ service AuthService {
 
   // GetWindowsDesktopServices returns all registered Windows desktop services.
   rpc GetWindowsDesktopServices(google.protobuf.Empty) returns (GetWindowsDesktopServicesResponse);
-  // TODO(zmb3): Document me.
+  // GetWindowsDesktopService gets a Windows desktop service by name.
   rpc GetWindowsDesktopService(GetWindowsDesktopServiceRequest) returns (GetWindowsDesktopServiceResponse);
   // UpsertWindowsDesktopService registers a new Windows desktop service.
   rpc UpsertWindowsDesktopService(types.WindowsDesktopServiceV3) returns (types.KeepAlive);

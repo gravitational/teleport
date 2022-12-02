@@ -47,6 +47,10 @@ const (
 	// Int64Size is a constant for 64 bit integer byte size
 	Int64Size = 8
 
+	// ConcurrentUploadsPerStream limits the amount of concurrent uploads
+	// per stream
+	ConcurrentUploadsPerStream = 1
+
 	// MaxProtoMessageSizeBytes is maximum protobuf marshaled message size
 	MaxProtoMessageSizeBytes = 64 * 1024
 
@@ -99,7 +103,7 @@ func (cfg *ProtoStreamerConfig) CheckAndSetDefaults() error {
 		cfg.MinUploadBytes = MinUploadPartSizeBytes
 	}
 	if cfg.ConcurrentUploads == 0 {
-		cfg.ConcurrentUploads = defaults.ConcurrentUploadsPerStream
+		cfg.ConcurrentUploads = ConcurrentUploadsPerStream
 	}
 	return nil
 }
@@ -210,10 +214,10 @@ func (cfg *ProtoStreamConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter MinUploadBytes")
 	}
 	if cfg.InactivityFlushPeriod == 0 {
-		cfg.InactivityFlushPeriod = defaults.InactivityFlushPeriod
+		cfg.InactivityFlushPeriod = InactivityFlushPeriod
 	}
 	if cfg.ConcurrentUploads == 0 {
-		cfg.ConcurrentUploads = defaults.ConcurrentUploadsPerStream
+		cfg.ConcurrentUploads = ConcurrentUploadsPerStream
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -655,7 +659,10 @@ func (w *sliceWriter) completeStream() {
 		case upload := <-w.completedUploadsC:
 			part, err := upload.getPart()
 			if err != nil {
-				log.WithError(err).Warningf("Failed to upload part.")
+				log.WithError(err).
+					WithField("upload", w.proto.cfg.Upload.ID).
+					WithField("session", w.proto.cfg.Upload.SessionID).
+					Warning("Failed to upload part")
 				continue
 			}
 			w.updateCompletedParts(*part, upload.lastEventIndex)
@@ -671,7 +678,10 @@ func (w *sliceWriter) completeStream() {
 		err := w.proto.cfg.Uploader.CompleteUpload(w.proto.cancelCtx, w.proto.cfg.Upload, w.completedParts)
 		w.proto.setCompleteResult(err)
 		if err != nil {
-			log.WithError(err).Warningf("Failed to complete upload.")
+			log.WithError(err).
+				WithField("upload", w.proto.cfg.Upload.ID).
+				WithField("session", w.proto.cfg.Upload.SessionID).
+				Warning("Failed to complete upload")
 		}
 	}
 }
@@ -731,8 +741,8 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			if retry == nil {
 				var rerr error
 				retry, rerr = retryutils.NewLinear(retryutils.LinearConfig{
-					Step: defaults.NetworkRetryDuration,
-					Max:  defaults.NetworkBackoffDuration,
+					Step: NetworkRetryDuration,
+					Max:  NetworkBackoffDuration,
 				})
 				if rerr != nil {
 					activeUpload.setError(rerr)

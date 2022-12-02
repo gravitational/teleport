@@ -71,11 +71,20 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 	require.NoError(t, err)
 	auth := p.a
 
+	// helper for creating RegisterUsingTokenRequest
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
-
 	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
+	newRequest := func(idToken string) *types.RegisterUsingTokenRequest {
+		return &types.RegisterUsingTokenRequest{
+			HostID:       "host-id",
+			Role:         types.RoleNode,
+			IDToken:      idToken,
+			PublicTLSKey: tlsPublicKey,
+			PublicSSHKey: sshPublicKey,
+		}
+	}
 
 	allowRule := func(modifier func(*types.ProvisionTokenSpecV2GitHub_Rule)) *types.ProvisionTokenSpecV2GitHub_Rule {
 		rule := &types.ProvisionTokenSpecV2GitHub_Rule{
@@ -100,10 +109,10 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 		return messageMatch && typeMatch
 	})
 	tests := []struct {
-		name           string
-		request        *types.RegisterUsingTokenRequest
-		tokenSpec      types.ProvisionTokenSpecV2
-		errorAssertion assert.ErrorAssertionFunc
+		name        string
+		request     *types.RegisterUsingTokenRequest
+		tokenSpec   types.ProvisionTokenSpecV2
+		assertError assert.ErrorAssertionFunc
 	}{
 		{
 			name: "success",
@@ -116,12 +125,8 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 					},
 				},
 			},
-			request: &types.RegisterUsingTokenRequest{
-				HostID:  "host-id",
-				Role:    types.RoleNode,
-				IDToken: validIDToken,
-			},
-			errorAssertion: assert.NoError,
+			request:     newRequest(validIDToken),
+			assertError: assert.NoError,
 		},
 		{
 			name: "multiple allow rules",
@@ -137,12 +142,8 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 					},
 				},
 			},
-			request: &types.RegisterUsingTokenRequest{
-				HostID:  "host-id",
-				Role:    types.RoleNode,
-				IDToken: validIDToken,
-			},
-			errorAssertion: assert.NoError,
+			request:     newRequest(validIDToken),
+			assertError: assert.NoError,
 		},
 		{
 			name: "incorrect sub",
@@ -157,12 +158,8 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 					},
 				},
 			},
-			request: &types.RegisterUsingTokenRequest{
-				HostID:  "host-id",
-				Role:    types.RoleNode,
-				IDToken: validIDToken,
-			},
-			errorAssertion: allowRulesNotMatched,
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
 		},
 		{
 			name: "incorrect repository",
@@ -177,12 +174,8 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 					},
 				},
 			},
-			request: &types.RegisterUsingTokenRequest{
-				HostID:  "host-id",
-				Role:    types.RoleNode,
-				IDToken: validIDToken,
-			},
-			errorAssertion: allowRulesNotMatched,
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
 		},
 		{
 			name: "incorrect repository owner",
@@ -197,12 +190,8 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 					},
 				},
 			},
-			request: &types.RegisterUsingTokenRequest{
-				HostID:  "host-id",
-				Role:    types.RoleNode,
-				IDToken: validIDToken,
-			},
-			errorAssertion: allowRulesNotMatched,
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
 		},
 		{
 			name: "incorrect workflow",
@@ -217,12 +206,8 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 					},
 				},
 			},
-			request: &types.RegisterUsingTokenRequest{
-				HostID:  "host-id",
-				Role:    types.RoleNode,
-				IDToken: validIDToken,
-			},
-			errorAssertion: allowRulesNotMatched,
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
 		},
 		{
 			name: "incorrect environment",
@@ -237,12 +222,8 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 					},
 				},
 			},
-			request: &types.RegisterUsingTokenRequest{
-				HostID:  "host-id",
-				Role:    types.RoleNode,
-				IDToken: validIDToken,
-			},
-			errorAssertion: allowRulesNotMatched,
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
 		},
 		{
 			name: "incorrect actor",
@@ -257,12 +238,8 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 					},
 				},
 			},
-			request: &types.RegisterUsingTokenRequest{
-				HostID:  "host-id",
-				Role:    types.RoleNode,
-				IDToken: validIDToken,
-			},
-			errorAssertion: allowRulesNotMatched,
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
 		},
 		{
 			name: "incorrect ref",
@@ -277,12 +254,8 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 					},
 				},
 			},
-			request: &types.RegisterUsingTokenRequest{
-				HostID:  "host-id",
-				Role:    types.RoleNode,
-				IDToken: validIDToken,
-			},
-			errorAssertion: allowRulesNotMatched,
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
 		},
 		{
 			name: "incorrect ref type",
@@ -297,12 +270,8 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 					},
 				},
 			},
-			request: &types.RegisterUsingTokenRequest{
-				HostID:  "host-id",
-				Role:    types.RoleNode,
-				IDToken: validIDToken,
-			},
-			errorAssertion: allowRulesNotMatched,
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
 		},
 	}
 	for _, tt := range tests {
@@ -312,14 +281,10 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			)
 			require.NoError(t, err)
 			require.NoError(t, auth.CreateToken(ctx, token))
-
-			// Set common request fields
 			tt.request.Token = tt.name
-			tt.request.PublicSSHKey = sshPublicKey
-			tt.request.PublicTLSKey = tlsPublicKey
 
 			_, err = auth.RegisterUsingToken(ctx, tt.request)
-			tt.errorAssertion(t, err)
+			tt.assertError(t, err)
 		})
 	}
 }

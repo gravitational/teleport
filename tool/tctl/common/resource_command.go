@@ -26,13 +26,13 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -107,6 +107,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindKubernetesCluster:       rc.createKubeCluster,
 		types.KindToken:                   rc.createToken,
 		types.KindInstaller:               rc.createInstaller,
+		types.KindNode:                    rc.createNode,
 	}
 	rc.config = config
 
@@ -627,6 +628,20 @@ func (rc *ResourceCommand) createInstaller(ctx context.Context, client auth.Clie
 	return trace.Wrap(err)
 }
 
+func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	server, err := services.UnmarshalServer(raw.Raw, types.KindNode)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !rc.force {
+		return trace.AlreadyExists("nodes cannot be created, only upserted")
+	}
+
+	_, err = client.UpsertNode(ctx, server)
+	return trace.Wrap(err)
+}
+
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err error) {
 	singletonResources := []string{
@@ -635,7 +650,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		types.KindSessionRecordingConfig,
 		types.KindInstaller,
 	}
-	if !apiutils.SliceContainsStr(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
+	if !slices.Contains(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
 	}
 

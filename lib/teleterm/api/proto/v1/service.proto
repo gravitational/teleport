@@ -29,6 +29,13 @@ option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
 
 // TerminalService describes Teleterm service
 service TerminalService {
+  // UpdateTshdEventsServerAddress lets the Electron app update the address the tsh daemon is
+  // supposed to use when connecting to the tshd events gRPC service. This RPC needs to be made
+  // before any other from this service.
+  //
+  // The service is supposed to return a response from this call only after the client is ready.
+  rpc UpdateTshdEventsServerAddress(UpdateTshdEventsServerAddressRequest) returns (UpdateTshdEventsServerAddressResponse);
+
   // ListRootClusters lists root clusters
   // Does not include detailed cluster information that would require a network request.
   rpc ListRootClusters(ListClustersRequest) returns (ListClustersResponse);
@@ -119,6 +126,8 @@ service TerminalService {
   rpc TransferFile(FileTransferRequest) returns (stream FileTransferProgress);
 }
 
+message EmptyResponse {}
+
 // RemoveClusterRequest describes RemoveClusterRequest
 message RemoveClusterRequest {
   string cluster_uri = 1;
@@ -194,10 +203,12 @@ message AssumeRoleRequest {
 
 message GetRequestableRolesRequest {
   string cluster_uri = 1;
+  repeated ResourceID resource_ids = 2;
 }
 
 message GetRequestableRolesResponse {
   repeated string roles = 1;
+  repeated string applicable_roles = 2;
 }
 
 message ReviewAccessRequestRequest {
@@ -446,4 +457,7 @@ message GetAuthSettingsRequest {
   string cluster_uri = 1;
 }
 
-message EmptyResponse {}
+message UpdateTshdEventsServerAddressRequest {
+  string address = 1;
+}
+message UpdateTshdEventsServerAddressResponse {}

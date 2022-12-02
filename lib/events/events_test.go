@@ -145,7 +145,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "session command event",
-			json: `{"argv":["/usr/bin/lesspipe"],"login":"alice","path":"/usr/bin/dirname","return_code":0,"time":"2020-03-30T15:58:54.65Z","user":"alice@example.com","code":"T4000I","event":"session.command","pid":31638,"server_id":"a7c54b0c-469c-431e-af4d-418cd3ae9694","uid":"4f725f11-e87a-452f-96ec-ef93e9e6a260","cgroup_id":4294971450,"ppid":31637,"program":"dirname","namespace":"default","sid":"5b3555dc-729f-11ea-b66a-507b9dd95841","cluster_name":"test","ei":4}`,
+			json: `{"argv":["/usr/bin/lesspipe"],"login":"alice","path":"/usr/bin/dirname","return_code":0,"time":"2020-03-30T15:58:54.65Z","user":"alice@example.com","code":"T4000I","event":"session.command","pid":31638,"server_id":"a7c54b0c-469c-431e-af4d-418cd3ae9694","server_hostname":"ip-172-31-11-148","uid":"4f725f11-e87a-452f-96ec-ef93e9e6a260","cgroup_id":4294971450,"ppid":31637,"program":"dirname","namespace":"default","sid":"5b3555dc-729f-11ea-b66a-507b9dd95841","cluster_name":"test","ei":4}`,
 			event: apievents.SessionCommand{
 				Metadata: apievents.Metadata{
 					Index:       4,
@@ -157,6 +157,7 @@ func TestJSON(t *testing.T) {
 				},
 				ServerMetadata: apievents.ServerMetadata{
 					ServerID:        "a7c54b0c-469c-431e-af4d-418cd3ae9694",
+					ServerHostname:  "ip-172-31-11-148",
 					ServerNamespace: "default",
 				},
 				SessionMetadata: apievents.SessionMetadata{
@@ -179,7 +180,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "session network event",
-			json: `{"dst_port":443,"cgroup_id":4294976805,"dst_addr":"2607:f8b0:400a:801::200e","program":"curl","sid":"e9a4bd34-78ff-11ea-b062-507b9dd95841","src_addr":"2601:602:8700:4470:a3:813c:1d8c:30b9","login":"alice","pid":17604,"uid":"729498e0-c28b-438f-baa7-663a74418449","user":"alice@example.com","event":"session.network","namespace":"default","time":"2020-04-07T18:45:16.602Z","version":6,"ei":0,"code":"T4002I","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","cluster_name":"example","operation":0,"action":1}`,
+			json: `{"dst_port":443,"cgroup_id":4294976805,"dst_addr":"2607:f8b0:400a:801::200e","program":"curl","sid":"e9a4bd34-78ff-11ea-b062-507b9dd95841","src_addr":"2601:602:8700:4470:a3:813c:1d8c:30b9","login":"alice","pid":17604,"uid":"729498e0-c28b-438f-baa7-663a74418449","user":"alice@example.com","event":"session.network","namespace":"default","time":"2020-04-07T18:45:16.602Z","version":6,"ei":0,"code":"T4002I","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","server_hostname":"ip-172-31-11-148","cluster_name":"example","operation":0,"action":1}`,
 			event: apievents.SessionNetwork{
 				Metadata: apievents.Metadata{
 					Index:       0,
@@ -191,6 +192,7 @@ func TestJSON(t *testing.T) {
 				},
 				ServerMetadata: apievents.ServerMetadata{
 					ServerID:        "00b54ef5-ae1e-425f-8565-c71b01d8f7b8",
+					ServerHostname:  "ip-172-31-11-148",
 					ServerNamespace: "default",
 				},
 				SessionMetadata: apievents.SessionMetadata{
@@ -215,7 +217,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "session disk event",
-			json: `{"time":"2020-04-07T19:56:38.545Z","login":"bob","pid":31521,"sid":"ddddce15-7909-11ea-b062-507b9dd95841","user":"bob@example.com","ei":175,"code":"T4001I","flags":142606336,"namespace":"default","uid":"ab8467af-6d85-46ce-bb5c-bdfba8acad3f","cgroup_id":4294976835,"program":"clear_console","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","event":"session.disk","path":"/etc/ld.so.cache","return_code":3,"cluster_name":"example2"}`,
+			json: `{"time":"2020-04-07T19:56:38.545Z","login":"bob","pid":31521,"sid":"ddddce15-7909-11ea-b062-507b9dd95841","user":"bob@example.com","ei":175,"code":"T4001I","flags":142606336,"namespace":"default","uid":"ab8467af-6d85-46ce-bb5c-bdfba8acad3f","cgroup_id":4294976835,"program":"clear_console","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","server_hostname":"ip-172-31-11-148","event":"session.disk","path":"/etc/ld.so.cache","return_code":3,"cluster_name":"example2"}`,
 			event: apievents.SessionDisk{
 				Metadata: apievents.Metadata{
 					Index:       175,
@@ -227,6 +229,7 @@ func TestJSON(t *testing.T) {
 				},
 				ServerMetadata: apievents.ServerMetadata{
 					ServerID:        "00b54ef5-ae1e-425f-8565-c71b01d8f7b8",
+					ServerHostname:  "ip-172-31-11-148",
 					ServerNamespace: "default",
 				},
 				SessionMetadata: apievents.SessionMetadata{

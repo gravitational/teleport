@@ -23,28 +23,35 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
+	gcpcredentialspb "cloud.google.com/go/iam/credentials/apiv1/credentialspb"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
 	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
-	gcpcredentialspb "google.golang.org/genproto/googleapis/iam/credentials/v1"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/cloud"
 	libazure "github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
+	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -59,6 +66,8 @@ type Auth interface {
 	GetRDSAuthToken(sessionCtx *Session) (string, error)
 	// GetRedshiftAuthToken generates Redshift auth token.
 	GetRedshiftAuthToken(sessionCtx *Session) (string, string, error)
+	// GetRedshiftServerlessAuthToken generates Redshift Serverless auth token.
+	GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error)
 	// GetCloudSQLAuthToken generates Cloud SQL auth token.
 	GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetCloudSQLPassword generates password for a Cloud SQL database user.
@@ -162,7 +171,7 @@ func (a *dbAuth) GetRDSAuthToken(sessionCtx *Session) (string, error) {
 		sessionCtx.DatabaseUser,
 		awsSession.Config.Credentials)
 	if err != nil {
-		policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
+		policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocument(sessionCtx.Database)
 		if getPolicyErr != nil {
 			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
 		}
@@ -199,7 +208,7 @@ func (a *dbAuth) GetRedshiftAuthToken(sessionCtx *Session) (string, string, erro
 		DbGroups: []*string{},
 	})
 	if err != nil {
-		policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
+		policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocument(sessionCtx.Database)
 		if getPolicyErr != nil {
 			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
 		}
@@ -215,6 +224,50 @@ propagate):
 `, err, policy)
 	}
 	return *resp.DbUser, *resp.DbPassword, nil
+}
+
+// GetRedshiftServerlessAuthToken generates Redshift Serverless auth token.
+func (a *dbAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error) {
+	// Redshift Serverless maps caller IAM users/roles to database users. For
+	// example, an IAM role "arn:aws:iam::1234567890:role/my-role-name" will be
+	// mapped to a Postgres user "IAMR:my-role-name" inside the database. So we
+	// first need to assume this IAM role before getting auth token.
+	awsMetadata := sessionCtx.Database.GetAWS()
+	roleARN, err := redshiftServerlessUsernameToRoleARN(awsMetadata, sessionCtx.DatabaseUser)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	client, err := a.cfg.Clients.GetAWSRedshiftServerlessClientForRole(ctx, awsMetadata.Region, roleARN)
+	if err != nil {
+		return "", "", trace.AccessDenied(`Could not generate Redshift Serverless auth token:
+
+  %v
+
+Make sure that IAM role %q has a trust relationship with Teleport database agent's IAM identity.
+`, err, roleARN)
+	}
+
+	// Now make the API call to generate the temporary credentials.
+	a.cfg.Log.Debugf("Generating Redshift Serverless auth token for %s.", sessionCtx)
+	resp, err := client.GetCredentialsWithContext(ctx, &redshiftserverless.GetCredentialsInput{
+		WorkgroupName: aws.String(awsMetadata.RedshiftServerless.WorkgroupName),
+		DbName:        aws.String(sessionCtx.DatabaseName),
+	})
+	if err != nil {
+		policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocumentForAssumedRole(sessionCtx.Database)
+		if getPolicyErr != nil {
+			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
+		}
+		return "", "", trace.AccessDenied(`Could not generate Redshift Serverless auth token:
+
+  %v
+
+Make sure that IAM role %q has permissions to generate credentials. Here is a sample IAM policy:
+
+%v
+`, err, roleARN, policy)
+	}
+	return aws.StringValue(resp.DbUser), aws.StringValue(resp.DbPassword), nil
 }
 
 // GetCloudSQLAuthToken returns authorization token that will be used as a
@@ -295,7 +348,7 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 }
 
 // updateCloudSQLUser makes a request to Cloud SQL API to update the provided user.
-func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gcpCloudSQL cloud.GCPSQLAdminClient, user *sqladmin.User) error {
+func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gcpCloudSQL gcp.SQLAdminClient, user *sqladmin.User) error {
 	err := gcpCloudSQL.UpdateUser(ctx, sessionCtx.Database, sessionCtx.DatabaseUser, user)
 	if err != nil {
 		return trace.AccessDenied(`Could not update Cloud SQL user %q password:
@@ -506,10 +559,18 @@ func (a *dbAuth) appendClientCert(ctx context.Context, sessionCtx *Session, tlsC
 // setupTLSConfigRootCAs initializes the root CA cert pool for the provided
 // tlsConfig based on session context.
 func setupTLSConfigRootCAs(tlsConfig *tls.Config, sessionCtx *Session) error {
-	// Start with an empty pool.
-	tlsConfig.RootCAs = x509.NewCertPool()
+	// Start with an empty pool or a system cert pool.
+	if shouldUseSystemCertPool(sessionCtx) {
+		systemCertPool, err := x509.SystemCertPool()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		tlsConfig.RootCAs = systemCertPool
+	} else {
+		tlsConfig.RootCAs = x509.NewCertPool()
+	}
 
-	// If CA is provided by the database object, always use it.
+	// If CAs are provided by the database object, add them to the pool.
 	if len(sessionCtx.Database.GetCA()) != 0 {
 		if !tlsConfig.RootCAs.AppendCertsFromPEM([]byte(sessionCtx.Database.GetCA())) {
 			return trace.BadParameter("invalid server CA certificate")
@@ -517,17 +578,7 @@ func setupTLSConfigRootCAs(tlsConfig *tls.Config, sessionCtx *Session) error {
 		return nil
 	}
 
-	// Overwrite with the system cert pool, if required.
-	if shouldUseSystemCertPool(sessionCtx) {
-		systemCertPool, err := x509.SystemCertPool()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		tlsConfig.RootCAs = systemCertPool
-		return nil
-	}
-
-	// Use the empty pool. Client cert will be added later.
+	// Done. Client cert may also be added later for non-cloud databases.
 	return nil
 }
 
@@ -536,11 +587,12 @@ func setupTLSConfigRootCAs(tlsConfig *tls.Config, sessionCtx *Session) error {
 // used.
 func shouldUseSystemCertPool(sessionCtx *Session) bool {
 	switch sessionCtx.Database.GetType() {
+	// Azure databases either use Baltimore Root CA or DigiCert Global Root G2.
+	//
+	// https://docs.microsoft.com/en-us/azure/postgresql/concepts-ssl-connection-security
+	// https://docs.microsoft.com/en-us/azure/mysql/howto-configure-ssl
 	case types.DatabaseTypeAzure:
-		// Azure Cache for Redis certificates are signed by DigiCert Global Root G2.
-		if sessionCtx.Database.GetProtocol() == defaults.ProtocolRedis {
-			return true
-		}
+		return true
 
 	case types.DatabaseTypeRDSProxy:
 		// AWS RDS Proxy uses Amazon Root CAs.
@@ -756,4 +808,37 @@ func matchAzureResourceName(resourceID, name string) bool {
 	}
 
 	return parsedResource.Name == name
+}
+
+// redshiftServerlessUsernameToRoleARN converts a database username to AWS role
+// ARN for a Redshift Serverless database.
+func redshiftServerlessUsernameToRoleARN(aws types.AWS, username string) (string, error) {
+	switch {
+	// These are in-database usernames created when logged in as IAM
+	// users/roles. We will enforce Teleport users to provide IAM roles
+	// instead.
+	case strings.HasPrefix(username, "IAM:") || strings.HasPrefix(username, "IAMR:"):
+		return "", trace.BadParameter("expecting name or ARN of an AWS IAM role but got %v", username)
+
+	case arn.IsARN(username):
+		if parsedARN, err := arn.Parse(username); err != nil {
+			return "", trace.Wrap(err)
+		} else if parsedARN.Service != iam.ServiceName || !strings.HasPrefix(parsedARN.Resource, "role/") {
+			return "", trace.BadParameter("expecting name or ARN of an AWS IAM role but got %v", username)
+		}
+		return username, nil
+
+	default:
+		resource := username
+		if !strings.Contains(resource, "/") {
+			resource = fmt.Sprintf("role/%s", username)
+		}
+
+		return arn.ARN{
+			Partition: awsutils.GetPartitionFromRegion(aws.Region),
+			Service:   iam.ServiceName,
+			AccountID: aws.AccountID,
+			Resource:  resource,
+		}.String(), nil
+	}
 }

@@ -512,19 +512,43 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			s.log.Warnf("Dropping inbound ssh connection due to error: %v", err)
 			// Immediately dropping the ssh connection results in an
 			// EOF error for the client.  We therefore wait briefly
-			// to see if the client opens a channel, which will give
-			// us the opportunity to respond with a human-readable
-			// error.
-			select {
-			case firstChan := <-chans:
-				if firstChan != nil {
-					firstChan.Reject(ssh.Prohibited, err.Error())
+			// to see if the client opens a channel or sends any global
+			// requests, which will give us the opportunity to respond
+			// with a human-readable error.
+			waitCtx, waitCancel := context.WithTimeout(s.closeContext, time.Second)
+			defer waitCancel()
+			for {
+				select {
+				case req := <-reqs:
+					// wait for a request that wants a reply to send the error
+					if !req.WantReply {
+						continue
+					}
+
+					if err := req.Reply(false, []byte(err.Error())); err != nil {
+						s.log.WithError(err).Warnf("failed to reply to request %s", req.Type)
+					}
+				case firstChan := <-chans:
+					// channel was closed, terminate the connection
+					if firstChan == nil {
+						break
+					}
+
+					if err := firstChan.Reject(ssh.Prohibited, err.Error()); err != nil {
+						s.log.WithError(err).Warnf("failed to reject channel %s", firstChan.ChannelType())
+					}
+				case <-waitCtx.Done():
 				}
-			case <-s.closeContext.Done():
-			case <-time.After(time.Second * 1):
+
+				break
 			}
-			sconn.Close()
-			conn.Close()
+
+			if err := sconn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+				s.log.WithError(err).Warn("failed to close ssh server connection")
+			}
+			if err := conn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+				s.log.WithError(err).Warn("failed to close ssh client connection")
+			}
 			return
 		}
 	}

@@ -21,11 +21,12 @@ import (
 
 // Describes a Drone trigger as it pertains to container image building.
 type TriggerInfo struct {
-	Trigger           trigger
-	Name              string
-	Flags             *TriggerFlags
-	SupportedVersions []*ReleaseVersion
-	SetupSteps        []step
+	Trigger              trigger
+	Name                 string
+	Flags                *TriggerFlags
+	SupportedVersions    []*ReleaseVersion
+	SetupSteps           []step
+	ParentePipelineNames []string
 }
 
 // This type is mainly used to make passing these vars around cleaner
@@ -55,6 +56,9 @@ func NewTagTrigger(branchMajorVersion string) *TriggerInfo {
 				RelativeVersionName: "branch",
 			},
 		},
+		ParentePipelineNames: []string{
+			tagCleanupPipelineName,
+		},
 	}
 }
 
@@ -78,7 +82,7 @@ func NewPromoteTrigger(branchMajorVersion string) *TriggerInfo {
 				RelativeVersionName: "branch",
 			},
 		},
-		SetupSteps: verifyValidPromoteRunSteps(),
+		SetupSteps: []step{verifyTaggedStep()},
 	}
 }
 
@@ -87,25 +91,25 @@ func NewCronTrigger(latestMajorVersions []string) *TriggerInfo {
 		return nil
 	}
 
-	majorVersionVarDirectory := "/go/vars/full-version"
+	majorVersionVarBasePath := "/go/vars/full-version"
 
 	supportedVersions := make([]*ReleaseVersion, 0, len(latestMajorVersions))
 	if len(latestMajorVersions) > 0 {
 		latestMajorVersion := latestMajorVersions[0]
 		supportedVersions = append(supportedVersions, &ReleaseVersion{
 			MajorVersion:        latestMajorVersion,
-			ShellVersion:        readCronShellVersionCommand(majorVersionVarDirectory, latestMajorVersion),
+			ShellVersion:        readCronShellVersionCommand(majorVersionVarBasePath, latestMajorVersion),
 			RelativeVersionName: "current-version",
-			SetupSteps:          []step{getLatestSemverStep(latestMajorVersion, majorVersionVarDirectory)},
+			SetupSteps:          []step{getLatestSemverStep(latestMajorVersion, majorVersionVarBasePath)},
 		})
 
 		if len(latestMajorVersions) > 1 {
 			for i, majorVersion := range latestMajorVersions[1:] {
 				supportedVersions = append(supportedVersions, &ReleaseVersion{
 					MajorVersion:        majorVersion,
-					ShellVersion:        readCronShellVersionCommand(majorVersionVarDirectory, majorVersion),
+					ShellVersion:        readCronShellVersionCommand(majorVersionVarBasePath, majorVersion),
 					RelativeVersionName: fmt.Sprintf("previous-version-%d", i+1),
-					SetupSteps:          []step{getLatestSemverStep(majorVersion, majorVersionVarDirectory)},
+					SetupSteps:          []step{getLatestSemverStep(majorVersion, majorVersionVarBasePath)},
 				})
 			}
 		}
@@ -124,26 +128,26 @@ func NewCronTrigger(latestMajorVersions []string) *TriggerInfo {
 	}
 }
 
-func getLatestSemverStep(majorVersion string, majorVersionVarDirectory string) step {
+func getLatestSemverStep(majorVersion string, majorVersionVarBasePath string) step {
 	// We don't use "/go/src/github.com/gravitational/teleport" here as a later stage
 	// may need to clone a different version, and "/go" persists between steps
 	cloneDirectory := "/tmp/teleport"
-	majorVersionVarPath := path.Join(majorVersionVarDirectory, majorVersion)
+	majorVersionVarPath := fmt.Sprintf("%s-%s", majorVersionVarBasePath, majorVersion)
 	return step{
 		Name:  fmt.Sprintf("Find the latest available semver for %s", majorVersion),
 		Image: fmt.Sprintf("golang:%s", GoVersion),
 		Commands: append(
 			cloneRepoCommands(cloneDirectory, fmt.Sprintf("branch/%s", majorVersion)),
-			fmt.Sprintf("mkdir -pv %q", majorVersionVarDirectory),
+			fmt.Sprintf("mkdir -pv $(dirname %q)", majorVersionVarPath),
 			fmt.Sprintf("cd %q", path.Join(cloneDirectory, "build.assets", "tooling", "cmd", "query-latest")),
-			fmt.Sprintf("go run . %q > %q", majorVersion, majorVersionVarPath),
+			fmt.Sprintf("go run . %q | sed 's/v//' > %q", majorVersion, majorVersionVarPath),
 			fmt.Sprintf("echo Found full semver \"$(cat %q)\" for major version %q", majorVersionVarPath, majorVersion),
 		),
 	}
 }
 
 func readCronShellVersionCommand(majorVersionDirectory, majorVersion string) string {
-	return fmt.Sprintf("$(cat '%s')", path.Join(majorVersionDirectory, majorVersion))
+	return fmt.Sprintf("v$(cat '%s-%s')", majorVersionDirectory, majorVersion)
 }
 
 // Drone triggers must all evaluate to "true" for a pipeline to be executed.
@@ -155,6 +159,7 @@ func (ti *TriggerInfo) buildPipelines() []pipeline {
 		pipeline := teleportVersion.buildVersionPipeline(ti.SetupSteps, ti.Flags)
 		pipeline.Name += "-" + ti.Name
 		pipeline.Trigger = ti.Trigger
+		pipeline.DependsOn = append(pipeline.DependsOn, ti.ParentePipelineNames...)
 
 		pipelines = append(pipelines, pipeline)
 	}

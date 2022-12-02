@@ -3,7 +3,7 @@
 #  all    : builds all binaries in development mode, without web assets (default)
 #  full   : builds all binaries for PRODUCTION use
 #  release: prepares a release tarball
-#  clean  : removes all buld artifacts
+#  clean  : removes all build artifacts
 #  test   : runs tests
 
 # To update the Teleport version, update VERSION variable:
@@ -13,10 +13,7 @@
 #   Master/dev branch: "1.0.0-dev"
 VERSION=12.0.0-dev
 
-DOCKER_IMAGE_QUAY ?= quay.io/gravitational/teleport
-DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
-DOCKER_IMAGE_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport
-
+DOCKER_IMAGE ?= teleport
 
 GOPATH ?= $(shell go env GOPATH)
 
@@ -31,8 +28,15 @@ ADDFLAGS ?=
 PWD ?= `pwd`
 TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' -trimpath
 CGOFLAG ?= CGO_ENABLED=1
+
+# When TELEPORT_DEBUG is true, set flags to produce
+# debugger-friendly builds.
+ifeq ("$(TELEPORT_DEBUG)","true")
+BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
+else
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' -trimpath
+endif
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
@@ -330,7 +334,11 @@ endif
 ifeq ("$(with_rdpclient)", "yes")
 .PHONY: rdpclient
 rdpclient:
+ifneq ("$(FIPS)","")
+	cargo build -p rdp-client --features=fips --release $(CARGO_TARGET)
+else
 	cargo build -p rdp-client --release $(CARGO_TARGET)
+endif
 else
 .PHONY: rdpclient
 rdpclient:
@@ -408,11 +416,10 @@ release-arm64:
 	$(MAKE) release ARCH=arm64
 
 #
-# make release-unix - Produces a binary release tarball containing teleport,
-# tctl, and tsh.
+# make build-archive - Packages the results of a build into a release tarball
 #
-.PHONY:
-release-unix: clean full
+.PHONY: build-archive
+build-archive:
 	@echo "---> Creating OSS release archive."
 	mkdir teleport
 	cp -rf $(BUILDDIR)/* \
@@ -425,6 +432,13 @@ release-unix: clean full
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
+	
+#
+# make release-unix - Produces a binary release tarball containing teleport,
+# tctl, and tsh.
+#
+.PHONY:
+release-unix: clean full build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 #
@@ -525,9 +539,13 @@ $(TEST_LOG_DIR):
 
 # Google Cloud Build uses a weird homedir and Helm can't pick up plugins by default there,
 # so override the plugin location via environment variable when running in CI.
+#
+# Github Actions build uses /workspace as homedir and Helm can't pick up plugins by default there,
+# so override the plugin location via environemnt variable when running in CI. Github Actions provide CI=true 
+# environment variable.
 .PHONY: test-helm
 test-helm:
-	@if [ -d /builder/home ]; then export HELM_PLUGINS=/root/.local/share/helm/plugins; fi; \
+	@if [ -d /builder/home ] || [ ! -z "${CI}" ]; then export HELM_PLUGINS=/root/.local/share/helm/plugins; fi; \
 		helm unittest examples/chart/teleport-cluster && \
 		helm unittest examples/chart/teleport-kube-agent
 
@@ -699,13 +717,16 @@ lint-go:
 	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)' $(GO_LINT_FLAGS)
 
 .PHONY: fix-imports
-fix-imports: GOLANG_LINT_ARGS = --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)' --fix
 fix-imports:
-	golangci-lint run -c .golangci.yml $(GOLANG_LINT_ARGS)
-	cd api/ && golangci-lint run -c ../.golangci.yml $(GOLANG_LINT_ARGS)
-	cd build.assets/tooling && golangci-lint run -c ../../.golangci.yml $(GOLANG_LINT_ARGS)
-	cd .cloudbuild/scripts && golangci-lint run -c ../../.golangci.yml $(GOLANG_LINT_ARGS)
-	cd assets/backport && golangci-lint run -c ../../.golangci.yml $(GOLANG_LINT_ARGS)
+	make -C build.assets/ fix-imports
+
+.PHONY: fix-imports/host
+fix-imports/host:
+	@if ! type gci >/dev/null 2>&1; then\
+		echo 'gci is not installed or is missing from PATH, consider installing it ("go install github.com/daixiang0/gci@latest") or use "make -C build.assets/ fix-imports"';\
+		exit 1;\
+	fi
+	gci write -s 'standard,default,prefix(github.com/gravitational/teleport)' --skip-generated .
 
 .PHONY: lint-build-tooling
 lint-build-tooling: GO_LINT_FLAGS ?=
@@ -998,52 +1019,16 @@ install: build
 	cp -f $(BUILDDIR)/teleport  $(BINDIR)/
 	mkdir -p $(DATADIR)
 
-
 # Docker image build. Always build the binaries themselves within docker (see
 # the "docker" rule) to avoid dependencies on the host libc version.
 .PHONY: image
-image: clean docker-binaries
+image: OS=linux
+image: TARBALL_PATH_SECTION:=-s "$(shell pwd)"
+image: clean docker-binaries build-archive oss-deb
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_QUAY):$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE):$(VERSION)-$(ARCH) --target teleport \
+		--build-arg DEB_PATH="./teleport_$(VERSION)_$(ARCH).deb"
 	if [ -f e/Makefile ]; then $(MAKE) -C e image; fi
-
-.PHONY: publish
-publish: image
-	docker push $(DOCKER_IMAGE_QUAY):$(VERSION)
-	if [ -f e/Makefile ]; then $(MAKE) -C e publish; fi
-
-.PHONY: publish-ecr
-publish-ecr: image
-	docker tag $(DOCKER_IMAGE_QUAY) $(DOCKER_IMAGE_ECR)
-	docker push $(DOCKER_IMAGE_ECR):$(VERSION)
-	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ecr; fi
-
-# Docker image build in CI.
-# This is run to build and push Docker images to a private repository as part of the build process.
-# When we are ready to make the images public after testing (i.e. when publishing a release), we pull these
-# images down, retag them and push them up to the production repo so they're available for use.
-# This job can be removed/consolidated after we switch over completely from using Jenkins to using Drone.
-.PHONY: image-ci
-image-ci: clean docker-binaries
-	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_STAGING):$(VERSION)
-	if [ -f e/Makefile ]; then $(MAKE) -C e image-ci; fi
-
-
-# DOCKER_CLI_EXPERIMENTAL=enabled is set to allow inspecting the manifest for present images.
-# https://docs.docker.com/engine/reference/commandline/cli/#experimental-features
-# The internal staging images use amazon ECR's immutable repository settings. This makes overwrites impossible currently.
-# This can cause issues when drone tagging pipelines must be re-run due to failures.
-# Currently the work around for this is to not attempt to push to the image when it already exists.
-.PHONY: publish-ci
-publish-ci: image-ci
-	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect "$(DOCKER_IMAGE_STAGING):$(VERSION)" >/dev/null 2>&1; then\
-		echo "$(DOCKER_IMAGE_STAGING):$(VERSION) already exists. ";     \
-	else                                                                \
-		docker push "$(DOCKER_IMAGE_STAGING):$(VERSION)";                 \
-	fi
-	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
-
 
 .PHONY: print-version
 print-version:
@@ -1097,13 +1082,17 @@ rpm:
 rpm-unsigned:
 	$(MAKE) UNSIGNED_RPM=true rpm
 
-# build .deb
-.PHONY: deb
-deb:
+# build open source .deb only
+.PHONY: oss-deb
+oss-deb:
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+
+# build .deb
+.PHONY: deb
+deb: oss-deb
 	if [ -f e/Makefile ]; then $(MAKE) -C e deb; fi
 
 # check binary compatibility with different OSes

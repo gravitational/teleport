@@ -3,27 +3,34 @@ title: Configure Teleport to Automatically Enroll EC2 instances (Preview)
 description: How to configure Teleport to automatically enroll EC2 instances.
 ---
 
-The Teleport Discovery Service can connect to Amazon EC2 and
-automatically discover and enroll EC2 instances matching configured
-labels. It will then execute an install script on these discovered
-instances using AWS Systems Manager that will install Teleport, start
-it and join the cluster.
+The Teleport Discovery Service can connect to Amazon EC2 and automatically
+discover and enroll EC2 instances matching configured labels. It will then
+execute an install script on these discovered instances using AWS Systems
+Manager that will install Teleport, start it and join the cluster.
+
+In this scenario, Teleport Discovery Service uses an IAM invite token with a
+long time-to-live (TTL), so that new instances can be discovered and added to
+the Teleport cluster for the lifetime of the token.
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- AWS account with EC2 instances and permissions to create and attach IAM policies as well as permission to create Systems Manager documents.
-- EC2 instances running Ubuntu/Debian/RHEL/Amazon Linux 2 if making use of the default Teleport install script. (For other Linux distributions, you can install Teleport manually.) 
+- AWS account with EC2 instances and permissions to create and attach IAM
+policies.
+- EC2 instances running Ubuntu/Debian/RHEL/Amazon Linux 2 and SSM agent version 3.1 or greater if making use of the
+default Teleport install script. (For other Linux distributions, you can
+install Teleport manually.)
 
 (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/5. Create an EC2 invite token
+## Step 1/6. Create an EC2 invite token
 
 When discovering EC2 instances, Teleport makes use of IAM invite tokens for
 authenticating joining Nodes.
 
 Create a file called `token.yaml`:
+
 ```yaml
 # token.yaml
 kind: token
@@ -46,93 +53,36 @@ spec:
   - aws_account: "123456789"
 ```
 
+Assign the `aws_account` field to your AWS account number.
 Add the token to the Teleport cluster with:
-```
-tctl create -f token.yaml
-```
 
-## Step 2/5. Create an AWS Systems Manager Document
-
-Teleport makes use of AWS Systems Manager documents to execute commands necessary to
-install and start Teleport on discovered EC2 instances.
-
-A document with the following content should be created, named `TeleportDiscoveryInstaller`:
-
-```yaml
-# document.yaml
----
-schemaVersion: '2.2'
-description: aws:runShellScript
-parameters:
-  token:
-    type: String
-    description: "(Required) The Teleport invite token to use when joining the cluster."
-  scriptName:
-    type: String
-    description: "(Required) The Teleport installer script to use when joining the cluster."
-mainSteps:
-- action: aws:downloadContent
-  name: downloadContent
-  inputs:
-    sourceType: "HTTP"
-    destinationPath: "/tmp/installTeleport.sh"
-    sourceInfo:
-      url: "https://teleport.example.com/webapi/scripts/installer/{{ scriptName }}"
-- action: aws:runShellScript
-  name: runShellScript
-  inputs:
-    timeoutSeconds: '300'
-    runCommand:
-      - /bin/sh /tmp/installTeleport.sh "{{ token }}"
-```
-
-Here, `teleport.example.com` should be substituted with the public proxy URL of the
-Teleport cluster, e.g. `mytenant.teleport.sh` for a Teleport Cloud tenant.
-
-The document may be created by executing the following AWS command:
 ```code
-$ aws ssm create-document \
-     --content file://document.yaml \
-     --name "TeleportDiscoveryInstaller" \
-     --document-type "Command" \
-     --document-format YAML
+$ tctl create -f token.yaml
 ```
 
-When Teleport executes the Systems Manager document it will provide the `token`
-and `scriptName` parameters with defaults.
+## Step 2/6. Define an IAM policy
 
-- `{{ scriptName }}` will by default evaluate to `default-installer`
-- `{{ token }}` will by default evaluate to `aws-discovery-iam-token`
+The `teleport discovery bootstrap` command will automate the process of
+defining and implementing IAM policies required to make auto-discovery work. It
+requires only a single pre-defined policy, attached to the EC2 instance running
+the command:
 
-The document `TeleportDiscoveryInstaller` may be named differently
-however the `discovery_service` section must be modified to include
-the `ssm` section. For example:
-
-```yaml
-discovery_service:
-  aws:
-    - types: ["ec2"] 
-      ssm:
-        document_name: "OtherTeleportDiscoveryDocument"
-```
-
-
-## Step 3/5. Set up AWS IAM credentials
-
-In order for Teleport to send commands to EC2 instances, the instance
-performing discovery requires an IAM policy with permissions to
-execute Systems Manager commands and retrieve EC2 instances:
-
-```js
+```json
 {
     "Version": "2012-10-17",
     "Statement": [
         {
             "Effect": "Allow",
             "Action": [
-                "ssm:SendCommand",
-                "ec2:DescribeInstances",
-                "ssm:GetCommandInvocation"
+                "iam:GetPolicy",
+                "iam:TagPolicy",
+                "iam:ListPolicyVersions",
+                "iam:CreatePolicyVersion",
+                "iam:CreatePolicy",
+                "ssm:CreateDocument",
+                "iam:DeletePolicyVersion",
+                "iam:AttachRolePolicy",
+                "iam:PutRolePermissionsBoundary"
             ],
             "Resource": "*"
         }
@@ -140,75 +90,36 @@ execute Systems Manager commands and retrieve EC2 instances:
 }
 ```
 
-All EC2 instances that are to be added to the Teleport cluster by the
-Discovery Service must include the `AmazonSSMManagedInstanceCore` IAM policy
-in order to receive commands from the Discovery Service. 
+Create this policy and apply it to the Node (EC2 instance) that will run the Discovery Service.
 
-This policy includes the following permissions:
-```js
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "ssm:DescribeAssociation",
-                "ssm:GetDeployablePatchSnapshotForInstance",
-                "ssm:GetDocument",
-                "ssm:DescribeDocument",
-                "ssm:GetManifest",
-                "ssm:GetParameter",
-                "ssm:GetParameters",
-                "ssm:ListAssociations",
-                "ssm:ListInstanceAssociations",
-                "ssm:PutInventory",
-                "ssm:PutComplianceItems",
-                "ssm:PutConfigurePackageResult",
-                "ssm:UpdateAssociationStatus",
-                "ssm:UpdateInstanceAssociationStatus",
-                "ssm:UpdateInstanceInformation"
-            ],
-            "Resource": "*"
-        },
-        {
-            "Effect": "Allow",
-            "Action": [
-                "ssmmessages:CreateControlChannel",
-                "ssmmessages:CreateDataChannel",
-                "ssmmessages:OpenControlChannel",
-                "ssmmessages:OpenDataChannel"
-            ],
-            "Resource": "*"
-        },
-        {
-            "Effect": "Allow",
-            "Action": [
-                "ec2messages:AcknowledgeMessage",
-                "ec2messages:DeleteMessage",
-                "ec2messages:FailMessage",
-                "ec2messages:GetEndpoint",
-                "ec2messages:GetMessages",
-                "ec2messages:SendReply"
-            ],
-            "Resource": "*"
-        }
-    ]
-}
-```
+## Step 3/6. Install Teleport on the Discovery Node
 
-## Step 4/5. Configure Teleport to discover EC2 instances
+<Admonition type="tip">
 
-The Teleport Discovery Service requires a valid auth token to connect
-to the cluster. Generate one by running the following command against
-your Teleport Auth Service and save it in `/tmp/token` on the Node
-that will run the Discovery Service:
+If you plan on running the Discovery Service on the same Node already running
+another Teleport service (Auth or Proxy, for example), you can skip this step.
+
+</Admonition>
+
+Install Teleport on the EC2 instance that will run the Discovery Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+## Step 4/6. Configure Teleport to discover EC2 instances
+
+If you are running the Discovery Service on its own host, the service requires a
+valid invite token to connect to the cluster. Generate one by running the
+following command against your Teleport Auth Service:
 
 ```code
 $ tctl tokens add --type=discovery
 ```
 
-In order to enable EC2 instance discovery the `discovery_service.aws` section must
-include at least one entry:
+Save the generated token in `/tmp/token` on the Node (EC2 instance) that will
+run the Discovery Service.
+
+In order to enable EC2 instance discovery the `discovery_service.aws` section
+of `teleport.yaml` must include at least one entry:
 
 ```yaml
 version: v2
@@ -228,21 +139,120 @@ discovery_service:
   enabled: "yes"
   aws:
    - types: ["ec2"]
-     regions: ["eu-central-1"]
+     regions: ["us-east-1","us-west-1"]
      tags:
        "env": "prod" # Match EC2 instances where tag:env=prod
 ```
 
-Once Teleport is configured for discovery, it can be started and EC2
-instances matching the tags specified in the AWS section will begin to
-be added to the Teleport cluster automatically.
+- Edit the `teleport.auth_servers` key to match your Auth Service or Proxy Service's URI
+  and port.
+- Adjust the keys under `discovery_service.aws` to match your EC2 environment,
+  specifically the regions and tags you want to associate with the Discovery
+  Service.
 
-## Step 5/5. [Optional] Customize the default installer script
+## Step 5/6. Bootstrap the Discovery Service
 
-To customize the default installer script, execute the following command on your workstation:
+On the same Node as above, run `teleport discovery bootstrap`. This command
+will generate and display the additional IAM policies and AWS Systems Manager (SSM) documents
+required to enable the Discovery Service:
+
+```code
+$ sudo ./teleport discovery bootstrap
+Reading configuration at "/etc/teleport.yaml"...
+
+AWS
+1. Create IAM Policy "TeleportEC2Discovery":
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2:DescribeInstances",
+                "ssm:GetCommandInvocation",
+                "ssm:SendCommand"
+            ],
+            "Resource": [
+                "*"
+            ]
+        }
+    ]
+}
+
+2. Create IAM Policy "TeleportEC2DiscoveryBoundary":
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2:DescribeInstances",
+                "ssm:GetCommandInvocation",
+                "ssm:SendCommand"
+            ],
+            "Resource": [
+                "*"
+            ]
+        }
+    ]
+}
+
+3. Create SSM Document "TeleportDiscoveryInstaller":
+
+schemaVersion: '2.2'
+description: aws:runShellScript
+parameters:
+  token:
+    type: String
+    description: "(Required) The Teleport invite token to use when joining the cluster."
+  scriptName:
+    type: String
+    description: "(Required) The Teleport installer script to use when joining the cluster."
+mainSteps:
+- action: aws:downloadContent
+  name: downloadContent
+  inputs:
+    sourceType: "HTTP"
+    destinationPath: "/tmp/installTeleport.sh"
+    sourceInfo:
+      url: "https://teleport.example.com:443/webapi/scripts/{{ scriptName }}"
+- action: aws:runShellScript
+  name: runShellScript
+  inputs:
+    timeoutSeconds: '300'
+    runCommand:
+      - /bin/sh /tmp/installTeleport.sh "{{ token }}"
+
+
+4. Attach IAM policies to "yourUser-discovery-role".
+
+Confirm? [y/N]: y
+```
+
+Review the policies and confirm:
+
+```code
+Confirm? [y/N]: y
+✅[AWS] Create IAM Policy "TeleportEC2Discovery"... done.
+✅[AWS] Create IAM Policy "TeleportEC2DiscoveryBoundary"... done.
+✅[AWS] Create IAM SSM Document "TeleportDiscoveryInstaller"... done.
+✅[AWS] Attach IAM policies to "alex-discovery-role"... done.
+```
+
+Once Teleport is configured for discovery, it can be started and EC2 instances
+matching the tags specified in the AWS section will begin to be added to the
+Teleport cluster automatically. You can start Teleport now, or follow the next
+section to customize the Teleport installation script first.
+
+## Step 6/6. [Optional] Customize the default installer script
+
+To customize the default installer script, execute the following command on
+your workstation:
+
 ```code
 $ tctl get installer/default-installer > teleport-default-installer.yaml
 ```
+
 The resulting `teleport-default-installer.yaml` can the be edited to
 change what gets executed when enrolling discovered EC2 instances.
 
@@ -250,11 +260,13 @@ After making the desired changes to the default installer, the
 resource can be updated by executing:
 
 ```code
-$ tctl create teleport-default-installer.yaml
+$ tctl create -f teleport-default-installer.yaml
 ```
 
 Multiple `installer` resources can exist and be specified in the
-`install/script_name` section:
+`aws.install.script_name` section of a `discovery_service.aws` list item in
+`teleport.yaml`:
+
 ```yaml
 discovery_service:
   aws:
@@ -262,22 +274,25 @@ discovery_service:
       tags:
        - "env": "prod"
       install: # optional section when default-installer is used.
-        script_name: "default-installer" 
+        script_name: "default-installer"
     - types: ["ec2"] 
       tags:
        - "env": "devel"
       install:
-        script_name: "devel-installer"		
+        script_name: "devel-installer"
 ```
 
 ---
 
 The `installer` resource has the following templating options:
+
 - `{{ .MajorVersion }}`: the major version of Teleport to use when
   installing from the repository.
-- `{{ .PublicProxyAddr }}`: the public address of the Teleport Proxy Service to connect to.
+- `{{ .PublicProxyAddr }}`: the public address of the Teleport Proxy Service to
+connect to.
 
 These can be used as follows:
+
 ```yaml
 kind: installer
 metadata:
@@ -288,13 +303,17 @@ spec:
     echo Teleport-{{ .MajorVersion }}
 version: v1
 ```
-Which, when retrieved by the Systems Manager document will evaluate to a script with the following contents:
+
+Which, when retrieved by the Systems Manager document will evaluate to a script
+with the following contents:
+
 ```sh
 echo teleport.example.com
 echo Teleport-(=teleport.version=)
 ```
 
 The default installer will take the following actions:
+
 - Add an official Teleport repository to supported Linux distributions.
 - Install Teleport via `apt` or `yum`.
 - Generate the Teleport config file and write it to `/etc/teleport.yaml`.
@@ -302,16 +321,21 @@ The default installer will take the following actions:
 
 ## Troubleshooting
 
-If Installs are showing failed or instances are failing to appear check the Command history in AWS System Manager -> Node Management -> Run Command.  Select the instance-id of the Target to review Errors.  
+If Installs are showing failed or instances are failing to appear check the
+Command history in AWS System Manager -> Node Management -> Run Command.
+Select the instance-id of the Target to review Errors.
 
-## Next Steps
+## Next steps
 
-Documentation on IAM invite tokens can be found  in our [Joining Nodes via AWS IAM Role](../../management/guides/joining-nodes-aws-iam.mdx) guide.
+- Read [Joining Nodes via AWS IAM Role](../../management/guides/joining-nodes-aws-iam.mdx)
+for more information on IAM Invite Tokens.
 
-Information on IAM best practices on EC2 instances managed by Systems
-Manager can be found for IAM best practices on EC2 instances managed
-by Systems Manager can be found in the [AWS Cloud Operations & Migrations Blog](https://aws.amazon.com/blogs/mt/applying-managed-instance-policy-best-practices/).
+- Information on IAM best practices on EC2 instances managed by Systems
+Manager can be found for in the [AWS Cloud Operations & Migrations Blog
+](https://aws.amazon.com/blogs/mt/applying-managed-instance-policy-best-practices/).
 
-Full documentation on EC2 discovery configuration can be found through the [config file reference documentation](../../reference/config.mdx).
+- Full documentation on EC2 discovery configuration can be found through the [
+config file reference documentation](../../reference/config.mdx).
 
-The complete default installer can be found [with the Teleport source](https://github.com/gravitational/teleport/blob/master/api/types/installers/installer.sh.tmpl).
+- The complete default installer can be found [with the Teleport source
+](https://github.com/gravitational/teleport/blob/master/api/types/installers/installer.sh.tmpl).

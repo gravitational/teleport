@@ -151,6 +151,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AppSessionChunk{}
 	case AppSessionRequestEvent:
 		e = &events.AppSessionRequest{}
+	case AppSessionDynamoDBRequestEvent:
+		e = &events.AppSessionDynamoDBRequest{}
 	case AppCreateEvent:
 		e = &events.AppCreate{}
 	case AppUpdateEvent:
@@ -213,6 +215,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SQLServerRPCRequest{}
 	case DatabaseSessionElasticsearchRequestEvent:
 		e = &events.ElasticsearchRequest{}
+	case DatabaseSessionDynamoDBRequestEvent:
+		e = &events.DynamoDBRequest{}
 	case KubeRequestEvent:
 		e = &events.KubeRequest{}
 	case MFADeviceAddEvent:
@@ -261,6 +265,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.KubernetesClusterUpdate{}
 	case KubernetesClusterDeleteEvent:
 		e = &events.KubernetesClusterDelete{}
+	case DesktopSharedDirectoryStartEvent:
+		e = &events.DesktopSharedDirectoryStart{}
+	case DesktopSharedDirectoryReadEvent:
+		e = &events.DesktopSharedDirectoryRead{}
+	case DesktopSharedDirectoryWriteEvent:
+		e = &events.DesktopSharedDirectoryWrite{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 

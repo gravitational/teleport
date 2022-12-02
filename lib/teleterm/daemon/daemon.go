@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
@@ -33,9 +34,13 @@ func New(cfg Config) (*Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	closeContext, cancel := context.WithCancel(context.Background())
+
 	return &Service{
-		cfg:      &cfg,
-		gateways: make(map[string]*gateway.Gateway),
+		cfg:          &cfg,
+		closeContext: closeContext,
+		cancel:       cancel,
+		gateways:     make(map[string]*gateway.Gateway),
 	}, nil
 }
 
@@ -312,7 +317,7 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Ga
 		return oldGateway, nil
 	}
 
-	newGateway, err := gateway.NewWithLocalPort(*oldGateway, localPort)
+	newGateway, err := gateway.NewWithLocalPort(oldGateway, localPort)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -379,13 +384,14 @@ func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := cluster.GetRequestableRoles(ctx)
+	response, err := cluster.GetRequestableRoles(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &api.GetRequestableRolesResponse{
-		Roles: response,
+		Roles:           response.RequestableRoles,
+		ApplicableRoles: response.ApplicableRolesForResources,
 	}, nil
 }
 
@@ -533,9 +539,42 @@ func (s *Service) Stop() {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	s.cfg.Log.Info("Stopping")
+
 	for _, gateway := range s.gateways {
 		gateway.Close()
 	}
+
+	// s.closeContext is used for the tshd events client which might make requests as long as any of
+	// the resources managed by daemon.Service are up and running. So let's cancel the context only
+	// after closing those resources.
+	s.cancel()
+}
+
+// UpdateAndDialTshdEventsServerAddress allows the Electron app to provide the tshd events server
+// address.
+//
+// The startup of the app is orchestrated so that this method is called before any other method on
+// daemon.Service. This way all the other code in daemon.Service can assume that the tshd events
+// client is available right from the beginning, without the need for nil checks.
+func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	withCreds, err := s.cfg.CreateTshdEventsClientCredsFunc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	conn, err := grpc.Dial(serverAddress, withCreds)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	client := api.NewTshdEventsServiceClient(conn)
+	s.tshdEventsClient = client
+
+	return nil
 }
 
 func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress clusters.FileTransferProgressSender) error {
@@ -551,9 +590,18 @@ func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferReq
 type Service struct {
 	cfg *Config
 	mu  sync.RWMutex
+	// closeContext is canceled when Service is getting stopped. It is used as a context for the calls
+	// to the tshd events gRPC client.
+	closeContext context.Context
+	cancel       context.CancelFunc
 	// gateways holds the long-running gateways for resources on different clusters. So far it's been
 	// used mostly for database gateways but it has potential to be used for app access as well.
 	gateways map[string]*gateway.Gateway
+	// tshdEventsClient is created after UpdateAndDialTshdEventsServerAddress gets called. The startup
+	// of the whole app is orchestrated in a way which ensures that is the first Service method that
+	// gets called. This lets other methods in Service assume that tshdEventsClient is available from
+	// the start, without having to perform nil checks.
+	tshdEventsClient api.TshdEventsServiceClient
 }
 
 type CreateGatewayParams struct {

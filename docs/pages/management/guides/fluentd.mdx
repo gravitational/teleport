@@ -58,9 +58,7 @@ from Teleport's events API, and forwards them to Fluentd.
   </TabItem>
 
   <TabItem label="Helm">
-  ```code
-  $ helm repo add teleport https://charts.releases.teleport.dev/
-  ```
+  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
   </TabItem>
   <TabItem label="From Source">
   Ensure that you have Docker installed and running.
@@ -230,7 +228,7 @@ spec:
 Next, create the role:
 
 ```code
-$ tctl create teleport-event-handler-impersonator.yaml
+$ tctl create -f teleport-event-handler-impersonator.yaml
 ```
 
 Assign this role to the current user by running the following command, substituting
@@ -432,7 +430,9 @@ persistentVolumeClaim:
 To start the event handler in Kubernetes, run the following command:
 
 ```code
-$ helm install teleport-plugin-event-handler teleport/teleport-plugin-event-handler --values teleport-plugin-event-handler-values.yaml
+$ helm install teleport-plugin-event-handler teleport/teleport-plugin-event-handler \
+  --values teleport-plugin-event-handler-values.yaml \
+  --version (=teleport.plugin.version=)
 ```
 
 </TabItem>

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package proxy
+package kubeserver
 
 import (
 	"bytes"
@@ -32,6 +32,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
+	v1 "k8s.io/api/authorization/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -101,7 +102,6 @@ type KubeMockServer struct {
 // More endpoints can be configured
 // TODO(tigrato): add support for other endpoints
 func NewKubeAPIMock() (*KubeMockServer, error) {
-
 	s := &KubeMockServer{
 		router: httprouter.New(),
 		log:    log.NewEntry(log.New()),
@@ -121,6 +121,7 @@ func (s *KubeMockServer) setup() {
 	s.router.UseRawPath = true
 	s.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", s.withWriter(s.exec))
 	s.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", s.withWriter(s.exec))
+	s.router.POST("/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", s.withWriter(s.selfSubjectAccessReviews))
 	s.server = httptest.NewUnstartedServer(s.router)
 	s.server.EnableHTTP2 = true
 }
@@ -160,7 +161,6 @@ func (s *KubeMockServer) formatResponseError(rw http.ResponseWriter, respErr err
 }
 
 func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
-
 	q := req.URL.Query()
 
 	request := remoteCommandRequest{
@@ -509,4 +509,21 @@ func v4WriteStatusFunc(stream io.Writer) func(status *apierrors.StatusError) err
 		_, err = stream.Write(bs)
 		return err
 	}
+}
+
+func (s *KubeMockServer) selfSubjectAccessReviews(w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
+	s1 := &v1.SelfSubjectAccessReview{
+		Spec: v1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &v1.ResourceAttributes{
+				Verb: "impersonate",
+			},
+		},
+		Status: v1.SubjectAccessReviewStatus{
+			Allowed: true,
+			Denied:  false,
+			Reason:  "RBAC: allowed",
+		},
+	}
+
+	return s1, nil
 }

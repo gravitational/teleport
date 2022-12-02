@@ -28,12 +28,14 @@ import (
 	"github.com/sirupsen/logrus"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -246,6 +248,12 @@ func hasRemoteUserRole(authContext Context) bool {
 func hasLocalUserRole(authContext Context) bool {
 	_, ok := authContext.UnmappedIdentity.(LocalUser)
 	return ok
+}
+
+// DevicesClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles and will always panic.
+func (a *ServerWithRoles) DevicesClient() devicepb.DeviceTrustServiceClient {
+	panic("DevicesClient not implemented by ServerWithRoles")
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
@@ -1370,7 +1378,7 @@ func (k *kubeChecker) CanAccess(resource types.Resource) error {
 }
 
 // canAccessKubernetesLegacy checks if the user has access to Kubernetes Cluster when represented by `types.ServerV2`.
-// DELETE in 12.0.0
+// DELETE in 13.0.0
 func (k *kubeChecker) canAccessKubernetesLegacy(server types.Server) error {
 	// Filter out agents that don't have support for moderated sessions access
 	// checking if the user has any roles that require it.
@@ -1670,19 +1678,14 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 }
 
 // ChangePassword updates users password based on the old password.
-func (a *ServerWithRoles) ChangePassword(req services.ChangePasswordReq) error {
+func (a *ServerWithRoles) ChangePassword(
+	ctx context.Context,
+	req *proto.ChangePasswordRequest,
+) error {
 	if err := a.currentUserAction(req.User); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.ChangePassword(req)
-}
-
-func (a *ServerWithRoles) CheckPassword(user string, password []byte, otpToken string) error {
-	if err := a.currentUserAction(user); err != nil {
-		return trace.Wrap(err)
-	}
-	_, err := a.authServer.checkPassword(user, password, otpToken)
-	return trace.Wrap(err)
+	return a.authServer.ChangePassword(ctx, req)
 }
 
 func (a *ServerWithRoles) PreAuthenticatedSignIn(ctx context.Context, user string) (types.WebSession, error) {
@@ -2184,9 +2187,9 @@ func (a *ServerWithRoles) DeleteUser(ctx context.Context, user string) error {
 }
 
 func (a *ServerWithRoles) GenerateHostCert(
-	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
+	ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
 ) ([]byte, error) {
-	ctx := services.Context{
+	serviceContext := services.Context{
 		User: a.context.User,
 		HostCert: &services.HostCertContext{
 			HostID:      hostID,
@@ -2203,12 +2206,12 @@ func (a *ServerWithRoles) GenerateHostCert(
 	// to expose cert request fields.
 	// We've only got a single verb to check so luckily it's pretty concise.
 	if err := a.withOptions().context.Checker.CheckAccessToRule(
-		&ctx, apidefaults.Namespace, types.KindHostCert, types.VerbCreate, false,
+		&serviceContext, apidefaults.Namespace, types.KindHostCert, types.VerbCreate, false,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.GenerateHostCert(key, hostID, nodeName, principals, clusterName, role, ttl)
+	return a.authServer.GenerateHostCert(ctx, key, hostID, nodeName, principals, clusterName, role, ttl)
 }
 
 // NewKeepAliver not implemented: can only be called locally.
@@ -2315,7 +2318,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 	var finalRequestIDs []string
 	for _, requestList := range [][]string{currentIdentity.ActiveRequests, req.AccessRequests} {
 		for _, reqID := range requestList {
-			if !apiutils.SliceContainsStr(req.DropAccessRequests, reqID) {
+			if !slices.Contains(req.DropAccessRequests, reqID) {
 				finalRequestIDs = append(finalRequestIDs, reqID)
 			}
 		}
@@ -2822,7 +2825,7 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector typ
 		return trace.Wrap(err)
 	}
 	if !modules.GetModules().Features().SAML {
-		return trace.AccessDenied("SAML is only available in enterprise subscriptions")
+		return trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 	return a.authServer.UpsertSAMLConnector(ctx, connector)
 }
@@ -3285,7 +3288,7 @@ func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (types.Role,
 	// Current-user exception: we always allow users to read roles
 	// that they hold.  This requirement is checked first to avoid
 	// misleading denial messages in the logs.
-	if !apiutils.SliceContainsStr(a.context.User.GetRoles(), name) {
+	if !slices.Contains(a.context.User.GetRoles(), name) {
 		if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4280,7 +4283,7 @@ func (a *ServerWithRoles) DeleteAllKubernetesServers(ctx context.Context) error 
 
 // GetKubeServices returns all Servers representing teleport kubernetes
 // services.
-// DELETE in 12.0.0
+// DELETE in 13.0.0
 func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 	if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)

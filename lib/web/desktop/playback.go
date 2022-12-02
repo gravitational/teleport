@@ -121,14 +121,11 @@ const (
 )
 
 // actionMessage is a message passed from the playback client
-// to the server over the websocket connection in order to modify
-// the playback state.
+// to the server over the websocket connection in order to
+// control playback.
 type actionMessage struct {
-	// actionPlayPause toggles the playbackState.playState
-	Action playbackAction `json:"action"`
-
-	// PlaySpeed is the playback speed to use.
-	PlaybackSpeed float32 `json:"speed,omitempty"`
+	Action        playbackAction `json:"action"`
+	PlaybackSpeed float32        `json:"speed,omitempty"`
 }
 
 // waitWhilePaused waits idly while the player's state is paused, waiting until:
@@ -233,8 +230,6 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 
 		select {
 		case err := <-errC:
-			// TODO(zmb3, isaiah): send some sort of error to the browser,
-			// otherwise it just sits at the player UI
 			if err != nil && !errors.Is(err, context.Canceled) {
 				pp.log.WithError(err).Errorf("streaming session %v", pp.sID)
 				var errorText string

@@ -21,10 +21,10 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/google/uuid"
+
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
-
-	"github.com/google/uuid"
 )
 
 func main() {

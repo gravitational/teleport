@@ -416,13 +416,14 @@ auth_service:
         - "auth:yyyy"
 
     # Optional setting for configuring session recording. Possible values are:
-    #    "node"      : sessions will be recorded on the node level  (the
-    #                  default)
+    #    "node"      : (default) sessions will be recorded on the node 
+    #                  and periodically cleaned up after they are uploaded 
+    #                  to the storage service.
     #    "node-sync" : session recordings will be streamed from
     #                  node -> auth -> storage service without being stored on
     #                  disk at all.
-    #    "proxy"     : recording on the proxy level, see "Recording Proxy Mode"
-    #                  (https://goteleport.com/docs/architecture/proxy/#recording-proxy-mode).
+    #    "proxy"     : sessions will be recorded on the proxy and periodically 
+    #                  cleaned up after they are uploaded to the storage service.
     #    "proxy-sync : session recordings will be streamed from
     #                  proxy -> auth -> storage service without being stored on
     #                  disk at all.
@@ -437,22 +438,21 @@ auth_service:
     # (https://goteleport.com/docs/architecture/proxy/#recording-proxy-mode).
     proxy_checks_host_keys: yes
 
-    # Determines if SSH sessions to cluster nodes are forcefully terminated
-    # after no activity from a client (idle client).
+    # Determines if sessions to cluster resources are forcefully terminated after
+    # no activity from a client (idle client).
     # Examples: "30m", "1h" or "1h30m"
     client_idle_timeout: never
 
     # Send a custom message to the client when they are disconnected due to
     # inactivity. The empty string indicates that no message will be sent.
-    # (Currently only supported for SSH connections)
+    # (Currently only supported for Server Access connections)
     client_idle_timeout_message: ""
 
     # Sets an idle timeout for the Web UI. The default is 10m.
     web_idle_timeout: 10m
 
     # Determines if the clients will be forcefully disconnected when their
-    # certificates expire in the middle of an active SSH session. (default is
-    # 'no')
+    # certificates expire in the middle of an active session. (default is 'no')
     disconnect_expired_cert: no
 
     # Determines the interval at which Teleport will send keep-alive messages.
@@ -558,9 +558,8 @@ ssh_service:
       command: ['/bin/uname', '-p']
       period: 1h0m0s
 
-    # Enables reading ~/.tsh/environment before creating a session.
-    # By default it's set to false can be set true here or through the
-    # command-line flag.
+    # Enables reading ~/.tsh/environment on the server before creating a session.
+    # Disabled by default. Can be enabled here or via the `--permit-user-env` flag.
     permit_user_env: false
 
     # Disables automatic creation of host users on this SSH node.
@@ -735,9 +734,8 @@ proxy_service:
 
     # Get an automatic certificate from Letsencrypt.org using ACME via
     # TLS_ALPN-01 challenge.
-    # When using ACME, the cluster name must match the 'public_addr' of
-    # Teleport and the 'proxy_service' must be publicly accessible over port
-    # 443.
+    # When using ACME, the 'proxy_service' must be publicly accessible over
+    # port 443.
     # Also set using the CLI command:
     # 'teleport configure --acme --acme-email=email@example.com \
     # --cluster-name=tele.example.com -o file'
@@ -770,81 +768,24 @@ app_service:
       - name: "os"
         command: ["/usr/bin/uname"]
         period: "5s"
-      # Optional simple rewriting of Location header
-      # Rewrite the "Location" header on redirect responses replacing the
-      # host with the public address of this application.
-      # redirect:
-      #   - "localhost"
-      #   - "jenkins.internal.dev"
+      ## Optional list of rewrite rules to apply to requests and responses
+      # rewrite:
+        ## Optional simple rewriting of Location header
+        ## Rewrite the "Location" header on redirect responses replacing the
+        ## host with the public address of this application.
+        # redirect:
+        #   - "localhost"
+        #   - "jenkins.internal.dev"
+        ## Optional list of extra headers to inject in to requests.
+        # headers:
+        #   For example:
+        #   - "Host: jenkins.example.com"
 
 ## This section configures the 'kubernetes service'
-kubernetes_service:
-    enabled: yes
-    # Optional Public & Listen Addr: Set these if you are connecting to
-    # Teleport running inside a Kubernetes cluster instead of using a
-    # reverse tunnel.
-    #
-    # Optional Public Addr
-    public_addr: [k8s.example.com:3026]
-    # Optional Listen Addr
-    listen_addr: 0.0.0.0:3026
-    # Optional kubeconfig_file and kube_cluster_name. Exactly one of these must
-    # be set.
-    #
-    # When running teleport outside of the kubernetes cluster, use
-    # kubeconfig_file to provide teleport with cluster credentials.
-    #
-    # When running teleport inside of the kubernetes cluster pod, use
-    # kube_cluster_name to provide a user-visible name. Teleport uses the pod
-    # service account credentials to authenticate to its local kubernetes API.
-    kubeconfig_file: /secrets/kubeconfig
-    kube_cluster_name:
-    # Optional labels: These can be used in combination with RBAC rules
-    # to limit access to applications.
-    # When using kubeconfig_file above, these labels apply to all kubernetes
-    # clusters specified in the kubeconfig.
-    labels:
-      env: "prod"
-    # Optional Dynamic Labels
-    commands:
-    - name: "os"
-       command: ["/usr/bin/uname"]
-       period: "5s"
-    # Get cluster name on GKE.
-    - name: cluster-name
-      command: ['curl', 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name', '-H', 'Metadata-Flavor: Google']
-      period: 1m0s
+(!docs/pages/includes/kubernetes-access/kubernetes-config.yaml!)
 
 # This section configures the 'discovery service'
-discovery_service:
-    enabled: yes
-    aws:
-       # AWS resource types. Valid options are:
-       # ec2 - discovers and registers AWS EC2 instances
-     - types: ["ec2"]
-       # AWS regions to register EC2 instances from
-       regions: ["eu-central-1"]
-       # AWS resource tags to match when registering EC2 instances
-       # Optional section: Defaults to "*":"*"
-       tags:
-         "*": "*"
-       # Optional section: install is used to provide parameters to the AWS SSM document. 
-       # If the install section isn't provided, the below defaults are used.
-       install:
-         join_params:
-           # token_name is the name of the Teleport invite token to use.
-           # Optional, defaults to: "aws-discovery-iam-token".
-           token_name:  "aws-discovery-iam-token"
-         # script_name is the name of the Teleport install script to use.
-         # Optional, defaults to: "default-installer".
-         script_name: "default-installer"
-       # Optional section: ssm is used to configure which AWS SSM document to use
-       # If the ssm section isnt provided the below defaults are used.
-       ssm:
-         # document_name is the name of the SSM document that should be
-         # executed when installing teleport on matching nodes
-         # Optional, defaults to: "TeleportDiscoveryInstaller".
-         document_name: "TeleportDiscoveryInstaller"
+(!docs/pages/includes/discovery/discovery-config.yaml!)
 
 # This section configures the 'database service'.
 (!docs/pages/includes/database-access/database-config.yaml!)

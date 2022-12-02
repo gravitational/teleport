@@ -34,8 +34,6 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/http/httpguts"
@@ -44,7 +42,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -58,13 +55,10 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
-	"github.com/gravitational/teleport/lib/srv/db/redis"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -685,7 +679,7 @@ type SSHConfig struct {
 	BPF *bpf.Config
 
 	// RestrictedSession holds kernel objects restrictions for Teleport.
-	RestrictedSession *restricted.Config
+	RestrictedSession *bpf.RestrictedSessionConfig
 
 	// AllowTCPForwarding indicates that TCP port forwarding is allowed on this node
 	AllowTCPForwarding bool
@@ -861,12 +855,22 @@ type DatabaseAWS struct {
 	SecretStore DatabaseAWSSecretStore
 	// AccountID is the AWS account ID.
 	AccountID string
+	// RedshiftServerless contains AWS Redshift Serverless specific settings.
+	RedshiftServerless DatabaseAWSRedshiftServerless
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
 type DatabaseAWSRedshift struct {
 	// ClusterID is the Redshift cluster identifier.
 	ClusterID string
+}
+
+// DatabaseAWSRedshiftServerless contains AWS Redshift Serverless specific settings.
+type DatabaseAWSRedshiftServerless struct {
+	// WorkgroupName is the Redshift Serverless workgroup name.
+	WorkgroupName string
+	// EndpointName is the Redshift Serverless VPC endpoint name.
+	EndpointName string
 }
 
 // DatabaseAWSRDS contains AWS RDS specific settings.
@@ -950,70 +954,15 @@ func (d *Database) CheckAndSetDefaults() error {
 	if d.Name == "" {
 		return trace.BadParameter("empty database name")
 	}
-	// Unlike application access proxy, database proxy name doesn't necessarily
-	// need to be a valid subdomain but use the same validation logic for the
-	// simplicity and consistency.
-	if errs := validation.IsDNS1035Label(d.Name); len(errs) > 0 {
-		return trace.BadParameter("invalid database %q name: %v", d.Name, errs)
-	}
-	if !apiutils.SliceContainsStr(defaults.DatabaseProtocols, d.Protocol) {
-		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v",
-			d.Name, d.Protocol, defaults.DatabaseProtocols)
-	}
+
 	// Mark the database as coming from the static configuration.
 	if d.StaticLabels == nil {
 		d.StaticLabels = make(map[string]string)
 	}
 	d.StaticLabels[types.OriginLabel] = types.OriginConfigFile
-	// For MongoDB we support specifying either server address or connection
-	// string in the URI which is useful when connecting to a replica set.
-	if d.Protocol == defaults.ProtocolMongoDB &&
-		(strings.HasPrefix(d.URI, connstring.SchemeMongoDB+"://") ||
-			strings.HasPrefix(d.URI, connstring.SchemeMongoDBSRV+"://")) {
-		connString, err := connstring.ParseAndValidate(d.URI)
-		if err != nil {
-			return trace.BadParameter("invalid MongoDB database %q connection string %q: %v",
-				d.Name, d.URI, err)
-		}
-		// Validate read preference to catch typos early.
-		if connString.ReadPreference != "" {
-			if _, err := readpref.ModeFromString(connString.ReadPreference); err != nil {
-				return trace.BadParameter("invalid MongoDB database %q read preference %q",
-					d.Name, connString.ReadPreference)
-			}
-		}
-	} else if d.Protocol == defaults.ProtocolRedis {
-		_, err := redis.ParseRedisAddress(d.URI)
-		if err != nil {
-			return trace.BadParameter("invalid Redis database %q address: %q, error: %v", d.Name, d.URI, err)
-		}
-	} else if d.Protocol == defaults.ProtocolSnowflake {
-		if !strings.Contains(d.URI, defaults.SnowflakeURL) {
-			return trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
-		}
-	} else if d.Protocol == defaults.ProtocolCassandra && d.AWS.Region != "" && d.AWS.AccountID != "" {
-		// In case of cloud hosted Cassandra doesn't require URI validation.
-	} else if _, _, err := net.SplitHostPort(d.URI); err != nil {
-		return trace.BadParameter("invalid database %q address %q: %v",
-			d.Name, d.URI, err)
-	}
 
-	if len(d.TLS.CACert) != 0 {
-		if _, err := tlsca.ParseCertificatePEM(d.TLS.CACert); err != nil {
-			return trace.BadParameter("provided database %q CA doesn't appear to be a valid x509 certificate: %v",
-				d.Name, err)
-		}
-	}
 	if err := d.TLS.Mode.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-
-	// Validate Cloud SQL specific configuration.
-	switch {
-	case d.GCP.ProjectID != "" && d.GCP.InstanceID == "":
-		return trace.BadParameter("missing Cloud SQL instance ID for database %q", d.Name)
-	case d.GCP.ProjectID == "" && d.GCP.InstanceID != "":
-		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.Name)
 	}
 
 	// We support Azure AD authentication and Kerberos auth with AD for SQL
@@ -1028,7 +977,72 @@ func (d *Database) CheckAndSetDefaults() error {
 		}
 	}
 
-	return nil
+	// Do a test run with extra validations.
+	db, err := d.ToDatabase()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(services.ValidateDatabase(db))
+}
+
+// ToDatabase converts Database to types.Database.
+func (d *Database) ToDatabase() (types.Database, error) {
+	return types.NewDatabaseV3(types.Metadata{
+		Name:        d.Name,
+		Description: d.Description,
+		Labels:      d.StaticLabels,
+	}, types.DatabaseSpecV3{
+		Protocol: d.Protocol,
+		URI:      d.URI,
+		CACert:   string(d.TLS.CACert),
+		TLS: types.DatabaseTLS{
+			CACert:     string(d.TLS.CACert),
+			ServerName: d.TLS.ServerName,
+			Mode:       d.TLS.Mode.ToProto(),
+		},
+		MySQL: types.MySQLOptions{
+			ServerVersion: d.MySQL.ServerVersion,
+		},
+		AWS: types.AWS{
+			AccountID: d.AWS.AccountID,
+			Region:    d.AWS.Region,
+			Redshift: types.Redshift{
+				ClusterID: d.AWS.Redshift.ClusterID,
+			},
+			RedshiftServerless: types.RedshiftServerless{
+				WorkgroupName: d.AWS.RedshiftServerless.WorkgroupName,
+				EndpointName:  d.AWS.RedshiftServerless.EndpointName,
+			},
+			RDS: types.RDS{
+				InstanceID: d.AWS.RDS.InstanceID,
+				ClusterID:  d.AWS.RDS.ClusterID,
+			},
+			ElastiCache: types.ElastiCache{
+				ReplicationGroupID: d.AWS.ElastiCache.ReplicationGroupID,
+			},
+			MemoryDB: types.MemoryDB{
+				ClusterName: d.AWS.MemoryDB.ClusterName,
+			},
+			SecretStore: types.SecretStore{
+				KeyPrefix: d.AWS.SecretStore.KeyPrefix,
+				KMSKeyID:  d.AWS.SecretStore.KMSKeyID,
+			},
+		},
+		GCP: types.GCPCloudSQL{
+			ProjectID:  d.GCP.ProjectID,
+			InstanceID: d.GCP.InstanceID,
+		},
+		DynamicLabels: types.LabelsToV2(d.DynamicLabels),
+		AD: types.AD{
+			KeytabFile: d.AD.KeytabFile,
+			Krb5File:   d.AD.Krb5File,
+			Domain:     d.AD.Domain,
+			SPN:        d.AD.SPN,
+		},
+		Azure: types.Azure{
+			ResourceID: d.Azure.ResourceID,
+		},
+	})
 }
 
 // AppsConfig configures application proxy service.
@@ -1044,6 +1058,10 @@ type AppsConfig struct {
 
 	// ResourceMatchers match cluster database resources.
 	ResourceMatchers []services.ResourceMatcher
+
+	// MonitorCloseChannel will be signaled when a monitor closes a connection.
+	// Used only for testing. Optional.
+	MonitorCloseChannel chan struct{}
 }
 
 // App is the specific application that will be proxied by the application
@@ -1261,22 +1279,40 @@ type LDAPDiscoveryConfig struct {
 }
 
 // HostLabelRules is a collection of rules describing how to apply labels to hosts.
-type HostLabelRules []HostLabelRule
+type HostLabelRules struct {
+	rules  []HostLabelRule
+	labels map[string]map[string]string
+}
+
+func NewHostLabelRules(rules ...HostLabelRule) HostLabelRules {
+	return HostLabelRules{
+		rules: rules,
+	}
+}
 
 // LabelsForHost returns the set of all labels that should be applied
 // to the specified host. If multiple rules match and specify the same
 // label keys, the value will be that of the last matching rule.
 func (h HostLabelRules) LabelsForHost(host string) map[string]string {
-	// TODO(zmb3): consider memoizing this call - the set of rules doesn't
-	// change, so it may be worth not matching regexps on each heartbeat.
+	labels, ok := h.labels[host]
+	if ok {
+		return labels
+	}
+
 	result := make(map[string]string)
-	for _, rule := range h {
+	for _, rule := range h.rules {
 		if rule.Regexp.MatchString(host) {
 			for k, v := range rule.Labels {
 				result[k] = v
 			}
 		}
 	}
+
+	if h.labels == nil {
+		h.labels = make(map[string]map[string]string)
+	}
+	h.labels[host] = result
+
 	return result
 }
 
@@ -1323,8 +1359,16 @@ type DiscoveryConfig struct {
 	Enabled bool
 	// AWSMatchers are used to match EC2 instances for auto enrollment.
 	AWSMatchers []services.AWSMatcher
-	// AzureMatchers are used to match resources for auto discovery.
+	// AzureMatchers are used to match resources for auto enrollment.
 	AzureMatchers []services.AzureMatcher
+	// GCPMatchers are used to match GCP resources for auto discovery.
+	GCPMatchers []services.GCPMatcher
+}
+
+// IsEmpty validates if the Discovery Service config has no cloud matchers.
+func (d DiscoveryConfig) IsEmpty() bool {
+	return len(d.AWSMatchers) == 0 &&
+		len(d.AzureMatchers) == 0 && len(d.GCPMatchers) == 0
 }
 
 // ParseHeader parses the provided string as a http header.
@@ -1437,7 +1481,7 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 	cfg.SSH.PAM = &pam.Config{Enabled: false}
 	cfg.SSH.BPF = &bpf.Config{Enabled: false}
-	cfg.SSH.RestrictedSession = &restricted.Config{Enabled: false}
+	cfg.SSH.RestrictedSession = &bpf.RestrictedSessionConfig{Enabled: false}
 	cfg.SSH.AllowTCPForwarding = true
 	cfg.SSH.AllowFileCopying = true
 

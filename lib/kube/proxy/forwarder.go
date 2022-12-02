@@ -46,6 +46,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	"golang.org/x/net/http2"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -327,6 +328,8 @@ type authContext struct {
 	// disconnectExpiredCert if set, controls the time when the connection
 	// should be disconnected because the client cert expires
 	disconnectExpiredCert time.Time
+	// certExpires is the client certificate expiration timestamp.
+	certExpires time.Time
 	// sessionTTL specifies the duration of the user's session
 	sessionTTL time.Duration
 }
@@ -338,7 +341,7 @@ func (c authContext) String() string {
 func (c *authContext) key() string {
 	// it is important that the context key contains user, kubernetes groups and certificate expiry,
 	// so that new logins with different parameters will not reuse this context
-	return fmt.Sprintf("%v:%v:%v:%v:%v:%v", c.teleportCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.kubeCluster, c.disconnectExpiredCert.UTC().Unix())
+	return fmt.Sprintf("%v:%v:%v:%v:%v:%v", c.teleportCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.kubeCluster, c.certExpires.Unix())
 }
 
 func (c *authContext) eventClusterMeta() apievents.KubernetesClusterMetadata {
@@ -596,7 +599,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	// any user to access common API methods, e.g. discovery methods
 	// required for initial client usage, without it, restricted user's
 	// kubectl clients will not work
-	if !apiutils.SliceContainsStr(kubeGroups, teleport.KubeSystemAuthenticated) {
+	if !slices.Contains(kubeGroups, teleport.KubeSystemAuthenticated) {
 		kubeGroups = append(kubeGroups, teleport.KubeSystemAuthenticated)
 	}
 
@@ -672,6 +675,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		kubeClusterLabels: kubeLabels,
 		recordingConfig:   recordingConfig,
 		kubeCluster:       kubeCluster,
+		certExpires:       certExpires,
 		teleportCluster: teleportClusterClient{
 			name:           teleportClusterName,
 			remoteAddr:     utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
@@ -708,7 +712,8 @@ type kubeAccessDetails struct {
 func (f *Forwarder) getKubeAccessDetails(
 	roles services.AccessChecker,
 	kubeClusterName string,
-	sessionTTL time.Duration) (kubeAccessDetails, error) {
+	sessionTTL time.Duration,
+) (kubeAccessDetails, error) {
 	kubeServers, err := f.cfg.CachingAuthClient.GetKubernetesServers(f.ctx)
 	if err != nil {
 		return kubeAccessDetails{}, trace.Wrap(err)
@@ -838,9 +843,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	f.mu.Lock()
-	session := f.sessions[sessionID]
-	f.mu.Unlock()
+	session := f.getSession(sessionID)
 	if session == nil {
 		return nil, trace.NotFound("session %v not found", sessionID)
 	}
@@ -860,9 +863,9 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		party := newParty(*ctx, stream.Mode, client)
 		go func() {
 			<-stream.Done()
-			session.mu.Lock()
-			defer session.mu.Unlock()
-			session.leave(party.ID)
+			if err := session.leave(party.ID); err != nil {
+				f.log.WithError(err).Debugf("Participant %q was unable to leave session %s", party.ID, session.id)
+			}
 		}()
 
 		err = session.join(party)
@@ -880,6 +883,32 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	}
 
 	return nil, nil
+}
+
+// getSession retrieves the session from in-memory database.
+// If the session was not found, returns nil.
+// This method locks f.mu.
+func (f *Forwarder) getSession(id uuid.UUID) *session {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.sessions[id]
+}
+
+// setSession sets the session into in-memory database.
+// If the session was not found, returns nil.
+// This method locks f.mu.
+func (f *Forwarder) setSession(id uuid.UUID, sess *session) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.sessions[id] = sess
+}
+
+// deleteSession removes a session.
+// This method locks f.mu.
+func (f *Forwarder) deleteSession(id uuid.UUID) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.sessions, id)
 }
 
 // remoteJoin forwards a join request to a remote cluster.
@@ -1124,7 +1153,6 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, sessionEndEvent); err != nil {
 			f.log.WithError(err).Warn("Failed to emit session end event.")
 		}
-
 	}()
 
 	executor, err := f.getExecutor(*ctx, sess, req)
@@ -1244,18 +1272,18 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	f.mu.Lock()
-	f.sessions[session.id] = session
-	f.mu.Unlock()
+	f.setSession(session.id, session)
 	err = session.join(party)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	<-party.closeC
-	f.mu.Lock()
-	delete(f.sessions, session.id)
-	f.mu.Unlock()
+
+	if err := session.leave(party.ID); err != nil {
+		f.log.WithError(err).Debugf("Participant %q was unable to leave session %s", party.ID, session.id)
+	}
+
 	return nil, nil
 }
 
@@ -1412,7 +1440,16 @@ func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers 
 			if len(values) == 0 || len(values) > 1 {
 				return trace.AccessDenied("%v, invalid user header %q", ImpersonationRequestDeniedMessage, values)
 			}
+			// when Kubernetes go-client sends impersonated groups it also sends the impersonated user.
+			// The issue arrises when the impersonated user was not defined and the user want to just impersonate
+			// a subset of his groups. In that case the request would fail because empty user is not on
+			// ctx.kubeUsers. If Teleport receives an empty impersonated user it will ignore it and later will fill it
+			// with the Teleport username.
+			if len(values[0]) == 0 {
+				continue
+			}
 			impersonateUser = values[0]
+
 			if _, ok := ctx.kubeUsers[impersonateUser]; !ok {
 				return trace.AccessDenied("%v, user header %q is not allowed in roles", ImpersonationRequestDeniedMessage, impersonateUser)
 			}

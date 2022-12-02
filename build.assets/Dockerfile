@@ -88,8 +88,12 @@ ARG BUILDARCH
 
 # Install packages.
 # Java JRE is required by gcloud firestore emulator.
+# Latest git 2.18+ is required for GitHub actions
 # NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
-RUN apt-get update -y --fix-missing && \
+RUN apt-get -y update && \
+    apt-get -y install software-properties-common && \
+    add-apt-repository -y ppa:git-core/ppa && \
+    apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -q -y --no-install-recommends \
         apt-utils \
@@ -119,7 +123,6 @@ RUN apt-get update -y --fix-missing && \
         python3-setuptools \
         python3-wheel \
         pkg-config \
-        shellcheck \
         softhsm2 \
         sudo \
         tree \
@@ -167,6 +170,9 @@ RUN go install github.com/google/addlicense@v1.0.0
 # Install golangci-lint.
 RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
 
+# Install GCI
+RUN go install github.com/daixiang0/gci@v0.8.2
+
 # Install helm.
 RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
      cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
@@ -181,6 +187,13 @@ RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
 RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
      cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
      rm -r bats-core-1.2.1)
+
+# Install shellcheck.
+RUN scversion='v0.8.0' && \
+    curl -sSL "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch64"; fi).tar.xz" | \
+        tar -xJv && \
+    cp "shellcheck-$scversion/shellcheck" /usr/local/bin/ && \
+    shellcheck --version
 
 # Install protobuf and grpc build tools.
 ARG PROTOC_VER

@@ -50,18 +50,24 @@ Teleport also supports Kubernetes in on-premise and air-gapped environments. If 
 
 Let's start with a single-pod Teleport deployment using a persistent volume as a backend. Modify the values of `CLUSTER_NAME` and `EMAIL` according to your environment, where `CLUSTER_NAME` is the domain name you are using for your Teleport deployment and `EMAIL` is an email address used for notifications.
 
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+
 <Tabs>
   <TabItem label="Open Source">
     ```code
     $ CLUSTER_NAME="tele.example.com"
     $ EMAIL="mail@example.com"
-    $ helm repo add teleport https://charts.releases.teleport.dev
 
     # Install a single node teleport cluster and provision a cert using ACME.
     # Set clusterName to unique hostname, for example tele.example.com
     # Set acmeEmail to receive correspondence from Letsencrypt certificate authority.
-    $ helm install teleport-cluster teleport/teleport-cluster --create-namespace --namespace=teleport-cluster \
-      --set clusterName=${CLUSTER_NAME?} --set acme=true --set acmeEmail=${EMAIL?}
+    $ helm install teleport-cluster teleport/teleport-cluster \
+      --create-namespace \
+      --namespace=teleport-cluster \
+      --set clusterName=${CLUSTER_NAME?} \
+      --set acme=true \
+      --set acmeEmail=${EMAIL?} \
+      --version (=teleport.version=)
     ```
   </TabItem>
 
@@ -69,7 +75,6 @@ Let's start with a single-pod Teleport deployment using a persistent volume as a
     ```code
     $ CLUSTER_NAME="tele.example.com"
     $ EMAIL="mail@example.com"
-    $ helm repo add teleport https://charts.releases.teleport.dev
 
     # Create a namespace for a deployment.
     $ kubectl create namespace teleport-cluster-ent
@@ -82,8 +87,13 @@ Let's start with a single-pod Teleport deployment using a persistent volume as a
     $ kubectl create secret generic license --from-file=license.pem
 
     # Install Teleport
-    $ helm install teleport-cluster teleport/teleport-cluster --namespace=teleport-cluster-ent \
-      --set clusterName=${CLUSTER_NAME?} --set acme=true --set acmeEmail=${EMAIL?} --set enterprise=true
+    $ helm install teleport-cluster teleport/teleport-cluster \
+      --namespace=teleport-cluster-ent \
+      --version (=teleport.version=) \
+      --set clusterName=${CLUSTER_NAME?} \
+      --set acme=true \
+      --set enterprise=true \
+      --set acmeEmail=${EMAIL?}
     ```
   </TabItem>
 </Tabs>
@@ -349,6 +359,6 @@ the default one in case there is a problem.
 ## Next steps
 
 - [Connect Multiple Kubernetes Clusters](../../kubernetes-access/guides/multiple-clusters.mdx)
-- [Setup CI/CD Access with Teleport](../../kubernetes-access/guides/cicd.mdx)
+- [Set up CI/CD Access with Teleport](../../kubernetes-access/guides/cicd.mdx)
 - [Federated Access using Trusted Clusters](../../kubernetes-access/guides/federation.mdx)
 - [Single-Sign On and Kubernetes Access Control](../../kubernetes-access/controls.mdx)

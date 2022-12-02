@@ -44,8 +44,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -73,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -282,14 +285,6 @@ func testAuthLocalNodeControlStream(t *testing.T, suite *integrationTestSuite) {
 // testAuditOn creates a live session, records a bunch of data through it
 // and then reads it back and compares against simulated reality.
 func testAuditOn(t *testing.T, suite *integrationTestSuite) {
-	// TODO(jakule): Re-enable once the fix is ready.
-	t.Skip("This test is flaky, skip for now.")
-
-	ctx := context.Background()
-
-	tr := utils.NewTracer(utils.ThisFunction()).Start()
-	defer tr.Stop()
-
 	tests := []struct {
 		comment          string
 		inRecordLocation string
@@ -327,6 +322,11 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
+			tr := utils.NewTracer(utils.ThisFunction()).Start()
+			t.Cleanup(func() {
+				tr.Stop()
+			})
+
 			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
 				auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
 					AuditSessionsURI: tt.auditSessionsURI,
@@ -349,7 +349,10 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				return t, nil, nil, tconf
 			}
 			teleport := suite.NewTeleportWithConfig(makeConfig())
-			defer teleport.StopAll()
+			t.Cleanup(func() {
+				err := teleport.StopAll()
+				require.NoError(t, err)
+			})
 
 			// Start a node.
 			nodeConf := suite.defaultServiceConfig()
@@ -363,6 +366,8 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			// get access to a authClient for the cluster
 			site := teleport.GetSiteAPI(helpers.Site)
 			require.NotNil(t, site)
+
+			ctx := context.Background()
 
 			// wait 10 seconds for both nodes to show up, otherwise
 			// we'll have trouble connecting to the node below.
@@ -437,9 +442,8 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			// make sure it's us who joined! :)
 			require.Equal(t, suite.Me.Username, tracker.GetParticipants()[0].User)
 
-			// lets type "echo hi" followed by "enter" and then "exit" + "enter":
-
-			myTerm.Type("\aecho hi\n\r\aexit\n\r\a")
+			// let's type "echo hi" followed by "enter" and then "exit" + "enter":
+			myTerm.Type("echo hi\n\rexit\n\r")
 
 			// wait for session to end:
 			select {
@@ -1685,32 +1689,41 @@ func enterInput(ctx context.Context, person *Terminal, command, pattern string) 
 // TestInvalidLogins validates that you can't login with invalid login or
 // with invalid 'site' parameter
 func testEnvironmentVariables(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	teleport := suite.newTeleport(t, nil, true)
-	defer teleport.StopAll()
-
-	testKey, testVal := "TELEPORT_TEST_ENV", "howdy"
-	cmd := []string{"printenv", testKey}
+	s := suite.newTeleport(t, nil, true)
+	defer s.StopAll()
 
 	// make sure sessions set run command
-	tc, err := teleport.NewClient(helpers.ClientConfig{
+	tc, err := s.NewClient(helpers.ClientConfig{
 		Login:   suite.Me.Username,
 		Cluster: helpers.Site,
 		Host:    Host,
-		Port:    helpers.Port(t, teleport.SSH),
+		Port:    helpers.Port(t, s.SSH),
 	})
 	require.NoError(t, err)
 
-	tc.Env = map[string]string{testKey: testVal}
+	// if SessionID is provided, it should be set in the session env vars.
+	tc.SessionID = uuid.NewString()
+	cmd := []string{"printenv", sshutils.SessionEnvVar}
 	out := &bytes.Buffer{}
 	tc.Stdout = out
 	tc.Stdin = nil
-	err = tc.SSH(context.TODO(), cmd, false)
+	err = tc.SSH(ctx, cmd, false /* runLocally */)
 
 	require.NoError(t, err)
-	require.Equal(t, testVal, strings.TrimSpace(out.String()))
+	require.Equal(t, tc.SessionID, strings.TrimSpace(out.String()))
+
+	// The proxy url should be set in the session env vars.
+	cmd = []string{"printenv", teleport.SSHSessionWebproxyAddr}
+	out = &bytes.Buffer{}
+	tc.Stdout = out
+	err = tc.SSH(ctx, cmd, false /* runLocally */)
+
+	require.NoError(t, err)
+	require.Equal(t, tc.WebProxyAddr, strings.TrimSpace(out.String()))
 }
 
 // TestInvalidLogins validates that you can't login with invalid login or
@@ -1719,21 +1732,25 @@ func testInvalidLogins(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	teleport := suite.newTeleport(t, nil, true)
-	defer teleport.StopAll()
+	instance := suite.newTeleport(t, nil, true)
+	defer func() {
+		require.NoError(t, instance.StopAll())
+	}()
 
 	cmd := []string{"echo", "success"}
 
 	// try the wrong site:
-	tc, err := teleport.NewClient(helpers.ClientConfig{
+	tc, err := instance.NewClient(helpers.ClientConfig{
 		Login:   suite.Me.Username,
 		Cluster: "wrong-site",
 		Host:    Host,
-		Port:    helpers.Port(t, teleport.SSH),
+		Port:    helpers.Port(t, instance.SSH),
 	})
 	require.NoError(t, err)
-	err = tc.SSH(context.TODO(), cmd, false)
-	require.Contains(t, err.Error(), `unknown cluster \"wrong-site\"`)
+
+	err = tc.SSH(context.Background(), cmd, false)
+	require.True(t, trace.IsConnectionProblem(err))
+	require.Contains(t, err.Error(), `unknown cluster "wrong-site"`)
 }
 
 // TestTwoClustersTunnel creates two teleport clusters: "a" and "b" and creates a
@@ -2578,9 +2595,9 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.Len(t, remoteClusters, 1)
 	require.Equal(t, clusterAux, remoteClusters[0].GetName())
 
-	// after removing the remote cluster, the connection will start failing
-	err = main.Process.GetAuthServer().DeleteRemoteCluster(clusterAux)
-	require.NoError(t, err)
+	// after removing the remote cluster and trusted cluster, the connection will start failing
+	require.NoError(t, main.Process.GetAuthServer().DeleteRemoteCluster(clusterAux))
+	require.NoError(t, aux.Process.GetAuthServer().DeleteTrustedCluster(ctx, trustedCluster.GetName()))
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 50)
 		err = tc.SSH(ctx, cmd, false)
@@ -2590,10 +2607,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	}
 	require.Error(t, err, "expected tunnel to close and SSH client to start failing")
 
-	// remove trusted cluster from aux cluster side, and recreate right after
-	// this should re-establish connection
-	err = aux.Process.GetAuthServer().DeleteTrustedCluster(ctx, trustedCluster.GetName())
-	require.NoError(t, err)
+	// recreating the trusted cluster should re-establish connection
 	_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
 	require.NoError(t, err)
 
@@ -2757,14 +2771,15 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	tunnelOutput := &bytes.Buffer{}
 	tunnelClient.Stdout = tunnelOutput
 	require.NoError(t, err)
-	for i := 0; i < 10; i++ {
-		time.Sleep(time.Millisecond * 50)
+
+	// Use assert package to get access to the returned error. In this way we can log it.
+	if !assert.Eventually(t, func() bool {
 		err = tunnelClient.SSH(context.Background(), cmd, false)
-		if err == nil {
-			break
-		}
+		return err == nil
+	}, 10*time.Second, 200*time.Millisecond) {
+		require.FailNow(t, "Failed to established SSH connection", err)
 	}
-	require.NoError(t, err)
+
 	require.Equal(t, "hello world\n", tunnelOutput.String())
 
 	// Stop clusters and remaining nodes.
@@ -4197,7 +4212,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	require.NoError(t, err)
 	checkSSHPrincipals(svc)
 
-	t.Log("Service reloaded. Rotation has completed. Shuttting down service.")
+	t.Log("Service reloaded. Rotation has completed. Shutting down service.")
 
 	// shut down the service
 	cancel()
@@ -4778,7 +4793,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 			nodes, err := userClt.ListNodesWithFilters(context.Background())
 			require.NoError(t, err)
 			for _, node := range nodes {
-				ok := apiutils.SliceContainsStr(tt.outNodes, node.GetHostname())
+				ok := slices.Contains(tt.outNodes, node.GetHostname())
 				if !ok {
 					t.Fatalf("Got nodes: %v, want: %v.", nodes, tt.outNodes)
 				}

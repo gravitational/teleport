@@ -17,8 +17,6 @@ package apiserver
 import (
 	"fmt"
 	"net"
-	"path/filepath"
-	"strings"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -35,35 +33,15 @@ func New(cfg Config) (*APIServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Create the listener, set up the credentials and the server.
+	// Create the listener, set up the server.
 
-	ls, err := newListener(cfg.HostAddr)
+	ls, err := newListener(cfg.HostAddr, cfg.ListeningC)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	serverOptions := []grpc.ServerOption{grpc.ChainUnaryInterceptor(withErrorHandling(cfg.Log))}
-	rendererCertPath := filepath.Join(cfg.CertsDir, rendererCertFileName)
-	tshdCertPath := filepath.Join(cfg.CertsDir, tshdCertFileName)
-	shouldUseMTLS := strings.HasPrefix(cfg.HostAddr, "tcp://")
-
-	if shouldUseMTLS {
-		tshdKeyPair, err := generateAndSaveCert(tshdCertPath)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// rendererCertPath will be read on an incoming client connection so we can assume that at this
-		// point the renderer process has saved its public key under that path.
-		withTshdCreds, err := createServerCredentials(tshdKeyPair, rendererCertPath)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		serverOptions = append(serverOptions, withTshdCreds)
-	}
-
-	grpcServer := grpc.NewServer(serverOptions...)
+	grpcServer := grpc.NewServer(cfg.TshdServerCreds,
+		grpc.ChainUnaryInterceptor(withErrorHandling(cfg.Log)))
 
 	// Create Terminal service.
 
@@ -91,7 +69,7 @@ func (s *APIServer) Stop() {
 	s.grpcServer.GracefulStop()
 }
 
-func newListener(hostAddr string) (net.Listener, error) {
+func newListener(hostAddr string, listeningC chan<- utils.NetAddr) (net.Listener, error) {
 	uri, err := utils.ParseAddr(hostAddr)
 
 	if err != nil {
@@ -105,6 +83,9 @@ func newListener(hostAddr string) (net.Listener, error) {
 
 	addr := utils.FromAddr(lis.Addr())
 	sendBoundNetworkPortToStdout(addr)
+	if listeningC != nil {
+		listeningC <- addr
+	}
 
 	log.Infof("tsh daemon is listening on %v.", addr.FullAddress())
 

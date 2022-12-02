@@ -465,11 +465,8 @@ func (l *Log) GetSessionChunk(namespace string, sid session.ID, offsetBytes, max
 // GetSessionEvents Returns all events that happen during a session sorted by time
 // (oldest first).
 //
-// after tells to use only return events after a specified cursor Id
-//
-// This function is usually used in conjunction with GetSessionReader to
-// replay recorded session streams.
-func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlcudePrintEvents bool) ([]events.EventFields, error) {
+// after is used to return events after a specified cursor ID
+func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error) {
 	var values []events.EventFields
 	query := "SessionID = :sessionID AND EventIndex >= :eventIndex"
 	attributes := map[string]interface{}{

@@ -29,6 +29,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -62,6 +64,17 @@ func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 
 	webSession, err := s.createUserWebSession(ctx, user)
 	if err != nil {
+		if keys.IsPrivateKeyPolicyError(err) {
+			// Do not return an error, otherwise
+			// the user won't be able to receive
+			// recovery codes. Even with no recovery codes
+			// this positive response indicates the user
+			// has successfully reset/registered their account.
+			return &proto.ChangeUserAuthenticationResponse{
+				Recovery:                newRecovery,
+				PrivateKeyPolicyEnabled: true,
+			}, nil
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -99,8 +112,7 @@ func (s *Server) ResetPassword(username string) (string, error) {
 }
 
 // ChangePassword updates users password based on the old password.
-func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
-	ctx := context.TODO()
+func (s *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error {
 	// validate new password
 	if err := services.VerifyPassword(req.NewPassword); err != nil {
 		return trace.Wrap(err)
@@ -110,7 +122,7 @@ func (s *Server) ChangePassword(req services.ChangePasswordReq) error {
 	user := req.User
 	authReq := AuthenticateUserRequest{
 		Username: user,
-		Webauthn: req.WebauthnResponse,
+		Webauthn: wanlib.CredentialAssertionResponseFromProto(req.Webauthn),
 	}
 	if len(req.OldPassword) > 0 {
 		authReq.Pass = &PassCreds{

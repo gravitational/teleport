@@ -395,6 +395,10 @@ const (
 	// AppSessionRequestEvent is an HTTP request and response.
 	AppSessionRequestEvent = "app.session.request"
 
+	// AppSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
+	// a request via app access session.
+	AppSessionDynamoDBRequestEvent = "app.session.dynamodb.request"
+
 	// DatabaseCreateEvent is emitted when a database resource is created.
 	DatabaseCreateEvent = "db.create"
 	// DatabaseUpdateEvent is emitted when a database resource is updated.
@@ -485,6 +489,10 @@ const (
 	// a generic request.
 	DatabaseSessionElasticsearchRequestEvent = "db.session.elasticsearch.request"
 
+	// DatabaseSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
+	// a request via database-access.
+	DatabaseSessionDynamoDBRequestEvent = "db.session.dynamodb.request"
+
 	// DatabaseSessionMalformedPacketEvent is emitted when SQL packet is malformed.
 	DatabaseSessionMalformedPacketEvent = "db.session.malformed_packet"
 
@@ -559,6 +567,13 @@ const (
 	// DesktopClipboardSendEvent is emitted when local clipboard data
 	// is sent to Teleport.
 	DesktopClipboardSendEvent = "desktop.clipboard.send"
+	// DesktopSharedDirectoryStartEvent is emitted when when Teleport
+	// successfully begins sharing a new directory to a remote desktop.
+	DesktopSharedDirectoryStartEvent = "desktop.directory.share"
+	// DesktopSharedDirectoryReadEvent is emitted when data is read from a shared directory.
+	DesktopSharedDirectoryReadEvent = "desktop.directory.read"
+	// DesktopSharedDirectoryWriteEvent is emitted when data is written to a shared directory.
+	DesktopSharedDirectoryWriteEvent = "desktop.directory.write"
 	// UpgradeWindowStartUpdateEvent is emitted when the upgrade window start time
 	// is updated. Used only for teleport cloud.
 	UpgradeWindowStartUpdateEvent = "upgradewindowstart.update"
@@ -569,6 +584,9 @@ const (
 	// SSMRunEvent is emitted when a run of an install script
 	// completes on a discovered EC2 node
 	SSMRunEvent = "ssm.run"
+
+	// DeviceEvent is the catch-all event for Device Trust events.
+	DeviceEvent = "device"
 
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
@@ -748,10 +766,7 @@ type IAuditLog interface {
 	// Returns all events that happen during a session sorted by time
 	// (oldest first).
 	//
-	// after tells to use only return events after a specified cursor Id
-	//
-	// This function is usually used in conjunction with GetSessionReader to
-	// replay recorded session streams.
+	// after is used to return events after a specified cursor ID
 	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error)
 
 	// SearchEvents is a flexible way to find events.

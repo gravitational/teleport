@@ -90,12 +90,20 @@ type Session struct {
 	ServerID string `json:"server_id"`
 	// ServerHostname of session
 	ServerHostname string `json:"server_hostname"`
+	// ServerHostPort of session
+	ServerHostPort int `json:"server_hostport"`
 	// ServerAddr of session
 	ServerAddr string `json:"server_addr"`
-	// ClusterName is the name of cluster that this session belongs to.
+	// ClusterName is the name of the Teleport cluster that this session belongs to.
 	ClusterName string `json:"cluster_name"`
 	// KubernetesClusterName is the name of the kube cluster that this session is running in.
 	KubernetesClusterName string `json:"kubernetes_cluster_name"`
+	// DesktopName is the name of the desktop that this session is running in.
+	DesktopName string `json:"desktop_name"`
+	// DatabaseName is the name of the database being accessed.
+	DatabaseName string `json:"database_name"`
+	// AppName is the name of the app being accessed.
+	AppName string `json:"app_name"`
 }
 
 // Participants returns the usernames of the current session participants.
