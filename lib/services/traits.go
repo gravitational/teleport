@@ -75,6 +75,17 @@ func TraitsToRoleMatchers(ms types.TraitMappingSet, traits map[string][]string) 
 // traitsToRoles maps the supplied traits to teleport role names and passes them to a collector.
 func traitsToRoles(ms types.TraitMappingSet, traits map[string][]string, collect func(role string, expanded bool)) (warnings []string) {
 	for _, mapping := range ms {
+		regexpIgnoreCase, err := utils.RegexpWithConfig(mapping.Value, utils.RegexpConfig{IgnoreCase: true})
+		if err != nil {
+			// TODO: return warning
+			continue
+		}
+		regexp, err := utils.RegexpWithConfig(mapping.Value, utils.RegexpConfig{})
+		if err != nil {
+			// TODO: return warning
+			continue
+		}
+
 		for traitName, traitValues := range traits {
 			if traitName != mapping.Trait {
 				continue
@@ -85,7 +96,7 @@ func traitsToRoles(ms types.TraitMappingSet, traits map[string][]string, collect
 					// Run the initial replacement case-insensitively. Doing so will filter out all literal non-matches
 					// but will match on case discrepancies. We do another case-sensitive match below to see if the
 					// case is different
-					outRole, err := utils.ReplaceRegexpWithConfig(mapping.Value, role, traitValue, utils.RegexpConfig{IgnoreCase: true})
+					outRole, err := utils.ReplaceRegexpWith(regexpIgnoreCase, role, traitValue)
 					switch {
 					case err != nil:
 						if trace.IsNotFound(err) {
@@ -99,7 +110,7 @@ func traitsToRoles(ms types.TraitMappingSet, traits map[string][]string, collect
 						// If there's no match, the trait specifies a mapping which is case-sensitive;
 						// we should log a warning but return an error.
 						// See https://github.com/gravitational/teleport/issues/6016 for details.
-						if _, err := utils.ReplaceRegexp(mapping.Value, role, traitValue); err != nil {
+						if _, err := utils.ReplaceRegexpWith(regexp, role, traitValue); err != nil {
 							warnings = append(warnings, fmt.Sprintf("trait %q matches value %q case-insensitively and would have yielded %q role", traitValue, mapping.Value, outRole))
 							continue
 						}
