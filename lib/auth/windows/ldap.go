@@ -46,6 +46,12 @@ type LDAPConfig struct {
 
 // Check verifies this LDAPConfig
 func (cfg LDAPConfig) Check() error {
+	if cfg.Addr == "" && cfg.Domain == "" && cfg.Username == "" {
+		return nil
+	}
+	if cfg.Addr == "" {
+		return trace.BadParameter("missing Addr in LDAPConfig")
+	}
 	if cfg.Domain == "" {
 		return trace.BadParameter("missing Domain in LDAPConfig")
 	}
