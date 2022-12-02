@@ -14,11 +14,13 @@ to work perfectly, but the use of `tsh`, `tctl` and attempting to join remote Te
 with errors like `ssh: overflow reading version string` and `EOF`. A functioning Teleport Web UI is not always an indication
 of a correctly configured Teleport cluster.
 
-If in doubt, remove all load balancers/proxies from the equation and connect to Teleport's web port directly to isolate the issue.
+If in doubt, remove all load balancers/proxies from the equation and connect Teleport clients or agent processes directly to
+Teleport's web port to isolate the issue.
 
 To use Teleport behind a reverse proxy, you should either:
 - use a layer 4 (TCP) proxy which forwards TCP streams directly to Teleport (which will in turn handle TLS termination itself)
 - disable Teleport's TLS routing mode by adding `version: v1` to your config file and removing `proxy_listener_mode: multiplex`
  
-You can get an example v1 config file using `teleport configure --version=v1 --public-addr=teleport.example.com:443` (change the public address to your own domain)
-If disabling TLS routing, you can find a list of ports to use for connecting different Teleport services at [ports without TLS routing](../reference/networking.mdx#ports-without-tls-routing)
+You can get an example `v1` config file using `teleport configure --version=v1 --public-addr=teleport.example.com:443` (change the public address to your own domain)
+
+If disabling TLS routing, you can find the list of default ports to use for connecting different Teleport services at [ports without TLS routing](../reference/networking.mdx#ports-without-tls-routing)
