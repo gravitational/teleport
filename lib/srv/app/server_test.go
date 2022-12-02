@@ -251,8 +251,13 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	// Make sure the upload directory is created.
 	err = os.MkdirAll(filepath.Join(
 		s.dataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, defaults.Namespace,
-	), 0755)
+		events.StreamingSessionsDir, defaults.Namespace,
+	), 0o755)
+	require.NoError(t, err)
+	err = os.MkdirAll(filepath.Join(
+		s.dataDir, teleport.LogsDir, teleport.ComponentUpload,
+		events.CorruptedSessionsDir, defaults.Namespace,
+	), 0o755)
 	require.NoError(t, err)
 
 	lockWatcher, err := services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{

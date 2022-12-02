@@ -263,7 +263,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		nodeClient,
 		serverOptions...)
 	require.NoError(t, err)
-	require.NoError(t, auth.CreateUploaderDir(nodeDir))
+	require.NoError(t, auth.CreateUploaderDirs(nodeDir))
 	require.NoError(t, sshSrv.Start())
 	t.Cleanup(func() {
 		require.NoError(t, sshSrv.Close())
@@ -1791,7 +1791,7 @@ func TestLimiter(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, srv.Start())
 
-	require.NoError(t, auth.CreateUploaderDir(nodeStateDir))
+	require.NoError(t, auth.CreateUploaderDirs(nodeStateDir))
 	defer srv.Close()
 
 	config := &ssh.ClientConfig{

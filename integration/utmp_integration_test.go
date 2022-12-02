@@ -299,7 +299,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	)
 	require.NoError(t, err)
 	s.srv = srv
-	require.NoError(t, auth.CreateUploaderDir(nodeDir))
+	require.NoError(t, auth.CreateUploaderDirs(nodeDir))
 	require.NoError(t, s.srv.Start())
 	return s
 }

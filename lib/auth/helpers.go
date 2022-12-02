@@ -92,23 +92,16 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CreateUploaderDir creates directory for file uploader service
-func CreateUploaderDir(dir string) error {
-	// DELETE IN(5.1.0)
-	// this folder is no longer used past 5.0 upgrade
-	err := os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
-		events.SessionLogsDir, apidefaults.Namespace), teleport.SharedDirMode)
-	if err != nil {
-		return trace.ConvertSystemError(err)
+// CreateUploaderDirs creates the directory structure for the file uploader service.
+func CreateUploaderDirs(dir string) error {
+	var errs []error
+
+	for _, dirname := range []string{events.StreamingSessionsDir, events.CorruptedSessionsDir} {
+		path := filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload, dirname, apidefaults.Namespace)
+		errs = append(errs, trace.ConvertSystemError(os.MkdirAll(path, teleport.SharedDirMode)))
 	}
 
-	err = os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, apidefaults.Namespace), teleport.SharedDirMode)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	return nil
+	return trace.NewAggregate(errs...)
 }
 
 // TestServer defines the set of server components for a test

@@ -43,6 +43,8 @@ import (
 type UploaderConfig struct {
 	// ScanDir is data directory with the uploads
 	ScanDir string
+	// CorruptedDir is the directory to store corrupted uploads in.
+	CorruptedDir string
 	// Clock is the clock replacement
 	Clock clockwork.Clock
 	// ScanPeriod is a uploader dir scan period
@@ -70,6 +72,9 @@ func (cfg *UploaderConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.AuditLog == nil {
 		return trace.BadParameter("missing parameter AuditLog")
+	}
+	if cfg.CorruptedDir == "" {
+		return trace.BadParameter("missing parameter CorruptedDir")
 	}
 	if cfg.ConcurrentUploads <= 0 {
 		cfg.ConcurrentUploads = defaults.UploaderConcurrentUploads
@@ -221,6 +226,9 @@ type ScanStats struct {
 	Scanned int
 	// Started is how many uploads have been started
 	Started int
+	// Corrupted is how many corrupted uploads have been
+	// moved out of the scan dir.
+	Corrupted int
 }
 
 // Scan scans the streaming directory and uploads recordings
@@ -251,6 +259,7 @@ func (u *Uploader) Scan(ctx context.Context) (*ScanStats, error) {
 			}
 			if isSessionError(err) {
 				u.log.WithError(err).Warningf("Skipped session recording %v.", fi.Name())
+				stats.Corrupted++
 				continue
 			}
 			return nil, trace.Wrap(err)
@@ -258,7 +267,8 @@ func (u *Uploader) Scan(ctx context.Context) (*ScanStats, error) {
 		stats.Started++
 	}
 	if stats.Scanned > 0 {
-		u.log.Debugf("Scanned %v uploads, started %v in %v.", stats.Scanned, stats.Started, u.cfg.ScanDir)
+		u.log.Debugf("Scanned %v uploads, started %v, found %v corrupted in %v.",
+			stats.Scanned, stats.Started, stats.Corrupted, u.cfg.ScanDir)
 	}
 	return &stats, nil
 }
@@ -355,10 +365,24 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 		return trace.Wrap(err)
 	}
 	if isSessionError {
+		errorFilePath := u.sessionErrorFilePath(sessionID)
+		// move the corrupted recording and the error marker to a separate directory
+		// to prevent the uploader from spinning on the same corrupted upload
+		var moveErrs []error
+		if err := os.Rename(sessionFilePath, filepath.Join(u.cfg.CorruptedDir, filepath.Base(sessionFilePath))); err != nil {
+			moveErrs = append(moveErrs, trace.Wrap(err, "moving %v to %v", sessionFilePath, u.cfg.CorruptedDir))
+		}
+		if err := os.Rename(errorFilePath, filepath.Join(u.cfg.CorruptedDir, filepath.Base(errorFilePath))); err != nil {
+			moveErrs = append(moveErrs, trace.Wrap(err, "moving %v to %v", errorFilePath, u.cfg.CorruptedDir))
+		}
+		if len(moveErrs) > 0 {
+			u.log.Errorf("Failed to move corrupted recording: %v", trace.NewAggregate(moveErrs...))
+		}
+
 		return sessionError{
 			err: trace.BadParameter(
-				"session recording %v is either corrupted or is using unsupported format, remove the file %v to correct the problem, remove the %v file to retry the upload",
-				sessionID, sessionFilePath, u.sessionErrorFilePath(sessionID)),
+				"session recording %v; check the %v directory for artifacts",
+				sessionID, u.cfg.CorruptedDir),
 		}
 	}
 
