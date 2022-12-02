@@ -281,6 +281,69 @@ type MatchResourceFilter struct {
 	PredicateExpression string
 }
 
+func isMatcherOfResourceKind(matcherType, wantResourceKind string) bool {
+	for _, matcher := range allMatchers {
+		if matcher.matcherType == matcherType {
+			return matcher.resourceKind == wantResourceKind
+		}
+	}
+	return false
+}
+
+// IsDatabaseMatcher returns true if provided matcher is a database matcher type.
+func IsDatabaseMatcher(matcherType string) bool {
+	return isMatcherOfResourceKind(matcherType, types.KindDatabase)
+}
+
+// IsNodeMatcher returns true if provided matcher is a node matcher type.
+func IsNodeMatcher(matcherType string) bool {
+	return isMatcherOfResourceKind(matcherType, types.KindNode)
+}
+
+func supportedMatchersOfCloud(cloud string) (matchers []string) {
+	for _, matcher := range allMatchers {
+		if matcher.cloud == cloud {
+			matchers = append(matchers, matcher.matcherType)
+		}
+	}
+	return
+}
+
+var (
+	// SupportedAWSMatchers is a list of AWS matchers.
+	SupportedAWSMatchers = supportedMatchersOfCloud(types.CloudAWS)
+	// SupportedAzureMatchers is a list of Azure matchers.
+	SupportedAzureMatchers = supportedMatchersOfCloud(types.CloudAzure)
+	// SupportedGCPMatchers is a list of GCP matchers.
+	SupportedGCPMatchers = supportedMatchersOfCloud(types.CloudGCP)
+)
+
+var allMatchers = []struct {
+	matcherType  string
+	cloud        string
+	resourceKind string
+}{
+	// Server Access
+	{AWSMatcherEC2, types.CloudAWS, types.KindNode},
+	{AzureMatcherVM, types.CloudAzure, types.KindNode},
+
+	// Kubernetes Access
+	{AWSMatcherEKS, types.CloudAWS, types.KindKubernetesCluster},
+	{AzureMatcherAKS, types.CloudAzure, types.KindKubernetesCluster},
+	{GCPMatcherGKE, types.CloudGCP, types.KindKubernetesCluster},
+
+	// Database Access
+	{AWSMatcherRDS, types.CloudAWS, types.KindDatabase},
+	{AWSMatcherRDSProxy, types.CloudAWS, types.KindDatabase},
+	{AWSMatcherRedshift, types.CloudAWS, types.KindDatabase},
+	{AWSMatcherElastiCache, types.CloudAWS, types.KindDatabase},
+	{AWSMatcherMemoryDB, types.CloudAWS, types.KindDatabase},
+	{AzureMatcherMySQL, types.CloudAzure, types.KindDatabase},
+	{AzureMatcherPostgres, types.CloudAzure, types.KindDatabase},
+	{AzureMatcherRedis, types.CloudAzure, types.KindDatabase},
+	{AzureMatcherSQLServer, types.CloudAzure, types.KindDatabase},
+}
+
 const (
 	// AWSMatcherRDS is the AWS matcher type for RDS databases.
 	AWSMatcherRDS = "rds"
@@ -294,6 +357,9 @@ const (
 	AWSMatcherMemoryDB = "memorydb"
 	// AWSMatcherEC2 is the AWS matcher type for EC2 instances.
 	AWSMatcherEC2 = "ec2"
+	// AWSMatcherEKS is the AWS matcher type for AWS Kubernetes.
+	AWSMatcherEKS = "eks"
+
 	// AzureMatcherMySQL is the Azure matcher type for Azure MySQL databases.
 	AzureMatcherMySQL = "mysql"
 	// AzureMatcherPostgres is the Azure matcher type for Azure Postgres databases.
@@ -302,4 +368,11 @@ const (
 	AzureMatcherRedis = "redis"
 	// AzureMatcherSQLServer is the Azure matcher type for SQL Server databases.
 	AzureMatcherSQLServer = "sqlserver"
+	// AzureMatcherVM is the Azure matcher type for Azure VMs.
+	AzureMatcherVM = "vm"
+	// AzureMatcherAKS is the Azure matcher type for Azure Kubernetes.
+	AzureMatcherAKS = "aks"
+
+	// GCPMatcherGKE is the GCP matcher type for GCP kubernetes.
+	GCPMatcherGKE = "gke"
 )

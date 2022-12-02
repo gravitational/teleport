@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
-	"github.com/gravitational/teleport/api/constants"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/config"
@@ -521,7 +520,7 @@ func buildSSMDocuments(ssm ssmiface.SSMAPI, flags configurators.BootstrapFlags, 
 		return nil, err
 	}
 	for _, matcher := range fileConfig.Discovery.AWSMatchers {
-		if !slices.Contains(matcher.Types, constants.AWSServiceTypeEC2) {
+		if !slices.Contains(matcher.Types, services.AWSMatcherEC2) {
 			continue
 		}
 		ssmCreator := awsSSMDocumentCreator{

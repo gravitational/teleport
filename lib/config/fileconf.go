@@ -475,10 +475,10 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 	for i := range matcherInput {
 		matcher := &matcherInput[i]
-		for _, serviceType := range matcher.Types {
-			if !slices.Contains(constants.SupportedAWSDiscoveryServices, serviceType) {
+		for _, matcherType := range matcher.Types {
+			if !slices.Contains(services.SupportedAWSMatchers, matcherType) {
 				return trace.BadParameter("discovery service type does not support %q, supported resource types are: %v",
-					serviceType, constants.SupportedAWSDiscoveryServices)
+					matcherType, services.SupportedAWSMatchers)
 			}
 		}
 		if matcher.Tags == nil || len(matcher.Tags) == 0 {
@@ -523,13 +523,13 @@ func checkAndSetDefaultsForAzureMatchers(matcherInput []AzureMatcher) error {
 
 		if len(matcher.Types) == 0 {
 			return trace.BadParameter("At least one Azure discovery service type must be specified, the supported resource types are: %v",
-				constants.SupportedAzureDiscoveryServices)
+				services.SupportedAzureMatchers)
 		}
 
-		for _, serviceType := range matcher.Types {
-			if !slices.Contains(constants.SupportedAzureDiscoveryServices, serviceType) {
+		for _, matcherType := range matcher.Types {
+			if !slices.Contains(services.SupportedAzureMatchers, matcherType) {
 				return trace.BadParameter("Azure discovery service type does not support %q resource type; supported resource types are: %v",
-					serviceType, constants.SupportedAzureDiscoveryServices)
+					matcherType, services.SupportedAzureMatchers)
 			}
 		}
 
@@ -563,13 +563,13 @@ func checkAndSetDefaultsForGCPMatchers(matcherInput []GCPMatcher) error {
 
 		if len(matcher.Types) == 0 {
 			return trace.BadParameter("At least one GCP discovery service type must be specified, the supported resource types are: %v",
-				constants.SupportedGCPDiscoveryServices)
+				services.SupportedGCPMatchers)
 		}
 
-		for _, serviceType := range matcher.Types {
-			if !slices.Contains(constants.SupportedGCPDiscoveryServices, serviceType) {
+		for _, matcherType := range matcher.Types {
+			if !slices.Contains(services.SupportedGCPMatchers, matcherType) {
 				return trace.BadParameter("GCP discovery service type does not support %q resource type; supported resource types are: %v",
-					serviceType, constants.SupportedGCPDiscoveryServices)
+					matcherType, services.SupportedGCPMatchers)
 			}
 		}
 

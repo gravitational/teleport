@@ -41,6 +41,11 @@ type WatcherConfig struct {
 	Interval time.Duration
 }
 
+// IsEmpty returns true if no matchers are found.
+func (c *WatcherConfig) IsEmpty() bool {
+	return len(c.AWSMatchers) == 0 && len(c.AzureMatchers) == 0
+}
+
 // CheckAndSetDefaults validates the config.
 func (c *WatcherConfig) CheckAndSetDefaults() error {
 	if c.Clients == nil {
