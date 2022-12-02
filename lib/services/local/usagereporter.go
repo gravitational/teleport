@@ -354,20 +354,24 @@ func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *
 		tlsConfig.RootCAs = pool
 	}
 
-	httpClient := &http.Client{
-		Transport: &http.Transport{
-			ForceAttemptHTTP2:   true,
-			Proxy:               http.ProxyFromEnvironment,
-			TLSClientConfig:     tlsConfig,
-			IdleConnTimeout:     defaults.HTTPIdleTimeout,
-			MaxIdleConns:        defaults.HTTPMaxIdleConns,
-			MaxIdleConnsPerHost: defaults.HTTPMaxConnsPerHost,
-		},
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-		Timeout: 5 * time.Second,
+	httpClient, err := defaults.HTTPClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	transport, ok := httpClient.Transport.(*http.Transport)
+	if !ok {
+		return nil, trace.BadParameter("invalid transport type %T", httpClient.Transport)
+	}
+
+	transport.Proxy = http.ProxyFromEnvironment
+	transport.ForceAttemptHTTP2 = true
+	transport.TLSClientConfig = tlsConfig
+
+	httpClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	httpClient.Timeout = 5 * time.Second
 
 	client := prehogclient.NewTeleportReportingServiceClient(httpClient, prehogEndpoint)
 
