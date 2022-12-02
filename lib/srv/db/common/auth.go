@@ -23,14 +23,18 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	gcpcredentialspb "cloud.google.com/go/iam/credentials/apiv1/credentialspb"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
 	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -38,6 +42,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	libauth "github.com/gravitational/teleport/lib/auth"
@@ -61,6 +66,8 @@ type Auth interface {
 	GetRDSAuthToken(sessionCtx *Session) (string, error)
 	// GetRedshiftAuthToken generates Redshift auth token.
 	GetRedshiftAuthToken(sessionCtx *Session) (string, string, error)
+	// GetRedshiftServerlessAuthToken generates Redshift Serverless auth token.
+	GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error)
 	// GetCloudSQLAuthToken generates Cloud SQL auth token.
 	GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetCloudSQLPassword generates password for a Cloud SQL database user.
@@ -217,6 +224,50 @@ propagate):
 `, err, policy)
 	}
 	return *resp.DbUser, *resp.DbPassword, nil
+}
+
+// GetRedshiftServerlessAuthToken generates Redshift Serverless auth token.
+func (a *dbAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error) {
+	// Redshift Serverless maps caller IAM users/roles to database users. For
+	// example, an IAM role "arn:aws:iam::1234567890:role/my-role-name" will be
+	// mapped to a Postgres user "IAMR:my-role-name" inside the database. So we
+	// first need to assume this IAM role before getting auth token.
+	awsMetadata := sessionCtx.Database.GetAWS()
+	roleARN, err := redshiftServerlessUsernameToRoleARN(awsMetadata, sessionCtx.DatabaseUser)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	client, err := a.cfg.Clients.GetAWSRedshiftServerlessClientForRole(ctx, awsMetadata.Region, roleARN)
+	if err != nil {
+		return "", "", trace.AccessDenied(`Could not generate Redshift Serverless auth token:
+
+  %v
+
+Make sure that IAM role %q has a trust relationship with Teleport database agent's IAM identity.
+`, err, roleARN)
+	}
+
+	// Now make the API call to generate the temporary credentials.
+	a.cfg.Log.Debugf("Generating Redshift Serverless auth token for %s.", sessionCtx)
+	resp, err := client.GetCredentialsWithContext(ctx, &redshiftserverless.GetCredentialsInput{
+		WorkgroupName: aws.String(awsMetadata.RedshiftServerless.WorkgroupName),
+		DbName:        aws.String(sessionCtx.DatabaseName),
+	})
+	if err != nil {
+		policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocumentForAssumedRole(sessionCtx.Database)
+		if getPolicyErr != nil {
+			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
+		}
+		return "", "", trace.AccessDenied(`Could not generate Redshift Serverless auth token:
+
+  %v
+
+Make sure that IAM role %q has permissions to generate credentials. Here is a sample IAM policy:
+
+%v
+`, err, roleARN, policy)
+	}
+	return aws.StringValue(resp.DbUser), aws.StringValue(resp.DbPassword), nil
 }
 
 // GetCloudSQLAuthToken returns authorization token that will be used as a
@@ -757,4 +808,37 @@ func matchAzureResourceName(resourceID, name string) bool {
 	}
 
 	return parsedResource.Name == name
+}
+
+// redshiftServerlessUsernameToRoleARN converts a database username to AWS role
+// ARN for a Redshift Serverless database.
+func redshiftServerlessUsernameToRoleARN(aws types.AWS, username string) (string, error) {
+	switch {
+	// These are in-database usernames created when logged in as IAM
+	// users/roles. We will enforce Teleport users to provide IAM roles
+	// instead.
+	case strings.HasPrefix(username, "IAM:") || strings.HasPrefix(username, "IAMR:"):
+		return "", trace.BadParameter("expecting name or ARN of an AWS IAM role but got %v", username)
+
+	case arn.IsARN(username):
+		if parsedARN, err := arn.Parse(username); err != nil {
+			return "", trace.Wrap(err)
+		} else if parsedARN.Service != iam.ServiceName || !strings.HasPrefix(parsedARN.Resource, "role/") {
+			return "", trace.BadParameter("expecting name or ARN of an AWS IAM role but got %v", username)
+		}
+		return username, nil
+
+	default:
+		resource := username
+		if !strings.Contains(resource, "/") {
+			resource = fmt.Sprintf("role/%s", username)
+		}
+
+		return arn.ARN{
+			Partition: awsutils.GetPartitionFromRegion(aws.Region),
+			Service:   iam.ServiceName,
+			AccountID: aws.AccountID,
+			Resource:  resource,
+		}.String(), nil
+	}
 }
