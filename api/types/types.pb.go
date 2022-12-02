@@ -3067,6 +3067,8 @@ func (m *ProvisionTokenSpecV2) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ProvisionTokenSpecV2 proto.InternalMessageInfo
 
+// ProvisionTokenSpecV2Github contains the GitHub-specific part of the
+// ProvisionTokenSpecV2
 type ProvisionTokenSpecV2GitHub struct {
 	// Allow is a list of TokenRules, nodes using this token must match one
 	// allow rule to use this token.
@@ -3171,6 +3173,8 @@ func (m *ProvisionTokenSpecV2GitHub_Rule) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ProvisionTokenSpecV2GitHub_Rule proto.InternalMessageInfo
 
+// ProvisionTokenSpecV2CircleCI contains the CircleCI-specific part of the
+// ProvisionTokenSpecV2
 type ProvisionTokenSpecV2CircleCI struct {
 	// Allow is a list of TokenRules, nodes using this token must match one
 	// allow rule to use this token.
@@ -3255,7 +3259,11 @@ func (m *ProvisionTokenSpecV2CircleCI_Rule) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ProvisionTokenSpecV2CircleCI_Rule proto.InternalMessageInfo
 
+// ProvisionTokenSpecV2Kubernetes contains the Kubernetes-specific part of the
+// ProvisionTokenSpecV2
 type ProvisionTokenSpecV2Kubernetes struct {
+	// Allow is a list of Rules, nodes using this token must match one
+	// allow rule to use this token.
 	Allow                []*ProvisionTokenSpecV2Kubernetes_Rule `protobuf:"bytes,1,rep,name=Allow,proto3" json:"allow,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                               `json:"-"`
 	XXX_unrecognized     []byte                                 `json:"-"`
@@ -3295,7 +3303,11 @@ func (m *ProvisionTokenSpecV2Kubernetes) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ProvisionTokenSpecV2Kubernetes proto.InternalMessageInfo
 
+// Rule is a set of properties the Kubernetes-issued token might have to be
+// allowed to use this ProvisionToken
 type ProvisionTokenSpecV2Kubernetes_Rule struct {
+	// ServiceAccount is the namespaced name of the Kubernetes service account.
+	// Its format is "namespace:service-account".
 	ServiceAccount       string   `protobuf:"bytes,1,opt,name=ServiceAccount,proto3" json:"service_account,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

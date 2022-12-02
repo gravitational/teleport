@@ -91,6 +91,16 @@ func (v *Validator) Validate(ctx context.Context, token string) (*v1.UserInfo, e
 		return nil, trace.AccessDenied("kubernetes failed to validate token: %s", reviewResult.Status.Error)
 	}
 
+	// Check the Username is a service account.
+	// A user token would not match rules anyway, but we can produce a more relevant error message here.
+	if !strings.HasPrefix(reviewResult.Status.User.Username, ServiceAccountNamePrefix) {
+		return nil, trace.BadParameter("token user is not a service account: %s", reviewResult.Status.User.Username)
+	}
+
+	if !slices.Contains(reviewResult.Status.User.Groups, serviceAccountGroup) {
+		return nil, trace.BadParameter("token user '%s' does not belong to the '%s' group", reviewResult.Status.User.Username, serviceAccountGroup)
+	}
+
 	// Legacy tokens are long-lived and not bound to pods. We should not accept them if the cluster supports
 	// bound tokens. Bound token support is GA since 1.20 and volume projection is beta since 1.21.
 	// We can expect any 1.21+ cluster to use bound tokens.
@@ -104,22 +114,12 @@ func (v *Validator) Validate(ctx context.Context, token string) (*v1.UserInfo, e
 		return nil, trace.Wrap(err)
 	}
 
-	// Check the Username is a service account.
-	// A user token would not match rules anyway, but we can produce a more relevant error message here.
-	if !strings.HasPrefix(reviewResult.Status.User.Username, ServiceAccountNamePrefix) {
-		return nil, trace.BadParameter("token user is not a service account: %s", reviewResult.Status.User.Username)
-	}
-
-	if !slices.Contains(reviewResult.Status.User.Groups, serviceAccountGroup) {
-		return nil, trace.BadParameter("token user '%s' does not belong to the '%s' group", reviewResult.Status.User.Username, serviceAccountGroup)
-	}
-
 	// We know if the token is bound to a pod if its name is in the Extra userInfo.
 	// If the token is not bound while Kubernetes supports bound tokens we abort.
 	if _, ok := reviewResult.Status.User.Extra[extraDataPodNameField]; !ok && boundTokenSupport {
 		return nil, trace.BadParameter(
 			"legacy SA tokens are not accepted as kubernetes version %s supports bound tokens",
-			kubeVersion.GitVersion,
+			kubeVersion.String(),
 		)
 	}
 

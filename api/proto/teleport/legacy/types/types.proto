@@ -1022,6 +1022,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2Kubernetes Kubernetes = 10 [(gogoproto.jsontag) = "kubernetes,omitempty"];
 }
 
+// ProvisionTokenSpecV2Github contains the GitHub-specific part of the
+// ProvisionTokenSpecV2
 message ProvisionTokenSpecV2GitHub {
   // Rule includes fields mapped from `lib/githubactions.IDToken`
   // Not all fields should be included, only ones that we expect to be useful
@@ -1053,6 +1055,8 @@ message ProvisionTokenSpecV2GitHub {
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
 }
 
+// ProvisionTokenSpecV2CircleCI contains the CircleCI-specific part of the
+// ProvisionTokenSpecV2
 message ProvisionTokenSpecV2CircleCI {
   message Rule {
     string ProjectID = 1 [(gogoproto.jsontag) = "project_id,omitempty"];
@@ -1064,10 +1068,18 @@ message ProvisionTokenSpecV2CircleCI {
   string OrganizationID = 2 [(gogoproto.jsontag) = "organization_id,omitempty"];
 }
 
+// ProvisionTokenSpecV2Kubernetes contains the Kubernetes-specific part of the
+// ProvisionTokenSpecV2
 message ProvisionTokenSpecV2Kubernetes {
+  // Rule is a set of properties the Kubernetes-issued token might have to be
+  // allowed to use this ProvisionToken
   message Rule {
+    // ServiceAccount is the namespaced name of the Kubernetes service account.
+    // Its format is "namespace:service-account".
     string ServiceAccount = 1 [(gogoproto.jsontag) = "service_account,omitempty"];
   }
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
 }
 

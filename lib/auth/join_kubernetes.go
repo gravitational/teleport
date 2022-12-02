@@ -51,7 +51,6 @@ func (a *Server) checkKubernetesJoinRequest(ctx context.Context, req *types.Regi
 		"token":    pt.GetName(),
 	}).Info("Kubernetes workload trying to join cluster")
 
-
 	return trace.Wrap(checkKubernetesAllowRules(pt, userInfo))
 }
 
@@ -66,7 +65,6 @@ func checkKubernetesAllowRules(pt types.ProvisionToken, userInfo *v1.UserInfo) e
 		if fmt.Sprintf("%s:%s", kubernetestoken.ServiceAccountNamePrefix, rule.ServiceAccount) != userInfo.Username {
 			continue
 		}
-		// All provided rules met.
 		return nil
 	}
 

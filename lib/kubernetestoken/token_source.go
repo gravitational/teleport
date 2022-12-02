@@ -37,7 +37,7 @@ func GetIDToken(getEnv getEnvFunc, readFile readFileFunc) (string, error) {
 
 	token, err := readFile(path)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", trace.ConvertSystemError(err)
 	}
 
 	// Usually kubernetes tokens don't start or end with newlines, but better safe than sorry
