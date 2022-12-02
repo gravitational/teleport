@@ -62,9 +62,8 @@ func TestChaosUpload(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	scanDir, err := os.MkdirTemp("", "teleport-streams")
-	require.NoError(t, err)
-	defer os.RemoveAll(scanDir)
+	scanDir := t.TempDir()
+	corruptedDir := t.TempDir()
 
 	var terminateConnection, failCreateAuditStream, failResumeAuditStream atomic.Uint64
 
@@ -113,10 +112,11 @@ func TestChaosUpload(t *testing.T) {
 
 	scanPeriod := 10 * time.Second
 	uploader, err := NewUploader(UploaderConfig{
-		ScanDir:    scanDir,
-		ScanPeriod: scanPeriod,
-		Streamer:   faultyStreamer,
-		Clock:      clock,
+		ScanDir:      scanDir,
+		CorruptedDir: corruptedDir,
+		ScanPeriod:   scanPeriod,
+		Streamer:     faultyStreamer,
+		Clock:        clock,
 	})
 	require.NoError(t, err)
 	go uploader.Serve(ctx)
