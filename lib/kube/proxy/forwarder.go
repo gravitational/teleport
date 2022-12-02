@@ -750,10 +750,10 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 // async streamer buffers the events to disk and uploads the events later
 func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
 	if services.IsRecordSync(ctx.recordingConfig.GetMode()) {
-		f.log.Debugf("Using sync streamer for session.")
+		f.log.Debug("Using sync streamer for session.")
 		return f.cfg.AuthClient, nil
 	}
-	f.log.Debugf("Using async streamer for session.")
+	f.log.Debug("Using async streamer for session.")
 	dir := filepath.Join(
 		f.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
 		events.StreamingSessionsDir, apidefaults.Namespace,

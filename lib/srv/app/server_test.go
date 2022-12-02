@@ -27,7 +27,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -247,18 +246,6 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 	// Generate certificate for AWS console application.
 	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "readonly")
-
-	// Make sure the upload directory is created.
-	err = os.MkdirAll(filepath.Join(
-		s.dataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingSessionsDir, defaults.Namespace,
-	), 0o755)
-	require.NoError(t, err)
-	err = os.MkdirAll(filepath.Join(
-		s.dataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.CorruptedSessionsDir, defaults.Namespace,
-	), 0o755)
-	require.NoError(t, err)
 
 	lockWatcher, err := services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{

@@ -28,7 +28,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -426,22 +425,6 @@ func (s *WindowsService) newStreamer(ctx context.Context, recConfig types.Sessio
 	s.cfg.Log.Debugf("using async streamer (for mode %v)", recConfig.GetMode())
 	uploadDir := filepath.Join(s.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
 		libevents.StreamingSessionsDir, apidefaults.Namespace)
-	corruptedDir := filepath.Join(s.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		libevents.CorruptedSessionsDir, apidefaults.Namespace)
-
-	// ensure uploader directories exist
-	for _, dir := range []string{uploadDir, corruptedDir} {
-		_, err := utils.StatDir(dir)
-		if trace.IsNotFound(err) {
-			s.cfg.Log.Debugf("Creating upload dir %v.", dir)
-			if err := os.MkdirAll(dir, 0755); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		} else if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	fileStreamer, err := filesessions.NewStreamer(uploadDir)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -21,8 +21,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -34,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -90,18 +87,6 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 		cfg.CipherSuites = utils.DefaultCipherSuites()
 	}
 	return nil
-}
-
-// CreateUploaderDirs creates the directory structure for the file uploader service.
-func CreateUploaderDirs(dir string) error {
-	var errs []error
-
-	for _, dirname := range []string{events.StreamingSessionsDir, events.CorruptedSessionsDir} {
-		path := filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload, dirname, apidefaults.Namespace)
-		errs = append(errs, trace.ConvertSystemError(os.MkdirAll(path, teleport.SharedDirMode)))
-	}
-
-	return trace.NewAggregate(errs...)
 }
 
 // TestServer defines the set of server components for a test

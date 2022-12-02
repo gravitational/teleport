@@ -18,7 +18,6 @@ package db
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 
 	"github.com/gravitational/teleport"
@@ -29,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -79,24 +77,6 @@ func (s *Server) newStreamer(ctx context.Context, sessionID string, recConfig ty
 	uploadDir := filepath.Join(
 		s.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
 		libevents.StreamingSessionsDir, apidefaults.Namespace)
-	corruptedDir := filepath.Join(
-		s.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		libevents.CorruptedSessionsDir, apidefaults.Namespace)
-
-	for _, dir := range []string{uploadDir, corruptedDir} {
-		// Make sure the upload dir exists, otherwise file streamer will fail.
-		_, err := utils.StatDir(dir)
-		if err != nil && !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		if trace.IsNotFound(err) {
-			s.log.Debugf("Creating upload dir %v.", uploadDir)
-			if err := os.MkdirAll(uploadDir, 0755); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-	}
-
 	fileStreamer, err := filesessions.NewStreamer(uploadDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
