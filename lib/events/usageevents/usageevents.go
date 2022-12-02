@@ -36,7 +36,7 @@ type UsageLogger struct {
 	*logrus.Entry
 
 	// inner is a wrapped audit log implementation
-	inner events.IAuditLog
+	inner apievents.Emitter
 
 	// reporter is a usage reporter, where filtered audit events will be sent
 	reporter services.UsageReporter
@@ -52,7 +52,7 @@ func (u *UsageLogger) report(event services.UsageAnonymizable) error {
 	return trace.Wrap(u.reporter.SubmitAnonymizedUsageEvents(event))
 }
 
-func (u *UsageLogger) filterAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	switch e := event.(type) {
 	case *apievents.UserLogin:
 		// Only count successful logins.
@@ -91,7 +91,7 @@ func (u *UsageLogger) filterAuditEvent(ctx context.Context, event apievents.Audi
 }
 
 func (u *UsageLogger) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	if err := u.filterAuditEvent(ctx, event); err != nil {
+	if err := u.reportAuditEvent(ctx, event); err != nil {
 		// We don't ever want this to fail or bubble up errors, so the best we
 		// can do is complain to the logs.
 		u.Warnf("Failed to filter audit event: %+v", err)
@@ -107,15 +107,16 @@ func (u *UsageLogger) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 // New creates a new usage event IAuditLog impl, which wraps another IAuditLog
 // impl and forwards a subset of audit log events to the cluster UsageReporter
 // service.
-func New(reporter services.UsageReporter, parentLog logrus.FieldLogger, inner events.IAuditLog) (*UsageLogger, error) {
-	if parentLog == nil {
-		parentLog = logrus.StandardLogger()
+func New(reporter services.UsageReporter, log logrus.FieldLogger, inner events.IAuditLog) (*UsageLogger, error) {
+	if log == nil {
+		log = logrus.StandardLogger()
 	}
 
-	l := parentLog.WithField(trace.Component, teleport.Component(teleport.ComponentUsageReporting))
-
 	return &UsageLogger{
-		Entry:    l,
+		Entry: log.WithField(
+			trace.Component,
+			teleport.Component(teleport.ComponentUsageReporting),
+		),
 		reporter: reporter,
 		inner:    inner,
 	}, nil

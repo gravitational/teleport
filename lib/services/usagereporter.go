@@ -26,8 +26,9 @@ import (
 
 // UsageAnonymizable is an event that can be anonymized.
 type UsageAnonymizable interface {
-	// Anonymize uses the given anonymizer to anonymize all fields in place.
-	Anonymize(utils.Anonymizer) UsageAnonymizable
+	// Anonymize uses the given anonymizer to anonymize the event and converts
+	// it into a partially filled SubmitEventRequest.
+	Anonymize(utils.Anonymizer) prehogv1.SubmitEventRequest
 }
 
 // UsageReporter is a service that accepts Teleport usage events.
@@ -41,19 +42,27 @@ type UsageReporter interface {
 // potentially via SSO.
 type UsageUserLogin prehogv1.UserLoginEvent
 
-func (u *UsageUserLogin) Anonymize(a utils.Anonymizer) UsageAnonymizable {
-	return &UsageUserLogin{
-		UserName:      a.AnonymizeString(u.UserName),
-		ConnectorType: u.ConnectorType,
+func (u *UsageUserLogin) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_UserLogin{
+			UserLogin: &prehogv1.UserLoginEvent{
+				UserName:      a.AnonymizeString(u.UserName),
+				ConnectorType: u.ConnectorType,
+			},
+		},
 	}
 }
 
 // UsageSSOCreate is emitted when an SSO connector has been created.
 type UsageSSOCreate prehogv1.SSOCreateEvent
 
-func (u *UsageSSOCreate) Anonymize(a utils.Anonymizer) UsageAnonymizable {
-	return &UsageSSOCreate{
-		ConnectorType: u.ConnectorType,
+func (u *UsageSSOCreate) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_SsoCreate{
+			SsoCreate: &prehogv1.SSOCreateEvent{
+				ConnectorType: u.ConnectorType,
+			},
+		},
 	}
 }
 
@@ -61,10 +70,14 @@ func (u *UsageSSOCreate) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 // (ssh, etc).
 type UsageSessionStart prehogv1.SessionStartEvent
 
-func (u *UsageSessionStart) Anonymize(a utils.Anonymizer) UsageAnonymizable {
-	return &UsageSessionStart{
-		UserName:    a.AnonymizeString(u.UserName),
-		SessionType: u.SessionType,
+func (u *UsageSessionStart) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_SessionStart{
+			SessionStart: &prehogv1.SessionStartEvent{
+				UserName:    a.AnonymizeString(u.UserName),
+				SessionType: u.SessionType,
+			},
+		},
 	}
 }
 
@@ -72,19 +85,27 @@ func (u *UsageSessionStart) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 // created.
 type UsageResourceCreate prehogv1.ResourceCreateEvent
 
-func (u *UsageResourceCreate) Anonymize(a utils.Anonymizer) UsageAnonymizable {
-	return &UsageResourceCreate{
-		ResourceType: u.ResourceType,
+func (u *UsageResourceCreate) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_ResourceCreate{
+			ResourceCreate: &prehogv1.ResourceCreateEvent{
+				ResourceType: u.ResourceType,
+			},
+		},
 	}
 }
 
 // UsageUIBannerClick is a UI event sent when a banner is clicked.
 type UsageUIBannerClick prehogv1.UIBannerClickEvent
 
-func (u *UsageUIBannerClick) Anonymize(a utils.Anonymizer) UsageAnonymizable {
-	return &UsageUIBannerClick{
-		UserName: a.AnonymizeString(u.UserName),
-		Alert:    u.Alert,
+func (u *UsageUIBannerClick) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_UiBannerClick{
+			UiBannerClick: &prehogv1.UIBannerClickEvent{
+				UserName: a.AnonymizeString(u.UserName),
+				Alert:    u.Alert,
+			},
+		},
 	}
 }
 
@@ -92,9 +113,13 @@ func (u *UsageUIBannerClick) Anonymize(a utils.Anonymizer) UsageAnonymizable {
 // button is clicked.
 type UsageUIOnboardGetStartedClickEvent prehogv1.UIOnboardGetStartedClickEvent
 
-func (u *UsageUIOnboardGetStartedClickEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
-	return &UsageUIOnboardGetStartedClickEvent{
-		UserName: a.AnonymizeString(u.UserName),
+func (u *UsageUIOnboardGetStartedClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_UiOnboardGetStartedClick{
+			UiOnboardGetStartedClick: &prehogv1.UIOnboardGetStartedClickEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
 	}
 }
 
@@ -102,9 +127,13 @@ func (u *UsageUIOnboardGetStartedClickEvent) Anonymize(a utils.Anonymizer) Usage
 // onboarding is complete.
 type UsageUIOnboardCompleteGoToDashboardClickEvent prehogv1.UIOnboardCompleteGoToDashboardClickEvent
 
-func (u *UsageUIOnboardCompleteGoToDashboardClickEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
-	return &UsageUIOnboardCompleteGoToDashboardClickEvent{
-		UserName: a.AnonymizeString(u.UserName),
+func (u *UsageUIOnboardCompleteGoToDashboardClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_UiOnboardCompleteGoToDashboardClick{
+			UiOnboardCompleteGoToDashboardClick: &prehogv1.UIOnboardCompleteGoToDashboardClickEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
 	}
 }
 
@@ -112,9 +141,13 @@ func (u *UsageUIOnboardCompleteGoToDashboardClickEvent) Anonymize(a utils.Anonym
 // clicks the "add first resource" button.
 type UsageUIOnboardAddFirstResourceClickEvent prehogv1.UIOnboardAddFirstResourceClickEvent
 
-func (u *UsageUIOnboardAddFirstResourceClickEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
-	return &UsageUIOnboardAddFirstResourceClickEvent{
-		UserName: a.AnonymizeString(u.UserName),
+func (u *UsageUIOnboardAddFirstResourceClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_UiOnboardAddFirstResourceClick{
+			UiOnboardAddFirstResourceClick: &prehogv1.UIOnboardAddFirstResourceClickEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
 	}
 }
 
@@ -122,9 +155,13 @@ func (u *UsageUIOnboardAddFirstResourceClickEvent) Anonymize(a utils.Anonymizer)
 // clicks the "add first resource later" button.
 type UsageUIOnboardAddFirstResourceLaterClickEvent prehogv1.UIOnboardAddFirstResourceLaterClickEvent
 
-func (u *UsageUIOnboardAddFirstResourceLaterClickEvent) Anonymize(a utils.Anonymizer) UsageAnonymizable {
-	return &UsageUIOnboardAddFirstResourceLaterClickEvent{
-		UserName: a.AnonymizeString(u.UserName),
+func (u *UsageUIOnboardAddFirstResourceLaterClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_UiOnboardAddFirstResourceLaterClick{
+			UiOnboardAddFirstResourceLaterClick: &prehogv1.UIOnboardAddFirstResourceLaterClickEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
 	}
 }
 
@@ -132,9 +169,13 @@ func (u *UsageUIOnboardAddFirstResourceLaterClickEvent) Anonymize(a utils.Anonym
 // when the user configures login credentials.
 type UsageUIOnboardSetCredentialSubmit prehogv1.UIOnboardSetCredentialSubmitEvent
 
-func (u *UsageUIOnboardSetCredentialSubmit) Anonymize(a utils.Anonymizer) UsageAnonymizable {
-	return &UsageUIOnboardSetCredentialSubmit{
-		UserName: a.AnonymizeString(u.UserName),
+func (u *UsageUIOnboardSetCredentialSubmit) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_UiOnboardSetCredentialSubmit{
+			UiOnboardSetCredentialSubmit: &prehogv1.UIOnboardSetCredentialSubmitEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
 	}
 }
 
@@ -142,9 +183,13 @@ func (u *UsageUIOnboardSetCredentialSubmit) Anonymize(a utils.Anonymizer) UsageA
 // when the MFA challenge is completed.
 type UsageUIOnboardRegisterChallengeSubmit prehogv1.UIOnboardRegisterChallengeSubmitEvent
 
-func (u *UsageUIOnboardRegisterChallengeSubmit) Anonymize(a utils.Anonymizer) UsageAnonymizable {
-	return &UsageUIOnboardRegisterChallengeSubmit{
-		UserName: a.AnonymizeString(u.UserName),
+func (u *UsageUIOnboardRegisterChallengeSubmit) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_UiOnboardRegisterChallengeSubmit{
+			UiOnboardRegisterChallengeSubmit: &prehogv1.UIOnboardRegisterChallengeSubmitEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
 	}
 }
 
@@ -152,9 +197,13 @@ func (u *UsageUIOnboardRegisterChallengeSubmit) Anonymize(a utils.Anonymizer) Us
 // tenant onboarding when a user configures recovery codes.
 type UsageUIOnboardRecoveryCodesContinueClick prehogv1.UIOnboardRecoveryCodesContinueClickEvent
 
-func (u *UsageUIOnboardRecoveryCodesContinueClick) Anonymize(a utils.Anonymizer) UsageAnonymizable {
-	return &UsageUIOnboardRecoveryCodesContinueClick{
-		UserName: a.AnonymizeString(u.UserName),
+func (u *UsageUIOnboardRecoveryCodesContinueClick) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_UiOnboardRecoveryCodesContinueClick{
+			UiOnboardRecoveryCodesContinueClick: &prehogv1.UIOnboardRecoveryCodesContinueClickEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
 	}
 }
 

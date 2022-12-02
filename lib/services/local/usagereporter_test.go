@@ -95,8 +95,6 @@ func newTestingUsageReporter(
 
 	reporter := &UsageReporter{
 		Entry:           l,
-		ctx:             ctx,
-		cancel:          cancel,
 		anonymizer:      anonymizer,
 		events:          make(chan []*prehogapi.SubmitEventRequest, 1),
 		submissionQueue: make(chan []*prehogapi.SubmitEventRequest, 1),
@@ -112,7 +110,7 @@ func newTestingUsageReporter(
 		receiveFunc:     receive,
 	}
 
-	go reporter.Run()
+	go reporter.Run(ctx)
 
 	// Wait for timers to init.
 	clock.BlockUntil(1)
@@ -148,28 +146,30 @@ func compareUsageEvents(t *testing.T, reporter *UsageReporter, inputs []services
 
 		switch e := output.GetEvent().(type) {
 		case *prehogapi.SubmitEventRequest_UserLogin:
-			userLogin, ok := anonymized.(*services.UsageUserLogin)
-			require.True(t, ok)
+			userLogin := anonymized.GetUserLogin()
+			require.NotNil(t, userLogin)
 
 			require.Equal(t, userLogin.UserName, e.UserLogin.UserName)
 			require.Equal(t, userLogin.ConnectorType, e.UserLogin.ConnectorType)
 		case *prehogapi.SubmitEventRequest_SsoCreate:
-			ssoCreate, ok := anonymized.(*services.UsageSSOCreate)
-			require.True(t, ok)
+			ssoCreate := anonymized.GetSsoCreate()
+			require.NotNil(t, ssoCreate)
 
 			require.Equal(t, ssoCreate.ConnectorType, e.SsoCreate.ConnectorType)
 		case *prehogapi.SubmitEventRequest_SessionStart:
-			sessionStart, ok := anonymized.(*services.UsageSessionStart)
-			require.True(t, ok)
+			sessionStart := anonymized.GetSessionStart()
+			require.NotNil(t, sessionStart)
 
 			require.Equal(t, sessionStart.UserName, e.SessionStart.UserName)
 			require.Equal(t, sessionStart.SessionType, e.SessionStart.SessionType)
 		case *prehogapi.SubmitEventRequest_ResourceCreate:
-			resourceCreate, ok := anonymized.(*services.UsageResourceCreate)
-			require.True(t, ok)
+			resourceCreate := anonymized.GetResourceCreate()
+			require.NotNil(t, resourceCreate)
 
 			require.Equal(t, resourceCreate.ResourceType, e.ResourceCreate.ResourceType)
 		default:
+			// Note: we only have a subset of events here, but that's all we
+			// create in tests.
 			t.Fatalf("Unknown event type, can't validate anonymization: %T", output.GetEvent())
 		}
 	}

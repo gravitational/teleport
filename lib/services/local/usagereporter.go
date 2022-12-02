@@ -51,8 +51,8 @@ const (
 	usageReporterMaxBatchSize = 100
 
 	// usageReporterMaxBatchAge is the maximum age a batch may reach before
-	// being flushed, regardless of the batch size
-	usageReporterMaxBatchAge = time.Second * 30
+	// being flushed, regardless of the batch size.
+	usageReporterMaxBatchAge = time.Second * 5
 
 	// usageReporterMaxBufferSize is the maximum size to which the event buffer
 	// may grow. Events submitted once this limit is reached will be discarded.
@@ -141,10 +141,6 @@ type UsageReporter struct {
 	// submitClock is the clock used for the submission goroutine
 	submitClock clockwork.Clock
 
-	ctx context.Context
-
-	cancel context.CancelFunc
-
 	// anonymizer is the anonymizer used for filtered audit events.
 	anonymizer utils.Anonymizer
 
@@ -190,10 +186,10 @@ type UsageReporter struct {
 
 // runSubmit starts the submission thread. It should be run as a background
 // goroutine to ensure SubmitAnonymizedUsageEvents() never blocks.
-func (r *UsageReporter) runSubmit() {
+func (r *UsageReporter) runSubmit(ctx context.Context) {
 	for {
 		select {
-		case <-r.ctx.Done():
+		case <-ctx.Done():
 			return
 		case batch := <-r.submissionQueue:
 			t0 := time.Now()
@@ -217,7 +213,12 @@ func (r *UsageReporter) runSubmit() {
 		// Always sleep a bit to avoid spamming the server. We need a secondary
 		// (possibly fake) clock here for testing to ensure
 		// FakeClock.BlockUntil() doesn't include this sleep call.
-		r.submitClock.Sleep(r.submitDelay)
+		select {
+		case <-ctx.Done():
+			return
+		case <-r.submitClock.After(r.submitDelay):
+			continue
+		}
 	}
 }
 
@@ -226,7 +227,6 @@ func (r *UsageReporter) runSubmit() {
 func (r *UsageReporter) enqueueBatch() {
 	if len(r.buf) == 0 {
 		// Nothing to do.
-		r.Debugf("will not submit empty batch")
 		return
 	}
 
@@ -255,22 +255,22 @@ func (r *UsageReporter) enqueueBatch() {
 	default:
 		// The queue is full, we'll try again later. Leave the existing buf in
 		// place.
-		r.Debugf("waiting to submit batch of %d due to full queue", len(r.buf))
+		r.Debugf("waiting to submit batch of %d events due to full queue", len(r.buf))
 	}
 }
 
 // Run begins processing incoming usage events. It should be run in a goroutine.
-func (r *UsageReporter) Run() {
+func (r *UsageReporter) Run(ctx context.Context) {
 	timer := r.clock.NewTimer(r.maxBatchAge)
 
 	// Also start the submission goroutine.
-	go r.runSubmit()
+	go r.runSubmit(ctx)
 
 	r.Debug("usage reporter is ready")
 
 	for {
 		select {
-		case <-r.ctx.Done():
+		case <-ctx.Done():
 			return
 		case <-timer.Chan():
 			// Once the timer triggers, send any non-empty batch.
@@ -312,132 +312,14 @@ func (r *UsageReporter) Run() {
 	}
 }
 
-// convertEvent anonymizes an event and converts a UsageAnonymizable into a
-// SubmitEventRequest.
-func (r *UsageReporter) convertEvent(event services.UsageAnonymizable) (*prehogapi.SubmitEventRequest, error) {
-	// Anonymize the event and replace the old value.
-	event = event.Anonymize(r.anonymizer)
-
-	time := timestamppb.New(r.clock.Now())
-	clusterName := r.anonymizer.AnonymizeString(r.clusterName.GetClusterName())
-
-	// "Event" can't be named because protoc doesn't export the interface, so
-	// instead we have a giant, fallible switch statement for something the
-	// compiler could just as well check for us >:(
-	switch e := event.(type) {
-	case *services.UsageUserLogin:
-		return &prehogapi.SubmitEventRequest{
-			ClusterName: clusterName,
-			Timestamp:   time,
-			Event: &prehogapi.SubmitEventRequest_UserLogin{
-				UserLogin: (*prehogapi.UserLoginEvent)(e),
-			},
-		}, nil
-	case *services.UsageSSOCreate:
-		return &prehogapi.SubmitEventRequest{
-			ClusterName: clusterName,
-			Timestamp:   time,
-			Event: &prehogapi.SubmitEventRequest_SsoCreate{
-				SsoCreate: (*prehogapi.SSOCreateEvent)(e),
-			},
-		}, nil
-	case *services.UsageSessionStart:
-		return &prehogapi.SubmitEventRequest{
-			ClusterName: clusterName,
-			Timestamp:   time,
-			Event: &prehogapi.SubmitEventRequest_SessionStart{
-				SessionStart: (*prehogapi.SessionStartEvent)(e),
-			},
-		}, nil
-	case *services.UsageResourceCreate:
-		return &prehogapi.SubmitEventRequest{
-			ClusterName: clusterName,
-			Timestamp:   time,
-			Event: &prehogapi.SubmitEventRequest_ResourceCreate{
-				ResourceCreate: (*prehogapi.ResourceCreateEvent)(e),
-			},
-		}, nil
-	case *services.UsageUIBannerClick:
-		return &prehogapi.SubmitEventRequest{
-			ClusterName: clusterName,
-			Timestamp:   time,
-			Event: &prehogapi.SubmitEventRequest_UiBannerClick{
-				UiBannerClick: (*prehogapi.UIBannerClickEvent)(e),
-			},
-		}, nil
-	case *services.UsageUIOnboardGetStartedClickEvent:
-		return &prehogapi.SubmitEventRequest{
-			ClusterName: clusterName,
-			Timestamp:   time,
-			Event: &prehogapi.SubmitEventRequest_UiOnboardGetStartedClick{
-				UiOnboardGetStartedClick: (*prehogapi.UIOnboardGetStartedClickEvent)(e),
-			},
-		}, nil
-	case *services.UsageUIOnboardCompleteGoToDashboardClickEvent:
-		return &prehogapi.SubmitEventRequest{
-			ClusterName: clusterName,
-			Timestamp:   time,
-			Event: &prehogapi.SubmitEventRequest_UiOnboardCompleteGoToDashboardClick{
-				UiOnboardCompleteGoToDashboardClick: (*prehogapi.UIOnboardCompleteGoToDashboardClickEvent)(e),
-			},
-		}, nil
-	case *services.UsageUIOnboardAddFirstResourceClickEvent:
-		return &prehogapi.SubmitEventRequest{
-			ClusterName: clusterName,
-			Timestamp:   time,
-			Event: &prehogapi.SubmitEventRequest_UiOnboardAddFirstResourceClick{
-				UiOnboardAddFirstResourceClick: (*prehogapi.UIOnboardAddFirstResourceClickEvent)(e),
-			},
-		}, nil
-	case *services.UsageUIOnboardAddFirstResourceLaterClickEvent:
-		return &prehogapi.SubmitEventRequest{
-			ClusterName: clusterName,
-			Timestamp:   time,
-			Event: &prehogapi.SubmitEventRequest_UiOnboardAddFirstResourceLaterClick{
-				UiOnboardAddFirstResourceLaterClick: (*prehogapi.UIOnboardAddFirstResourceLaterClickEvent)(e),
-			},
-		}, nil
-	case *services.UsageUIOnboardSetCredentialSubmit:
-		return &prehogapi.SubmitEventRequest{
-			ClusterName: clusterName,
-			Timestamp:   time,
-			Event: &prehogapi.SubmitEventRequest_UiOnboardSetCredentialSubmit{
-				UiOnboardSetCredentialSubmit: (*prehogapi.UIOnboardSetCredentialSubmitEvent)(e),
-			},
-		}, nil
-	case *services.UsageUIOnboardRegisterChallengeSubmit:
-		return &prehogapi.SubmitEventRequest{
-			ClusterName: clusterName,
-			Timestamp:   time,
-			Event: &prehogapi.SubmitEventRequest_UiOnboardRegisterChallengeSubmit{
-				UiOnboardRegisterChallengeSubmit: (*prehogapi.UIOnboardRegisterChallengeSubmitEvent)(e),
-			},
-		}, nil
-	case *services.UsageUIOnboardRecoveryCodesContinueClick:
-		return &prehogapi.SubmitEventRequest{
-			ClusterName: clusterName,
-			Timestamp:   time,
-			Event: &prehogapi.SubmitEventRequest_UiOnboardRecoveryCodesContinueClick{
-				UiOnboardRecoveryCodesContinueClick: (*prehogapi.UIOnboardRecoveryCodesContinueClickEvent)(e),
-			},
-		}, nil
-	default:
-		return nil, trace.BadParameter("unexpected event usage type %T", event)
-	}
-}
-
 func (r *UsageReporter) SubmitAnonymizedUsageEvents(events ...services.UsageAnonymizable) error {
 	var anonymized []*prehogapi.SubmitEventRequest
 
 	for _, e := range events {
-		e.Anonymize(r.anonymizer)
-
-		converted, err := r.convertEvent(e)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		anonymized = append(anonymized, converted)
+		req := e.Anonymize(r.anonymizer)
+		req.ClusterName = r.anonymizer.AnonymizeString(r.clusterName.GetClusterName())
+		req.Timestamp = timestamppb.New(r.clock.Now())
+		anonymized = append(anonymized, &req)
 
 		usageEventsSubmitted.Inc()
 	}
@@ -460,12 +342,12 @@ func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *
 		// Self-signed test licenses may not have a proper issuer and won't be
 		// used if just passed in via Certificates, so we'll use this to
 		// explicitly set the client cert we want to use.
-		GetClientCertificate: func(cri *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 			return clientCert, nil
 		},
 	}
 
-	if caCertPEM != nil {
+	if len(caCertPEM) > 0 {
 		pool := x509.NewCertPool()
 		pool.AppendCertsFromPEM(caCertPEM)
 
@@ -481,7 +363,7 @@ func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *
 			MaxIdleConns:        defaults.HTTPMaxIdleConns,
 			MaxIdleConnsPerHost: defaults.HTTPMaxConnsPerHost,
 		},
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
 		Timeout: 5 * time.Second,
@@ -506,12 +388,10 @@ func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *
 
 // NewUsageReporter creates a new usage reporter. `Run()` must be executed to
 // process incoming events.
-func NewUsageReporter(ctx context.Context, parentLog logrus.FieldLogger, clusterName types.ClusterName, submitter UsageSubmitFunc) (*UsageReporter, error) {
-	if parentLog == nil {
-		parentLog = logrus.StandardLogger()
+func NewUsageReporter(ctx context.Context, log logrus.FieldLogger, clusterName types.ClusterName, submitter UsageSubmitFunc) (*UsageReporter, error) {
+	if log == nil {
+		log = logrus.StandardLogger()
 	}
-
-	l := parentLog.WithField(trace.Component, teleport.Component(teleport.ComponentUsageReporting))
 
 	anonymizer, err := utils.NewHMACAnonymizer(clusterName.GetClusterID())
 	if err != nil {
@@ -523,11 +403,11 @@ func NewUsageReporter(ctx context.Context, parentLog logrus.FieldLogger, cluster
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
 	return &UsageReporter{
-		Entry:           l,
-		ctx:             ctx,
-		cancel:          cancel,
+		Entry: log.WithField(
+			trace.Component,
+			teleport.Component(teleport.ComponentUsageReporting),
+		),
 		anonymizer:      anonymizer,
 		events:          make(chan []*prehogapi.SubmitEventRequest, 1),
 		submissionQueue: make(chan []*prehogapi.SubmitEventRequest, 1),
