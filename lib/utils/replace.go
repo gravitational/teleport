@@ -24,7 +24,7 @@ import (
 // ContainsExpansion returns true if value contains
 // expansion syntax, e.g. $1 or ${10}
 func ContainsExpansion(val string) bool {
-	return reExpansion.FindAllStringIndex(val, -1) != nil
+	return reExpansion.FindStringIndex(val) != nil
 }
 
 // GlobToRegexp replaces glob-style standalone wildcard values
@@ -70,8 +70,8 @@ func RegexpWithConfig(expression string, config RegexpConfig) (*regexp.Regexp, e
 // ReplaceRegexp replaces value in string given some regexp.
 func ReplaceRegexpWith(expr *regexp.Regexp, replaceWith string, input string) (string, error) {
 	// if there is no match, return NotFound error
-	index := expr.FindAllStringIndex(input, -1)
-	if len(index) == 0 {
+	index := expr.FindStringIndex(input)
+	if index == nil {
 		return "", trace.NotFound("no match found")
 	}
 	return expr.ReplaceAllString(input, replaceWith), nil
