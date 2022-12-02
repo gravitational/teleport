@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -251,7 +252,7 @@ type TerminalHandler struct {
 	tracer oteltrace.Tracer
 }
 
-// Serve builds a connect to the remote node and then pumps back two types of
+// ServeHTTP builds a connection to the remote node and then pumps back two types of
 // events: raw input/output events for what's happening on the terminal itself
 // and audit log events relevant to this session.
 func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -425,7 +426,13 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 		stream.Recv()
 	}()
 
+	priv, err := ssh.ParsePrivateKey(t.ctx.cfg.Session.GetPriv())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	key := &client.Key{
+		Pub:     ssh.MarshalAuthorizedKey(priv.PublicKey()),
 		Priv:    t.ctx.cfg.Session.GetPriv(),
 		Cert:    t.ctx.cfg.Session.GetPub(),
 		TLSCert: t.ctx.cfg.Session.GetTLSCert(),
@@ -588,7 +595,11 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		return
 	}
 
-	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), t.hostName, strconv.Itoa(t.hostPort), tc.SiteName, roleset, nil)
+	agentGetter := func() (teleagent.Agent, error) {
+		return teleagent.NopCloser(tc.LocalAgent()), nil
+	}
+
+	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), t.hostName, strconv.Itoa(t.hostPort), tc.SiteName, roleset, agentGetter)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
 		t.writeError(err, ws)
@@ -651,7 +662,7 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		sshConfig.Auth = tc.AuthMethods
 
 		// connect to the node again with the new certs
-		conn, err = t.router.DialHost(ctx, ws.RemoteAddr(), t.hostName, strconv.Itoa(t.hostPort), tc.SiteName, roleset, nil)
+		conn, err = t.router.DialHost(ctx, ws.RemoteAddr(), t.hostName, strconv.Itoa(t.hostPort), tc.SiteName, roleset, agentGetter)
 		if err != nil {
 			t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host")
 			t.writeError(err, ws)
@@ -773,7 +784,7 @@ func (t *TerminalHandler) writeError(err error, ws *websocket.Conn) {
 // and port.
 func resolveServerHostPort(servername string, existingServers []types.Server) (string, int, error) {
 	// If port is 0, client wants us to figure out which port to use.
-	var defaultPort = 0
+	defaultPort := 0
 
 	if servername == "" {
 		return "", defaultPort, trace.BadParameter("empty server name")
