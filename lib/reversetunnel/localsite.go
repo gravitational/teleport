@@ -333,6 +333,7 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		TargetID:        params.ServerID,
 		TargetAddr:      params.To.String(),
 		TargetHostname:  params.Address,
+		Clock:           s.clock,
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {
