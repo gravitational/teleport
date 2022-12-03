@@ -8,29 +8,30 @@ The Teleport team delivers a new major release roughly every 3 months.
 
 ## Teleport
 
-### Teleport 11.1
-
-- GKE automatic discovery for Kubernetes Access
-- FIPS support to Desktop Access
-- Improved x509 integration for self-hosted Microsoft SQL Server
-- ARM64 support for container images and CentOS 7
-- Auth connectors support in Kubernetes Operator
-- Advanced search for Teleport Connect
-- Improved Web UI performance when connecting to resources
-- Access Request Plugin for Discord
-
-| Version          | Date                | Description                                                 |
-|------------------|---------------------|-------------------------------------------------------------|
-| Release          | November 28th, 2022 | Good to go for production.                                  |
-
 ### 11.2
 
 Teleport 11.2 will bring support for script-based automatic upgrades and
-improved Database joining experience in the Web UI.
+an improved database joining experience in the Web UI.
 
-| Version          | Date          | Description                                                 |
-|------------------|---------------|-------------------------------------------------------------|
-| Release          | December 2022 | Good to go for production.                                  |
+- Improved x509 integration for self-hosted Microsoft SQL Server
+- ARM64 support for CentOS 7
+- Signed macOS tar archives
+- Graceful handling expired database certificates in Teleport Connect
+- Fixed per-session MFA when used with disconnect_expired_cert
+- Improved database joining flow in the Web UI
+
+| Version          | Date          | Description                |
+|------------------|---------------|----------------------------|
+| Release          | December 2022 | Good to go for production. |
+
+## 11.3
+
+- Dropping support for SHA1
+- Adding support for claim rewriting with Login Rules
+
+| Version          | Date          | Description                |
+|------------------|---------------|----------------------------|
+| Release          | January 2023  | Good to go for production. |
 
 ### Teleport 12
 

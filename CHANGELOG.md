@@ -1,5 +1,25 @@
 # Changelog
 
+## 11.1.1
+
+This release of Teleport contains a security fix as well as multiple improvements and bug fixes.
+
+### Insecure TOTP MFA seed removal
+
+Fixed issue where an attacker with physical access to user's computer and raw
+access to the filesystem could potentially recover the seed QR code.
+
+[#18917](https://github.com/gravitational/teleport/pull/18917)
+
+### Other improvements and fixes
+
+* Fixed issue with Teleport Connect not working on macOS. [#18921](https://github.com/gravitational/teleport/pull/18921)
+* Added support for Cloud HSM on Google Cloud. [#18835](https://github.com/gravitational/teleport/pull/18835)
+* Added `server_hostname` to `session.*` audit events. [#18832](https://github.com/gravitational/teleport/pull/18832)
+* Added ability to specify roles when making access requests in web UI. [#18868](https://github.com/gravitational/teleport/pull/18868)
+* Improved error reporting from etcd backend. [#18822](https://github.com/gravitational/teleport/pull/18822)
+* Improved failed session recording upload logs to include upload and session IDs. [#18872](https://github.com/gravitational/teleport/pull/18872)
+
 ## 11.1.0
 
 This release of Teleport contains multiple improvements and bug fixes.
@@ -66,13 +86,13 @@ This release of Teleport contains multiple improvements and bug fixes.
 
 This release of Teleport contains a security fix and multiple bug fixes.
 
-## Block SFTP in Moderated Sessions
+### Block SFTP in Moderated Sessions
 
 Teleport did not block SFTP protocol in Moderated Sessions.
 
 [#17727](https://github.com/gravitational/teleport/pull/17727)
 
-## Other fixes
+### Other fixes
 
 * Fixed issue with agent forwarding not working for auto-created users. [#17586](https://github.com/gravitational/teleport/pull/17586)
 * Fixed "traits missing" error in Application Access. [#17737](https://github.com/gravitational/teleport/pull/17737)
