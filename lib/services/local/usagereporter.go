@@ -204,7 +204,7 @@ func (r *UsageReporter) runSubmit(ctx context.Context) {
 			} else {
 				usageBatchesSubmitted.Inc()
 
-				r.Infof("usage reporter successfully submitted batch of %d events", len(batch))
+				r.Debugf("usage reporter successfully submitted batch of %d events", len(batch))
 			}
 
 			usageBatchSubmissionDuration.Observe(time.Since(t0).Seconds())
