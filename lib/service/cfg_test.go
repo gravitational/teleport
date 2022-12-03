@@ -60,10 +60,12 @@ func TestDefaultConfig(t *testing.T) {
 		"aes256-ctr",
 	})
 	require.Equal(t, config.KEXAlgorithms, []string{
+		"curve25519-sha256",
 		"curve25519-sha256@libssh.org",
 		"ecdh-sha2-nistp256",
 		"ecdh-sha2-nistp384",
 		"ecdh-sha2-nistp521",
+		"diffie-hellman-group14-sha256",
 	})
 	require.Equal(t, config.MACAlgorithms, []string{
 		"hmac-sha2-256-etm@openssh.com",
