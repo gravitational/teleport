@@ -305,8 +305,6 @@ func (r *UsageReporter) Run(ctx context.Context) {
 			if len(r.buf) >= r.minBatchSize {
 				timer.Reset(r.maxBatchAge)
 				r.enqueueBatch()
-			} else {
-				r.Debugf("waiting to enqueue %d events (%d buffered total)", len(events), len(r.buf))
 			}
 		}
 	}
