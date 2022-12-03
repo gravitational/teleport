@@ -18,7 +18,7 @@ jobs:
       contents: read
 
     container:
-      image: public.ecr.aws/gravitational/teleport-buildbox:teleport12
+      image: ghcr.io/gravitational/teleport-buildbox:teleport12
       env:
         HELM_PLUGINS: /root/.local/share/helm/plugins
 

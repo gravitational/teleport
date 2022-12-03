@@ -4937,6 +4937,7 @@ func readOrGenerateHostID(ctx context.Context, cfg *Config, kubeBackend kubernet
 				types.JoinMethodUnspecified,
 				types.JoinMethodIAM,
 				types.JoinMethodCircleCI,
+				types.JoinMethodKubernetes,
 				types.JoinMethodGitHub:
 				// Checking error instead of the usual uuid.New() in case uuid generation
 				// fails due to not enough randomness. It's been known to happen happen when

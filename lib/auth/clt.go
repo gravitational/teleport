@@ -873,13 +873,13 @@ func (c *Client) GenerateHostCert(
 
 // ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
 func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
-	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
+	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "requests", "validate"), ValidateOIDCAuthCallbackReq{
 		Query: q,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var rawResponse *oidcAuthRawResponse
+	var rawResponse *OIDCAuthRawResponse
 	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}
