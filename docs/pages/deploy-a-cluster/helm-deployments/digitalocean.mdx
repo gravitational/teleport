@@ -51,10 +51,13 @@ Install Teleport in your Kubernetes cluster using the `teleport-cluster` Helm ch
 ```code
 $ CLUSTERNAME=tele.example.com # replace with your preferred domain name
 $ EMAIL_ADDR=dodemo@goteleport.com # replace with your email
-$ helm install teleport-cluster teleport/teleport-cluster --create-namespace --namespace=teleport-cluster \
+$ helm install teleport-cluster teleport/teleport-cluster \
+  --create-namespace \
+  --namespace=teleport-cluster \
   --set clusterName=$CLUSTERNAME \
   --set acme=true \
-  --set acmeEmail=$EMAIL_ADDR
+  --set acmeEmail=$EMAIL_ADDR \
+  --version (=teleport.version=)
 NAME: teleport-cluster
 LAST DEPLOYED: Tue Oct 26 17:01:21 2021
 NAMESPACE: teleport-cluster
