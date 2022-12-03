@@ -92,13 +92,13 @@ func (cc *CredentialCreation) Validate() error {
 	case cc.Response.RelyingParty.ID == "":
 		return trace.BadParameter("credential creation relying party ID required")
 	case len(cc.Response.RelyingParty.Name) == 0:
-		return trace.BadParameter("relying party name required for resident credential")
+		return trace.BadParameter("relying party name required")
 	case len(cc.Response.User.Name) == 0:
-		return trace.BadParameter("user name required for resident credential")
+		return trace.BadParameter("user name required")
 	case len(cc.Response.User.DisplayName) == 0:
-		return trace.BadParameter("user display name required for resident credential")
+		return trace.BadParameter("user display name required")
 	case len(cc.Response.User.ID) == 0:
-		return trace.BadParameter("user ID required for resident credential")
+		return trace.BadParameter("user ID required")
 	default:
 		return nil
 	}

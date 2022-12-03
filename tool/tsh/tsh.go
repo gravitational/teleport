@@ -45,6 +45,7 @@ import (
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -378,6 +379,16 @@ type CLIConf struct {
 	// cmdRunner is a custom function to execute provided exec.Cmd. Mainly used
 	// in testing.
 	cmdRunner func(*exec.Cmd) error
+	// kubernetesImpersonationConfig allows to configure custom kubernetes impersonation values.
+	kubernetesImpersonationConfig impersonationConfig
+	// kubeNamespace allows to configure the default Kubernetes namespace.
+	kubeNamespace string
+
+	// kubeConfigPath is the location of the Kubeconfig for the current test.
+	// Setting this value allows Teleport tests to run `tsh login` commands in
+	// parallel.
+	// It shouldn't be used outside testing.
+	kubeConfigPath string
 }
 
 // Stdout returns the stdout writer.
@@ -462,6 +473,7 @@ const (
 	globalTshConfigEnvVar  = "TELEPORT_GLOBAL_TSH_CONFIG"
 	mfaModeEnvVar          = "TELEPORT_MFA_MODE"
 	debugEnvVar            = teleport.VerboseLogsEnvVar // "TELEPORT_DEBUG"
+	identityFileEnvVar     = "TELEPORT_IDENTITY_FILE"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -527,7 +539,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	}).String()
 
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
-	app.Flag("identity", "Identity file").Short('i').StringVar(&cf.IdentityFileIn)
+	app.Flag("identity", "Identity file").Short('i').Envar(identityFileEnvVar).StringVar(&cf.IdentityFileIn)
 	app.Flag("compat", "OpenSSH compatibility flag").Hidden().StringVar(&cf.Compatibility)
 	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
 	app.Flag("trace", "Capture and export distributed traces").Hidden().BoolVar(&cf.SampleTraces)
@@ -831,6 +843,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// touchid subcommands.
 	tid := newTouchIDCommand(app)
 
+	webauthnwin := newWebauthnwinCommand(app)
+
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
@@ -1071,6 +1085,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onFIDO2Diag(&cf)
 	case tid.diag.FullCommand():
 		err = tid.diag.run(&cf)
+	case webauthnwin.diag.FullCommand():
+		err = webauthnwin.diag.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -1255,18 +1271,21 @@ func exportSession(cf *CLIConf) error {
 		// when playing from a file, id is not included, this
 		// makes the outputs otherwise identical
 		delete(event, "id")
-		var e []byte
-		var err error
-		if format == teleport.JSON {
-			e, err = utils.FastMarshal(event)
-		} else {
-			e, err = yaml.Marshal(event)
-		}
-		if err != nil {
+	}
+
+	switch format {
+	case teleport.JSON:
+		if err := utils.WriteJSON(os.Stdout, events); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(string(e))
+	case teleport.YAML:
+		if err := utils.WriteYAML(os.Stdout, events); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.Errorf("Invalid format %s, only pty, json and yaml are supported", format)
 	}
+
 	return nil
 }
 
@@ -1388,11 +1407,12 @@ func onLogin(cf *CLIConf) error {
 			if err := tc.SaveProfile(cf.HomePath, true); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfig(cf, tc, ""); err != nil {
-				return trace.Wrap(err)
-			}
 
-			return trace.Wrap(onStatus(cf))
+			// Try updating kube config. If it fails, then we may have
+			// switched to an inactive profile. Continue to normal login.
+			if err := updateKubeConfig(cf, tc, ""); err == nil {
+				return trace.Wrap(onStatus(cf))
+			}
 
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but cluster is specified, treat this as selecting a new cluster
@@ -1584,24 +1604,14 @@ func onLogin(cf *CLIConf) error {
 		fmt.Fprintf(os.Stderr, "%s\n\n", warning)
 	}
 
-	// get any "on login" alerts
-	alerts, err := tc.GetClusterAlerts(cf.Context, types.GetClusterAlertsRequest{
-		Labels: map[string]string{
-			types.AlertOnLogin: "yes",
-		},
-	})
-	if err != nil && !trace.IsNotImplemented(err) {
-		return trace.Wrap(err)
+	// Show on-login alerts, all high severity alerts are shown by onStatus
+	// so can be excluded here.
+	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, map[string]string{
+		types.AlertOnLogin: "yes",
+	}, types.AlertSeverity_LOW, types.AlertSeverity_MEDIUM); err != nil {
+		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 
-	types.SortClusterAlerts(alerts)
-
-	for _, alert := range alerts {
-		if err := alert.CheckMessage(); err != nil {
-			log.Warnf("Skipping invalid alert %q: %v", alert.Metadata.Name, err)
-		}
-		fmt.Fprintf(os.Stderr, "%s\n\n", alert.Spec.Message)
-	}
 	// NOTE: we currently print all alerts that are marked as `on-login`, because we
 	// don't use the alert API very heavily. If we start to make more use of it, we
 	// could probably add a separate `tsh alerts ls` command, and truncate the list
@@ -2243,7 +2253,7 @@ func showDatabases(w io.Writer, clusterFlag string, databases []types.Database, 
 	case teleport.Text, "":
 		showDatabasesAsText(w, clusterFlag, databases, active, roleSet, verbose)
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeDatabases(databases, format)
+		out, err := serializeDatabases(databases, format, roleSet)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2254,18 +2264,88 @@ func showDatabases(w io.Writer, clusterFlag string, databases []types.Database, 
 	return nil
 }
 
-func serializeDatabases(databases []types.Database, format string) (string, error) {
+func serializeDatabases(databases []types.Database, format string, roleSet services.RoleSet) (string, error) {
 	if databases == nil {
 		databases = []types.Database{}
 	}
+
+	printObj, err := getDatabasePrintObject(databases, roleSet)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
 	var out []byte
-	var err error
-	if format == teleport.JSON {
-		out, err = utils.FastMarshalIndent(databases, "", "  ")
-	} else {
-		out, err = yaml.Marshal(databases)
+	switch {
+	case format == teleport.JSON:
+		out, err = utils.FastMarshalIndent(printObj, "", "  ")
+	default:
+		out, err = yaml.Marshal(printObj)
 	}
 	return string(out), trace.Wrap(err)
+}
+
+func getDatabasePrintObject(databases []types.Database, roleSet services.RoleSet) (any, error) {
+	if roleSet == nil || len(databases) == 0 {
+		return databases, nil
+	}
+	dbsWithUsers, err := getDatabasesWithUsers(databases, roleSet)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return dbsWithUsers, nil
+}
+
+type dbUsers struct {
+	Allowed []string `json:"allowed,omitempty"`
+	Denied  []string `json:"denied,omitempty"`
+}
+
+type databaseWithUsers struct {
+	// *DatabaseV3 is used instead of types.Database because we want the db fields marshaled to JSON inline.
+	// An embedded interface (like types.Database) does not inline when marshaled to JSON.
+	*types.DatabaseV3
+	Users *dbUsers `json:"users"`
+}
+
+func getDBUsers(db types.Database, roles services.RoleSet) *dbUsers {
+	users := roles.EnumerateDatabaseUsers(db)
+	var denied []string
+	allowed := users.Allowed()
+	if users.WildcardAllowed() {
+		// start the list with *.
+		allowed = append([]string{types.Wildcard}, allowed...)
+		// only include denied users if the wildcard is allowed.
+		denied = append(denied, users.Denied()...)
+	}
+	return &dbUsers{
+		Allowed: allowed,
+		Denied:  denied,
+	}
+}
+
+func newDatabaseWithUsers(db types.Database, roles services.RoleSet) (*databaseWithUsers, error) {
+	dbWithUsers := &databaseWithUsers{
+		Users: getDBUsers(db, roles),
+	}
+	switch db := db.(type) {
+	case *types.DatabaseV3:
+		dbWithUsers.DatabaseV3 = db
+	default:
+		return nil, trace.BadParameter("unrecognized database type %T", db)
+	}
+	return dbWithUsers, nil
+}
+
+func getDatabasesWithUsers(databases types.Databases, roles services.RoleSet) ([]*databaseWithUsers, error) {
+	var dbsWithUsers []*databaseWithUsers
+	for _, db := range databases {
+		dbWithUsers, err := newDatabaseWithUsers(db, roles)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		dbsWithUsers = append(dbsWithUsers, dbWithUsers)
+	}
+	return dbsWithUsers, nil
 }
 
 func serializeDatabasesAllClusters(dbListings []databaseListing, format string) (string, error) {
@@ -2282,29 +2362,21 @@ func serializeDatabasesAllClusters(dbListings []databaseListing, format string) 
 	return string(out), trace.Wrap(err)
 }
 
-func getUsersForDb(database types.Database, roleSet services.RoleSet) string {
+func formatUsersForDB(database types.Database, roleSet services.RoleSet) string {
 	// may happen if fetching the role set failed for any reason.
 	if roleSet == nil {
 		return "(unknown)"
 	}
 
-	dbUsers := roleSet.EnumerateDatabaseUsers(database)
-	allowed := dbUsers.Allowed()
-
-	if dbUsers.WildcardAllowed() {
-		// start the list with *
-		allowed = append([]string{types.Wildcard}, allowed...)
-	}
-
-	if len(allowed) == 0 {
+	dbUsers := getDBUsers(database, roleSet)
+	if len(dbUsers.Allowed) == 0 {
 		return "(none)"
 	}
 
-	denied := dbUsers.Denied()
-	if len(denied) == 0 || !dbUsers.WildcardAllowed() {
-		return fmt.Sprintf("%v", allowed)
+	if len(dbUsers.Denied) == 0 {
+		return fmt.Sprintf("%v", dbUsers.Allowed)
 	}
-	return fmt.Sprintf("%v, except: %v", allowed, denied)
+	return fmt.Sprintf("%v, except: %v", dbUsers.Allowed, dbUsers.Denied)
 }
 
 func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) []string {
@@ -2329,7 +2401,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 			database.GetProtocol(),
 			database.GetType(),
 			database.GetURI(),
-			getUsersForDb(database, roleSet),
+			formatUsersForDB(database, roleSet),
 			database.LabelsString(),
 			connect,
 			database.Expiry().Format(constants.HumanDateFormatSeconds),
@@ -2338,7 +2410,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 		row = append(row,
 			name,
 			database.GetDescription(),
-			getUsersForDb(database, roleSet),
+			formatUsersForDB(database, roleSet),
 			formatDatabaseLabels(database),
 			connect,
 		)
@@ -3425,6 +3497,17 @@ func onStatus(cf *CLIConf) error {
 		return trace.NotFound("Active profile expired.")
 	}
 
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		log.WithError(err).Warn("Failed to make client for retrieving cluster alerts.")
+		return nil
+	}
+
+	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
+		types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
+		log.WithError(err).Warn("Failed to display cluster alerts.")
+	}
+
 	return nil
 }
 
@@ -3760,7 +3843,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []s
 	}
 	// If the certificate already had active requests, add them to our inputs parameters.
 	for _, reqID := range profile.ActiveRequests.AccessRequests {
-		if !apiutils.SliceContainsStr(dropRequests, reqID) {
+		if !slices.Contains(dropRequests, reqID) {
 			params.AccessRequests = append(params.AccessRequests, reqID)
 		}
 	}

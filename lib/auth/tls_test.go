@@ -30,13 +30,12 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -45,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -730,8 +730,13 @@ func TestAppTokenRotation(t *testing.T) {
 		types.GenerateAppTokenRequest{
 			Username: "foo",
 			Roles:    []string{"bar", "baz"},
-			URI:      "http://localhost:8080",
-			Expires:  tt.clock.Now().Add(1 * time.Minute),
+			Traits: map[string][]string{
+				"trait1": {"value1", "value2"},
+				"trait2": {"value3", "value4"},
+				"trait3": nil,
+			},
+			URI:     "http://localhost:8080",
+			Expires: tt.clock.Now().Add(1 * time.Minute),
 		})
 	require.NoError(t, err)
 
@@ -786,8 +791,13 @@ func TestAppTokenRotation(t *testing.T) {
 		types.GenerateAppTokenRequest{
 			Username: "foo",
 			Roles:    []string{"bar", "baz"},
-			URI:      "http://localhost:8080",
-			Expires:  tt.clock.Now().Add(1 * time.Minute),
+			Traits: map[string][]string{
+				"trait1": {"value1", "value2"},
+				"trait2": {"value3", "value4"},
+				"trait3": nil,
+			},
+			URI:     "http://localhost:8080",
+			Expires: tt.clock.Now().Add(1 * time.Minute),
 		})
 	require.NoError(t, err)
 
@@ -928,11 +938,6 @@ func TestNopUser(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	_, err = client.GetNodes(ctx, apidefaults.Namespace)
-	require.True(t, trace.IsAccessDenied(err))
-
-	// Endpoints that allow current user access should return access denied to
-	// the Nop user.
-	err = client.CheckPassword("foo", nil, "")
 	require.True(t, trace.IsAccessDenied(err))
 }
 
@@ -1137,15 +1142,13 @@ func TestPasswordGarbage(t *testing.T) {
 	ctx := context.Background()
 	tt := setupAuthContext(ctx, t)
 
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
 	garbage := [][]byte{
 		nil,
 		make([]byte, defaults.MaxPasswordLength+1),
 		make([]byte, defaults.MinPasswordLength-1),
 	}
 	for _, g := range garbage {
-		err := clt.CheckPassword("user1", g, "123456")
+		_, err := tt.server.Auth().checkPassword("user1", g, "123456")
 		require.True(t, trace.IsBadParameter(err))
 	}
 }
@@ -1156,14 +1159,11 @@ func TestPasswordCRUD(t *testing.T) {
 	ctx := context.Background()
 	tt := setupAuthContext(ctx, t)
 
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
-
 	pass := []byte("abc123")
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
-	err = clt.CheckPassword("user1", pass, "123456")
+	_, err := tt.server.Auth().checkPassword("user1", pass, "123456")
 	require.Error(t, err)
 
 	err = tt.server.Auth().UpsertPassword("user1", pass)
@@ -1178,7 +1178,7 @@ func TestPasswordCRUD(t *testing.T) {
 	validToken, err := totp.GenerateCode(otpSecret, tt.server.Clock().Now())
 	require.NoError(t, err)
 
-	err = clt.CheckPassword("user1", pass, validToken)
+	_, err = tt.server.Auth().checkPassword("user1", pass, validToken)
 	require.NoError(t, err)
 }
 
@@ -1202,16 +1202,13 @@ func TestOTPCRUD(t *testing.T) {
 	ctx := context.Background()
 	tt := setupAuthContext(ctx, t)
 
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
-
 	user := "user1"
 	pass := []byte("abc123")
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	// upsert a password and totp secret
-	err = tt.server.Auth().UpsertPassword("user1", pass)
+	err := tt.server.Auth().UpsertPassword("user1", pass)
 	require.NoError(t, err)
 	dev, err := services.NewTOTPDevice("otp", otpSecret, tt.clock.Now())
 	require.NoError(t, err)
@@ -1220,7 +1217,7 @@ func TestOTPCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// a completely invalid token should return access denied
-	err = clt.CheckPassword("user1", pass, "123456")
+	_, err = tt.server.Auth().checkPassword("user1", pass, "123456")
 	require.Error(t, err)
 
 	// an invalid token should return access denied
@@ -1232,18 +1229,18 @@ func TestOTPCRUD(t *testing.T) {
 	// invalidity starts at 61 seconds in the future.
 	invalidToken, err := totp.GenerateCode(otpSecret, tt.server.Clock().Now().Add(61*time.Second))
 	require.NoError(t, err)
-	err = clt.CheckPassword("user1", pass, invalidToken)
+	_, err = tt.server.Auth().checkPassword("user1", pass, invalidToken)
 	require.Error(t, err)
 
 	// a valid token (created right now and from a valid key) should return success
 	validToken, err := totp.GenerateCode(otpSecret, tt.server.Clock().Now())
 	require.NoError(t, err)
 
-	err = clt.CheckPassword("user1", pass, validToken)
+	_, err = tt.server.Auth().checkPassword("user1", pass, validToken)
 	require.NoError(t, err)
 
 	// try the same valid token now it should fail because we don't allow re-use of tokens
-	err = clt.CheckPassword("user1", pass, validToken)
+	_, err = tt.server.Auth().checkPassword("user1", pass, validToken)
 	require.Error(t, err)
 }
 
@@ -1366,7 +1363,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	require.NoError(t, err)
 	baseRole, err := clt.GetRole(ctx, baseRoleName)
 	require.NoError(t, err)
-	baseRole.SetSearchAsRoles([]string{resourceRequestRoleName})
+	baseRole.SetSearchAsRoles(types.Allow, []string{resourceRequestRoleName})
 	err = clt.UpsertRole(ctx, baseRole)
 	require.NoError(t, err)
 
@@ -2255,7 +2252,7 @@ func TestGenerateAppToken(t *testing.T) {
 	}, true)
 	require.NoError(t, err)
 
-	signer, err := tt.server.AuthServer.AuthServer.GetKeyStore().GetJWTSigner(ca)
+	signer, err := tt.server.AuthServer.AuthServer.GetKeyStore().GetJWTSigner(ctx, ca)
 	require.NoError(t, err)
 	key, err := services.GetJWTSigner(signer, ca.GetClusterName(), tt.clock)
 	require.NoError(t, err)
@@ -2290,8 +2287,13 @@ func TestGenerateAppToken(t *testing.T) {
 			types.GenerateAppTokenRequest{
 				Username: "foo@example.com",
 				Roles:    []string{"bar", "baz"},
-				URI:      "http://localhost:8080",
-				Expires:  tt.clock.Now().Add(1 * time.Minute),
+				Traits: wrappers.Traits{
+					"trait1": {"value1", "value2"},
+					"trait2": {"value3", "value4"},
+					"trait3": nil,
+				},
+				URI:     "http://localhost:8080",
+				Expires: tt.clock.Now().Add(1 * time.Minute),
 			})
 		require.Equal(t, err != nil, ts.outError, ts.inComment)
 		if !ts.outError {
@@ -2303,6 +2305,10 @@ func TestGenerateAppToken(t *testing.T) {
 			require.NoError(t, err, ts.inComment)
 			require.Equal(t, claims.Username, "foo@example.com", ts.inComment)
 			require.Empty(t, cmp.Diff(claims.Roles, []string{"bar", "baz"}), ts.inComment)
+			require.Empty(t, cmp.Diff(claims.Traits, wrappers.Traits{
+				"trait1": {"value1", "value2"},
+				"trait2": {"value3", "value4"},
+			}), ts.inComment)
 		}
 	}
 }
@@ -2397,7 +2403,7 @@ func TestClusterConfigContext(t *testing.T) {
 
 	// try and generate a host cert, this should fail because we are recording
 	// at the nodes not at the proxy
-	_, err = proxy.GenerateHostCert(pub,
+	_, err = proxy.GenerateHostCert(ctx, pub,
 		"a", "b", nil,
 		"localhost", types.RoleProxy, 0)
 	require.True(t, trace.IsAccessDenied(err))
@@ -2412,7 +2418,7 @@ func TestClusterConfigContext(t *testing.T) {
 
 	// try and generate a host cert, now the proxy should be able to generate a
 	// host cert because it's in recording mode.
-	_, err = proxy.GenerateHostCert(pub,
+	_, err = proxy.GenerateHostCert(ctx, pub,
 		"a", "b", nil,
 		"localhost", types.RoleProxy, 0)
 	require.NoError(t, err)
@@ -3093,9 +3099,9 @@ func TestEventsNodePresence(t *testing.T) {
 	case keepAliver.KeepAlives() <- *keepAlive:
 		// ok
 	case <-time.After(time.Second):
-		t.Fatalf("time out sending keep ailve")
+		t.Fatalf("time out sending keep alive")
 	case <-keepAliver.Done():
-		t.Fatalf("unknown problem sending keep ailve")
+		t.Fatalf("unknown problem sending keep alive")
 	}
 
 	// upsert node and keep alives will fail for users with no privileges

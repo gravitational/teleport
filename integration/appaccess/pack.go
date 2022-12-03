@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
@@ -90,6 +91,11 @@ type Pack struct {
 	rootTCPPublicAddr string
 	rootTCPMessage    string
 	rootTCPAppURI     string
+
+	rootTCPTwoWayAppName    string
+	rootTCPTwoWayPublicAddr string
+	rootTCPTwoWayMessage    string
+	rootTCPTwoWayAppURI     string
 
 	jwtAppName        string
 	jwtAppPublicAddr  string
@@ -155,7 +161,7 @@ func (p *Pack) LeafAppPublicAddr() string {
 }
 
 // initUser will create a user within the root cluster.
-func (p *Pack) initUser(t *testing.T, opts AppTestOptions) {
+func (p *Pack) initUser(t *testing.T) {
 	p.username = uuid.New().String()
 	p.password = uuid.New().String()
 
@@ -168,7 +174,7 @@ func (p *Pack) initUser(t *testing.T, opts AppTestOptions) {
 	require.NoError(t, err)
 
 	user.AddRole(role.GetName())
-	user.SetTraits(map[string][]string{"env": {"production"}})
+	user.SetTraits(map[string][]string{"env": {"production"}, "empty": {}, "nil": nil})
 	err = p.rootCluster.Process.GetAuthServer().CreateUser(context.Background(), user)
 	require.NoError(t, err)
 
@@ -234,7 +240,7 @@ func (p *Pack) initWebSession(t *testing.T) {
 
 // initTeleportClient initializes a Teleport client with this pack's user
 // credentials.
-func (p *Pack) initTeleportClient(t *testing.T) {
+func (p *Pack) initTeleportClient(t *testing.T, opts AppTestOptions) {
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 		Process:  p.rootCluster.Process,
 		Username: p.user.GetName(),
@@ -273,6 +279,21 @@ func (p *Pack) CreateAppSession(t *testing.T, publicAddr, clusterName string) st
 	require.NoError(t, err)
 
 	return casResp.CookieValue
+}
+
+// LockUser will lock the configured user for this pack.
+func (p *Pack) LockUser(t *testing.T) {
+	err := p.rootCluster.Process.GetAuthServer().UpsertLock(context.Background(), &types.LockV2{
+		Spec: types.LockSpecV2{
+			Target: types.LockTarget{
+				User: p.username,
+			},
+		},
+		Metadata: types.Metadata{
+			Name: "test-lock",
+		},
+	})
+	require.NoError(t, err)
 }
 
 // makeWebapiRequest makes a request to the root cluster Web API.
@@ -369,6 +390,14 @@ func (p *Pack) makeTLSConfig(t *testing.T, publicAddr, clusterName string) *tls.
 		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
+
+	// Make sure the session ID can be seen in the backend before we continue onward.
+	require.Eventually(t, func() bool {
+		_, err := p.rootCluster.Process.GetAuthServer().GetAppSession(context.Background(), types.GetAppSessionRequest{
+			SessionID: ws.GetMetadata().Name,
+		})
+		return err == nil
+	}, 5*time.Second, 100*time.Millisecond)
 
 	certificate, err := p.rootCluster.Process.GetAuthServer().GenerateUserAppTestCert(
 		auth.AppTestCertRequest{
@@ -545,13 +574,14 @@ func (p *Pack) waitForLogout(appCookie string) (int, error) {
 	}
 }
 
-func (p *Pack) startRootAppServers(t *testing.T, count int, extraApps []service.App) []*service.TeleportProcess {
+func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions) []*service.TeleportProcess {
 	log := utils.NewLoggerForTests()
 
 	configs := make([]*service.Config, count)
 
 	for i := 0; i < count; i++ {
 		raConf := service.MakeDefaultConfig()
+		raConf.Clock = opts.Clock
 		raConf.Console = nil
 		raConf.Log = log
 		raConf.DataDir = t.TempDir()
@@ -565,6 +595,7 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 		raConf.SSH.Enabled = false
 		raConf.Apps.Enabled = true
 		raConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+		raConf.Apps.MonitorCloseChannel = opts.MonitorCloseChannel
 		raConf.Apps.Apps = append([]service.App{
 			{
 				Name:       p.rootAppName,
@@ -585,6 +616,11 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 				Name:       p.rootTCPAppName,
 				URI:        p.rootTCPAppURI,
 				PublicAddr: p.rootTCPPublicAddr,
+			},
+			{
+				Name:       p.rootTCPTwoWayAppName,
+				URI:        p.rootTCPTwoWayAppURI,
+				PublicAddr: p.rootTCPTwoWayPublicAddr,
 			},
 			{
 				Name:       p.jwtAppName,
@@ -655,6 +691,14 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 							Name:  forward.XForwardedServer,
 							Value: "rewritten-x-forwarded-server-header",
 						},
+						{
+							Name:  common.XForwardedSSL,
+							Value: "rewritten-x-forwarded-ssl-header",
+						},
+						{
+							Name:  forward.XForwardedPort,
+							Value: "rewritten-x-forwarded-port-header",
+						},
 						// Make sure we can insert JWT token in custom header.
 						{
 							Name:  "X-JWT",
@@ -663,7 +707,7 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 					},
 				},
 			},
-		}, extraApps...)
+		}, opts.ExtraRootApps...)
 
 		configs[i] = raConf
 	}
@@ -689,12 +733,13 @@ func waitForAppServer(t *testing.T, tunnel reversetunnel.Server, name string, ho
 	waitForAppRegInRemoteSiteCache(t, tunnel, name, apps, hostUUID)
 }
 
-func (p *Pack) startLeafAppServers(t *testing.T, count int, extraApps []service.App) []*service.TeleportProcess {
+func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions) []*service.TeleportProcess {
 	log := utils.NewLoggerForTests()
 	configs := make([]*service.Config, count)
 
 	for i := 0; i < count; i++ {
 		laConf := service.MakeDefaultConfig()
+		laConf.Clock = opts.Clock
 		laConf.Console = nil
 		laConf.Log = log
 		laConf.DataDir = t.TempDir()
@@ -708,6 +753,7 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 		laConf.SSH.Enabled = false
 		laConf.Apps.Enabled = true
 		laConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+		laConf.Apps.MonitorCloseChannel = opts.MonitorCloseChannel
 		laConf.Apps.Apps = append([]service.App{
 			{
 				Name:       p.leafAppName,
@@ -784,10 +830,18 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 							Name:  forward.XForwardedServer,
 							Value: "rewritten-x-forwarded-server-header",
 						},
+						{
+							Name:  common.XForwardedSSL,
+							Value: "rewritten-x-forwarded-ssl-header",
+						},
+						{
+							Name:  forward.XForwardedPort,
+							Value: "rewritten-x-forwarded-port-header",
+						},
 					},
 				},
 			},
-		}, extraApps...)
+		}, opts.ExtraLeafApps...)
 
 		configs[i] = laConf
 	}

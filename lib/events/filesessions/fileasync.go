@@ -25,6 +25,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -33,10 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 )
 
 // UploaderConfig sets up configuration for uploader service
@@ -436,7 +436,7 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 				return trace.Wrap(err)
 			}
 			u.log.WithError(err).Warningf(
-				"Upload for sesion %v, upload ID %v is not found starting a new upload from scratch.",
+				"Upload for session %v, upload ID %v is not found starting a new upload from scratch.",
 				up.sessionID, status.UploadID)
 			status = nil
 			stream, err = u.cfg.Streamer.CreateAuditStream(ctx, up.sessionID)
@@ -461,7 +461,7 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 	case <-u.closeC:
 		return trace.Errorf("operation has been canceled, uploader is closed")
 	case <-stream.Status():
-	case <-time.After(defaults.NetworkRetryDuration):
+	case <-time.After(events.NetworkRetryDuration):
 		return trace.ConnectionProblem(nil, "timeout waiting for stream status update")
 	case <-ctx.Done():
 		return trace.ConnectionProblem(ctx.Err(), "operation has been canceled")

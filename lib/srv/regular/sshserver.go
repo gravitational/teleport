@@ -30,6 +30,13 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -37,7 +44,6 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -45,8 +51,8 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/pam"
+	"github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -56,14 +62,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
-	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 const sftpSubsystem = "sftp"
@@ -72,13 +70,6 @@ var (
 	log = logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentNode,
 	})
-
-	userSessionLimitHitCount = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricUserMaxConcurrentSessionsHit,
-			Help: "Number of times a user exceeded their max concurrent ssh connections",
-		},
-	)
 )
 
 // Server implements SSH server that uses configuration backend and
@@ -223,6 +214,14 @@ type Server struct {
 	// tracerProvider is used to create tracers capable
 	// of starting spans.
 	tracerProvider oteltrace.TracerProvider
+
+	// router used by subsystem requests to connect to nodes
+	// and clusters
+	router *proxy.Router
+
+	// sessionController is used to restrict new sessions
+	// based on locks and cluster preferences
+	sessionController *srv.SessionController
 }
 
 // TargetMetadata returns metadata about the server.
@@ -270,25 +269,14 @@ func (s *Server) UseTunnel() bool {
 	return s.useTunnel
 }
 
-// OpenBPFSession will start monitoring all events within a session and
-// emitting them to the Audit Log.
-func (s *Server) OpenBPFSession(ctx *srv.ServerContext) (uint64, error) {
-	return s.ebpf.OpenSession(ctx)
+// GetBPF returns the BPF service used by enhanced session recording.
+func (s *Server) GetBPF() bpf.BPF {
+	return s.ebpf
 }
 
-// CloseBPFSession will stop monitoring events for a particular session.
-func (s *Server) CloseBPFSession(ctx *srv.ServerContext) error {
-	return s.ebpf.CloseSession(ctx)
-}
-
-// OpenRestrictedSession  starts enforcing restrictions for a cgroup with cgroupID
-func (s *Server) OpenRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {
-	s.restrictedMgr.OpenSession(ctx, cgroupID)
-}
-
-// CloseRestrictedSession stops enforcing restrictions for a cgroup with cgroupID
-func (s *Server) CloseRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {
-	s.restrictedMgr.CloseSession(ctx, cgroupID)
+// GetRestrictedSessionManager returns the manager for restricting user activity.
+func (s *Server) GetRestrictedSessionManager() restricted.Manager {
+	return s.restrictedMgr
 }
 
 // GetLockWatcher gets the server's lock watcher.
@@ -433,7 +421,7 @@ func SetShell(shell string) ServerOption {
 }
 
 // SetProxyMode starts this server in SSH proxying mode
-func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint) ServerOption {
+func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
 	return func(s *Server) error {
 		// always set proxy mode to true,
 		// because in some tests reverse tunnel is disabled,
@@ -442,6 +430,7 @@ func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyA
 		s.proxyTun = tsrv
 		s.proxyAccessPoint = ap
 		s.peerAddr = peerAddr
+		s.router = router
 		return nil
 	}
 }
@@ -663,8 +652,18 @@ func SetTracerProvider(provider oteltrace.TracerProvider) ServerOption {
 	}
 }
 
+// SetSessionController sets the session controller.
+func SetSessionController(controller *srv.SessionController) ServerOption {
+	return func(s *Server) error {
+		s.sessionController = controller
+		return nil
+	}
+}
+
 // New returns an unstarted server
-func New(addr utils.NetAddr,
+func New(
+	ctx context.Context,
+	addr utils.NetAddr,
 	hostname string,
 	signers []ssh.Signer,
 	authService srv.AccessPoint,
@@ -674,18 +673,13 @@ func New(addr utils.NetAddr,
 	auth auth.ClientI,
 	options ...ServerOption,
 ) (*Server, error) {
-	err := metrics.RegisterPrometheusCollectors(userSessionLimitHitCount)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// read the host UUID:
 	uuid, err := utils.ReadOrMakeHostUUID(dataDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancel(context.TODO())
+	ctx, cancel := context.WithCancel(ctx)
 	s := &Server{
 		addr:               addr,
 		authService:        authService,
@@ -726,6 +720,10 @@ func New(addr utils.NetAddr,
 
 	if s.lockWatcher == nil {
 		return nil, trace.BadParameter("setup valid LockWatcher parameter using SetLockWatcher")
+	}
+
+	if s.sessionController == nil {
+		return nil, trace.BadParameter("setup valid SessionControl parameter using SetSessionControl")
 	}
 
 	if s.connectedProxyGetter == nil {
@@ -1075,104 +1073,9 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
-	authPref, err := s.GetAccessPoint().GetAuthPreference(ctx)
-	if err != nil {
-		return ctx, trace.Wrap(err)
-	}
-	lockingMode := identityContext.AccessChecker.LockingMode(authPref.GetLockingMode())
 
-	event := &apievents.SessionReject{
-		Metadata: apievents.Metadata{
-			Type: events.SessionRejectedEvent,
-			Code: events.SessionRejectedCode,
-		},
-		UserMetadata: identityContext.GetUserMetadata(),
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			Protocol:   events.EventProtocolSSH,
-			LocalAddr:  ccx.ServerConn.LocalAddr().String(),
-			RemoteAddr: ccx.ServerConn.RemoteAddr().String(),
-		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        s.uuid,
-			ServerNamespace: s.GetNamespace(),
-		},
-	}
-
-	lockTargets, err := srv.ComputeLockTargets(s, identityContext)
-	if err != nil {
-		return ctx, trace.Wrap(err)
-	}
-	if lockErr := s.lockWatcher.CheckLockInForce(lockingMode, lockTargets...); lockErr != nil {
-		event.Reason = lockErr.Error()
-		if err := s.EmitAuditEvent(s.ctx, event); err != nil {
-			s.Logger.WithError(err).Warn("Failed to emit session reject event.")
-		}
-		return ctx, trace.Wrap(lockErr)
-	}
-
-	// Check that the required private key policy, defined by roles and auth pref,
-	// is met by this Identity's ssh certificate.
-	identityPolicy := identityContext.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy]
-	requiredPolicy := identityContext.AccessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	if err := requiredPolicy.VerifyPolicy(keys.PrivateKeyPolicy(identityPolicy)); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Don't apply the following checks in non-node contexts.
-	if s.Component() != teleport.ComponentNode {
-		return ctx, nil
-	}
-
-	maxConnections := identityContext.AccessChecker.MaxConnections()
-	if maxConnections == 0 {
-		// concurrent session control is not active, nothing
-		// else needs to be done here.
-		return ctx, nil
-	}
-
-	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return ctx, trace.Wrap(err)
-	}
-
-	semLock, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
-		Service: s.authService,
-		Expiry:  netConfig.GetSessionControlTimeout(),
-		Params: types.AcquireSemaphoreRequest{
-			SemaphoreKind: types.SemaphoreKindConnection,
-			SemaphoreName: identityContext.TeleportUser,
-			MaxLeases:     maxConnections,
-			Holder:        s.uuid,
-		},
-	})
-	if err != nil {
-		if strings.Contains(err.Error(), teleport.MaxLeases) {
-			// user has exceeded their max concurrent ssh connections.
-			userSessionLimitHitCount.Inc()
-			event.Reason = events.SessionRejectedEvent
-			event.Maximum = maxConnections
-			if err := s.EmitAuditEvent(s.ctx, event); err != nil {
-				s.Logger.WithError(err).Warn("Failed to emit session reject event.")
-			}
-			err = trace.AccessDenied("too many concurrent ssh connections for user %q (max=%d)",
-				identityContext.TeleportUser,
-				maxConnections,
-			)
-		}
-		return ctx, trace.Wrap(err)
-	}
-
-	// ensure that losing the lock closes the connection context.  Under normal
-	// conditions, cancellation propagates from the connection context to the
-	// lock, but if we lose the lock due to some error (e.g. poor connectivity
-	// to auth server) then cancellation propagates in the other direction.
-	go func() {
-		// TODO(fspmarshall): If lock was lost due to error, find a way to propagate
-		// an error message to user.
-		<-semLock.Done()
-		ccx.Close()
-	}()
-	return ctx, nil
+	ctx, err = s.sessionController.AcquireSessionContext(ctx, identityContext, ccx.ServerConn.LocalAddr().String(), ccx.ServerConn.RemoteAddr().String(), ccx)
+	return ctx, trace.Wrap(err)
 }
 
 // HandleNewChan is called when new channel is opened
@@ -1676,10 +1579,16 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	case tracessh.TracingRequest:
 		return nil
 	case sshutils.ExecRequest:
+		if _, err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
+			return trace.Wrap(err)
+		}
 		return s.termHandlers.HandleExec(ctx, ch, req, serverContext)
 	case sshutils.PTYRequest:
 		return s.termHandlers.HandlePTYReq(ctx, ch, req, serverContext)
 	case sshutils.ShellRequest:
+		if _, err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
+			return trace.Wrap(err)
+		}
 		return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
 	case sshutils.WindowChangeRequest:
 		return s.termHandlers.HandleWinChange(ctx, ch, req, serverContext)
@@ -1700,6 +1609,10 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// https://tools.ietf.org/html/draft-ietf-secsh-agent-02
 		// the open ssh proto spec that we implement is here:
 		// http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent
+		if _, err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
+			s.Logger.Warn(err)
+			return nil
+		}
 
 		// to maintain interoperability with OpenSSH, agent forwarding requests
 		// should never fail, all errors should be logged and we should continue
@@ -2056,8 +1969,14 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 	}
 }
 
+// TODO: tsh scp will display neither the message sent in stderr or in
+// the reply; github.com/pkg/sftp ignores the SSH channel stderr, and
+// golang.org/x/crypto/ssh.channel.SendRequest ignores the message in
+// a channel reply. This is bad UX for users, as
+// 'ssh: subsystem request failed' will be the only error displayed when
+// access is denied.
 func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
-	s.Logger.Error(err)
+	s.Logger.WithError(err).Errorf("failure handling SSH %q request", req.Type)
 	// Terminate the error with a newline when writing to remote channel's
 	// stderr so the output does not mix with the rest of the output if the remote
 	// side is not doing additional formatting for extended data.
@@ -2085,10 +2004,8 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ch ssh.Channel, ctx *sr
 	case r.Name == teleport.GetHomeDirSubsystem:
 		return newHomeDirSubsys(), nil
 	case r.Name == sftpSubsystem:
-		if err := ctx.CheckFileCopyingAllowed(); err != nil {
-			// Add an extra newline here to separate this error message
-			// from a potential OpenSSH error message
-			writeStderr(ch, err.Error()+"\n")
+		if err := ctx.CheckSFTPAllowed(); err != nil {
+			s.replyError(ch, req, err)
 			return nil, trace.Wrap(err)
 		}
 

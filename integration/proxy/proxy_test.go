@@ -19,6 +19,7 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,10 +39,12 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/appaccess"
+	dbhelpers "github.com/gravitational/teleport/integration/db"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integration/kube"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -51,8 +55,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	dbhelpers "github.com/gravitational/teleport/integration/db"
 )
 
 // TestALPNSNIProxyMultiCluster tests SSH connection in multi-cluster setup with.
@@ -754,6 +756,64 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			require.NoError(t, client.Close())
 		})
 	})
+
+	t.Run("authenticated tunnel with cert renewal", func(t *testing.T) {
+		// get a teleport client
+		tc, err := pack.Root.Cluster.NewClient(helpers.ClientConfig{
+			Login:   pack.Root.User.GetName(),
+			Cluster: pack.Root.Cluster.Secrets.SiteName,
+		})
+		require.NoError(t, err)
+		routeToDatabase := tlsca.RouteToDatabase{
+			ServiceName: pack.Root.MysqlService.Name,
+			Protocol:    pack.Root.MysqlService.Protocol,
+			Username:    "root",
+		}
+		// inject a fake clock into the middleware so we can control when it thinks certs have expired
+		fakeClock := clockwork.NewFakeClockAt(time.Now())
+
+		// configure local proxy without certs but with cert checking/reissuing middleware
+		// local proxy middleware should fetch a DB cert when the local proxy starts
+		lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
+			RemoteProxyAddr:    pack.Root.Cluster.SSHProxy,
+			Protocols:          []alpncommon.Protocol{alpncommon.ProtocolMySQL},
+			InsecureSkipVerify: true,
+			Middleware:         libclient.NewDBCertChecker(tc, routeToDatabase, fakeClock),
+			Clock:              fakeClock,
+		})
+
+		client, err := mysql.MakeTestClientWithoutTLS(lp.GetAddr(), routeToDatabase)
+		require.NoError(t, err)
+
+		// Execute a query.
+		result, err := client.Execute("select 1")
+		require.NoError(t, err)
+		require.Equal(t, mysql.TestQueryResponse, result)
+
+		// Disconnect.
+		require.NoError(t, client.Close())
+
+		// advance the fake clock and verify that the local proxy thinks its cert expired.
+		fakeClock.Advance(time.Hour * 48)
+		err = lp.CheckDBCerts(routeToDatabase)
+		require.Error(t, err)
+		var x509Err x509.CertificateInvalidError
+		require.ErrorAs(t, err, &x509Err)
+		require.Equal(t, x509Err.Reason, x509.Expired)
+		require.Contains(t, x509Err.Detail, "is after")
+
+		// Open a new connection
+		client, err = mysql.MakeTestClientWithoutTLS(lp.GetAddr(), routeToDatabase)
+		require.NoError(t, err)
+
+		// Execute a query.
+		result, err = client.Execute("select 1")
+		require.NoError(t, err)
+		require.Equal(t, mysql.TestQueryResponse, result)
+
+		// Disconnect.
+		require.NoError(t, client.Close())
+	})
 }
 
 // TestALPNSNIProxyAppAccess tests application access via ALPN SNI proxy service.
@@ -1049,6 +1109,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	}
 	cfg.Listeners = helpers.SingleProxyPortSetupOn(rcAddr)(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
+	defer rc.StopAll()
 	log.Info("Teleport root cluster instance created")
 
 	username := helpers.MustGetCurrentUser(t).Username
@@ -1063,6 +1124,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = false
 	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	rcConf.Log = log
 
 	log.Infof("Root cluster config: %#v", rcConf)
 
@@ -1073,18 +1135,11 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	log.Info("Starting Root Cluster...")
 	err = rc.Start()
 	require.NoError(t, err)
-	defer rc.StopAll()
-
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second*30))
-	defer cancel()
-
-	validUser := "aladdin"
-	validPass := "open sesame"
 
 	// Create and start http_proxy server.
 	log.Info("Creating HTTP Proxy server...")
 	ph := &helpers.ProxyHandler{}
-	authorizer := helpers.NewProxyAuthorizer(ph, map[string]string{validUser: validPass})
+	authorizer := helpers.NewProxyAuthorizer(ph, "alice", "rosebud")
 	ts := httptest.NewServer(authorizer)
 	defer ts.Close()
 
@@ -1092,28 +1147,31 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	require.NoError(t, err)
 	log.Infof("HTTP Proxy server running on %s", proxyURL)
 
+	// set http_proxy to user:password@host
+	// these credentials will be rejected by the auth proxy (initially).
+	user := "aladdin"
+	pass := "open sesame"
+	t.Setenv("http_proxy", helpers.MakeProxyAddr(user, pass, proxyURL.Host))
+
 	rcProxyAddr := net.JoinHostPort(rcAddr, helpers.PortStr(t, rc.Web))
+	nodeCfg := makeNodeConfig("node1", rcProxyAddr)
+	nodeCfg.Log = log
 
-	// proxy url is just the host with no auth credentials
-	t.Setenv("http_proxy", proxyURL.Host)
-	_, err = rc.StartNode(makeNodeConfig("first-root-node", rcProxyAddr))
-	require.Error(t, err)
-	require.ErrorIs(t, authorizer.LastError(), trace.AccessDenied("missing Proxy-Authorization header"))
+	timeout := time.Second * 60
+	startErrC := make(chan error)
+	// start the node but don't block waiting for it while it attempts to connect to the auth server.
+	go func() {
+		_, err := rc.StartNode(nodeCfg)
+		startErrC <- err
+	}()
+	require.ErrorIs(t, authorizer.WaitForRequest(timeout), trace.AccessDenied("bad credentials"))
 	require.Zero(t, ph.Count())
 
-	// proxy url is user:password@host with incorrect password
-	t.Setenv("http_proxy", helpers.MakeProxyAddr(validUser, "incorrectPassword", proxyURL.Host))
-	_, err = rc.StartNode(makeNodeConfig("second-root-node", rcProxyAddr))
-	require.Error(t, err)
-	require.ErrorIs(t, authorizer.LastError(), trace.AccessDenied("bad credentials"))
-	require.Zero(t, ph.Count())
+	// set the auth credentials to match our environment
+	authorizer.SetCredentials(user, pass)
 
-	// proxy url is user:password@host with correct password
-	t.Setenv("http_proxy", helpers.MakeProxyAddr(validUser, validPass, proxyURL.Host))
-	_, err = rc.StartNode(makeNodeConfig("third-root-node", rcProxyAddr))
-	require.NoError(t, err)
-	err = helpers.WaitForNodeCount(ctx, rc, "root.example.com", 1)
-	require.NoError(t, err)
-	require.NoError(t, authorizer.LastError())
-	require.NotZero(t, ph.Count())
+	// with env set correctly and authorized, the node should register.
+	require.NoError(t, <-startErrC)
+	require.NoError(t, helpers.WaitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 1))
+	require.Greater(t, ph.Count(), 0)
 }

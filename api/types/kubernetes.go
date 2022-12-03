@@ -22,8 +22,9 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // KubeCluster represents a kubernetes cluster.
@@ -50,6 +51,26 @@ type KubeCluster interface {
 	String() string
 	// GetDescription returns the kube cluster description.
 	GetDescription() string
+	// GetAzureConfig gets the Azure config.
+	GetAzureConfig() KubeAzure
+	// SetAzureConfig sets the Azure config.
+	SetAzureConfig(KubeAzure)
+	// GetAWSConfig gets the AWS config.
+	GetAWSConfig() KubeAWS
+	// SetAWSConfig sets the AWS config.
+	SetAWSConfig(KubeAWS)
+	// GetGCPConfig gets the GCP config.
+	GetGCPConfig() KubeGCP
+	// SetGCPConfig sets the GCP config.
+	SetGCPConfig(KubeGCP)
+	// IsAzure indentifies if the KubeCluster contains Azure details.
+	IsAzure() bool
+	// IsAWS indentifies if the KubeCluster contains AWS details.
+	IsAWS() bool
+	// IsGCP indentifies if the KubeCluster contains GCP details.
+	IsGCP() bool
+	// IsKubeconfig identifies if the KubeCluster contains kubeconfig data.
+	IsKubeconfig() bool
 	// Copy returns a copy of this kube cluster resource.
 	Copy() *KubernetesClusterV3
 }
@@ -73,6 +94,20 @@ func NewKubernetesClusterV3FromLegacyCluster(namespace string, cluster *Kubernet
 	}
 
 	return k, nil
+}
+
+// NewKubernetesClusterV3WithoutSecrets creates a new copy of the provided cluster
+// but without secrets/credentials.
+func NewKubernetesClusterV3WithoutSecrets(cluster KubeCluster) (*KubernetesClusterV3, error) {
+	// Force a copy of the cluster to deep copy the Metadata fields.
+	copiedCluster := cluster.Copy()
+	clusterWithoutCreds, err := NewKubernetesClusterV3(
+		copiedCluster.Metadata,
+		KubernetesClusterSpecV3{
+			DynamicLabels: copiedCluster.Spec.DynamicLabels,
+		},
+	)
+	return clusterWithoutCreds, trace.Wrap(err)
 }
 
 // NewKubernetesClusterV3 creates a new Kubernetes cluster resource.
@@ -207,6 +242,62 @@ func (k *KubernetesClusterV3) GetDescription() string {
 	return k.Metadata.Description
 }
 
+// GetAzureConfig gets the Azure config.
+func (k *KubernetesClusterV3) GetAzureConfig() KubeAzure {
+	return k.Spec.Azure
+}
+
+// SetAzureConfig sets the Azure config.
+func (k *KubernetesClusterV3) SetAzureConfig(cfg KubeAzure) {
+	k.Spec.Azure = cfg
+}
+
+// GetAWSConfig gets the AWS config.
+func (k *KubernetesClusterV3) GetAWSConfig() KubeAWS {
+	return k.Spec.AWS
+}
+
+// SetAWSConfig sets the AWS config.
+func (k *KubernetesClusterV3) SetAWSConfig(cfg KubeAWS) {
+	k.Spec.AWS = cfg
+}
+
+// GetGCPConfig gets the GCP config.
+func (k *KubernetesClusterV3) GetGCPConfig() KubeGCP {
+	return k.Spec.GCP
+}
+
+// SetGCPConfig sets the GCP config.
+func (k *KubernetesClusterV3) SetGCPConfig(cfg KubeGCP) {
+	k.Spec.GCP = cfg
+}
+
+// IsAzure indentifies if the KubeCluster contains Azure details.
+func (k *KubernetesClusterV3) IsAzure() bool {
+	// on protobuf default values are not encoded.
+	// the empty structure returns no storage.
+	return k.Spec.Azure.Size() != 0
+}
+
+// IsAWS indentifies if the KubeCluster contains AWS details.
+func (k *KubernetesClusterV3) IsAWS() bool {
+	// on protobuf default values are not encoded.
+	// the empty structure returns no storage.
+	return k.Spec.AWS.Size() != 0
+}
+
+// IsGCP indentifies if the KubeCluster contains GCP details.
+func (k *KubernetesClusterV3) IsGCP() bool {
+	// on protobuf default values are not encoded.
+	// the empty structure returns no storage.
+	return k.Spec.GCP.Size() != 0
+}
+
+// IsKubeconfig identifies if the KubeCluster contains kubeconfig data.
+func (k *KubernetesClusterV3) IsKubeconfig() bool {
+	return len(k.Spec.Kubeconfig) > 0
+}
+
 // String returns the string representation.
 func (k *KubernetesClusterV3) String() string {
 	return fmt.Sprintf("KubernetesCluster(Name=%v, Labels=%v)",
@@ -241,6 +332,46 @@ func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 		if !IsValidLabelKey(key) {
 			return trace.BadParameter("kubernetes cluster %q invalid label key: %q", k.GetName(), key)
 		}
+	}
+
+	if err := k.Spec.Azure.CheckAndSetDefaults(); err != nil && k.IsAzure() {
+		return trace.Wrap(err)
+	}
+
+	if err := k.Spec.AWS.CheckAndSetDefaults(); err != nil && k.IsAWS() {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (k KubeAzure) CheckAndSetDefaults() error {
+	if len(k.ResourceGroup) == 0 {
+		return trace.BadParameter("invalid Azure ResourceGroup")
+	}
+
+	if len(k.ResourceName) == 0 {
+		return trace.BadParameter("invalid Azure ResourceName")
+	}
+
+	if len(k.SubscriptionID) == 0 {
+		return trace.BadParameter("invalid Azure SubscriptionID")
+	}
+
+	return nil
+}
+
+func (k KubeAWS) CheckAndSetDefaults() error {
+	if len(k.Region) == 0 {
+		return trace.BadParameter("invalid AWS Region")
+	}
+
+	if len(k.Name) == 0 {
+		return trace.BadParameter("invalid AWS Name")
+	}
+
+	if len(k.AccountID) == 0 {
+		return trace.BadParameter("invalid AWS AccountID")
 	}
 
 	return nil

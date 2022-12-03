@@ -53,6 +53,7 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -69,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/backend/firestore"
+	"github.com/gravitational/teleport/lib/backend/kubernetes"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -93,6 +95,7 @@ import (
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/proxy/clusterdial"
+	"github.com/gravitational/teleport/lib/proxy/peer"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -100,6 +103,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpnproxyauth "github.com/gravitational/teleport/lib/srv/alpnproxy/auth"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/srv/db"
@@ -832,64 +836,33 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		}
 	}
 
-	// if there's no host uuid initialized yet, try to read one from the
-	// one of the identities
-	cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			if errors.Is(err, fs.ErrPermission) {
-				cfg.Log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", cfg.DataDir)
-			}
-			return nil, trace.Wrap(err)
-		}
-		if len(cfg.Identities) != 0 {
-			cfg.HostUUID = cfg.Identities[0].ID.HostUUID
-			cfg.Log.Infof("Taking host UUID from first identity: %v.", cfg.HostUUID)
-		} else {
-			switch cfg.JoinMethod {
-			case types.JoinMethodToken,
-				types.JoinMethodUnspecified,
-				types.JoinMethodIAM,
-				types.JoinMethodGitHub:
-				// Checking error instead of the usual uuid.New() in case uuid generation
-				// fails due to not enough randomness. It's been known to happen happen when
-				// Teleport starts very early in the node initialization cycle and /dev/urandom
-				// isn't ready yet.
-				rawID, err := uuid.NewRandom()
-				if err != nil {
-					return nil, trace.BadParameter("" +
-						"Teleport failed to generate host UUID. " +
-						"This may happen if randomness source is not fully initialized when the node is starting up. " +
-						"Please try restarting Teleport again.")
-				}
-				cfg.HostUUID = rawID.String()
-			case types.JoinMethodEC2:
-				cfg.HostUUID, err = utils.GetEC2NodeID()
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-			default:
-				return nil, trace.BadParameter("unknown join method %q", cfg.JoinMethod)
-			}
-			cfg.Log.Infof("Generating new host UUID: %v.", cfg.HostUUID)
-		}
-		if err := utils.WriteHostUUID(cfg.DataDir, cfg.HostUUID); err != nil {
-			if errors.Is(err, fs.ErrPermission) {
-				cfg.Log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", cfg.DataDir)
-			}
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	_, err = uuid.Parse(cfg.HostUUID)
-	if err != nil {
-		cfg.Log.Warnf("Host UUID %q is not a true UUID (not eligible for UUID-based proxying)", cfg.HostUUID)
-	}
-
 	supervisor := NewSupervisor(processID, cfg.Log)
 	storage, err := auth.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	var kubeBackend kubernetesBackend
+	// If running in a Kubernetes Pod we must init the backend storage for `host_uuid` storage/retrieval.
+	if kubernetes.InKubeCluster() {
+		kubeBackend, err = kubernetes.New()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// Load `host_uuid` from different storages. If this process is running in a Kubernetes Cluster,
+	// readOrGenerateHostID will try to read the `host_uuid` from the Kubernetes Secret. If the
+	// key is empty or if not running in a Kubernetes Cluster, it will read the
+	// `host_uuid` from local data directory.
+	// If no host id is available, it will generate a new host id and persist it to available storages.
+	if err := readOrGenerateHostID(supervisor.ExitContext(), cfg, kubeBackend); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err = uuid.Parse(cfg.HostUUID)
+	if err != nil && !utils.IsEC2NodeID(cfg.HostUUID) {
+		cfg.Log.Warnf("Host UUID %q is not a true UUID (not eligible for UUID-based proxying)", cfg.HostUUID)
 	}
 
 	if cfg.Clock == nil {
@@ -1122,15 +1095,6 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	}
 
 	if cfg.WindowsDesktop.Enabled {
-		// FedRAMP/FIPS is not supported for Desktop Access. Desktop Access uses
-		// Rust for the underlying RDP protocol implementation and smart card
-		// authentication. Returns an error if the user attempts to start Desktop
-		// Access in FedRAMP/RIPS mode for now until we can ensure that the crypto
-		// used by this feature is compliant.
-		if cfg.FIPS {
-			return nil, trace.BadParameter("FedRAMP/FIPS 140-2 compliant configuration for Desktop Access not supported in Teleport %v", teleport.Version)
-		}
-
 		process.initWindowsDesktopService()
 		serviceStarted = true
 	} else {
@@ -1340,7 +1304,7 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 		return handler, nil
 	default:
 		return nil, trace.BadParameter(
-			"unsupported scheme for audit_sesions_uri: %q, currently supported schemes are: %v",
+			"unsupported scheme for audit_sessions_uri: %q, currently supported schemes are: %v",
 			uri.Scheme, strings.Join([]string{teleport.SchemeS3, teleport.SchemeGCS, teleport.SchemeFile}, ", "))
 	}
 }
@@ -2227,7 +2191,7 @@ func (process *TeleportProcess) initSSH() error {
 		// Start BPF programs. This is blocking and if the BPF programs fail to
 		// load, the node will not start. If BPF is not enabled, this will simply
 		// return a NOP struct that can be used to discard BPF data.
-		ebpf, err := bpf.New(cfg.SSH.BPF)
+		ebpf, err := bpf.New(cfg.SSH.BPF, cfg.SSH.RestrictedSession)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2315,7 +2279,29 @@ func (process *TeleportProcess) initSSH() error {
 
 		storagePresence := local.NewPresenceService(process.storage.BackendStorage)
 
-		s, err := regular.New(cfg.SSH.Addr,
+		// read the host UUID:
+		serverID, err := utils.ReadOrMakeHostUUID(cfg.DataDir)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+			Semaphores:     authClient,
+			AccessPoint:    authClient,
+			LockEnforcer:   lockWatcher,
+			Emitter:        &events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: streamer},
+			Component:      teleport.ComponentNode,
+			Logger:         process.log.WithField(trace.Component, "sessionctrl"),
+			TracerProvider: process.TracingProvider,
+			ServerID:       serverID,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		s, err := regular.New(
+			process.ExitContext(),
+			cfg.SSH.Addr,
 			cfg.Hostname,
 			[]ssh.Signer{conn.ServerIdentity.KeySigner},
 			authClient,
@@ -2347,6 +2333,8 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetCreateHostUser(!cfg.SSH.DisableCreateHostUser),
 			regular.SetStoragePresenceService(storagePresence),
 			regular.SetInventoryControlHandle(process.inventoryHandle),
+			regular.SetTracerProvider(process.TracingProvider),
+			regular.SetSessionController(sessionController),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -3404,11 +3392,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
 	var tsrv reversetunnel.Server
-	var peerClient *proxy.Client
+	var peerClient *peer.Client
 
 	if !process.Config.Proxy.DisableReverseTunnel {
 		if listeners.proxy != nil {
-			peerClient, err = proxy.NewClient(proxy.ClientConfig{
+			peerClient, err = peer.NewClient(peer.ClientConfig{
 				Context:     process.ExitContext(),
 				ID:          process.Config.HostUUID,
 				AuthClient:  conn.Client,
@@ -3469,11 +3457,48 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return nil
 		})
 	}
+
 	if !process.Config.Proxy.DisableTLS {
 		tlsConfigWeb, err = process.setupProxyTLSConfig(conn, tsrv, accessPoint, clusterName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	var proxyRouter *proxy.Router
+	if !process.Config.Proxy.DisableReverseTunnel {
+		router, err := proxy.NewRouter(proxy.RouterConfig{
+			ClusterName:         clusterName,
+			Log:                 process.log.WithField(trace.Component, "router"),
+			RemoteClusterGetter: accessPoint,
+			SiteGetter:          tsrv,
+			TracerProvider:      process.TracingProvider,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		proxyRouter = router
+	}
+
+	// read the host UUID:
+	serverID, err := utils.ReadOrMakeHostUUID(cfg.DataDir)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:     accessPoint,
+		AccessPoint:    accessPoint,
+		LockEnforcer:   lockWatcher,
+		Emitter:        &events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: streamer},
+		Component:      teleport.ComponentProxy,
+		Logger:         process.log.WithField(trace.Component, "sessionctrl"),
+		TracerProvider: process.TracingProvider,
+		ServerID:       serverID,
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Register web proxy server
@@ -3498,6 +3523,27 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			accessPoint:  accessPoint,
 		}
 
+		proxyKubeAddr := cfg.Proxy.Kube.ListenAddr
+		if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
+			proxyKubeAddr = cfg.Proxy.Kube.PublicAddrs[0]
+		}
+
+		traceClt := tracing.NewNoopClient()
+		if cfg.Tracing.Enabled {
+			traceConf, err := process.Config.Tracing.Config()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			traceConf.Logger = process.log.WithField(trace.Component, teleport.ComponentTracing)
+
+			clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			traceClt = clt
+		}
+
 		webConfig := web.Config{
 			Proxy:            tsrv,
 			AuthServers:      cfg.AuthServerAddresses()[0],
@@ -3518,6 +3564,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ProxySettings:    proxySettings,
 			PublicProxyAddr:  process.proxyPublicAddr().Addr,
 			ALPNHandler:      alpnHandlerForWeb.HandleConnection,
+			ProxyKubeAddr:    proxyKubeAddr,
+			TraceClient:      traceClt,
+			Router:           proxyRouter,
+			SessionControl:   sessionController,
 		}
 		webHandler, err = web.NewHandler(webConfig)
 		if err != nil {
@@ -3581,14 +3631,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	var peerAddrString string
-	var proxyServer *proxy.Server
+	var proxyServer *peer.Server
 	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxy != nil {
 		peerAddr, err := process.Config.Proxy.publicPeerAddr()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		peerAddrString = peerAddr.String()
-		proxyServer, err = proxy.NewServer(proxy.ServerConfig{
+		proxyServer, err = peer.NewServer(peer.ServerConfig{
 			AccessCache:   accessPoint,
 			Listener:      listeners.proxy,
 			TLSConfig:     serverTLSConfig,
@@ -3615,7 +3665,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		})
 	}
 
-	sshProxy, err := regular.New(cfg.Proxy.SSHAddr,
+	sshProxy, err := regular.New(
+		process.ExitContext(),
+		cfg.SSH.Addr,
 		cfg.Hostname,
 		[]ssh.Signer{conn.ServerIdentity.KeySigner},
 		accessPoint,
@@ -3624,7 +3676,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		process.proxyPublicAddr(),
 		conn.Client,
 		regular.SetLimiter(proxyLimiter),
-		regular.SetProxyMode(peerAddrString, tsrv, accessPoint),
+		regular.SetProxyMode(peerAddrString, tsrv, accessPoint, proxyRouter),
 		regular.SetCiphers(cfg.Ciphers),
 		regular.SetKEXAlgorithms(cfg.KEXAlgorithms),
 		regular.SetMACAlgorithms(cfg.MACAlgorithms),
@@ -3639,6 +3691,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		// accurately checked later when an SCP/SFTP request hits the
 		// destination Node.
 		regular.SetAllowFileCopying(true),
+		regular.SetTracerProvider(process.TracingProvider),
+		regular.SetSessionController(sessionController),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3727,6 +3781,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			AccessPoint:   accessPoint,
 			GetRotation:   process.getRotation,
 			OnHeartbeat:   process.onHeartbeat(component),
+			Log:           log,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3800,7 +3855,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 					alpncommon.ProtocolMongoDB,
 					alpncommon.ProtocolRedisDB,
 					alpncommon.ProtocolSnowflake,
-					alpncommon.ProtocolSQLServer),
+					alpncommon.ProtocolSQLServer,
+					alpncommon.ProtocolCassandra),
 			})
 		}
 
@@ -3855,6 +3911,23 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				utils.GRPCServerStreamErrorInterceptor,
 				proxyLimiter.StreamServerInterceptor,
 			),
+			grpc.KeepaliveParams(keepalive.ServerParameters{
+				// Using an aggressive idle timeout here since this gRPC server
+				// currently only hosts the join service, which has no need for
+				// long-lived idle connections.
+				//
+				// The reason for introducing this is that teleport clients
+				// before #17685 is fixed will hold connections open
+				// indefinitely if they encounter an error during the joining
+				// process, and this seems like the best way for the server to
+				// forcibly close those connections.
+				//
+				// If another gRPC service is added here in the future, it
+				// should be alright to increase or remove this idle timeout as
+				// necessary once the client fix has been released and widely
+				// available for some time.
+				MaxConnectionIdle: 10 * time.Second,
+			}),
 		)
 		joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client)
 		proto.RegisterJoinServiceServer(grpcServer, joinServiceServer)
@@ -4086,10 +4159,17 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		if acmeCfg.URI != "" {
 			m.Client = &acme.Client{DirectoryURL: acmeCfg.URI}
 		}
-		tlsConfig = m.TLSConfig()
+		// We have to duplicate the behavior of `m.TLSConfig()` here because
+		// http/1.1 needs to take precedence over h2 due to
+		// https://bugs.chromium.org/p/chromium/issues/detail?id=1379017#c5 in Chrome.
+		tlsConfig = &tls.Config{
+			GetCertificate: m.GetCertificate,
+			NextProtos: []string{
+				string(common.ProtocolHTTP), string(common.ProtocolHTTP2), // enable HTTP/2
+				acme.ALPNProto, // enable tls-alpn ACME challenges
+			},
+		}
 		utils.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
-
-		tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, acme.ALPNProto))
 	}
 
 	for _, pair := range process.Config.Proxy.KeyPairs {
@@ -4291,9 +4371,9 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
-		ok := false
+		shouldSkipCleanup := false
 		defer func() {
-			if !ok {
+			if !shouldSkipCleanup {
 				warnOnErr(conn.Close(), log)
 			}
 		}()
@@ -4420,9 +4500,21 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
+		asyncEmitter, err := process.newAsyncEmitter(conn.Client)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
+		defer func() {
+			if !shouldSkipCleanup {
+				warnOnErr(asyncEmitter.Close(), log)
+			}
+		}()
+
 		appServer, err := app.New(process.ExitContext(), &app.Config{
+			Clock:                process.Config.Clock,
 			DataDir:              process.Config.DataDir,
 			AuthClient:           conn.Client,
 			AccessPoint:          accessPoint,
@@ -4437,13 +4529,16 @@ func (process *TeleportProcess) initApps() {
 			ResourceMatchers:     process.Config.Apps.ResourceMatchers,
 			OnHeartbeat:          process.onHeartbeat(teleport.ComponentApp),
 			ConnectedProxyGetter: proxyGetter,
+			LockWatcher:          lockWatcher,
+			Emitter:              asyncEmitter,
+			MonitorCloseChannel:  process.Config.Apps.MonitorCloseChannel,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		defer func() {
-			if !ok {
+			if !shouldSkipCleanup {
 				warnOnErr(appServer.Close(), log)
 			}
 		}()
@@ -4481,14 +4576,18 @@ func (process *TeleportProcess) initApps() {
 		log.Infof("All applications successfully started.")
 
 		// Cancel deferred cleanup actions, because we're going
-		// to regsiter an OnExit handler to take care of it
-		ok = true
+		// to register an OnExit handler to take care of it
+		shouldSkipCleanup = true
 
 		// Execute this when process is asked to exit.
 		process.OnExit("apps.stop", func(payload interface{}) {
 			log.Infof("Shutting down.")
 			warnOnErr(appServer.Close(), log)
+			if asyncEmitter != nil {
+				warnOnErr(asyncEmitter.Close(), log)
+			}
 			agentPool.Stop()
+			warnOnErr(asyncEmitter.Close(), log)
 			warnOnErr(conn.Close(), log)
 			log.Infof("Exited.")
 		})
@@ -4804,4 +4903,149 @@ func newHTTPFileSystem() (http.FileSystem, error) {
 func isDebugMode() bool {
 	v, _ := strconv.ParseBool(os.Getenv(teleport.DebugEnvVar))
 	return v
+}
+
+// readOrGenerateHostID tries to read the `host_uuid` from Kubernetes storage (if available) or local storage.
+// If the read operation returns no `host_uuid`, this function tries to pick it from the first static identity provided.
+// If no static identities were defined for the process, a new id is generated depending on the joining process:
+// - types.JoinMethodEC2: we will use the EC2 NodeID: {accountID}-{nodeID}
+// - Any other valid Joining method: a new UUID is generated.
+// Finally, if a new id is generated, this function writes it into local storage and Kubernetes storage (if available).
+// If kubeBackend is nil, the agent is not running in a Kubernetes Cluster.
+func readOrGenerateHostID(ctx context.Context, cfg *Config, kubeBackend kubernetesBackend) (err error) {
+	// Load `host_uuid` from different storages. If this process is running in a Kubernetes Cluster,
+	// readHostUUIDFromStorages will try to read the `host_uuid` from the Kubernetes Secret. If the
+	// key is empty or if not running in a Kubernetes Cluster, it will read the
+	// `host_uuid` from local data directory.
+	cfg.HostUUID, err = readHostIDFromStorages(ctx, cfg.DataDir, kubeBackend)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			if errors.Is(err, fs.ErrPermission) {
+				cfg.Log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", cfg.DataDir)
+			}
+			return trace.Wrap(err)
+		}
+		// if there's no host uuid initialized yet, try to read one from the
+		// one of the identities
+		if len(cfg.Identities) != 0 {
+			cfg.HostUUID = cfg.Identities[0].ID.HostUUID
+			cfg.Log.Infof("Taking host UUID from first identity: %v.", cfg.HostUUID)
+		} else {
+			switch cfg.JoinMethod {
+			case types.JoinMethodToken,
+				types.JoinMethodUnspecified,
+				types.JoinMethodIAM,
+				types.JoinMethodCircleCI,
+				types.JoinMethodKubernetes,
+				types.JoinMethodGitHub:
+				// Checking error instead of the usual uuid.New() in case uuid generation
+				// fails due to not enough randomness. It's been known to happen happen when
+				// Teleport starts very early in the node initialization cycle and /dev/urandom
+				// isn't ready yet.
+				rawID, err := uuid.NewRandom()
+				if err != nil {
+					return trace.BadParameter("" +
+						"Teleport failed to generate host UUID. " +
+						"This may happen if randomness source is not fully initialized when the node is starting up. " +
+						"Please try restarting Teleport again.")
+				}
+				cfg.HostUUID = rawID.String()
+			case types.JoinMethodEC2:
+				cfg.HostUUID, err = utils.GetEC2NodeID()
+				if err != nil {
+					return trace.Wrap(err)
+				}
+			default:
+				return trace.BadParameter("unknown join method %q", cfg.JoinMethod)
+			}
+			cfg.Log.Infof("Generating new host UUID: %v.", cfg.HostUUID)
+		}
+		// persistHostUUIDToStorages will persist the host_uuid to the local storage
+		// and to Kubernetes Secret if this process is running on a Kubernetes Cluster.
+		if err := persistHostIDToStorages(ctx, cfg, kubeBackend); err != nil {
+			return trace.Wrap(err)
+		}
+	} else if kubeBackend != nil && utils.HostUUIDExistsLocally(cfg.DataDir) {
+		// This case is used when loading a Teleport pre-11 agent with storage attached.
+		// In this case, we have to copy the "host_uuid" from the agent to the secret
+		// in case storage is removed later.
+		// loadHostIDFromKubeSecret will check if the `host_uuid` is already in the secret.
+		if id, err := loadHostIDFromKubeSecret(ctx, kubeBackend); err != nil || len(id) == 0 {
+			// Forces the copy of the host_uuid into the Kubernetes Secret if PV storage is enabled.
+			// This is only required if PV storage is removed later.
+			if err := writeHostIDToKubeSecret(ctx, kubeBackend, cfg.HostUUID); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+	return nil
+}
+
+// kubernetesBackend interface for kube storage backend.
+type kubernetesBackend interface {
+	// Put puts value into backend (creates if it does not
+	// exists, updates it otherwise)
+	Put(ctx context.Context, i backend.Item) (*backend.Lease, error)
+	// Get returns a single item or not found error
+	Get(ctx context.Context, key []byte) (*backend.Item, error)
+}
+
+// readHostIDFromStorages tries to read the `host_uuid` value from different storages,
+// depending on where the process is running.
+// If the process is running in a Kubernetes Cluster, this function will attempt
+// to read the `host_uuid` from the Kubernetes Secret. If it does not exist or
+// if it is not running on a Kubernetes cluster the read is done from the local
+// storage: `dataDir/host_uuid`.
+func readHostIDFromStorages(ctx context.Context, dataDir string, kubeBackend kubernetesBackend) (string, error) {
+	if kubeBackend != nil {
+		if hostID, err := loadHostIDFromKubeSecret(ctx, kubeBackend); err == nil && len(hostID) > 0 {
+			return hostID, nil
+		}
+	}
+	// Even if running in Kubernetes fallback to local storage if `host_uuid` was
+	// not found in secret.
+	hostID, err := utils.ReadHostUUID(dataDir)
+	return hostID, trace.Wrap(err)
+}
+
+// persistHostIDToStorages writes the cfg.HostUUID to local data and to
+// Kubernetes Secret if this process is running on a Kubernetes Cluster.
+func persistHostIDToStorages(ctx context.Context, cfg *Config, kubeBackend kubernetesBackend) error {
+	if err := utils.WriteHostUUID(cfg.DataDir, cfg.HostUUID); err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			cfg.Log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", cfg.DataDir)
+		}
+		return trace.Wrap(err)
+	}
+
+	// Persists the `host_uuid` into Kubernetes Secret for later reusage.
+	// This is required because `host_uuid` is part of the client secret
+	// and Auth connection will fail if we present a different `host_uuid`.
+	if kubeBackend != nil {
+		return trace.Wrap(writeHostIDToKubeSecret(ctx, kubeBackend, cfg.HostUUID))
+	}
+	return nil
+}
+
+// loadHostIDFromKubeSecret reads the host_uuid from the Kubernetes secret with
+// the expected key: `/host_uuid`.
+func loadHostIDFromKubeSecret(ctx context.Context, kubeBackend kubernetesBackend) (string, error) {
+	item, err := kubeBackend.Get(ctx, backend.Key(utils.HostUUIDFile))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(item.Value), nil
+}
+
+// writeHostIDToKubeSecret writes the `host_uuid` into the Kubernetes secret under
+// the key `/host_uuid`.
+func writeHostIDToKubeSecret(ctx context.Context, kubeBackend kubernetesBackend, id string) error {
+	_, err := kubeBackend.Put(
+		ctx,
+		backend.Item{
+			Key:   backend.Key(utils.HostUUIDFile),
+			Value: []byte(id),
+		},
+	)
+	return trace.Wrap(err)
 }

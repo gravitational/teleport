@@ -229,7 +229,7 @@ const (
 	KindState = "state"
 
 	// KindKubeService is a kubernetes service resource
-	// DELETE in 12.0.0
+	// DELETE in 13.0.0
 	KindKubeService = "kube_service"
 
 	// KindMFADevice is an MFA device for a user.
@@ -273,6 +273,9 @@ const (
 	// KindClusterAlert is a resource that conveys a cluster-level alert message.
 	KindClusterAlert = "cluster_alert"
 
+	// KindDevice represents a registered or trusted device.
+	KindDevice = "device"
+
 	// V5 is the fifth version of resources.
 	V5 = "v5"
 
@@ -315,6 +318,14 @@ const (
 	// VerbRotate is used to rotate certificate authorities
 	// used only internally
 	VerbRotate = "rotate"
+
+	// VerbCreateEnrollToken allows the creation of device enrollment tokens.
+	// Device Trust is a Teleport Enterprise feature.
+	VerbCreateEnrollToken = "create_enroll_token"
+
+	// VerbEnroll allows enrollment of trusted devices.
+	// Device Trust is a Teleport Enterprise feature.
+	VerbEnroll = "enroll"
 )
 
 const (
@@ -354,6 +365,16 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	AWSInstanceIDLabel = TeleportNamespace + "/instance-id"
+
+	// CloudLabel is used to identify the cloud where the resource was discovered.
+	CloudLabel = TeleportNamespace + "/cloud"
+
+	// CloudAWS identifies that a resource was discovered in AWS.
+	CloudAWS = "AWS"
+	// CloudAzure identifies that a resource was discovered in Azure.
+	CloudAzure = "Azure"
+	// CloudGCP identifies that a resource was discovered in GCP.
+	CloudGCP = "GCP"
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
@@ -485,6 +506,9 @@ const (
 	// a mechanism for reducing noise/redundancy, and is not a form of access control. Use
 	// one of the "permit" labels if you need to restrict viewership of an alert.
 	AlertSupersedes = "teleport.internal/alert-supersedes"
+
+	// AlertLicenseExpired is an internal label that indicates that the license has expired.
+	AlertLicenseExpired = "teleport.internal/license-expired-warning"
 )
 
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.

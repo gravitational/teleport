@@ -25,22 +25,52 @@ import (
 	"net/url"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+	"golang.org/x/net/proxy"
 )
 
-// DialProxy creates a connection to a server via an HTTP Proxy.
+// DialProxy creates a connection to a server via an HTTP or SOCKS5 Proxy.
 func DialProxy(ctx context.Context, proxyURL *url.URL, addr string) (net.Conn, error) {
 	return DialProxyWithDialer(ctx, proxyURL, addr, &net.Dialer{})
 }
 
-// DialProxyWithDialer creates a connection to a server via an HTTP Proxy using a specified dialer.
-func DialProxyWithDialer(ctx context.Context, proxyURL *url.URL, addr string, dialer ContextDialer) (net.Conn, error) {
+// DialProxyWithDialer creates a connection to a server via an HTTP or SOCKS5 Proxy using a specified dialer.
+func DialProxyWithDialer(
+	ctx context.Context,
+	proxyURL *url.URL,
+	addr string,
+	dialer *net.Dialer,
+) (net.Conn, error) {
 	if proxyURL == nil {
 		return nil, trace.BadParameter("missing proxy url")
 	}
+
+	switch proxyURL.Scheme {
+	case "http":
+		conn, err := dialProxyWithHTTPDialer(ctx, proxyURL, addr, dialer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return conn, nil
+	case "socks5":
+		conn, err := dialProxyWithSOCKSDialer(ctx, proxyURL, addr, dialer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return conn, nil
+	default:
+		return nil, trace.BadParameter("proxy url scheme %q not supported", proxyURL.Scheme)
+	}
+}
+
+// dialProxyWithHTTPDialer creates a connection to a server via an HTTP Proxy.
+func dialProxyWithHTTPDialer(
+	ctx context.Context,
+	proxyURL *url.URL,
+	addr string,
+	dialer ContextDialer,
+) (net.Conn, error) {
 	conn, err := dialer.DialContext(ctx, "tcp", proxyURL.Host)
 	if err != nil {
-		log.Warnf("Unable to dial to proxy: %v: %v.", proxyURL.Host, err)
 		return nil, trace.ConvertSystemError(err)
 	}
 
@@ -63,7 +93,6 @@ func DialProxyWithDialer(ctx context.Context, proxyURL *url.URL, addr string, di
 	}
 
 	if err := connectReq.Write(conn); err != nil {
-		log.Warnf("Unable to write to proxy: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -79,7 +108,6 @@ func DialProxyWithDialer(ctx context.Context, proxyURL *url.URL, addr string, di
 	resp, err := http.ReadResponse(br, connectReq)
 	if err != nil {
 		conn.Close()
-		log.Warnf("Unable to read response: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 	if resp.StatusCode != http.StatusOK {
@@ -96,6 +124,41 @@ func DialProxyWithDialer(ctx context.Context, proxyURL *url.URL, addr string, di
 		Conn:   conn,
 		reader: br,
 	}, nil
+}
+
+// dialProxyWithSOCKSDialer creates a connection to a server via a SOCKS5 Proxy.
+func dialProxyWithSOCKSDialer(
+	ctx context.Context,
+	proxyURL *url.URL,
+	addr string,
+	dialer *net.Dialer,
+) (net.Conn, error) {
+	var proxyAuth *proxy.Auth
+	if proxyURL.User != nil {
+		proxyAuth = &proxy.Auth{
+			User: proxyURL.User.Username(),
+		}
+		if password, ok := proxyURL.User.Password(); ok {
+			proxyAuth.Password = password
+		}
+	}
+
+	socksDialer, err := proxy.SOCKS5("tcp", proxyURL.Host, proxyAuth, dialer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ctxDialer, ok := socksDialer.(ContextDialer)
+	if !ok {
+		return nil, trace.Errorf("failed type assertion: wanted ContextDialer got %T", socksDialer)
+	}
+
+	conn, err := ctxDialer.DialContext(ctx, "tcp", addr)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+
+	return conn, nil
 }
 
 // bufferedConn is used when part of the data on a connection has already been

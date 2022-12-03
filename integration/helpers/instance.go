@@ -28,6 +28,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -46,11 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -251,6 +252,8 @@ type TeleInstance struct {
 
 // InstanceConfig is an instance configuration
 type InstanceConfig struct {
+	// Clock is an optional clock to use
+	Clock clockwork.Clock
 	// ClusterName is a cluster name of the instance
 	ClusterName string
 	// HostID is a host id of the instance
@@ -319,7 +322,10 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 		Username: fmt.Sprintf("%v.%v", cfg.HostID, cfg.ClusterName),
 		Groups:   []string{string(types.RoleAdmin)},
 	}
-	clock := clockwork.NewRealClock()
+	clock := cfg.Clock
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
 	subject, err := identity.Subject()
 	fatalIf(err)
 	tlsCert, err := tlsCA.GenerateCertificate(tlsca.CertificateRequest{
@@ -668,8 +674,8 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *service.Config, authPort s
 		return nil, trace.Wrap(err)
 	}
 
-	log.Debugf("Teleport node (in instance %v) started: %v/%v events received.",
-		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+	log.Debugf("Teleport node %s (in instance %s) started: %v/%v expected events received.",
+		process.Config.Hostname, i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
 	return process, nil
 }
 
@@ -1121,7 +1127,7 @@ func (i *TeleInstance) AddUser(username string, mappings []string) *User {
 func (i *TeleInstance) Start() error {
 	// Build a list of expected events to wait for before unblocking based off
 	// the configuration passed in.
-	expectedEvents := []string{}
+	var expectedEvents []string
 	if i.Config.Auth.Enabled {
 		expectedEvents = append(expectedEvents, service.AuthTLSReady)
 	}
@@ -1145,6 +1151,8 @@ func (i *TeleInstance) Start() error {
 	if i.Config.Kube.Enabled {
 		expectedEvents = append(expectedEvents, service.KubernetesReady)
 	}
+
+	expectedEvents = append(expectedEvents, service.InstanceReady)
 
 	// Start the process and block until the expected events have arrived.
 	receivedEvents, err := StartAndWait(i.Process, expectedEvents)
@@ -1214,8 +1222,7 @@ func (i *TeleInstance) NewClientWithCreds(cfg ClientConfig, creds UserCreds) (tc
 	return clt, nil
 }
 
-// NewUnauthenticatedClient returns a fully configured and pre-authenticated client
-// (pre-authenticated with server CAs and signed session key)
+// NewUnauthenticatedClient returns a fully configured and un-authenticated client
 func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.TeleportClient, err error) {
 	keyDir, err := os.MkdirTemp(i.Config.DataDir, "tsh")
 	if err != nil {
@@ -1274,7 +1281,12 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return i.AddClientCredentials(tc, cfg)
+}
 
+// AddClientCredentials adds authenticated credentials to a client.
+// (server CAs and signed session key).
+func (i *TeleInstance) AddClientCredentials(tc *client.TeleportClient, cfg ClientConfig) (*client.TeleportClient, error) {
 	// Generate certificates for the user simulating login.
 	creds, err := GenerateUserCreds(UserCredsRequest{
 		Process:  i.Process,

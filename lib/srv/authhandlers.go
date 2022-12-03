@@ -24,6 +24,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -37,13 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -90,6 +88,26 @@ type AuthHandlerConfig struct {
 	Clock clockwork.Clock
 }
 
+func (c *AuthHandlerConfig) CheckAndSetDefaults() error {
+	if c.Server == nil {
+		return trace.BadParameter("Server required")
+	}
+
+	if c.Emitter == nil {
+		return trace.BadParameter("Emitter required")
+	}
+
+	if c.AccessPoint == nil {
+		return trace.BadParameter("AccessPoint required")
+	}
+
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+
+	return nil
+}
+
 // AuthHandlers are common authorization and authentication related handlers
 // used by the regular and forwarding server.
 type AuthHandlers struct {
@@ -100,8 +118,11 @@ type AuthHandlers struct {
 
 // NewAuthHandlers initializes authorization and authentication handlers
 func NewAuthHandlers(config *AuthHandlerConfig) (*AuthHandlers, error) {
-	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
-	if err != nil {
+	if err := metrics.RegisterPrometheusCollectors(prometheusCollectors...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -156,7 +177,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	}
 
 	identity.Impersonator = certificate.Extensions[teleport.CertExtensionImpersonator]
-	accessRequestIDs, err := parseAccessRequestIDs(certificate.Extensions[teleport.CertExtensionTeleportActiveRequests])
+	accessRequestIDs, err := ParseAccessRequestIDs(certificate.Extensions[teleport.CertExtensionTeleportActiveRequests])
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
@@ -333,14 +354,10 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	// Check that the user certificate uses supported public key algorithms, was
 	// issued by Teleport, and check the certificate metadata (principals,
 	// timestamp, etc). Fallback to keys is not supported.
-	clock := time.Now
-	if h.c.Clock != nil {
-		clock = h.c.Clock.Now
-	}
 	certChecker := apisshutils.CertChecker{
 		CertChecker: ssh.CertChecker{
 			IsUserAuthority: h.IsUserAuthority,
-			Clock:           clock,
+			Clock:           h.c.Clock.Now,
 		},
 		FIPS: h.c.FIPS,
 	}
@@ -441,6 +458,7 @@ func (h *AuthHandlers) HostKeyAuth(addr string, remote net.Addr, key ssh.PublicK
 		CertChecker: ssh.CertChecker{
 			IsHostAuthority: h.IsHostAuthority,
 			HostKeyFallback: h.hostKeyCallback,
+			Clock:           h.c.Clock.Now,
 		},
 		FIPS: h.c.FIPS,
 	}
@@ -628,7 +646,7 @@ type AccessRequests struct {
 	IDs []string `json:"access_requests"`
 }
 
-func parseAccessRequestIDs(str string) ([]string, error) {
+func ParseAccessRequestIDs(str string) ([]string, error) {
 	var accessRequestIDs []string
 	var ar AccessRequests
 

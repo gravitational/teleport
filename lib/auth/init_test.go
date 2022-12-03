@@ -22,10 +22,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -37,15 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // TestReadIdentity makes parses identity from private key and certificate
@@ -507,7 +507,7 @@ func TestPresets(t *testing.T) {
 		// ConnectionDiagnostic is part of the default allow rules
 		outdatedRules := []types.Rule{}
 		for _, r := range rules {
-			if apiutils.SliceContainsStr(r.Resources, types.KindConnectionDiagnostic) {
+			if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
 				continue
 			}
 			outdatedRules = append(outdatedRules, r)
@@ -526,7 +526,7 @@ func TestPresets(t *testing.T) {
 		allowRules := out.GetRules(types.Allow)
 		require.Condition(t, func() (success bool) {
 			for _, r := range allowRules {
-				if apiutils.SliceContainsStr(r.Resources, types.KindConnectionDiagnostic) {
+				if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
 					return true
 				}
 			}
@@ -548,7 +548,7 @@ func TestPresets(t *testing.T) {
 		// setting a deny rule for a default allow rule
 		outdateAllowRules := []types.Rule{}
 		for _, r := range allowRules {
-			if apiutils.SliceContainsStr(r.Resources, types.KindConnectionDiagnostic) {
+			if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
 				continue
 			}
 			outdateAllowRules = append(outdateAllowRules, r)
@@ -573,7 +573,7 @@ func TestPresets(t *testing.T) {
 		allowRules = out.GetRules(types.Allow)
 		require.Condition(t, func() (success bool) {
 			for _, r := range allowRules {
-				if apiutils.SliceContainsStr(r.Resources, types.KindConnectionDiagnostic) {
+				if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
 					return false
 				}
 			}
@@ -607,7 +607,9 @@ func setupConfig(t *testing.T) InitConfig {
 		AuthPreference:          types.DefaultAuthPreference(),
 		SkipPeriodicOperations:  true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			},
 		},
 	}
 }

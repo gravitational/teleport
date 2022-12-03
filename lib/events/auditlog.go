@@ -72,6 +72,36 @@ const (
 	// SymlinkFilename is a name of the symlink pointing to the last
 	// current log file
 	SymlinkFilename = "events.log"
+
+	// AuditBackoffTimeout is a time out before audit logger will
+	// start losing events
+	AuditBackoffTimeout = 5 * time.Second
+
+	// NetworkBackoffDuration is a standard backoff on network requests
+	// usually is slow, e.g. once in 30 seconds
+	NetworkBackoffDuration = time.Second * 30
+
+	// NetworkRetryDuration is a standard retry on network requests
+	// to retry quickly, e.g. once in one second
+	NetworkRetryDuration = time.Second
+
+	// FastAttempts is the initial amount of fast retry attempts
+	// before switching to slow mode
+	FastAttempts = 10
+
+	// DiskAlertThreshold is the disk space alerting threshold.
+	DiskAlertThreshold = 90
+
+	// DiskAlertInterval is disk space check interval.
+	DiskAlertInterval = 5 * time.Minute
+
+	// InactivityFlushPeriod is a period of inactivity
+	// that triggers upload of the data - flush.
+	InactivityFlushPeriod = 5 * time.Minute
+
+	// AbandonedUploadPollingRate defines how often to check for
+	// abandoned uploads which need to be completed.
+	AbandonedUploadPollingRate = apidefaults.SessionTrackerTTL / 6
 )
 
 var (
@@ -747,9 +777,7 @@ func (l *AuditLog) getSessionChunk(namespace string, sid session.ID, offsetBytes
 // (oldest first).
 //
 // Can be filtered by 'after' (cursor value to return events newer than)
-//
-// This function is usually used in conjunction with GetSessionReader to
-// replay recorded session streams.
+
 func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]EventFields, error) {
 	l.log.WithFields(log.Fields{"sid": string(sid), "afterN": afterN, "printEvents": includePrintEvents}).Debugf("GetSessionEvents.")
 	if namespace == "" {
@@ -1018,7 +1046,7 @@ func (l *AuditLog) periodicCleanupPlaybacks() {
 // periodicSpaceMonitor run forever monitoring how much disk space has been
 // used on disk. Values are emitted to a Prometheus gauge.
 func (l *AuditLog) periodicSpaceMonitor() {
-	ticker := time.NewTicker(defaults.DiskAlertInterval)
+	ticker := time.NewTicker(DiskAlertInterval)
 	defer ticker.Stop()
 
 	for {
@@ -1037,7 +1065,7 @@ func (l *AuditLog) periodicSpaceMonitor() {
 			auditDiskUsed.Set(usedPercent)
 
 			// If used percentage goes above the alerting level, write to logs as well.
-			if usedPercent > float64(defaults.DiskAlertThreshold) {
+			if usedPercent > float64(DiskAlertThreshold) {
 				log.Warnf("Free disk space for audit log is running low, %v%% of disk used.", usedPercent)
 			}
 		case <-l.ctx.Done():

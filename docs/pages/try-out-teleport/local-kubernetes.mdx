@@ -59,12 +59,7 @@ Start minikube with the Docker driver:
 $ minikube start --driver=docker
 ```
 
-Add the Teleport Helm repository. Our Helm charts make it easier to deploy
-Teleport on your local Kubernetes cluster:
-
-```code
-$ helm repo add teleport https://charts.releases.teleport.dev
-```
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
 ### Install the Teleport Auth Service and Proxy Service
 
@@ -75,9 +70,10 @@ You will deploy the Auth Service and Proxy Service by installing the
 # This is the DNS name Kubernetes will assign to the Proxy Service
 $ CLUSTER_NAME="teleport-cluster.teleport-cluster.svc.cluster.local"
 $ helm install teleport-cluster teleport/teleport-cluster \
---create-namespace \
---namespace=teleport-cluster \
---set clusterName=${CLUSTER_NAME?}
+  --create-namespace \
+  --namespace=teleport-cluster \
+  --set clusterName=${CLUSTER_NAME?} \
+  --version (=teleport.version=)
 $ kubectl config set-context --current --namespace teleport-cluster
 ```
 
@@ -321,7 +317,8 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --set authToken=${INVITE_TOKEN?} \
   --set "apps[0].name"="kube-dash" \
   --set "apps[0].uri"=https://${DASH_ADDR?} \
-  --set insecureSkipProxyTLSVerify=true
+  --set insecureSkipProxyTLSVerify=true \
+  --version (=teleport.version=)
 ```
 
 <Details title="Why do we skip certificate verification here?">

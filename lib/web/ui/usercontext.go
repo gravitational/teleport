@@ -17,6 +17,8 @@ limitations under the License.
 package ui
 
 import (
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -130,7 +132,7 @@ func getWindowsDesktopLogins(roleSet services.RoleSet) []string {
 	denied = apiutils.Deduplicate(denied)
 	desktopLogins := []string{}
 	for _, login := range allowed {
-		if isDenied := apiutils.SliceContainsStr(denied, login); !isDenied {
+		if isDenied := slices.Contains(denied, login); !isDenied {
 			desktopLogins = append(desktopLogins, login)
 		}
 	}

@@ -1,0 +1,223 @@
+---
+title: Database Access with Azure Cache for Redis
+description: How to configure Teleport Database Access with Azure Cache for Redis
+---
+
+This guide will help you to:
+
+- Install and configure Teleport.
+- Set up access to Azure Cache for Redis.
+- Connect to the database server through Teleport.
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+![Teleport Database Access Azure Cache for Redis Self-Hosted](../../../img/database-access/guides/azure/redis-self-hosted.png)
+</ScopedBlock>
+
+<ScopedBlock scope={["cloud"]}>
+![Teleport Database Access Azure Cache for Redis Cloud](../../../img/database-access/guides/azure/redis-cloud.png)
+</ScopedBlock>
+
+## Prerequisites
+
+- Deployed Azure Redis server or Azure Redis Enterprise cluster.
+- Azure administrative privileges to manage service principals and access
+  controls.
+- A host, e.g., an Azure VM instance, where you will run the Teleport Database
+  Service.
+- `redis-cli` version `6.2` or newer installed and added to your system's
+  `PATH` environment variable.
+
+(!docs/pages/includes/user-client-prereqs.mdx!)
+
+## Step 1/6. Install Teleport
+
+(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
+
+## Step 2/6. Create a Teleport user
+
+(!docs/pages/includes/database-access/create-user.mdx!)
+
+## Step 3/6. Create a Database Service configuration
+
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+Create the Database Service configuration, specifying a region like this:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+$ teleport db configure create \
+  -o file \
+  --proxy=tele.example.com:443 \
+  --token=/tmp/token \
+  --azure-redis-discovery=eastus
+```
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ teleport db configure create \
+  -o file \
+  --proxy=teleport.example.com:3080 \
+  --token=/tmp/token \
+  --azure-redis-discovery=eastus
+```
+</ScopedBlock>
+
+The command will generate a Database Service configuration with Azure Cache for
+Redis auto-discovery enabled in the `eastus` region and place it at the
+`/etc/teleport.yaml` location.
+
+<Admonition type="tip">
+Use `--azure-redis-discovery=*` to discover databases in all regions. In
+addition to the region, you can optionally specify
+`--azure-resource-group=<resource-group-name>`,
+`--azure-subscription=<subscription-id>`, or `--labels=<key>=<value>` to
+further customize the scopes of the auto-discovery.
+</Admonition>
+
+## Step 4/6. Configure IAM permissions for Teleport
+
+The Teleport Database Service needs Azure IAM permissions to:
+
+- Discover and register Azure Cache for Redis databases. 
+- Retrieve Redis access keys to authenticate with the databases.
+
+### Configure an Azure service principal
+
+(!docs/pages/includes/database-access/azure-configure-service-principal.mdx!)
+
+### Create a custom role
+
+Teleport requires `<resource-type>/read` permissions for discovery and
+`<resource-type>/listKeys/action` permissions for authentication with the
+Redis servers, but Teleport only needs permissions for the resource types
+you have.
+
+Here is a sample role definition allowing Teleport to read and list keys
+for both Azure Redis and Azure Redis Enterprise:
+```json
+{
+    "properties": {
+        "roleName": "TeleportDiscovery",
+        "description": "Allows Teleport to discover Azure Cache For Redis databases and list keys",
+        "assignableScopes": [
+            "/subscriptions/11111111-2222-3333-4444-555555555555"
+        ],
+        "permissions": [
+            {
+                "actions": [
+                    "Microsoft.Cache/redis/read",
+                    "Microsoft.Cache/redis/listKeys/action",
+                    "Microsoft.Cache/redisEnterprise/read",
+                    "Microsoft.Cache/redisEnterprise/databases/read",
+                    "Microsoft.Cache/redisEnterprise/databases/listKeys/action"
+                ],
+                "notActions": [],
+                "dataActions": [],
+                "notDataActions": []
+            }
+        ]
+    }
+}
+```
+The `assignableScopes` field above includes a subscription
+`/subscriptions/<subscription>`, allowing the role to be assigned at any
+resource scope within that subscription or the subscription scope itself. If
+you want to further limit the `assignableScopes`, you can use a resource group
+`/subscriptions/<subscription>/resourceGroups/<group>` or a management group
+`/providers/Microsoft.Management/managementGroups/<group>` instead.
+
+Now go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade) page and select a subscription.
+
+Click on *Access control (IAM)* in the subscription and select *Add > Add custom role*:
+<Figure align="left">
+![IAM custom role](../../../img/database-access/guides/azure/add-custom-role@2x.png)
+</Figure>
+
+In the custom role creation page, click the *JSON* tab and click *Edit*, then paste the JSON example
+and replace the subscription in `assignableScopes` with your own subscription id:
+<Figure align="left">
+![Create JSON role](../../../img/database-access/guides/azure/redis-create-role-from-json.png)
+</Figure>
+
+### Create a role assignment for the Teleport Database Service principal
+
+(!docs/pages/includes/database-access/azure-assign-service-principal.mdx!)
+
+## Step 5/6. Start the Database Service
+
+Once the service principal is configured with the required IAM permissions,
+start the Teleport Database Service:
+
+```code
+$ teleport start --config=/etc/teleport.yaml
+```
+
+## Step 6/6. Connect
+
+Log in to your Teleport cluster. Your Azure Cache for Redis databases should
+appear in the list of available databases:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+$ tsh login --proxy=teleport.example.com --user=alice
+$ tsh db ls
+Name                      Description                              Allowed Users Labels  Connect 
+------------------------- ---------------------------------------- ------------- ------- ------- 
+my-azure-redis            Azure Redis server in East US            [*]           ...
+my-azure-redis-enterprise Azure Redis Enterprise server in East US [*]           ...
+```
+
+</ScopedBlock>
+
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ tsh login --proxy=mytenant.teleport.sh --user=alice
+$ tsh db ls
+Name                      Description                              Allowed Users Labels  Connect 
+------------------------- ---------------------------------------- ------------- ------- ------- 
+my-azure-redis            Azure Redis server in East US            [*]           ...
+my-azure-redis-enterprise Azure Redis Enterprise server in East US [*]           ...
+```
+
+</ScopedBlock>
+
+<Admonition type="note" title="Override default database name">
+By default, Teleport uses the name of the Azure Cache for Redis resource as the
+database name. You can override the database name by applying the
+`TeleportDatabaseName` Azure tag to the resource. The value of the tag will be
+used as the database name.
+</Admonition>
+
+To retrieve credentials for a database and connect to it:
+
+```code
+$ tsh db connect my-azure-redis
+```
+
+Note that the Teleport Database Service will retrieve the access key and
+authenticate with the Redis server on the backend automatically. Therefore,
+the `AUTH <access-key>` command is **not required** here once connected.
+
+To log out of the database and remove credentials:
+
+```code
+$ tsh db logout my-azure-redis
+```
+
+## Troubleshooting
+
+(!docs/pages/includes/database-access/azure-troubleshooting.mdx!)
+
+## Next steps
+
+(!docs/pages/includes/database-access/guides-next-steps.mdx!)
+
+## Further reading
+- [Understand Azure Role Definitions - AssignableScopes](https://learn.microsoft.com/en-us/azure/role-based-access-control/role-definitions#assignablescopes)
+- [Azure RBAC custom roles](https://docs.microsoft.com/en-us/azure/role-based-access-control/custom-roles)

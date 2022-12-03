@@ -28,6 +28,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -36,8 +40,10 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/uacc"
@@ -45,11 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 )
 
 var ctxID int32
@@ -69,7 +70,10 @@ var (
 	)
 )
 
-var ErrNodeFileCopyingNotPermitted = trace.AccessDenied("node does not allow file copying via SCP or SFTP")
+var (
+	ErrNodeFileCopyingNotPermitted  = trace.AccessDenied("node does not allow file copying via SCP or SFTP")
+	errCannotStartUnattendedSession = trace.AccessDenied("lacking privileges to start unattended session")
+)
 
 func init() {
 	prometheus.MustRegister(serverTX)
@@ -151,18 +155,11 @@ type Server interface {
 	// using reverse tunnel.
 	UseTunnel() bool
 
-	// OpenBPFSession will start monitoring all events within a session and
-	// emitting them to the Audit Log.
-	OpenBPFSession(ctx *ServerContext) (uint64, error)
+	// GetBPF returns the BPF service used for enhanced session recording.
+	GetBPF() bpf.BPF
 
-	// CloseBPFSession will stop monitoring events for a particular session.
-	CloseBPFSession(ctx *ServerContext) error
-
-	// OpenRestrictedSession  starts enforcing restrictions for a cgroup with cgroupID
-	OpenRestrictedSession(ctx *ServerContext, cgroupID uint64)
-
-	// CloseRestrictedSession stops enforcing restrictions for a cgroup with cgroupID
-	CloseRestrictedSession(ctx *ServerContext, cgroupID uint64)
+	// GetRestrictedSessionManager returns the manager for restricting user activity
+	GetRestrictedSessionManager() restricted.Manager
 
 	// Context returns server shutdown context
 	Context() context.Context
@@ -438,13 +435,15 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		trace.ComponentFields: fields,
 	})
 
-	lockTargets, err := ComputeLockTargets(srv, identityContext)
+	clusterName, err := srv.GetAccessPoint().GetClusterName()
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		childErr := child.Close()
+		return nil, nil, trace.NewAggregate(err, childErr)
 	}
+
 	monitorConfig := MonitorConfig{
 		LockWatcher:           child.srv.GetLockWatcher(),
-		LockTargets:           lockTargets,
+		LockTargets:           ComputeLockTargets(clusterName.GetClusterName(), srv.HostUUID(), identityContext),
 		LockingMode:           identityContext.AccessChecker.LockingMode(authPref.GetLockingMode()),
 		DisconnectExpiredCert: child.disconnectExpiredCert,
 		ClientIdleTimeout:     child.clientIdleTimeout,
@@ -522,31 +521,6 @@ func (c *ServerContext) SessionID() rsession.ID {
 // GetServer returns the underlying server which this context was created in.
 func (c *ServerContext) GetServer() Server {
 	return c.srv
-}
-
-// StreamWriter returns the underlying stream writer for the session or an
-// events.DiscardStream if the session has yet to be established.
-func (c *ServerContext) StreamWriter() events.StreamWriter {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	if c.session == nil {
-		return &events.DiscardStream{}
-	}
-
-	return c.session.Recorder()
-}
-
-// GetPID returns the PID of the Teleport process that was re-execed
-// or -1 if the process has not yet completed spawning.
-func (c *ServerContext) GetPID() int {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	if c.term == nil {
-		return -1
-	}
-
-	return c.term.PID()
 }
 
 // CreateOrJoinSession will look in the SessionRegistry for the session ID. If
@@ -669,6 +643,28 @@ func (c *ServerContext) CheckFileCopyingAllowed() error {
 	// Check if the user's RBAC role allows remote file operations.
 	if !c.Identity.AccessChecker.CanCopyFiles() {
 		return errRoleFileCopyingNotPermitted
+	}
+
+	return nil
+}
+
+// CheckSFTPAllowed returns an error if remote file operations via SCP
+// or SFTP are not allowed by the user's role or the node's config, or
+// if the user is not allowed to start unattended sessions.
+func (c *ServerContext) CheckSFTPAllowed() error {
+	if err := c.CheckFileCopyingAllowed(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// ensure moderated session policies allow starting an unattended session
+	policySets := c.Identity.AccessChecker.SessionPolicySets()
+	checker := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, c.Identity.TeleportUser)
+	canStart, _, err := checker.FulfilledFor(nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !canStart {
+		return errCannotStartUnattendedSession
 	}
 
 	return nil
@@ -814,7 +810,7 @@ func (c *ServerContext) takeClosers() []io.Closer {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	var closers []io.Closer
+	closers := []io.Closer{}
 	if c.term != nil {
 		closers = append(closers, c.term)
 		c.term = nil
@@ -928,14 +924,6 @@ func (c *ServerContext) SendSubsystemResult(r SubsystemResult) {
 	default:
 		c.Info("Blocked on sending subsystem result.")
 	}
-}
-
-// ProxyPublicAddress tries to get the public address from the first
-// available proxy. if public_address is not set, fall back to the hostname
-// of the first proxy we get back.
-func (c *ServerContext) ProxyPublicAddress() string {
-	//TODO(tross): Get the proxy address somehow - types.KindProxy is not replicated to Nodes
-	return "<proxyhost>:3080"
 }
 
 func (c *ServerContext) String() string {
@@ -1104,9 +1092,7 @@ func buildEnvironment(ctx *ServerContext) []string {
 	}
 
 	// Set some Teleport specific environment variables: SSH_TELEPORT_USER,
-	// SSH_SESSION_WEBPROXY_ADDR, SSH_TELEPORT_HOST_UUID, and
-	// SSH_TELEPORT_CLUSTER_NAME.
-	env = append(env, teleport.SSHSessionWebproxyAddr+"="+ctx.ProxyPublicAddress())
+	// SSH_TELEPORT_HOST_UUID, and SSH_TELEPORT_CLUSTER_NAME.
 	env = append(env, teleport.SSHTeleportHostUUID+"="+ctx.srv.ID())
 	env = append(env, teleport.SSHTeleportClusterName+"="+ctx.ClusterName)
 	env = append(env, teleport.SSHTeleportUser+"="+ctx.Identity.TeleportUser)
@@ -1153,28 +1139,19 @@ func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
 	}, nil
 }
 
-// ComputeLockTargets computes lock targets inferred from a Server
-// and an IdentityContext.
-func ComputeLockTargets(s Server, id IdentityContext) ([]types.LockTarget, error) {
-	clusterName, err := s.GetAccessPoint().GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+// ComputeLockTargets computes lock targets inferred from the clusterName, serverID and IdentityContext.
+func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []types.LockTarget {
 	lockTargets := []types.LockTarget{
 		{User: id.TeleportUser},
 		{Login: id.Login},
-		{Node: s.HostUUID()},
-		{Node: auth.HostFQDN(s.HostUUID(), clusterName.GetClusterName())},
+		{Node: serverID},
+		{Node: auth.HostFQDN(serverID, clusterName)},
 		{MFADevice: id.Certificate.Extensions[teleport.CertExtensionMFAVerified]},
 	}
 	roles := apiutils.Deduplicate(append(id.AccessChecker.RoleNames(), id.UnmappedRoles...))
-	lockTargets = append(lockTargets,
-		services.RolesToLockTargets(roles)...,
-	)
-	lockTargets = append(lockTargets,
-		services.AccessRequestsToLockTargets(id.ActiveRequests)...,
-	)
-	return lockTargets, nil
+	lockTargets = append(lockTargets, services.RolesToLockTargets(roles)...)
+	lockTargets = append(lockTargets, services.AccessRequestsToLockTargets(id.ActiveRequests)...)
+	return lockTargets
 }
 
 // SetRequest sets the ssh request that was issued by the client.

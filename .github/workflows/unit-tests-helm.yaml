@@ -1,0 +1,31 @@
+name: Unit Tests (Helm)
+run-name: Unit Tests (Helm) - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    paths:
+      - 'examples/chart/**'
+
+jobs:
+  test:
+    name: Unit Tests (Helm)
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport12
+      env:
+        HELM_PLUGINS: /root/.local/share/helm/plugins
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+
+      - name: Run tests
+        timeout-minutes: 40
+        run: make test-helm

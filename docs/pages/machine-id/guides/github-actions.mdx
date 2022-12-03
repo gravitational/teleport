@@ -1,0 +1,219 @@
+---
+title: Using Machine ID With GitHub Actions
+description: A tutorial for using Machine ID with GitHub Actions
+---
+
+<Details
+  title="Version warning"
+  opened={true}
+  scope={["oss", "enterprise"]}
+  scopeOnly={true}
+  min="11.0"
+>
+  Machine ID for GitHub Actions is available starting from Teleport `v11.0`.
+</Details>
+
+GitHub Actions are a popular CI/CD platform that works as a part of the larger GitHub
+ecosystem. Teleport, with the help of Machine ID, allows for GitHub Actions to
+securely interact with Teleport protected resources without the need for long lived
+credentials. By ensuring that rotated Machine ID credentials are additionally limited by RBAC,
+GitHub Actions with Teleport can be applied as both a viable and secure solution whenever a
+CI/CD platform is needed.
+
+Teleport supports secure joining on both GitHub-hosted and self-hosted GitHub
+actions runners.
+
+<Admonition type="note">
+Currently GitHub Actions with Machine ID is unsupported on GitHub Enterprise
+Server.
+</Admonition>
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- A node that is a part of the Teleport cluster with [Server Access](https://goteleport.com/docs/server-access/introduction/).
+- A local workstation with `tsh` access to the cluster.
+- A GitHub repository with GitHub Actions enabled. This guide uses the example `gravitational/example`
+repo, however this value should be replaced with your own unique repo.
+
+## Step 1/3. Create a join Token for GitHub Actions
+
+GitHub Actions will need its own join token in order to join the cluster.
+Using a text editor of your choice, create the configuration YAML file `tokenconfig.yaml` for the
+join token that resembles the following:
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: github-token
+  expires: "3000-01-01T00:00:00Z"
+spec:
+  roles: [Bot]
+  join_method: github
+  bot_name: github-demo
+  github:
+    allow:
+      - repository: gravitational/example
+```
+
+Let's go over the token configuration YAML in more detail:
+
+- `metadata.name` defines the name of the token. Note that this value will need to be used in other parts of the configuration later.
+- `metadata.expires` defines the date that the join token will expire. This example is set
+to the year `3000`, however care should be taken in production in order to Ensure
+that the expiration date will not be given a value that is greater than what is needed.
+- `spec.bot_name` is the name of the Machine ID bot that this token will grant access to.
+Note that this value will need to be used in other parts of the configuration later.
+- `metadata.expires` defines the date that the join token will expire. This example is set
+to the year `3000`, however care should be taken in production in order to Ensure
+that the expiration date will not be given a value that is greater than what is needed.
+- `spec.roles` defines the role for the bot user. The value of `[Bot]` is a pre-existing role
+that ensures that only bots are allowed to join the cluster using this token, reducing the scope of privileges.
+- `spec.join_method` defines the join method the token is applicable for. Since this guide
+only focuses on GitHub Actions, this value should always be equal to `github`.
+- `spec.github.allow` is used to set rules for what GitHub Actions will be able to
+authenticate by using the token. In this example, the `gravitational/example`
+repository is used, and this example repository should be replaced with your own repo.
+
+Most of the configuration settings used in the example configuration file `tokenconfig.yaml`
+do not have any variable settings, however the `allow` block of `spec.github.allow` has additional
+configuration options to more strictly define which GitHub Actions tokens will be granted access to:
+
+| **Setting** | **Behavior** | **Example** |
+| ----------- | ----------- | ----------- |
+| `sub` | The subject associated with the GitHub Actions run. | `repo:example-org/example-repo:environment:development` |
+| `repository` | The repository where the action is running. | `example-org/example` |
+| `repository_owner` | The name of the organization that owns the repository where the action is running.  | `example-org` |
+| `workflow`| The name of the [workflow](https://docs.github.com/en/actions/using-workflows/about-workflows) that the running job belongs to. This references the `name` of a workflow defined within a workflow configuration file, and can be the workflow created in Step 3/3 of this guide. | `guide-demo` |
+| `environment`| The name of the [environment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment) associated with the action run. | `development` |
+| `actor` | The GitHub account name that triggered the action run. | `username` |
+| `ref` | The git "ref" or [reference](https://docs.github.com/en/rest/git/refs#about-the-git-references-api) that triggered the action run. | `refs/heads/example` |
+| `ref_type` | The **type** of "ref" or reference that triggered the action run. | `branch` |
+
+Once the configuration YAML file has been created, apply it to your cluster using `tctl`:
+
+```code
+$ tctl create -f tokenconfig.yaml
+```
+
+The token `github-token` can now be observed with the following command, ensuring that the configuring is ready to be used by
+GitHub:
+
+```code
+$ tctl tokens ls
+```
+
+The output will resemble the following:
+
+```code
+Token       Type Labels Expiry Time (UTC)
+----------- ---- ------ ----------------------------------------------
+github-token Bot         01 Jan 00 00:00 UTC (2562047h47m16.854775807s)
+```
+
+## Step 2/3. Creating your Machine ID bot
+
+With the join token for GitHub Actions created, the next step is to create the Machine ID bot,
+and ensure that it is configured to use the newly created token. This bot can be created using a Teleport
+`configuration.yaml` file, however for the purposes of this guide you will create a simple configuration
+using `tctl` with any required configuration flags.
+
+The Machine ID bot created in this example will be used to access a specific node on the cluster
+via `tsh ssh`, and will therefore require a role that can access the cluster as needed. This example
+configuration will apply the `access` role, however care should be taken to either create or apply
+a role according to the principle of least privilege in production environments. Additionally, it
+should have explicit access to the cluster using a username created specifically for the bot user alone.
+
+Enter the following command from your workstation with `tsh` access, replacing the `username` value with
+the username affiliated with a node the bot will be required to access over a `tsh ssh` session:
+
+```
+$ tctl bots add github-demo --roles=access --token=github-token –logins=username
+```
+
+## Step 3/3. Configuring GitHub Actions
+
+Now that the bot has been successfully created, GitHub Actions can function as part of the Teleport cluster.
+
+In the GitHub workflows directory of your repo (`.github/workflows/`) create a new workflow YAML file,
+in this case `actionstest.yml`, that will reflect the action you'd like to configure. This guide will create an action that
+will both list nodes within the cluster using `tsh ls`, as well as write the commit SHA that triggered the workflow to
+a file within the bot node. To create this configuration, use the following YAML file:
+
+```YAML
+# This is a basic workflow to help you get started.
+# It will take the following action whenever a push is made to the "main" branch.
+on:
+ push:
+   branches:
+     - main
+jobs:
+ demo:
+   permissions:
+# The "id-token: write" permission is required or tbot will not be able to authenticate.
+     id-token: write
+     contents: read
+# The name of the workflow, and the Linux distro to be used to perform the required steps.
+   name: guide-demo
+   runs-on: ubuntu-latest
+   steps:
+     - name: Checkout repository
+       uses: actions/checkout@v3
+     - name: Fetch Teleport binaries
+       uses: gravitational/teleport-actions/setup@main
+       with:
+         version: (=teleport.major_version=)
+     - name: Fetch credentials
+       run: >
+         tbot start
+         --join-method=github
+         --token=github-token
+# Use the address of the auth/proxy server for your own cluster.
+         --auth-server=example.domain:443
+         --oneshot
+         --destination-dir=/opt/machine-id
+         --data-dir=/opt/machine-id-data
+     - name: List nodes
+# Enters a command from the cluster, in this case "tsh ls" using Machine ID credentials to list remote SSH nodes.
+# Ensure that the domain "authserver.domain" matches the auth/proxy server of your own cluster.
+       run: >
+         tsh -i ./opt/machine-id/identity
+         --proxy=example.domain:443
+         ls
+     - name: Write file to remote
+# Enters a command from the cluster, in this case "tsh ssh" using Machine ID credentials to gain SSH access to an SSH node, and then write the commit hash to the "github_run_log" file.
+# Ensure that the domain matches the auth/proxy server, that `username` matches the username of a remote SSH username, and that hostname matches an SSH host name that is a part of the Teleport cluster configured for access.
+       run: >
+         tsh -i /opt/machine-id/identity
+         --proxy example.domain:443
+         ssh username@hostname
+         "echo $GITHUB_SHA >> ~/github_run_log"
+```
+
+Add, commit, and push your changes to the `main` branch of the repository.
+
+Navigate to the **Actions** tab of your GitHub repository in your web browser. Select
+the **Workflow** that has now been created and triggered by the change, and select the `guide-demo` job.
+The GitHub action may take some time to complete, and will resemble the following once successful.
+
+
+![GitHub Actions](../../../img/machine-id/github-actions.png)
+
+Expand the `List nodes` step of the action, and the output will
+list all nodes in the cluster, from the perspective of the
+TSH user configured for Machine ID using the command `tsh ls`.
+
+## A note on security implications and risk
+
+When working with GitHub Actions and `tbot` it is important to ensure that
+the principal of least privilege is always applied and that security implications
+are well understood and respected.
+
+Using `tbot` commands with GitHub Actions means that GitHub Actions will
+have access to certificates contained within your Teleport cluster, and therefore
+a level of permitted access to your Teleport cluster. In order to reduce risk,
+extra care should be taken when user implemented code, code that is not
+otherwise well understood, or code that is otherwise untested is applied as part
+of the same job.

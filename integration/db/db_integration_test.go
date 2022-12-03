@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
+	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -76,6 +78,8 @@ func TestDatabaseAccess(t *testing.T) {
 	t.Run("HALeafCluster", pack.testHALeafCluster)
 	t.Run("LargeQuery", pack.testLargeQuery)
 	t.Run("AgentState", pack.testAgentState)
+	t.Run("CassandraRootCluster", pack.testCassandraRootCluster)
+	t.Run("CassandraLeafCluster", pack.testCassandraLeafCluster)
 
 	// This test should go last because it rotates the Database CA.
 	t.Run("RotateTrustedCluster", pack.testRotateTrustedCluster)
@@ -560,6 +564,13 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 
 	t.Run("root role with idle timeout", func(t *testing.T) {
 		setRoleIdleTimeout(t, rootAuthServer, rootRole, idleTimeout)
+		require.Eventually(t, func() bool {
+			role, err := rootAuthServer.GetRole(context.Background(), rootRole.GetName())
+			assert.NoError(t, err)
+			return time.Duration(role.GetOptions().ClientIdleTimeout) == idleTimeout
+
+		}, time.Second, time.Millisecond*100, "role idle timeout propagation filed")
+
 		client := mkMySQLLeafDBClient(t)
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
@@ -575,6 +586,13 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 
 	t.Run("leaf role with idle timeout", func(t *testing.T) {
 		setRoleIdleTimeout(t, leafAuthServer, leafRole, idleTimeout)
+		require.Eventually(t, func() bool {
+			role, err := leafAuthServer.GetRole(context.Background(), leafRole.GetName())
+			assert.NoError(t, err)
+			return time.Duration(role.GetOptions().ClientIdleTimeout) == idleTimeout
+
+		}, time.Second, time.Millisecond*100, "role idle timeout propagation filed")
+
 		client := mkMySQLLeafDBClient(t)
 		_, err := client.Execute("select 1")
 		require.NoError(t, err)
@@ -849,6 +867,56 @@ func (p *DatabasePack) testAgentState(t *testing.T) {
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 		})
 	}
+}
+
+// testCassandraRootCluster tests a scenario where a user connects
+// to a Cassandra database running in a root cluster.
+func (p *DatabasePack) testCassandraRootCluster(t *testing.T) {
+	// Connect to the database service in root cluster.
+	dbConn, err := cassandra.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: p.Root.Cluster.GetSiteAPI(p.Root.Cluster.Secrets.SiteName),
+		AuthServer: p.Root.Cluster.Process.GetAuthServer(),
+		Address:    p.Root.Cluster.Web,
+		Cluster:    p.Root.Cluster.Secrets.SiteName,
+		Username:   p.Root.User.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: p.Root.CassandraService.Name,
+			Protocol:    p.Root.CassandraService.Protocol,
+			Username:    "cassandra",
+		},
+	})
+	require.NoError(t, err)
+
+	var clusterName string
+	err = dbConn.Query("select cluster_name from system.local").Scan(&clusterName)
+	require.NoError(t, err)
+	require.Equal(t, "Test Cluster", clusterName)
+	dbConn.Close()
+}
+
+// testCassandraLeafCluster tests a scenario where a user connects
+// to a Cassandra database running in a root cluster.
+func (p *DatabasePack) testCassandraLeafCluster(t *testing.T) {
+	// Connect to the database service in root cluster.
+	dbConn, err := cassandra.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: p.Root.Cluster.GetSiteAPI(p.Root.Cluster.Secrets.SiteName),
+		AuthServer: p.Root.Cluster.Process.GetAuthServer(),
+		Address:    p.Root.Cluster.Web,
+		Cluster:    p.Leaf.Cluster.Secrets.SiteName,
+		Username:   p.Root.User.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: p.Leaf.CassandraService.Name,
+			Protocol:    p.Leaf.CassandraService.Protocol,
+			Username:    "cassandra",
+		},
+	})
+	require.NoError(t, err)
+
+	var clusterName string
+	err = dbConn.Query("select cluster_name from system.local").Scan(&clusterName)
+	require.NoError(t, err)
+	require.Equal(t, "Test Cluster", clusterName)
+	dbConn.Close()
 }
 
 func setRoleIdleTimeout(t *testing.T, authServer *auth.Server, role types.Role, idleTimout time.Duration) {

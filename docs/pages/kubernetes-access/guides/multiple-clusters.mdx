@@ -45,17 +45,21 @@ $ TOKEN=$(kubectl exec -ti "${POD?}" -- tctl nodes add --roles=kube --ttl=10000h
 $ echo $TOKEN
 ```
 
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+
 Switch `kubectl` to the Kubernetes cluster `cookie` and run:
 
 ```code
-# Add Teleport chart repository
-$ helm repo add teleport https://charts.releases.teleport.dev
-
 # Deploy a Kubernetes agent. It dials back to the Teleport cluster tele.example.com.
-$ CLUSTER='cookie'
-$ PROXY='tele.example.com:443'
-$ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
-  --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
+$ CLUSTER=cookie
+$ PROXY=tele.example.com:443
+$ helm install teleport-agent teleport/teleport-kube-agent \
+  --set kubeClusterName=${CLUSTER?} \
+  --set proxyAddr=${PROXY?} \
+  --set authToken=${TOKEN?} \
+  --create-namespace \
+  --namespace=teleport-agent \
+  --version (=teleport.version=)
 ```
 
 List connected clusters using `tsh kube ls` and switch between
@@ -95,17 +99,21 @@ $ TOKEN=$(tctl nodes add --roles=kube --ttl=10000h --format=json | jq -r '.[0]')
 $ echo $TOKEN
 ```
 
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+
 Switch `kubectl` to the Kubernetes cluster `cookie` and run:
 
 ```code
-# Add Teleport chart repository
-$ helm repo add teleport https://charts.releases.teleport.dev
-
 # Deploy a Kubernetes agent. It dials back to the Teleport cluster mytenant.teleport.sh.
-$ CLUSTER='cookie'
-$ PROXY='mytenant.teleport.sh'
-$ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
-  --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
+$ CLUSTER=cookie
+$ PROXY=mytenant.teleport.sh
+$ helm install teleport-agent teleport/teleport-kube-agent \
+  --set kubeClusterName=${CLUSTER?} \
+  --set proxyAddr=${PROXY?} \
+  --set authToken=${TOKEN?} \
+  --create-namespace \
+  --namespace=teleport-agent \
+  --version (=teleport.version=)
 ```
 
 List connected clusters using `tsh kube ls` and switch between

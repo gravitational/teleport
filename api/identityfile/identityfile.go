@@ -25,15 +25,14 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"regexp"
 	"strings"
+
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -303,14 +302,8 @@ func decodeIdentityFile(idFile io.Reader) (*IdentityFile, error) {
 	return &ident, nil
 }
 
-// OpenSSH cert types look like "<key-type>-cert-v<version>@openssh.com".
-// Currently, we only use "ssh-rsa-cert-v01@openssh.com" & "ecdsa-sha2-nistp256-cert-v01@openssh.com".
-var sshCertTypeRegex = regexp.MustCompile(`^[a-z0-9\-]+-cert-v[0-9]{2}@openssh\.com$`)
-
 // Check if the given data has an ssh cert type prefix as it's first part.
 func isSSHCert(data []byte) bool {
-	// ssh certs should look like "<ssh-cert-type> <cert-data>",
-	// so we check if the first element matches a known ssh cert type.
 	sshCertType := bytes.Split(data, []byte(" "))[0]
-	return sshCertTypeRegex.Match(sshCertType)
+	return sshutils.IsSSHCertType(string(sshCertType))
 }

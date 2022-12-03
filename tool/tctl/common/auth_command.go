@@ -16,7 +16,6 @@ package common
 
 import (
 	"context"
-	"encoding/pem"
 	"fmt"
 	"io"
 	"net"
@@ -26,6 +25,10 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -40,12 +43,7 @@ import (
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // AuthCommand implements `tctl auth` group of commands
@@ -72,6 +70,7 @@ type AuthCommand struct {
 	dbName                     string
 	dbUser                     string
 	signOverwrite              bool
+	jksPassword                string
 
 	rotateGracePeriod time.Duration
 	rotateType        string
@@ -138,7 +137,6 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 
 	a.authLS = auth.Command("ls", "List connected auth servers")
 	a.authLS.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&a.format)
-
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
@@ -166,148 +164,28 @@ var allowedCertificateTypes = []string{"user", "host", "tls-host", "tls-user", "
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 // If --type flag is given, only prints keys for CAs of this type, otherwise
 // prints all keys
-func (a *AuthCommand) ExportAuthorities(ctx context.Context, client auth.ClientI) error {
-	var typesToExport []types.CertAuthType
-
-	// this means to export TLS authority
-	switch a.authType {
-	// "tls" is supported for backwards compatibility.
-	// "tls-host" and "tls-user" were added later to allow export of the user
-	// TLS CA.
-	case "tls", "tls-host":
-		return a.exportTLSAuthority(ctx, client, types.HostCA, false)
-	case "tls-user":
-		return a.exportTLSAuthority(ctx, client, types.UserCA, false)
-	case "db":
-		return a.exportTLSAuthority(ctx, client, types.DatabaseCA, false)
-	case "tls-user-der", "windows":
-		return a.exportTLSAuthority(ctx, client, types.UserCA, true)
+func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt auth.ClientI) error {
+	exportFunc := client.ExportAuthorities
+	if a.exportPrivateKeys {
+		exportFunc = client.ExportAuthoritiesWithSecrets
 	}
 
-	// if no --type flag is given, export HostCA and UserCA.
-	if a.authType == "" {
-		typesToExport = []types.CertAuthType{types.HostCA, types.UserCA}
-	} else {
-		authType := types.CertAuthType(a.authType)
-		if err := authType.Check(); err != nil {
-			return trace.Wrap(err)
-		}
-		typesToExport = []types.CertAuthType{authType}
-	}
-	localAuthName, err := client.GetDomainName(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// fetch authorities via auth API (and only take local CAs, ignoring
-	// trusted ones)
-	var authorities []types.CertAuthority
-	for _, at := range typesToExport {
-		cas, err := client.GetCertAuthorities(ctx, at, a.exportPrivateKeys)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, ca := range cas {
-			if ca.GetClusterName() == localAuthName {
-				authorities = append(authorities, ca)
-			}
-		}
-	}
-
-	// print:
-	for _, ca := range authorities {
-		if a.exportPrivateKeys {
-			for _, key := range ca.GetActiveKeys().SSH {
-				fingerprint, err := sshutils.PrivateKeyFingerprint(key.PrivateKey)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				if a.exportAuthorityFingerprint != "" && fingerprint != a.exportAuthorityFingerprint {
-					continue
-				}
-				os.Stdout.Write(key.PrivateKey)
-				fmt.Fprintf(os.Stdout, "\n")
-			}
-		} else {
-			for _, key := range ca.GetTrustedSSHKeyPairs() {
-				fingerprint, err := sshutils.AuthorizedKeyFingerprint(key.PublicKey)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				if a.exportAuthorityFingerprint != "" && fingerprint != a.exportAuthorityFingerprint {
-					continue
-				}
-
-				// export certificates in the old 1.0 format where host and user
-				// certificate authorities were exported in the known_hosts format.
-				if a.compatVersion == "1.0" {
-					castr, err := hostCAFormat(ca, key.PublicKey, client)
-					if err != nil {
-						return trace.Wrap(err)
-					}
-
-					fmt.Println(castr)
-					continue
-				}
-
-				// export certificate authority in user or host ca format
-				var castr string
-				switch ca.GetType() {
-				case types.UserCA:
-					castr, err = userCAFormat(ca, key.PublicKey)
-				case types.HostCA:
-					castr, err = hostCAFormat(ca, key.PublicKey, client)
-				default:
-					return trace.BadParameter("unknown user type: %q", ca.GetType())
-				}
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				// print the export friendly string
-				fmt.Println(castr)
-			}
-		}
-	}
-	return nil
-}
-
-func (a *AuthCommand) exportTLSAuthority(ctx context.Context, client auth.ClientI, typ types.CertAuthType, unpackPEM bool) error {
-	clusterName, err := client.GetDomainName(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	certAuthority, err := client.GetCertAuthority(
+	authorities, err := exportFunc(
 		ctx,
-		types.CertAuthID{Type: typ, DomainName: clusterName},
-		a.exportPrivateKeys,
+		clt,
+		client.ExportAuthoritiesRequest{
+			AuthType:                   a.authType,
+			ExportAuthorityFingerprint: a.exportAuthorityFingerprint,
+			UseCompatVersion:           a.compatVersion == "1.0",
+		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(certAuthority.GetActiveKeys().TLS) != 1 {
-		return trace.BadParameter("expected one TLS key pair, got %v", len(certAuthority.GetActiveKeys().TLS))
-	}
-	keyPair := certAuthority.GetActiveKeys().TLS[0]
 
-	print := func(data []byte) error {
-		if !unpackPEM {
-			fmt.Println(string(data))
-			return nil
-		}
-		b, _ := pem.Decode(data)
-		if b == nil {
-			return trace.BadParameter("no PEM data in CA data: %q", data)
-		}
-		fmt.Println(string(b.Bytes))
-		return nil
-	}
-	if a.exportPrivateKeys {
-		if err := print(keyPair.Key); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return trace.Wrap(print(keyPair.Cert))
+	fmt.Println(authorities)
+
+	return nil
 }
 
 // GenerateKeys generates a new keypair
@@ -338,6 +216,13 @@ func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.C
 	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach,
 		identityfile.FormatRedis, identityfile.FormatElasticsearch:
 		return a.generateDatabaseKeys(ctx, clusterAPI)
+	case identityfile.FormatCassandra, identityfile.FormatScylla:
+		jskPass, err := utils.CryptoRandomHex(32)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		a.jksPassword = jskPass
+		return a.generateDatabaseKeys(ctx, clusterAPI)
 	case identityfile.FormatSnowflake:
 		return a.generateSnowflakeKey(ctx, clusterAPI)
 	}
@@ -359,16 +244,20 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.
 		return trace.Wrap(err)
 	}
 
-	databaseCA, err := clusterAPI.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	cn, err := clusterAPI.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	certAuthID := types.CertAuthID{
+		Type:       types.DatabaseCA,
+		DomainName: cn.GetClusterName(),
+	}
+	databaseCA, err := clusterAPI.GetCertAuthority(ctx, certAuthID, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if len(databaseCA) != 1 {
-		return trace.Errorf("expected database CA to have only one entry, found %d", len(databaseCA))
-	}
-
-	key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: services.GetTLSCerts(databaseCA[0])}}
+	key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: services.GetTLSCerts(databaseCA)}}
 
 	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
 		OutputPath:           a.output,
@@ -381,7 +270,7 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.
 	}
 
 	return trace.Wrap(
-		writeHelperMessageDBmTLS(os.Stdout, filesWritten, "", a.outputFormat),
+		writeHelperMessageDBmTLS(os.Stdout, filesWritten, "", a.outputFormat, ""),
 	)
 }
 
@@ -451,7 +340,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 	}
 	clusterName := cn.GetClusterName()
 
-	key.Cert, err = clusterAPI.GenerateHostCert(key.MarshalSSHPublicKey(),
+	key.Cert, err = clusterAPI.GenerateHostCert(ctx, key.MarshalSSHPublicKey(),
 		"", "", principals,
 		clusterName, types.RoleNode, 0)
 	if err != nil {
@@ -505,13 +394,14 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 		OutputLocation:     a.output,
 		TTL:                a.genTTL,
 		Key:                key,
+		JKSPassword:        a.jksPassword,
 	}
 	filesWritten, err := db.GenerateDatabaseCertificates(ctx, dbCertReq)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(writeHelperMessageDBmTLS(os.Stdout, filesWritten, a.output, a.outputFormat))
+	return trace.Wrap(writeHelperMessageDBmTLS(os.Stdout, filesWritten, a.output, a.outputFormat, a.jksPassword))
 }
 
 var mapIdentityFileFormatHelperTemplate = map[identityfile.Format]*template.Template{
@@ -521,9 +411,11 @@ var mapIdentityFileFormatHelperTemplate = map[identityfile.Format]*template.Temp
 	identityfile.FormatRedis:         redisAuthSignTpl,
 	identityfile.FormatSnowflake:     snowflakeAuthSignTpl,
 	identityfile.FormatElasticsearch: elasticsearchAuthSignTpl,
+	identityfile.FormatCassandra:     cassandraAuthSignTpl,
+	identityfile.FormatScylla:        scyllaAuthSignTpl,
 }
 
-func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output string, outputFormat identityfile.Format) error {
+func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output string, outputFormat identityfile.Format, jksPassword string) error {
 	if writer == nil {
 		return nil
 	}
@@ -534,10 +426,10 @@ func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output st
 		// Consider adding one to ease the installation for the end-user
 		return nil
 	}
-
 	tplVars := map[string]interface{}{
-		"files":  strings.Join(filesWritten, ", "),
-		"output": output,
+		"files":       strings.Join(filesWritten, ", "),
+		"jksPassword": jksPassword,
+		"output":      output,
 	}
 
 	return trace.Wrap(tpl.Execute(writer, tplVars))
@@ -619,6 +511,39 @@ xpack.security.authc.realms.pki.pki1:
 
 For more information on configuring security settings in Elasticsearch, see:
 https://www.elastic.co/guide/en/elasticsearch/reference/current/security-settings.html
+`))
+
+	cassandraAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+To enable mutual TLS on your Cassandra server, add the following to your
+cassandra.yaml configuration file:
+
+client_encryption_options:
+   enabled: true
+   optional: false
+   keystore: /path/to/{{.output}}.keystore
+   keystore_password: "{{.jksPassword}}"
+
+   require_client_auth: true
+   truststore: /path/to/{{.output}}.truststore
+   truststore_password: "{{.jksPassword}}"
+   protocol: TLS
+   algorithm: SunX509
+   store_type: JKS
+   cipher_suites: [TLS_RSA_WITH_AES_256_CBC_SHA]
+`))
+
+	scyllaAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+To enable mutual TLS on your Scylla server, add the following to your
+scylla.yaml configuration file:
+
+client_encryption_options:
+   enabled: true
+   certificate: /path/to/{{.output}}.crt
+   keyfile: /path/to/{{.output}}.key
+   truststore:  /path/to/{{.output}}.cas
+   require_client_auth: True
 `))
 )
 
@@ -730,15 +655,19 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	}
 	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
 
-	networkConfig, err := clusterAPI.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err)
+	// Is TLS routing enabled?
+	proxyListenerMode := types.ProxyListenerMode_Separate
+	if a.config != nil && a.config.Auth.NetworkingConfig != nil {
+		proxyListenerMode = a.config.Auth.NetworkingConfig.GetProxyListenerMode()
+	}
+	if networkConfig, err := clusterAPI.GetClusterNetworkingConfig(ctx); err == nil {
+		proxyListenerMode = networkConfig.GetProxyListenerMode()
 	}
 
+	// If we're in multiplexed mode get SNI name for kube from single multiplexed proxy addr
 	kubeTLSServerName := ""
-	// Is TLS routing enabled?
-	if networkConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
-		// If we're in multiplexed mode get SNI name for kube from single multiplexed proxy addr
+	if proxyListenerMode == types.ProxyListenerMode_Multiplex {
+		log.Debug("Using Proxy SNI for kube TLS server name")
 		kubeTLSServerName = client.GetKubeTLSServerName(a.config.Proxy.WebAddr.Host())
 	}
 
@@ -748,6 +677,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		Key:                  key,
 		Format:               a.outputFormat,
 		KubeProxyAddr:        a.proxyAddr,
+		KubeClusterName:      a.kubeCluster,
 		KubeTLSServerName:    kubeTLSServerName,
 		OverwriteDestination: a.signOverwrite,
 	})
@@ -884,36 +814,6 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 	}
 
 	return trace.BadParameter("couldn't find registered public proxies, specify --proxy when using --format=%q", identityfile.FormatKubernetes)
-}
-
-// userCAFormat returns the certificate authority public key exported as a single
-// line that can be placed in ~/.ssh/authorized_keys file. The format adheres to the
-// man sshd (8) authorized_keys format, a space-separated list of: options, keytype,
-// base64-encoded key, comment.
-// For example:
-//
-//	cert-authority AAA... type=user&clustername=cluster-a
-//
-// URL encoding is used to pass the CA type and cluster name into the comment field.
-func userCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
-	return sshutils.MarshalAuthorizedKeysFormat(ca.GetClusterName(), keyBytes)
-}
-
-// hostCAFormat returns the certificate authority public key exported as a single line
-// that can be placed in ~/.ssh/authorized_hosts. The format adheres to the man sshd (8)
-// authorized_hosts format, a space-separated list of: marker, hosts, key, and comment.
-// For example:
-//
-//	@cert-authority *.cluster-a ssh-rsa AAA... type=host
-//
-// URL encoding is used to pass the CA type and allowed logins into the comment field.
-func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client auth.ClientI) (string, error) {
-	roles, err := services.FetchRoles(ca.GetRoles(), client, nil)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	allowedLogins, _ := roles.GetLoginsForTTL(apidefaults.MinCertDuration + time.Second)
-	return sshutils.MarshalAuthorizedHostsFormat(ca.GetClusterName(), keyBytes, allowedLogins)
 }
 
 func getApplicationServer(ctx context.Context, clusterAPI auth.ClientI, appName string) (types.AppServer, error) {

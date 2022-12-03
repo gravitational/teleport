@@ -19,10 +19,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -45,6 +46,8 @@ type InstanceMetadata interface {
 	GetHostname(ctx context.Context) (string, error)
 	// GetType gets the cloud instance type.
 	GetType() types.InstanceMetadataType
+	// GetID gets the cloud instance ID.
+	GetID(ctx context.Context) (string, error)
 }
 
 type imConstructor func(ctx context.Context) (InstanceMetadata, error)
