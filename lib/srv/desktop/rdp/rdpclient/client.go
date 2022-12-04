@@ -66,6 +66,7 @@ import "C"
 import (
 	"context"
 	"errors"
+	"fmt"
 	"image"
 	"io"
 	"os"
@@ -828,7 +829,7 @@ func (c *Client) close() {
 			if reason != "" {
 				c.cfg.Log.Errorf("RDP server disconnected with reason: %v", reason)
 				if err := c.cfg.Conn.WriteMessage(tdp.Error{
-					Message: reason,
+					Message: fmt.Sprintf("The Windows Desktop disconnected. %v", reason),
 				}); err != nil {
 					c.cfg.Log.WithError(err).Error("error sending server disconnect reason over TDP")
 				}
