@@ -312,9 +312,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	}
 	h.sshPort = sshPort
 
-	// challengeLimiter is used to limit unauthenticated challenge generation for
-	// passwordless.
-	challengeLimiter, err := limiter.NewRateLimiter(limiter.Config{
+	// rateLimiter is used to limit unauthenticated challenge generation for
+	// passwordless and for unauthenticated metrics.
+	rateLimiter, err := limiter.NewRateLimiter(limiter.Config{
 		Rates: []limiter.Rate{
 			{
 				Period:  defaults.LimiterPasswordlessPeriod,
@@ -332,7 +332,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	if cfg.MinimalReverseTunnelRoutesOnly {
 		h.bindMinimalEndpoints()
 	} else {
-		h.bindDefaultEndpoints(challengeLimiter)
+		h.bindDefaultEndpoints(rateLimiter)
 	}
 
 	// if Web UI is enabled, check the assets dir:
@@ -655,6 +655,11 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 
 	// Connection upgrades.
 	h.GET("/webapi/connectionupgrade", httplib.MakeHandler(h.connectionUpgrade))
+
+	// create user events.
+	h.POST("/webapi/precapture", h.withLimiter(challengeLimiter, h.createPreUserEventHandle))
+	// create authenticated user events.
+	h.POST("/webapi/capture", h.WithAuth(h.createUserEventHandle))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -742,7 +747,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 
 	// The following section is similar to
 	// https://github.com/gravitational/teleport/blob/ea810d30d99f26e58a190edc5facfbe0c09ea5e5/lib/srv/desktop/windows_server.go#L757-L769
-	recConfig, err := c.unsafeCachedAuthClient.GetSessionRecordingConfig(r.Context())
+	recConfig, err := c.cfg.UnsafeCachedAuthClient.GetSessionRecordingConfig(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -771,7 +776,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	userContext.ConsumedAccessRequestID = c.session.GetConsumedAccessRequestID()
+	userContext.ConsumedAccessRequestID = c.cfg.Session.GetConsumedAccessRequestID()
 
 	return userContext, nil
 }
@@ -1602,8 +1607,8 @@ type CreateSessionResponse struct {
 	SessionInactiveTimeoutMS int `json:"sessionInactiveTimeout"`
 }
 
-func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
-	accessChecker, err := ctx.GetUserAccessChecker()
+func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
+	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1612,7 +1617,7 @@ func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := ctx.getToken()
+	token, err := sctx.getToken()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1620,8 +1625,8 @@ func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	return &CreateSessionResponse{
 		TokenType:                roundtrip.AuthBearer,
 		Token:                    token.GetName(),
-		TokenExpiresIn:           int(token.Expiry().Sub(ctx.parent.clock.Now()) / time.Second),
-		SessionInactiveTimeoutMS: int(ctx.session.GetIdleTimeout().Milliseconds()),
+		TokenExpiresIn:           int(token.Expiry().Sub(sctx.cfg.Parent.clock.Now()) / time.Second),
+		SessionInactiveTimeoutMS: int(sctx.cfg.Session.GetIdleTimeout().Milliseconds()),
 	}, nil
 }
 
@@ -1726,8 +1731,8 @@ func (h *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httpro
 	return OK(), nil
 }
 
-func (h *Handler) logout(ctx context.Context, w http.ResponseWriter, scx *SessionContext) error {
-	if err := scx.Invalidate(ctx); err != nil {
+func (h *Handler) logout(ctx context.Context, w http.ResponseWriter, sctx *SessionContext) error {
+	if err := sctx.Invalidate(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	ClearSession(w)
@@ -1887,7 +1892,7 @@ func (h *Handler) trySettingConnectorNameToPasswordless(ctx context.Context, ses
 		return nil
 	}
 
-	authPreference, err := sessCtx.clt.GetAuthPreference(ctx)
+	authPreference, err := sessCtx.cfg.RootClient.GetAuthPreference(ctx)
 	if err != nil {
 		return nil
 	}
@@ -1907,7 +1912,7 @@ func (h *Handler) trySettingConnectorNameToPasswordless(ctx context.Context, ses
 
 	authPreference.SetConnectorName(constants.PasswordlessConnector)
 
-	err = sessCtx.clt.SetAuthPreference(ctx, authPreference)
+	err = sessCtx.cfg.RootClient.SetAuthPreference(ctx, authPreference)
 	return trace.Wrap(err)
 }
 
@@ -2148,10 +2153,10 @@ func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ ht
 }
 
 // clusterNodesGet returns a list of nodes for a given cluster site.
-func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of nodes.
-	clt, err := ctx.GetUserClient(site)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2166,7 +2171,7 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := ctx.GetUserAccessChecker()
+	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2183,10 +2188,10 @@ type getLoginAlertsResponse struct {
 }
 
 // clusterLoginAlertsGet returns a list of on-login alerts for the user.
-func (h *Handler) clusterLoginAlertsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterLoginAlertsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of alerts.
-	clt, err := ctx.GetUserClient(site)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2230,7 +2235,7 @@ func createIdentityContext(login string, sessionCtx *SessionContext) (srv.Identi
 
 	return srv.IdentityContext{
 		AccessChecker:  accessChecker,
-		TeleportUser:   sessionCtx.user,
+		TeleportUser:   sessionCtx.GetUser(),
 		Login:          login,
 		Certificate:    sshCert,
 		UnmappedRoles:  unmappedRoles,
@@ -2266,7 +2271,7 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sessionCtx.GetUserClient(site)
+	clt, err := sessionCtx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2430,8 +2435,8 @@ type siteSessionGenerateResponse struct {
 
 // siteSessionCreate generates a new site session that can be used by UI
 // The ServerID from request can be in the form of hostname, uuid, or ip address.
-func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := ctx.GetUserClient(site)
+func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2514,8 +2519,8 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 // Response body:
 //
 // {"sessions": [{"id": "sid", "terminal_params": {"w": 100, "h": 100}, "parties": [], "login": "bob"}, ...] }
-func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := ctx.GetUserClient(site)
+func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2542,14 +2547,14 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 // Response body:
 //
 // {"session": {"id": "sid", "terminal_params": {"w": 100, "h": 100}, "parties": [], "login": "bob"}}
-func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	sessionID, err := session.ParseID(p.ByName("sid"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	h.log.Infof("web.getSession(%v)", sessionID)
 
-	clt, err := ctx.GetUserClient(site)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2597,7 +2602,7 @@ func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, erro
 //	"order":    optional ordering of events. Can be either "asc" or "desc"
 //	            for ascending and descending respectively.
 //	            If no order is provided it defaults to descending.
-func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	values := r.URL.Query()
 
 	var eventTypes []string
@@ -2608,7 +2613,7 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 	searchEvents := func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 		return clt.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, order, startKey)
 	}
-	return clusterEventsList(ctx, site, r.URL.Query(), searchEvents)
+	return clusterEventsList(r.Context(), sctx, site, r.URL.Query(), searchEvents)
 }
 
 // clusterSearchSessionEvents returns session events matching the criteria.
@@ -2625,16 +2630,16 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 //	"order":    optional ordering of events. Can be either "asc" or "desc"
 //	            for ascending and descending respectively.
 //	            If no order is provided it defaults to descending.
-func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	searchSessionEvents := func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 		return clt.SearchSessionEvents(from, to, limit, order, startKey, nil, "")
 	}
-	return clusterEventsList(ctx, site, r.URL.Query(), searchSessionEvents)
+	return clusterEventsList(r.Context(), sctx, site, r.URL.Query(), searchSessionEvents)
 }
 
 // clusterEventsList returns a list of audit events obtained using the provided
 // searchEvents method.
-func clusterEventsList(ctx *SessionContext, site reversetunnel.RemoteSite, values url.Values, searchEvents func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)) (interface{}, error) {
+func clusterEventsList(ctx context.Context, sctx *SessionContext, site reversetunnel.RemoteSite, values url.Values, searchEvents func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)) (interface{}, error) {
 	from, err := queryTime(values, "from", time.Now().UTC().AddDate(0, -1, 0))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2657,7 +2662,7 @@ func clusterEventsList(ctx *SessionContext, site reversetunnel.RemoteSite, value
 
 	startKey := values.Get("startKey")
 
-	clt, err := ctx.GetUserClient(site)
+	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2798,7 +2803,7 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 		onError(trace.Wrap(err))
 		return
 	}
-	clt, err := ctx.GetUserClient(site)
+	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		onError(trace.Wrap(err))
 		return
@@ -2862,13 +2867,13 @@ type eventsListGetResponse struct {
 // Response body (each event is an arbitrary JSON structure)
 //
 // {"events": [{...}, {...}, ...}
-func (h *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	sessionID, err := session.ParseID(p.ByName("sid"))
 	if err != nil {
 		return nil, trace.BadParameter("invalid session ID %q", p.ByName("sid"))
 	}
 
-	clt, err := ctx.GetUserClient(site)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3004,7 +3009,7 @@ const currentSiteShortcut = "-current-"
 type ContextHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error)
 
 // ClusterHandler is a authenticated handler that is called for some existing remote cluster
-type ClusterHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error)
+type ClusterHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error)
 
 // WithClusterAuth wraps a ClusterHandler to ensure that a request is authenticated to this proxy
 // (the same as WithAuth), as well as to grab the RemoteSite (which can represent this local cluster
@@ -3058,7 +3063,7 @@ type ClusterClientProvider interface {
 	// UserClientForCluster returns a client to the local or remote cluster
 	// identified by clusterName and is authenticated with the identity of the
 	// user.
-	UserClientForCluster(clusterName string) (auth.ClientI, error)
+	UserClientForCluster(ctx context.Context, clusterName string) (auth.ClientI, error)
 }
 
 type clusterClientProvider struct {
@@ -3068,13 +3073,13 @@ type clusterClientProvider struct {
 
 // UserClientForCluster returns a client to the local or remote cluster
 // identified by clusterName and is authenticated with the identity of the user.
-func (r clusterClientProvider) UserClientForCluster(clusterName string) (auth.ClientI, error) {
+func (r clusterClientProvider) UserClientForCluster(ctx context.Context, clusterName string) (auth.ClientI, error) {
 	site, err := r.h.getSite(r.ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := r.ctx.GetUserClient(site)
+	clt, err := r.ctx.GetUserClient(ctx, site)
 	return clt, trace.Wrap(err)
 }
 
@@ -3308,8 +3313,8 @@ func OK() interface{} {
 
 // makeTeleportClientConfig creates default teleport client configuration
 // that is used to initiate an SSH terminal session or SCP file transfer
-func makeTeleportClientConfig(ctx context.Context, sesCtx *SessionContext) (*client.Config, error) {
-	agent, cert, err := sesCtx.GetAgent()
+func makeTeleportClientConfig(ctx context.Context, sctx *SessionContext) (*client.Config, error) {
+	agent, cert, err := sctx.GetAgent()
 	if err != nil {
 		return nil, trace.BadParameter("failed to get user credentials: %v", err)
 	}
@@ -3319,26 +3324,27 @@ func makeTeleportClientConfig(ctx context.Context, sesCtx *SessionContext) (*cli
 		return nil, trace.BadParameter("failed to get user credentials: %v", err)
 	}
 
-	tlsConfig, err := sesCtx.ClientTLSConfig()
+	tlsConfig, err := sctx.ClientTLSConfig(ctx)
 	if err != nil {
 		return nil, trace.BadParameter("failed to get client TLS config: %v", err)
 	}
 
 	callback, err := apisshutils.NewHostKeyCallback(
 		apisshutils.HostKeyCallbackConfig{
-			GetHostCheckers: sesCtx.getCheckers,
+			GetHostCheckers: sctx.getCheckers,
+			Clock:           sctx.cfg.Parent.clock,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	proxyListenerMode, err := sesCtx.GetProxyListenerMode(ctx)
+	proxyListenerMode, err := sctx.GetProxyListenerMode(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	config := &client.Config{
-		Username:          sesCtx.user,
+		Username:          sctx.GetUser(),
 		Agent:             agent,
 		SkipLocalAuth:     true,
 		TLS:               tlsConfig,

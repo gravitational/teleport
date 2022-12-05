@@ -88,6 +88,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
+	tlsutils "github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -142,7 +143,7 @@ type WebSuite struct {
 }
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
-// it as an argument. Otherwise it will run tests as normal.
+// it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	// If the test is re-executing itself, execute the command that comes over
@@ -151,6 +152,7 @@ func TestMain(m *testing.M) {
 		srv.RunAndExit(os.Args[1])
 		return
 	}
+	native.PrecomputeTestKeys(m)
 
 	// Otherwise run tests as normal.
 	code := m.Run()
@@ -290,7 +292,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	s.node = node
 	s.srvID = node.ID()
 	require.NoError(t, s.node.Start())
-	require.NoError(t, auth.CreateUploaderDir(nodeDataDir))
 
 	// create reverse tunnel service:
 	proxyID := "proxy"
@@ -347,6 +348,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{s.server.TLS.Listener.Addr().String()},
+		Clock:                 s.clock,
 	})
 	require.NoError(t, err)
 	s.proxyTunnel = revTunServer
@@ -1276,19 +1278,51 @@ func TestTerminalPing(t *testing.T) {
 
 func TestTerminal(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t)
-	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
-	termHandler := newTerminalHandler()
-	stream := termHandler.asTerminalStream(ws)
+	cases := []struct {
+		name            string
+		recordingConfig types.SessionRecordingConfigV2
+	}{
+		{
+			name: "node recording mode",
+			recordingConfig: types.SessionRecordingConfigV2{
+				Spec: types.SessionRecordingConfigSpecV2{
+					Mode: types.RecordAtNode,
+				},
+			},
+		},
+		{
+			name: "proxy recording mode",
+			recordingConfig: types.SessionRecordingConfigV2{
+				Spec: types.SessionRecordingConfigSpecV2{
+					Mode: types.RecordAtProxySync,
+				},
+			},
+		},
+	}
 
-	_, err = io.WriteString(stream, "echo vinsong\r\n")
-	require.NoError(t, err)
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			s := newWebSuite(t)
 
-	err = waitForOutput(stream, "vinsong")
-	require.NoError(t, err)
+			require.NoError(t, s.server.Auth().SetSessionRecordingConfig(context.Background(), &tt.recordingConfig))
+
+			ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, ws.Close()) })
+
+			termHandler := newTerminalHandler()
+			stream := termHandler.asTerminalStream(ws)
+
+			// here we intentionally run a command where the output we're looking
+			// for is not present in the command itself
+			_, err = io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
+			require.NoError(t, err)
+			require.NoError(t, waitForOutput(stream, "teleport"))
+		})
+	}
 }
 
 func TestTerminalRequireSessionMfa(t *testing.T) {
@@ -6019,7 +6053,6 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 
 	require.NoError(t, node.Start())
 	t.Cleanup(func() { require.NoError(t, node.Close()) })
-	require.NoError(t, auth.CreateUploaderDir(nodeDataDir))
 
 	var proxies []*testProxy
 	for p := 0; p < numProxies; p++ {
@@ -6631,7 +6664,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		kubeConfigLocation = newKubeConfigFile(ctx, t, cfg.clusters...)
 	}
 
-	keyGen := native.New(ctx)
+	keyGen := tlsutils.New(ctx)
 	hostID := uuid.New().String()
 	// heartbeatsWaitChannel waits for clusters heartbeats to start.
 	heartbeatsWaitChannel := make(chan struct{}, len(cfg.clusters))

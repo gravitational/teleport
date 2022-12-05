@@ -323,7 +323,7 @@ func (s *Server) newStreamer(app types.Application, chunkID string, recConfig ty
 	s.log.Debugf("Using async streamer for session chunk %v.", chunkID)
 	uploadDir := filepath.Join(
 		s.c.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, apidefaults.Namespace,
+		events.StreamingSessionsDir, apidefaults.Namespace,
 	)
 	fileStreamer, err := filesessions.NewStreamer(uploadDir)
 	if err != nil {
