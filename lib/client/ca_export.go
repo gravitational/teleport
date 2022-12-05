@@ -75,10 +75,9 @@ func ExportAuthorities(ctx context.Context, client auth.ClientI, req ExportAutho
 	return exportAuth(ctx, client, req, false /* exportSecrets */)
 }
 
-// ExportAuthoritiesWithSecrets exports the Authority Certificate and its secrets (private keys).
-// It exports the secrets first and then the certificate (separated by an empty line).
+// ExportAuthoritiesSecrets exports the Authority Certificate secrets (private keys).
 // See ExportAuthorities for more information.
-func ExportAuthoritiesWithSecrets(ctx context.Context, client auth.ClientI, req ExportAuthoritiesRequest) (string, error) {
+func ExportAuthoritiesSecrets(ctx context.Context, client auth.ClientI, req ExportAuthoritiesRequest) (string, error) {
 	return exportAuth(ctx, client, req, true /* exportSecrets */)
 }
 
@@ -232,6 +231,7 @@ func exportTLSAuthority(ctx context.Context, client auth.ClientI, req exportTLSA
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+
 	certAuthority, err := client.GetCertAuthority(
 		ctx,
 		types.CertAuthID{Type: req.AuthType, DomainName: clusterName},
@@ -246,34 +246,21 @@ func exportTLSAuthority(ctx context.Context, client auth.ClientI, req exportTLSA
 	}
 	keyPair := certAuthority.GetActiveKeys().TLS[0]
 
-	ret := strings.Builder{}
-	marshalKeyPair := func(data []byte) error {
-		if !req.UnpackPEM {
-			ret.Write(data)
-			return nil
-		}
-
-		b, _ := pem.Decode(data)
-		if b == nil {
-			return trace.BadParameter("invalid PEM data")
-		}
-		ret.Write(b.Bytes)
-
-		return nil
-	}
-
+	bytesToExport := keyPair.Cert
 	if req.ExportPrivateKeys {
-		if err := marshalKeyPair(keyPair.Key); err != nil {
-			return "", trace.Wrap(err)
-		}
-		ret.WriteString("\n\n")
+		bytesToExport = keyPair.Key
 	}
 
-	if err := marshalKeyPair(keyPair.Cert); err != nil {
-		return "", trace.Wrap(err)
+	if !req.UnpackPEM {
+		return string(bytesToExport), nil
 	}
 
-	return ret.String(), nil
+	b, _ := pem.Decode(bytesToExport)
+	if b == nil {
+		return "", trace.BadParameter("invalid PEM data")
+	}
+
+	return string(b.Bytes), nil
 }
 
 // userCAFormat returns the certificate authority public key exported as a single
