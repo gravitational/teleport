@@ -13,8 +13,9 @@ end users to Azure's APIs. Teleport users can then execute requests via the
 Azure CLI through Teleport as long as one of their roles allows access to an
 appropriate Azure managed identity. 
 
-You can run the Application Service VM in a private network to prevent
-unauthorized access to your organization's Azure credentials. 
+The Teleport Application Service connects to the Teleport Proxy Service over a
+reverse tunnel, so you can run the Application Service VM in a private network
+and prevent unauthorized access to your organization's Azure credentials. 
 
 ## Prerequisites
 
@@ -167,7 +168,7 @@ Please note:
   - 192.0.2.255:3025 must be reachable from the new node
 ```
 
-On the host where you are running the Teleport Application Service, create a
+On the host where you will install the Teleport Application Service, create a
 file called `/tmp/token` that consists only of your token:
 
 ```code
@@ -281,7 +282,7 @@ the `azure-cli` application we defined earlier, and allows that user to assume
 the `teleport-azure` identity you created earlier.
 
 Edit the identity URI in the `azure_identities` field to match the one you
-copied earlier.
+copied in Step 1.
 
 Create the role:
 
@@ -289,121 +290,7 @@ Create the role:
 $ tctl create -f azure-cli-access.yaml
 ```
 
-Assign this role to your Teleport user by running the following commands,
-depending on whether you authenticate as a local Teleport user or via the
-`github`, `saml`, or `oidc` authentication connectors: 
-
-<Tabs>
-<TabItem label="Local User">
-
-Retrieve your local user's configuration resource:
-
-```code
-$ tctl get users/$(tsh status -f json | jq -r '.active.username') > out.yaml
-```
-
-Edit `out.yaml`, adding `azure-cli-access` to the list of
-existing roles.
-
-Apply your changes:
-
-```code
-$ tctl create -f out.yaml
-```
-</TabItem>
-<TabItem label="GitHub">
-
-Retrieve your `github`  configuration resource:
-
-```code
-$ tctl get github/github > github.yaml
-```
-
-Edit `github.yaml`, adding `azure-cli-access` to the `teams_to_roles` section.
-The team you will map to this role will depend on how you have designed your
-organization's RBAC, but it should be the smallest team possible within your
-organization. This team must also include your user.
-
-Here is an example:
-
-```diff
-  teams_to_roles:
-    - organization: octocats 
-      team: admins 
-      roles:
-        - access
-+       - azure-cli-access
-```
-
-Apply your changes:
-
-```code
-$ tctl create -f github.yaml
-```
-</TabItem>
-<TabItem label="SAML">
-
-Retrieve your `saml`  configuration resource:
-
-```code
-$ tctl get saml/mysaml > saml.yaml
-```
-
-Edit `saml.yaml`, adding `azure-cli-access` to the `attributes_to_roles`
-section. The attribute you will map to this role will depend on how you have
-designed your organization's RBAC, but it should be the smallest group possible
-within your organization. This group must also include your user.
-
-Here is an example:
-
-```diff
-  attributes_to_roles:
-    - name: "groups" 
-      value: "my-group" 
-      roles:
-        - access
-+       - azure-cli-access
-```
-
-Apply your changes:
-
-```code
-$ tctl create -f saml.yaml
-```
-</TabItem>
-<TabItem label="OIDC">
-
-Retrieve your `oidc`  configuration resource:
-
-```code
-$ tctl get oidc/myoidc > oidc.yaml
-```
-
-Edit `oidc.yaml`, adding `azure-cli-access` to the `claims_to_roles` section.
-The claim you will map to this role will depend on how you have designed your
-organization's RBAC, but it should be the smallest group possible within your
-organization. This group must also include your user.
-
-Here is an example:
-
-```diff
-  claims_to_roles:
-    - name: "groups" 
-      value: "my-group" 
-      roles:
-        - access
-+       - azure-cli-access
-```
-
-Apply your changes:
-
-```code
-$ tctl create -f saml.yaml
-```
-</TabItem>
-</Tabs>
-
-Log out of your Teleport cluster and log in again to assume the new role.
+(!docs/pages/includes/add-role-to-user.mdx role="azure-cli-access"!)
 
 <Details title="Configuring Azure identities per user">
 
@@ -437,22 +324,17 @@ To assign Azure identities to a user, run a `tctl users update` command similar
 to the following:
 
 ```code
-$ TELEPORT_USER=myuser;
-$ ID1=one_id;
-$ ID2=another_id;
-$ SUBSCRIPTION_ID=00000000-0000-0000-0000-000000000000;
-$ RESOURCE_GROUP="my-resource-group";
-$ tctl users update ${TELEPORT_USER?} --set-azure-identities \
- `/subscriptions/${SUBSCRIPTION_ID?}/resourceGroups/${MY_RESOURCE_GROUP?}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/${ID1?},\
- `/subscriptions/${SUBSCRIPTION_ID?}/resourceGroups/${MY_RESOURCE_GROUP?}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/${ID2?}
+$ tctl users update myuser --set-azure-identities \
+/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id1,\
+/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id2
 ```
 
 This command uses the `--set-azure-identities` flag to add Azure identities to a
 user. The value of this flag is a comma-separated list of Azure identity URIs.
 
 You must attach all identities you would like users to access to the Azure VM
-running the Application Service so the Application Service can make requests to
-the Azure API using those identities.
+running the Application Service. This lets the Application Service make requests
+to the Azure API using those identities.
 
 </Details>
 
@@ -488,9 +370,9 @@ the user is authorized to assume. The value of the flag can either be the full
 URI of the identity (e.g., the URI you copied earlier in this guide) or the name
 of the identity, e.g., `teleport-azure`. 
 
-A user can leave the `--azure-identity` flag blank if they are only authorized
-to access a single Azure identity, but otherwise an empty `--azure-identity`
-will result in an error.
+A user can omit the `--azure-identity` flag if they are only authorized to
+access a single Azure identity, but otherwise an empty `--azure-identity` will
+result in an error.
 
 If the command succeeds, you will see information about the user's chosen Azure
 identity similar to the following:
