@@ -855,12 +855,22 @@ type DatabaseAWS struct {
 	SecretStore DatabaseAWSSecretStore
 	// AccountID is the AWS account ID.
 	AccountID string
+	// RedshiftServerless contains AWS Redshift Serverless specific settings.
+	RedshiftServerless DatabaseAWSRedshiftServerless
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
 type DatabaseAWSRedshift struct {
 	// ClusterID is the Redshift cluster identifier.
 	ClusterID string
+}
+
+// DatabaseAWSRedshiftServerless contains AWS Redshift Serverless specific settings.
+type DatabaseAWSRedshiftServerless struct {
+	// WorkgroupName is the Redshift Serverless workgroup name.
+	WorkgroupName string
+	// EndpointName is the Redshift Serverless VPC endpoint name.
+	EndpointName string
 }
 
 // DatabaseAWSRDS contains AWS RDS specific settings.
@@ -998,6 +1008,10 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			Region:    d.AWS.Region,
 			Redshift: types.Redshift{
 				ClusterID: d.AWS.Redshift.ClusterID,
+			},
+			RedshiftServerless: types.RedshiftServerless{
+				WorkgroupName: d.AWS.RedshiftServerless.WorkgroupName,
+				EndpointName:  d.AWS.RedshiftServerless.EndpointName,
 			},
 			RDS: types.RDS{
 				InstanceID: d.AWS.RDS.InstanceID,

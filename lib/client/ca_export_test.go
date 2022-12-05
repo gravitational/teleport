@@ -20,7 +20,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
-	"strings"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -65,15 +65,17 @@ func TestExportAuthorities(t *testing.T) {
 	}
 
 	validateTLSCertificatePEMFunc := func(t *testing.T, s string) {
-		pemBlock, _ := pem.Decode([]byte(s))
+		pemBlock, rest := pem.Decode([]byte(s))
 		require.NotNil(t, pemBlock, "pem.Decode failed")
+		require.Empty(t, rest)
 
 		validateTLSCertificateDERFunc(t, string(pemBlock.Bytes))
 	}
 
 	validatePrivateKeyPEMFunc := func(t *testing.T, s string) {
-		pemBlock, _ := pem.Decode([]byte(s))
+		pemBlock, rest := pem.Decode([]byte(s))
 		require.NotNil(t, pemBlock, "pem.Decode failed")
+		require.Empty(t, rest)
 
 		require.Equal(t, "RSA PRIVATE KEY", pemBlock.Type, "unexpected private key type")
 
@@ -83,23 +85,18 @@ func TestExportAuthorities(t *testing.T) {
 	}
 
 	validatePrivateKeyDERFunc := func(t *testing.T, s string) {
-		res := strings.Split(s, "\n\n")
-		require.Len(t, res, 2, "expected private key and certificate separated by one empty line")
-
-		privKey, err := x509.ParsePKCS1PrivateKey([]byte(res[0]))
+		privKey, err := x509.ParsePKCS1PrivateKey([]byte(s))
 		require.NoError(t, err, "x509.ParsePKCS1PrivateKey failed")
 		require.NotNil(t, privKey, "x509.ParsePKCS1PrivateKey returned a nil certificate")
-
-		validateTLSCertificateDERFunc(t, res[1])
 	}
 
 	for _, exportSecrets := range []bool{false, true} {
 		for _, tt := range []struct {
-			name          string
-			req           ExportAuthoritiesRequest
-			errorCheck    require.ErrorAssertionFunc
-			assertOutput  func(t *testing.T, output string)
-			assertSecrets func(t *testing.T, output string)
+			name            string
+			req             ExportAuthoritiesRequest
+			errorCheck      require.ErrorAssertionFunc
+			assertNoSecrets func(t *testing.T, output string)
+			assertSecrets   func(t *testing.T, output string)
 		}{
 			{
 				name: "ssh host and user ca",
@@ -107,7 +104,7 @@ func TestExportAuthorities(t *testing.T) {
 					AuthType: "",
 				},
 				errorCheck: require.NoError,
-				assertOutput: func(t *testing.T, output string) {
+				assertNoSecrets: func(t *testing.T, output string) {
 					require.Contains(t, output, "@cert-authority localcluster,*.localcluster ssh-rsa")
 					require.Contains(t, output, "cert-authority ssh-rsa")
 				},
@@ -119,7 +116,7 @@ func TestExportAuthorities(t *testing.T) {
 					AuthType: "user",
 				},
 				errorCheck: require.NoError,
-				assertOutput: func(t *testing.T, output string) {
+				assertNoSecrets: func(t *testing.T, output string) {
 					require.Contains(t, output, "cert-authority ssh-rsa")
 				},
 				assertSecrets: validatePrivateKeyPEMFunc,
@@ -130,7 +127,7 @@ func TestExportAuthorities(t *testing.T) {
 					AuthType: "host",
 				},
 				errorCheck: require.NoError,
-				assertOutput: func(t *testing.T, output string) {
+				assertNoSecrets: func(t *testing.T, output string) {
 					require.Contains(t, output, "@cert-authority localcluster,*.localcluster ssh-rsa")
 				},
 				assertSecrets: validatePrivateKeyPEMFunc,
@@ -140,18 +137,18 @@ func TestExportAuthorities(t *testing.T) {
 				req: ExportAuthoritiesRequest{
 					AuthType: "tls",
 				},
-				errorCheck:    require.NoError,
-				assertOutput:  validateTLSCertificatePEMFunc,
-				assertSecrets: validatePrivateKeyPEMFunc,
+				errorCheck:      require.NoError,
+				assertNoSecrets: validateTLSCertificatePEMFunc,
+				assertSecrets:   validatePrivateKeyPEMFunc,
 			},
 			{
 				name: "windows",
 				req: ExportAuthoritiesRequest{
 					AuthType: "windows",
 				},
-				errorCheck:    require.NoError,
-				assertOutput:  validateTLSCertificateDERFunc,
-				assertSecrets: validatePrivateKeyDERFunc,
+				errorCheck:      require.NoError,
+				assertNoSecrets: validateTLSCertificateDERFunc,
+				assertSecrets:   validatePrivateKeyDERFunc,
 			},
 			{
 				name: "invalid",
@@ -169,7 +166,7 @@ func TestExportAuthorities(t *testing.T) {
 					ExportAuthorityFingerprint: "not found fingerprint",
 				},
 				errorCheck: require.NoError,
-				assertOutput: func(t *testing.T, output string) {
+				assertNoSecrets: func(t *testing.T, output string) {
 					require.Empty(t, output)
 				},
 				assertSecrets: func(t *testing.T, output string) {
@@ -183,7 +180,7 @@ func TestExportAuthorities(t *testing.T) {
 					ExportAuthorityFingerprint: "fake fingerprint",
 				},
 				errorCheck: require.NoError,
-				assertOutput: func(t *testing.T, output string) {
+				assertNoSecrets: func(t *testing.T, output string) {
 					require.Empty(t, output)
 				},
 				assertSecrets: func(t *testing.T, output string) {
@@ -197,7 +194,7 @@ func TestExportAuthorities(t *testing.T) {
 					UseCompatVersion: true,
 				},
 				errorCheck: require.NoError,
-				assertOutput: func(t *testing.T, output string) {
+				assertNoSecrets: func(t *testing.T, output string) {
 					// compat version (using 1.0) returns cert-authority to be used in the server
 					// even when asking for ssh authorized hosts / known hosts
 					require.Contains(t, output, "@cert-authority localcluster,*.localcluster ssh-rsa")
@@ -205,11 +202,7 @@ func TestExportAuthorities(t *testing.T) {
 				assertSecrets: validatePrivateKeyPEMFunc,
 			},
 		} {
-			testName := tt.name
-			if exportSecrets {
-				testName = tt.name + "_exportSecrets"
-			}
-			t.Run(testName, func(t *testing.T) {
+			t.Run(fmt.Sprintf("%s_exportSecrets_%v", tt.name, exportSecrets), func(t *testing.T) {
 				mockedClient := &mockAuthClient{
 					server: testAuth.AuthServer,
 				}
@@ -217,24 +210,22 @@ func TestExportAuthorities(t *testing.T) {
 					err      error
 					exported string
 				)
+				exportFunc := ExportAuthorities
+				checkFunc := tt.assertNoSecrets
 
 				if exportSecrets {
-					exported, err = ExportAuthoritiesWithSecrets(ctx, mockedClient, tt.req)
-					tt.errorCheck(t, err)
-				} else {
-					exported, err = ExportAuthorities(ctx, mockedClient, tt.req)
-					tt.errorCheck(t, err)
+					exportFunc = ExportAuthoritiesSecrets
+					checkFunc = tt.assertSecrets
 				}
+
+				exported, err = exportFunc(ctx, mockedClient, tt.req)
+				tt.errorCheck(t, err)
 
 				if err != nil {
 					return
 				}
 
-				if exportSecrets {
-					tt.assertSecrets(t, exported)
-				} else {
-					tt.assertOutput(t, exported)
-				}
+				checkFunc(t, exported)
 			})
 		}
 	}

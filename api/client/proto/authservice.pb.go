@@ -1744,7 +1744,7 @@ func (m *PluginDataSeq) GetPluginData() []*types.PluginDataV3 {
 	return nil
 }
 
-// RequestStateSetter encodes the paramters necessary to update the
+// RequestStateSetter encodes the parameters necessary to update the
 // state of a privilege escalation request.
 type RequestStateSetter struct {
 	// ID is the request ID being targeted
@@ -4252,7 +4252,7 @@ func (m *GetWebTokensResponse) GetTokens() []*types.WebTokenV3 {
 
 // UpsertKubeServiceRequest are the parameters used to add or update a
 // kubernetes service.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 type UpsertKubeServiceRequest struct {
 	Server               *types.ServerV2 `protobuf:"bytes,1,opt,name=Server,proto3" json:"server"`
 	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
@@ -4301,7 +4301,7 @@ func (m *UpsertKubeServiceRequest) GetServer() *types.ServerV2 {
 }
 
 // DeleteKubeServiceRequest are the parameters used to remove a kubernetes service.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 type DeleteKubeServiceRequest struct {
 	// Name is the name of the kubernetes service to delete.
 	Name                 string   `protobuf:"bytes,2,opt,name=Name,proto3" json:"name"`
@@ -4351,7 +4351,7 @@ func (m *DeleteKubeServiceRequest) GetName() string {
 }
 
 // DeleteAllKubeServicesRequest are the parameters used to remove all kubernetes services.
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 type DeleteAllKubeServicesRequest struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -12833,13 +12833,13 @@ type AuthServiceClient interface {
 	// DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2
 	UpsertKubeService(ctx context.Context, in *UpsertKubeServiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpsertKubeServiceV2 adds or updates a kubernetes service.
-	// DELETE IN 12.0. Deprecated, use UpsertKubernetesServer
+	// DELETE IN 13.0. Deprecated, use UpsertKubernetesServer
 	UpsertKubeServiceV2(ctx context.Context, in *UpsertKubeServiceRequest, opts ...grpc.CallOption) (*types.KeepAlive, error)
 	// DeleteKubeService removes a kubernetes service.
-	// DELETE IN 12.0. Deprecated, use DeleteKubernetesServer
+	// DELETE IN 13.0. Deprecated, use DeleteKubernetesServer
 	DeleteKubeService(ctx context.Context, in *DeleteKubeServiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllKubeServices removes all kubernetes services.
-	// DELETE IN 12.0. Deprecated, use DeleteAllKubernetesServers
+	// DELETE IN 13.0. Deprecated, use DeleteAllKubernetesServers
 	DeleteAllKubeServices(ctx context.Context, in *DeleteAllKubeServicesRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpsertKubernetesServer adds or updates a kubernetes server.
 	UpsertKubernetesServer(ctx context.Context, in *UpsertKubernetesServerRequest, opts ...grpc.CallOption) (*types.KeepAlive, error)
@@ -15500,13 +15500,13 @@ type AuthServiceServer interface {
 	// DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2
 	UpsertKubeService(context.Context, *UpsertKubeServiceRequest) (*emptypb.Empty, error)
 	// UpsertKubeServiceV2 adds or updates a kubernetes service.
-	// DELETE IN 12.0. Deprecated, use UpsertKubernetesServer
+	// DELETE IN 13.0. Deprecated, use UpsertKubernetesServer
 	UpsertKubeServiceV2(context.Context, *UpsertKubeServiceRequest) (*types.KeepAlive, error)
 	// DeleteKubeService removes a kubernetes service.
-	// DELETE IN 12.0. Deprecated, use DeleteKubernetesServer
+	// DELETE IN 13.0. Deprecated, use DeleteKubernetesServer
 	DeleteKubeService(context.Context, *DeleteKubeServiceRequest) (*emptypb.Empty, error)
 	// DeleteAllKubeServices removes all kubernetes services.
-	// DELETE IN 12.0. Deprecated, use DeleteAllKubernetesServers
+	// DELETE IN 13.0. Deprecated, use DeleteAllKubernetesServers
 	DeleteAllKubeServices(context.Context, *DeleteAllKubeServicesRequest) (*emptypb.Empty, error)
 	// UpsertKubernetesServer adds or updates a kubernetes server.
 	UpsertKubernetesServer(context.Context, *UpsertKubernetesServerRequest) (*types.KeepAlive, error)
