@@ -13,33 +13,16 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package helpers
+package appaccess
 
 import (
-	"os"
 	"testing"
-	"time"
 
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
-// TestMainImplementation will re-execute Teleport to run a command if "exec" is passed to
+// TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise, it will run tests as normal.
-func TestMainImplementation(m *testing.M) {
-	utils.InitLoggerForTests()
+func TestMain(m *testing.M) {
 	native.PrecomputeTestKeys(m)
-	SetTestTimeouts(3 * time.Second)
-	// If the test is re-executing itself, execute the command that comes over
-	// the pipe.
-	if srv.IsReexec() {
-		common.Run(common.Options{Args: os.Args[1:]})
-		return
-	}
-
-	// Otherwise run tests as normal.
-	code := m.Run()
-	os.Exit(code)
 }
