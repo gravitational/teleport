@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -290,6 +291,24 @@ func filterInvalidWindowsLogins(candidates []string) []string {
 	return output
 }
 
+func warnInvalidAzureIdentities(candidates []string) {
+	for _, candidate := range candidates {
+		if !MatchValidAzureIdentity(candidate) {
+			log.Warningf("Invalid format of Azure identity %q", candidate)
+		}
+	}
+}
+
+var azureIdentityPattern = regexp.MustCompile(`(?i)^/subscriptions/([a-fA-F0-9-]+)/resourceGroups/([0-9a-zA-Z-]+)/providers/Microsoft\.ManagedIdentity/userAssignedIdentities/([0-9a-zA-Z-]+)$`)
+
+func MatchValidAzureIdentity(identity string) bool {
+	if identity == types.Wildcard {
+		return true
+	}
+
+	return azureIdentityPattern.MatchString(identity)
+}
+
 // ApplyTraits applies the passed in traits to any variables within the role
 // and returns itself.
 func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
@@ -310,6 +329,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 
 		inAzureIdentities := r.GetAzureIdentities(condition)
 		outAzureIdentities := applyValueTraitsSlice(inAzureIdentities, traits, "Azure identity")
+		warnInvalidAzureIdentities(outAzureIdentities)
 		r.SetAzureIdentities(condition, apiutils.Deduplicate(outAzureIdentities))
 
 		// apply templates to kubernetes groups
@@ -999,10 +1019,13 @@ func MatchAWSRoleARN(selectors []string, roleARN string) (bool, string) {
 }
 
 // MatchAzureIdentity returns true if provided Azure identity matches selectors.
-func MatchAzureIdentity(selectors []string, identity string) (bool, string) {
+func MatchAzureIdentity(selectors []string, identity string, matchWildcard bool) (bool, string) {
 	for _, l := range selectors {
-		if l == identity {
-			return true, "matched"
+		if strings.ToLower(l) == strings.ToLower(identity) {
+			return true, "element matched"
+		}
+		if matchWildcard && l == types.Wildcard {
+			return true, "wildcard matched"
 		}
 	}
 	return false, fmt.Sprintf("no match, role selectors %v, identity: %v", selectors, identity)
@@ -1385,20 +1408,25 @@ func (set RoleSet) CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]stri
 
 // CheckAzureIdentities returns a list of Azure identities the user is allowed to assume.
 func (set RoleSet) CheckAzureIdentities(ttl time.Duration, overrideTTL bool) ([]string, error) {
-	identities := make(map[string]struct{})
+	identities := make(map[string]string)
 	var matchedTTL bool
 	for _, role := range set {
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
 			for _, identity := range role.GetAzureIdentities(types.Allow) {
-				identities[identity] = struct{}{}
+				identities[strings.ToLower(identity)] = identity
 			}
 		}
 	}
 	for _, role := range set {
 		for _, identity := range role.GetAzureIdentities(types.Deny) {
-			delete(identities, identity)
+			// deny * cleans options
+			if identity == types.Wildcard {
+				identities = make(map[string]string)
+			}
+			// remove particular identity
+			delete(identities, strings.ToLower(identity))
 		}
 	}
 	if !matchedTTL {
@@ -1407,7 +1435,13 @@ func (set RoleSet) CheckAzureIdentities(ttl time.Duration, overrideTTL bool) ([]
 	if len(identities) == 0 {
 		return nil, trace.NotFound("this user cannot access Azure API, has no assigned identities")
 	}
-	return utils.StringsSliceFromSet(identities), nil
+
+	out := make([]string, 0, len(identities))
+	for _, identity := range identities {
+		out = append(out, identity)
+	}
+	sort.Strings(out)
+	return out, nil
 }
 
 // CheckLoginDuration checks if role set can login up to given duration and
@@ -1558,7 +1592,7 @@ type AzureIdentityMatcher struct {
 
 // Match matches Azure identity against provided role and condition.
 func (m *AzureIdentityMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
-	match, _ := MatchAzureIdentity(role.GetAzureIdentities(condition), m.Identity)
+	match, _ := MatchAzureIdentity(role.GetAzureIdentities(condition), m.Identity, condition == types.Deny)
 	return match, nil
 }
 

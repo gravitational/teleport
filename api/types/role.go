@@ -829,6 +829,11 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 			return trace.BadParameter("wildcard matcher is not allowed in aws_role_arns")
 		}
 	}
+	for _, identity := range r.Spec.Allow.AzureIdentities {
+		if identity == Wildcard {
+			return trace.BadParameter("wildcard matcher is not allowed in allow.azure_identities")
+		}
+	}
 	checkWildcardSelector := func(labels Labels) error {
 		for key, val := range labels {
 			if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {

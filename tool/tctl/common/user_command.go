@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // UserCommand implements `tctl users` set of commands
@@ -222,6 +223,16 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 		}
 	}
 
+	azureIdentities := flattenSlice(u.allowedAzureIdentities)
+	for _, identity := range azureIdentities {
+		if !services.MatchValidAzureIdentity(identity) {
+			return trace.BadParameter("Azure identity %q has invalid format.", identity)
+		}
+		if identity == types.Wildcard {
+			return trace.BadParameter("Azure identity cannot be a wildcard.")
+		}
+	}
+
 	traits := map[string][]string{
 		constants.TraitLogins:          u.allowedLogins,
 		constants.TraitWindowsLogins:   u.allowedWindowsLogins,
@@ -230,7 +241,7 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 		constants.TraitDBUsers:         flattenSlice(u.allowedDatabaseUsers),
 		constants.TraitDBNames:         flattenSlice(u.allowedDatabaseNames),
 		constants.TraitAWSRoleARNs:     flattenSlice(u.allowedAWSRoleARNs),
-		constants.TraitAzureIdentities: flattenSlice(u.allowedAzureIdentities),
+		constants.TraitAzureIdentities: azureIdentities,
 	}
 
 	user, err := types.NewUser(u.login)
@@ -347,9 +358,17 @@ func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 		updateMessages["AWS role ARNs"] = awsRoleARNs
 	}
 	if len(u.allowedAzureIdentities) > 0 {
-		AzureIdentities := flattenSlice(u.allowedAzureIdentities)
-		user.SetAzureIdentities(AzureIdentities)
-		updateMessages["Azure identities"] = AzureIdentities
+		azureIdentities := flattenSlice(u.allowedAzureIdentities)
+		for _, identity := range azureIdentities {
+			if !services.MatchValidAzureIdentity(identity) {
+				return trace.BadParameter("Azure identity %q has invalid format.", identity)
+			}
+			if identity == types.Wildcard {
+				return trace.BadParameter("Azure identity cannot be a wildcard.")
+			}
+		}
+		user.SetAzureIdentities(azureIdentities)
+		updateMessages["Azure identities"] = azureIdentities
 	}
 
 	if len(updateMessages) == 0 {
