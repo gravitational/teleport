@@ -2,10 +2,248 @@
 
 #include "device_darwin.h"
 
-int64_t DeviceKeyCreate(const char *newID, PublicKey *pubKeyOut) { return -1; }
+#import <CoreFoundation/CoreFoundation.h>
+#import <Foundation/Foundation.h>
+#import <IOKit/IOKitLib.h>
+#import <Security/Security.h>
 
-int64_t DeviceKeyGet(PublicKey *pubKeyOut) { return -1; }
+#include <stdlib.h>
+#include <string.h>
 
-int64_t DeviceKeySign(Digest digest, Signature *sigOut) { return -1; }
+const char *kDeviceKeyLabel = "com.gravitational.teleport.devicekey";
 
-int64_t DeviceCollectData(DeviceData *out) { return -1; }
+const int kErrNoApplicationTag = 1;
+const int kErrNoValueRef = 2;
+const int kErrCopyPubKeyFailed = 3;
+
+OSStatus findDeviceKey(NSNumber *retAttrs, CFTypeRef *out) {
+  NSData *label = [NSData dataWithBytes:(void *)kDeviceKeyLabel
+                                 length:strlen(kDeviceKeyLabel)];
+  NSDictionary *query = @{
+    (id)kSecClass : (id)kSecClassKey,
+    (id)kSecAttrKeyType : (id)kSecAttrKeyTypeECSECPrimeRandom,
+    (id)kSecMatchLimit : (id)kSecMatchLimitOne,
+    (id)kSecReturnRef : @YES,
+    (id)kSecReturnAttributes : (id)retAttrs,
+    (id)kSecAttrApplicationLabel : label,
+  };
+  return SecItemCopyMatching((CFDictionaryRef)query, out);
+}
+
+void copyPublicKey(const char *id, CFDataRef pubKeyRep, PublicKey *pubKeyOut) {
+  pubKeyOut->id = strdup(id);
+  pubKeyOut->pub_key_len = CFDataGetLength(pubKeyRep);
+  pubKeyOut->pub_key = calloc(pubKeyOut->pub_key_len, sizeof(uint8_t));
+  memcpy(pubKeyOut->pub_key, CFDataGetBytePtr(pubKeyRep),
+         pubKeyOut->pub_key_len);
+}
+
+int64_t DeviceKeyCreate(const char *newID, PublicKey *pubKeyOut) {
+  CFErrorRef err = NULL;
+  SecAccessControlRef access = NULL;
+  NSString *label = NULL;     // managed by ARC
+  NSData *labelAsData = NULL; // managed by ARC
+  NSData *idAsData = NULL;    // managed by ARC
+  NSDictionary *attrs = NULL; // managed by ARC
+  SecKeyRef privKey = NULL;
+  SecKeyRef pubKey = NULL;
+  CFDataRef pubKeyRep = NULL;
+
+  int64_t res = DeviceKeyGet(pubKeyOut);
+  if (res != errSecItemNotFound) {
+    goto end;
+  }
+  res = 0; // default is that key creation works
+
+  access = SecAccessControlCreateWithFlags(
+      kCFAllocatorDefault, kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+      kSecAccessControlPrivateKeyUsage, &err);
+  if (!access) {
+    res = CFErrorGetCode(err);
+    goto end;
+  }
+
+  label = [NSString stringWithUTF8String:kDeviceKeyLabel];
+  labelAsData = [NSData dataWithBytes:kDeviceKeyLabel
+                               length:strlen(kDeviceKeyLabel)];
+  idAsData = [NSData dataWithBytes:(void *)newID length:strlen(newID)];
+  attrs = @{
+    // Secure Enclave requires EC/256bit keys.
+    (id)kSecAttrKeyType : (id)kSecAttrKeyTypeECSECPrimeRandom,
+    (id)kSecAttrKeySizeInBits : @256,
+    (id)kSecAttrTokenID : (id)kSecAttrTokenIDSecureEnclave,
+
+    (id)kSecPrivateKeyAttrs : @{
+      (id)kSecAttrIsPermanent : @YES,
+      (id)kSecAttrAccessControl : (__bridge id)access,
+      // kSecAttrLabel is a human-readable label.
+      // CFStringRef
+      (id)kSecAttrLabel : label,
+      // kSecAttrApplicationLabel is used to lookup keys programatically.
+      // CFDataRef
+      (id)kSecAttrApplicationLabel : labelAsData,
+      // kSecAttrApplicationTag is a private application tag.
+      // CFDataRef
+      (id)kSecAttrApplicationTag : idAsData,
+    },
+  };
+  privKey = SecKeyCreateRandomKey((__bridge CFDictionaryRef)attrs, &err);
+  if (!privKey) {
+    res = CFErrorGetCode(err);
+    goto end;
+  }
+
+  pubKey = SecKeyCopyPublicKey(privKey);
+  if (!pubKey) {
+    res = kErrCopyPubKeyFailed;
+    goto end;
+  }
+
+  pubKeyRep = SecKeyCopyExternalRepresentation(pubKey, &err);
+  if (!pubKeyRep) {
+    res = CFErrorGetCode(err);
+    goto end;
+  }
+  copyPublicKey(newID, pubKeyRep, pubKeyOut);
+
+end:
+  if (pubKeyRep) {
+    CFRelease(pubKeyRep);
+  }
+  if (pubKey) {
+    CFRelease(pubKey);
+  }
+  if (privKey) {
+    CFRelease(privKey);
+  }
+  if (access) {
+    CFRelease(access);
+  }
+  if (err) {
+    CFRelease(err);
+  }
+  return res;
+}
+
+int64_t DeviceKeyGet(PublicKey *pubKeyOut) {
+  CFDictionaryRef attrs = NULL;
+  CFDataRef appTagData = NULL; // managed by attrs
+  NSString *appTag = NULL;     // managed by ARC
+  SecKeyRef privKey = NULL;    // managed by attrs
+  SecKeyRef pubKey = NULL;
+  CFErrorRef err = NULL;
+  CFDataRef pubKeyRep = NULL;
+
+  int64_t res = findDeviceKey(@YES /* retAttrs */, (CFTypeRef *)&attrs);
+  if (res != errSecSuccess) {
+    goto end;
+  }
+
+  appTagData = CFDictionaryGetValue(attrs, kSecAttrApplicationTag);
+  if (!appTagData) {
+    res = kErrNoApplicationTag;
+    goto end;
+  }
+  appTag = [[NSString alloc] initWithData:(__bridge NSData *)appTagData
+                                 encoding:NSUTF8StringEncoding];
+
+  privKey = (SecKeyRef)CFDictionaryGetValue(attrs, kSecValueRef);
+  if (!privKey) {
+    res = kErrNoValueRef;
+    goto end;
+  }
+
+  pubKey = SecKeyCopyPublicKey(privKey);
+  if (!pubKey) {
+    res = kErrCopyPubKeyFailed;
+    goto end;
+  }
+
+  pubKeyRep = SecKeyCopyExternalRepresentation(pubKey, &err);
+  if (!pubKeyRep) {
+    res = CFErrorGetCode(err);
+    goto end;
+  }
+  copyPublicKey([appTag UTF8String], pubKeyRep, pubKeyOut);
+
+end:
+  if (pubKeyRep) {
+    CFRelease(pubKeyRep);
+  }
+  if (err) {
+    CFRelease(err);
+  }
+  if (pubKey) {
+    CFRelease(pubKey);
+  }
+  if (attrs) {
+    CFRelease(attrs);
+  }
+  return res;
+}
+
+int64_t DeviceKeySign(Digest digest, Signature *sigOut) {
+  SecKeyRef privKey = NULL;
+  NSData *data = NULL; // managed by ARC
+  CFErrorRef err = NULL;
+  CFDataRef sig = NULL;
+
+  int64_t res = findDeviceKey(@NO /* retAttrs */, (CFTypeRef *)&privKey);
+  if (res != errSecSuccess) {
+    goto end;
+  }
+
+  data = [NSData dataWithBytes:digest.data length:digest.data_len];
+  sig = SecKeyCreateSignature(privKey,
+                              kSecKeyAlgorithmECDSASignatureDigestX962SHA256,
+                              (CFDataRef)data, &err);
+  if (!sig) {
+    res = CFErrorGetCode(err);
+    goto end;
+  }
+
+  sigOut->data_len = CFDataGetLength(sig);
+  sigOut->data = calloc(sigOut->data_len, sizeof(uint8_t));
+  memcpy(sigOut->data, CFDataGetBytePtr(sig), sigOut->data_len);
+
+end:
+  if (sig) {
+    CFRelease(sig);
+  }
+  if (err) {
+    CFRelease(err);
+  }
+  if (privKey) {
+    CFRelease(privKey);
+  }
+  return res;
+}
+
+int64_t DeviceCollectData(DeviceData *out) {
+  CFStringRef cfSerialNumber = NULL; // managed via bridge
+  NSString *serialNumber = NULL;     // managed by ARC
+  int64_t res = 0;
+
+  io_service_t platformExpert = IOServiceGetMatchingService(
+      0 /* mainPort */, IOServiceMatching("IOPlatformExpertDevice"));
+  if (!platformExpert) {
+    res = -1;
+    goto end;
+  }
+
+  cfSerialNumber = IORegistryEntryCreateCFProperty(
+      platformExpert, CFSTR(kIOPlatformSerialNumberKey), kCFAllocatorDefault,
+      0 /* options */);
+  if (!cfSerialNumber) {
+    res = -1;
+    goto end;
+  }
+  serialNumber = (__bridge_transfer NSString *)cfSerialNumber;
+  out->serial_number = strdup([serialNumber UTF8String]);
+
+end:
+  if (platformExpert) {
+    IOObjectRelease(platformExpert);
+  }
+  return res;
+}
