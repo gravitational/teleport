@@ -16,9 +16,7 @@ limitations under the License.
 
 package aws
 
-import (
-	"strings"
-)
+import "strings"
 
 const (
 	// TagKeyTeleportCreated defines a tag key that indicates the the cloud
