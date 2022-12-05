@@ -25,6 +25,17 @@ To implement TLS routing, Teleport uses SNI ([Server Name Indication](https://en
 and ALPN ([Application-Level Protocol Negotiation](https://en.wikipedia.org/wiki/Application-Layer_Protocol_Negotiation))
 TLS extensions.
 
+<Admonition
+  type="warning"
+  title="TLS routing is incompatible with layer 7 load balancers and reverse proxies"
+>
+TLS routing will not work in environments where layer 7 load balancers or reverse proxies are used. See further information in the [When to use TLS routing](#when-to-use-tls-routing) section below.
+</Admonition>
+
+## When to use TLS routing
+
+(!docs/pages/includes/tls-multiplexing-warnings.mdx!)
+
 ## How it works
 
 Starting from version `8.0` Teleport proxy listens for all client connections
