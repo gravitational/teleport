@@ -93,6 +93,10 @@ module.exports = {
   },
   rpm: {
     artifactName: '${name}-${version}.${arch}.${ext}',
+    // --rpm-rpmbuild-define "_build_id_links none" fixes the problem with not being able to install
+    // Connect's rpm next to other Electron apps.
+    // https://github.com/gravitational/teleport/issues/18859
+    fpm: ['--rpm-rpmbuild-define', '_build_id_links none'],
   },
   deb: {
     artifactName: '${name}_${version}_${arch}.${ext}',
