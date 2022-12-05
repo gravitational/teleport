@@ -42,6 +42,12 @@ type createDatabaseRequest struct {
 	Labels   []ui.Label `json:"labels,omitempty"`
 	Protocol string     `json:"protocol,omitempty"`
 	URI      string     `json:"uri,omitempty"`
+	AWSRDS   *awsRDS    `json:"awsRds,omitempty"`
+}
+
+type awsRDS struct {
+	AccountID  string `json:"accountId,omitempty"`
+	ResourceID string `json:"resourceId,omitempty"`
 }
 
 func (r *createDatabaseRequest) checkAndSetDefaults() error {
@@ -55,6 +61,12 @@ func (r *createDatabaseRequest) checkAndSetDefaults() error {
 
 	if r.URI == "" {
 		return trace.BadParameter("missing uri")
+	}
+
+	if r.AWSRDS != nil {
+		if r.AWSRDS.ResourceID == "" || r.AWSRDS.AccountID == "" {
+			return trace.BadParameter("missing aws rds fields")
+		}
 	}
 
 	return nil
@@ -76,15 +88,25 @@ func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p
 		labels[label.Name] = label.Value
 	}
 
+	dbSpec := types.DatabaseSpecV3{
+		Protocol: req.Protocol,
+		URI:      req.URI,
+	}
+
+	if req.AWSRDS != nil {
+		dbSpec.AWS = types.AWS{
+			AccountID: req.AWSRDS.AccountID,
+			RDS: types.RDS{
+				ResourceID: req.AWSRDS.ResourceID,
+			},
+		}
+	}
+
 	database, err := types.NewDatabaseV3(
 		types.Metadata{
 			Name:   req.Name,
 			Labels: labels,
-		},
-		types.DatabaseSpecV3{
-			Protocol: req.Protocol,
-			URI:      req.URI,
-		})
+		}, dbSpec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
