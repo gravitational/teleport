@@ -591,7 +591,8 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 	}
 
 	client := api.NewTshdEventsServiceClient(conn)
-	s.tshdEventsClient = client
+	// If the need arises to reuse the client in other places,
+	// read https://github.com/gravitational/teleport/pull/17950#discussion_r1039434456
 	s.cfg.GatewayCertReissuer.TSHDEventsClient = client
 
 	return nil
@@ -609,7 +610,7 @@ func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferReq
 // Service is the daemon service
 type Service struct {
 	cfg *Config
-	// mu guards gateways and tshdEventsClient.
+	// mu guards gateways and the creation of tshdEventsClient.
 	mu sync.RWMutex
 	// closeContext is canceled when Service is getting stopped. It is used as a context for the calls
 	// to the tshd events gRPC client.
@@ -618,11 +619,6 @@ type Service struct {
 	// gateways holds the long-running gateways for resources on different clusters. So far it's been
 	// used mostly for database gateways but it has potential to be used for app access as well.
 	gateways map[string]*gateway.Gateway
-	// tshdEventsClient is created after UpdateAndDialTshdEventsServerAddress gets called. The startup
-	// of the whole app is orchestrated in a way which ensures that is the first Service method that
-	// gets called. This lets other methods in Service assume that tshdEventsClient is available from
-	// the start, without having to perform nil checks.
-	tshdEventsClient api.TshdEventsServiceClient
 }
 
 type CreateGatewayParams struct {
