@@ -6,8 +6,8 @@ description: An overview of Teleport's session recording and its configuration
 This page provides an overview of how Teleport records sessions and the various
 configuration options that apply to session recordings.
 
-Teleport supports two different recording configurations: synchronous recording
-and asynchronous recording. Additionally, Teleport administrators can configure
+Teleport supports two different recording configurations: synchronous and
+asynchronous recording. Additionally, Teleport administrators can configure
 where the recording takes place: at the node or at the proxy.
 
 This results in 4 possible sesssion recording configurations:
@@ -19,8 +19,8 @@ This results in 4 possible sesssion recording configurations:
 
 This is a cluster-wide configuration option and applies to the entire
 Teleport cluster. If you need to apply different recording configuration to
-different sets of resources, we recommend setting up Trusted Clusters with
-their own recording configurations.
+different sets of resources, we recommend setting up [Trusted Clusters](/docs/management/admin/trustedclusters/)
+with their own recording configurations.
 
 <Admonition type="note" title="Desktop Access">
 Desktop Sessions are always recorded at Teleport's Windows Desktop Service
@@ -81,7 +81,7 @@ during the session. When the session completes, Teleport assembles the parts int
 complete recording and submits the entire recording to the Auth Server for storage.
 
 Since recording data is flushed to disk, administrators should be careful to ensure
-that the system has enough disk space to accomodate the expected number of Teleport
+that the system has enough disk space to accommodate the expected number of Teleport
 sessions. Additionally, since recording data is temporarily stored on disk, there
 is a greater chance that it can be tampered with, deleted, or otherwise corrupted
 before the upload completes.
