@@ -1090,6 +1090,10 @@
           "slug": "/reference/audit/"
         },
         {
+          "title": "Teleport Session Recording",
+          "slug": "/reference/session-recording/"
+        },
+        {
           "title": "Authentication",
           "slug": "/reference/authentication/"
         },
