@@ -419,6 +419,60 @@ resource group.
 
 </Notice>
 
+### Use Azure CLI applications without `tsh`
+
+In addition to running `az` commands via `tsh`, you can grant secure access to
+any CLI application that executes commands against the Azure API.
+
+To do this, use `tsh` to start a local proxy that forwards traffic from your CLI
+application to the Teleport Application Service. The Application Service uses an
+Azure managed identity to fetch an authentication token from Azure, which your
+CLI application uses to authenticate requests to the Azure API.
+
+To start the local proxy, run the following `tsh` command:
+
+```code
+$ tsh proxy azure 
+```
+
+The command will print the address of the local proxy server along with `export`
+commands for assigning environment variables. Azure CLI applications read these
+variables in order to request an authentication token for the Azure API:
+
+```text
+Started Azure proxy on http://127.0.0.1:54330.
+To avoid port randomization, you can choose the listening port using the --port flag.
+
+Use the following credentials and HTTPS proxy setting to connect to the proxy:
+
+  export AZURE_CONFIG_DIR=/Users/myuser/.azure-teleport
+  export HTTPS_PROXY=http://127.0.0.1:54330
+  export HTTP_PROXY=http://127.0.0.1:54330
+  export MSI_ENDPOINT=https://azure-msi.teleport.dev
+  export REQUESTS_CA_BUNDLE=/Users/myuser/.tsh/keys/teleport.example.com/myuser-app/teleport.example.com/azure-cli-localca.pem
+```
+
+<Notice type="tip">
+
+`tsh proxy azure` runs the local proxy in the foreground, so don't interrupt
+the process or exit the terminal where you ran the command until you're ready
+to close the local proxy.
+
+</Notice>
+
+Copy the `export` commands and paste them into a second terminal. In that
+terminal, you can now run your Azure CLI application of choice. For example, you
+can run the following command to list Azure VMs:
+
+```code
+$ az vm list
+```
+
+Since the `az` CLI requests an authentication token using the `teleport-azure`
+identity you created earlier, and that identity is authorized to view resources
+in your resource group, the `az vm list` command will only list VMs in that
+resource group.
+
 ## Next steps
 
 - Now that you know how to protect Azure CLI access using Teleport, ensure that
