@@ -16,6 +16,7 @@ package enroll_test
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -60,6 +61,12 @@ func TestRunCeremony(t *testing.T) {
 }
 
 func resetNative() func() {
+	const guardKey = "_dt_reset_native"
+	if os.Getenv(guardKey) != "" {
+		panic("Tests that rely on resetNative cannot run in parallel.")
+	}
+	os.Setenv(guardKey, "1")
+
 	getOSType := *enroll.GetOSType
 	enrollDeviceInit := *enroll.EnrollInit
 	signChallenge := *enroll.SignChallenge
@@ -67,6 +74,7 @@ func resetNative() func() {
 		*enroll.GetOSType = getOSType
 		*enroll.EnrollInit = enrollDeviceInit
 		*enroll.SignChallenge = signChallenge
+		os.Unsetenv(guardKey)
 	}
 }
 
