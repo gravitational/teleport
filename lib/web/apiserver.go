@@ -1607,8 +1607,8 @@ type CreateSessionResponse struct {
 	SessionInactiveTimeoutMS int `json:"sessionInactiveTimeout"`
 }
 
-func newSessionResponse(scx *SessionContext) (*CreateSessionResponse, error) {
-	accessChecker, err := scx.GetUserAccessChecker()
+func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
+	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1617,7 +1617,7 @@ func newSessionResponse(scx *SessionContext) (*CreateSessionResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := scx.getToken()
+	token, err := sctx.getToken()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1625,8 +1625,8 @@ func newSessionResponse(scx *SessionContext) (*CreateSessionResponse, error) {
 	return &CreateSessionResponse{
 		TokenType:                roundtrip.AuthBearer,
 		Token:                    token.GetName(),
-		TokenExpiresIn:           int(token.Expiry().Sub(scx.cfg.Parent.clock.Now()) / time.Second),
-		SessionInactiveTimeoutMS: int(scx.cfg.Session.GetIdleTimeout().Milliseconds()),
+		TokenExpiresIn:           int(token.Expiry().Sub(sctx.cfg.Parent.clock.Now()) / time.Second),
+		SessionInactiveTimeoutMS: int(sctx.cfg.Session.GetIdleTimeout().Milliseconds()),
 	}, nil
 }
 
@@ -1731,8 +1731,8 @@ func (h *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httpro
 	return OK(), nil
 }
 
-func (h *Handler) logout(ctx context.Context, w http.ResponseWriter, scx *SessionContext) error {
-	if err := scx.Invalidate(ctx); err != nil {
+func (h *Handler) logout(ctx context.Context, w http.ResponseWriter, sctx *SessionContext) error {
+	if err := sctx.Invalidate(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	ClearSession(w)
