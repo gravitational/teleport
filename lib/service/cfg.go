@@ -167,6 +167,9 @@ type Config struct {
 	// Access is a service that controls access
 	Access services.Access
 
+	// UsageReporter is a service that reports usage events.
+	UsageReporter services.UsageReporter
+
 	// ClusterConfiguration is a service that provides cluster configuration
 	ClusterConfiguration services.ClusterConfiguration
 
