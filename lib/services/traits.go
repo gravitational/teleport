@@ -20,13 +20,16 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 )
+
+// maxMismatchedTraitValuesLogged indicates the maximum number of trait values that do not match a
+// certain expression to be shown in a warning
+const maxMismatchedTraitValuesWarned = 100
 
 // TraitsToRoles maps the supplied traits to a list of teleport role names.
 // Returns the list of roles mapped from traits.
@@ -77,12 +80,12 @@ func traitsToRoles(ms types.TraitMappingSet, traits map[string][]string, collect
 	for _, mapping := range ms {
 		regexpIgnoreCase, err := utils.RegexpWithConfig(mapping.Value, utils.RegexpConfig{IgnoreCase: true})
 		if err != nil {
-			// TODO: return warning
+			warnings = append(warnings, fmt.Sprintf("case-insensitive expression %q is not a valid regexp", mapping.Value))
 			continue
 		}
 		regexp, err := utils.RegexpWithConfig(mapping.Value, utils.RegexpConfig{})
 		if err != nil {
-			// TODO: return warning
+			warnings = append(warnings, fmt.Sprintf("case-sensitive expression %q is not a valid regexp", mapping.Value))
 			continue
 		}
 
@@ -90,6 +93,7 @@ func traitsToRoles(ms types.TraitMappingSet, traits map[string][]string, collect
 			if traitName != mapping.Trait {
 				continue
 			}
+			var mismatched []string
 		TraitLoop:
 			for _, traitValue := range traitValues {
 				for _, role := range mapping.Roles {
@@ -99,10 +103,8 @@ func traitsToRoles(ms types.TraitMappingSet, traits map[string][]string, collect
 					outRole, err := utils.ReplaceRegexpWith(regexpIgnoreCase, role, traitValue)
 					switch {
 					case err != nil:
-						if trace.IsNotFound(err) {
-							log.WithError(err).Debugf("Failed to match expression %q, replace with: %q input: %q.", mapping.Value, role, traitValue)
-						}
 						// this trait value clearly did not match, move on to another
+						mismatched = append(mismatched, traitValue)
 						continue TraitLoop
 					case outRole == "":
 					case outRole != "":
@@ -118,6 +120,13 @@ func traitsToRoles(ms types.TraitMappingSet, traits map[string][]string, collect
 						collect(outRole, outRole != role)
 					}
 				}
+			}
+
+			// warn at most maxMismatchedTraitValuesWarned trait values to prevent huge warning lines
+			if len(mismatched) > maxMismatchedTraitValuesWarned {
+				warnings = append(warnings, fmt.Sprintf("%d trait values did not match expression %q: %s (first %d values)", len(mismatched), mapping.Value, mismatched[0:maxMismatchedTraitValuesWarned], maxMismatchedTraitValuesWarned))
+			} else if len(mismatched) > 0 {
+				warnings = append(warnings, fmt.Sprintf("%d trait values did not match expression %q: %s", len(mismatched), mapping.Value, mismatched))
 			}
 		}
 	}
