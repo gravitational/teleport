@@ -78,10 +78,7 @@ func TestReissueCert(t *testing.T) {
 			reissueErrs: []error{concurrentCallErr},
 			reissuerOpt: func(t *testing.T, reissuer *GatewayCertReissuer) {
 				t.Helper()
-				// TODO: This probably shouldn't use Fatalf but rather require.True
-				if !reissuer.reloginMu.TryLock() {
-					t.Fatalf("Couldn't lock reloginMu")
-				}
+				require.True(t, reissuer.reloginMu.TryLock(), "Couldn't lock reloginMu")
 			},
 			wantReissueCalls: 1,
 			wantReloginCalls: 0,
