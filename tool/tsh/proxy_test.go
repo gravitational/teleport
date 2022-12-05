@@ -438,7 +438,9 @@ func TestTSHProxyTemplate(t *testing.T) {
 	}
 
 	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(false)
+	})
 
 	tshPath, err := os.Executable()
 	require.NoError(t, err)
@@ -458,12 +460,16 @@ proxy_templates:
 
 	// Create SSH config.
 	sshConfigFile := filepath.Join(tshHome, "sshconfig")
-	os.WriteFile(sshConfigFile, []byte(fmt.Sprintf(`
+	// TODO(jakule): Remove PubkeyAcceptedAlgorithms when https://github.com/gravitational/teleport/issues/15149
+	// is implemented.
+	err = os.WriteFile(sshConfigFile, []byte(fmt.Sprintf(`
 Host *
   HostName %%h
   StrictHostKeyChecking no
+  PubkeyAcceptedAlgorithms +ssh-rsa-cert-v01@openssh.com
   ProxyCommand %v -d --insecure proxy ssh -J {{proxy}} %%r@%%h:%%p
 `, tshPath)), 0o644)
+	require.NoError(t, err)
 
 	// Connect to "localnode" with OpenSSH.
 	mustRunOpenSSHCommand(t, sshConfigFile, "localnode.root",
