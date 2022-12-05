@@ -157,31 +157,7 @@ Create the role:
 $ tctl create -f role.yaml
 ```
 
-Retrieve the role for the Teleport user you want to modify and save their role
-definition in `user.yaml`. Here we assume the user is called `myser`:
-
-```code
-$ tctl get user/myuser > user.yaml
-```
-
-Edit `user.yaml` to add the new role:
-
-```diff
-spec:
-  - access
-  - editor
-  - auditor
-+ - no-sharing
-  status:
-    is_locked: false
-```
-
-Apply your changes:
-
-```code
-$ tctl create -f role.yaml
-$ tctl create -f user.yaml
-```
+(!docs/pages/includes/add-role-to-user.mdx role="no-sharing"!)
 
 ## Next steps
 

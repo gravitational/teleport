@@ -137,6 +137,7 @@ func newMockServer(t *testing.T) *mockServer {
 
 	return &mockServer{
 		auth:        authServer,
+		datadir:     t.TempDir(),
 		MockEmitter: &eventstest.MockEmitter{},
 		clock:       clock,
 	}
@@ -144,6 +145,7 @@ func newMockServer(t *testing.T) *mockServer {
 
 type mockServer struct {
 	*eventstest.MockEmitter
+	datadir   string
 	auth      *auth.Server
 	component string
 	clock     clockwork.FakeClock
@@ -193,7 +195,7 @@ func (m *mockServer) GetSessionServer() rsession.Service {
 
 // GetDataDir returns data directory of the server
 func (m *mockServer) GetDataDir() string {
-	return "testDataDir"
+	return m.datadir
 }
 
 // GetPAM returns PAM configuration for this server.

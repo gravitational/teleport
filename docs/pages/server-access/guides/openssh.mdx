@@ -110,34 +110,10 @@ $ tctl create host-certifier.yaml
 # role 'host-certifier' has been created
 ```
 
-Fetch the configuration for your user. Replace `USERNAME` with the name of the
-Teleport username that you used to log in to your cluster.
-
-```code
-$ tctl get user/USERNAME > myuser.yaml
-```
-
-Make the following change to `myuser.yaml`:
-
-```diff
-  roles:
-   - access
-   - auditor
-   - editor
-+  - host-certifier
-```
-
-Apply your change:
-
-```code
-$ tctl create -f myuser.yaml
-```
-
-Log out of your Teleport cluster and log in again.
+(!docs/pages/includes/add-role-to-user.mdx role="host-certifier"!)
 
 You will now have the required permissions to export a host key for your `sshd`
 host.
-
 
 ### Issue a host certificate
 
