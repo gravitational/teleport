@@ -30,6 +30,8 @@ func SetNoCacheHeaders(h http.Header) {
 	h.Set("Expires", "0")
 }
 
+// SetDefaultSecurityHeaders adds headers that should generally be considered safe defaults.  It is expected that all
+// responses should be able to add these headers without negative impact.
 func SetDefaultSecurityHeaders(h http.Header) {
 	// Prevent web browsers from using content sniffing to discover a file’s MIME type
 	h.Set("X-Content-Type-Options", "nosniff")
@@ -49,9 +51,6 @@ func SetDefaultSecurityHeaders(h http.Header) {
 	// being sent over HTTP to the specified domain and will instead send all communications over HTTPS.
 	// It also prevents HTTPS click through prompts on browsers
 	h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-
-	// Prevent web browsers from using content sniffing to discover a file’s MIME type
-	h.Set("X-Content-Type-Options", "nosniff")
 }
 
 // SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page
