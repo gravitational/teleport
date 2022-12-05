@@ -229,7 +229,7 @@ const (
 	KindState = "state"
 
 	// KindKubeService is a kubernetes service resource
-	// DELETE in 12.0.0
+	// DELETE in 13.0.0
 	KindKubeService = "kube_service"
 
 	// KindMFADevice is an MFA device for a user.
@@ -275,6 +275,10 @@ const (
 
 	// KindDevice represents a registered or trusted device.
 	KindDevice = "device"
+
+	// KindUsageEvent is an external cluster usage event. Similar to
+	// KindHostCert, this kind is not backed by a real resource.
+	KindUsageEvent = "usage_event"
 
 	// V5 is the fifth version of resources.
 	V5 = "v5"

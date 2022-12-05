@@ -22,7 +22,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -45,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -205,26 +203,9 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 		OnReconcile:      cfg.onReconcile,
 	})
 	require.NoError(t, err)
-	// create session recording path
-	// testCtx.kubeServer.DataDir/log/upload/streaming/default
-	err = os.MkdirAll(
-		filepath.Join(
-			testCtx.kubeServer.DataDir,
-			teleport.LogsDir,
-			teleport.ComponentUpload,
-			events.StreamingLogsDir,
-			apidefaults.Namespace,
-		), os.ModePerm)
-	require.NoError(t, err)
 
 	// Waits for len(clusters) heartbeats to start
 	waitForHeartbeats := len(cfg.clusters)
-	// we must also wait for the legacy heartbeat.
-	// FIXME (tigrato): his check was added to force
-	// the person that removes the legacy heartbeat to adapt this code as well
-	// in order to wait just for len(cfg.clusters).
-	_ = testCtx.kubeServer.legacyHeartbeat
-	waitForHeartbeats++
 
 	testCtx.startKubeService(t)
 
