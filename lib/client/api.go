@@ -43,6 +43,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -1837,9 +1839,130 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		return trace.BadParameter("no target host specified")
 	}
 
-	nodeClient, err := proxyClient.ConnectToNode(
+	if len(nodeAddrs) > 1 {
+		return tc.runShellOrCommandOnMultipleNodes(ctx, nodeAddrs, proxyClient, command)
+	}
+	return tc.runShellOrCommandOnSingleNode(ctx, nodeAddrs[0], proxyClient, command, runLocally)
+}
+
+// ConnectToNode attempts to establish a connection to the node resolved to by the provided
+// NodeDetails. If the connection fails due to an Access Denied error, Auth is queried to
+// determine if per-session MFA is required for the node. If it is required then the MFA
+// ceremony is performed and another connection is attempted with the freshly minted
+// certificates. If it is not required, then the original Access Denied error from the node
+// is returned.
+func (tc *TeleportClient) ConnectToNode(ctx context.Context, proxyClient *ProxyClient, nodeDetails NodeDetails, user string) (*NodeClient, error) {
+	node := nodeName(nodeDetails.Addr)
+	ctx, span := tc.Tracer.Start(
 		ctx,
-		NodeAddr{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: tc.SiteName},
+		"teleportClient/ConnectToNode",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("site", nodeDetails.Cluster),
+			attribute.String("node", node),
+		),
+	)
+	defer span.End()
+
+	// attempt to use the existing credentials first
+	authMethods := proxyClient.authMethods
+
+	// if per-session mfa is required, perform the mfa ceremony to get
+	// new certificates and use them instead
+	if nodeDetails.MFACheck != nil && nodeDetails.MFACheck.Required {
+		am, err := proxyClient.sessionSSHCertificate(ctx, nodeDetails)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		authMethods = am
+	}
+
+	// grab the cluster details
+	details, err := proxyClient.clusterDetails(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// try connecting to the node
+	nodeClient, connectErr := proxyClient.ConnectToNode(ctx, nodeDetails, user, details, authMethods)
+	switch {
+	case connectErr == nil: // no error return client
+		return nodeClient, nil
+	case nodeDetails.MFACheck != nil: // per-session mfa ceremony was already performed, return the results
+		return nodeClient, trace.Wrap(connectErr)
+	case connectErr != nil && !trace.IsAccessDenied(connectErr): // catastrophic error, return it
+		return nil, trace.Wrap(connectErr)
+	}
+
+	// access was denied, determine if it was because per-session mfa is required
+	clt, err := proxyClient.ConnectToCluster(ctx, nodeDetails.Cluster)
+	if err != nil {
+		// return the connection error instead of any errors from connecting to auth
+		return nil, trace.Wrap(connectErr)
+	}
+
+	check, err := clt.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+		Target: &proto.IsMFARequiredRequest_Node{
+			Node: &proto.NodeLogin{
+				Node:  node,
+				Login: proxyClient.hostLogin,
+			},
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(connectErr)
+	}
+
+	// per-session mfa isn't required, the user simply does not
+	// have access to the provided node
+	if !check.Required {
+		return nil, trace.Wrap(connectErr)
+	}
+
+	// per-session mfa is required, perform the mfa ceremony
+	key, err := proxyClient.IssueUserCertsWithMFA(
+		ctx,
+		ReissueParams{
+			NodeName:       node,
+			RouteToCluster: nodeDetails.Cluster,
+			MFACheck:       check,
+			AuthClient:     clt,
+		},
+		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			return tc.PromptMFAChallenge(ctx, proxyAddr, c, nil /* applyOpts */)
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// try connecting to the node again with the newly acquired certificates
+	newAuthMethods, err := key.AsAuthMethod()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	nodeClient, err = proxyClient.ConnectToNode(ctx, nodeDetails, user, details, []ssh.AuthMethod{newAuthMethods})
+	return nodeClient, trace.Wrap(err)
+}
+
+func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, nodeAddr string, proxyClient *ProxyClient, command []string, runLocally bool) error {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/runShellOrCommandOnSingleNode",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("site", tc.SiteName),
+			attribute.String("node", nodeAddr),
+		),
+	)
+	defer span.End()
+
+	nodeClient, err := tc.ConnectToNode(
+		ctx,
+		proxyClient,
+		NodeDetails{Addr: nodeAddr, Namespace: tc.Namespace, Cluster: tc.SiteName},
 		tc.Config.HostLogin,
 	)
 	if err != nil {
@@ -1847,7 +1970,6 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		return trace.Wrap(err)
 	}
 	defer nodeClient.Close()
-
 	// If forwarding ports were specified, start port forwarding.
 	if err := tc.startPortForwarding(ctx, nodeClient); err != nil {
 		return trace.Wrap(err)
@@ -1875,21 +1997,46 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		return runLocalCommand(command)
 	}
 
-	// Issue "exec" request(s) to run on remote node(s).
 	if len(command) > 0 {
-		if len(nodeAddrs) > 1 {
-			fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes matched label selector, running command on all.")
-			return tc.runCommandOnNodes(ctx, tc.SiteName, nodeAddrs, proxyClient, command)
-		}
 		// Reuse the existing nodeClient we connected above.
 		return tc.runCommand(ctx, nodeClient, command)
 	}
-
-	// Issue "shell" request to run single node.
-	if len(nodeAddrs) > 1 {
-		fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %v\n", nodeAddrs[0])
-	}
 	return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
+}
+
+func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, nodeAddrs []string, proxyClient *ProxyClient, command []string) error {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/runShellOrCommandOnMultipleNodes",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("site", tc.SiteName),
+			attribute.StringSlice("node", nodeAddrs),
+		),
+	)
+	defer span.End()
+
+	// There was a command provided, run a non-interactive session against each match
+	if len(command) > 0 {
+		fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes matched label selector, running command on all.\n")
+		return tc.runCommandOnNodes(ctx, tc.SiteName, nodeAddrs, proxyClient, command)
+	}
+
+	// Issue "shell" request to the first matching node.
+	fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %q\n", nodeAddrs[0])
+	nodeClient, err := tc.ConnectToNode(
+		ctx,
+		proxyClient,
+		NodeDetails{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: tc.SiteName},
+		tc.Config.HostLogin,
+	)
+	if err != nil {
+		tc.ExitStatus = 1
+		return trace.Wrap(err)
+	}
+	defer nodeClient.Close()
+	return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
+
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {
@@ -1988,11 +2135,11 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		target = fmt.Sprintf("%s:0", serverID)
 	}
 	// connect to server:
-	nc, err := proxyClient.ConnectToNode(ctx, NodeAddr{
-		Addr:      target,
-		Namespace: tc.Namespace,
-		Cluster:   tc.SiteName,
-	}, tc.Config.HostLogin)
+	nc, err := tc.ConnectToNode(ctx,
+		proxyClient,
+		NodeDetails{Addr: target, Namespace: tc.Namespace, Cluster: tc.SiteName},
+		tc.Config.HostLogin,
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2161,9 +2308,10 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 		return trace.BadParameter("no target host specified")
 	}
 
-	nodeClient, err := proxyClient.ConnectToNode(
+	nodeClient, err := tc.ConnectToNode(
 		ctx,
-		NodeAddr{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: tc.SiteName},
+		proxyClient,
+		NodeDetails{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: tc.SiteName},
 		tc.Config.HostLogin,
 	)
 	if err != nil {
@@ -2225,9 +2373,10 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 		if hostLogin == "" {
 			hostLogin = tc.Config.HostLogin
 		}
-		return proxyClient.ConnectToNode(
+		return tc.ConnectToNode(
 			ctx,
-			NodeAddr{Addr: addr, Namespace: tc.Namespace, Cluster: tc.SiteName},
+			proxyClient,
+			NodeDetails{Addr: addr, Namespace: tc.Namespace, Cluster: tc.SiteName},
 			hostLogin,
 		)
 	}
@@ -2658,41 +2807,111 @@ func (tc *TeleportClient) ListKubeClustersWithFiltersAllClusters(ctx context.Con
 	return kubeClusters, nil
 }
 
-// runCommandOnNodes executes a given bash command on a bunch of remote nodes.
-func (tc *TeleportClient) runCommandOnNodes(
-	ctx context.Context, siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string,
-) error {
-	resultsC := make(chan error, len(nodeAddresses))
-	for _, address := range nodeAddresses {
-		go func(address string) {
-			var err error
-			defer func() {
-				resultsC <- err
-			}()
+// roleGetter retrieves roles for the current user
+type roleGetter interface {
+	GetRoles(ctx context.Context) ([]types.Role, error)
+}
 
-			var nodeClient *NodeClient
-			nodeClient, err = proxyClient.ConnectToNode(ctx,
-				NodeAddr{Addr: address, Namespace: tc.Namespace, Cluster: siteName},
-				tc.Config.HostLogin)
+// commandLimit determines how many commands may be executed in parallel.
+// The limit will one of the following:
+//   - 1 if per session mfa is required
+//   - 1 if we cannot determine the users role set
+//   - half the max connection limit defined by the users role set
+//
+// Out of an abundance of caution we only use half the max connection
+// limit to allow other connections to be established.
+func commandLimit(ctx context.Context, getter roleGetter, mfaRequired bool) int {
+	if mfaRequired {
+		return 1
+	}
+
+	roles, err := getter.GetRoles(ctx)
+	if err != nil {
+		return 1
+	}
+
+	max := services.NewRoleSet(roles...).MaxConnections()
+	limit := max / 2
+
+	switch {
+	case max == 0:
+		return -1
+	case max == 1:
+		return 1
+	case limit <= 0:
+		return 1
+	default:
+		return int(limit)
+	}
+}
+
+// runCommandOnNodes executes a given bash command on a bunch of remote nodes.
+func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string) error {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/runCommandOnNodes",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	clt, err := proxyClient.ConnectToCluster(ctx, siteName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	// Let's check if the first node requires mfa.
+	// If it's required, run commands sequentially to avoid
+	// race conditions and weird ux during mfa.
+	mfaRequiredCheck, err := clt.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+		Target: &proto.IsMFARequiredRequest_Node{
+			Node: &proto.NodeLogin{
+				Node:  nodeName(nodeAddresses[0]),
+				Login: proxyClient.hostLogin,
+			},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(commandLimit(ctx, clt, mfaRequiredCheck.Required))
+	for _, address := range nodeAddresses {
+		address := address
+		g.Go(func() error {
+			ctx, span := tc.Tracer.Start(
+				gctx,
+				"teleportClient/executingCommand",
+				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+				oteltrace.WithAttributes(attribute.String("node", address)),
+			)
+			defer span.End()
+
+			nodeClient, err := tc.ConnectToNode(
+				ctx,
+				proxyClient,
+				NodeDetails{
+					Addr:      address,
+					Namespace: tc.Namespace,
+					Cluster:   siteName,
+					MFACheck:  mfaRequiredCheck,
+				},
+				tc.Config.HostLogin,
+			)
 			if err != nil {
-				// err is passed to resultsC in the defer above.
 				fmt.Fprintln(tc.Stderr, err)
-				return
+				return trace.Wrap(err)
 			}
 			defer nodeClient.Close()
 
-			fmt.Printf("Running command on %v:\n", address)
-			err = tc.runCommand(ctx, nodeClient, command)
-			// err is passed to resultsC in the defer above.
-		}(address)
+			fmt.Printf("Running command on %v:\n", nodeName(address))
+
+			return trace.Wrap(tc.runCommand(ctx, nodeClient, command))
+		})
 	}
-	var lastError error
-	for range nodeAddresses {
-		if err := <-resultsC; err != nil {
-			lastError = err
-		}
-	}
-	return trace.Wrap(lastError)
+
+	return trace.Wrap(g.Wait())
 }
 
 // runCommand executes a given bash command on an established NodeClient.
