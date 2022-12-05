@@ -14,9 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* eslint-disable @typescript-eslint/ban-types */
-
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useRef, useEffect } from 'react';
 
 /**
  * `useAsync` lets you represent the state of an async operation as data. It accepts an async function
@@ -58,53 +56,93 @@ import { useCallback, useState } from 'react';
  *       return <UserAvatar url={fetchUserProfileAttempt.data.avatarUrl} />;
  *    }
  * }
+ *
  */
-export function useAsync<R, T extends Function>(cb?: AsyncCb<R, T>) {
-  const [state, setState] = useState<Attempt<R>>(makeEmptyAttempt);
+export function useAsync<Args extends unknown[], AttemptData>(
+  cb: (...args: Args) => Promise<AttemptData>
+) {
+  const [state, setState] = useState<Attempt<AttemptData>>(makeEmptyAttempt);
+  const isMounted = useIsMounted();
+  const asyncTask = useRef<Promise<AttemptData>>();
 
   const run = useCallback(
-    (...p: Parameters<AsyncCb<R, T>>) =>
-      Promise.resolve()
-        .then(() => {
+    (...args: Args) => {
+      setState(prevState => ({
+        ...prevState,
+        status: 'processing',
+      }));
+
+      const promise = cb(...args);
+      asyncTask.current = promise;
+
+      return promise.then(
+        data => {
+          if (!isMounted()) {
+            return [null, new CanceledError()] as [AttemptData, Error];
+          }
+          if (asyncTask.current !== promise) {
+            return [null, new CanceledError()] as [AttemptData, Error];
+          }
+
           setState(prevState => ({
             ...prevState,
-            status: 'processing',
+            status: 'success',
+            data,
           }));
 
-          return cb.call(null, ...p) as R;
-        })
-        .then(
-          data => {
-            setState(prevState => ({
-              ...prevState,
-              status: 'success',
-              data,
-            }));
-
-            return [data, null] as [R, Error];
-          },
-          err => {
-            setState(prevState => ({
-              ...prevState,
-              status: 'error',
-              statusText: err?.message,
-              data: null,
-            }));
-
-            return [null, err] as [R, Error];
+          return [data, null] as [AttemptData, Error];
+        },
+        err => {
+          if (!isMounted()) {
+            return [null, new CanceledError()] as [AttemptData, Error];
           }
-        ),
-    [setState, cb]
+          if (asyncTask.current !== promise) {
+            return [null, new CanceledError()] as [AttemptData, Error];
+          }
+
+          setState(prevState => ({
+            ...prevState,
+            status: 'error',
+            statusText: err?.message,
+            data: null,
+          }));
+
+          return [null, err] as [AttemptData, Error];
+        }
+      );
+    },
+    [setState, cb, isMounted]
   );
 
   const setAttempt = useCallback(
-    (attempt: Attempt<R>) => {
+    (attempt: Attempt<AttemptData>) => {
       setState(attempt);
     },
     [setState]
   );
 
   return [state, run, setAttempt] as const;
+}
+
+function useIsMounted() {
+  const isMounted = useRef(false);
+
+  useEffect(() => {
+    isMounted.current = true;
+
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
+  return useCallback(() => isMounted.current, []);
+}
+
+export class CanceledError extends Error {
+  constructor() {
+    super('Ignored response from useAsync because the signal got aborted');
+    this.name = 'AbortedSignalError';
+  }
 }
 
 export type AttemptStatus = 'processing' | 'success' | 'error' | '';
@@ -146,46 +184,3 @@ export function makeErrorAttempt<T>(statusText: string): Attempt<T> {
     statusText,
   };
 }
-
-type IsValidArg<T> = T extends object
-  ? keyof T extends never
-    ? false
-    : true
-  : true;
-
-type AsyncCb<R, T extends Function> = T extends (...args: any[]) => Promise<any>
-  ? T
-  : T extends (
-      a: infer A,
-      b: infer B,
-      c: infer C,
-      d: infer D,
-      e: infer E,
-      f: infer F,
-      g: infer G,
-      h: infer H,
-      i: infer I,
-      j: infer J
-    ) => Promise<R>
-  ? IsValidArg<J> extends true
-    ? (a: A, b: B, c: C, d: D, e: E, f: F, g: G, h: H, i: I, j: J) => Promise<R>
-    : IsValidArg<I> extends true
-    ? (a: A, b: B, c: C, d: D, e: E, f: F, g: G, h: H, i: I) => Promise<R>
-    : IsValidArg<H> extends true
-    ? (a: A, b: B, c: C, d: D, e: E, f: F, g: G, h: H) => Promise<R>
-    : IsValidArg<G> extends true
-    ? (a: A, b: B, c: C, d: D, e: E, f: F, g: G) => Promise<R>
-    : IsValidArg<F> extends true
-    ? (a: A, b: B, c: C, d: D, e: E, f: F) => Promise<R>
-    : IsValidArg<E> extends true
-    ? (a: A, b: B, c: C, d: D, e: E) => Promise<R>
-    : IsValidArg<D> extends true
-    ? (a: A, b: B, c: C, d: D) => Promise<R>
-    : IsValidArg<C> extends true
-    ? (a: A, b: B, c: C) => Promise<R>
-    : IsValidArg<B> extends true
-    ? (a: A, b: B) => Promise<R>
-    : IsValidArg<A> extends true
-    ? (a: A) => Promise<R>
-    : () => Promise<R>
-  : never;
