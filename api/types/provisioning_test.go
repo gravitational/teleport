@@ -404,3 +404,28 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 		})
 	}
 }
+
+func TestProvisionTokenV2_GetSafeName(t *testing.T) {
+	t.Run("token join method", func(t *testing.T) {
+		tok, err := NewProvisionToken("12345678", []SystemRole{RoleNode}, time.Now())
+		require.NoError(t, err)
+		got := tok.GetSafeName()
+		require.Equal(t, "******78", got)
+	})
+	t.Run("non-token join method", func(t *testing.T) {
+		tok, err := NewProvisionTokenFromSpec("12345678", time.Now(), ProvisionTokenSpecV2{
+			Roles:      []SystemRole{RoleNode},
+			JoinMethod: JoinMethodKubernetes,
+			Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+				Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+					{
+						ServiceAccount: "namespace:my-service-account",
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		got := tok.GetSafeName()
+		require.Equal(t, "12345678", got)
+	})
+}

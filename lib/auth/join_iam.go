@@ -414,7 +414,7 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse c
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateCerts(ctx, provisionToken, req.RegisterUsingTokenRequest)
+	certs, err := a.generateCerts(ctx, provisionToken, req.RegisterUsingTokenRequest, nil)
 	return certs, trace.Wrap(err)
 }
 

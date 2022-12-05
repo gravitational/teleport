@@ -588,6 +588,11 @@ const (
 	// DeviceEvent is the catch-all event for Device Trust events.
 	DeviceEvent = "device"
 
+	// BotJoinEvent is emitted when a bot joins
+	BotJoinEvent = "bot.join"
+	// NodeJoinEvent is emitted when a node joins
+	NodeJoinEvent = "node.join"
+
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
 )

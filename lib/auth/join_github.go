@@ -30,18 +30,18 @@ type ghaIDTokenValidator interface {
 	Validate(context.Context, string) (*githubactions.IDTokenClaims, error)
 }
 
-func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
+func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*githubactions.IDTokenClaims, error) {
 	if req.IDToken == "" {
-		return trace.BadParameter("IDToken not provided for Github join request")
+		return nil, trace.BadParameter("IDToken not provided for Github join request")
 	}
 	pt, err := a.GetToken(ctx, req.Token)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	claims, err := a.ghaIDTokenValidator.Validate(ctx, req.IDToken)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	log.WithFields(logrus.Fields{
@@ -49,7 +49,10 @@ func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.Register
 		"token":  pt.GetName(),
 	}).Info("Github actions run trying to join cluster")
 
-	return trace.Wrap(checkGithubAllowRules(pt, claims))
+	if err := checkGithubAllowRules(pt, claims); err != nil {
+		return claims, trace.Wrap(err)
+	}
+	return claims, nil
 }
 
 func checkGithubAllowRules(pt types.ProvisionToken, claims *githubactions.IDTokenClaims) error {

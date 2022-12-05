@@ -358,6 +358,11 @@ const (
 	// RoleDeletedCode is the role deleted event code.
 	RoleDeletedCode = "T9001I"
 
+	// BotJoinCode is the 'bot.join' event code.
+	BotJoinCode = "TJ001I"
+	// NodeJoinCode is the 'node.join' event code.
+	NodeJoinCode = "TJ002I"
+
 	// LockCreatedCode is the lock created event code.
 	LockCreatedCode = "TLK00I"
 	// LockDeletedCode is the lock deleted event code.

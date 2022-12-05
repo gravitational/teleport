@@ -16,6 +16,11 @@ limitations under the License.
 
 package githubactions
 
+import (
+	"github.com/gravitational/trace"
+	"github.com/mitchellh/mapstructure"
+)
+
 // GitHub Workload Identity
 //
 // GH provides workloads with two environment variables to facilitate fetching
@@ -87,4 +92,22 @@ type IDTokenClaims struct {
 	SHA string `json:"sha"`
 	// The name of the workflow.
 	Workflow string `json:"workflow"`
+}
+
+// JoinAuditAttributes returns a series of attributes that can be inserted into
+// audit events related to a specific join.
+func (c *IDTokenClaims) JoinAuditAttributes() (map[string]interface{}, error) {
+	res := map[string]interface{}{}
+	d, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		TagName: "json",
+		Result: &res,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := d.Decode(c); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return res, nil
 }
