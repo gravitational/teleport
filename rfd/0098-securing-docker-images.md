@@ -20,7 +20,7 @@ images we use to deliver Teleport to our customers.
 One of our shipping channels is a Docker image. As the provider of that docker
 image we are (at least partialy) responsible for everything on it, not just
 Teleport. We should not ship vulnerabilities to our clients, even if those 
-vulnerabilities are not odirectly in our software.
+vulnerabilities are not directly in our software.
 
 ## Details
 
