@@ -3,19 +3,21 @@ title: "Protect the Azure CLI with Teleport Application Access"
 description: How to enable secure access to the Azure CLI.
 ---
 
-You can use Teleport Application Access to manage the commands that your users
-can run via the Azure CLI. This lets you control access to your
-infrastructure's management APIs using the same RBAC system that you use to
-protect your infrastructure itself.
+You can use Teleport Application Access to manage access to Azure CLI tools.
+This lets you control access to your infrastructure's management APIs using the
+same RBAC system that you use to protect your infrastructure itself.
 
-The Teleport Application Service runs on an Azure VM and proxies requests from
-end users to Azure's APIs. Teleport users can then execute requests via the
-Azure CLI through Teleport as long as one of their roles allows access to an
-appropriate Azure managed identity. 
+The Teleport Application Service uses Azure managed identities to obtain
+authentication tokens from Azure. When a user authenticates to Teleport, they
+can assume one of these managed identities to execute Azure CLI commands.
+
+You can configure which Teleport users or roles have access to specific Azure
+identities, giving you control over who can obtain credentials for different
+levels of access to Azure CLIs.
 
 The Teleport Application Service connects to the Teleport Proxy Service over a
-reverse tunnel, so you can run the Application Service VM in a private network
-and prevent unauthorized access to your organization's Azure credentials. 
+reverse tunnel, so you can run the Application Service in a private network and
+prevent unauthorized access to your organization's Azure identities. 
 
 ## Prerequisites
 
@@ -29,10 +31,10 @@ and prevent unauthorized access to your organization's Azure credentials.
 - An Azure VM where you will run the Teleport Application Service. The Azure VM
   must be running a Linux distribution.
 
-- The Managed Identity Contributor, Managed Identity Operator, and Virtual
-  Machine Contributor role assignments in your Azure account. In this guide, we
-  will create a user-assigned Azure managed identity and attach it to your VM,
-  and Azure requires these three role assignments in order to do this. 
+- The ability to create a user-assigned Azure managed identity and attach it to
+  your VM. Azure requires three role assignments in your Azure account in order
+  to do this: Managed Identity Contributor, Managed Identity Operator, and
+  Virtual Machine Contributor. 
 
   <Admonition type="tip" title="Using existing identities">
 
@@ -83,8 +85,7 @@ field called **Resource ID** with a value resmmbling the following:
 /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure
 ```
 
-Copy this and paste it somewhere safe. We will use this later in the
-guide.
+Copy the URI of this identity so you can use it later in this guide.
 
 ### Allow the `teleport-azure` identity to view resources
 
@@ -141,12 +142,16 @@ the `teleport-azure` identity. Click **Add**.
 ![Add an identity to a
 VM](../../../img/application-access/azure/vm-identity.png)
 
+Navigate back to **Identity** tab in the page for your Azure VM. You should see
+the new identity listed in the **User assigned** sub-tab:
+
+![Verifying that you added the
+identity](../../../img/application-access/azure/verify-id.png)
+
 ## Step 2/4. Deploy the Teleport Application Service
 
 In this step, you will run the Teleport Application Service on the Azure VM you
-assigned the `teleport-azure` identity to. The Teleport Application Service
-assumes this identity in order to proxy Azure CLI traffic, making it possible to
-use Teleport to manage access to administrative tasks in Azure.
+assigned the `teleport-azure` identity to. 
 
 ### Get a join token
 
@@ -227,7 +232,7 @@ within `app_service.apps` is an application configuration.
 
 In this example, we have enabled Azure CLI access by setting `cloud` to `Azure`.
 With this setting configured, the Application Service will proxy user commands
-from the Azure CLI by requesting access to the Azure API under the user's chosen
+from the Azure CLI by requesting access to Azure's APIs under the user's chosen
 identity, which works as long as the identity is one of the ones attached to the
 Application Service host.
 
@@ -334,14 +339,14 @@ user. The value of this flag is a comma-separated list of Azure identity URIs.
 
 You must attach all identities you would like users to access to the Azure VM
 running the Application Service. This lets the Application Service make requests
-to the Azure API using those identities.
+to Azure's APIs using those identities.
 
 </Details>
 
 ## Step 4/4. Use the Azure CLI with Teleport
 
 Now that you have authorized your Teleport user to assume the `teleport-azure`
-identity, you can use Teleport to authenticate to the Azure API and execute
+identity, you can use Teleport to authenticate to Azure's APIs and execute
 commands against it via the `az` CLI.
 
 ### List your Azure CLI application
@@ -378,10 +383,6 @@ If the command succeeds, you will see information about the user's chosen Azure
 identity similar to the following:
 
 ```text
-Logged into Azure app "azure-cli".
-Your identity: /subscriptions/0000000000000-0000-0000-000000000000/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure
-Example Azure CLI command: tsh az vm list
-
 [
   {
     "environmentName": "AzureCloud",
@@ -393,12 +394,16 @@ Example Azure CLI command: tsh az vm list
     "state": "Enabled",
     "tenantId": "00000000-0000-0000-0000-000000000000",
     "user": {
-      "assignedIdentityInfo": "MSIResource-/subscriptions/0000000000000-0000-0000-000000000000/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
+      "assignedIdentityInfo": "MSIResource-/subscriptions/0000000000000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
       "name": "userAssignedIdentity",
       "type": "servicePrincipal"
     }
   }
 ]
+
+Logged into Azure app "azure-cli".
+Your identity: /subscriptions/0000000000000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure
+Example Azure CLI command: tsh az vm list
 ```
 
 ### Execute Azure CLI commands
@@ -408,7 +413,7 @@ by prefixing them with `tsh`. To list VMs running in your Azure resource group,
 for example, run the following command:
 
 ```code
-$ tsh az vm list;
+$ tsh az vm list
 ```
 
 <Notice type="tip">
@@ -422,12 +427,12 @@ resource group.
 ### Use Azure CLI applications without `tsh`
 
 In addition to running `az` commands via `tsh`, you can grant secure access to
-any CLI application that executes commands against the Azure API.
+any CLI application that executes commands against Azure's APIs.
 
 To do this, use `tsh` to start a local proxy that forwards traffic from your CLI
 application to the Teleport Application Service. The Application Service uses an
 Azure managed identity to fetch an authentication token from Azure, which your
-CLI application uses to authenticate requests to the Azure API.
+CLI application uses to authenticate requests to Azure's APIs.
 
 To start the local proxy, run the following `tsh` command:
 
@@ -437,7 +442,7 @@ $ tsh proxy azure
 
 The command will print the address of the local proxy server along with `export`
 commands for assigning environment variables. Azure CLI applications read these
-variables in order to request an authentication token for the Azure API:
+variables in order to request an authentication token for Azure's APIs:
 
 ```text
 Started Azure proxy on http://127.0.0.1:54330.
@@ -452,7 +457,7 @@ Use the following credentials and HTTPS proxy setting to connect to the proxy:
   export REQUESTS_CA_BUNDLE=/Users/myuser/.tsh/keys/teleport.example.com/myuser-app/teleport.example.com/azure-cli-localca.pem
 ```
 
-<Notice type="tip">
+<Notice type="warning">
 
 `tsh proxy azure` runs the local proxy in the foreground, so don't interrupt
 the process or exit the terminal where you ran the command until you're ready
@@ -472,6 +477,13 @@ Since the `az` CLI requests an authentication token using the `teleport-azure`
 identity you created earlier, and that identity is authorized to view resources
 in your resource group, the `az vm list` command will only list VMs in that
 resource group.
+
+<Notice type="info">
+
+When you run an `az` command via `tsh az`, `tsh` starts the local proxy in the
+background and uses it to execute the command.
+
+</Notice>
 
 ## Next steps
 
