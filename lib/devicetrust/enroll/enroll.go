@@ -36,7 +36,7 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 	// Start by checking the OSType, this lets us exit early with a nicer message
 	// for non-supported OSes.
 	if getOSType() != devicepb.OSType_OS_TYPE_MACOS {
-		return nil, trace.BadParameter("device enrollment not supported for current OS")
+		return nil, trace.BadParameter("device enrollment not supported for current OS (%v)", runtime.GOOS)
 	}
 
 	init, err := enrollInit()
