@@ -484,9 +484,8 @@ func (r *authPack) renewSession(ctx context.Context, t *testing.T) *roundtrip.Re
 }
 
 func (r *authPack) validateAPI(ctx context.Context, t *testing.T) {
-	resp, err := r.clt.Get(ctx, r.clt.Endpoint("webapi", "sites"), url.Values{})
+	_, err := r.clt.Get(ctx, r.clt.Endpoint("webapi", "sites"), url.Values{})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, resp.Headers())
 }
 
 type authPack struct {
@@ -495,7 +494,7 @@ type authPack struct {
 	login     string
 	password  string
 	session   *CreateSessionResponse
-	clt       *client.WebClient
+	clt       *TestWebClient
 	cookies   []*http.Cookie
 }
 
@@ -521,7 +520,7 @@ func (s *WebSuite) authPack(t *testing.T, user string) *authPack {
 	validToken, err := totp.GenerateCode(otpSecret, s.clock.Now())
 	require.NoError(t, err)
 
-	clt := s.client()
+	clt := s.client(t)
 	req := CreateSessionReq{
 		User:              user,
 		Pass:              pass,
@@ -541,7 +540,7 @@ func (s *WebSuite) authPack(t *testing.T, user string) *authPack {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	clt = s.client(roundtrip.BearerAuth(sess.Token), roundtrip.CookieJar(jar))
+	clt = s.client(t, roundtrip.BearerAuth(sess.Token), roundtrip.CookieJar(jar))
 	jar.SetCookies(s.url(), re.Cookies())
 
 	return &authPack{
@@ -669,7 +668,6 @@ func TestWebSessionsCRUD(t *testing.T) {
 	// make sure we can use client to make authenticated requests
 	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 
 	var clusters []ui.Cluster
 	require.NoError(t, json.Unmarshal(re.Bytes(), &clusters))
@@ -718,7 +716,7 @@ func TestCSRF(t *testing.T) {
 		{reqToken: encodedToken1, cookieToken: ""},
 	}
 
-	clt := s.client()
+	clt := s.client(t)
 
 	// valid
 	_, err = s.login(clt, encodedToken1, encodedToken1, loginForm)
@@ -764,7 +762,7 @@ func TestValidateBearerToken(t *testing.T) {
 	// Swap pack1's session token with pack2's sessionToken
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
-	pack1.clt = proxy.newClient(t, roundtrip.BearerAuth(pack2.session.Token), roundtrip.CookieJar(jar))
+	pack1.clt = &TestWebClient{proxy.newClient(t, roundtrip.BearerAuth(pack2.session.Token), roundtrip.CookieJar(jar)), t}
 	jar.SetCookies(&proxy.webURL, pack1.cookies)
 
 	// Auth protected endpoint.
@@ -794,7 +792,7 @@ func TestWebSessionsBadInput(t *testing.T) {
 	validToken, err := totp.GenerateCode(otpSecret, time.Now())
 	require.NoError(t, err)
 
-	clt := s.client()
+	clt := s.client(t)
 
 	reqs := []CreateSessionReq{
 		// empty request
@@ -869,7 +867,6 @@ func TestClusterNodesGet(t *testing.T) {
 	// Get nodes.
 	re, err := pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 
 	// Test response.
 	res := clusterNodesGetResponse{}
@@ -931,7 +928,6 @@ func TestClusterAlertsGet(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "alerts")
 	re, err := pack.clt.Get(context.Background(), endpoint, nil)
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 
 	alerts := clusterAlertsGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &alerts))
@@ -1692,7 +1688,6 @@ func TestActiveSessions(t *testing.T) {
 
 	re, err := pack.clt.Get(s.ctx, pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"), url.Values{})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 
 	var sessResp siteSessionsGetResponse
 	require.NoError(t, json.Unmarshal(re.Bytes(), &sessResp))
@@ -1768,7 +1763,6 @@ func TestCreateSession(t *testing.T) {
 	// get site nodes
 	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "nodes"), url.Values{})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 
 	nodes := clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes))
@@ -1787,7 +1781,6 @@ func TestCreateSession(t *testing.T) {
 		siteSessionGenerateReq{Session: sess},
 	)
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 
 	var created *siteSessionGenerateResponse
 	require.NoError(t, json.Unmarshal(re.Bytes(), &created))
@@ -1846,7 +1839,7 @@ func TestLogin_PrivateKeyEnabledError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	clt := s.client()
+	clt := s.client(t)
 	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(loginReq))
 	require.NoError(t, err)
 	ua := "test-ua"
@@ -1860,7 +1853,6 @@ func TestLogin_PrivateKeyEnabledError(t *testing.T) {
 		return clt.Client.HTTPClient().Do(req)
 	})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 	var resErr httpErrorResponse
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resErr))
 	require.Contains(t, resErr.Error.Message, keys.PrivateKeyPolicyHardwareKeyTouch)
@@ -1886,7 +1878,7 @@ func TestLogin(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	clt := s.client()
+	clt := s.client(t)
 	ua := "test-ua"
 	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(loginReq))
 	require.NoError(t, err)
@@ -1901,7 +1893,6 @@ func TestLogin(t *testing.T) {
 		return clt.Client.HTTPClient().Do(req)
 	})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 
 	events, _, err := s.server.AuthServer.AuditLog.SearchEvents(
 		s.clock.Now().Add(-time.Hour),
@@ -1929,12 +1920,11 @@ func TestLogin(t *testing.T) {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	clt = s.client(roundtrip.BearerAuth(rawSess.Token), roundtrip.CookieJar(jar))
+	clt = s.client(t, roundtrip.BearerAuth(rawSess.Token), roundtrip.CookieJar(jar))
 	jar.SetCookies(s.url(), re.Cookies())
 
 	re, err = clt.Get(s.ctx, clt.Endpoint("webapi", "sites"), url.Values{})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 
 	var clusters []ui.Cluster
 	require.NoError(t, json.Unmarshal(re.Bytes(), &clusters))
@@ -1942,13 +1932,13 @@ func TestLogin(t *testing.T) {
 	// in absence of session cookie or bearer auth the same request fill fail
 
 	// no session cookie:
-	clt = s.client(roundtrip.BearerAuth(rawSess.Token))
+	clt = s.client(t, roundtrip.BearerAuth(rawSess.Token))
 	_, err = clt.Get(s.ctx, clt.Endpoint("webapi", "sites"), url.Values{})
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// no bearer token:
-	clt = s.client(roundtrip.CookieJar(jar))
+	clt = s.client(t, roundtrip.CookieJar(jar))
 	_, err = clt.Get(s.ctx, clt.Endpoint("webapi", "sites"), url.Values{})
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
@@ -1959,7 +1949,7 @@ func TestLogin(t *testing.T) {
 func TestEmptyMotD(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	wc := s.client()
+	wc := s.client(t)
 
 	// Given an auth server configured *not* to expose a Message Of The
 	// Day...
@@ -1967,7 +1957,6 @@ func TestEmptyMotD(t *testing.T) {
 	// When I issue a ping request...
 	re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 
 	// Expect that the MotD flag in the ping response is *not* set
 	var pingResponse *webclient.PingResponse
@@ -1991,7 +1980,7 @@ func TestMotD(t *testing.T) {
 	const motd = "Hello. I'm a Teleport cluster!"
 
 	s := newWebSuite(t)
-	wc := s.client()
+	wc := s.client(t)
 
 	// Given an auth server configured to expose a Message Of The Day...
 	prefs := types.DefaultAuthPreference()
@@ -2001,7 +1990,6 @@ func TestMotD(t *testing.T) {
 	// When I issue a ping request...
 	re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 
 	// Expect that the MotD flag in the ping response is set to indicate
 	// a MotD
@@ -2012,7 +2000,6 @@ func TestMotD(t *testing.T) {
 	// When I fetch the MotD...
 	re, err = wc.Get(s.ctx, wc.Endpoint("webapi", "motd"), url.Values{})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 
 	// Expect that the text returned is the configured value
 	var motdResponse *webclient.MotD
@@ -2023,7 +2010,7 @@ func TestMotD(t *testing.T) {
 func TestMultipleConnectors(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	wc := s.client()
+	wc := s.client(t)
 
 	// create two oidc connectors, one named "foo" and another named "bar"
 	oidcConnectorSpec := types.OIDCConnectorSpecV3{
@@ -2061,7 +2048,6 @@ func TestMultipleConnectors(t *testing.T) {
 	// hit the ping endpoint to get the auth type and connector name
 	re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 	var out *webclient.PingResponse
 	require.NoError(t, json.Unmarshal(re.Bytes(), &out))
 
@@ -2292,7 +2278,6 @@ func TestSearchClusterEvents(t *testing.T) {
 			t.Parallel()
 			response, err := pack.clt.Get(s.ctx, pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "events", "search"), tc.Query)
 			require.NoError(t, err)
-			verifySecurityResponseHeaders(t, response.Headers())
 			var result eventsListGetResponse
 			require.NoError(t, json.Unmarshal(response.Bytes(), &result))
 
@@ -2496,7 +2481,6 @@ func TestInstallDatabaseScriptGeneration(t *testing.T) {
 			},
 		})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 
 	var responseToken nodeJoinToken
 	require.NoError(t, json.Unmarshal(re.Bytes(), &responseToken))
@@ -2518,7 +2502,6 @@ func TestInstallDatabaseScriptGeneration(t *testing.T) {
 
 	resp, err := anonHTTPClient.Do(req)
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, resp.Header)
 
 	scriptBytes, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -2543,7 +2526,6 @@ func TestSignMTLS(t *testing.T) {
 		Roles: types.SystemRoles{types.RoleDatabase},
 	})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 
 	var responseToken nodeJoinToken
 	err = json.Unmarshal(re.Bytes(), &responseToken)
@@ -2576,7 +2558,6 @@ func TestSignMTLS(t *testing.T) {
 
 	resp, err := anonHTTPClient.Do(req)
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, resp.Header)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -2608,7 +2589,6 @@ func TestSignMTLS(t *testing.T) {
 
 	respSecondCall, err := anonHTTPClient.Do(req)
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, respSecondCall.Header)
 	defer respSecondCall.Body.Close()
 	require.Equal(t, http.StatusForbidden, respSecondCall.StatusCode)
 }
@@ -2636,7 +2616,6 @@ func TestSignMTLS_failsAccessDenied(t *testing.T) {
 		Roles: types.SystemRoles{types.RoleProxy},
 	})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 
 	var responseToken nodeJoinToken
 	err = json.Unmarshal(re.Bytes(), &responseToken)
@@ -2671,7 +2650,6 @@ func TestSignMTLS_failsAccessDenied(t *testing.T) {
 
 	resp, err := anonHTTPClient.Do(req)
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, resp.Header)
 	defer resp.Body.Close()
 
 	// It fails because we passed a Provision Token with the wrong Role: Proxy
@@ -2715,7 +2693,6 @@ func TestCheckAccessToRegisteredResource_AccessDenied(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "resources", "check")
 	re, err := pack.clt.Get(ctx, endpoint, url.Values{})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 	resp := checkAccessToRegisteredResourceResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.True(t, resp.HasResource)
@@ -2758,7 +2735,6 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "resources", "check")
 	re, err := pack.clt.Get(ctx, endpoint, url.Values{})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 	resp := checkAccessToRegisteredResourceResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.False(t, resp.HasResource)
@@ -2882,7 +2858,6 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 
 			re, err := pack.clt.Get(ctx, endpoint, url.Values{})
 			require.NoError(t, err)
-			verifySecurityResponseHeaders(t, re.Headers())
 			resp := checkAccessToRegisteredResourceResponse{}
 			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 			require.True(t, resp.HasResource)
@@ -2997,7 +2972,6 @@ func TestAuthExport(t *testing.T) {
 
 			resp, err := anonHTTPClient.Do(req)
 			require.NoError(t, err)
-			verifySecurityResponseHeaders(t, resp.Header)
 			defer resp.Body.Close()
 
 			bs, err := io.ReadAll(resp.Body)
@@ -3023,7 +2997,6 @@ func TestClusterDatabasesGet(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
 	re, err := pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 
 	type testResponse struct {
 		Items      []ui.Database `json:"items"`
@@ -3369,7 +3342,6 @@ func TestClusterKubesGet(t *testing.T) {
 
 		re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 		require.NoError(t, err)
-		verifySecurityResponseHeaders(t, re.Headers())
 
 		resp := testResponse{}
 		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
@@ -3439,7 +3411,6 @@ func TestClusterAppsGet(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "apps")
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{"sort": []string{"name"}})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 
 	// Test correct response.
 	resp := testResponse{}
@@ -3619,7 +3590,6 @@ func TestGetWebConfig(t *testing.T) {
 	endpoint := clt.Endpoint("web", "config.js")
 	re, err := clt.Get(ctx, endpoint, nil)
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
 
 	// Response is type application/javascript, we need to strip off the variable name
@@ -3648,7 +3618,6 @@ func TestCreatePrivilegeToken(t *testing.T) {
 		SecondFactorToken: totpCode,
 	})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 
 	var privilegeToken string
 	err = json.Unmarshal(re.Bytes(), &privilegeToken)
@@ -3745,14 +3714,13 @@ func TestAddMFADevice(t *testing.T) {
 
 			// Add device.
 			endpoint := pack.clt.Endpoint("webapi", "mfa", "devices")
-			re, err := pack.clt.PostJSON(ctx, endpoint, addMFADeviceRequest{
+			_, err := pack.clt.PostJSON(ctx, endpoint, addMFADeviceRequest{
 				PrivilegeTokenID:         privilegeToken,
 				DeviceName:               tc.deviceName,
 				SecondFactorToken:        totpCode,
 				WebauthnRegisterResponse: webauthnRegResp,
 			})
 			require.NoError(t, err)
-			verifySecurityResponseHeaders(t, re.Headers())
 		})
 	}
 }
@@ -3782,7 +3750,6 @@ func TestDeleteMFA(t *testing.T) {
 		SecondFactorToken: totpCode,
 	})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 
 	var privilegeToken string
 	require.NoError(t, json.Unmarshal(re.Bytes(), &privilegeToken))
@@ -3814,7 +3781,6 @@ func TestGetMFADevicesWithAuth(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "mfa", "devices")
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 
 	var devices []ui.MFADevice
 	err = json.Unmarshal(re.Bytes(), &devices)
@@ -3858,7 +3824,6 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 	getDevicesEndpoint := clt.Endpoint("webapi", "mfa", "token", approvedToken.GetName(), "devices")
 	res, err := clt.Get(ctx, getDevicesEndpoint, url.Values{})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, res.Headers())
 
 	var devices []ui.MFADevice
 	err = json.Unmarshal(res.Bytes(), &devices)
@@ -3891,7 +3856,7 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 	authnClt := authPack.clt
 
 	// Unauthenticated client for public endpoints.
-	publicClt := proxy.newClient(t)
+	publicClt := &TestWebClient{proxy.newClient(t), t}
 
 	// Acquire a start token, for the request the requires it.
 	startToken, err := types.NewUserToken("some-token-id")
@@ -3904,7 +3869,7 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		clt     *client.WebClient
+		clt     *TestWebClient
 		ep      []string
 		reqBody client.MFAChallengeRequest
 	}{
@@ -3944,7 +3909,6 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 			endpoint := tc.clt.Endpoint(tc.ep...)
 			res, err := tc.clt.PostJSON(ctx, endpoint, tc.reqBody)
 			require.NoError(t, err)
-			verifySecurityResponseHeaders(t, res.Headers())
 
 			var chal client.MFAAuthenticateChallenge
 			err = json.Unmarshal(res.Bytes(), &chal)
@@ -4019,7 +3983,6 @@ func TestCreateRegisterChallenge(t *testing.T) {
 			endpoint := clt.Endpoint("webapi", "mfa", "token", token.GetName(), "registerchallenge")
 			res, err := clt.PostJSON(ctx, endpoint, tc.req)
 			require.NoError(t, err)
-			verifySecurityResponseHeaders(t, res.Headers())
 
 			var chal client.MFARegisterChallenge
 			require.NoError(t, json.Unmarshal(res.Bytes(), &chal))
@@ -4465,7 +4428,6 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 		return clt.HTTPClient().Do(httpReq)
 	}))
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, httpRes.Headers())
 
 	var apiRes ui.ChangedUserAuthn
 	require.NoError(t, json.Unmarshal(httpRes.Bytes(), &apiRes))
@@ -4567,7 +4529,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 
 		initialUser := users[0]
 
-		clt := s.client()
+		clt := s.client(t)
 
 		// create register challenge
 		token, err := s.server.Auth().CreateResetPasswordToken(s.ctx, auth.CreateUserTokenRequest{
@@ -4616,7 +4578,6 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 		})
 
 		require.NoError(t, err)
-		verifySecurityResponseHeaders(t, re.Headers())
 		require.Equal(t, re.Code(), http.StatusOK)
 
 		// check if auth preference connectorName is set
@@ -4729,7 +4690,6 @@ func TestClusterDesktopsGet(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "desktops")
 	re, err := pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, re.Headers())
 
 	// Test correct response.
 	resp := testResponse{}
@@ -4768,7 +4728,6 @@ func TestDesktopActive(t *testing.T) {
 	check := func(match string) {
 		resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "desktops", desktopName, "active"), url.Values{})
 		require.NoError(t, err)
-		verifySecurityResponseHeaders(t, resp.Headers())
 		require.Contains(t, string(resp.Bytes()), match)
 	}
 
@@ -4823,7 +4782,6 @@ func TestGetUserOrResetToken(t *testing.T) {
 
 	resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", username), url.Values{})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, resp.Headers())
 	require.Contains(t, string(resp.Bytes()), "login1")
 
 	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", "password", "token", resetToken.GetName()), url.Values{})
@@ -4869,7 +4827,6 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 
 	resp, err := pack.clt.Get(ctx, connectionsEndpoint, url.Values{})
 	require.NoError(t, err)
-	verifySecurityResponseHeaders(t, resp.Headers())
 	require.Equal(t, http.StatusOK, resp.Code())
 
 	var receivedConnectionDiagnostic ui.ConnectionDiagnostic
@@ -5115,7 +5072,6 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				DialTimeout: time.Second,
 			})
 			require.NoError(t, err)
-			verifySecurityResponseHeaders(t, resp.Headers())
 			require.Equal(t, http.StatusOK, resp.Code())
 
 			var connectionDiagnostic ui.ConnectionDiagnostic
@@ -5556,7 +5512,6 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
-			verifySecurityResponseHeaders(t, resp.Headers())
 			require.Equal(t, http.StatusOK, resp.Code())
 
 			var connectionDiagnostic ui.ConnectionDiagnostic
@@ -5946,16 +5901,30 @@ func waitForOutput(stream *terminalStream, substr string) error {
 	}
 }
 
-func (s *WebSuite) client(opts ...roundtrip.ClientParam) *client.WebClient {
+func (s *WebSuite) client(t *testing.T, opts ...roundtrip.ClientParam) *TestWebClient {
 	opts = append(opts, roundtrip.HTTPClient(client.NewInsecureWebClient()))
 	wc, err := client.NewWebClient(s.url().String(), opts...)
 	if err != nil {
 		panic(err)
 	}
-	return wc
+	return &TestWebClient{wc, t}
 }
 
-func (s *WebSuite) login(clt *client.WebClient, cookieToken string, reqToken string, reqData interface{}) (*roundtrip.Response, error) {
+type TestWebClient struct {
+	*client.WebClient
+	t *testing.T
+}
+
+func (c *TestWebClient) RoundTrip(fn roundtrip.RoundTripFn) (*roundtrip.Response, error) {
+	c.t.Helper()
+	resp, err := c.WebClient.RoundTrip(fn)
+
+	verifySecurityResponseHeaders(c.t, resp.Headers())
+
+	return resp, err
+}
+
+func (s *WebSuite) login(clt *TestWebClient, cookieToken string, reqToken string, reqData interface{}) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
 		data, err := json.Marshal(reqData)
 		if err != nil {
@@ -6375,7 +6344,7 @@ func (r *testProxy) authPack(t *testing.T, teleportUser string, roles []types.Ro
 	validToken, err := totp.GenerateCode(otpSecret, r.clock.Now())
 	require.NoError(t, err)
 
-	clt := r.newClient(t)
+	clt := &TestWebClient{r.newClient(t), t}
 	req := CreateSessionReq{
 		User:              teleportUser,
 		Pass:              pass,
@@ -6394,7 +6363,7 @@ func (r *testProxy) authPack(t *testing.T, teleportUser string, roles []types.Ro
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	clt = r.newClient(t, roundtrip.BearerAuth(session.Token), roundtrip.CookieJar(jar))
+	clt = &TestWebClient{r.newClient(t, roundtrip.BearerAuth(session.Token), roundtrip.CookieJar(jar)), t}
 	jar.SetCookies(&r.webURL, resp.Cookies())
 
 	return &authPack{
@@ -6412,7 +6381,7 @@ func (r *testProxy) authPackFromPack(t *testing.T, pack *authPack) *authPack {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	clt := r.newClient(t, roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar))
+	clt := &TestWebClient{r.newClient(t, roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar)), t}
 	jar.SetCookies(&r.webURL, pack.cookies)
 
 	result := *pack
@@ -6427,7 +6396,7 @@ func (r *testProxy) authPackFromResponse(t *testing.T, httpResp *roundtrip.Respo
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	clt := r.newClient(t, roundtrip.BearerAuth(resp.Token), roundtrip.CookieJar(jar))
+	clt := &TestWebClient{r.newClient(t, roundtrip.BearerAuth(resp.Token), roundtrip.CookieJar(jar)), t}
 	jar.SetCookies(&r.webURL, httpResp.Cookies())
 
 	session, err := resp.response()
@@ -6583,7 +6552,7 @@ func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID s
 	return ws
 }
 
-func login(t *testing.T, clt *client.WebClient, cookieToken, reqToken string, reqData interface{}) *roundtrip.Response {
+func login(t *testing.T, clt *TestWebClient, cookieToken, reqToken string, reqData interface{}) *roundtrip.Response {
 	resp, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
 		data, err := json.Marshal(reqData)
 		if err != nil {
