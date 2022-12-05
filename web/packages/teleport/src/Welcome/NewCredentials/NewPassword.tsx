@@ -15,15 +15,17 @@
  */
 
 import React, { useState } from 'react';
-import { Text, ButtonPrimary, ButtonText, Box } from 'design';
+import { Box, ButtonPrimary, ButtonText, Text } from 'design';
 import { Danger } from 'design/Alert';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import {
-  requiredPassword,
   requiredConfirmedPassword,
+  requiredPassword,
 } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
+
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 import { Props as CredentialsProps, SliderProps } from './NewCredentials';
 
@@ -50,6 +52,11 @@ export function NewPassword(props: Props) {
     validator: Validator
   ) {
     e.preventDefault(); // prevent form submit default
+
+    userEventService.capturePreUserEvent({
+      event: CaptureEvent.PreUserOnboardSetCredentialSubmitEvent,
+      username: resetToken.user,
+    });
 
     if (!validator.validate()) {
       return;

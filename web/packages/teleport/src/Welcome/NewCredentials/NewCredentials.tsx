@@ -51,6 +51,7 @@ export function NewCredentials(props: State & Props) {
     fetchAttempt,
     recoveryCodes,
     resetMode,
+    resetToken,
     redirect,
     primaryAuthType,
     success,
@@ -84,6 +85,7 @@ export function NewCredentials(props: State & Props) {
         recoveryCodes={recoveryCodes}
         onContinue={finishedRegister}
         isNewCodes={resetMode}
+        username={resetToken.user}
       />
     );
   }

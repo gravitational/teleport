@@ -16,17 +16,19 @@
 
 import React, { useRef } from 'react';
 import styled from 'styled-components';
-import { Flex, Card, Text, Box, ButtonPrimary } from 'design';
+import { Box, ButtonPrimary, Card, Flex, Text } from 'design';
 import copyToClipboard from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
 
 import { RecoveryCodes } from 'teleport/services/auth';
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 export default function RecoveryCodesDialog({
   recoveryCodes,
   onContinue,
   isNewCodes,
   continueText = 'Continue',
+  username = '',
 }: Props) {
   const codesRef = useRef();
 
@@ -38,6 +40,17 @@ export default function RecoveryCodesDialog({
     ).then(() => {
       selectElementContent(codesRef.current);
     });
+  };
+
+  const handleContinue = () => {
+    if (username) {
+      userEventService.capturePreUserEvent({
+        event: CaptureEvent.PreUserRecoveryCodesContinueClickEvent,
+        username: username,
+      });
+    }
+
+    onContinue();
   };
 
   let title = 'Backup & Recovery Codes';
@@ -114,7 +127,7 @@ export default function RecoveryCodesDialog({
               size="large"
               width="100%"
               className="no-print"
-              onClick={onContinue}
+              onClick={handleContinue}
             >
               {btnText}
             </ButtonPrimary>
@@ -195,4 +208,5 @@ export type Props = {
   onContinue: () => void;
   isNewCodes: boolean;
   continueText?: string;
+  username?: string;
 };

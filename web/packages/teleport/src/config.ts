@@ -20,11 +20,11 @@ import { merge } from 'lodash';
 import generateResourcePath from './generateResourcePath';
 
 import type {
-  AuthProvider,
   Auth2faType,
+  AuthProvider,
   AuthType,
-  PrimaryAuthType,
   PreferredMfaType,
+  PrimaryAuthType,
   PrivateKeyPolicy,
 } from 'shared/services';
 import type { SortType } from 'teleport/services/agents';
@@ -179,6 +179,9 @@ const cfg = {
     installADCSPath: '/v1/webapi/scripts/desktop-access/install-ad-cs.ps1',
     configureADPath:
       '/v1/webapi/scripts/desktop-access/configure/:token/configure-ad.ps1',
+
+    captureUserEventPath: '/v1/webapi/capture',
+    capturePreUserEventPath: '/v1/webapi/precapture',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
