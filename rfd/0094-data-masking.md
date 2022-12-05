@@ -72,8 +72,11 @@ According to the Immuta docs they are using database engines built-in data maski
 According to https://docs.imperva.com/bundle/v13.2-data-masking-user-guide/page/71264.htm they are using static data masking where they create a copy of the database with all sensitive data masked.
 
 6) [Acra](https://docs.cossacklabs.com/acra/security-controls/masking/) <br/>
-Acra is using dynamic data masking where query is parsed by Acra server before it is sent to the database. Acra server identified the masking data based on parsed query and apply masking rules to the data before it is returned to the client.
-In Acra solution Data Masking is only an additional feature to data encryption functionality where the data is encrypted before is sent to the database and decrypted before it is returned to the client.
+Acra is using dynamic data masking where query is parsed by Acra server before it is sent to the database. Acra server identified the masking data based on parsed query and applies masking rules to the data before data are send to the client.
+
+7) [JumpWire](https://jumpwire.ai/)
+Jumpwire doesn't support data masking though it allows to encrypt/decrypt data. For that, the query parsing approach is used on the proxy side. Encryption/Decryption is also done on the proxy side.
+If data is already stored in the database. Jumpwire allows to manually trigger a migration job that will process alter and encrypt database data.
 
 ###  Data Masking Approaches to consider
 #### 1) Static Data Masking
@@ -220,16 +223,12 @@ information about the `table1` scheme is required to extend the `*` select from 
 and will Teleport block "select from all tables queries" if a selected table contains a masking rule. In this case, Teleport will return the database error "Data masking unambiguous query error".
 
 
-### UX
-Data-Masking configuration will be stored as user role setting in dedicated `database_options` role spec option.
-
-
 ### Security
 Data-masking solution based on altering the SQL query in the proxy before it is sent to the database engine is more flexible but less secure than using native db engine data masking functionality.
-Solution based on query rewriting in proxy side wll introduce several potential vectors of bypassing data masking:
-1) Database user have access to views/functions/procedures that operates/returns data from masked columns
-   In order to prevent this a database user should be configured with database privileges that doesn't allow to use views/functions/procedures that allowing to bypass data masking applied on proxy side. 
-   For instance lets consider following table:
+Solution based on query rewriting in the proxy side will introduce several potential vectors of bypassing data masking:
+1) Database user have access to views/functions/procedures that operate/returns data from masked columns
+   In order to prevent this a database user should be configured with database privileges that don't allow to use views/functions/procedures that allow bypassing data masking applied on the proxy side.
+   For instance, lets consider the following table:
    ```sql
     CREATE TABLE customers(
         id       INT             NOT NULL,
@@ -252,7 +251,7 @@ Solution based on query rewriting in proxy side wll introduce several potential 
    
    CREATE VIEW v_customers AS SELECT * FROM customers; 
    ```
-   where Teleport DB masking rules for customer table was configured only for the `customers` table:
+   where Teleport DB masking rules for the `customers` table was configured `email`, `phone` and `ssn` columns:
    ```yaml
     database_options:
     data_masking:
@@ -269,27 +268,25 @@ Solution based on query rewriting in proxy side wll introduce several potential 
 
    If a database user has permission to execute the `top_customers` or `v_customers` function the data masking on proxy side can be bypassed by calling `select top_customers()` or `select * from v_customers;`  
    Teleport DB Proxy doesn't have enough information to apply masking rules for the `SELECT top_customers()` and ` SELECT * FROM v_customers` queries.
-    
+
 2) User can create a custom procedure/function/view/table from masked table `CREATE TABLE customers_tmp AS SELECT * CUSTOMERS;`
-   or `CREATE VIEW v_customers AS SELECT * FROM customers;`. 
-   In that case Teleport DB Agent can detect CREATE SQL statement and recognise if masked table referenced. If so Teleport DB Agent can reject the SQL Statement. 
+   or `CREATE VIEW v_customers AS SELECT * FROM customers;`.
+   In that case, Teleport DB Agent can detect CREATE SQL statements and recognize if a masked table is referenced. If so Teleport DB Agent can reject the SQL Statement.
 
-
-To narrow ability to bypass data masking on the proxy side by execution views/procedures, creation of a custom tables Teleport can introduce Database Access Model based on parsed SQL Query and allow to interact/execute resource that are in user/role allow list:
-```yaml
-kind: role
-spec:
-    ...
-    database_options:
-    allow_access:
-      - database: "postgres01"
-        tables:
-        - "customers"
-        - "clients"
-        views:
-        - "top_customers_view"
-        procedures:
-        - "calculate_*"
+3) Bypassing data masking by guessing.
+   Data masking solution doesn't limit the number of queries that can be run by a user. A malicious user tries to bypass data masking by guessing sensitive data.
+   For instance, lets consider `customers` table that contains a row with `{name: Bruce Wayne, SSN: 111-222-333}` data where data masking rule is configured only on SSN column.
+   Eventually, SSN can be obedient by running a binary search on SSN Column:
+```sql
+select ssn from customers WHERE name='Bruce Wayne';
+------------
+ XXX-XXX-XXX
 ```
+```sql
+SELECT * FROM customers WHERE name='Bruce Wayne' AND SSN BETWEEN '111-111-111' AND '555-555-555';
+// ...
+SELECT * FROM customers WHERE name='Bruce Wayne' AND SSN BETWEEN '111-111-998' AND '111-111-999';
+```
+
 
 
