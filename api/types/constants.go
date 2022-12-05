@@ -276,6 +276,10 @@ const (
 	// KindDevice represents a registered or trusted device.
 	KindDevice = "device"
 
+	// KindUsageEvent is an external cluster usage event. Similar to
+	// KindHostCert, this kind is not backed by a real resource.
+	KindUsageEvent = "usage_event"
+
 	// V5 is the fifth version of resources.
 	V5 = "v5"
 
