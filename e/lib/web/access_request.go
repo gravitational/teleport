@@ -204,7 +204,7 @@ func getResourceDetails(ctx context.Context, req types.AccessRequest, cfg *getAc
 
 	resourceDetails := make(map[string]ui.ResourceDetails)
 	for clusterName, resourceIDs := range resourceIDsByCluster {
-		clt, err := cfg.clusterClientProvider.UserClientForCluster(clusterName)
+		clt, err := cfg.clusterClientProvider.UserClientForCluster(ctx, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

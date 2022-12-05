@@ -92,7 +92,7 @@ type mockClusterClientProvider struct {
 	resourcesByCluster map[string][]types.ResourceWithLabels
 }
 
-func (m *mockClusterClientProvider) UserClientForCluster(clusterName string) (auth.ClientI, error) {
+func (m *mockClusterClientProvider) UserClientForCluster(ctx context.Context, clusterName string) (auth.ClientI, error) {
 	return &mockAuthClient{
 		resources: m.resourcesByCluster[clusterName],
 	}, nil
