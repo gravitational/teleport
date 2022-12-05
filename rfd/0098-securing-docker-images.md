@@ -157,7 +157,7 @@ things like a shell, tools from `busybox`, and so on. I would also suggest
 that, while we should take as much care as possible when constructing and 
 monitoring this image, use of the debug image is considered "at your own risk".
 
-### Compatability Guarantees
+### Compatibility Guarantees
 
 We have clients relying on the existing behaviour (and contents) of our images. We
 should treat releaseing these distroless images as a compatability break, and make 
