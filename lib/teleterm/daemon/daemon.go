@@ -209,9 +209,7 @@ func (s *Service) onExpiredGatewayCert(ctx context.Context, gateway *gateway.Gat
 		return trace.Wrap(err)
 	}
 
-	err = s.cfg.GatewayCertReissuer.ReissueCert(ctx, gateway, cluster)
-
-	return trace.Wrap(err)
+	return trace.Wrap(s.cfg.GatewayCertReissuer.ReissueCert(ctx, gateway, cluster))
 }
 
 // RemoveGateway removes cluster gateway

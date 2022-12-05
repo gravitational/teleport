@@ -71,8 +71,7 @@ type TSHDEventsClient interface {
 // notification. GatewayCertReissuer is typically called from within a goroutine that handles the
 // gateway, so without forwarding the error to the app, it would be visible only in the logs.
 func (r *GatewayCertReissuer) ReissueCert(ctx context.Context, gateway *gateway.Gateway, dbCertReissuer DBCertReissuer) error {
-	err := r.reissueCert(ctx, gateway, dbCertReissuer)
-	if err != nil {
+	if err := r.reissueCert(ctx, gateway, dbCertReissuer); err != nil {
 		r.notifyAppAboutError(ctx, err, gateway)
 
 		// Return the error to the alpn.LocalProxy's middleware.
@@ -180,6 +179,6 @@ func (r *GatewayCertReissuer) notifyAppAboutError(ctx context.Context, err error
 		})
 	if tshdEventsErr != nil {
 		r.Log.WithError(tshdEventsErr).Error(
-			"Could not notify about error encountered during OnExpiredCert")
+			"Failed to send a notification for an error encountered during OnExpiredCert")
 	}
 }
