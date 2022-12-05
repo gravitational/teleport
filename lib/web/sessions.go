@@ -121,9 +121,10 @@ func (c *SessionContextConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.WithFields(logrus.Fields{
-			"user":    c.User,
-			"session": c.Session.GetShortName(),
+		c.Log = newPackageLogger().WithFields(logrus.Fields{
+			trace.Component: teleport.ComponentWeb,
+			"user":          c.User,
+			"session":       c.Session.GetShortName(),
 		})
 	}
 
