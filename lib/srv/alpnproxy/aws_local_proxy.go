@@ -15,7 +15,6 @@
 package alpnproxy
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -25,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
+// AWSAccessMiddleware verifies the requests to AWS proxy are properly signed.
 type AWSAccessMiddleware struct {
 	// AWSCredentials are AWS Credentials used by LocalProxy for request's signature verification.
 	AWSCredentials *credentials.Credentials
@@ -34,9 +34,9 @@ type AWSAccessMiddleware struct {
 
 var _ LocalProxyHTTPMiddleware = &AWSAccessMiddleware{}
 
-func (m *AWSAccessMiddleware) OnStart(ctx context.Context, lp *LocalProxy) error {
+func (m *AWSAccessMiddleware) CheckAndSetDefaults() error {
 	if m.Log == nil {
-		m.Log = lp.cfg.Log
+		m.Log = logrus.WithField(trace.Component, "aws_access")
 	}
 
 	if m.AWSCredentials == nil {

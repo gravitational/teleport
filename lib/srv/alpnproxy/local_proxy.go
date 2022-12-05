@@ -94,8 +94,8 @@ type LocalProxyMiddleware interface {
 
 // LocalProxyHTTPMiddleware provides callback functions for LocalProxy in HTTP proxy mode.
 type LocalProxyHTTPMiddleware interface {
-	// OnStart is a callback triggered when the local proxy starts.
-	OnStart(ctx context.Context, lp *LocalProxy) error
+	// CheckAndSetDefaults checks configuration validity and sets defaults
+	CheckAndSetDefaults() error
 
 	// HandleRequest returns true if requests has been handled and must not be processed further, false otherwise.
 	HandleRequest(rw http.ResponseWriter, req *http.Request) bool
@@ -240,7 +240,7 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 		return trace.BadParameter("Missing HTTPMiddleware in configuration")
 	}
 
-	if err := l.cfg.HTTPMiddleware.OnStart(ctx, l); err != nil {
+	if err := l.cfg.HTTPMiddleware.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 

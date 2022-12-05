@@ -15,7 +15,6 @@
 package alpnproxy
 
 import (
-	"context"
 	"crypto"
 	"encoding/json"
 	"fmt"
@@ -53,19 +52,14 @@ type AzureMSIMiddleware struct {
 
 var _ LocalProxyHTTPMiddleware = &AzureMSIMiddleware{}
 
-func (m *AzureMSIMiddleware) OnStart(ctx context.Context, lp *LocalProxy) error {
-	if m.Log == nil {
-		m.Log = lp.cfg.Log
-	}
-
-	if m.Clock == nil {
-		m.Clock = lp.cfg.Clock
-	}
-
-	return m.CheckAndSetDefaults()
-}
-
 func (m *AzureMSIMiddleware) CheckAndSetDefaults() error {
+	if m.Clock == nil {
+		m.Clock = clockwork.NewRealClock()
+	}
+	if m.Log == nil {
+		m.Log = logrus.WithField(trace.Component, "azure_msi")
+	}
+
 	if m.Key == nil {
 		return trace.BadParameter("missing Key")
 	}
