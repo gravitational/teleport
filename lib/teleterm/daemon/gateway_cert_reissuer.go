@@ -46,13 +46,21 @@ type GatewayCertReissuer struct {
 // DBCertReissuer lets us pass a mock in tests and clusters.Cluster (which makes calls to the
 // cluster) in production code.
 type DBCertReissuer interface {
+	// ReissueDBCerts reaches out to the cluster to get a cert for the specific tlsca.RouteToDatabase
+	// and saves it to disk.
 	ReissueDBCerts(context.Context, tlsca.RouteToDatabase) error
 }
 
 // TSHDEventsClient takes only those methods from api.TshdEventsServiceClient that
 // GatewayCertReissuer actually needs. It makes mocking the client in tests easier and future-proof.
+//
+// Refer to [api.TshdEventsServiceClient] for a more detailed documentation.
 type TSHDEventsClient interface {
+	// Relogin makes the Electron app display a login modal. Please refer to
+	// [api.TshdEventsServiceClient.Relogin] for more details.
 	Relogin(ctx context.Context, in *api.ReloginRequest, opts ...grpc.CallOption) (*api.ReloginResponse, error)
+	// SendNotification causes the Electron app to display a notification. Please refer to
+	// [api.TshdEventsServiceClient.SendNotification] for more details.
 	SendNotification(ctx context.Context, in *api.SendNotificationRequest, opts ...grpc.CallOption) (*api.SendNotificationResponse, error)
 }
 
