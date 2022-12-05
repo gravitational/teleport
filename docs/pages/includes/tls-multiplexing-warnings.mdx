@@ -20,7 +20,7 @@ Teleport's web port to isolate the issue.
 To use Teleport behind a reverse proxy, you should either:
 - use a layer 4 (TCP) proxy which forwards TCP streams directly to Teleport (which will in turn handle TLS termination itself)
 - disable Teleport's TLS routing mode by adding `version: v1` to your config file and removing `proxy_listener_mode: multiplex`
- 
+
 You can get an example `v1` config file using `teleport configure --version=v1 --public-addr=teleport.example.com:443` (change the public address to your own domain)
 
-If disabling TLS routing, you can find the list of default ports to use for connecting different Teleport services at [ports without TLS routing](../reference/networking.mdx#ports-without-tls-routing)
+If disabling TLS routing, you can find the list of default ports to use for connecting different Teleport services in the [ports reference](../setup/reference/networking.mdx#ports)
