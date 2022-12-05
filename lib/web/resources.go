@@ -18,6 +18,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -38,30 +39,42 @@ import (
 
 // checkAccessToRegisteredResource checks if calling user has access to at least one registered resource.
 func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	fmt.Println("checkAccessToRegisteredResource")
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of resources.
 	clt, err := c.GetUserClient(site)
 	if err != nil {
+		fmt.Println("no bueno", err)
 		return nil, trace.Wrap(err)
 	}
 
+	fmt.Println("we are here")
+
 	resourceKinds := []string{types.KindNode, types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindWindowsDesktop}
 	for _, kind := range resourceKinds {
+		fmt.Println("loop", kind)
+
 		res, err := clt.ListResources(r.Context(), proto.ListResourcesRequest{
 			ResourceType: kind,
 			Limit:        1,
 		})
 
 		if err != nil {
+			fmt.Println("that was an error", err)
 			// Access denied error is returned when user does not have permissions
 			// to read/list a resource kind which can be ignored as this function is not
 			// about checking if user has the right perms.
 			if trace.IsAccessDenied(err) {
+				fmt.Println("continuing")
+
 				continue
 			}
+
+			fmt.Println("not continuing")
 			return nil, trace.Wrap(err)
 		}
 
+		fmt.Println("here!")
 		if len(res.Resources) > 0 {
 			return checkAccessToRegisteredResourceResponse{
 				HasResource: true,
@@ -69,6 +82,7 @@ func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http
 		}
 	}
 
+	fmt.Println("here2!")
 	return checkAccessToRegisteredResourceResponse{
 		HasResource: false,
 	}, nil
