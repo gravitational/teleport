@@ -47,6 +47,8 @@ type AzureMSIMiddleware struct {
 	Clock clockwork.Clock
 	// Log is the Logger.
 	Log logrus.FieldLogger
+	// Secret to be provided by the client.
+	Secret string
 }
 
 var _ LocalProxyHTTPMiddleware = &AzureMSIMiddleware{}
@@ -66,6 +68,9 @@ func (m *AzureMSIMiddleware) OnStart(ctx context.Context, lp *LocalProxy) error 
 func (m *AzureMSIMiddleware) CheckAndSetDefaults() error {
 	if m.Key == nil {
 		return trace.BadParameter("missing Key")
+	}
+	if m.Secret == "" {
+		return trace.BadParameter("missing Secret")
 	}
 	if m.Identity == "" {
 		return trace.BadParameter("missing Identity")
@@ -93,6 +98,10 @@ func (m *AzureMSIMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Req
 
 func (m *AzureMSIMiddleware) msiEndpoint(rw http.ResponseWriter, req *http.Request) error {
 	// request validation
+	if req.URL.Path != ("/" + m.Secret) {
+		return trace.BadParameter("invalid secret")
+	}
+
 	metadata := req.Header.Get("Metadata")
 	if metadata != "true" {
 		return trace.BadParameter("expected Metadata header with value 'true'")

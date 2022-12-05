@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -31,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -65,6 +67,9 @@ func TestAzure(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	// set MSI_ENDPOINT along with secret
+	t.Setenv("MSI_ENDPOINT", "https://azure-msi.teleport.dev/very-secret")
+
 	// Log into Teleport cluster.
 	run([]string{"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String()})
 
@@ -97,14 +102,14 @@ func TestAzure(t *testing.T) {
 	}{
 		{
 			name:         "incomplete request",
-			url:          "https://azure-msi.teleport.dev",
+			url:          "https://azure-msi.teleport.dev/very-secret",
 			headers:      nil,
 			expectedCode: 400,
 			expectedBody: []byte("{\n    \"error\": {\n        \"message\": \"expected Metadata header with value 'true'\"\n    }\n}"),
 		},
 		{
 			name:         "well-formatted request",
-			url:          "https://azure-msi.teleport.dev?resource=myresource&msi_res_id=dummy_azure_identity",
+			url:          "https://azure-msi.teleport.dev/very-secret?resource=myresource&msi_res_id=dummy_azure_identity",
 			headers:      map[string]string{"Metadata": "true"},
 			expectedCode: 200,
 			verifyBody: func(t *testing.T, body []byte) {
@@ -148,7 +153,7 @@ func TestAzure(t *testing.T) {
 			}
 
 			require.Equal(t, "/user/home/dir/.azure-teleport-azure-api", getEnvValue("AZURE_CONFIG_DIR"))
-			require.Equal(t, "https://azure-msi.teleport.dev", getEnvValue("MSI_ENDPOINT"))
+			require.Equal(t, "https://azure-msi.teleport.dev/very-secret", getEnvValue("MSI_ENDPOINT"))
 			require.Equal(t, path.Join(tmpHomePath, "keys/127.0.0.1/alice@example.com-app/localhost/azure-api-localca.pem"), getEnvValue("REQUESTS_CA_BUNDLE"))
 			require.True(t, strings.HasPrefix(getEnvValue("HTTPS_PROXY"), "http://127.0.0.1:"))
 
@@ -207,4 +212,232 @@ func makeUserWithAzureRole(t *testing.T) (types.User, types.Role) {
 	alice.SetAzureIdentities([]string{"dummy_azure_identity"})
 
 	return alice, role
+}
+
+func Test_getAzureIdentityFromFlags(t *testing.T) {
+	tests := []struct {
+		name              string
+		requestedIdentity string
+		profileIdentities []string
+		want              string
+		wantErr           require.ErrorAssertionFunc
+	}{
+		{
+			name:              "no flag, use default identity",
+			requestedIdentity: "",
+			profileIdentities: []string{"default"},
+			want:              "default",
+			wantErr:           require.NoError,
+		},
+		{
+			name:              "no flag, multiple possible identities",
+			requestedIdentity: "",
+			profileIdentities: []string{"id1", "id2"},
+			want:              "",
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "multiple Azure identities available, choose one with --azure-identity flag")
+			},
+		},
+		{
+			name:              "no flag, no identities",
+			requestedIdentity: "",
+			profileIdentities: []string{},
+			want:              "",
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "no Azure identities available, check your permissions")
+			},
+		},
+
+		{
+			name:              "exact match, one option",
+			requestedIdentity: "id1",
+			profileIdentities: []string{"id1"},
+			want:              "id1",
+			wantErr:           require.NoError,
+		},
+		{
+			name:              "exact match, multiple options",
+			requestedIdentity: "id1",
+			profileIdentities: []string{"id1", "id2"},
+			want:              "id1",
+			wantErr:           require.NoError,
+		},
+		{
+			name:              "no match, multiple options",
+			requestedIdentity: "id3",
+			profileIdentities: []string{"id1", "id2"},
+			want:              "",
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "failed to find the identity matching \"id3\"")
+			},
+		},
+
+		{
+			name:              "different case, exact match, one option",
+			requestedIdentity: "ID1",
+			profileIdentities: []string{"id1"},
+			want:              "id1",
+			wantErr:           require.NoError,
+		},
+
+		{
+			name:              "different case, exact match, one option, full identity",
+			requestedIdentity: "/Subscriptions/0000000/ResourceGroups/MyGroup/Providers/MICROSOFT.ManagedIdentity/UserAssignedIdentities/ID1",
+			profileIdentities: []string{"/subscriptions/0000000/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id1"},
+			want:              "/subscriptions/0000000/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id1",
+			wantErr:           require.NoError,
+		},
+		{
+			name:              "different case, exact match, multiple options",
+			requestedIdentity: "ID1",
+			profileIdentities: []string{"id1", "id2"},
+			want:              "id1",
+			wantErr:           require.NoError,
+		},
+		{
+			name:              "different case, no match, multiple options",
+			requestedIdentity: "ID3",
+			profileIdentities: []string{"id1", "id2"},
+			want:              "",
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "failed to find the identity matching \"ID3\"")
+			},
+		},
+
+		{
+			name:              "suffix match, one option",
+			requestedIdentity: "id1",
+			profileIdentities: []string{"/subscriptions/0000000/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id1"},
+			want:              "/subscriptions/0000000/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id1",
+			wantErr:           require.NoError,
+		},
+		{
+			name:              "suffix match, multiple options",
+			requestedIdentity: "id1",
+			profileIdentities: []string{
+				"/subscriptions/0000000/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id1",
+				"/subscriptions/0000000/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id2",
+			},
+			want:    "/subscriptions/0000000/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id1",
+			wantErr: require.NoError,
+		},
+		{
+			name:              "ambiguous suffix match",
+			requestedIdentity: "id1",
+			profileIdentities: []string{
+				"/subscriptions/0000000/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id1",
+				"/subscriptions/1111111/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id1",
+			},
+			want: "",
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "provided identity \"id1\" is ambiguous, please specify full identity name")
+			},
+		},
+
+		{
+			name:              "different case, suffix match, one option",
+			requestedIdentity: "ID1",
+			profileIdentities: []string{"/subscriptions/0000000/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id1"},
+			want:              "/subscriptions/0000000/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id1",
+			wantErr:           require.NoError,
+		},
+		{
+			name:              "different case, suffix match, multiple options",
+			requestedIdentity: "ID1",
+			profileIdentities: []string{
+				"/subscriptions/0000000/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id1",
+				"/subscriptions/0000000/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id2",
+			},
+			want:    "/subscriptions/0000000/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id1",
+			wantErr: require.NoError,
+		},
+		{
+			name:              "different case, ambiguous suffix match",
+			requestedIdentity: "ID1",
+			profileIdentities: []string{
+				"/subscriptions/0000000/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id1",
+				"/subscriptions/1111111/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id1",
+			},
+			want: "",
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "provided identity \"ID1\" is ambiguous, please specify full identity name")
+			},
+		},
+
+		{
+			name:              "no match, multiple options",
+			requestedIdentity: "id3",
+			profileIdentities: []string{
+				"/subscriptions/0000000/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id1",
+				"/subscriptions/0000000/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id2",
+				"/subscriptions/1111111/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/idX",
+			},
+			want: "",
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "failed to find the identity matching \"id3\"")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := getAzureIdentityFromFlags(&CLIConf{AzureIdentity: tt.requestedIdentity}, &client.ProfileStatus{AzureIdentities: tt.profileIdentities})
+			require.Equal(t, tt.want, result)
+			tt.wantErr(t, err)
+		})
+	}
+}
+
+func Test_getMSISecret(t *testing.T) {
+	tests := []struct {
+		name     string
+		env      string
+		want     string
+		wantFunc func(t require.TestingT, result string)
+		wantErr  require.ErrorAssertionFunc
+	}{
+		{
+			name: "no env",
+			env:  "",
+			wantFunc: func(t require.TestingT, result string) {
+				bytes, err := hex.DecodeString(result)
+				require.NoError(t, err)
+				require.Len(t, result, 2*10)
+				require.Len(t, bytes, 10)
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name:    "MSI_ENDPOINT with secret",
+			env:     "https://azure-msi.teleport.dev/mysecret",
+			want:    "mysecret",
+			wantErr: require.NoError,
+		},
+		{
+			name: "MSI_ENDPOINT with invalid prefix",
+			env:  "dummy",
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, `MSI_ENDPOINT not empty, but doesn't start with "https://azure-msi.teleport.dev/" as expected`)
+			},
+		},
+		{
+			name: "MSI_ENDPOINT without secret",
+			env:  "https://azure-msi.teleport.dev/",
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "MSI secret cannot be empty")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("MSI_ENDPOINT", tt.env)
+			result, err := getMSISecret()
+			tt.wantErr(t, err)
+			if tt.wantFunc != nil {
+				tt.wantFunc(t, result)
+			} else {
+				require.Equal(t, tt.want, result)
+			}
+		})
+	}
 }

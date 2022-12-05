@@ -51,6 +51,7 @@ func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
 		Log:      logrus.WithField(trace.Component, "msi"),
 		Clock:    clockwork.NewFakeClockAt(time.Date(2022, 1, 1, 9, 0, 0, 0, time.UTC)),
 		Key:      newPrivateKey(),
+		Secret:   "my-secret",
 	}
 	require.NoError(t, m.CheckAndSetDefaults())
 
@@ -69,8 +70,24 @@ func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
 			expectedHandle: false,
 		},
 		{
-			name:           "invalid request, missing metadata",
+			name:           "invalid request, wrong secret",
+			url:            "https://azure-msi.teleport.dev/bad-secret",
+			headers:        nil,
+			expectedHandle: true,
+			expectedCode:   400,
+			expectedBody:   "{\n    \"error\": {\n        \"message\": \"invalid secret\"\n    }\n}",
+		},
+		{
+			name:           "invalid request, missing secret",
 			url:            "https://azure-msi.teleport.dev",
+			headers:        nil,
+			expectedHandle: true,
+			expectedCode:   400,
+			expectedBody:   "{\n    \"error\": {\n        \"message\": \"invalid secret\"\n    }\n}",
+		},
+		{
+			name:           "invalid request, missing metadata",
+			url:            "https://azure-msi.teleport.dev/my-secret",
 			headers:        nil,
 			expectedHandle: true,
 			expectedCode:   400,
@@ -78,7 +95,7 @@ func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
 		},
 		{
 			name:           "invalid request, bad metadata value",
-			url:            "https://azure-msi.teleport.dev",
+			url:            "https://azure-msi.teleport.dev/my-secret",
 			headers:        map[string]string{"Metadata": "false"},
 			expectedHandle: true,
 			expectedCode:   400,
@@ -86,7 +103,7 @@ func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
 		},
 		{
 			name:           "invalid request, missing arguments",
-			url:            "https://azure-msi.teleport.dev",
+			url:            "https://azure-msi.teleport.dev/my-secret",
 			headers:        map[string]string{"Metadata": "true"},
 			expectedHandle: true,
 			expectedCode:   400,
@@ -94,7 +111,7 @@ func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
 		},
 		{
 			name:           "invalid request, missing resource",
-			url:            "https://azure-msi.teleport.dev?msi_res_id=azureTestIdentity",
+			url:            "https://azure-msi.teleport.dev/my-secret?msi_res_id=azureTestIdentity",
 			headers:        map[string]string{"Metadata": "true"},
 			expectedHandle: true,
 			expectedCode:   400,
@@ -102,7 +119,7 @@ func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
 		},
 		{
 			name:           "invalid request, missing identity",
-			url:            "https://azure-msi.teleport.dev?resource=myresource",
+			url:            "https://azure-msi.teleport.dev/my-secret?resource=myresource",
 			headers:        map[string]string{"Metadata": "true"},
 			expectedHandle: true,
 			expectedCode:   400,
@@ -110,7 +127,7 @@ func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
 		},
 		{
 			name:           "invalid request, wrong identity",
-			url:            "https://azure-msi.teleport.dev?resource=myresource&msi_res_id=azureTestWrongIdentity",
+			url:            "https://azure-msi.teleport.dev/my-secret?resource=myresource&msi_res_id=azureTestWrongIdentity",
 			headers:        map[string]string{"Metadata": "true"},
 			expectedHandle: true,
 			expectedCode:   400,
@@ -118,7 +135,7 @@ func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
 		},
 		{
 			name:           "well-formatted request",
-			url:            "https://azure-msi.teleport.dev?resource=myresource&msi_res_id=azureTestIdentity",
+			url:            "https://azure-msi.teleport.dev/my-secret?resource=myresource&msi_res_id=azureTestIdentity",
 			headers:        map[string]string{"Metadata": "true"},
 			expectedHandle: true,
 			expectedCode:   200,

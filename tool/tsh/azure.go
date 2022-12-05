@@ -65,9 +65,10 @@ func onAzure(cf *CLIConf) error {
 
 // azureApp is an Azure app that can start local proxies to serve Azure APIs.
 type azureApp struct {
-	cf      *CLIConf
-	profile *client.ProfileStatus
-	app     tlsca.RouteToApp
+	cf        *CLIConf
+	profile   *client.ProfileStatus
+	app       tlsca.RouteToApp
+	msiSecret string
 
 	localALPNProxy    *alpnproxy.LocalProxy
 	localForwardProxy *alpnproxy.ForwardProxy
@@ -75,11 +76,39 @@ type azureApp struct {
 
 // newAzureApp creates a new Azure app.
 func newAzureApp(cf *CLIConf, profile *client.ProfileStatus, app tlsca.RouteToApp) (*azureApp, error) {
+	msiSecret, err := getMSISecret()
+	if err != nil {
+		return nil, err
+	}
 	return &azureApp{
-		cf:      cf,
-		profile: profile,
-		app:     app,
+		cf:        cf,
+		profile:   profile,
+		app:       app,
+		msiSecret: msiSecret,
 	}, nil
+}
+
+// getMSISecret will try to find the secret by parsing MSI_ENDPOINT env variable if present; it will return random hex string otherwise.
+func getMSISecret() (string, error) {
+	endpoint := os.Getenv("MSI_ENDPOINT")
+	if endpoint == "" {
+		randomHex, err := utils.CryptoRandomHex(10)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return randomHex, nil
+	}
+
+	expectedPrefix := "https://" + types.TeleportAzureMSIEndpoint + "/"
+	if !strings.HasPrefix(endpoint, expectedPrefix) {
+		return "", trace.BadParameter("MSI_ENDPOINT not empty, but doesn't start with %q as expected", expectedPrefix)
+	}
+
+	secret := strings.TrimPrefix(endpoint, expectedPrefix)
+	if secret == "" {
+		return "", trace.BadParameter("MSI secret cannot be empty")
+	}
+	return secret, nil
 }
 
 // StartLocalProxies sets up local proxies for serving Azure clients.
@@ -133,7 +162,7 @@ func (a *azureApp) GetEnvVars() (map[string]string, error) {
 		"AZURE_CONFIG_DIR": path.Join(homeDir, ".azure-teleport-"+a.app.Name),
 		// setting MSI_ENDPOINT instructs Azure CLI to make managed identity calls on this address.
 		// the requests will be handled by tsh proxy.
-		"MSI_ENDPOINT": "https://" + types.TeleportAzureMSIEndpoint,
+		"MSI_ENDPOINT": "https://" + types.TeleportAzureMSIEndpoint + "/" + a.msiSecret,
 
 		// Needed for az CLI to accept our certs.
 		// This isn't portable and applications other than az CLI may have to set different env variables,
@@ -245,7 +274,8 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 		SNI:                address.Host(),
 		Certs:              []tls.Certificate{appCerts},
 		HTTPMiddleware: &alpnproxy.AzureMSIMiddleware{
-			Key: wsPK,
+			Key:    wsPK,
+			Secret: a.msiSecret,
 			// we could, in principle, get the actual TenantID either from live data or from static configuration,
 			// but at this moment there is no clear advantage over simply issuing a new random identifier.
 			TenantID: uuid.New().String(),
@@ -253,6 +283,7 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 			Identity: a.app.AzureIdentity,
 		},
 	})
+
 	if err != nil {
 		if cerr := listener.Close(); cerr != nil {
 			return trace.NewAggregate(err, cerr)
@@ -333,29 +364,32 @@ func getAzureIdentityFromFlags(cf *CLIConf, profile *client.ProfileStatus) (stri
 		return "", trace.BadParameter("no Azure identities available, check your permissions")
 	}
 
+	reqIdentity := strings.ToLower(cf.AzureIdentity)
+
 	// if flag is missing, try to find singleton identity; failing that, print available options.
-	if cf.AzureIdentity == "" {
+	if reqIdentity == "" {
 		if len(identities) == 1 {
-			log.Infof("Azure identity %v is selected by default as it is the only role configured for this azure app.", identities[0])
+			log.Infof("Azure identity %v is selected by default as it is the only identity available for this Azure app.", identities[0])
 			return identities[0], nil
 		}
 
+		// we will never have zero identities here: this is a pre-condition checked above.
 		printAzureIdentities(identities)
-		return "", trace.BadParameter("--azure-identity flag is required")
+		return "", trace.BadParameter("multiple Azure identities available, choose one with --azure-identity flag")
 	}
 
 	// exact match?
 	for _, identity := range identities {
-		if identity == cf.AzureIdentity {
+		if strings.ToLower(identity) == reqIdentity {
 			return identity, nil
 		}
 	}
 
 	// suffix match?
-	expectedSuffix := fmt.Sprintf("/Microsoft.ManagedIdentity/userAssignedIdentities/%v", cf.AzureIdentity)
+	expectedSuffix := strings.ToLower(fmt.Sprintf("/Microsoft.ManagedIdentity/userAssignedIdentities/%v", reqIdentity))
 	var matches []string
 	for _, identity := range identities {
-		if strings.HasSuffix(identity, expectedSuffix) {
+		if strings.HasSuffix(strings.ToLower(identity), expectedSuffix) {
 			matches = append(matches, identity)
 		}
 	}
