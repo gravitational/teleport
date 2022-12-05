@@ -1020,8 +1020,9 @@ func MatchAWSRoleARN(selectors []string, roleARN string) (bool, string) {
 
 // MatchAzureIdentity returns true if provided Azure identity matches selectors.
 func MatchAzureIdentity(selectors []string, identity string, matchWildcard bool) (bool, string) {
+	identity = strings.ToLower(identity)
 	for _, l := range selectors {
-		if strings.ToLower(l) == strings.ToLower(identity) {
+		if strings.ToLower(l) == identity {
 			return true, "element matched"
 		}
 		if matchWildcard && l == types.Wildcard {
