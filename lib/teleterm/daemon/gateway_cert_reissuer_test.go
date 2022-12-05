@@ -35,204 +35,125 @@ import (
 
 var log = logrus.WithField(trace.Component, "reissuer")
 
-func TestReissueCert_CallsDBCertReissuerOnceIfItReturnsSuccessfully(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	tshdEventsClient := &mockTSHDEventsClient{
-		callCounts: make(map[string]int),
-	}
-	reissuer := &GatewayCertReissuer{
-		Log:              log,
-		TSHDEventsClient: tshdEventsClient,
-	}
-	gateway := mustCreateGateway(ctx, t)
-	dbCertReissuer := &mockDBCertReissuer{}
-
-	err := reissuer.ReissueCert(ctx, gateway, dbCertReissuer)
-	require.NoError(t, err)
-
-	require.Equal(t, 1, dbCertReissuer.callCount,
-		"Expected DBCertReissuer to have been called exactly one time")
-	require.Equal(t, 0, tshdEventsClient.callCounts["Relogin"],
-		"Expected TSHDEventsClient.Relogin to have been called exactly zero times")
-	require.Equal(t, 0, tshdEventsClient.callCounts["SendNotification"],
-		"Expected TSHDEventsClient.SendNotification to have been called exactly zero times")
-}
-
-func TestReissueCert_CallsDBCertReissuerOnceIfItReturnsErrorUnresolvableWithRelogin(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	tshdEventsClient := &mockTSHDEventsClient{
-		callCounts: make(map[string]int),
-	}
-	reissuer := &GatewayCertReissuer{
-		Log:              log,
-		TSHDEventsClient: tshdEventsClient,
-	}
-	gateway := mustCreateGateway(ctx, t)
-	unresolvableErr := trace.AccessDenied("")
-	dbCertReissuer := &mockDBCertReissuer{
-		returnValuesForSubsequentCalls: []error{unresolvableErr},
-	}
-
-	err := reissuer.ReissueCert(ctx, gateway, dbCertReissuer)
-	require.ErrorIs(t, err, unresolvableErr)
-
-	require.Equal(t, 1, dbCertReissuer.callCount,
-		"Expected DBCertReissuer to have been called exactly one time")
-	require.Equal(t, 0, tshdEventsClient.callCounts["Relogin"],
-		"Expected TSHDEventsClient.Relogin to have been called exactly zero times")
-	require.Equal(t, 1, tshdEventsClient.callCounts["SendNotification"],
-		"Expected TSHDEventsClient.SendNotification to have been called exactly one time")
-}
-
-func TestReissueCert_ResolvesErrorWithReloginAndCallsDBCertReissuerTwice(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	tshdEventsClient := &mockTSHDEventsClient{
-		callCounts: make(map[string]int),
-	}
-	reissuer := &GatewayCertReissuer{
-		Log:              log,
-		TSHDEventsClient: tshdEventsClient,
-	}
-	gateway := mustCreateGateway(ctx, t)
-	resolvableErr := trace.Errorf("ssh: cert has expired")
-	dbCertReissuer := &mockDBCertReissuer{
-		returnValuesForSubsequentCalls: []error{resolvableErr},
-	}
-
-	err := reissuer.ReissueCert(ctx, gateway, dbCertReissuer)
-	require.NoError(t, err)
-
-	// Ideally, we'd also verify that the cert was actually reissued and set on the LocalProxy
-	// underneath. However, with how the API is structured, we have no way of doing this here.
-	// Instead, we defer that check to integration tests.
-
-	require.Equal(t, 2, dbCertReissuer.callCount,
-		"Expected DBCertReissuer to have been called exactly two times")
-	require.Equal(t, 1, tshdEventsClient.callCounts["Relogin"],
-		"Expected TSHDEventsClient.Relogin to have been called exactly one time")
-	require.Equal(t, 0, tshdEventsClient.callCounts["SendNotification"],
-		"Expected TSHDEventsClient.SendNotification to have been called exactly zero times")
-}
-
-func TestReissueCert_DoesntAllowConcurrentReloginCalls(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	tshdEventsClient := &mockTSHDEventsClient{
-		callCounts: make(map[string]int),
-	}
-	reissuer := &GatewayCertReissuer{
-		Log:              log,
-		TSHDEventsClient: tshdEventsClient,
-	}
-	gateway := mustCreateGateway(ctx, t)
-	resolvableErr := trace.Errorf("ssh: cert has expired")
-	dbCertReissuer := &mockDBCertReissuer{
-		returnValuesForSubsequentCalls: []error{resolvableErr},
-	}
-
-	if !reissuer.reloginMu.TryLock() {
-		t.Fatalf("Couldn't lock reloginMu")
-	}
-	defer reissuer.reloginMu.Unlock()
-
-	err := reissuer.ReissueCert(ctx, gateway, dbCertReissuer)
-	require.True(t, trace.IsAlreadyExists(err), "Expected err to be trace.AlreadyExistsError")
-
-	require.Equal(t, 1, dbCertReissuer.callCount,
-		"Expected DBCertReissuer to have been called exactly one time")
-	require.Equal(t, 0, tshdEventsClient.callCounts["Relogin"],
-		"Expected TSHDEventsClient.Relogin to have been called exactly zero times")
-	require.Equal(t, 1, tshdEventsClient.callCounts["SendNotification"],
-		"Expected TSHDEventsClient.SendNotification to have been called exactly one time")
-}
-
-func TestReissueCert_AddsAdditionalMessageToErrorOnTimeoutDuringRelogin(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	tshdEventsClient := &mockTSHDEventsClient{
-		callCounts: make(map[string]int),
-		reloginErr: status.Error(codes.DeadlineExceeded, "foo"),
-	}
-	reissuer := &GatewayCertReissuer{
-		Log:              log,
-		TSHDEventsClient: tshdEventsClient,
-	}
-	gateway := mustCreateGateway(ctx, t)
-	resolvableErr := trace.Errorf("ssh: cert has expired")
-	dbCertReissuer := &mockDBCertReissuer{
-		returnValuesForSubsequentCalls: []error{resolvableErr},
-	}
-
-	err := reissuer.ReissueCert(ctx, gateway, dbCertReissuer)
-	require.ErrorContains(t, err, "the user did not refresh the session within")
-	require.ErrorIs(t, err, tshdEventsClient.reloginErr)
-
-	require.Equal(t, 1, dbCertReissuer.callCount,
-		"Expected DBCertReissuer to have been called exactly one time")
-	require.Equal(t, 1, tshdEventsClient.callCounts["Relogin"],
-		"Expected TSHDEventsClient.Relogin to have been called exactly one time")
-	require.Equal(t, 1, tshdEventsClient.callCounts["SendNotification"],
-		"Expected TSHDEventsClient.SendNotification to have been called exactly one time")
-}
-
-func TestReissueCert_AddsAdditionalMessageToUnexpectedErrorDuringRelogin(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	tshdEventsClient := &mockTSHDEventsClient{
-		callCounts: make(map[string]int),
-		reloginErr: status.Error(codes.Unknown, "foo"),
-	}
-	reissuer := &GatewayCertReissuer{
-		Log:              log,
-		TSHDEventsClient: tshdEventsClient,
-	}
-	gateway := mustCreateGateway(ctx, t)
-	resolvableErr := trace.Errorf("ssh: cert has expired")
-	dbCertReissuer := &mockDBCertReissuer{
-		returnValuesForSubsequentCalls: []error{resolvableErr},
-	}
-
-	err := reissuer.ReissueCert(ctx, gateway, dbCertReissuer)
-	require.ErrorContains(t, err, "could not refresh the session")
-	require.ErrorIs(t, err, tshdEventsClient.reloginErr)
-
-	require.Equal(t, 1, dbCertReissuer.callCount,
-		"Expected DBCertReissuer to have been called exactly one time")
-	require.Equal(t, 1, tshdEventsClient.callCounts["Relogin"],
-		"Expected TSHDEventsClient.Relogin to have been called exactly one time")
-	require.Equal(t, 1, tshdEventsClient.callCounts["SendNotification"],
-		"Expected TSHDEventsClient.SendNotification to have been called exactly one time")
-}
-
-func TestReissueCert_SendsNotificationIfSecondCallToReissueCertsFails(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	tshdEventsClient := &mockTSHDEventsClient{
-		callCounts: make(map[string]int),
-	}
-	reissuer := &GatewayCertReissuer{
-		Log:              log,
-		TSHDEventsClient: tshdEventsClient,
-	}
-	gateway := mustCreateGateway(ctx, t)
+func TestReissueCert(t *testing.T) {
+	t.Parallel()
 	resolvableErr := trace.Errorf("ssh: cert has expired")
 	unresolvableErr := trace.AccessDenied("")
-	dbCertReissuer := &mockDBCertReissuer{
-		returnValuesForSubsequentCalls: []error{resolvableErr, unresolvableErr},
+	concurrentCallErr := trace.AlreadyExists("")
+	reloginTimeoutErr := status.Error(codes.DeadlineExceeded, "foo")
+	unknownErr := status.Error(codes.Unknown, "foo")
+	tests := []struct {
+		name             string
+		reissueErrs      []error
+		reloginErr       error
+		reissuerOpt      func(t *testing.T, reissuer *GatewayCertReissuer)
+		wantReissueCalls int
+		wantReloginCalls int
+		wantNotifyCalls  int
+		wantErr          error
+		wantAddedMessage string
+	}{
+		{
+			name:             "calls DB cert reissuer once if it returns successfully",
+			reissueErrs:      []error{nil},
+			wantReissueCalls: 1,
+		},
+		{
+			name:             "calls DB cert reissuer once if it returns error unresolvable with relogin",
+			reissueErrs:      []error{unresolvableErr},
+			wantReissueCalls: 1,
+			wantReloginCalls: 0,
+			wantNotifyCalls:  1,
+			wantErr:          unresolvableErr,
+		},
+		{
+			name:             "resolves error with relogin and calls DB cert reissuer twice",
+			reissueErrs:      []error{resolvableErr},
+			wantReissueCalls: 2,
+			wantReloginCalls: 1,
+			wantNotifyCalls:  0,
+		},
+		{
+			name:        "does not allow concurrent relogin calls",
+			reissueErrs: []error{concurrentCallErr},
+			reissuerOpt: func(t *testing.T, reissuer *GatewayCertReissuer) {
+				t.Helper()
+				// TODO: This probably shouldn't use Fatalf but rather require.True
+				if !reissuer.reloginMu.TryLock() {
+					t.Fatalf("Couldn't lock reloginMu")
+				}
+			},
+			wantReissueCalls: 1,
+			wantReloginCalls: 0,
+			wantNotifyCalls:  1,
+			wantErr:          concurrentCallErr,
+		},
+		{
+			name:             "adds additional message to error on timeout during relogin",
+			reissueErrs:      []error{resolvableErr},
+			reloginErr:       reloginTimeoutErr,
+			wantReissueCalls: 1,
+			wantReloginCalls: 1,
+			wantNotifyCalls:  1,
+			wantErr:          reloginTimeoutErr,
+			wantAddedMessage: "the user did not refresh the session within",
+		},
+		{
+			name:             "adds additional message to error on unexpected error during relogin",
+			reissueErrs:      []error{resolvableErr},
+			reloginErr:       unknownErr,
+			wantReissueCalls: 1,
+			wantReloginCalls: 1,
+			wantNotifyCalls:  1,
+			wantErr:          unknownErr,
+			wantAddedMessage: "could not refresh the session",
+		},
+		{
+			name:             "sends notification if second call to reissue certs fails",
+			reissueErrs:      []error{resolvableErr, unresolvableErr},
+			wantReissueCalls: 2,
+			wantReloginCalls: 1,
+			wantNotifyCalls:  1,
+			wantErr:          unresolvableErr,
+		},
 	}
 
-	err := reissuer.ReissueCert(ctx, gateway, dbCertReissuer)
-	require.ErrorIs(t, err, unresolvableErr)
-
-	require.Equal(t, 2, dbCertReissuer.callCount,
-		"Expected DBCertReissuer to have been called exactly two times")
-	require.Equal(t, 1, tshdEventsClient.callCounts["Relogin"],
-		"Expected TSHDEventsClient.Relogin to have been called exactly one time")
-	require.Equal(t, 1, tshdEventsClient.callCounts["SendNotification"],
-		"Expected TSHDEventsClient.SendNotification to have been called exactly one time")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	gateway := mustCreateGateway(ctx, t)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tshdEventsClient := &mockTSHDEventsClient{
+				callCounts: make(map[string]int),
+				reloginErr: tt.reloginErr,
+			}
+			reissuer := &GatewayCertReissuer{
+				Log:              log,
+				TSHDEventsClient: tshdEventsClient,
+			}
+			dbCertReissuer := &mockDBCertReissuer{
+				returnValuesForSubsequentCalls: tt.reissueErrs,
+			}
+			if tt.reissuerOpt != nil {
+				tt.reissuerOpt(t, reissuer)
+			}
+			err := reissuer.ReissueCert(ctx, gateway, dbCertReissuer)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				require.ErrorContains(t, err, tt.wantAddedMessage)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.wantReissueCalls, dbCertReissuer.callCount,
+				"Unexpected number of calls to DBCertReissuer.ReissueDBCerts")
+			require.Equal(t, tt.wantReloginCalls, tshdEventsClient.callCounts["Relogin"],
+				"Unexpected number of calls to TSHDEventsClient.Relogin")
+			require.Equal(t, tt.wantNotifyCalls, tshdEventsClient.callCounts["SendNotification"],
+				"Unexpected number of calls to TSHDEventsClient.SendNotification")
+		})
+	}
 }
 
 func mustCreateGateway(ctx context.Context, t *testing.T) *gateway.Gateway {
