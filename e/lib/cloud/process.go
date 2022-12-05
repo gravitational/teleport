@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/cloud/usagereporter"
 	"github.com/gravitational/teleport/e/lib/licensefile"
+	"github.com/gravitational/teleport/e/lib/prehog"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
@@ -135,6 +136,14 @@ func NewTeleport(cfg Config) (*Process, error) {
 
 	// Start usage reporting
 	go usageReporter.Run(process.ExitContext())
+
+	if err := prehog.InitPreHogUsageReporting(
+		process.ExitContext(),
+		cfg.LicenseFile,
+		process.TeleportProcess,
+	); err != nil {
+		return nil, trace.Wrap(nil)
+	}
 
 	return process, nil
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/licensefile"
+	"github.com/gravitational/teleport/e/lib/prehog"
 	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/service"
@@ -72,6 +73,14 @@ func NewTeleport(cfg Config) (*Process, error) {
 		}
 
 		cfg.AuthPlugin.EnableEnforcer(enforcer)
+	}
+
+	if err := prehog.InitPreHogUsageReporting(
+		process.ExitContext(),
+		process.LicenseFile,
+		process.TeleportProcess,
+	); err != nil {
+		return nil, trace.Wrap(nil)
 	}
 
 	go licensefile.RunLicenseChecker(process.ExitContext(), process.GetAuthServer(), process.LicenseFile)
