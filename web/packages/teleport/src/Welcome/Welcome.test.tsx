@@ -17,12 +17,14 @@ limitations under the License.
 import React from 'react';
 import { MemoryRouter, Route, Router } from 'react-router';
 import { createMemoryHistory } from 'history';
-import { screen, fireEvent, render, waitFor } from 'design/utils/testing';
+import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 import { Logger } from 'shared/libs/logger';
 
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 import auth from 'teleport/services/auth';
+
+import { userEventService } from 'teleport/services/userEvent';
 
 import Welcome from './Welcome';
 
@@ -39,6 +41,9 @@ describe('teleport/components/Welcome', () => {
       tokenId: 'test123',
       qrCode: 'test12345',
     }));
+    jest
+      .spyOn(userEventService, 'capturePreUserEvent')
+      .mockImplementation(() => new Promise(() => null));
   });
 
   afterEach(() => {

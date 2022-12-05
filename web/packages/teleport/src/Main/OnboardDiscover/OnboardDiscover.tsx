@@ -15,12 +15,15 @@
  */
 
 import React from 'react';
-import { ButtonPrimary, ButtonText, Text, Image } from 'design';
+import { ButtonPrimary, ButtonText, Image, Text } from 'design';
 import Dialog, {
-  DialogHeader,
   DialogContent,
   DialogFooter,
+  DialogHeader,
 } from 'design/Dialog';
+
+import { CaptureEvent } from 'teleport/services/userEvent/types';
+import { userEventService } from 'teleport/services/userEvent';
 
 import resourcesPng from './resources.png';
 
@@ -31,6 +34,20 @@ export function OnboardDiscover({
   onClose(): void;
   onOnboard(): void;
 }) {
+  const handleOnboard = () => {
+    userEventService.captureUserEvent({
+      event: CaptureEvent.OnboardAddFirstResourceClickEvent,
+    });
+    onOnboard();
+  };
+
+  const handleClose = () => {
+    userEventService.captureUserEvent({
+      event: CaptureEvent.OnboardAddFirstResourceLaterClickEvent,
+    });
+    onClose();
+  };
+
   return (
     <Dialog
       dialogCss={() => ({
@@ -55,10 +72,10 @@ export function OnboardDiscover({
         </Text>
       </DialogContent>
       <DialogFooter>
-        <ButtonPrimary width="100%" size="large" onClick={() => onOnboard()}>
+        <ButtonPrimary width="100%" size="large" onClick={handleOnboard}>
           add my first resource
         </ButtonPrimary>
-        <ButtonText pt={2} width="100%" size="large" onClick={onClose}>
+        <ButtonText pt={2} width="100%" size="large" onClick={handleClose}>
           I'll do that later
         </ButtonText>
       </DialogFooter>
