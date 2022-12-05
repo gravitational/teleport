@@ -309,6 +309,20 @@ Computer Configuration > Policies > Administrative Templates > Windows Component
   ![Disable Require](../../img/desktop-access/disable.png)
 </Figure>
 
+5. Right click `Always prompt for password upon connection`, edit, select **`Disabled`**.
+   Teleport's smart-card based authentication generates a random smart-card PIN for each
+   desktop session and provides the PIN to the desktop during the RDP connection establishment.
+   Since the PIN is never provided to the Teleport user, this setting must be disabled in
+   order for authentication to complete.
+
+### Allow credentials to be provided over RDP
+
+1. Select:
+
+```text
+Computer Configuration > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security > "Always prompt for password upon connection" 
+```
+
 ### Open firewall to inbound RDP connections
 
 1. Select:
