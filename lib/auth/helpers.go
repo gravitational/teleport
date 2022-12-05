@@ -21,8 +21,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -35,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -100,16 +97,6 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 			SecondFactor: constants.SecondFactorOff,
 		}
 	}
-	return nil
-}
-
-// CreateUploaderDir creates directory for file uploader service
-func CreateUploaderDir(dir string) error {
-	if err := os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, apidefaults.Namespace), teleport.SharedDirMode); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
 	return nil
 }
 
