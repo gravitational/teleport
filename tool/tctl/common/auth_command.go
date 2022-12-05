@@ -167,7 +167,7 @@ var allowedCertificateTypes = []string{"user", "host", "tls-host", "tls-user", "
 func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt auth.ClientI) error {
 	exportFunc := client.ExportAuthorities
 	if a.exportPrivateKeys {
-		exportFunc = client.ExportAuthoritiesWithSecrets
+		exportFunc = client.ExportAuthoritiesSecrets
 	}
 
 	authorities, err := exportFunc(
