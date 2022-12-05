@@ -16,6 +16,7 @@ package enroll
 
 import (
 	"context"
+	"runtime"
 
 	"github.com/gravitational/trace"
 
@@ -96,4 +97,17 @@ func enrollDeviceMacOS(stream devicepb.DeviceTrustService_EnrollDeviceClient, re
 		},
 	})
 	return trace.Wrap(err)
+}
+
+func getDeviceOSType() devicepb.OSType {
+	switch runtime.GOOS {
+	case "darwin":
+		return devicepb.OSType_OS_TYPE_MACOS
+	case "linux":
+		return devicepb.OSType_OS_TYPE_LINUX
+	case "windows":
+		return devicepb.OSType_OS_TYPE_WINDOWS
+	default:
+		return devicepb.OSType_OS_TYPE_UNSPECIFIED
+	}
 }
