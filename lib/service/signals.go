@@ -202,7 +202,7 @@ func (process *TeleportProcess) closeImportedDescriptors(prefix string) error {
 
 // importOrCreateListener imports listener passed by the parent process (happens during live reload)
 // or creates a new listener if there was no listener registered
-func (process *TeleportProcess) importOrCreateListener(typ ListenerType, address string) (net.Listener, error) {
+func (process *TeleportProcess) ImportOrCreateListener(typ ListenerType, address string) (net.Listener, error) {
 	l, err := process.importListener(typ, address)
 	if err == nil {
 		process.log.Infof("Using file descriptor %v %v passed by the parent process.", typ, address)

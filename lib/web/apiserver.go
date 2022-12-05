@@ -226,6 +226,9 @@ type Config struct {
 
 	// TracerProvider generates tracers to create spans with
 	TracerProvider oteltrace.TracerProvider
+
+	// ExtraHandlers is a map of extra handlers
+	ExtraHandlers map[string]http.Handler
 }
 
 type APIHandler struct {
@@ -356,11 +359,24 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		h.Handle("GET", "/web/config.js", httplib.MakeHandler(h.getWebConfig))
 	}
 
+	extraHandlers := cfg.ExtraHandlers
+	if extraHandlers == nil {
+		extraHandlers = map[string]http.Handler{}
+	}
+
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// request is going to the API?
 		if strings.HasPrefix(r.URL.Path, apiPrefix) {
 			http.StripPrefix(apiPrefix, h).ServeHTTP(w, r)
 			return
+		}
+
+		// Look at the extra handlers and see if any of them apply
+		for prefix, handler := range extraHandlers {
+			if strings.HasPrefix(r.URL.Path, prefix) {
+				handler.ServeHTTP(w, r)
+				return
+			}
 		}
 
 		// request is going to the web UI
@@ -371,6 +387,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 		// redirect to "/web" when someone hits "/"
 		if r.URL.Path == "/" {
+			log.Infof("Redirecting.")
 			http.Redirect(w, r, "/web", http.StatusFound)
 			return
 		}

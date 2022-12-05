@@ -101,7 +101,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	// Start a local listener and let proxies dial in.
 	case !conn.UseTunnel() && !cfg.Kube.ListenAddr.IsEmpty():
 		log.Debug("Turning on Kubernetes service listening address.")
-		listener, err = process.importOrCreateListener(ListenerKube, cfg.Kube.ListenAddr.Addr)
+		listener, err = process.ImportOrCreateListener(ListenerKube, cfg.Kube.ListenAddr.Addr)
 		if err != nil {
 			return trace.Wrap(err)
 		}

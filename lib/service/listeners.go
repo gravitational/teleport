@@ -34,6 +34,7 @@ var (
 	ListenerDiagnostic = ListenerType(teleport.ComponentDiagnostic)
 	ListenerProxyKube  = ListenerType(teleport.Component(teleport.ComponentProxy, "kube"))
 	ListenerKube       = ListenerType(teleport.ComponentKube)
+	ListenerSAMLIdp    = ListenerType(teleport.ComponentSAMLIdp)
 	// Proxy can use the same listener for tunnels and web interface
 	// (multiplexing the requests).
 	ListenerProxyTunnelAndWeb = ListenerType(teleport.Component(teleport.ComponentProxy, "tunnel", "web"))

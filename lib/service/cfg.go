@@ -256,6 +256,7 @@ type Config struct {
 	// CircuitBreakerConfig configures the auth client circuit breaker.
 	CircuitBreakerConfig breaker.Config
 
+	ExtraWebHandlers map[string]http.Handler
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//

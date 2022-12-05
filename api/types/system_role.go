@@ -52,6 +52,8 @@ const (
 	RoleRemoteProxy SystemRole = "RemoteProxy"
 	// RoleKube is a role for a kubernetes service.
 	RoleKube SystemRole = "Kube"
+	// SamlIDP is a role for the SAML identity provider.
+	RoleSAMLIdp SystemRole = "SamlIDP"
 	// RoleApp is a role for a app proxy in the cluster.
 	RoleApp SystemRole = "App"
 	// RoleDatabase is a role for a database proxy in the cluster.
@@ -97,6 +99,7 @@ var roleMappings = map[string]SystemRole{
 	"instance":        RoleInstance,
 	"discovery":       RoleDiscovery,
 	"okta":            RoleOkta,
+	"samlidp":         RoleSAMLIdp,
 }
 
 // localServiceMappings is the subset of role mappings which happen to be true

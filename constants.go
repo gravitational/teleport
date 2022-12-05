@@ -243,6 +243,9 @@ const (
 	// ComponentSAML is a SAML service provider.
 	ComponentSAML = "saml"
 
+	// ComponentSAMLIdp is a SAML identity provider.
+	ComponentSAMLIdp = "saml_idp"
+
 	// ComponentMetrics is a metrics server
 	ComponentMetrics = "metrics"
 

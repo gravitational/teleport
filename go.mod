@@ -167,7 +167,25 @@ require (
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
 )
 
-require github.com/okta/okta-sdk-golang/v2 v2.15.0
+require (
+	github.com/amdonov/lite-idp v0.8.0
+	github.com/okta/okta-sdk-golang/v2 v2.15.0
+)
+
+require (
+	github.com/allegro/bigcache v1.2.1 // indirect
+	github.com/amdonov/xmlsig v0.1.0 // indirect
+	github.com/elazarl/go-bindata-assetfs v1.0.0 // indirect
+	github.com/hashicorp/hcl v1.0.0 // indirect
+	github.com/ma314smith/signedxml v0.0.0-20161222022618-9781f7e0c2f1 // indirect
+	github.com/magiconair/properties v1.8.1 // indirect
+	github.com/pelletier/go-toml v1.4.0 // indirect
+	github.com/spf13/afero v1.6.0 // indirect
+	github.com/spf13/cast v1.3.0 // indirect
+	github.com/spf13/jwalterweatherman v1.1.0 // indirect
+	github.com/spf13/viper v1.7.0 // indirect
+	github.com/subosito/gotenv v1.2.0 // indirect
+)
 
 require (
 	cloud.google.com/go v0.105.0 // indirect
@@ -386,6 +404,7 @@ require (
 // Update also `ignore` in .github/dependabot.yml.
 replace (
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.6
+	github.com/crewjam/saml => github.com/crewjam/saml v0.4.10
 	github.com/datastax/go-cassandra-native-protocol => github.com/gravitational/go-cassandra-native-protocol v0.0.0-20221005103706-b9e66c056e90
 	github.com/denisenkom/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20221006130402-25bef12c7ee1
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.5.0-teleport.1
