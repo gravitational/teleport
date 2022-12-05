@@ -160,7 +160,7 @@ monitoring this image, use of the debug image is considered "at your own risk".
 ### Compatibility Guarantees
 
 We have clients relying on the existing behaviour (and contents) of our images. We
-should treat releaseing these distroless images as a compatability break, and make 
+should treat releasing these distroless images as a compatibility break, and make 
 our customers aware of our intentions well in advance so that they can prepare.
 
 ## 2. Scanning and monitoring the image
