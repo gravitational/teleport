@@ -262,8 +262,8 @@ func (c *SessionContext) remoteClient(ctx context.Context, site reversetunnel.Re
 }
 
 // newRemoteClient returns a client to a remote cluster with the role of current user.
-func newRemoteClient(ctx context.Context, scx *SessionContext, site reversetunnel.RemoteSite) (auth.ClientI, error) {
-	clt, err := scx.newRemoteTLSClient(ctx, site)
+func newRemoteClient(ctx context.Context, sctx *SessionContext, site reversetunnel.RemoteSite) (auth.ClientI, error) {
+	clt, err := sctx.newRemoteTLSClient(ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -772,25 +772,25 @@ func (s *sessionCache) validateSession(ctx context.Context, user, sessionID stri
 	return s.newSessionContext(ctx, user, sessionID)
 }
 
-func (s *sessionCache) invalidateSession(ctx context.Context, scx *SessionContext) error {
-	defer scx.Close()
-	clt, err := scx.GetClient()
+func (s *sessionCache) invalidateSession(ctx context.Context, sctx *SessionContext) error {
+	defer sctx.Close()
+	clt, err := sctx.GetClient()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Delete just the session - leave the bearer token to linger to avoid
 	// failing a client query still using the old token.
 	err = clt.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
-		User:      scx.GetUser(),
-		SessionID: scx.GetSessionID(),
+		User:      sctx.GetUser(),
+		SessionID: sctx.GetSessionID(),
 	})
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
-	if err := clt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: scx.GetUser()}); err != nil {
+	if err := clt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: sctx.GetUser()}); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.releaseResources(scx.GetUser(), scx.GetSessionID()); err != nil {
+	if err := s.releaseResources(sctx.GetUser(), sctx.GetSessionID()); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -807,14 +807,14 @@ func (s *sessionCache) getContext(user, sessionID string) (*SessionContext, erro
 		user, sessionID)
 }
 
-func (s *sessionCache) insertContext(user string, scx *SessionContext) (exists bool) {
+func (s *sessionCache) insertContext(user string, sctx *SessionContext) (exists bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	id := sessionKey(user, scx.GetSessionID())
+	id := sessionKey(user, sctx.GetSessionID())
 	if _, exists := s.sessions[id]; exists {
 		return true
 	}
-	s.sessions[id] = scx
+	s.sessions[id] = sctx
 	return false
 }
 
@@ -903,7 +903,7 @@ func (s *sessionCache) newSessionContextFromSession(session types.WebSession) (*
 		return nil, trace.Wrap(err)
 	}
 
-	scx, err := NewSessionContext(SessionContextConfig{
+	sctx, err := NewSessionContext(SessionContextConfig{
 		Log: s.log.WithFields(logrus.Fields{
 			"user":    session.GetUser(),
 			"session": session.GetShortName(),
@@ -920,13 +920,13 @@ func (s *sessionCache) newSessionContextFromSession(session types.WebSession) (*
 		return nil, trace.Wrap(err)
 	}
 
-	if exists := s.insertContext(session.GetUser(), scx); exists {
+	if exists := s.insertContext(session.GetUser(), sctx); exists {
 		// this means that someone has just inserted the context, so
 		// close our extra context and return
-		scx.Close()
+		sctx.Close()
 	}
 
-	return scx, nil
+	return sctx, nil
 }
 
 func (s *sessionCache) tlsConfig(cert, privKey []byte) (*tls.Config, error) {

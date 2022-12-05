@@ -56,7 +56,7 @@ func (h *Handler) desktopConnectHandle(
 	w http.ResponseWriter,
 	r *http.Request,
 	p httprouter.Params,
-	scx *SessionContext,
+	sctx *SessionContext,
 	site reversetunnel.RemoteSite,
 ) (interface{}, error) {
 	desktopName := p.ByName("desktopName")
@@ -64,10 +64,10 @@ func (h *Handler) desktopConnectHandle(
 		return nil, trace.BadParameter("missing desktopName in request URL")
 	}
 
-	log := scx.cfg.Log.WithField("desktop-name", desktopName)
+	log := sctx.cfg.Log.WithField("desktop-name", desktopName)
 	log.Debug("New desktop access websocket connection")
 
-	if err := h.createDesktopConnection(w, r, desktopName, log, scx, site); err != nil {
+	if err := h.createDesktopConnection(w, r, desktopName, log, sctx, site); err != nil {
 		// createDesktopConnection makes a best effort attempt to send an error to the user
 		// (via websocket) before terminating the connection. We log the error here, but
 		// return nil because our HTTP middleware will try to write the returned error in JSON
@@ -89,7 +89,7 @@ func (h *Handler) createDesktopConnection(
 	r *http.Request,
 	desktopName string,
 	log *logrus.Entry,
-	scx *SessionContext,
+	sctx *SessionContext,
 	site reversetunnel.RemoteSite,
 ) error {
 	upgrader := websocket.Upgrader{
@@ -142,7 +142,7 @@ func (h *Handler) createDesktopConnection(
 	//
 	// In the future, we may want to do something smarter like latency-based
 	// routing.
-	clt, err := scx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return sendTDPError(ws, trace.Wrap(err))
 	}
@@ -172,19 +172,19 @@ func (h *Handler) createDesktopConnection(
 		site:     site,
 		userAddr: r.RemoteAddr,
 	}
-	serviceConn, err := c.connectToWindowsService(scx.cfg.RootClusterName, validServiceIDs)
+	serviceConn, err := c.connectToWindowsService(sctx.cfg.RootClusterName, validServiceIDs)
 	if err != nil {
 		return sendTDPError(ws, trace.Wrap(err, "cannot connect to Windows Desktop Service"))
 	}
 	defer serviceConn.Close()
 
-	pc, err := proxyClient(r.Context(), scx, h.ProxyHostPort(), username)
+	pc, err := proxyClient(r.Context(), sctx, h.ProxyHostPort(), username)
 	if err != nil {
 		return sendTDPError(ws, trace.Wrap(err))
 	}
 	defer pc.Close()
 
-	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, scx, desktopName, username, site.GetName())
+	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, sctx, desktopName, username, site.GetName())
 	if err != nil {
 		return sendTDPError(ws, err)
 	}

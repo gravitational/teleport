@@ -95,7 +95,7 @@ func TestGetUserClient(t *testing.T) {
 	ctx := context.Background()
 
 	var openCount atomic.Int32
-	scx := SessionContext{
+	sctx := SessionContext{
 		cfg: SessionContextConfig{
 			RootClusterName: "local",
 			newRemoteClient: func(ctx context.Context, sessionContext *SessionContext, site reversetunnel.RemoteSite) (auth.ClientI, error) {
@@ -109,7 +109,7 @@ func TestGetUserClient(t *testing.T) {
 
 	// getting a client for the local site should return
 	// the RootClient from SessionContextConfig
-	clt, err := scx.GetUserClient(ctx, localSite)
+	clt, err := sctx.GetUserClient(ctx, localSite)
 	require.NoError(t, err)
 	require.Nil(t, clt)
 	require.Zero(t, openCount.Load())
@@ -117,7 +117,7 @@ func TestGetUserClient(t *testing.T) {
 	// getting a client a remote site for the first time
 	// should call newRemoteClient from SessionContextConfig
 	// and increment openCount
-	clt, err = scx.GetUserClient(ctx, remoteSite)
+	clt, err = sctx.GetUserClient(ctx, remoteSite)
 	require.NoError(t, err)
 	require.NotNil(t, clt)
 	require.Equal(t, int32(1), openCount.Load())
@@ -125,13 +125,13 @@ func TestGetUserClient(t *testing.T) {
 	// getting a client a remote site a second time
 	// should return the cached client and not call
 	// newRemoteClient from SessionContextConfig
-	clt, err = scx.GetUserClient(ctx, remoteSite)
+	clt, err = sctx.GetUserClient(ctx, remoteSite)
 	require.NoError(t, err)
 	require.NotNil(t, clt)
 	require.Equal(t, int32(1), openCount.Load())
 
 	// clear the remote cache
-	require.NoError(t, scx.remoteClientCache.Close())
+	require.NoError(t, sctx.remoteClientCache.Close())
 	require.Zero(t, openCount.Load())
 
 	// now attempt to get the same remote site concurrently
@@ -144,12 +144,12 @@ func TestGetUserClient(t *testing.T) {
 
 	resultCh := make(chan result, 2)
 	go func() {
-		clt, err := scx.GetUserClient(ctx, remoteSite)
+		clt, err := sctx.GetUserClient(ctx, remoteSite)
 		resultCh <- result{clt: clt, err: err}
 	}()
 
 	go func() {
-		clt, err := scx.GetUserClient(ctx, remoteSite)
+		clt, err := sctx.GetUserClient(ctx, remoteSite)
 		resultCh <- result{clt: clt, err: err}
 	}()
 
