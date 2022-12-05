@@ -1965,17 +1965,6 @@ func TestApplyTraits(t *testing.T) {
 			},
 		},
 		{
-			comment: "Azure identity filter invalids",
-			inTraits: map[string][]string{
-				"foo":                          {"bar"},
-				constants.TraitAzureIdentities: {"baz"},
-			},
-			allow: rule{
-				inAzureIdentities:  []string{"{{external.foo}}", teleport.TraitInternalAzureIdentities},
-				outAzureIdentities: nil,
-			},
-		},
-		{
 			comment: "Azure identity substitute in allow rule",
 			inTraits: map[string][]string{
 				"foo":                          {"/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/external-foo/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure"},
