@@ -72,6 +72,8 @@ type userACL struct {
 	AppServers access `json:"appServers"`
 	// DBServers defines access to database servers.
 	DBServers access `json:"dbServers"`
+	// DB defines access to database resource.
+	DB access `json:"db"`
 	// KubeServers defines access to kubernetes servers.
 	KubeServers access `json:"kubeServers"`
 	// Desktops defines access to desktops.
@@ -197,6 +199,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	nodeAccess := newAccess(userRoles, ctx, types.KindNode)
 	appServerAccess := newAccess(userRoles, ctx, types.KindAppServer)
 	dbServerAccess := newAccess(userRoles, ctx, types.KindDatabaseServer)
+	dbAccess := newAccess(userRoles, ctx, types.KindDatabase)
 	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeServer)
 	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
@@ -217,6 +220,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		AccessRequests:          requestAccess,
 		AppServers:              appServerAccess,
 		DBServers:               dbServerAccess,
+		DB:                      dbAccess,
 		KubeServers:             kubeServerAccess,
 		Desktops:                desktopAccess,
 		AuthConnectors:          authConnectors,
