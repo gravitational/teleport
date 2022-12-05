@@ -23,6 +23,7 @@ import (
 	"encoding/pem"
 	mathrand "math/rand"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -131,7 +132,7 @@ const testKeysNumber = 25
 func generateTestKeys() ([]*rsa.PrivateKey, error) {
 	privateKeys := make([]*rsa.PrivateKey, 0, testKeysNumber)
 	keysChan := make(chan *rsa.PrivateKey)
-	errs := make(chan error)
+	errC := make(chan error)
 
 	go func() {
 		for i := 0; i < testKeysNumber; i++ {
@@ -140,7 +141,7 @@ func generateTestKeys() ([]*rsa.PrivateKey, error) {
 			go func() {
 				private, err := generateRSAPrivateKey()
 				if err != nil {
-					errs <- trace.Wrap(err)
+					errC <- trace.Wrap(err)
 					return
 				}
 				keysChan <- private
@@ -150,7 +151,7 @@ func generateTestKeys() ([]*rsa.PrivateKey, error) {
 
 	for i := 0; i < testKeysNumber; i++ {
 		select {
-		case err := <-errs:
+		case err := <-errC:
 			return nil, trace.Wrap(err)
 		case privKey := <-keysChan:
 			privateKeys = append(privateKeys, privKey)
@@ -171,7 +172,8 @@ func PrecomputeKeys() {
 
 // PrecomputeTestKeys generates RSA keys and reuse them to reduce CPU usage. This method should
 // only be in tests. Safe to call multiple times.
-func PrecomputeTestKeys() {
+// This function takes *testing.M, so is only can be used from TestMain in tests.
+func PrecomputeTestKeys(_ *testing.M) {
 	startPrecomputeOnce.Do(func() {
 		go precomputeTestKeys()
 	})

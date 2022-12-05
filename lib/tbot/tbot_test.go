@@ -37,7 +37,7 @@ import (
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	native.PrecomputeTestKeys()
+	native.PrecomputeTestKeys(m)
 	os.Exit(m.Run())
 }
 

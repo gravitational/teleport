@@ -53,7 +53,7 @@ func TestMain(m *testing.M) {
 		},
 	})
 
-	native.PrecomputeTestKeys()
+	native.PrecomputeTestKeys(m)
 
 	os.Exit(m.Run())
 }

@@ -24,5 +24,5 @@ import (
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
-	native.PrecomputeTestKeys()
+	native.PrecomputeTestKeys(m)
 }
