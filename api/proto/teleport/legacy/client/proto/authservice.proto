@@ -24,6 +24,7 @@ import "teleport/legacy/types/events/events.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/webauthn/webauthn.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
+import "teleport/usageevents/v1/usageevents.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
 option (gogoproto.goproto_getters_all) = true;
@@ -1898,6 +1899,11 @@ message AppendDiagnosticTraceRequest {
   types.ConnectionDiagnosticTrace Trace = 2 [(gogoproto.jsontag) = "trace"];
 }
 
+// SubmitUsageEventRequest is used to submit an external usage event.
+message SubmitUsageEventRequest {
+  teleport.usageevents.v1.UsageEventOneOf Event = 1 [(gogoproto.jsontag) = "event"];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2465,4 +2471,7 @@ service AuthService {
   // instances to prove that they hold a given system role.
   // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
   rpc UnstableAssertSystemRole(UnstableSystemRoleAssertion) returns (google.protobuf.Empty);
+
+  // SubmitUsageEvent submits an external usage event.
+  rpc SubmitUsageEvent(SubmitUsageEventRequest) returns (google.protobuf.Empty);
 }
