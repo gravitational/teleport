@@ -1296,7 +1296,7 @@ func IsAWSResourceAvailable(r interface{}, status *string) bool {
 		return false
 
 	default:
-		log.Warnf("Unknown status type: %q. Assuming %q is available.", aws.StringValue(status), libcloudaws.ReadableResourceName(r))
+		log.WithField("aws_resource", r).Warnf("Unknown status type: %q. Assuming the AWS resource %T is available.", aws.StringValue(status), r)
 		return true
 	}
 }

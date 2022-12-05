@@ -25,29 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLabelsToTags(t *testing.T) {
-	t.Parallel()
-
-	inputLabels := map[string]string{
-		"labelB": "valueB",
-		"labelA": "valueA",
-	}
-
-	expectTags := []*elasticache.Tag{
-		{
-			Key:   aws.String("labelA"),
-			Value: aws.String("valueA"),
-		},
-		{
-			Key:   aws.String("labelB"),
-			Value: aws.String("valueB"),
-		},
-	}
-
-	actualTags := LabelsToTags[elasticache.Tag](inputLabels)
-	require.Equal(t, expectTags, actualTags)
-}
-
 func TestTagsToLabels(t *testing.T) {
 	t.Parallel()
 
@@ -75,4 +52,27 @@ func TestTagsToLabels(t *testing.T) {
 
 	actuallabels := TagsToLabels(inputTags)
 	require.Equal(t, expectLabels, actuallabels)
+}
+
+func TestLabelsToTags(t *testing.T) {
+	t.Parallel()
+
+	inputLabels := map[string]string{
+		"labelB": "valueB",
+		"labelA": "valueA",
+	}
+
+	expectTags := []*elasticache.Tag{
+		{
+			Key:   aws.String("labelA"),
+			Value: aws.String("valueA"),
+		},
+		{
+			Key:   aws.String("labelB"),
+			Value: aws.String("valueB"),
+		},
+	}
+
+	actualTags := LabelsToTags[elasticache.Tag](inputLabels)
+	require.Equal(t, expectTags, actualTags)
 }
