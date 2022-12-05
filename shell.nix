@@ -2,7 +2,7 @@
 , buildGoModule ? pkgs.buildGoModule
 }:
 let
-  tdr = buildGoModule rec {
+  tdr = buildGoModule {
     pname = "tdr";
     version = "0.0.0";
     # https://unix.stackexchange.com/questions/557977
@@ -13,6 +13,7 @@ let
     };
     vendorSha256 = "sha256-KKUE+ZbdZ6x9NIjpWYpS3tG/GTZlI2oNoI6W/FntcuY=";
   };
+
   teleport-hot-reload = pkgs.writeShellScriptBin "teleport-hot-reload" ''
     ${pkgs.reflex}/bin/reflex -r '\.go$' -s -- bash -c \
       "go build -tags 'webassets_embed' -o build/teleport  -ldflags '-w -s' ./tool/teleport && cd sandbox && ./run.sh"
@@ -26,7 +27,7 @@ pkgs.mkShell {
     tdr
     zip
 
-    go_1_18
+    go
     rustc
     rust-cbindgen
     cargo
