@@ -276,6 +276,9 @@ const (
 	// KindDevice represents a registered or trusted device.
 	KindDevice = "device"
 
+	// KindDownload represents Teleport binaries downloads.
+	KindDownload = "download"
+
 	// V5 is the fifth version of resources.
 	V5 = "v5"
 

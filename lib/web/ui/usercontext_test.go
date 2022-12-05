@@ -109,6 +109,8 @@ func TestNewUserContext(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.ACL.Billing, denied))
 	require.Equal(t, userContext.ACL.Clipboard, true)
 	require.Equal(t, userContext.ACL.DesktopSessionRecording, true)
+	require.Empty(t, cmp.Diff(userContext.ACL.License, denied))
+	require.Empty(t, cmp.Diff(userContext.ACL.Download, denied))
 
 	// test local auth type
 	require.Equal(t, userContext.AuthType, authLocal)
