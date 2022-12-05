@@ -52,6 +52,7 @@ flymake*
 # mkdocs
 docs/latest
 docs/latest.yaml
+docs/cspell.json
 
 # terraform
 .terraform
