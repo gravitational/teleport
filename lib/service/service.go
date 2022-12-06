@@ -65,6 +65,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
@@ -111,6 +112,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/system"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/cert"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -997,7 +999,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	// Create a process wide key generator that will be shared. This is so the
 	// key generator can pre-generate keys and share these across services.
 	if cfg.Keygen == nil {
-		cfg.Keygen = native.New(process.ExitContext())
+		cfg.Keygen = keygen.New(process.ExitContext())
 	}
 
 	// Produce global TeleportReadyEvent
@@ -1548,6 +1550,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Provisioner:             cfg.Provisioner,
 		Identity:                cfg.Identity,
 		Access:                  cfg.Access,
+		UsageReporter:           cfg.UsageReporter,
 		StaticTokens:            cfg.Auth.StaticTokens,
 		Roles:                   cfg.Auth.Roles,
 		AuthPreference:          cfg.Auth.Preference,
@@ -4766,7 +4769,7 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 	}
 	cfg.Log.Warningf("Generating self-signed key and cert to %v %v.", keyPath, certPath)
 
-	creds, err := utils.GenerateSelfSignedCert([]string{cfg.Hostname, "localhost"})
+	creds, err := cert.GenerateSelfSignedCert([]string{cfg.Hostname, "localhost"})
 	if err != nil {
 		return trace.Wrap(err)
 	}
