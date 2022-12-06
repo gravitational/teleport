@@ -148,90 +148,106 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateCerts(ctx, provisionToken, req, joinAttributeSrc)
+	// With all elements of the token validated, we can now generate & return
+	// certificates.
+	if req.Role == types.RoleBot {
+		certs, err := a.generateCertsBot(ctx, provisionToken, req, joinAttributeSrc)
+		return certs, trace.Wrap(err)
+	}
+	certs, err := a.generateCertsInstance(ctx, provisionToken, req, joinAttributeSrc)
 	return certs, trace.Wrap(err)
 }
 
-func (a *Server) generateCerts(ctx context.Context, provisionToken types.ProvisionToken, req *types.RegisterUsingTokenRequest, joinAttributeSrc joinAttributeSourcer) (*proto.Certs, error) {
+func (a *Server) generateCertsBot(
+	ctx context.Context,
+	provisionToken types.ProvisionToken,
+	req *types.RegisterUsingTokenRequest,
+	joinAttributeSrc joinAttributeSourcer,
+) (*proto.Certs, error) {
+	// bots use this endpoint but get a user cert
+	// botResourceName must be set, enforced in CheckAndSetDefaults
+	botName := provisionToken.GetBotName()
 	joinMethod := provisionToken.GetJoinMethod()
+	// Append `bot-` to the bot name to derive its username.
+	botResourceName := BotResourceName(botName)
 
-	if req.Role == types.RoleBot {
-		// bots use this endpoint but get a user cert
-		// botResourceName must be set, enforced in CheckAndSetDefaults
-		botName := provisionToken.GetBotName()
+	expires := a.GetClock().Now().Add(defaults.DefaultRenewableCertTTL)
+	if req.Expires != nil {
+		expires = *req.Expires
+	}
 
-		// Append `bot-` to the bot name to derive its username.
-		botResourceName := BotResourceName(botName)
-		expires := a.GetClock().Now().Add(defaults.DefaultRenewableCertTTL)
-		if req.Expires != nil {
-			expires = *req.Expires
-		}
+	// Repeatable join methods (e.g IAM) should not produce renewable
+	// certificates. Ephemeral join methods (e.g Token) should produce
+	// renewable certificates, but the token should be deleted after use.
+	var renewable bool
+	var shouldDeleteToken bool
+	switch joinMethod {
+	case types.JoinMethodToken:
+		shouldDeleteToken = true
+		renewable = true
+	case types.JoinMethodIAM,
+		types.JoinMethodGitHub,
+		types.JoinMethodCircleCI,
+		types.JoinMethodKubernetes:
+		shouldDeleteToken = false
+		renewable = false
+	default:
+		return nil, trace.BadParameter(
+			"unsupported join method %q for bot", joinMethod,
+		)
+	}
+	certs, err := a.generateInitialBotCerts(
+		ctx, botResourceName, req.PublicSSHKey, expires, renewable,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-		// Repeatable join methods (e.g IAM) should not produce renewable
-		// certificates. Ephemeral join methods (e.g Token) should produce
-		// renewable certificates, but the token should be deleted after use.
-		var renewable bool
-		var shouldDeleteToken bool
-		switch joinMethod {
-		case types.JoinMethodToken:
-			shouldDeleteToken = true
-			renewable = true
-		case types.JoinMethodIAM,
-			types.JoinMethodGitHub,
-			types.JoinMethodCircleCI,
-			types.JoinMethodKubernetes:
-			shouldDeleteToken = false
-			renewable = false
-		default:
-			return nil, trace.BadParameter(
-				"unsupported join method %q for bot", joinMethod,
+	if shouldDeleteToken {
+		// delete ephemeral bot join tokens so they can't be re-used
+		if err := a.DeleteToken(ctx, provisionToken.GetName()); err != nil {
+			log.WithError(err).Warnf("Could not delete bot provision token %q after generating certs",
+				provisionToken.GetSafeName(),
 			)
 		}
-		certs, err := a.generateInitialBotCerts(
-			ctx, botResourceName, req.PublicSSHKey, expires, renewable,
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if shouldDeleteToken {
-			// delete ephemeral bot join tokens so they can't be re-used
-			if err := a.DeleteToken(ctx, provisionToken.GetName()); err != nil {
-				log.WithError(err).Warnf("Could not delete bot provision token %q after generating certs",
-					provisionToken.GetSafeName(),
-				)
-			}
-		}
-
-		// Emit audit event for bot join.
-		log.Infof("Bot %q has joined the cluster.", botName)
-		joinEvent := &apievents.BotJoin{
-			Metadata: apievents.Metadata{
-				Type: events.BotJoinEvent,
-				Code: events.BotJoinCode,
-			},
-			Status: apievents.Status{
-				Success: true,
-			},
-			BotName:    provisionToken.GetBotName(),
-			Method: string(joinMethod),
-			TokenName:  provisionToken.GetSafeName(),
-		}
-		if joinAttributeSrc !=  nil {
-			attributes, err := joinAttributeSrc.JoinAuditAttributes()
-			if err != nil {
-				log.WithError(err).Warn("Unable to fetch join attributes from join method.")
-			}
-			joinEvent.Attributes, err = apievents.EncodeMap(attributes)
-			if err != nil {
-				log.WithError(err).Warn("Unable to encode join attributes for audit event.")
-			}
-		}
-		if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
-			log.WithError(err).Warn("Failed to emit bot join event.")
-		}
-		return certs, nil
 	}
+
+	// Emit audit event for bot join.
+	log.Infof("Bot %q has joined the cluster.", botName)
+	joinEvent := &apievents.BotJoin{
+		Metadata: apievents.Metadata{
+			Type: events.BotJoinEvent,
+			Code: events.BotJoinCode,
+		},
+		Status: apievents.Status{
+			Success: true,
+		},
+		BotName:    provisionToken.GetBotName(),
+		Method: string(joinMethod),
+		TokenName:  provisionToken.GetSafeName(),
+	}
+	if joinAttributeSrc !=  nil {
+		attributes, err := joinAttributeSrc.JoinAuditAttributes()
+		if err != nil {
+			log.WithError(err).Warn("Unable to fetch join attributes from join method.")
+		}
+		joinEvent.Attributes, err = apievents.EncodeMap(attributes)
+		if err != nil {
+			log.WithError(err).Warn("Unable to encode join attributes for audit event.")
+		}
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
+		log.WithError(err).Warn("Failed to emit bot join event.")
+	}
+	return certs, nil
+}
+
+func (a *Server) generateCertsInstance(
+	ctx context.Context,
+	provisionToken types.ProvisionToken,
+	req *types.RegisterUsingTokenRequest,
+	joinAttributeSrc joinAttributeSourcer,
+) (*proto.Certs, error) {
 	if req.Expires != nil {
 		return nil, trace.BadParameter("'expires' cannot be set on join for non-bot certificates")
 	}
@@ -278,7 +294,7 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 		},
 		NodeName:   req.NodeName,
 		Role: string(req.Role),
-		Method: string(joinMethod),
+		Method: string(provisionToken.GetJoinMethod()),
 		TokenName:  provisionToken.GetSafeName(),
 	}
 	if joinAttributeSrc != nil {

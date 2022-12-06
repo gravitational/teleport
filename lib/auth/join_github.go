@@ -49,10 +49,7 @@ func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.Register
 		"token":  pt.GetName(),
 	}).Info("Github actions run trying to join cluster")
 
-	if err := checkGithubAllowRules(pt, claims); err != nil {
-		return claims, trace.Wrap(err)
-	}
-	return claims, nil
+	return claims, trace.Wrap(checkGithubAllowRules(pt, claims))
 }
 
 func checkGithubAllowRules(pt types.ProvisionToken, claims *githubactions.IDTokenClaims) error {
