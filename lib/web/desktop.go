@@ -56,7 +56,7 @@ func (h *Handler) desktopConnectHandle(
 	w http.ResponseWriter,
 	r *http.Request,
 	p httprouter.Params,
-	ctx *SessionContext,
+	sctx *SessionContext,
 	site reversetunnel.RemoteSite,
 ) (interface{}, error) {
 	desktopName := p.ByName("desktopName")
@@ -64,10 +64,10 @@ func (h *Handler) desktopConnectHandle(
 		return nil, trace.BadParameter("missing desktopName in request URL")
 	}
 
-	log := ctx.log.WithField("desktop-name", desktopName)
+	log := sctx.cfg.Log.WithField("desktop-name", desktopName)
 	log.Debug("New desktop access websocket connection")
 
-	if err := h.createDesktopConnection(w, r, desktopName, log, ctx, site); err != nil {
+	if err := h.createDesktopConnection(w, r, desktopName, log, sctx, site); err != nil {
 		// createDesktopConnection makes a best effort attempt to send an error to the user
 		// (via websocket) before terminating the connection. We log the error here, but
 		// return nil because our HTTP middleware will try to write the returned error in JSON
@@ -89,7 +89,7 @@ func (h *Handler) createDesktopConnection(
 	r *http.Request,
 	desktopName string,
 	log *logrus.Entry,
-	ctx *SessionContext,
+	sctx *SessionContext,
 	site reversetunnel.RemoteSite,
 ) error {
 	upgrader := websocket.Upgrader{
@@ -142,12 +142,11 @@ func (h *Handler) createDesktopConnection(
 	//
 	// In the future, we may want to do something smarter like latency-based
 	// routing.
-	clt, err := ctx.GetUserClient(site)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return sendTDPError(ws, trace.Wrap(err))
 	}
-	winDesktops, err := clt.GetWindowsDesktops(r.Context(),
-		types.WindowsDesktopFilter{Name: desktopName})
+	winDesktops, err := clt.GetWindowsDesktops(r.Context(), types.WindowsDesktopFilter{Name: desktopName})
 	if err != nil {
 		return sendTDPError(ws, trace.Wrap(err, "cannot get Windows desktops"))
 	}
@@ -173,19 +172,19 @@ func (h *Handler) createDesktopConnection(
 		site:     site,
 		userAddr: r.RemoteAddr,
 	}
-	serviceConn, err := c.connectToWindowsService(ctx.parent.clusterName, validServiceIDs)
+	serviceConn, err := c.connectToWindowsService(sctx.cfg.RootClusterName, validServiceIDs)
 	if err != nil {
 		return sendTDPError(ws, trace.Wrap(err, "cannot connect to Windows Desktop Service"))
 	}
 	defer serviceConn.Close()
 
-	pc, err := proxyClient(r.Context(), ctx, h.ProxyHostPort(), username)
+	pc, err := proxyClient(r.Context(), sctx, h.ProxyHostPort(), username)
 	if err != nil {
 		return sendTDPError(ws, trace.Wrap(err))
 	}
 	defer pc.Close()
 
-	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, ctx, desktopName, username, site.GetName())
+	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, sctx, desktopName, username, site.GetName())
 	if err != nil {
 		return sendTDPError(ws, err)
 	}
@@ -238,7 +237,7 @@ func proxyClient(ctx context.Context, sessCtx *SessionContext, addr, windowsUser
 }
 
 func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyClient, sessCtx *SessionContext, desktopName, username, siteName string) (*tls.Config, error) {
-	pk, err := keys.ParsePrivateKey(sessCtx.session.GetPriv())
+	pk, err := keys.ParsePrivateKey(sessCtx.cfg.Session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -252,8 +251,8 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 		RouteToCluster: siteName,
 		ExistingCreds: &client.Key{
 			PrivateKey:          pk,
-			Cert:                sessCtx.session.GetPub(),
-			TLSCert:             sessCtx.session.GetTLSCert(),
+			Cert:                sessCtx.cfg.Session.GetPub(),
+			TLSCert:             sessCtx.cfg.Session.GetTLSCert(),
 			WindowsDesktopCerts: make(map[string][]byte),
 		},
 	}, promptMFAChallenge(ws, &wsLock, tdpMFACodec{}))
@@ -268,7 +267,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsConfig, err := sessCtx.ClientTLSConfig()
+	tlsConfig, err := sessCtx.ClientTLSConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
