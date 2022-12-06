@@ -164,10 +164,13 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	cfg.TLS.ClientAuth = tls.VerifyClientCertIfGiven
 	cfg.TLS.NextProtos = []string{http2.NextProtoTLS}
 
+	securityHeaderHandler := httplib.MakeSecurityHeaderHandler(limiter)
+	tracingHandler := httplib.MakeTracingHandler(securityHeaderHandler, teleport.ComponentAuth)
+
 	server := &TLSServer{
 		cfg: cfg,
 		httpServer: &http.Server{
-			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentAuth),
+			Handler:           tracingHandler,
 			ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
 			IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		},
