@@ -137,15 +137,13 @@ exports[`approved role escalation 1`] = `
 
 .c12 {
   box-sizing: border-box;
-  border-radius: 100px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 16px;
-  line-height: 1.4;
+  border-radius: 10px;
+  display: inline-block;
   font-size: 10px;
   font-weight: 500;
   padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
   background-color: #111B48;
   color: rgba(255,255,255,0.87);
   margin-right: 4px;
@@ -517,15 +515,13 @@ exports[`failed state 1`] = `
 
 .c13 {
   box-sizing: border-box;
-  border-radius: 100px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 16px;
-  line-height: 1.4;
+  border-radius: 10px;
+  display: inline-block;
   font-size: 10px;
   font-weight: 500;
   padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
   background-color: #111B48;
   color: rgba(255,255,255,0.87);
   margin-right: 4px;
@@ -824,15 +820,13 @@ exports[`loaded state 1`] = `
 
 .c12 {
   box-sizing: border-box;
-  border-radius: 100px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 16px;
-  line-height: 1.4;
+  border-radius: 10px;
+  display: inline-block;
   font-size: 10px;
   font-weight: 500;
   padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
   background-color: #111B48;
   color: rgba(255,255,255,0.87);
   margin-right: 4px;
@@ -1125,15 +1119,13 @@ exports[`processing state 1`] = `
 
 .c12 {
   box-sizing: border-box;
-  border-radius: 100px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 16px;
-  line-height: 1.4;
+  border-radius: 10px;
+  display: inline-block;
   font-size: 10px;
   font-weight: 500;
   padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
   background-color: #111B48;
   color: rgba(255,255,255,0.87);
   margin-right: 4px;

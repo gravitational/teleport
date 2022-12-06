@@ -196,7 +196,7 @@ exports[`render device list 1`] = `
 }
 
 .c6 > tbody > tr > td {
-  vertical-align: baseline;
+  vertical-align: middle;
 }
 
 .c6 > thead > tr > th {
