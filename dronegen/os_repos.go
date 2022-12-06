@@ -394,7 +394,7 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 
 	buildAndUploadStep := step{
 		Name:        fmt.Sprintf("Publish %ss to %s repos for %q", optpb.packageType, strings.ToUpper(optpb.packageManagerName), version),
-		Image:       "golang:1.18.4-bullseye",
+		Image:       "golang:1.18.9-bullseye",
 		Environment: optpb.environmentVars,
 		Commands: append(
 			toolSetupCommands,
