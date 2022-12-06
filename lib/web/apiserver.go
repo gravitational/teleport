@@ -357,6 +357,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	}
 
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// ensure security headers are set for all responses
+		httplib.SetDefaultSecurityHeaders(w.Header())
+
 		// request is going to the API?
 		if strings.HasPrefix(r.URL.Path, apiPrefix) {
 			http.StripPrefix(apiPrefix, h).ServeHTTP(w, r)
@@ -371,13 +374,13 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 		// redirect to "/web" when someone hits "/"
 		if r.URL.Path == "/" {
+			app.SetRedirectPageHeaders(w.Header(), "")
 			http.Redirect(w, r, "/web", http.StatusFound)
 			return
 		}
 
 		// serve Web UI:
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
-			httplib.SetStaticFileHeaders(w.Header())
 			http.StripPrefix("/web", makeGzipHandler(http.FileServer(cfg.StaticFS))).ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web/") || r.URL.Path == "/web" {
 			csrfToken, err := csrf.AddCSRFProtection(w, r)
@@ -391,7 +394,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			}
 			session.XCSRF = csrfToken
 
-			httplib.SetIndexHTMLHeaders(w.Header())
+			httplib.SetNoCacheHeaders(w.Header())
+			httplib.SetIndexContentSecurityPolicy(w.Header())
 			if err := indexPage.Execute(w, session); err != nil {
 				h.log.WithError(err).Error("Failed to execute index page template.")
 			}
@@ -3169,8 +3173,7 @@ func isValidRedirectURL(redirectURL string) bool {
 // WithRedirect is a handler that redirects to the path specified in the returned value.
 func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		// ensure that neither proxies nor browsers cache http traffic
-		httplib.SetNoCacheHeaders(w.Header())
+		app.SetRedirectPageHeaders(w.Header(), "")
 
 		redirectURL := fn(w, r, p)
 		if !isValidRedirectURL(redirectURL) {
@@ -3186,7 +3189,6 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 // See https://github.com/gravitational/teleport/issues/7467.
 func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		httplib.SetNoCacheHeaders(w.Header())
 		app.SetRedirectPageHeaders(w.Header(), "")
 		redirectURL := fn(w, r, p)
 		if !isValidRedirectURL(redirectURL) {
