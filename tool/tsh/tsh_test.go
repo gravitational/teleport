@@ -148,6 +148,9 @@ func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ keys.
 	return keys.PrivateKeyPolicyNone, nil
 }
 
+func (p *cliModules) EnableRecoveryCodes() {
+}
+
 func TestAlias(t *testing.T) {
 	testExecutable, err := os.Executable()
 	require.NoError(t, err)
