@@ -64,7 +64,11 @@ The returned profile information can be used by `tsh` to initiate new Teleport c
 
         byte            SSH_AGENT_SUCCESS
         string          current profile name
-        byte[]          profiles blob
+        byte[]          profiles blob (json)
+
+Where profiles blob is a json encoded `[]api/profile.Profile`.
+
+Note: The underlying `api/profile.Profile` struct is subject to change, so there is a possibility of backwards compatibility concerns. However, this backwards compatibility should be handled already since the same issue exists for `~/.tsh` profile yaml files.
 
 **List Keys Extension:**
 
@@ -116,19 +120,25 @@ Hash name should be the stringified representation of a golang `crypto.Hash` val
 
 Salt length can be empty for algorithms that don't use a salt, or a positive integer for those that do (such as `RSASSA-PSS`). Salt length can also be set to `auto` to automatically use the largest salt length possible during signing, which can be auto-detected during verification.
 
-**Add MFA Key Extension:**
+**Prompt MFA Challenge Extension:**
 
-This extension can be used to issue an MFA verified agent key to connect to a specific Teleport Node. The local agent will prompt the user for MFA touch to reissue MFA certificates, and then it will add the certificate as an agent key to the local agent with the [key lifetime constraint](https://datatracker.ietf.org/doc/html/draft-miller-ssh-agent#section-4.2.6.1) so that it will automatically expire from the agent after 1 minute.
+This extension can be used to issue an MFA challenge prompt to the user's local machine, which enables support for MFA functionality including `tsh` MFA login and per-session MFA verification.
 
         byte            SSH_AGENTC_EXTENSION
         string          add-mfa-key@goteleport.com
-        string          Teleport Node name
+        string          proxy address
+        []byte          challenge blob (json)
 
-If the extension returns `SSH_AGENT_SUCCESS`, then the MFA agent key was successfully added to the local agent and can be accessed through the forwarded agent.
+Where challenge blob is a json encoded `api/client/proto.MFAAuthenticateChallenge`.
+
+The resulting challenge response can then be used for MFA verification.
 
         byte            SSH_AGENT_SUCCESS
+        []byte          challenge response blob (json)
 
-Note: this extension can also be used to extend Per-session MFA support to some OpenSSH integrations, including [OpenSSH Proxy Jump](https://github.com/gravitational/teleport/issues/17190). In this use case, `tsh proxy ssh` would call the extension to prompt the user for MFA tap and add the agent key to the user's system agent. The parent `ssh` call which calls this ProxyCommand would then have access to this key when forming a proxied ssh connection.
+Where challenge response blob is a json encoded `api/client/proto.MFAAuthenticateResponse`.
+
+Note: The protobuf structs used above are subject to change, which may lead to backwards compatibility concerns. In this case, this extension should be taken into consideration before making changes to these structs.
 
 ### Security
 
@@ -150,9 +160,11 @@ As explained in the security section above, it is currently possible to reissue 
 
 Note: If we decide to disable reissue requests with non-matching public keys, then we will need to get a bit more creative. One option would be to create a generalized forward proxy ssh channel that could be used by the remote host to form connections to Teleport services by proxying through the local host. This approach would warrant a separate RFD.
 
-#### Per-session MFA support for non SSH services
+#### OpenSSH Per-session MFA Support
 
-We can add a new `reissue-mfa-cert` command to issue MFA verified TLS certificates usable for Kubernetes, DB, App, and Desktop access. I'm leaving this out of the RFD for brevity and since it isn't currently planned, but it would be similar to the extensions laid out above.
+Currently, using OpenSSH client to connect to a Teleport Node with Per-session MFA required is not possible. This limitation is a result of `tsh` doing all of the heavy lifting to check for MFA requirements and issue MFA challenges. However, it may be possible to utilize the user's SSH agent to overcome this issue.
+
+For example, it is possible for `tsh proxy ssh` to handle the MFA verification before the `ssh` connection connects to the proxy. `tsh proxy ssh` can then reissue MFA certificates for the connection and add the certificate and key as an agent key to the user's SSH agent with a [key lifetime constraint](https://datatracker.ietf.org/doc/html/draft-miller-ssh-agent#section-4.2.6.1) of 1 minute (in addition to the certificate's 1 minute TTL). Additionally, this agent key can be added to the `tsh proxy ssh` call's local key agent, rather than the system agent, to prevent this agent key from escaping local memory. This flow would preserve the current security principles of the Per-session MFA feature.
 
 #### Key Constraint Extensions
 
