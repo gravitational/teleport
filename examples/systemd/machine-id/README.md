@@ -25,7 +25,7 @@ Ensure that this user is able to read and write to `/var/lib/teleport/bot`.
 
 Determine the user that you want to be able to read the certificates that `tbot`
 produces. In our example, this will be `jenkins`. Initialize ownership of the 
-destination directory so that this user is able to read from it, and that the
+destination directory so that this user is able to read from it and that the
 `teleport` user is able to write to it by using `tbot init`:
 
 ```bash
