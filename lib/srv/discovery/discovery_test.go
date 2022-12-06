@@ -964,7 +964,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				mustNewDatabase(t, types.Metadata{
 					Name:        "aws-redshift",
 					Description: "should be updated",
-					Labels:      map[string]string{types.OriginLabel: types.OriginCloud},
+					Labels:      map[string]string{types.OriginLabel: types.OriginCloudDiscovery},
 				}, types.DatabaseSpecV3{
 					Protocol: "redis",
 					URI:      "should.be.updated.com:12345",
@@ -983,7 +983,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				mustNewDatabase(t, types.Metadata{
 					Name:        "aws-redshift",
 					Description: "should be deleted",
-					Labels:      map[string]string{types.OriginLabel: types.OriginCloud},
+					Labels:      map[string]string{types.OriginLabel: types.OriginCloudDiscovery},
 				}, types.DatabaseSpecV3{
 					Protocol: "redis",
 					URI:      "should.be.deleted.com:12345",
@@ -1103,6 +1103,7 @@ func makeRedshiftCluster(t *testing.T, name, region string) (*redshift.Cluster, 
 
 	database, err := services.NewDatabaseFromRedshiftCluster(cluster)
 	require.NoError(t, err)
+	database.SetOrigin(types.OriginCloudDiscovery)
 	return cluster, database
 }
 
@@ -1121,6 +1122,7 @@ func makeAzureRedisServer(t *testing.T, name, subscription, group, region string
 
 	database, err := services.NewDatabaseFromAzureRedis(resourceInfo)
 	require.NoError(t, err)
+	database.SetOrigin(types.OriginCloudDiscovery)
 	return resourceInfo, database
 }
 
