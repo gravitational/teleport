@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package integration
+package proxy
 
 import (
 	"context"
@@ -27,11 +27,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/gravitational/teleport/api/types"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
 	"github.com/gravitational/teleport/integration/helpers"
 	libclient "github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -39,18 +37,9 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 )
 
-func TestTeletermGatewayCertRenewal(t *testing.T) {
-	pack := dbhelpers.SetupDatabaseTest(t,
-		dbhelpers.WithListenerSetupDatabaseTest(helpers.SingleProxyPortSetup),
-		dbhelpers.WithLeafConfig(func(config *service.Config) {
-			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-		}),
-		dbhelpers.WithRootConfig(func(config *service.Config) {
-			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-		}),
-	)
-	pack.WaitForLeaf(t)
-
+// testTeletermGatewaysCertRenewal is run from within TestALPNSNIProxyDatabaseAccess to amortize the
+// cost of setting up clusters in tests.
+func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack) {
 	rootClusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
 	require.NoError(t, err)
 
