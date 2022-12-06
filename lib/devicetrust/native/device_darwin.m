@@ -13,6 +13,8 @@ const char *kDeviceKeyLabel = "com.gravitational.teleport.devicekey";
 const int kErrNoApplicationTag = 1;
 const int kErrNoValueRef = 2;
 const int kErrCopyPubKeyFailed = 3;
+const int kErrIOMatchingServiceFailed = 4;
+const int kErrIORegistryEntryFailed = 5;
 
 OSStatus findDeviceKey(NSNumber *retAttrs, CFTypeRef *out) {
   NSData *label = [NSData dataWithBytes:(void *)kDeviceKeyLabel
@@ -225,7 +227,7 @@ int32_t DeviceCollectData(DeviceData *out) {
   io_service_t platformExpert = IOServiceGetMatchingService(
       0 /* mainPort */, IOServiceMatching("IOPlatformExpertDevice"));
   if (!platformExpert) {
-    res = -1;
+    res = kErrIOMatchingServiceFailed;
     goto end;
   }
 
@@ -233,7 +235,7 @@ int32_t DeviceCollectData(DeviceData *out) {
       platformExpert, CFSTR(kIOPlatformSerialNumberKey), kCFAllocatorDefault,
       0 /* options */);
   if (!cfSerialNumber) {
-    res = -1;
+    res = kErrIORegistryEntryFailed;
     goto end;
   }
   serialNumber = (__bridge_transfer NSString *)cfSerialNumber;
