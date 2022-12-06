@@ -23,14 +23,17 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/siddontang/go/log"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	commonApp "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -256,6 +259,16 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 		Director: func(outReq *http.Request) {
 			outReq.URL.Scheme = "https"
 			outReq.URL.Host = l.cfg.RemoteProxyAddr
+		},
+		ModifyResponse: func(response *http.Response) error {
+			errHeader := response.Header.Get(commonApp.TeleportAPIErrorHeader)
+			if errHeader != "" {
+				// TODO: find a cleaner way of formatting the error.
+				errHeader = strings.Replace(errHeader, " \t", "\n\t", -1)
+				errHeader = strings.Replace(errHeader, " User Message:", "\n\n\tUser Message:", -1)
+				log.Warn(errHeader)
+			}
+			return nil
 		},
 		Transport: tr,
 	}
