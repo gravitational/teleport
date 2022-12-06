@@ -24,7 +24,6 @@ import "C"
 import (
 	"crypto/sha256"
 	"crypto/x509"
-	"fmt"
 	"unsafe"
 
 	"github.com/google/uuid"
@@ -38,14 +37,12 @@ import (
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	cred, err := deviceKeyGetOrCreate()
 	if err != nil {
-		// TODO(codingllama): Show a nicer message if we are erroring because of an
-		//  unsigned/not-notarized binary.
 		return nil, trace.Wrap(err)
 	}
 
 	cd, err := collectDeviceData()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "collecting device data")
 	}
 
 	return &devicepb.EnrollDeviceInit{
@@ -69,7 +66,7 @@ func deviceKeyGetOrCreate() (*devicepb.DeviceCredential, error) {
 	}()
 
 	if res := C.DeviceKeyGetOrCreate(newIDC, &pubKeyC); res != 0 {
-		return nil, trace.Wrap(fmt.Errorf("creating device key: status %d", res))
+		return nil, trace.Wrap(statusErrorFromC(res))
 	}
 
 	id := C.GoString(pubKeyC.id)
@@ -97,7 +94,7 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 	defer func() { C.free(unsafe.Pointer(dd.serial_number)) }()
 
 	if res := C.DeviceCollectData(&dd); res != 0 {
-		return nil, trace.Wrap(fmt.Errorf("collecting device data: status %d", res))
+		return nil, trace.Wrap(statusErrorFromC(res))
 	}
 
 	return &devicepb.DeviceCollectedData{
@@ -119,9 +116,13 @@ func signChallenge(chal []byte) (sig []byte, err error) {
 	defer func() { C.free(unsafe.Pointer(sigC.data)) }()
 
 	if res := C.DeviceKeySign(digC, &sigC); res != 0 {
-		return nil, trace.Wrap(fmt.Errorf("signing with device key: status %d", res))
+		return nil, trace.Wrap(statusErrorFromC(res))
 	}
 
 	sig = C.GoBytes(unsafe.Pointer(sigC.data), C.int(sigC.data_len))
 	return sig, err
+}
+
+func statusErrorFromC(res C.int32_t) error {
+	return &statusError{status: int32(res)}
 }
