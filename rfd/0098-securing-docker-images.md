@@ -172,7 +172,7 @@ known vulnerabilities in the final images.
 We are, in fact, already doing this on image upload, although I don't know if
 the signal from the scan is monitored in any way.
 
-I propose that we use the ECR Advanced Scanning tools, that can be set to run at
+I propose that we use ECR enhanced scanning, which can be set to run at
 intervals. It is also possible to attach actions to the result of these scans.
 Initially, I suggest a simple Slack channel notification on any detected
 vulnerability, as shown (here)[https://www.kostavro.eu/posts/2021-05-26-ecr-scan-on-push-slack-notification/]. 
