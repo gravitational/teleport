@@ -182,7 +182,6 @@ func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ k
 // EnableRecoveryCodes enables recovery codes. This is a noop since OSS teleport does not
 // support recovery codes
 func (p *defaultModules) EnableRecoveryCodes() {
-	return
 }
 
 var (

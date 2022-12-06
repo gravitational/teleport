@@ -149,7 +149,6 @@ func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ keys.
 }
 
 func (p *cliModules) EnableRecoveryCodes() {
-	return
 }
 
 func TestAlias(t *testing.T) {
