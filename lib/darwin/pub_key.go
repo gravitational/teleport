@@ -28,9 +28,11 @@ func ECDSAPublicKeyFromRaw(pubKeyRaw []byte) (*ecdsa.PublicKey, error) {
 	// 3 is the smallest number that clears it, but in practice 65 is the more
 	// common length.
 	// Apple's docs make no guarantees, hence no assumptions are made here.
-	switch {
-	case len(pubKeyRaw) < 3:
-		return nil, fmt.Errorf("public key representation too small (%v bytes)", len(pubKeyRaw))
+	switch l := len(pubKeyRaw); {
+	case l < 3:
+		return nil, fmt.Errorf("public key representation too small (%v bytes)", l)
+	case l%2 != 1: // 0x4+keyLen+keyLen is always odd, see explanation below.
+		return nil, fmt.Errorf("public key representation has unexpected length (%v bytes)", l)
 	case pubKeyRaw[0] != 0x04: // See explanation below.
 		return nil, fmt.Errorf("public key representation starts with unexpected byte (%#x vs 0x4)", pubKeyRaw[0])
 	}
