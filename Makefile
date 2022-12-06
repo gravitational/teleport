@@ -259,10 +259,10 @@ CGOFLAG_TSH ?= $(CGOFLAG)
 #
 # 'make all' builds all 3 executables and places them in the current directory.
 #
-# IMPORTANT: the binaries will not contain the web UI assets and `teleport`
-#            won't start without setting the environment variable DEBUG=1
-#            This is the default build target for convenience of working on
-#            a web UI.
+# IMPORTANT:
+# Unless called with the `WEBASSETS_TAG` env variable set to "webassets_embed"
+# the binaries will not contain the web UI assets and `teleport` won't start
+# without setting the environment variable DEBUG=1.
 .PHONY: all
 all: version
 	@echo "---> Building OSS binaries."
@@ -357,7 +357,7 @@ endif
 # only tsh is built.
 #
 .PHONY:full
-full: ensure-webassets
+full: ensure-webassets build-ui
 ifneq ("$(OS)", "windows")
 	$(MAKE) all WEBASSETS_TAG="webassets_embed"
 endif
@@ -1127,36 +1127,8 @@ test-compat:
 .PHONY: ensure-webassets
 ensure-webassets:
 	@if [ ! -d $(shell pwd)/webassets/teleport/ ]; then \
-		$(MAKE) init-webapps-submodules; \
+		$(MAKE) build-ui; \
 	fi;
-
-.PHONY: ensure-webassets-e
-ensure-webassets-e:
-	@if [ ! -d $(shell pwd)/webassets/e/teleport ]; then \
-		$(MAKE) init-webapps-submodules-e; \
-	fi;
-
-.PHONY: init-webapps-submodules
-init-webapps-submodules:
-	echo "init webassets submodule"
-	git submodule update --init webassets
-
-.PHONY: init-webapps-submodules-e
-init-webapps-submodules-e:
-	echo "init webassets oss and enterprise submodules"
-	git submodule update --init --recursive webassets
-
-.PHONY: init-submodules-e
-init-submodules-e: init-webapps-submodules-e
-	git submodule init e
-	git submodule update
-
-# update-webassets creates a PR in the teleport repo to update webassets submodule.
-.PHONY: update-webassets
-update-webassets: WEBASSETS_BRANCH ?= 'master'
-update-webassets: TELEPORT_BRANCH ?= 'master'
-update-webassets:
-	build.assets/webapps/update-teleport-webassets.sh -w $(WEBASSETS_BRANCH) -t $(TELEPORT_BRANCH)
 
 # dronegen generates .drone.yml config
 #
@@ -1178,6 +1150,6 @@ backport:
 
 .PHONY: build-ui
 build-ui:
-	docker build --no-cache --build-arg NPM_CMD=build-teleport-oss -f ./build.assets/Dockerfile-web -t webui .
-	docker run --name build-webassets -di webui
+	docker build --build-arg NPM_CMD=build-teleport-oss -f ./build.assets/Dockerfile-web -t webui .
+	docker run --name build-webassets -d webui
 	docker cp build-webassets:/webapp/dist/. $(PWD)/webassets

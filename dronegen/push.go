@@ -46,7 +46,6 @@ func pushCheckoutCommands(b buildType) []string {
 		commands = append(commands,
 			`cd /go/src/github.com/gravitational/webapps`,
 			`git clone https://github.com/gravitational/webapps.git .`,
-			`git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"`,
 			`git submodule update --init packages/webapps.e`,
 			`cd -`,
 		)
