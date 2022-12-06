@@ -4,7 +4,7 @@ type: kubernetes
 name: push-build-linux-amd64
 
 environment:
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
   UID: 1000
   GID: 1000
 
@@ -792,6 +792,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 841330dc29e9ca50aee98c0630cbc298a8e21c46a518978c3ec7592ee1b9b8f3
+hmac: 3d222c441424d882c6f2da6afaf3d4bc68f15f5efec4296d9b3bc76b5eaa6c50
 
 ...
