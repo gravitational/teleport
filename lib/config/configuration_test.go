@@ -778,6 +778,9 @@ func TestApplyConfig(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, types.AgentMesh, tunnelStrategyType)
 	require.Equal(t, types.DefaultAgentMeshTunnelStrategy(), cfg.Auth.NetworkingConfig.GetAgentMeshTunnelStrategy())
+	require.Equal(t, cfg.Auth.Preference.Origin(), types.OriginConfigFile)
+	require.Equal(t, cfg.Auth.NetworkingConfig.Origin(), types.OriginDefaults)
+	require.Equal(t, cfg.Auth.SessionRecordingConfig.Origin(), types.OriginDefaults)
 
 	require.True(t, cfg.Proxy.Enabled)
 	require.Equal(t, "tcp://webhost:3080", cfg.Proxy.WebAddr.FullAddress())
@@ -900,6 +903,9 @@ func TestApplyConfigNoneEnabled(t *testing.T) {
 
 	require.False(t, cfg.Auth.Enabled)
 	require.Empty(t, cfg.Auth.PublicAddrs)
+	require.Equal(t, cfg.Auth.Preference.Origin(), types.OriginDefaults)
+	require.Equal(t, cfg.Auth.NetworkingConfig.Origin(), types.OriginDefaults)
+	require.Equal(t, cfg.Auth.SessionRecordingConfig.Origin(), types.OriginDefaults)
 	require.False(t, cfg.Proxy.Enabled)
 	require.Empty(t, cfg.Proxy.PublicAddrs)
 	require.False(t, cfg.SSH.Enabled)
@@ -910,6 +916,81 @@ func TestApplyConfigNoneEnabled(t *testing.T) {
 	require.False(t, cfg.WindowsDesktop.Enabled)
 	require.Empty(t, cfg.Proxy.PostgresPublicAddrs)
 	require.Empty(t, cfg.Proxy.MySQLPublicAddrs)
+}
+
+// TestApplyConfigNoneEnabled makes sure that if the auth file configuration
+// does not have `cluster_auth_preference`, `cluster_networking_config` and
+// `session_recording` fields, then they all have the origin label as defaults.
+func TestApplyDefaultAuthResources(t *testing.T) {
+	conf, err := ReadConfig(bytes.NewBufferString(DefaultAuthResourcesConfigString))
+	require.NoError(t, err)
+
+	cfg := service.MakeDefaultConfig()
+	err = ApplyFileConfig(conf, cfg)
+	require.NoError(t, err)
+
+	require.True(t, cfg.Auth.Enabled)
+	require.Equal(t, cfg.Auth.ClusterName.GetClusterName(), "example.com")
+	require.Equal(t, cfg.Auth.Preference.Origin(), types.OriginDefaults)
+	require.Equal(t, cfg.Auth.NetworkingConfig.Origin(), types.OriginDefaults)
+	require.Equal(t, cfg.Auth.SessionRecordingConfig.Origin(), types.OriginDefaults)
+}
+
+// TestApplyCustomAuthPreference makes sure that if the auth file configuration
+// has a `cluster_auth_preference` field, then it will have the origin label as
+// config-file.
+func TestApplyCustomAuthPreference(t *testing.T) {
+	conf, err := ReadConfig(bytes.NewBufferString(CustomAuthPreferenceConfigString))
+	require.NoError(t, err)
+
+	cfg := service.MakeDefaultConfig()
+	err = ApplyFileConfig(conf, cfg)
+	require.NoError(t, err)
+
+	require.True(t, cfg.Auth.Enabled)
+	require.Equal(t, cfg.Auth.ClusterName.GetClusterName(), "example.com")
+	require.Equal(t, cfg.Auth.Preference.Origin(), types.OriginConfigFile)
+	require.Equal(t, cfg.Auth.Preference.GetMessageOfTheDay(), "welcome!")
+	require.Equal(t, cfg.Auth.NetworkingConfig.Origin(), types.OriginDefaults)
+	require.Equal(t, cfg.Auth.SessionRecordingConfig.Origin(), types.OriginDefaults)
+}
+
+// TestApplyCustomNetworkingConfig makes sure that if the auth file configuration
+// has a `cluster_networking_config` field, then it will have the origin label as
+// config-file.
+func TestApplyCustomNetworkingConfig(t *testing.T) {
+	conf, err := ReadConfig(bytes.NewBufferString(CustomNetworkingConfigString))
+	require.NoError(t, err)
+
+	cfg := service.MakeDefaultConfig()
+	err = ApplyFileConfig(conf, cfg)
+	require.NoError(t, err)
+
+	require.True(t, cfg.Auth.Enabled)
+	require.Equal(t, cfg.Auth.ClusterName.GetClusterName(), "example.com")
+	require.Equal(t, cfg.Auth.Preference.Origin(), types.OriginDefaults)
+	require.Equal(t, cfg.Auth.NetworkingConfig.Origin(), types.OriginConfigFile)
+	require.Equal(t, cfg.Auth.NetworkingConfig.GetWebIdleTimeout(), 10*time.Second)
+	require.Equal(t, cfg.Auth.SessionRecordingConfig.Origin(), types.OriginDefaults)
+}
+
+// TestApplyCustomSessionRecordingConfig makes sure that if the auth file configuration
+// has a `session_recording` field, then it will have the origin label as
+// config-file.
+func TestApplyCustomSessionRecordingConfig(t *testing.T) {
+	conf, err := ReadConfig(bytes.NewBufferString(CustomSessionRecordingConfigString))
+	require.NoError(t, err)
+
+	cfg := service.MakeDefaultConfig()
+	err = ApplyFileConfig(conf, cfg)
+	require.NoError(t, err)
+
+	require.True(t, cfg.Auth.Enabled)
+	require.Equal(t, cfg.Auth.ClusterName.GetClusterName(), "example.com")
+	require.Equal(t, cfg.Auth.Preference.Origin(), types.OriginDefaults)
+	require.Equal(t, cfg.Auth.NetworkingConfig.Origin(), types.OriginDefaults)
+	require.Equal(t, cfg.Auth.SessionRecordingConfig.Origin(), types.OriginConfigFile)
+	require.Equal(t, cfg.Auth.SessionRecordingConfig.GetProxyChecksHostKeys(), true)
 }
 
 // TestPostgresPublicAddr makes sure Postgres proxy public address default

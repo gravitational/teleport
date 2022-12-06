@@ -803,7 +803,7 @@ type Auth struct {
 	// environments where paranoid security is not needed
 	//
 	// Each token string has the following format: "role1,role2,..:token",
-	// for exmple: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
+	// for example: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
 	StaticTokens StaticTokens `yaml:"tokens,omitempty"`
 
 	// Authentication holds authentication configuration information like authentication

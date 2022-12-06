@@ -631,6 +631,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	if fc.Auth.MessageOfTheDay != "" {
+		cfg.Auth.Preference.SetOrigin(types.OriginConfigFile)
 		cfg.Auth.Preference.SetMessageOfTheDay(fc.Auth.MessageOfTheDay)
 	}
 
@@ -657,26 +658,40 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 
-	// Set cluster networking configuration from file configuration.
-	cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-		ClientIdleTimeout:        fc.Auth.ClientIdleTimeout,
-		ClientIdleTimeoutMessage: fc.Auth.ClientIdleTimeoutMessage,
-		WebIdleTimeout:           fc.Auth.WebIdleTimeout,
-		KeepAliveInterval:        fc.Auth.KeepAliveInterval,
-		KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
-		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
-		ProxyListenerMode:        fc.Auth.ProxyListenerMode,
-		RoutingStrategy:          fc.Auth.RoutingStrategy,
-		TunnelStrategy:           fc.Auth.TunnelStrategy,
-		ProxyPingInterval:        fc.Auth.ProxyPingInterval,
-	})
-	if err != nil {
-		return trace.Wrap(err)
+	// Only override networking configuration if some of its fields is
+	// specified in file configuration.
+	customNetworkingConfig := fc.Auth.ClientIdleTimeout != 0 ||
+		fc.Auth.ClientIdleTimeoutMessage != "" ||
+		fc.Auth.WebIdleTimeout != 0 ||
+		fc.Auth.KeepAliveInterval != 0 ||
+		fc.Auth.KeepAliveCountMax != 0 ||
+		fc.Auth.SessionControlTimeout != 0 ||
+		fc.Auth.ProxyListenerMode != 0 ||
+		fc.Auth.RoutingStrategy != 0 ||
+		fc.Auth.TunnelStrategy != nil ||
+		fc.Auth.ProxyPingInterval != 0
+	if customNetworkingConfig {
+		cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+			ClientIdleTimeout:        fc.Auth.ClientIdleTimeout,
+			ClientIdleTimeoutMessage: fc.Auth.ClientIdleTimeoutMessage,
+			WebIdleTimeout:           fc.Auth.WebIdleTimeout,
+			KeepAliveInterval:        fc.Auth.KeepAliveInterval,
+			KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
+			SessionControlTimeout:    fc.Auth.SessionControlTimeout,
+			ProxyListenerMode:        fc.Auth.ProxyListenerMode,
+			RoutingStrategy:          fc.Auth.RoutingStrategy,
+			TunnelStrategy:           fc.Auth.TunnelStrategy,
+			ProxyPingInterval:        fc.Auth.ProxyPingInterval,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Only override session recording configuration if either field is
 	// specified in file configuration.
-	if fc.Auth.SessionRecording != "" || fc.Auth.ProxyChecksHostKeys != nil {
+	customSessionRecordingConfig := fc.Auth.SessionRecording != "" || fc.Auth.ProxyChecksHostKeys != nil
+	if customSessionRecordingConfig {
 		cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 			Mode:                fc.Auth.SessionRecording,
 			ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
