@@ -109,21 +109,34 @@ func TestOIDCMapping(t *testing.T) {
 					comment:       "no value match",
 					claims:        jose.Claims{"role": "b"},
 					expectedRoles: nil,
+					warnings: []string{
+						`1 trait value(s) did not match expression "admin": ["b"]`,
+						`1 trait value(s) did not match expression "user": ["b"]`,
+					},
 				},
 				{
 					comment:       "direct admin value match",
 					claims:        jose.Claims{"role": "admin"},
 					expectedRoles: []string{"admin", "bob"},
+					warnings: []string{
+						`1 trait value(s) did not match expression "user": ["admin"]`,
+					},
 				},
 				{
 					comment:       "direct user value match",
 					claims:        jose.Claims{"role": "user"},
 					expectedRoles: []string{"user"},
+					warnings: []string{
+						`1 trait value(s) did not match expression "admin": ["user"]`,
+					},
 				},
 				{
 					comment:       "direct user value match with array",
 					claims:        jose.Claims{"role": []string{"user"}},
 					expectedRoles: []string{"user"},
+					warnings: []string{
+						`1 trait value(s) did not match expression "admin": ["user"]`,
+					},
 				},
 			},
 		},
@@ -142,6 +155,9 @@ func TestOIDCMapping(t *testing.T) {
 					comment:       "no match - subprefix",
 					claims:        jose.Claims{"role": "adminz"},
 					expectedRoles: nil,
+					warnings: []string{
+						`1 trait value(s) did not match expression "^admin-(.*)$": ["adminz"]`,
+					},
 				},
 				{
 					comment:       "value with capture match",
@@ -157,6 +173,17 @@ func TestOIDCMapping(t *testing.T) {
 					comment:       "first matches, second does not",
 					claims:        jose.Claims{"role": []string{"hello", "admin-ola"}},
 					expectedRoles: []string{"role-ola", "bob"},
+					warnings: []string{
+						`1 trait value(s) did not match expression "^admin-(.*)$": ["hello"]`,
+					},
+				},
+				{
+					comment:       "no match with array",
+					claims:        jose.Claims{"role": []string{"foo", "bar", "baz"}},
+					expectedRoles: nil,
+					warnings: []string{
+						`3 trait value(s) did not match expression "^admin-(.*)$": ["foo" "bar" "baz"]`,
+					},
 				},
 			},
 		},
@@ -206,6 +233,12 @@ func TestOIDCMapping(t *testing.T) {
 						"groups": []string{"DemoCorp - Backend Engineers", "DemoCorp Infrastructure"},
 					},
 					expectedRoles: []string{"backend", "approver"},
+					warnings: []string{
+						`1 trait value(s) did not match expression "DemoCorp - Backend Engineers": ["DemoCorp Infrastructure"]`,
+						`2 trait value(s) did not match expression "DemoCorp - SRE Managers": ["DemoCorp - Backend Engineers" "DemoCorp Infrastructure"]`,
+						`2 trait value(s) did not match expression "DemoCorp - SRE": ["DemoCorp - Backend Engineers" "DemoCorp Infrastructure"]`,
+						`1 trait value(s) did not match expression "DemoCorp Infrastructure": ["DemoCorp - Backend Engineers"]`,
+					},
 				},
 				{
 					comment: "Matches one group",
@@ -213,6 +246,12 @@ func TestOIDCMapping(t *testing.T) {
 						"groups": []string{"DemoCorp - SRE"},
 					},
 					expectedRoles: []string{"approver"},
+					warnings: []string{
+
+						`1 trait value(s) did not match expression "DemoCorp - Backend Engineers": ["DemoCorp - SRE"]`,
+						`1 trait value(s) did not match expression "DemoCorp - SRE Managers": ["DemoCorp - SRE"]`,
+						`1 trait value(s) did not match expression "DemoCorp Infrastructure": ["DemoCorp - SRE"]`,
+					},
 				},
 				{
 					comment: "Matches one group with multiple roles",
@@ -220,6 +259,11 @@ func TestOIDCMapping(t *testing.T) {
 						"groups": []string{"DemoCorp Infrastructure"},
 					},
 					expectedRoles: []string{"approver", "backend"},
+					warnings: []string{
+						`1 trait value(s) did not match expression "DemoCorp - Backend Engineers": ["DemoCorp Infrastructure"]`,
+						`1 trait value(s) did not match expression "DemoCorp - SRE Managers": ["DemoCorp Infrastructure"]`,
+						`1 trait value(s) did not match expression "DemoCorp - SRE": ["DemoCorp Infrastructure"]`,
+					},
 				},
 				{
 					comment: "No match only due to case-sensitivity",
@@ -227,7 +271,12 @@ func TestOIDCMapping(t *testing.T) {
 						"groups": []string{"Democorp - SRE"},
 					},
 					expectedRoles: []string(nil),
-					warnings:      []string{`trait "Democorp - SRE" matches value "DemoCorp - SRE" case-insensitively and would have yielded "approver" role`},
+					warnings: []string{
+						`1 trait value(s) did not match expression "DemoCorp - Backend Engineers": ["Democorp - SRE"]`,
+						`1 trait value(s) did not match expression "DemoCorp - SRE Managers": ["Democorp - SRE"]`,
+						`trait "Democorp - SRE" matches value "DemoCorp - SRE" case-insensitively and would have yielded "approver" role`,
+						`1 trait value(s) did not match expression "DemoCorp Infrastructure": ["Democorp - SRE"]`,
+					},
 				},
 			},
 		},
