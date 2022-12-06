@@ -2,14 +2,19 @@ package pro
 
 import (
 	"context"
+	"os"
 
+	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/auth"
+	cloudlib "github.com/gravitational/teleport/e/lib/cloud"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/prehog"
 	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -73,6 +78,38 @@ func NewTeleport(cfg Config) (*Process, error) {
 		}
 
 		cfg.AuthPlugin.EnableEnforcer(enforcer)
+	}
+
+	// when cloud hostport is set, make cloud client
+	// and enable recovery codes
+	cloudAPIServerAddr := os.Getenv(cloudlib.EnvVarHostPort)
+	if cloudAPIServerAddr != "" {
+		apiServerAddr, err := cloudlib.GetServerAddr(cloudAPIServerAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		tlsConfig, err := liblicense.MakeTLSConfig(*cfg.LicenseFile.KeyPair)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsConfig.ServerName = apiServerAddr.Host()
+		tlsConfig.InsecureSkipVerify = lib.IsInsecureDevMode()
+
+		cloudClient, err := cloud.NewClient(cloud.ClientConfig{
+			Hostname:  apiServerAddr.Addr,
+			TLSConfig: tlsConfig,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		cfg.AuthPlugin.EnableCloud(cloudClient)
+		modules.GetModules().EnableRecoveryCodes()
+
+		process.OnExit("cloudClient.shutdown", func(payload interface{}) {
+			cloudClient.Close()
+		})
 	}
 
 	if err := prehog.InitPreHogUsageReporting(

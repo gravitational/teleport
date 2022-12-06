@@ -19,7 +19,7 @@ func GetControlPlaneAPIAddr() string {
 	var (
 		host, port string
 	)
-	// check if HOUSTON_HOSTNAME environment variable is set
+	// check if HOUSTON_HOSTPORT environment variable is set
 	// and return it if so:
 	customHostPort := os.Getenv(APIHostEnvVar)
 	if customHostPort != "" {

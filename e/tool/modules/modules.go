@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -31,7 +32,8 @@ func SetModules(license types.License) {
 
 // enterpriseModules implements pluggable enterprise teleport logic
 type enterpriseModules struct {
-	license types.License
+	license             types.License
+	enableRecoveryCodes atomic.Bool
 }
 
 // Features returns supported features
@@ -53,7 +55,13 @@ func (p *enterpriseModules) Features() modules.Features {
 		AccessControls:          true,
 		AdvancedAccessWorkflows: true,
 		HSM:                     true,
+		RecoveryCodes:           p.license.GetCloud().Value() || p.enableRecoveryCodes.Load(),
 	}
+}
+
+// EnableRecoveryCodes enables the usage of recovery codes for resetting forgotten passwords
+func (p *enterpriseModules) EnableRecoveryCodes() {
+	p.enableRecoveryCodes.Store(true)
 }
 
 // BuildType returns build type (OSS or Enterprise)

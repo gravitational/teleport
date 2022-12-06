@@ -28,10 +28,10 @@ var (
 	defaultReportingInterval = 5 * time.Minute
 	// defaultAPIServerPort is the default SalesCenter API port
 	defaultAPIServerPort = 443
-	// envVarHostPort is used to override the default cloud api server address
-	envVarHostPort = "TELEPORT_CLOUD_HOSTPORT"
-	// envVarInterval is used to override the default reporting interval
-	envVarInterval = "TELEPORT_CLOUD_INTERVAL"
+	// EnvVarHostPort is used to override the default cloud api server address
+	EnvVarHostPort = "TELEPORT_CLOUD_HOSTPORT"
+	// EnvVarInterval is used to override the default reporting interval
+	EnvVarInterval = "TELEPORT_CLOUD_INTERVAL"
 	// cloudComponent is the logging name of the Teleport cloud component
 	cloudComponent = "cloud"
 )
@@ -67,7 +67,7 @@ func NewTeleport(cfg Config) (*Process, error) {
 		TeleportProcess: cfg.OSSProcess,
 	}
 
-	apiServerAddr, err := getServerAddr(cfg.CloudAPIServerAddr)
+	apiServerAddr, err := GetServerAddr(cfg.CloudAPIServerAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -177,7 +177,7 @@ func (c *Config) CheckAndSetDefaults() (err error) {
 
 	// TODO(alexeyk): add server address field to the license
 	if c.CloudAPIServerAddr == "" {
-		c.CloudAPIServerAddr = os.Getenv(envVarHostPort)
+		c.CloudAPIServerAddr = os.Getenv(EnvVarHostPort)
 	}
 
 	if c.CloudAPIServerAddr == "" {
@@ -194,7 +194,7 @@ func (c *Config) checkAndSetInterval() (err error) {
 
 	// Look up the value from environment variable.
 	// This makes debugging easier in the Teleport cloud.
-	envValue := os.Getenv(envVarInterval)
+	envValue := os.Getenv(EnvVarInterval)
 	if envValue == "" {
 		c.ReportingInterval = defaultReportingInterval
 		return nil
@@ -208,7 +208,8 @@ func (c *Config) checkAndSetInterval() (err error) {
 	return nil
 }
 
-func getServerAddr(hostport string) (*utils.NetAddr, error) {
+// GetServerAddr parses a given hostport and returns a cloud address
+func GetServerAddr(hostport string) (*utils.NetAddr, error) {
 	addr, err := utils.ParseHostPortAddr(hostport, defaultAPIServerPort)
 	if err != nil {
 		return nil, trace.BadParameter("invalid cloud API server address")
