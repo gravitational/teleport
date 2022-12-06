@@ -210,6 +210,33 @@ func TestOIDCMapping(t *testing.T) {
 			},
 		},
 		{
+			comment: "regexp compilation",
+			mappings: []types.ClaimMapping{
+				{Claim: "role", Value: `^admin-(?!)$`, Roles: []string{"admin"}},
+				{Claim: "role", Value: "^admin-(.*)$", Roles: []string{"role-$1", "bob"}},
+				{Claim: "role", Value: `^admin2-(?!)$`, Roles: []string{"admin2"}},
+			},
+			inputs: []input{
+				{
+					comment:       "invalid regexp",
+					claims:        jose.Claims{"role": []string{"admin-hello", "dev"}},
+					expectedRoles: []string{"role-hello", "bob"},
+					warnings: []string{
+						`case-insensitive expression "^admin-(?!)$" is not a valid regexp`,
+						`1 trait value(s) did not match expression "^admin-(.*)$": ["dev"]`,
+						`case-insensitive expression "^admin2-(?!)$" is not a valid regexp`,
+					},
+				},
+				{
+					comment:       "regexp are not compiled if not needed",
+					claims:        jose.Claims{},
+					expectedRoles: nil,
+					// if the regexp were compiled, we would have the same warnings as above
+					warnings:      nil,
+				},
+			},
+		},
+		{
 			comment: "empty expands are skipped",
 			mappings: []types.ClaimMapping{
 				{Claim: "role", Value: "^admin-(.*)$", Roles: []string{"$2", "bob"}},
@@ -237,22 +264,6 @@ func TestOIDCMapping(t *testing.T) {
 					comment:       "any value match",
 					claims:        jose.Claims{"role": "zz"},
 					expectedRoles: []string{"admin"},
-				},
-			},
-		},
-		{
-			comment: "invalid regexp",
-			mappings: []types.ClaimMapping{
-				{Claim: "role", Value: `^admin-(?!)$`, Roles: []string{"admin"}},
-			},
-			inputs: []input{
-				{
-					comment:       "invalid regexp",
-					claims:        jose.Claims{"role": ""},
-					expectedRoles: nil,
-					warnings: []string{
-						`case-insensitive expression "^admin-(?!)$" is not a valid regexp`,
-					},
 				},
 			},
 		},
