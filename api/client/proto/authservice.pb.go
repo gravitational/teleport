@@ -1629,7 +1629,7 @@ func (m *PluginDataSeq) GetPluginData() []*types.PluginDataV3 {
 	return nil
 }
 
-// RequestStateSetter encodes the paramters necessary to update the
+// RequestStateSetter encodes the parameters necessary to update the
 // state of a privilege escalation request.
 type RequestStateSetter struct {
 	// ID is the request ID being targeted
