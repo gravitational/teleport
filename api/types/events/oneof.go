@@ -475,9 +475,9 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_BotJoin{
 			BotJoin: e,
 		}
-	case *NodeJoin:
-		out.Event = &OneOf_NodeJoin{
-			NodeJoin: e,
+	case *InstanceJoin:
+		out.Event = &OneOf_InstanceJoin{
+			InstanceJoin: e,
 		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())

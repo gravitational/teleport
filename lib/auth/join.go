@@ -266,10 +266,10 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 
 	// Emit audit event
 	log.Infof("Node %q [%v] has joined the cluster.", req.NodeName, req.HostID)
-	joinEvent := &apievents.NodeJoin{
+	joinEvent := &apievents.InstanceJoin{
 		Metadata: apievents.Metadata{
-			Type: events.NodeJoinEvent,
-			Code: events.NodeJoinCode,
+			Type: events.InstanceJoinEvent,
+			Code: events.InstanceJoinCode,
 		},
 		Status: apievents.Status{
 			Success: true,
@@ -290,7 +290,7 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 		}
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
-		log.WithError(err).Warn("Failed to emit node join event.")
+		log.WithError(err).Warn("Failed to emit instance join event.")
 	}
 	return certs, nil
 }

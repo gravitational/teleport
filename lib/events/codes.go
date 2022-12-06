@@ -360,8 +360,8 @@ const (
 
 	// BotJoinCode is the 'bot.join' event code.
 	BotJoinCode = "TJ001I"
-	// NodeJoinCode is the 'node.join' event code.
-	NodeJoinCode = "TJ002I"
+	// InstanceJoinCode is the 'node.join' event code.
+	InstanceJoinCode = "TJ002I"
 
 	// LockCreatedCode is the lock created event code.
 	LockCreatedCode = "TLK00I"

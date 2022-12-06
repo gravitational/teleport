@@ -273,8 +273,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.DesktopSharedDirectoryWrite{}
 	case BotJoinEvent:
 		e = &events.BotJoin{}
-	case NodeJoinEvent:
-		e = &events.NodeJoin{}
+	case InstanceJoinEvent:
+		e = &events.InstanceJoin{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 

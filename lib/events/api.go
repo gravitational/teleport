@@ -590,8 +590,8 @@ const (
 
 	// BotJoinEvent is emitted when a bot joins
 	BotJoinEvent = "bot.join"
-	// NodeJoinEvent is emitted when a node joins
-	NodeJoinEvent = "node.join"
+	// InstanceJoinEvent is emitted when an instance joins
+	InstanceJoinEvent = "instance.join"
 
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
