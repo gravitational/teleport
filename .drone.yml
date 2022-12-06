@@ -7435,7 +7435,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images_release_version.go:44
+# Generated at dronegen/container_images_release_version.go:45
 ################################################
 
 kind: pipeline
@@ -8370,7 +8370,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images_release_version.go:44
+# Generated at dronegen/container_images_release_version.go:45
 ################################################
 
 kind: pipeline
@@ -8399,6 +8399,22 @@ steps:
   commands:
   - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
+- name: Record if tag ($DRONE_TAG) is prerelease
+  image: golang:1.18-alpine
+  commands:
+  - apk add git
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_TAG}"
+  - mkdir -pv $(dirname "/go/vars/release-is-prerelease")
+  - cd "/tmp/repo/build.assets/tooling"
+  - go run ./cmd/check -tag $DRONE_TAG -check prerelease &> /dev/null || echo 'Version
+    is a prerelease' > "/go/vars/release-is-prerelease"
+  - printf 'Version is '; [ ! -f "/go/vars/release-is-prerelease" ] && printf 'not
+    '; echo 'a prerelease'
 - name: Wait for docker
   image: docker
   commands:
@@ -8408,6 +8424,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
 - name: Wait for docker registry
   image: alpine
   commands:
@@ -8416,6 +8433,7 @@ steps:
     != "200" ]; do sleep 1; done'
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -8427,6 +8445,7 @@ steps:
   - git checkout -qf "$DRONE_TAG"
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
 - name: Build major, minor, and full semvers
   image: alpine
   commands:
@@ -8441,6 +8460,7 @@ steps:
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
   commands:
@@ -8467,6 +8487,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
 - name: Assume ECR - production AWS Role
   image: amazon/aws-cli
   commands:
@@ -8494,6 +8515,7 @@ steps:
   depends_on:
   - Assume ECR - staging AWS Role
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
 - name: Pull teleport:v9-amd64 and push it to Local Registry
   image: docker
   commands:
@@ -8515,6 +8537,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -8542,6 +8565,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -8569,6 +8593,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -8662,6 +8687,10 @@ steps:
 - name: Create manifest and push "teleport:major" to Quay
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest create quay.io/gravitational/teleport:$(cat "/go/var/major-version")
     --amend quay.io/gravitational/teleport:$(cat "/go/var/major-version")-amd64 --amend
@@ -8686,6 +8715,10 @@ steps:
 - name: Create manifest and push "teleport:minor" to Quay
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest create quay.io/gravitational/teleport:$(cat "/go/var/minor-version")
     --amend quay.io/gravitational/teleport:$(cat "/go/var/minor-version")-amd64 --amend
@@ -8816,6 +8849,10 @@ steps:
 - name: Create manifest and push "teleport:major" to ECR - production
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -8839,6 +8876,10 @@ steps:
 - name: Create manifest and push "teleport:minor" to ECR - production
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -8905,6 +8946,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -8932,6 +8974,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -8959,6 +9002,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9052,6 +9096,10 @@ steps:
 - name: Create manifest and push "teleport-ent:major" to Quay
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest create quay.io/gravitational/teleport-ent:$(cat "/go/var/major-version")
     --amend quay.io/gravitational/teleport-ent:$(cat "/go/var/major-version")-amd64
@@ -9076,6 +9124,10 @@ steps:
 - name: Create manifest and push "teleport-ent:minor" to Quay
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest create quay.io/gravitational/teleport-ent:$(cat "/go/var/minor-version")
     --amend quay.io/gravitational/teleport-ent:$(cat "/go/var/minor-version")-amd64
@@ -9209,6 +9261,10 @@ steps:
 - name: Create manifest and push "teleport-ent:major" to ECR - production
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -9232,6 +9288,10 @@ steps:
 - name: Create manifest and push "teleport-ent:minor" to ECR - production
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -9299,6 +9359,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Record if tag ($DRONE_TAG) is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9336,6 +9397,10 @@ steps:
 - name: Create manifest and push "teleport-ent:major-fips" to Quay
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest create quay.io/gravitational/teleport-ent:$(cat "/go/var/major-version")-fips
     --amend quay.io/gravitational/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
@@ -9356,6 +9421,10 @@ steps:
 - name: Create manifest and push "teleport-ent:minor-fips" to Quay
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest create quay.io/gravitational/teleport-ent:$(cat "/go/var/minor-version")-fips
     --amend quay.io/gravitational/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
@@ -9426,6 +9495,10 @@ steps:
 - name: Create manifest and push "teleport-ent:major-fips" to ECR - production
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -9445,6 +9518,10 @@ steps:
 - name: Create manifest and push "teleport-ent:minor-fips" to ECR - production
   image: docker
   commands:
+  - printf "Prerelease "; ! [ -f /go/vars/release-is-prerelease ] && printf "not ";
+    printf "detected for version $DRONE_TAG, "; [ -f /go/vars/release-is-prerelease
+    ] && echo "skipping" || echo "continuing"
+  - '[ -f /go/vars/release-is-prerelease ] && exit 0'
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -9503,7 +9580,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images_release_version.go:44
+# Generated at dronegen/container_images_release_version.go:45
 ################################################
 
 kind: pipeline
@@ -11550,7 +11627,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images_release_version.go:44
+# Generated at dronegen/container_images_release_version.go:45
 ################################################
 
 kind: pipeline
@@ -13597,7 +13674,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images_release_version.go:44
+# Generated at dronegen/container_images_release_version.go:45
 ################################################
 
 kind: pipeline
@@ -15762,6 +15839,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 16823b508fb8233e16585c948c1e99d73d700291e81b3f78031165590dd8a855
+hmac: 80b18b20c43d03a4e4557e0195a0b1e05d766aeba6aaa347aab3511ade71a805
 
 ...
