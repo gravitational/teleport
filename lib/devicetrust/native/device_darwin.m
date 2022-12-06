@@ -1,5 +1,3 @@
-// go:build darwin
-
 #include "device_darwin.h"
 
 #import <CoreFoundation/CoreFoundation.h>
