@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
@@ -49,7 +50,11 @@ func (s *Server) startDatabaseDiscovery() error {
 				defer mu.Unlock()
 				return newDatabases.AsResources().ToMap()
 			},
-			Log:      s.Log,
+			Log: logrus.WithFields(logrus.Fields{
+				trace.Component: "reconciler",
+				"service":       "discovery",
+				"kind":          types.KindDatabase,
+			}),
 			OnCreate: s.onDatabaseCreate,
 			OnUpdate: s.onDatabaseUpdate,
 			OnDelete: s.onDatebaseDelete,
@@ -69,6 +74,11 @@ func (s *Server) startDatabaseDiscovery() error {
 			case databases := <-watcher.DatabasesC():
 				mu.Lock()
 				newDatabases = databases
+
+				// Overwrite origin.
+				for _, database := range newDatabases {
+					database.SetOrigin(types.OriginCloudDiscovery)
+				}
 				mu.Unlock()
 
 				if err := reconciler.Reconcile(s.ctx); err != nil {
@@ -92,7 +102,7 @@ func (s *Server) getCurrentDatabases() types.ResourcesWithLabelsMap {
 		return nil
 	}
 
-	return types.Databases(filterResourcesByOrigin(databases, types.OriginCloud)).AsResources().ToMap()
+	return types.Databases(filterResourcesByOrigin(databases, types.OriginCloudDiscovery)).AsResources().ToMap()
 }
 
 func (s *Server) onDatabaseCreate(ctx context.Context, resource types.ResourceWithLabels) error {
@@ -122,10 +132,10 @@ func (s *Server) onDatebaseDelete(ctx context.Context, resource types.ResourceWi
 	return trace.Wrap(s.AccessPoint.DeleteDatabase(ctx, database.GetName()))
 }
 
-func filterResourcesByOrigin[T types.ResourceWithOrigin, S ~[]T](allResources S, wantOrigin string) (cloudResources S) {
-	for _, resource := range allResources {
+func filterResourcesByOrigin[T types.ResourceWithOrigin, S ~[]T](all S, wantOrigin string) (filtered S) {
+	for _, resource := range all {
 		if resource.Origin() == wantOrigin {
-			cloudResources = append(cloudResources, resource)
+			filtered = append(filtered, resource)
 		}
 	}
 	return
