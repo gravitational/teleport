@@ -4348,7 +4348,10 @@ func TestCreateAppSession(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, tt.outUsername, sess.GetUser())
+			require.NotEmpty(t, response.CookieValue)
 			require.Equal(t, response.CookieValue, sess.GetName())
+			require.NotEmpty(t, response.SubjectCookieValue, "every session should create a secret token")
+			require.Equal(t, response.SubjectCookieValue, sess.GetBearerToken())
 		})
 	}
 }
