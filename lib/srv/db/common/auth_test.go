@@ -38,7 +38,6 @@ import (
 	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -524,10 +523,6 @@ func newRedshiftServerlessDatabase(t *testing.T) types.Database {
 		URI:      "my-workgroup.1234567890.eu-west-2.redshift-serverless.amazonaws.com:5439",
 	})
 	require.NoError(t, err)
-
-	doc, err := iam.GetReadableAWSPolicyDocumentForAssumedRole(database)
-	require.NoError(t, err)
-	t.Log(doc)
 	return database
 }
 

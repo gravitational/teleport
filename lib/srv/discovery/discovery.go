@@ -55,6 +55,8 @@ type Config struct {
 	AccessPoint auth.DiscoveryAccessPoint
 	// Log is the logger.
 	Log logrus.FieldLogger
+	// onDatabaseReconcile is called after each database resource reconciliation.
+	onDatabaseReconcile func()
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -464,36 +466,6 @@ func (s *Server) initTeleportNodeWatcher() (err error) {
 	return trace.Wrap(err)
 }
 
-// splitAWSMatcherTypes splits the matcher types between EC2 matchers, database matchers, and others.
-func splitAWSMatcherTypes(matcherTypes []string) (ec2, db, other []string) {
-	for _, matcherType := range matcherTypes {
-		switch {
-		case matcherType == services.AWSMatcherEC2:
-			ec2 = append(ec2, matcherType)
-		case dbwatchers.IsAWSMatcher(matcherType):
-			db = append(db, matcherType)
-		default:
-			other = append(other, matcherType)
-		}
-	}
-	return
-}
-
-// splitAzureMatcherTypes splits the matcher types between Azure VM matchers, database matchers, and others.
-func splitAzureMatcherTypes(matcherTypes []string) (vm, db, other []string) {
-	for _, matcherType := range matcherTypes {
-		switch {
-		case matcherType == services.AzureMatcherVM:
-			vm = append(vm, matcherType)
-		case dbwatchers.IsAzureMatcher(matcherType):
-			db = append(db, matcherType)
-		default:
-			other = append(other, matcherType)
-		}
-	}
-	return
-}
-
 // splitAWSMatchers splits the matchers between EC2 matchers, database matchers, and others.
 func splitAWSMatchers(matchers []services.AWSMatcher) (ec2, db, other []services.AWSMatcher) {
 	for _, matcher := range matchers {
@@ -530,15 +502,34 @@ func splitAzureMatchers(matchers []services.AzureMatcher) (vm, db, other []servi
 	return
 }
 
-// excludeFromSlice excludes entry from the slice.
-func excludeFromSlice[T comparable](slice []T, entry T) []T {
-	newSlice := make([]T, 0, len(slice))
-	for _, val := range slice {
-		if val != entry {
-			newSlice = append(newSlice, val)
+// splitAWSMatcherTypes splits the matcher types between EC2 matchers, database matchers, and others.
+func splitAWSMatcherTypes(matcherTypes []string) (ec2, db, other []string) {
+	for _, matcherType := range matcherTypes {
+		switch {
+		case matcherType == services.AWSMatcherEC2:
+			ec2 = append(ec2, matcherType)
+		case dbwatchers.IsAWSMatcher(matcherType):
+			db = append(db, matcherType)
+		default:
+			other = append(other, matcherType)
 		}
 	}
-	return newSlice
+	return
+}
+
+// splitAzureMatcherTypes splits the matcher types between Azure VM matchers, database matchers, and others.
+func splitAzureMatcherTypes(matcherTypes []string) (vm, db, other []string) {
+	for _, matcherType := range matcherTypes {
+		switch {
+		case matcherType == services.AzureMatcherVM:
+			vm = append(vm, matcherType)
+		case dbwatchers.IsAzureMatcher(matcherType):
+			db = append(db, matcherType)
+		default:
+			other = append(other, matcherType)
+		}
+	}
+	return
 }
 
 // copyAWSMatcherWithNewTypes copies an AWS Matcher and replaces the types with newTypes

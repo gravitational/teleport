@@ -281,32 +281,6 @@ type MatchResourceFilter struct {
 	PredicateExpression string
 }
 
-var (
-	// SupportedAWSMatchers is a list of AWS matchers.
-	SupportedAWSMatchers = []string{
-		AWSMatcherEC2,
-		AWSMatcherEKS,
-		AWSMatcherRDS,
-		AWSMatcherRDSProxy,
-		AWSMatcherRedshift,
-		AWSMatcherElastiCache,
-		AWSMatcherMemoryDB,
-	}
-	// SupportedAzureMatchers is a list of Azure matchers.
-	SupportedAzureMatchers = []string{
-		AzureMatcherVM,
-		AzureMatcherKubernetes,
-		AzureMatcherMySQL,
-		AzureMatcherPostgres,
-		AzureMatcherRedis,
-		AzureMatcherSQLServer,
-	}
-	// SupportedGCPMatchers is a list of GCP matchers.
-	SupportedGCPMatchers = []string{
-		GCPMatcherKubernetes,
-	}
-)
-
 const (
 	// AWSMatcherEC2 is the AWS matcher type for EC2 instances.
 	AWSMatcherEC2 = "ec2"
@@ -322,7 +296,21 @@ const (
 	AWSMatcherElastiCache = "elasticache"
 	// AWSMatcherMemoryDB is the AWS matcher type for MemoryDB databases.
 	AWSMatcherMemoryDB = "memorydb"
+)
 
+// SupportedAWSMatchers is list of AWS services currently supported by the
+// Teleport discovery service.
+var SupportedAWSMatchers = []string{
+	AWSMatcherEC2,
+	AWSMatcherEKS,
+	AWSMatcherRDS,
+	AWSMatcherRDSProxy,
+	AWSMatcherRedshift,
+	AWSMatcherElastiCache,
+	AWSMatcherMemoryDB,
+}
+
+const (
 	// AzureMatcherVM is the Azure matcher type for Azure VMs.
 	AzureMatcherVM = "vm"
 	// AzureMatcherKubernetes is the Azure matcher type for Azure Kubernetes.
@@ -335,7 +323,26 @@ const (
 	AzureMatcherRedis = "redis"
 	// AzureMatcherSQLServer is the Azure matcher type for SQL Server databases.
 	AzureMatcherSQLServer = "sqlserver"
+)
 
+// SupportedAzureMatchers is list of Azure services currently supported by the
+// Teleport discovery service.
+var SupportedAzureMatchers = []string{
+	AzureMatcherVM,
+	AzureMatcherKubernetes,
+	AzureMatcherMySQL,
+	AzureMatcherPostgres,
+	AzureMatcherRedis,
+	AzureMatcherSQLServer,
+}
+
+const (
 	// GCPMatcherKubernetes is the GCP matcher type for GCP kubernetes.
 	GCPMatcherKubernetes = "gke"
 )
+
+// SupportedGCPMatchers is list of GCP services currently supported by the
+// Teleport discovery service.
+var SupportedGCPMatchers = []string{
+	GCPMatcherKubernetes,
+}

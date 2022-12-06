@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -174,12 +173,12 @@ var makeAzureFetcherFuncs = map[string][]makeAzureFetcherFunc{
 
 // IsAWSMatcher returns true if provided matcher is an AWS database matcher type.
 func IsAWSMatcher(matcherType string) bool {
-	return slices.Contains(maps.Keys(makeAWSFetcherFuncs), matcherType)
+	return len(makeAWSFetcherFuncs[matcherType]) > 0
 }
 
 // IsAzureMatcher returns true if provided matcher is an Azure database matcher type.
 func IsAzureMatcher(matcherType string) bool {
-	return slices.Contains(maps.Keys(makeAzureFetcherFuncs), matcherType)
+	return len(makeAzureFetcherFuncs[matcherType]) > 0
 }
 
 // makeFetchers returns cloud fetchers for the provided matchers.
@@ -204,7 +203,7 @@ func makeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (res
 		for _, matcherType := range matcher.Types {
 			makeFetchers, found := makeAWSFetcherFuncs[matcherType]
 			if !found {
-				return nil, trace.BadParameter("unknown AWS database matcher type %q, supported types are: %v", maps.Keys(makeAWSFetcherFuncs))
+				return nil, trace.BadParameter("unknown AWS database matcher type %q, supported types are: %v", matcherType, maps.Keys(makeAWSFetcherFuncs))
 			}
 
 			for _, makeFetcher := range makeFetchers {

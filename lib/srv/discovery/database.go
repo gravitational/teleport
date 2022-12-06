@@ -72,7 +72,9 @@ func (s *Server) startDatabaseDiscovery() error {
 				mu.Unlock()
 
 				if err := reconciler.Reconcile(s.ctx); err != nil {
-					s.Log.WithError(err).Warn("Unable to reconcile resources.")
+					s.Log.WithError(err).Warn("Failed to reconcile database resources.")
+				} else if s.onDatabaseReconcile != nil {
+					s.onDatabaseReconcile()
 				}
 
 			case <-s.ctx.Done():

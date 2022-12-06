@@ -28,6 +28,8 @@ import (
 	"time"
 
 	"cloud.google.com/go/container/apiv1/containerpb"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/request"
@@ -35,8 +37,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
+	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
@@ -50,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	dbmocks "github.com/gravitational/teleport/lib/srv/db/cloud"
 )
 
 type mockSSMClient struct {
@@ -906,4 +912,221 @@ type mockGKEAPI struct {
 
 func (m *mockGKEAPI) ListClusters(ctx context.Context, projectID string, location string) ([]gcp.GKECluster, error) {
 	return m.clusters, nil
+}
+
+func TestDiscoveryDatabase(t *testing.T) {
+	awsRedshiftResource, awsRedshiftDB := makeRedshiftCluster(t, "aws-redshift", "us-east-1")
+	azRedisResource, azRedisDB := makeAzureRedisServer(t, "az-redis", "sub1", "group1", "East US")
+
+	testClients := &cloud.TestCloudClients{
+		Redshift: &dbmocks.RedshiftMock{
+			Clusters: []*redshift.Cluster{awsRedshiftResource},
+		},
+		AzureRedis: azure.NewRedisClientByAPI(&azure.ARMRedisMock{
+			Servers: []*armredis.ResourceInfo{azRedisResource},
+		}),
+		AzureRedisEnterprise: azure.NewRedisEnterpriseClientByAPI(
+			&azure.ARMRedisEnterpriseClusterMock{},
+			&azure.ARMRedisEnterpriseDatabaseMock{},
+		),
+	}
+
+	tcs := []struct {
+		name              string
+		existingDatabases []types.Database
+		awsMatchers       []services.AWSMatcher
+		azureMatchers     []services.AzureMatcher
+		expectDatabases   []types.Database
+	}{
+		{
+			name: "discover AWS database",
+			awsMatchers: []services.AWSMatcher{{
+				Types:   []string{services.AWSMatcherRedshift},
+				Tags:    map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+				Regions: []string{"us-east-1"},
+			}},
+			expectDatabases: []types.Database{awsRedshiftDB},
+		},
+		{
+			name: "discover Azure database",
+			azureMatchers: []services.AzureMatcher{{
+				Types:          []string{services.AzureMatcherRedis},
+				ResourceTags:   map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+				Regions:        []string{types.Wildcard},
+				ResourceGroups: []string{types.Wildcard},
+				Subscriptions:  []string{"sub1"},
+			}},
+			expectDatabases: []types.Database{azRedisDB},
+		},
+		{
+			name: "update existing database",
+			existingDatabases: []types.Database{
+				mustNewDatabase(t, types.Metadata{
+					Name:        "aws-redshift",
+					Description: "should be updated",
+					Labels:      map[string]string{types.OriginLabel: types.OriginCloud},
+				}, types.DatabaseSpecV3{
+					Protocol: "redis",
+					URI:      "should.be.updated.com:12345",
+				}),
+			},
+			awsMatchers: []services.AWSMatcher{{
+				Types:   []string{services.AWSMatcherRedshift},
+				Tags:    map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+				Regions: []string{"us-east-1"},
+			}},
+			expectDatabases: []types.Database{awsRedshiftDB},
+		},
+		{
+			name: "delete existing database",
+			existingDatabases: []types.Database{
+				mustNewDatabase(t, types.Metadata{
+					Name:        "aws-redshift",
+					Description: "should be deleted",
+					Labels:      map[string]string{types.OriginLabel: types.OriginCloud},
+				}, types.DatabaseSpecV3{
+					Protocol: "redis",
+					URI:      "should.be.deleted.com:12345",
+				}),
+			},
+			awsMatchers: []services.AWSMatcher{{
+				Types:   []string{services.AWSMatcherRedshift},
+				Tags:    map[string]utils.Strings{"do-not-match": {"do-not-match"}},
+				Regions: []string{"us-east-1"},
+			}},
+			expectDatabases: []types.Database{},
+		},
+		{
+			name: "skip self-hosted database",
+			existingDatabases: []types.Database{
+				mustNewDatabase(t, types.Metadata{
+					Name:        "self-hosted",
+					Description: "should be ignored (not deleted)",
+					Labels:      map[string]string{types.OriginLabel: types.OriginConfigFile},
+				}, types.DatabaseSpecV3{
+					Protocol: "mysql",
+					URI:      "localhost:12345",
+				}),
+			},
+			awsMatchers: []services.AWSMatcher{{
+				Types:   []string{services.AWSMatcherRedshift},
+				Tags:    map[string]utils.Strings{"do-not-match": {"do-not-match"}},
+				Regions: []string{"us-east-1"},
+			}},
+			expectDatabases: []types.Database{
+				mustNewDatabase(t, types.Metadata{
+					Name:        "self-hosted",
+					Description: "should be ignored (not deleted)",
+					Labels:      map[string]string{types.OriginLabel: types.OriginConfigFile},
+				}, types.DatabaseSpecV3{
+					Protocol: "mysql",
+					URI:      "localhost:12345",
+				}),
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+
+			// Create and start test auth server.
+			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+				Dir: t.TempDir(),
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+			tlsServer, err := testAuthServer.NewTestTLSServer()
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
+			// Auth client for discovery service.
+			authClient, err := tlsServer.NewClient(auth.TestServerID(types.RoleDiscovery, "hostID"))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+
+			for _, database := range tc.existingDatabases {
+				err := tlsServer.Auth().CreateDatabase(ctx, database)
+				require.NoError(t, err)
+			}
+
+			waitForReconcile := make(chan struct{})
+			srv, err := New(
+				ctx,
+				&Config{
+					Clients:       testClients,
+					AccessPoint:   tlsServer.Auth(),
+					AWSMatchers:   tc.awsMatchers,
+					AzureMatchers: tc.azureMatchers,
+					Emitter:       authClient,
+					onDatabaseReconcile: func() {
+						waitForReconcile <- struct{}{}
+					},
+				})
+
+			require.NoError(t, err)
+
+			t.Cleanup(srv.Stop)
+			go srv.Start()
+
+			select {
+			case <-waitForReconcile:
+				actualDatabases, err := authClient.GetDatabases(ctx)
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(tc.expectDatabases, actualDatabases,
+					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
+				))
+			case <-time.After(time.Second):
+				t.Fatal("Didn't receive reconcile event after 1s.")
+			}
+		})
+	}
+}
+
+func makeRedshiftCluster(t *testing.T, name, region string) (*redshift.Cluster, types.Database) {
+	t.Helper()
+	cluster := &redshift.Cluster{
+		ClusterIdentifier:   aws.String(name),
+		ClusterNamespaceArn: aws.String(fmt.Sprintf("arn:aws:redshift:%s:1234567890:namespace:%s", region, name)),
+		ClusterStatus:       aws.String("available"),
+		Endpoint: &redshift.Endpoint{
+			Address: aws.String("localhost"),
+			Port:    aws.Int64(5439),
+		},
+	}
+
+	database, err := services.NewDatabaseFromRedshiftCluster(cluster)
+	require.NoError(t, err)
+	return cluster, database
+}
+
+func makeAzureRedisServer(t *testing.T, name, subscription, group, region string) (*armredis.ResourceInfo, types.Database) {
+	t.Helper()
+	resourceInfo := &armredis.ResourceInfo{
+		Name:     to.Ptr(name),
+		ID:       to.Ptr(fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Cache/Redis/%v", subscription, group, name)),
+		Location: to.Ptr(region),
+		Properties: &armredis.Properties{
+			HostName:          to.Ptr(fmt.Sprintf("%v.redis.cache.windows.net", name)),
+			SSLPort:           to.Ptr(int32(6380)),
+			ProvisioningState: to.Ptr(armredis.ProvisioningStateSucceeded),
+		},
+	}
+
+	database, err := services.NewDatabaseFromAzureRedis(resourceInfo)
+	require.NoError(t, err)
+	return resourceInfo, database
+}
+
+func mustNewDatabase(t *testing.T, meta types.Metadata, spec types.DatabaseSpecV3) types.Database {
+	t.Helper()
+	database, err := types.NewDatabaseV3(meta, spec)
+	require.NoError(t, err)
+	return database
 }
