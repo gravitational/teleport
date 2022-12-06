@@ -3,7 +3,7 @@ authors: Tiago Silva (tiago.silva@goteleport.com)
 state: draft
 ---
 
-# RFD XX - Kubernetes Cluster Automatic discovery
+# RFD 98 - Kubernetes Cluster Automatic discovery
 
 ## Required Approvers
 
@@ -22,7 +22,7 @@ Proposes the implementation of Kubernetes Auto-Discovery for EKS, GKE and AKS cl
 
 Currently, when an operator wants to configure a new Kubernetes cluster in Teleport, he can opt for these two methods:
 
-- Helm chart: when using this method, he has to install`helm` binary, configure Teleport Helm repo, and check all the configurable values (high availability, roles, apps, storage...). After that, he must create a Teleport invitation token using `tctl` and finally install the Helm chart with the desired configuration.
+- Helm chart: when using this method, he has to install `helm` binary, configure Teleport Helm repo, and check all the configurable values (high availability, roles, apps, storage...). After that, he must create a Teleport invitation token using `tctl` and finally install the Helm chart with the desired configuration.
 
 - `Kubeconfig`: when using the `kubeconfig` procedure, he has to connect to the cluster - using his credentials - and generate a new service account for Teleport. Besides that, he must assign the required RBAC permissions into the SA and extract its token. With it, he must create a `kubeconfig` file with the cluster CA and API server. If Teleport Kubernetes Service serves more than one cluster, he has to merge multiple `kubeconfig` files into a single file. Finally, he must configure the `kubeconfig` location in Teleport config under `kubernetes_service.kubeconfig_file` and restart the service.
 
