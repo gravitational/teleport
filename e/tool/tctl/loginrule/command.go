@@ -3,7 +3,6 @@ package loginrule
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 
@@ -11,11 +10,14 @@ import (
 	"github.com/gravitational/trace"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
+	"github.com/gravitational/teleport"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	"github.com/gravitational/teleport/e/lib/loginrule"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type subcommand interface {
@@ -58,15 +60,17 @@ func (t *Command) TryRun(ctx context.Context, selectedCommand string, c auth.Cli
 
 // testCommand implements the "tctl login_rule test" command.
 type testCommand struct {
-	cmd            *kingpin.CmdClause
-	inputFileNames []string
-	inputTraits    string
+	cmd                *kingpin.CmdClause
+	inputResourceFiles []string
+	inputTraitsFile    string
+	outputFormat       string
 }
 
 func (t *testCommand) initialize(parent *kingpin.CmdClause) {
 	t.cmd = parent.Command("test", "Test the parsing and evaluation of login rules before loading them into your cluster")
-	t.cmd.Flag("resource-file", "login rule resource file name (YAML or JSON)").Required().StringsVar(&t.inputFileNames)
-	t.cmd.Arg("traits-file", "input user traits file name (YAML or JSON), empty for stdin").Required().StringVar(&t.inputTraits)
+	t.cmd.Flag("resource-file", "login rule resource file name (YAML or JSON)").Required().StringsVar(&t.inputResourceFiles)
+	t.cmd.Flag("format", "Output format: 'yaml' or 'json'").Default(teleport.YAML).StringVar(&t.outputFormat)
+	t.cmd.Arg("traits-file", "input user traits file name (YAML or JSON), empty for stdin").StringVar(&t.inputTraitsFile)
 
 	// Hack: use Alias to include some examples in the help output. This is also
 	// done elsewhere in the codebase.
@@ -91,15 +95,28 @@ func (t *testCommand) tryRun(ctx context.Context, selectedCommand string, c auth
 }
 
 func (t *testCommand) run(ctx context.Context, c auth.ClientI) error {
-	loginRules, err := parseLoginRuleFiles(t.inputFileNames)
+	loginRules, err := parseLoginRuleFiles(t.inputResourceFiles)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// TODO(nklaassen): Implement actual command logic. Printing some
-	// placeholder output for now.
-	for _, rule := range loginRules {
-		fmt.Printf("Parsed login rule: %s\n", rule.Metadata.Name)
+	traits, err := parseTraitsFile(t.inputTraitsFile)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	result, err := loginrule.Evaluate(loginRules, &loginrule.EvaluationInput{Traits: traits})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch t.outputFormat {
+	case teleport.YAML:
+		utils.WriteYAML(os.Stdout, result.Traits)
+	case teleport.JSON:
+		utils.WriteJSON(os.Stdout, result.Traits)
+	default:
+		return trace.BadParameter("unsupported output format %q, supported values are %s and %s", t.outputFormat, teleport.YAML, teleport.JSON)
 	}
 	return nil
 }
@@ -151,4 +168,24 @@ func parseLoginRules(r io.Reader) ([]*loginrulepb.LoginRule, error) {
 		}
 		rules = append(rules, rule)
 	}
+}
+
+func parseTraitsFile(fileName string) (map[string][]string, error) {
+	var r io.Reader = os.Stdin
+	if fileName != "" {
+		f, err := os.Open(fileName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer f.Close()
+		r = f
+	}
+
+	decoder := kyaml.NewYAMLOrJSONDecoder(r, defaults.LookaheadBufSize)
+	var traits map[string][]string
+	err := decoder.Decode(&traits)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return traits, nil
 }
