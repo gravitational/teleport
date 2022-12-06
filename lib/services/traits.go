@@ -125,7 +125,7 @@ func traitsToRoles(ms types.TraitMappingSet, traits map[string][]string, collect
 			// warn at most maxMismatchedTraitValuesWarned trait values to prevent huge warning lines
 			if len(mismatched) > maxMismatchedTraitValuesWarned {
 				warnings = append(warnings, fmt.Sprintf(
-					"%d trait value(s) did not match expression %q: [%s] (first %d values)",
+					"%d trait value(s) did not match expression %q: %s (first %d values)",
 					len(mismatched),
 					mapping.Value,
 					mismatched[0:maxMismatchedTraitValuesWarned],
