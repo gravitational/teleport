@@ -64,8 +64,11 @@ func (r *createDatabaseRequest) checkAndSetDefaults() error {
 	}
 
 	if r.AWSRDS != nil {
-		if r.AWSRDS.ResourceID == "" || r.AWSRDS.AccountID == "" {
-			return trace.BadParameter("missing aws rds fields")
+		if r.AWSRDS.ResourceID == "" {
+			return trace.BadParameter("missing aws rds field resource id")
+		}
+		if r.AWSRDS.AccountID == "" {
+			return trace.BadParameter("missing aws rds field account id")
 		}
 	}
 
