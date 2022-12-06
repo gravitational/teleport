@@ -29,17 +29,17 @@ typedef struct _Bytes Signature;
 // the existing key if one is already present.
 // Callers are responsible for allocating and freeing all "out" parameters.
 // Returns zero for success, non-zero for failures (likely an OSStatus value).
-int64_t DeviceKeyCreate(const char *newID, PublicKey *pubKeyOut);
+int32_t DeviceKeyCreate(const char *newID, PublicKey *pubKeyOut);
 
 // DeviceKeyGet returns the current device key or fails.
 // Callers are responsible for allocating and freeing all "out" parameters.
 // Returns zero for success, non-zero for failures (likely an OSStatus value).
-int64_t DeviceKeyGet(PublicKey *pubKeyOut);
+int32_t DeviceKeyGet(PublicKey *pubKeyOut);
 
 // DeviceKeySign signs digest using the device key.
 // Callers are responsible for allocating and freeing all "out" parameters.
 // Returns zero for success, non-zero for failures (likely an OSStatus value).
-int64_t DeviceKeySign(Digest digest, Signature *sigOut);
+int32_t DeviceKeySign(Digest digest, Signature *sigOut);
 
 // DeviceData contains collected data for the device in use.
 typedef struct _DeviceData {
@@ -49,6 +49,6 @@ typedef struct _DeviceData {
 // DeviceCollectData collects data for the device in use.
 // Callers are responsible for allocating and freeing all "out" parameters.
 // Returns zero for success, non-zero for failures.
-int64_t DeviceCollectData(DeviceData *out);
+int32_t DeviceCollectData(DeviceData *out);
 
 #endif // DEVICE_DARWIN_H_

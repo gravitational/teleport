@@ -36,7 +36,7 @@ void copyPublicKey(const char *id, CFDataRef pubKeyRep, PublicKey *pubKeyOut) {
          pubKeyOut->pub_key_len);
 }
 
-int64_t DeviceKeyCreate(const char *newID, PublicKey *pubKeyOut) {
+int32_t DeviceKeyCreate(const char *newID, PublicKey *pubKeyOut) {
   CFErrorRef err = NULL;
   SecAccessControlRef access = NULL;
   NSString *label = NULL;     // managed by ARC
@@ -47,7 +47,7 @@ int64_t DeviceKeyCreate(const char *newID, PublicKey *pubKeyOut) {
   SecKeyRef pubKey = NULL;
   CFDataRef pubKeyRep = NULL;
 
-  int64_t res = DeviceKeyGet(pubKeyOut);
+  int32_t res = DeviceKeyGet(pubKeyOut);
   if (res != errSecItemNotFound) {
     goto end;
   }
@@ -123,7 +123,7 @@ end:
   return res;
 }
 
-int64_t DeviceKeyGet(PublicKey *pubKeyOut) {
+int32_t DeviceKeyGet(PublicKey *pubKeyOut) {
   CFDictionaryRef attrs = NULL;
   CFDataRef appTagData = NULL; // managed by attrs
   NSString *appTag = NULL;     // managed by ARC
@@ -132,7 +132,7 @@ int64_t DeviceKeyGet(PublicKey *pubKeyOut) {
   CFErrorRef err = NULL;
   CFDataRef pubKeyRep = NULL;
 
-  int64_t res = findDeviceKey(@YES /* retAttrs */, (CFTypeRef *)&attrs);
+  int32_t res = findDeviceKey(@YES /* retAttrs */, (CFTypeRef *)&attrs);
   if (res != errSecSuccess) {
     goto end;
   }
@@ -180,13 +180,13 @@ end:
   return res;
 }
 
-int64_t DeviceKeySign(Digest digest, Signature *sigOut) {
+int32_t DeviceKeySign(Digest digest, Signature *sigOut) {
   SecKeyRef privKey = NULL;
   NSData *data = NULL; // managed by ARC
   CFErrorRef err = NULL;
   CFDataRef sig = NULL;
 
-  int64_t res = findDeviceKey(@NO /* retAttrs */, (CFTypeRef *)&privKey);
+  int32_t res = findDeviceKey(@NO /* retAttrs */, (CFTypeRef *)&privKey);
   if (res != errSecSuccess) {
     goto end;
   }
@@ -217,10 +217,10 @@ end:
   return res;
 }
 
-int64_t DeviceCollectData(DeviceData *out) {
+int32_t DeviceCollectData(DeviceData *out) {
   CFStringRef cfSerialNumber = NULL; // managed via bridge
   NSString *serialNumber = NULL;     // managed by ARC
-  int64_t res = 0;
+  int32_t res = 0;
 
   io_service_t platformExpert = IOServiceGetMatchingService(
       0 /* mainPort */, IOServiceMatching("IOPlatformExpertDevice"));
