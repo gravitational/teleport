@@ -10,7 +10,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web"
@@ -102,7 +101,7 @@ func (p *Plugin) oidcCallback(w http.ResponseWriter, r *http.Request, params htt
 			}
 		}
 
-		if errors.Is(err, auth.ErrOIDCNoRoles) {
+		if errors.Is(err, eauth.ErrOIDCNoRoles) {
 			return client.LoginFailedUnauthorizedRedirectURL
 		}
 

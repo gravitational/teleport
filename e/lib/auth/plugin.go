@@ -23,11 +23,10 @@ const (
 	pluginName = "auth.enterprise"
 )
 
+var log = logrus.WithField(trace.Component, pluginName)
+
 // Config is a configuration of the web plugin
 type Config struct {
-	// Log is the logger
-	Log logrus.FieldLogger
-
 	// GetBackend fetches the backend for the running Teleport process.
 	// A func is used, instead of a plain field, so the Plugin may be created
 	// before the actual Teleport process.
@@ -36,10 +35,6 @@ type Config struct {
 
 // CheckAndSetDefaults checks and sets the defaults
 func (c *Config) CheckAndSetDefaults() error {
-	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, pluginName)
-	}
-
 	return nil
 }
 
@@ -126,12 +121,21 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	sas, err := NewSAMLAuthService(&SAMLAuthServiceConfig{
 		Auth:    authServer.AuthServer,
 		Emitter: authServer.Emitter,
-		Log:     p.Log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	authServer.AuthServer.SetSAMLService(sas)
+
+	// Create a OIDCService and register it with the auth.Server
+	oas, err := NewOIDCAuthService(&OIDCAuthServiceConfig{
+		Auth:    authServer.AuthServer,
+		Emitter: authServer.Emitter,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	authServer.AuthServer.SetOIDCService(oas)
 
 	return nil
 }
@@ -149,6 +153,12 @@ func (p *Plugin) RegisterAuthWebHandlers(handler interface{}) error {
 	// Once removed from there, this check can be removed here.
 	if h, _, _ := apiServer.Lookup("POST", "/:version/saml/requests/validate"); h == nil {
 		apiServer.POST("/:version/saml/requests/validate", apiServer.WithAuth(validateSAMLResponseWeb))
+	}
+
+	// Temporary check for the existence of this endpoint in Teleport OSS.
+	// Once removed from there, this check can be removed here.
+	if h, _, _ := apiServer.Lookup("POST", "/:version/oidc/requests/validate"); h == nil {
+		apiServer.POST("/:version/oidc/requests/validate", apiServer.WithAuth(validateOIDCAuthCallbackWeb))
 	}
 
 	return nil

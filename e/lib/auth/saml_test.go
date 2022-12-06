@@ -849,28 +849,3 @@ func TestSAMLAuthRequest(t *testing.T) {
 		})
 	}
 }
-
-func newTestTLSServer(t *testing.T) *auth.TestTLSServer {
-	t.Helper()
-	as, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
-		Dir:   t.TempDir(),
-		Clock: clockwork.NewFakeClock(),
-	})
-	require.NoError(t, err)
-
-	srv, err := as.NewTestTLSServer()
-	require.NoError(t, err)
-
-	registerSAMLService(t, &SAMLAuthServiceConfig{Auth: as.AuthServer})
-
-	t.Cleanup(func() { require.NoError(t, srv.Close()) })
-	return srv
-}
-
-func registerSAMLService(t *testing.T, cfg *SAMLAuthServiceConfig) *SAMLAuthService {
-	t.Helper()
-	sas, err := NewSAMLAuthService(cfg)
-	require.NoError(t, err)
-	cfg.Auth.SetSAMLService(sas)
-	return sas
-}

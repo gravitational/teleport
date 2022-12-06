@@ -16,7 +16,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	saml2 "github.com/russellhaering/gosaml2"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -43,14 +42,12 @@ type SAMLAuthService struct {
 	assertionReplayService *local.AssertionReplayService
 	samlProviders          map[string]*samlProvider
 	lock                   sync.Mutex
-	log                    logrus.FieldLogger
 }
 
 type SAMLAuthServiceConfig struct {
 	Auth                   *auth.Server
 	Emitter                apievents.Emitter
 	AssertionReplayService *local.AssertionReplayService
-	Log                    logrus.FieldLogger
 }
 
 func (cfg *SAMLAuthServiceConfig) CheckAndSetDefaults() error {
@@ -62,9 +59,6 @@ func (cfg *SAMLAuthServiceConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Emitter == nil {
 		cfg.Emitter = events.NewDiscardEmitter()
-	}
-	if cfg.Log == nil {
-		cfg.Log = logrus.WithField(trace.Component, pluginName)
 	}
 	return nil
 }
@@ -80,7 +74,6 @@ func NewSAMLAuthService(cfg *SAMLAuthServiceConfig) (*SAMLAuthService, error) {
 		auth:                   cfg.Auth,
 		emitter:                cfg.Emitter,
 		assertionReplayService: cfg.AssertionReplayService,
-		log:                    cfg.Log,
 
 		samlProviders: make(map[string]*samlProvider),
 	}, nil
@@ -218,13 +211,13 @@ func (sas *SAMLAuthService) calculateSAMLUser(diagCtx *auth.SSODiagContext, conn
 	warnings, p.Roles = services.TraitsToRoles(connector.GetTraitMappings(), p.Traits)
 	if len(p.Roles) == 0 {
 		if len(warnings) != 0 {
-			sas.log.WithField("connector", connector).Warnf("No roles mapped from claims. Warnings: %q", warnings)
+			log.WithField("connector", connector).Warnf("No roles mapped from claims. Warnings: %q", warnings)
 			diagCtx.Info.SAMLAttributesToRolesWarnings = &types.SSOWarnings{
 				Message:  "No roles mapped for the user",
 				Warnings: warnings,
 			}
 		} else {
-			sas.log.WithField("connector", connector).Warnf("No roles mapped from claims.")
+			log.WithField("connector", connector).Warnf("No roles mapped from claims.")
 			diagCtx.Info.SAMLAttributesToRolesWarnings = &types.SSOWarnings{
 				Message: "No roles mapped for the user. The mappings may contain typos.",
 			}
@@ -251,7 +244,7 @@ func (sas *SAMLAuthService) calculateSAMLUser(diagCtx *auth.SSODiagContext, conn
 func (sas *SAMLAuthService) createSAMLUser(p *auth.CreateUserParams, dryRun bool) (types.User, error) {
 	expires := sas.auth.GetClock().Now().UTC().Add(p.SessionTTL)
 
-	sas.log.Debugf("Generating dynamic SAML identity %v/%v with roles: %v. Dry run: %v.", p.ConnectorName, p.Username, p.Roles, dryRun)
+	log.Debugf("Generating dynamic SAML identity %v/%v with roles: %v. Dry run: %v.", p.ConnectorName, p.Username, p.Roles, dryRun)
 
 	user := &types.UserV2{
 		Kind:    types.KindUser,
@@ -306,7 +299,7 @@ func (sas *SAMLAuthService) createSAMLUser(p *auth.CreateUserParams, dryRun bool
 				"NameID in assertion or remove local user and try again.", existingUser.GetName())
 		}
 
-		sas.log.Debugf("Overwriting existing user %q created with %v connector %v.",
+		log.Debugf("Overwriting existing user %q created with %v connector %v.",
 			existingUser.GetName(), connectorRef.Type, connectorRef.ID)
 
 		if err := sas.auth.UpdateUser(ctx, user); err != nil {
@@ -389,7 +382,7 @@ func (sas *SAMLAuthService) ValidateSAMLResponse(ctx context.Context, samlRespon
 		attributes, err := apievents.EncodeMapStrings(attributeStatements)
 		if err != nil {
 			event.Status.UserMessage = fmt.Sprintf("Failed to encode identity attributes: %v", err.Error())
-			sas.log.WithError(err).Debug("Failed to encode identity attributes.")
+			log.WithError(err).Debug("Failed to encode identity attributes.")
 		} else {
 			event.IdentityAttributes = attributes
 		}
@@ -404,7 +397,7 @@ func (sas *SAMLAuthService) ValidateSAMLResponse(ctx context.Context, samlRespon
 		event.Status.Error = trace.Unwrap(err).Error()
 		event.Status.UserMessage = err.Error()
 		if err := sas.emitter.EmitAuditEvent(ctx, event); err != nil {
-			sas.log.WithError(err).Warn("Failed to emit SAML login failed event.")
+			log.WithError(err).Warn("Failed to emit SAML login failed event.")
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -417,7 +410,7 @@ func (sas *SAMLAuthService) ValidateSAMLResponse(ctx context.Context, samlRespon
 	}
 
 	if err := sas.emitter.EmitAuditEvent(ctx, event); err != nil {
-		sas.log.WithError(err).Warn("Failed to emit SAML login event.")
+		log.WithError(err).Warn("Failed to emit SAML login event.")
 	}
 
 	return auth, nil
@@ -482,7 +475,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 	if idpInitiated {
 		if err := sas.checkIDPInitiatedSAML(ctx, connector, assertionInfo); err != nil {
 			if trace.IsAccessDenied(err) {
-				sas.log.Warnf("Failed to process IdP-initiated login request. IdP-initiated login is disabled for this connector: %v.", err)
+				log.Warnf("Failed to process IdP-initiated login request. IdP-initiated login is disabled for this connector: %v.", err)
 			}
 
 			return nil, trace.Wrap(err)
@@ -497,8 +490,8 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		return nil, trace.AccessDenied("no audience in SAML assertion info").AddUserMessage("SAML: not in expected audience. Check auth connector audience field and IdP configuration for typos and other errors.")
 	}
 
-	sas.log.Debugf("Obtained SAML assertions for %q.", assertionInfo.NameID)
-	sas.log.Debugf("SAML assertion warnings: %+v.", assertionInfo.WarningInfo)
+	log.Debugf("Obtained SAML assertions for %q.", assertionInfo.NameID)
+	log.Debugf("SAML assertion warnings: %+v.", assertionInfo.WarningInfo)
 
 	attributeStatements := map[string][]string{}
 
@@ -507,7 +500,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		for _, vv := range val.Values {
 			vals = append(vals, vv.Value)
 		}
-		sas.log.Debugf("SAML assertion: %q: %q.", key, vals)
+		log.Debugf("SAML assertion: %q: %q.", key, vals)
 		attributeStatements[key] = vals
 	}
 
@@ -518,7 +511,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		return nil, trace.BadParameter("no attributes to roles mapping, check connector documentation").AddUserMessage("Attributes-to-roles mapping is empty, SSO user will never have any roles.")
 	}
 
-	sas.log.Debugf("Applying %v SAML attribute to roles mappings.", len(connector.GetAttributesToRoles()))
+	log.Debugf("Applying %v SAML attribute to roles mappings.", len(connector.GetAttributesToRoles()))
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.

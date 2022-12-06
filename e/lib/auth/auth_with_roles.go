@@ -50,7 +50,7 @@ func (ac *cloudWithRoles) RemoveCard(ctx context.Context, req *v1.RemoveCardRequ
 		UserMetadata: auth.ClientUserMetadata(ctx),
 	}
 	if err := ac.plugin.emitter.EmitAuditEvent(ctx, event); err != nil {
-		ac.plugin.Log.WithError(err).WithFields(logrus.Fields{
+		log.WithError(err).WithFields(logrus.Fields{
 			"user":         event.UserMetadata.User,
 			"impersonator": event.UserMetadata.Impersonator,
 		}).Warn("Failed to emit billing card delete event.")
@@ -79,7 +79,7 @@ func (ac *cloudWithRoles) UpdateCard(ctx context.Context, req *v1.UpdateCardRequ
 		UserMetadata: auth.ClientUserMetadata(ctx),
 	}
 	if err := ac.plugin.emitter.EmitAuditEvent(ctx, event); err != nil {
-		ac.plugin.Log.WithError(err).WithFields(logrus.Fields{
+		log.WithError(err).WithFields(logrus.Fields{
 			"user":         event.UserMetadata.User,
 			"impersonator": event.UserMetadata.Impersonator,
 		}).Warn("Failed to emit billing card update event.")
@@ -108,7 +108,7 @@ func (ac *cloudWithRoles) UpdateAccount(ctx context.Context, req *v1.UpdateAccou
 		UserMetadata: auth.ClientUserMetadata(ctx),
 	}
 	if err := ac.plugin.emitter.EmitAuditEvent(ctx, event); err != nil {
-		ac.plugin.Log.WithError(err).WithFields(logrus.Fields{
+		log.WithError(err).WithFields(logrus.Fields{
 			"user":         event.UserMetadata.User,
 			"impersonator": event.UserMetadata.Impersonator,
 		}).Warn("Failed to emit billing account update event.")
@@ -137,7 +137,7 @@ func (ac *cloudWithRoles) AddCard(ctx context.Context, req *v1.AddCardRequest) (
 		UserMetadata: auth.ClientUserMetadata(ctx),
 	}
 	if err := ac.plugin.emitter.EmitAuditEvent(ctx, event); err != nil {
-		ac.plugin.Log.WithError(err).WithFields(logrus.Fields{
+		log.WithError(err).WithFields(logrus.Fields{
 			"user":         event.UserMetadata.User,
 			"impersonator": event.UserMetadata.Impersonator,
 		}).Warn("Failed to emit billing card create event.")
