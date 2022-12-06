@@ -5,11 +5,6 @@
 > For detailed instructions on configuring Machine ID, see
 > https://goteleport.com/docs/machine-id/introduction/
 
-Create a user for `tbot` to run as. In our example, this will be `teleport`.
-
-Determine the user that you want to be able to read the certificates that `tbot`
-produces. In our example, this will be `jenkins`.
-
 Create and fill out a configuration file for Machine ID at `/etc/tbot.yaml`.
 
 ```yaml
@@ -25,9 +20,13 @@ destinations:
   - directory: /opt/machine-id
 ```
 
-Next initialize ownership of the short-lived certificate directory. In this
-example, ownership will belong to the user:group `jenkins:jenkins`. Make sure
-the `jenkins` user exists on your system.
+Create a user for `tbot` to run as. In our example, this will be `teleport`.
+Ensure that this user is able to read and write to `/var/lib/teleport/bot`.
+
+Determine the user that you want to be able to read the certificates that `tbot`
+produces. In our example, this will be `jenkins`. Initialize ownership of the 
+destination directory so that this user is able to read from it, and that the
+`teleport` user is able to write to it by using `tbot init`:
 
 ```bash
 $ sudo tbot init \
