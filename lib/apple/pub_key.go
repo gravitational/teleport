@@ -28,8 +28,11 @@ func ECDSAPublicKeyFromRaw(pubKeyRaw []byte) (*ecdsa.PublicKey, error) {
 	// 3 is the smallest number that clears it, but in practice 65 is the more
 	// common length.
 	// Apple's docs make no guarantees, hence no assumptions are made here.
-	if len(pubKeyRaw) < 3 {
+	switch {
+	case len(pubKeyRaw) < 3:
 		return nil, fmt.Errorf("public key representation too small (%v bytes)", len(pubKeyRaw))
+	case pubKeyRaw[0] != 0x04: // See explanation below.
+		return nil, fmt.Errorf("public key representation starts with unexpected byte (%#x vs 0x4)", pubKeyRaw[0])
 	}
 
 	// "For an elliptic curve public key, the format follows the ANSI X9.63
@@ -37,7 +40,7 @@ func ECDSAPublicKeyFromRaw(pubKeyRaw []byte) (*ecdsa.PublicKey, error) {
 	// representations use constant size integers, including leading zeros as
 	// needed."
 	// https://developer.apple.com/documentation/security/1643698-seckeycopyexternalrepresentation?language=objc
-	pubKeyRaw = pubKeyRaw[1:] // skip 0x04
+	pubKeyRaw = pubKeyRaw[1:] // skip 0x4
 	l := len(pubKeyRaw) / 2
 	x := pubKeyRaw[:l]
 	y := pubKeyRaw[l:]
