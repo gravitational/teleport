@@ -21,7 +21,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509/pkix"
-	"encoding/json"
 	"errors"
 	"fmt"
 	mathrand "math/rand"
@@ -30,7 +29,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/go-oidc/jose"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	reporting "github.com/gravitational/reporting/types"
@@ -186,6 +184,7 @@ func newAuthSuite(t *testing.T) *testPack {
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	native.PrecomputeTestKeys(m)
 	os.Exit(m.Run())
 }
 
@@ -752,107 +751,6 @@ func TestGenerateTokenEventsEmitted(t *testing.T) {
 	}})
 	require.NoError(t, err)
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterTokenCreateEvent)
-}
-
-func TestValidateACRValues(t *testing.T) {
-	s := newAuthSuite(t)
-
-	tests := []struct {
-		comment       string
-		inIDToken     string
-		inACRValue    string
-		inACRProvider string
-		outIsValid    require.ErrorAssertionFunc
-	}{
-		{
-			"0 - default, acr values match",
-			`
-{
-	"acr": "foo",
-	"aud": "00000000-0000-0000-0000-000000000000",
-    "exp": 1111111111
-}
-			`,
-			"foo",
-			"",
-			require.NoError,
-		},
-		{
-			"1 - default, acr values do not match",
-			`
-{
-	"acr": "foo",
-	"aud": "00000000-0000-0000-0000-000000000000",
-    "exp": 1111111111
-}
-			`,
-			"bar",
-			"",
-			require.Error,
-		},
-		{
-			"2 - netiq, acr values match",
-			`
-{
-    "acr": {
-        "values": [
-            "foo/bar/baz"
-        ]
-    },
-    "aud": "00000000-0000-0000-0000-000000000000",
-    "exp": 1111111111
-}
-			`,
-			"foo/bar/baz",
-			"netiq",
-			require.NoError,
-		},
-		{
-			"3 - netiq, invalid format",
-			`
-{
-    "acr": {
-        "values": "foo/bar/baz"
-    },
-    "aud": "00000000-0000-0000-0000-000000000000",
-    "exp": 1111111111
-}
-			`,
-			"foo/bar/baz",
-			"netiq",
-			require.Error,
-		},
-		{
-			"4 - netiq, invalid value",
-			`
-{
-    "acr": {
-        "values": [
-            "foo/bar/baz/qux"
-        ]
-    },
-    "aud": "00000000-0000-0000-0000-000000000000",
-    "exp": 1111111111
-}
-			`,
-			"foo/bar/baz",
-			"netiq",
-			require.Error,
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.comment, func(t *testing.T) {
-			t.Parallel()
-			var claims jose.Claims
-			err := json.Unmarshal([]byte(tt.inIDToken), &claims)
-			require.NoError(t, err)
-
-			err = s.a.validateACRValues(tt.inACRValue, tt.inACRProvider, claims)
-			tt.outIsValid(t, err)
-		})
-	}
 }
 
 func TestUpdateConfig(t *testing.T) {

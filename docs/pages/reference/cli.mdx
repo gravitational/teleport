@@ -140,7 +140,7 @@ information about the cluster.
 | `--user` | `$USER` | none | The Teleport username |
 | `--ttl` | `720` (12 hours) | integer | Number of minutes a certificate issued for the `tsh` user will be valid for |
 | `-i, --identity` | none | **string** filepath | Identity file |
-| `--cert-format` | `file` | `file` or `openssh` | SSH certificate format |
+| `--cert-format` | `standard` | `standard` or `oldssh` | SSH certificate format |
 | `--insecure` | none | none | Do not verify the server's certificate and host name. Use only in test environments. |
 | `--auth` | `local` | any defined [authentication connector](./authentication.mdx), including `local` and `passwordless` | Specify the type of authentication connector to use. |
 | `--mfa-mode` | auto | `auto`, `cross-platform`, `platform` or `otp` | Preferred mode for MFA and Passwordless assertions. |
@@ -1373,7 +1373,7 @@ $ tctl auth export [<flags>]
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--keys` | none | none | if set, will print private keys |
+| `--keys` | none | none | if set, only exports private keys |
 | `--fingerprint` | none | **string** e.g. `SHA256:<fingerprint>` | filter authority by fingerprint |
 | `--compat` | none | version number | export certificates compatible with specific version of Teleport |
 | `--type` | none | `user, host` or `tls` | certificate type |

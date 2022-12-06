@@ -1,0 +1,119 @@
+// Copyright 2022 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package prehog.v1alpha;
+
+import "google/protobuf/timestamp.proto";
+
+message UserLoginEvent {
+  // anonymized
+  string user_name = 1;
+  // empty for local or github/saml/oidc
+  string connector_type = 2;
+
+  // TODO(espadolini): should passwordless be a flag?
+}
+
+message SSOCreateEvent {
+  // github/saml/oidc
+  string connector_type = 1;
+}
+
+message ResourceCreateEvent {
+  // TODO(espadolini): is a resource the teleport process or the
+  // databases/desktops/kube clusters accessed through it?
+  string resource_type = 1;
+
+  // TODO(espadolini): flags for Discover, autodiscovery, join scripts?
+}
+
+message SessionStartEvent {
+  // anonymized
+  string user_name = 1;
+  // ssh/kube/desktop, maybe db?
+  string session_type = 2;
+}
+
+message UIBannerClickEvent {
+  // anonymized
+  string user_name = 1;
+  // cluster alert name
+  string alert = 2;
+}
+
+message UIOnboardGetStartedClickEvent {
+  // anonymized
+  string user_name = 1;
+}
+
+message UIOnboardCompleteGoToDashboardClickEvent {
+  // anonymized
+  string user_name = 1;
+}
+
+message UIOnboardAddFirstResourceClickEvent {
+  // anonymized
+  string user_name = 1;
+}
+
+message UIOnboardAddFirstResourceLaterClickEvent {
+  // anonymized
+  string user_name = 1;
+}
+
+message UIOnboardSetCredentialSubmitEvent {
+  // anonymized
+  string user_name = 1;
+}
+
+message UIOnboardRegisterChallengeSubmitEvent {
+  // anonymized
+  string user_name = 1;
+}
+
+message UIRecoveryCodesContinueClickEvent {
+  // anonymized
+  string user_name = 1;
+}
+
+message SubmitEventRequest {
+  // anonymized
+  string cluster_name = 1;
+
+  // optional, will default to the ingest time if unset
+  google.protobuf.Timestamp timestamp = 2;
+
+  oneof event {
+    UserLoginEvent user_login = 3;
+    SSOCreateEvent sso_create = 4;
+    ResourceCreateEvent resource_create = 5;
+    SessionStartEvent session_start = 6;
+
+    UIBannerClickEvent ui_banner_click = 7;
+    UIOnboardGetStartedClickEvent ui_onboard_get_started_click = 8;
+    UIOnboardCompleteGoToDashboardClickEvent ui_onboard_complete_go_to_dashboard_click = 9;
+    UIOnboardAddFirstResourceClickEvent ui_onboard_add_first_resource_click = 10;
+    UIOnboardAddFirstResourceLaterClickEvent ui_onboard_add_first_resource_later_click = 11;
+    UIOnboardSetCredentialSubmitEvent ui_onboard_set_credential_submit = 12;
+    UIOnboardRegisterChallengeSubmitEvent ui_onboard_register_challenge_submit = 13;
+    UIRecoveryCodesContinueClickEvent ui_recovery_codes_continue_click = 14;
+  }
+}
+message SubmitEventResponse {}
+
+service TeleportReportingService {
+  rpc SubmitEvent(SubmitEventRequest) returns (SubmitEventResponse) {}
+}
