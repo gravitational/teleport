@@ -762,7 +762,7 @@ func TestValidateBearerToken(t *testing.T) {
 	// Swap pack1's session token with pack2's sessionToken
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
-	pack1.clt = &TestWebClient{proxy.newClient(t, roundtrip.BearerAuth(pack2.session.Token), roundtrip.CookieJar(jar)), t}
+	pack1.clt = proxy.newClient(t, roundtrip.BearerAuth(pack2.session.Token), roundtrip.CookieJar(jar))
 	jar.SetCookies(&proxy.webURL, pack1.cookies)
 
 	// Auth protected endpoint.
@@ -3856,7 +3856,7 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 	authnClt := authPack.clt
 
 	// Unauthenticated client for public endpoints.
-	publicClt := &TestWebClient{proxy.newClient(t), t}
+	publicClt := proxy.newClient(t)
 
 	// Acquire a start token, for the request the requires it.
 	startToken, err := types.NewUserToken("some-token-id")
@@ -5915,6 +5915,9 @@ type TestWebClient struct {
 	t *testing.T
 }
 
+// It is understood that implementing RoundTrip here will NOT result in calls from `Get`, or `PostJSON` from
+// client.WebClient getting this verification.  Those functions would additionally need to be specified here.
+// Despite that, currently our use of RoundTrip directly is providing us enough broad coverage to verify these headers.
 func (c *TestWebClient) RoundTrip(fn roundtrip.RoundTripFn) (*roundtrip.Response, error) {
 	c.t.Helper()
 	resp, err := c.WebClient.RoundTrip(fn)
@@ -6344,7 +6347,7 @@ func (r *testProxy) authPack(t *testing.T, teleportUser string, roles []types.Ro
 	validToken, err := totp.GenerateCode(otpSecret, r.clock.Now())
 	require.NoError(t, err)
 
-	clt := &TestWebClient{r.newClient(t), t}
+	clt := r.newClient(t)
 	req := CreateSessionReq{
 		User:              teleportUser,
 		Pass:              pass,
@@ -6363,7 +6366,7 @@ func (r *testProxy) authPack(t *testing.T, teleportUser string, roles []types.Ro
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	clt = &TestWebClient{r.newClient(t, roundtrip.BearerAuth(session.Token), roundtrip.CookieJar(jar)), t}
+	clt = r.newClient(t, roundtrip.BearerAuth(session.Token), roundtrip.CookieJar(jar))
 	jar.SetCookies(&r.webURL, resp.Cookies())
 
 	return &authPack{
@@ -6381,7 +6384,7 @@ func (r *testProxy) authPackFromPack(t *testing.T, pack *authPack) *authPack {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	clt := &TestWebClient{r.newClient(t, roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar)), t}
+	clt := r.newClient(t, roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar))
 	jar.SetCookies(&r.webURL, pack.cookies)
 
 	result := *pack
@@ -6396,7 +6399,7 @@ func (r *testProxy) authPackFromResponse(t *testing.T, httpResp *roundtrip.Respo
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	clt := &TestWebClient{r.newClient(t, roundtrip.BearerAuth(resp.Token), roundtrip.CookieJar(jar)), t}
+	clt := r.newClient(t, roundtrip.BearerAuth(resp.Token), roundtrip.CookieJar(jar))
 	jar.SetCookies(&r.webURL, httpResp.Cookies())
 
 	session, err := resp.response()
@@ -6454,11 +6457,11 @@ func (r *testProxy) createUser(ctx context.Context, t *testing.T, user, login, p
 	}
 }
 
-func (r *testProxy) newClient(t *testing.T, opts ...roundtrip.ClientParam) *client.WebClient {
+func (r *testProxy) newClient(t *testing.T, opts ...roundtrip.ClientParam) *TestWebClient {
 	opts = append(opts, roundtrip.HTTPClient(client.NewInsecureWebClient()))
 	clt, err := client.NewWebClient(r.webURL.String(), opts...)
 	require.NoError(t, err)
-	return clt
+	return &TestWebClient{clt, t}
 }
 
 func (r *testProxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID) (*websocket.Conn, session.Session) {
