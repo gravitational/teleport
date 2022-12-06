@@ -94,6 +94,20 @@ func TestOIDCMapping(t *testing.T) {
 			},
 		},
 		{
+			comment: "no traits",
+			mappings: []types.ClaimMapping{
+				{Claim: "role", Value: "admin", Roles: []string{"admin", "bob"}},
+				{Claim: "role", Value: "user", Roles: []string{"user"}},
+			},
+			inputs: []input{
+				{
+					comment:       "no traits",
+					claims:        jose.Claims{},
+					expectedRoles: nil,
+				},
+			},
+		},
+		{
 			comment: "simple mappings",
 			mappings: []types.ClaimMapping{
 				{Claim: "role", Value: "admin", Roles: []string{"admin", "bob"}},
@@ -234,7 +248,7 @@ func TestOIDCMapping(t *testing.T) {
 			inputs: []input{
 				{
 					comment:       "invalid regexp",
-					claims:        jose.Claims{},
+					claims:        jose.Claims{"role": ""},
 					expectedRoles: nil,
 					warnings: []string{
 						`case-insensitive expression "^admin-(?!)$" is not a valid regexp`,

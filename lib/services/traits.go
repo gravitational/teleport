@@ -77,7 +77,13 @@ func TraitsToRoleMatchers(ms types.TraitMappingSet, traits map[string][]string) 
 
 // traitsToRoles maps the supplied traits to teleport role names and passes them to a collector.
 func traitsToRoles(ms types.TraitMappingSet, traits map[string][]string, collect func(role string, expanded bool)) (warnings []string) {
+	// if no traits, avoid compiling of trait mapping values as regular expressions
+	if len(traits) == 0 {
+		return
+	}
+
 	for _, mapping := range ms {
+		// compile each trait mapping value exactly twice
 		regexpIgnoreCase, err := utils.RegexpWithConfig(mapping.Value, utils.RegexpConfig{IgnoreCase: true})
 		if err != nil {
 			warnings = append(warnings, fmt.Sprintf("case-insensitive expression %q is not a valid regexp", mapping.Value))
@@ -141,7 +147,7 @@ func traitsToRoles(ms types.TraitMappingSet, traits map[string][]string, collect
 			}
 		}
 	}
-	return warnings
+	return
 }
 
 // literalMatcher is used to "escape" values which are not allowed to
