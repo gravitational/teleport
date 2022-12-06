@@ -100,6 +100,7 @@ const dbs: Database[] = [
     type: 'RDS PostgreSQL',
     protocol: 'postgres',
     labels: [{ name: 'cluster', value: 'root' }],
+    hostname: 'aurora-hostname',
   },
 ];
 
