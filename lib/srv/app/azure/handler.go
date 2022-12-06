@@ -278,7 +278,10 @@ type cacheKey struct {
 func (s *Forwarder) getToken(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
 	key := cacheKey{managedIdentity, scope}
 
-	return utils.FnCacheGet(ctx, s.tokenCache, key, func(ctx context.Context) (*azcore.AccessToken, error) {
+	ctxT, cancel := context.WithTimeout(ctx, time.Second*5)
+	defer cancel()
+
+	return utils.FnCacheGet(ctxT, s.tokenCache, key, func(ctx context.Context) (*azcore.AccessToken, error) {
 		return s.getAccessToken(ctx, managedIdentity, scope)
 	})
 }
