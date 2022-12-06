@@ -49,6 +49,10 @@ int32_t DeviceKeyGetOrCreate(const char *newID, PublicKey *pubKeyOut) {
   SecKeyRef pubKey = NULL;
   CFDataRef pubKeyRep = NULL;
 
+  // Unlike other checks, here we only proceed if the device key wasn't found.
+  // If DeviceKeyGet is successful, then a device key already exists.
+  // If DeviceKeyGet fails unexpectedly, then we pass that error forward and do
+  // not proceed.
   int32_t res = DeviceKeyGet(pubKeyOut);
   if (res != errSecItemNotFound) {
     goto end;
