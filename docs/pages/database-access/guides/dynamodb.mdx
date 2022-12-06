@@ -71,7 +71,8 @@ The next step is to give your Teleport users permissions to assume IAM roles in
 your Teleport cluster.
 
 You can do this by creating a Teleport role with the `aws_role_arns` field
-listing the IAM role ARN created in the previous step:
+listing the IAM role ARN created in the previous step. Create a file called
+`aws-dynamodb-access.yaml` with the following content:
 
 ```yaml
 kind: role
@@ -92,8 +93,13 @@ dynamically based on your users' identity provider attributes. See [Role
 Templates](../../access-controls/guides/role-templates.mdx) for details.
 </Details>
 
-Now assign this role to the Teleport users you wish to grant access to
-DynamoDB.
+Create the new role:
+
+```code
+$ tctl create -f aws-dynamodb-access.yaml
+```
+
+(!docs/pages/includes/add-role-to-user.mdx role="aws-dynamodb-access"!)
 
 ## Step 3/5. Install the Teleport Application Service
 

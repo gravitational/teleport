@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -77,8 +78,10 @@ func TestALPNConUpgradeDialer(t *testing.T) {
 		addr, err := url.Parse(server.URL)
 		require.NoError(t, err)
 
-		dialer := newALPNConnUpgradeDialer(0, 5*time.Second, true)
-		conn, err := dialer.DialContext(context.TODO(), "tcp", addr.Host)
+		ctx := context.TODO()
+		preDialer := apiclient.NewDialer(ctx, 0, 5*time.Second)
+		dialer := newALPNConnUpgradeDialer(preDialer, true)
+		conn, err := dialer.DialContext(ctx, "tcp", addr.Host)
 		require.NoError(t, err)
 
 		data := make([]byte, 100)
@@ -92,8 +95,10 @@ func TestALPNConUpgradeDialer(t *testing.T) {
 		addr, err := url.Parse(server.URL)
 		require.NoError(t, err)
 
-		dialer := newALPNConnUpgradeDialer(0, 5*time.Second, true)
-		_, err = dialer.DialContext(context.TODO(), "tcp", addr.Host)
+		ctx := context.TODO()
+		preDialer := apiclient.NewDialer(ctx, 0, 5*time.Second)
+		dialer := newALPNConnUpgradeDialer(preDialer, true)
+		_, err = dialer.DialContext(ctx, "tcp", addr.Host)
 		require.Error(t, err)
 	})
 }
