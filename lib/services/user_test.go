@@ -232,7 +232,7 @@ func TestOIDCMapping(t *testing.T) {
 					claims:        jose.Claims{},
 					expectedRoles: nil,
 					// if the regexp were compiled, we would have the same warnings as above
-					warnings:      nil,
+					warnings: nil,
 				},
 			},
 		},
