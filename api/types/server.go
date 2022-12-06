@@ -23,11 +23,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // Server represents a Node, Proxy or Auth server in a Teleport cluster
@@ -74,8 +74,10 @@ type Server interface {
 	SetApps([]*App)
 	// GetKubeClusters returns the kubernetes clusters directly handled by this
 	// server.
+	// DELETE IN 13.0.0
 	GetKubernetesClusters() []*KubernetesCluster
 	// SetKubeClusters sets the kubernetes clusters handled by this server.
+	// DELETE IN 13.0.0
 	SetKubernetesClusters([]*KubernetesCluster)
 	// GetPeerAddr returns the peer address of the server.
 	GetPeerAddr() string
@@ -333,9 +335,11 @@ func CombineLabels(static map[string]string, dynamic map[string]CommandLabelV2) 
 
 // GetKubernetesClusters returns the kubernetes clusters directly handled by this
 // server.
+// DEPRECATED, remove in 12.0.0
 func (s *ServerV2) GetKubernetesClusters() []*KubernetesCluster { return s.Spec.KubernetesClusters }
 
 // SetKubernetesClusters sets the kubernetes clusters handled by this server.
+// DEPRECATED, remove in 12.0.0
 func (s *ServerV2) SetKubernetesClusters(clusters []*KubernetesCluster) {
 	s.Spec.KubernetesClusters = clusters
 }

@@ -23,7 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams/dynamodbstreamsiface"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 // StreamsMetricsAPI wraps a dynamodbstreamsiface.DynamoDBStreamsAPI implementation and
@@ -35,7 +35,7 @@ type StreamsMetricsAPI struct {
 
 // NewStreamsMetricsAPI returns a new StreamsMetricsAPI for the provided TableType
 func NewStreamsMetricsAPI(tableType TableType, api dynamodbstreamsiface.DynamoDBStreamsAPI) (*StreamsMetricsAPI, error) {
-	if err := utils.RegisterPrometheusCollectors(dynamoCollectors...); err != nil {
+	if err := metrics.RegisterPrometheusCollectors(dynamoCollectors...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

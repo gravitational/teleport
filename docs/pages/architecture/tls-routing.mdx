@@ -25,6 +25,17 @@ To implement TLS routing, Teleport uses SNI ([Server Name Indication](https://en
 and ALPN ([Application-Level Protocol Negotiation](https://en.wikipedia.org/wiki/Application-Layer_Protocol_Negotiation))
 TLS extensions.
 
+<Admonition
+  type="warning"
+  title="TLS routing is incompatible with layer 7 load balancers and reverse proxies"
+>
+TLS routing will not work in environments where layer 7 load balancers or reverse proxies are used. See further information in the [When to use TLS routing](#when-to-use-tls-routing) section below.
+</Admonition>
+
+## When to use TLS routing
+
+(!docs/pages/includes/tls-multiplexing-warnings.mdx!)
+
 ## How it works
 
 Starting from version `8.0` Teleport proxy listens for all client connections
@@ -72,7 +83,7 @@ Let's take a look at how each protocol Teleport supports implements TLS routing.
 ## SSH
 
 Teleport client `tsh`, when connecting to an SSH node, first dials Teleport
-proxy over TLS and requests `teleport-ssh-proxy` ALPN protocol.
+proxy over TLS and requests `teleport-proxy-ssh` ALPN protocol.
 
 No local proxy is started in this case as `tsh` uses this TLS connection as a
 transport to establish the SSH connection.
@@ -83,7 +94,7 @@ To support standard OpenSSH client, Teleport provides a `tsh proxy ssh` command
 which can be used as a `ProxyCommand`.
 
 Similarly to `tsh ssh`, `tsh proxy ssh` establishes a TLS tunnel to Teleport
-proxy with `teleport-ssh-proxy` ALPN protocol, which `ssh` then connects over.
+proxy with `teleport-proxy-ssh` ALPN protocol, which `ssh` then connects over.
 
 See the [OpenSSH client](../server-access/guides/openssh.mdx) guide for details on
 how it's configured.
@@ -136,7 +147,7 @@ Teleport provides a `tsh proxy db` command to launch a local database proxy:
 $ tsh proxy db example-db
 ```
 
-See [GUI clients](../database-access/guides/gui-clients.mdx) guide for a usage
+See [GUI clients](../connect-your-client/gui-clients.mdx) guide for a usage
 example.
 
 ## Web UI, apps and desktops
@@ -148,6 +159,6 @@ protocols for ALPN.
 
 ## Next steps
 
-- See [migration guide](../setup/operations/tls-routing.mdx) to learn how to
+- See [migration guide](../management/operations/tls-routing.mdx) to learn how to
   upgrade an existing cluster to use TLS routing.
 - Read through TLS routing design document [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0039-sni-alpn-teleport-proxy-routing.md).

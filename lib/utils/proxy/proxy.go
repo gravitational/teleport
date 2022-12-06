@@ -23,15 +23,16 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gravitational/teleport"
-	apiclient "github.com/gravitational/teleport/api/client"
-	apiproxy "github.com/gravitational/teleport/api/client/proxy"
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
+	apiproxy "github.com/gravitational/teleport/api/client/proxy"
+	"github.com/gravitational/teleport/api/observability/tracing"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -57,6 +58,9 @@ func dialWithDeadline(ctx context.Context, network string, addr string, config *
 // TLS connection where TLS ALPN protocol is set to ProtocolReverseTunnel allowing ALPN Proxy to route the
 // incoming connection to ReverseTunnel proxy service.
 func (d directDial) dialALPNWithDeadline(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
+	ctx, span := tracing.DefaultProvider().Tracer("dialer").Start(ctx, "directDial/dialALPNWithDeadline")
+	defer span.End()
+
 	dialer := &net.Dialer{
 		Timeout: config.Timeout,
 	}

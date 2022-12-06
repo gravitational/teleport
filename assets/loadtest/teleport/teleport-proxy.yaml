@@ -1,3 +1,4 @@
+version: v3
 teleport:
   log:
     severity: DEBUG
@@ -5,7 +6,7 @@ teleport:
       output: json
 
   data_dir: /var/lib/teleport
-  auth_servers: ["auth:3025"]
+  auth_server: auth:3025
   auth_token: "proxy-${PROXY_TOKEN}"
   cache:
     type: in-memory

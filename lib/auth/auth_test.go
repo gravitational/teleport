@@ -21,7 +21,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509/pkix"
-	"encoding/json"
 	"errors"
 	"fmt"
 	mathrand "math/rand"
@@ -30,9 +29,13 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	reporting "github.com/gravitational/reporting/types"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -40,6 +43,8 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -56,14 +61,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	reporting "github.com/gravitational/reporting/types"
-	"github.com/gravitational/trace"
-
-	"github.com/coreos/go-oidc/jose"
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 )
 
 type testPack struct {
@@ -73,7 +70,9 @@ type testPack struct {
 	mockEmitter *eventstest.MockEmitter
 }
 
-func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
+func newTestPack(
+	ctx context.Context, dataDir string, opts ...ServerOption,
+) (testPack, error) {
 	var (
 		p   testPack
 		err error
@@ -88,13 +87,21 @@ func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
 	if err != nil {
 		return p, trace.Wrap(err)
 	}
+
+	p.mockEmitter = &eventstest.MockEmitter{}
 	authConfig := &InitConfig{
 		Backend:                p.bk,
 		ClusterName:            p.clusterName,
 		Authority:              testauthority.New(),
+		Emitter:                p.mockEmitter,
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			},
+		},
 	}
-	p.a, err = NewServer(authConfig)
+	p.a, err = NewServer(authConfig, opts...)
 	if err != nil {
 		return p, trace.Wrap(err)
 	}
@@ -160,8 +167,6 @@ func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
 		return p, trace.Wrap(err)
 	}
 
-	p.mockEmitter = &eventstest.MockEmitter{}
-	p.a.emitter = p.mockEmitter
 	return p, nil
 }
 
@@ -179,6 +184,7 @@ func newAuthSuite(t *testing.T) *testPack {
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	native.PrecomputeTestKeys(m)
 	os.Exit(m.Run())
 }
 
@@ -300,10 +306,11 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:          gotTLSCert.NotAfter,
 		RouteToCluster:   s.clusterName.GetClusterName(),
 		TeleportCluster:  s.clusterName.GetClusterName(),
+		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
 	}
 	gotID, err := tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
-	require.Equal(t, *gotID, wantID)
+	require.Equal(t, wantID, *gotID)
 
 	// Login to the leaf cluster.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
@@ -332,6 +339,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    "leaf.localhost",
 		TeleportCluster:   s.clusterName.GetClusterName(),
+		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -339,14 +347,17 @@ func TestAuthenticateSSHUser(t *testing.T) {
 
 	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
 	// generation.
-	_, err = s.a.UpsertKubeServiceV2(ctx, &types.ServerV2{
-		Metadata: types.Metadata{Name: "kube-service"},
-		Kind:     types.KindKubeService,
-		Version:  types.V2,
-		Spec: types.ServerSpecV2{
-			KubernetesClusters: []*types.KubernetesCluster{{Name: "root-kube-cluster"}},
+	kubeCluster, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: "root-kube-cluster",
 		},
-	})
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+
+	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "host", "uuid")
+	require.NoError(t, err)
+	_, err = s.a.UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
 
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
@@ -374,6 +385,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
+		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -407,6 +419,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
+		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -449,6 +462,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
+		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -482,6 +496,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
+		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -738,107 +753,6 @@ func TestGenerateTokenEventsEmitted(t *testing.T) {
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterTokenCreateEvent)
 }
 
-func TestValidateACRValues(t *testing.T) {
-	s := newAuthSuite(t)
-
-	tests := []struct {
-		comment       string
-		inIDToken     string
-		inACRValue    string
-		inACRProvider string
-		outIsValid    require.ErrorAssertionFunc
-	}{
-		{
-			"0 - default, acr values match",
-			`
-{
-	"acr": "foo",
-	"aud": "00000000-0000-0000-0000-000000000000",
-    "exp": 1111111111
-}
-			`,
-			"foo",
-			"",
-			require.NoError,
-		},
-		{
-			"1 - default, acr values do not match",
-			`
-{
-	"acr": "foo",
-	"aud": "00000000-0000-0000-0000-000000000000",
-    "exp": 1111111111
-}
-			`,
-			"bar",
-			"",
-			require.Error,
-		},
-		{
-			"2 - netiq, acr values match",
-			`
-{
-    "acr": {
-        "values": [
-            "foo/bar/baz"
-        ]
-    },
-    "aud": "00000000-0000-0000-0000-000000000000",
-    "exp": 1111111111
-}
-			`,
-			"foo/bar/baz",
-			"netiq",
-			require.NoError,
-		},
-		{
-			"3 - netiq, invalid format",
-			`
-{
-    "acr": {
-        "values": "foo/bar/baz"
-    },
-    "aud": "00000000-0000-0000-0000-000000000000",
-    "exp": 1111111111
-}
-			`,
-			"foo/bar/baz",
-			"netiq",
-			require.Error,
-		},
-		{
-			"4 - netiq, invalid value",
-			`
-{
-    "acr": {
-        "values": [
-            "foo/bar/baz/qux"
-        ]
-    },
-    "aud": "00000000-0000-0000-0000-000000000000",
-    "exp": 1111111111
-}
-			`,
-			"foo/bar/baz",
-			"netiq",
-			require.Error,
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.comment, func(t *testing.T) {
-			t.Parallel()
-			var claims jose.Claims
-			err := json.Unmarshal([]byte(tt.inIDToken), &claims)
-			require.NoError(t, err)
-
-			err = s.a.validateACRValues(tt.inACRValue, tt.inACRProvider, claims)
-			tt.outIsValid(t, err)
-		})
-	}
-}
-
 func TestUpdateConfig(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
@@ -862,6 +776,11 @@ func TestUpdateConfig(t *testing.T) {
 		Backend:                s.bk,
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			},
+		},
 	}
 	authServer, err := NewServer(authConfig)
 	require.NoError(t, err)
@@ -1014,18 +933,21 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 	err = s.a.upsertGithubConnector(ctx, github)
 	require.NoError(t, err)
+	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test github update event
 	err = s.a.upsertGithubConnector(ctx, github)
 	require.NoError(t, err)
+	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test github delete event
 	err = s.a.deleteGithubConnector(ctx, "test")
 	require.NoError(t, err)
+	require.IsType(t, &apievents.GithubConnectorDelete{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorDeletedEvent)
 }
 
@@ -1049,18 +971,21 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 	err = s.a.UpsertOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
+	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test oidc update event
 	err = s.a.UpsertOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
+	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test oidc delete event
 	err = s.a.DeleteOIDCConnector(ctx, "test")
 	require.NoError(t, err)
+	require.IsType(t, &apievents.OIDCConnectorDelete{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorDeletedEvent)
 }
 
@@ -1085,6 +1010,12 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// SAML connector validation requires the roles in mappings exist.
+	role, err := types.NewRole("dummy", types.RoleSpecV5{})
+	require.NoError(t, err)
+	err = s.a.CreateRole(ctx, role)
+	require.NoError(t, err)
+
 	// test saml create
 	saml, err := types.NewSAMLConnector("test", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "a",
@@ -1094,7 +1025,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 			{
 				Name:  "dummy",
 				Value: "dummy",
-				Roles: []string{"dummy"},
+				Roles: []string{role.GetName()},
 			},
 		},
 		Cert: string(certBytes),
@@ -1103,18 +1034,21 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 
 	err = s.a.UpsertSAMLConnector(ctx, saml)
 	require.NoError(t, err)
+	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test saml update event
 	err = s.a.UpsertSAMLConnector(ctx, saml)
 	require.NoError(t, err)
+	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test saml delete event
 	err = s.a.DeleteSAMLConnector(ctx, "test")
 	require.NoError(t, err)
+	require.IsType(t, &apievents.SAMLConnectorDelete{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorDeletedEvent)
 }
 
@@ -1261,7 +1195,7 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
-	_, err = p.a.GenerateHostCert(pub, hostID, "test-node", []string{},
+	_, err = p.a.GenerateHostCert(ctx, pub, hostID, "test-node", []string{},
 		p.clusterName.GetClusterName(), types.RoleNode, time.Minute)
 	require.NoError(t, err)
 
@@ -1282,12 +1216,12 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for lock update.")
 	}
-	_, err = p.a.GenerateHostCert(pub, hostID, "test-node", []string{}, p.clusterName.GetClusterName(), types.RoleNode, time.Minute)
+	_, err = p.a.GenerateHostCert(ctx, pub, hostID, "test-node", []string{}, p.clusterName.GetClusterName(), types.RoleNode, time.Minute)
 	require.Error(t, err)
 	require.EqualError(t, err, services.LockInForceAccessDenied(lock).Error())
 
 	// Locks targeting nodes should not apply to other system roles.
-	_, err = p.a.GenerateHostCert(pub, hostID, "test-proxy", []string{}, p.clusterName.GetClusterName(), types.RoleProxy, time.Minute)
+	_, err = p.a.GenerateHostCert(ctx, pub, hostID, "test-proxy", []string{}, p.clusterName.GetClusterName(), types.RoleProxy, time.Minute)
 	require.NoError(t, err)
 }
 
@@ -2031,28 +1965,30 @@ func TestFilterResources(t *testing.T) {
 }
 
 func TestCAGeneration(t *testing.T) {
+	ctx := context.Background()
 	const (
 		clusterName = "cluster1"
 		HostUUID    = "0000-000-000-0000"
 	)
 	native.PrecomputeKeys()
 	// Cache key for better performance as we don't care about the value being unique.
-	privKey, pubKey, err := native.GenerateKeyPair()
+	privKey, pubKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	ksConfig := keystore.Config{
-		RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
-			return privKey, pubKey, nil
+		Software: keystore.SoftwareConfig{
+			RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
+				return privKey, pubKey, nil
+			},
 		},
-		HostUUID: HostUUID,
 	}
-	keyStore, err := keystore.NewKeyStore(ksConfig)
+	keyStore, err := keystore.NewManager(ctx, ksConfig)
 	require.NoError(t, err)
 
 	for _, caType := range types.CertAuthTypes {
 		t.Run(string(caType), func(t *testing.T) {
 			testKeySet := suite.NewTestCA(caType, clusterName, privKey).Spec.ActiveKeys
-			keySet, err := newKeySet(keyStore, types.CertAuthID{Type: caType, DomainName: clusterName})
+			keySet, err := newKeySet(ctx, keyStore, types.CertAuthID{Type: caType, DomainName: clusterName})
 			require.NoError(t, err)
 
 			// Don't compare values as those are different. Only check if the key is set/not set in both cases.
@@ -2100,4 +2036,51 @@ func TestEnforcerGetLicenseCheckResult(t *testing.T) {
 	heartbeat, err := s.a.GetLicenseCheckResult(ctx)
 	require.NoError(t, err)
 	require.Equal(t, expected, heartbeat.Spec.Notifications)
+}
+
+func TestInstallerCRUD(t *testing.T) {
+	t.Parallel()
+	s := newAuthSuite(t)
+	ctx := context.Background()
+
+	var inst types.Installer
+	var err error
+	contents := "#! just some script contents"
+	inst, err = types.NewInstallerV1(installers.InstallerScriptName, contents)
+	require.NoError(t, err)
+
+	require.NoError(t, s.a.SetInstaller(ctx, inst))
+
+	inst, err = s.a.GetInstaller(ctx, installers.InstallerScriptName)
+	require.NoError(t, err)
+	require.Equal(t, contents, inst.GetScript())
+
+	newContents := "nothing useful here"
+	newInstaller, err := types.NewInstallerV1("other-script", newContents)
+	require.NoError(t, err)
+	require.NoError(t, s.a.SetInstaller(ctx, newInstaller))
+
+	newInst, err := s.a.GetInstaller(ctx, "other-script")
+	require.NoError(t, err)
+	require.Equal(t, newContents, newInst.GetScript())
+
+	instcoll, err := s.a.GetInstallers(ctx)
+	require.NoError(t, err)
+	var instScripts []string
+	for _, inst := range instcoll {
+		instScripts = append(instScripts, inst.GetScript())
+	}
+
+	require.ElementsMatch(t,
+		[]string{inst.GetScript(), newInst.GetScript()},
+		instScripts,
+	)
+
+	err = s.a.DeleteInstaller(ctx, installers.InstallerScriptName)
+	require.NoError(t, err)
+
+	_, err = s.a.GetInstaller(ctx, installers.InstallerScriptName)
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err))
+
 }

@@ -35,22 +35,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgproto3/v2"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/constants"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/multiplexer/test"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-
-	"github.com/jackc/pgproto3/v2"
-	"github.com/stretchr/testify/require"
+	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 func TestMain(m *testing.M) {
@@ -61,7 +61,7 @@ func TestMain(m *testing.M) {
 // TestMux tests multiplexing protocols
 // using the same listener.
 func TestMux(t *testing.T) {
-	_, signer, err := utils.CreateCertificate("foo", ssh.HostCert)
+	_, signer, err := cert.CreateCertificate("foo", ssh.HostCert)
 	require.NoError(t, err)
 
 	// TestMux tests basic use case of multiplexing TLS
@@ -300,16 +300,17 @@ func TestMux(t *testing.T) {
 		require.NotNil(t, err)
 	})
 
-	// Timeout tests client timeout - client dials, but writes nothing
-	// make sure server hangs up
+	// Timeout test makes sure that multiplexer respects read deadlines.
 	t.Run("Timeout", func(t *testing.T) {
 		t.Parallel()
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
 
 		config := Config{
-			Listener:            listener,
-			ReadDeadline:        time.Millisecond,
+			Listener: listener,
+			// Set read deadline in the past to remove reliance on real time
+			// and simulate scenario when read deadline has elapsed.
+			ReadDeadline:        -time.Millisecond,
 			EnableProxyProtocol: true,
 		}
 		mux, err := New(config)
@@ -334,9 +335,6 @@ func TestMux(t *testing.T) {
 		conn, err := net.Dial("tcp", parsedURL.Host)
 		require.NoError(t, err)
 		defer conn.Close()
-
-		// sleep until well after the deadline
-		time.Sleep(config.ReadDeadline + 50*time.Millisecond)
 
 		// upgrade connection to TLS
 		tlsConn := tls.Client(conn, clientConfig(backend1))
@@ -653,7 +651,7 @@ func TestMux(t *testing.T) {
 		certPool.AppendCertsFromPEM(caCert)
 
 		// Sign server certificate.
-		serverRSAKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+		serverRSAKey, err := native.GenerateRSAPrivateKey()
 		require.NoError(t, err)
 		serverPEM, err := ca.GenerateCertificate(tlsca.CertificateRequest{
 			Subject:   pkix.Name{CommonName: "localhost"},
@@ -813,7 +811,9 @@ func TestProtocolString(t *testing.T) {
 }
 
 // server is used to implement test.PingerServer
-type server struct{}
+type server struct {
+	test.UnimplementedPingerServer
+}
 
 func (s *server) Ping(ctx context.Context, req *test.Request) (*test.Response, error) {
 	return &test.Response{Payload: "grpc backend"}, nil
@@ -867,4 +867,26 @@ func (noopListener) Close() error {
 
 func (l noopListener) Addr() net.Addr {
 	return l.addr
+}
+
+func TestIsHTTP(t *testing.T) {
+	t.Parallel()
+	for _, verb := range httpMethods {
+		t.Run(fmt.Sprintf("Accept %v", string(verb)), func(t *testing.T) {
+			data := fmt.Sprintf("%v /some/path HTTP/1.1", string(verb))
+			require.True(t, isHTTP([]byte(data)))
+		})
+	}
+
+	rejectedInputs := []string{
+		"some random junk",
+		"FAKE /some/path HTTP/1.1",
+		// This case checks for a bug where the arguments to bytes.HasPrefix are reversed.
+		"GE",
+	}
+	for _, input := range rejectedInputs {
+		t.Run(fmt.Sprintf("Reject %q", input), func(t *testing.T) {
+			require.False(t, isHTTP([]byte(input)))
+		})
+	}
 }

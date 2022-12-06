@@ -21,17 +21,16 @@ import (
 	"net"
 	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -82,13 +81,28 @@ func ContextFromNewChannel(nch ssh.NewChannel, opts ...tracing.Option) (context.
 // initiates the SSH handshake, and then sets up a Client.  For access
 // to incoming channels and requests, use net.Dial with NewClientConn
 // instead.
-func Dial(ctx context.Context, network, addr string, config *ssh.ClientConfig) (*Client, error) {
+func Dial(ctx context.Context, network, addr string, config *ssh.ClientConfig, opts ...tracing.Option) (*Client, error) {
+	tracer := tracing.NewConfig(opts).TracerProvider.Tracer(instrumentationName)
+	ctx, span := tracer.Start(
+		ctx,
+		"ssh/Dial",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("network", network),
+			attribute.String("address", addr),
+			semconv.RPCServiceKey.String("ssh"),
+			semconv.RPCMethodKey.String("Dial"),
+			semconv.RPCSystemKey.String("ssh"),
+		),
+	)
+	defer span.End()
+
 	dialer := net.Dialer{Timeout: config.Timeout}
 	conn, err := dialer.DialContext(ctx, network, addr)
 	if err != nil {
 		return nil, err
 	}
-	c, chans, reqs, err := NewClientConn(ctx, conn, addr, config)
+	c, chans, reqs, err := NewClientConn(ctx, conn, addr, config, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -97,17 +111,33 @@ func Dial(ctx context.Context, network, addr string, config *ssh.ClientConfig) (
 
 // NewClientConn creates a new SSH client connection that is passed tracing context so that spans may be correlated
 // properly over the ssh connection.
-func NewClientConn(ctx context.Context, conn net.Conn, addr string, config *ssh.ClientConfig) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
+func NewClientConn(ctx context.Context, conn net.Conn, addr string, config *ssh.ClientConfig, opts ...tracing.Option) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
+	tracer := tracing.NewConfig(opts).TracerProvider.Tracer(instrumentationName)
+	ctx, span := tracer.Start(
+		ctx,
+		"ssh/NewClientConn",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			append(
+				peerAttr(conn.RemoteAddr()),
+				attribute.String("address", addr),
+				semconv.RPCServiceKey.String("ssh"),
+				semconv.RPCMethodKey.String("NewClientConn"),
+				semconv.RPCSystemKey.String("ssh"),
+			)...,
+		),
+	)
+	defer span.End()
+
 	hp := &sshutils.HandshakePayload{
-		TracingContext: tracing.PropagationContextFromContext(ctx),
+		TracingContext: tracing.PropagationContextFromContext(ctx, opts...),
 	}
 
 	if len(hp.TracingContext) > 0 {
 		payloadJSON, err := json.Marshal(hp)
 		if err == nil {
 			payload := fmt.Sprintf("%s%s\x00", sshutils.ProxyHelloSignature, payloadJSON)
-			_, err = conn.Write([]byte(payload))
-			if err != nil {
+			if _, err := conn.Write([]byte(payload)); err != nil {
 				log.WithError(err).Warnf("Failed to pass along tracing context to proxy %v", addr)
 			}
 		}
@@ -122,13 +152,13 @@ func NewClientConn(ctx context.Context, conn net.Conn, addr string, config *ssh.
 }
 
 // NewClientConnWithDeadline establishes new client connection with specified deadline
-func NewClientConnWithDeadline(ctx context.Context, conn net.Conn, addr string, config *ssh.ClientConfig) (*Client, error) {
+func NewClientConnWithDeadline(ctx context.Context, conn net.Conn, addr string, config *ssh.ClientConfig, opts ...tracing.Option) (*Client, error) {
 	if config.Timeout > 0 {
 		if err := conn.SetReadDeadline(time.Now().Add(config.Timeout)); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	c, chans, reqs, err := NewClientConn(ctx, conn, addr, config)
+	c, chans, reqs, err := NewClientConn(ctx, conn, addr, config, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +167,7 @@ func NewClientConnWithDeadline(ctx context.Context, conn net.Conn, addr string, 
 			return nil, trace.Wrap(err)
 		}
 	}
-	return NewClient(c, chans, reqs), nil
+	return NewClient(c, chans, reqs, opts...), nil
 }
 
 // peerAttr returns attributes about the peer address.

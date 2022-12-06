@@ -23,6 +23,12 @@ import (
 	"net"
 	"sync"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -38,19 +44,11 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
-	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 // Server is a forwarding server. Server is used to create a single in-memory
@@ -60,19 +58,19 @@ import (
 //
 // To create a forwarding server and serve a single SSH connection on it:
 //
-//   serverConfig := forward.ServerConfig{
-//      ...
-//   }
-//   remoteServer, err := forward.New(serverConfig)
-//   if err != nil {
-//   	return nil, trace.Wrap(err)
-//   }
-//   go remoteServer.Serve()
+//	serverConfig := forward.ServerConfig{
+//	   ...
+//	}
+//	remoteServer, err := forward.New(serverConfig)
+//	if err != nil {
+//		return nil, trace.Wrap(err)
+//	}
+//	go remoteServer.Serve()
 //
-//   conn, err := remoteServer.Dial()
-//   if err != nil {
-//   	return nil, trace.Wrap(err)
-//   }
+//	conn, err := remoteServer.Dial()
+//	if err != nil {
+//		return nil, trace.Wrap(err)
+//	}
 type Server struct {
 	log *logrus.Entry
 
@@ -140,7 +138,6 @@ type Server struct {
 	authClient      auth.ClientI
 	authService     srv.AccessPoint
 	sessionRegistry *srv.SessionRegistry
-	sessionServer   session.Service
 	dataDir         string
 
 	clock clockwork.Clock
@@ -277,7 +274,7 @@ func New(c ServerConfig) (*Server, error) {
 	// Build a pipe connection to hook up the client and the server. we save both
 	// here and will pass them along to the context when we create it so they
 	// can be closed by the context.
-	serverConn, clientConn := utils.DualPipeNetConn(c.SrcAddr, c.DstAddr)
+	serverConn, clientConn, err := utils.DualPipeNetConn(c.SrcAddr, c.DstAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -300,7 +297,6 @@ func New(c ServerConfig) (*Server, error) {
 		address:         c.Address,
 		authClient:      c.AuthClient,
 		authService:     c.AuthClient,
-		sessionServer:   c.AuthClient,
 		dataDir:         c.DataDir,
 		clock:           c.Clock,
 		hostUUID:        c.HostUUID,
@@ -414,11 +410,6 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 	return s.authService
 }
 
-// GetSessionServer returns a session server.
-func (s *Server) GetSessionServer() session.Service {
-	return s.sessionServer
-}
-
 // GetPAM returns the PAM configuration for a server. Because the forwarding
 // server runs in-memory, it does not support PAM.
 func (s *Server) GetPAM() (*pam.Config, error) {
@@ -434,7 +425,7 @@ func (s *Server) UseTunnel() bool {
 // GetBPF returns the BPF service used by enhanced session recording. BPF
 // for the forwarding server makes no sense (it has to run on the actual
 // node), so return a NOP implementation.
-func (s Server) GetBPF() bpf.BPF {
+func (s *Server) GetBPF() bpf.BPF {
 	return &bpf.NOP{}
 }
 
@@ -444,7 +435,7 @@ func (s *Server) GetCreateHostUser() bool {
 	return false
 }
 
-// GetHostUser returns the HostUsers instance being used to manage
+// GetHostUsers returns the HostUsers instance being used to manage
 // host user provisioning, unimplemented for the forwarder server.
 func (s *Server) GetHostUsers() srv.HostUsers {
 	return nil
@@ -453,7 +444,7 @@ func (s *Server) GetHostUsers() srv.HostUsers {
 // GetRestrictedSessionManager returns a NOP manager since for a
 // forwarding server it makes no sense (it has to run on the actual
 // node).
-func (s Server) GetRestrictedSessionManager() restricted.Manager {
+func (s *Server) GetRestrictedSessionManager() restricted.Manager {
 	return &restricted.NOP{}
 }
 
@@ -532,7 +523,7 @@ func (s *Server) Serve() {
 	s.sconn = sconn
 
 	ctx := context.Background()
-	ctx, s.connectionContext = sshutils.NewConnectionContext(ctx, s.serverConn, s.sconn)
+	ctx, s.connectionContext = sshutils.NewConnectionContext(ctx, s.serverConn, s.sconn, sshutils.SetConnectionContextClock(s.clock))
 
 	// Take connection and extract identity information for the user from it.
 	s.identityContext, err = s.authHandlers.CreateIdentityContext(sconn)
@@ -612,7 +603,7 @@ func (s *Server) Close() error {
 	return trace.NewAggregate(errs...)
 }
 
-// newRemoteSession will create and return a *ssh.Client and *ssh.Session
+// newRemoteClient creates and returns a *ssh.Client and *ssh.Session
 // with a remote host.
 func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*tracessh.Client, error) {
 	// the proxy will use the agent that has been forwarded to it as the auth
@@ -620,7 +611,13 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*trac
 	if s.userAgent == nil {
 		return nil, trace.AccessDenied("agent must be forwarded to proxy")
 	}
-	authMethod := ssh.PublicKeysCallback(s.userAgent.Signers)
+
+	signers, err := s.userAgent.Signers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authMethod := ssh.PublicKeysCallback(signersWithSHA1Fallback(signers))
 
 	clientConfig := &ssh.ClientConfig{
 		User: systemLogin,
@@ -645,8 +642,28 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*trac
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return client, nil
+
+}
+
+// signersWithSHA1Fallback returns the signers provided by signersCb and appends
+// the same signers with forced SHA-1 signature to the end. This behavior is
+// required as older OpenSSH version <= 7.6 don't support SHA-2 signed certificates.
+func signersWithSHA1Fallback(signers []ssh.Signer) func() ([]ssh.Signer, error) {
+	return func() ([]ssh.Signer, error) {
+		var sha1Signers []ssh.Signer
+		for _, signer := range signers {
+			if s, ok := signer.(ssh.AlgorithmSigner); ok && s.PublicKey().Type() == ssh.CertAlgoRSAv01 {
+				// If certificate signer supports SignWithAlgorithm(rand io.Reader, data []byte, algorithm string)
+				// method from the ssh.AlgorithmSigner interface add SHA-1 signer.
+				sha1Signers = append(sha1Signers, &sshutils.LegacySHA1Signer{Signer: s})
+			}
+		}
+
+		// Merge original signers with the SHA-1 we created.
+		// Order is important here as we want SHA2 signers to be used first.
+		return append(signers, sha1Signers...), nil
+	}
 }
 
 func (s *Server) handleConnection(ctx context.Context, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
@@ -1008,13 +1025,13 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	if scx.JoinOnly {
 		switch req.Type {
 		case tracessh.TracingRequest:
-			return s.handleTracingRequest(req, scx)
+			return s.handleTracingRequest(ctx, req, scx)
 		case sshutils.PTYRequest:
-			return s.termHandlers.HandlePTYReq(ch, req, scx)
+			return s.termHandlers.HandlePTYReq(ctx, ch, req, scx)
 		case sshutils.ShellRequest:
 			return s.termHandlers.HandleShell(ctx, ch, req, scx)
 		case sshutils.WindowChangeRequest:
-			return s.termHandlers.HandleWinChange(ch, req, scx)
+			return s.termHandlers.HandleWinChange(ctx, ch, req, scx)
 		case teleport.ForceTerminateRequest:
 			return s.termHandlers.HandleForceTerminate(ch, req, scx)
 		case sshutils.EnvRequest:
@@ -1038,19 +1055,19 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 
 	switch req.Type {
 	case tracessh.TracingRequest:
-		return s.handleTracingRequest(req, scx)
+		return s.handleTracingRequest(ctx, req, scx)
 	case sshutils.ExecRequest:
 		return s.termHandlers.HandleExec(ctx, ch, req, scx)
 	case sshutils.PTYRequest:
-		return s.termHandlers.HandlePTYReq(ch, req, scx)
+		return s.termHandlers.HandlePTYReq(ctx, ch, req, scx)
 	case sshutils.ShellRequest:
 		return s.termHandlers.HandleShell(ctx, ch, req, scx)
 	case sshutils.WindowChangeRequest:
-		return s.termHandlers.HandleWinChange(ch, req, scx)
+		return s.termHandlers.HandleWinChange(ctx, ch, req, scx)
 	case teleport.ForceTerminateRequest:
 		return s.termHandlers.HandleForceTerminate(ch, req, scx)
 	case sshutils.EnvRequest:
-		return s.handleEnv(ch, req, scx)
+		return s.handleEnv(ctx, ch, req, scx)
 	case sshutils.SubsystemRequest:
 		return s.handleSubsystem(ctx, ch, req, scx)
 	case sshutils.X11ForwardRequest:
@@ -1084,7 +1101,7 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.S
 	}
 
 	// Make an "auth-agent-req@openssh.com" request on the remote host.
-	err = agent.RequestAgentForwarding(ctx.RemoteSession)
+	err = agent.RequestAgentForwarding(ctx.RemoteSession.Session)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1117,14 +1134,14 @@ func (s *Server) handleX11ChannelRequest(ctx context.Context, nch ssh.NewChannel
 	defer cancel()
 
 	go func() {
-		err := sshutils.ForwardRequests(ctx, cin, sch)
+		err := sshutils.ForwardRequests(ctx, cin, tracessh.NewTraceChannel(sch, tracing.WithTracerProvider(s.tracerProvider)))
 		if err != nil {
 			s.log.WithError(err).Debug("Failed to forward ssh request from client during X11 forwarding")
 		}
 	}()
 
 	go func() {
-		err := sshutils.ForwardRequests(ctx, sin, cch)
+		err := sshutils.ForwardRequests(ctx, sin, tracessh.NewTraceChannel(cch, tracing.WithTracerProvider(s.tracerProvider)))
 		if err != nil {
 			s.log.WithError(err).Debug("Failed to forward ssh request from server during X11 forwarding")
 		}
@@ -1175,7 +1192,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 	}
 
 	// send X11 forwarding request to remote
-	ok, err := sshutils.ForwardRequest(scx.RemoteSession, req)
+	ok, err := sshutils.ForwardRequest(ctx, scx.RemoteSession, req)
 	if err != nil {
 		return trace.Wrap(err)
 	} else if !ok {
@@ -1218,22 +1235,22 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	return nil
 }
 
-func (s *Server) handleTracingRequest(req *ssh.Request, ctx *srv.ServerContext) error {
-	if _, err := ctx.RemoteSession.SendRequest(req.Type, false, req.Payload); err != nil {
+func (s *Server) handleTracingRequest(ctx context.Context, req *ssh.Request, scx *srv.ServerContext) error {
+	if _, err := scx.RemoteSession.SendRequest(ctx, req.Type, false, req.Payload); err != nil {
 		s.log.WithError(err).Debugf("Unable to set forward tracing context")
 	}
 
 	return nil
 }
 
-func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
+func (s *Server) handleEnv(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
 	var e sshutils.EnvReqParams
 	if err := ssh.Unmarshal(req.Payload, &e); err != nil {
-		ctx.Error(err)
+		scx.Error(err)
 		return trace.Wrap(err, "failed to parse env request")
 	}
 
-	err := ctx.RemoteSession.Setenv(e.Name, e.Value)
+	err := scx.RemoteSession.Setenv(ctx, e.Name, e.Value)
 	if err != nil {
 		s.log.Debugf("Unable to set environment variable: %v: %v", e.Name, e.Value)
 	}
@@ -1242,7 +1259,7 @@ func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerCont
 }
 
 func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
-	s.log.Error(err)
+	s.log.WithError(err).Errorf("failure handling SSH %q request", req.Type)
 	// Terminate the error with a newline when writing to remote channel's
 	// stderr so the output does not mix with the rest of the output if the remote
 	// side is not doing additional formatting for extended data.

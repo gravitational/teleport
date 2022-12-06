@@ -125,6 +125,9 @@ const (
 	// KindDatabase is a database resource.
 	KindDatabase = "db"
 
+	// KindKubeServer is an kubernetes server resource.
+	KindKubeServer = "kube_server"
+
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
 
@@ -226,6 +229,7 @@ const (
 	KindState = "state"
 
 	// KindKubeService is a kubernetes service resource
+	// DELETE in 13.0.0
 	KindKubeService = "kube_service"
 
 	// KindMFADevice is an MFA device for a user.
@@ -261,6 +265,20 @@ const (
 
 	// KindDatabaseCertificate is a resource to control Database Certificates generation
 	KindDatabaseCertificate = "database_certificate"
+
+	// KindInstaller is a resource that holds a node installer script
+	// used to install teleport on discovered nodes
+	KindInstaller = "installer"
+
+	// KindClusterAlert is a resource that conveys a cluster-level alert message.
+	KindClusterAlert = "cluster_alert"
+
+	// KindDevice represents a registered or trusted device.
+	KindDevice = "device"
+
+	// KindUsageEvent is an external cluster usage event. Similar to
+	// KindHostCert, this kind is not backed by a real resource.
+	KindUsageEvent = "usage_event"
 
 	// V5 is the fifth version of resources.
 	V5 = "v5"
@@ -304,6 +322,14 @@ const (
 	// VerbRotate is used to rotate certificate authorities
 	// used only internally
 	VerbRotate = "rotate"
+
+	// VerbCreateEnrollToken allows the creation of device enrollment tokens.
+	// Device Trust is a Teleport Enterprise feature.
+	VerbCreateEnrollToken = "create_enroll_token"
+
+	// VerbEnroll allows enrollment of trusted devices.
+	// Device Trust is a Teleport Enterprise feature.
+	VerbEnroll = "enroll"
 )
 
 const (
@@ -334,10 +360,38 @@ const (
 	// OriginKubernetes is an origin value indicating that the resource was
 	// created from the Kubernetes Operator.
 	OriginKubernetes = "kubernetes"
+
+	// AWSAccountIDLabel is used to identify nodes by AWS account ID
+	// found via automatic discovery, to avoid re-running installation
+	// commands on the node.
+	AWSAccountIDLabel = TeleportNamespace + "/account-id"
+	// AWSInstanceIDLabel is used to identify nodes by EC2 instance ID
+	// found via automatic discovery, to avoid re-running installation
+	// commands on the node.
+	AWSInstanceIDLabel = TeleportNamespace + "/instance-id"
+
+	// CloudLabel is used to identify the cloud where the resource was discovered.
+	CloudLabel = TeleportNamespace + "/cloud"
+
+	// CloudAWS identifies that a resource was discovered in AWS.
+	CloudAWS = "AWS"
+	// CloudAzure identifies that a resource was discovered in Azure.
+	CloudAzure = "Azure"
+	// CloudGCP identifies that a resource was discovered in GCP.
+	CloudGCP = "GCP"
 )
 
-// EC2HostnameTag is the name of the EC2 tag used to override a node's hostname.
-const EC2HostnameTag = "TeleportHostname"
+// CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
+const CloudHostnameTag = "TeleportHostname"
+
+// InstanceMetadataType is the type of cloud instance metadata client.
+type InstanceMetadataType string
+
+const (
+	InstanceMetadataTypeDisabled InstanceMetadataType = "disabled"
+	InstanceMetadataTypeEC2      InstanceMetadataType = "EC2"
+	InstanceMetadataTypeAzure    InstanceMetadataType = "Azure"
+)
 
 // OriginValues lists all possible origin values.
 var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud, OriginKubernetes}
@@ -420,11 +474,48 @@ const (
 )
 
 const (
+	// TeleportInternalLabelPrefix is the prefix used by all Teleport internal labels
+	TeleportInternalLabelPrefix = "teleport.internal/"
+
 	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
-	BotLabel = "teleport.internal/bot"
+	BotLabel = TeleportInternalLabelPrefix + "bot"
 
 	// BotGenerationLabel is a label used to record the certificate generation counter.
-	BotGenerationLabel = "teleport.internal/bot-generation"
+	BotGenerationLabel = TeleportInternalLabelPrefix + "bot-generation"
+
+	// InternalResourceIDLabel is a label used to store an ID to correlate between two resources
+	// A pratical example of this is to create a correlation between a Node Provision Token and
+	// the Node that used that token to join the cluster
+	InternalResourceIDLabel = TeleportInternalLabelPrefix + "resource-id"
+
+	// AlertOnLogin is an internal label that indicates an alert should be displayed to users on login
+	AlertOnLogin = TeleportInternalLabelPrefix + "alert-on-login"
+
+	// AlertPermitAll is an internal label that indicates that an alert is suitable for display
+	// to all users.
+	AlertPermitAll = TeleportInternalLabelPrefix + "alert-permit-all"
+
+	// AlertLink is an internal label that indicates that an alert is a link.
+	AlertLink = TeleportInternalLabelPrefix + "link"
+
+	// AlertVerbPermit is an internal label that permits a user to view the alert if they
+	// hold a specific resource permission verb (e.g. 'node:list'). Note that this label is
+	// a coarser control than it might initially appear and has the potential for accidental
+	// misuse. Because this permitting strategy doesn't take into account constraints such as
+	// label selectors or where clauses, it can't reliably protect information related to a
+	// specific resource. This label should be used only for permitting of alerts that are
+	// of concern to holders of a given <resource>:<verb> capability in the most general case.
+	AlertVerbPermit = TeleportInternalLabelPrefix + "alert-verb-permit"
+
+	// AlertSupersedes is an internal label used to indicate when one alert supersedes
+	// another. Teleport may choose to hide the superseded alert if the superseding alert
+	// is also visible to the user and of higher or equivalent severity. This intended as
+	// a mechanism for reducing noise/redundancy, and is not a form of access control. Use
+	// one of the "permit" labels if you need to restrict viewership of an alert.
+	AlertSupersedes = TeleportInternalLabelPrefix + "alert-supersedes"
+
+	// AlertLicenseExpired is an internal label that indicates that the license has expired.
+	AlertLicenseExpired = TeleportInternalLabelPrefix + "license-expired-warning"
 )
 
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.

@@ -30,9 +30,9 @@ limitations under the License.
 //
 // For example, this configuration will make Teleport to connect to a secondary:
 //
-//  - name: "mongo-rs"
-//    protocol: "mongodb"
-//    uri: "mongodb://mongo1:27017,mongo2:27017/?replicaSet=rs0&readPreference=secondary"
+//   - name: "mongo-rs"
+//     protocol: "mongodb"
+//     uri: "mongodb://mongo1:27017,mongo2:27017/?replicaSet=rs0&readPreference=secondary"
 //
 // Command authorization
 // =====================

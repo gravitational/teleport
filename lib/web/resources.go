@@ -21,19 +21,57 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
-
-	"github.com/gravitational/trace"
-
-	"github.com/julienschmidt/httprouter"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
+
+// checkAccessToRegisteredResource checks if calling user has access to at least one registered resource.
+func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	// Get a client to the Auth Server with the logged in user's identity. The
+	// identity of the logged in user is used to fetch the list of resources.
+	clt, err := c.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resourceKinds := []string{types.KindNode, types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindWindowsDesktop}
+	for _, kind := range resourceKinds {
+		res, err := clt.ListResources(r.Context(), proto.ListResourcesRequest{
+			ResourceType: kind,
+			Limit:        1,
+		})
+
+		if err != nil {
+			// Access denied error is returned when user does not have permissions
+			// to read/list a resource kind which can be ignored as this function is not
+			// about checking if user has the right perms.
+			if trace.IsAccessDenied(err) {
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		if len(res.Resources) > 0 {
+			return checkAccessToRegisteredResourceResponse{
+				HasResource: true,
+			}, nil
+		}
+	}
+
+	return checkAccessToRegisteredResourceResponse{
+		HasResource: false,
+	}, nil
+}
 
 func (h *Handler) getRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
@@ -295,32 +333,18 @@ func ExtractResourceAndValidate(yaml string) (*services.UnknownResource, error) 
 func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string) (*types.ListResourcesResponse, error) {
 	values := r.URL.Query()
 
-	limit, err := queryLimit(values, "limit", defaults.MaxIterationLimit)
+	limit, err := queryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Sort is expected in format `<fieldName>:<asc|desc>` where
-	// index 0 is fieldName and index 1 is direction.
-	// If a direction is not set, or is not recognized, it defaults to ASC.
-	var sortBy types.SortBy
-	sortParam := values.Get("sort")
-	if sortParam != "" {
-		vals := strings.Split(sortParam, ":")
-		if vals[0] != "" {
-			sortBy.Field = vals[0]
-			if len(vals) > 1 && vals[1] == "desc" {
-				sortBy.IsDesc = true
-			}
-		}
-	}
+	sortBy := types.GetSortByFromString(values.Get("sort"))
 
 	startKey := values.Get("startKey")
 	req := proto.ListResourcesRequest{
 		ResourceType:        resourceKind,
-		Limit:               int32(limit),
+		Limit:               limit,
 		StartKey:            startKey,
-		NeedTotalCount:      true,
 		SortBy:              sortBy,
 		PredicateExpression: values.Get("query"),
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
@@ -338,6 +362,12 @@ type listResourcesGetResponse struct {
 	// TotalCount is the total count of resources available
 	// after filter.
 	TotalCount int `json:"totalCount"`
+}
+
+type checkAccessToRegisteredResourceResponse struct {
+	// HasResource is a flag to indicate if user has any access
+	// to a registered resource or not.
+	HasResource bool `json:"hasResource"`
 }
 
 type resourcesAPIGetter interface {

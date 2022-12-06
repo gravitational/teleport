@@ -27,13 +27,13 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
 )
 
 var (
@@ -69,9 +69,7 @@ const minUploadBytes = events.MaxProtoMessageSizeBytes * 2
 
 // NewStreamer creates a streamer sending uploads to disk
 func NewStreamer(dir string) (*events.ProtoStreamer, error) {
-	handler, err := NewHandler(Config{
-		Directory: dir,
-	})
+	handler, err := NewHandler(Config{Directory: dir})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -148,11 +146,12 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	if err := utils.FSTryWriteLock(f); err != nil {
-		return trace.Wrap(err)
+	unlock, err := utils.FSTryWriteLock(uploadPath)
+	if err != nil {
+		return trace.WrapWithMessage(err, "could not acquire file lock for %q", uploadPath)
 	}
 	defer func() {
-		if err := utils.FSUnlock(f); err != nil {
+		if err := unlock(); err != nil {
 			h.WithError(err).Errorf("Failed to unlock filesystem lock.")
 		}
 		if err := f.Close(); err != nil {

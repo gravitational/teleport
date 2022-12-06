@@ -22,4 +22,7 @@ const (
 	// DefaultMongoDBServerSelectionTimeout is the timeout for selecting a
 	// MongoDB server to connect to.
 	DefaultMongoDBServerSelectionTimeout = 5 * time.Second
+
+	// MaxPages is the maximum number of pages to iterate over when fetching cloud databases.
+	MaxPages = 10
 )

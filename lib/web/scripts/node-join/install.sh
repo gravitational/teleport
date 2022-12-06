@@ -41,7 +41,13 @@ TARGET_PORT='{{.port}}'
 JOIN_TOKEN='{{.token}}'
 JOIN_METHOD='{{.joinMethod}}'
 JOIN_METHOD_FLAG=""
-[ ! -z "$JOIN_METHOD" ] && JOIN_METHOD_FLAG="--join-method ${JOIN_METHOD}"
+[ -n "$JOIN_METHOD" ] && JOIN_METHOD_FLAG="--join-method ${JOIN_METHOD}"
+
+# inject labels into the configuration
+LABELS='{{.labels}}'
+LABELS_FLAG=()
+[ -n "$LABELS" ] && LABELS_FLAG=(--labels "${LABELS}")
+
 # When all stanza generators have been updated to use the new
 # `teleport <service> configure` commands CA_PIN_HASHES can be removed along
 # with the script passing it in in `join_tokens.go`.
@@ -51,6 +57,7 @@ ARG_CA_PIN_HASHES=""
 APP_INSTALL_MODE='{{.appInstallMode}}'
 APP_NAME='{{.appName}}'
 APP_URI='{{.appURI}}'
+DB_INSTALL_MODE='{{.databaseInstallMode}}'
 
 # usage message
 # shellcheck disable=SC2086
@@ -408,12 +415,12 @@ install_teleport_app_config() {
     log "Writing Teleport app service config to ${TELEPORT_CONFIG_PATH}"
     CA_PINS_CONFIG=$(get_yaml_list "ca_pin" "${CA_PIN_HASHES}" "  ")
     cat << EOF > ${TELEPORT_CONFIG_PATH}
+version: v3
 teleport:
   nodename: ${NODENAME}
   auth_token: ${JOIN_TOKEN}
 ${CA_PINS_CONFIG}
-  auth_servers:
-  - ${TARGET_HOSTNAME}:${TARGET_PORT}
+  proxy_server: ${TARGET_HOSTNAME}:${TARGET_PORT}
   log:
     output: stderr
     severity: INFO
@@ -431,14 +438,49 @@ app_service:
     public_addr: ${APP_PUBLIC_ADDR}
 EOF
 }
+# installs the provided teleport config (for database service)
+install_teleport_database_config() {
+    log "Writing Teleport database service config to ${TELEPORT_CONFIG_PATH}"
+    CA_PINS_CONFIG=$(get_yaml_list "ca_pin" "${CA_PIN_HASHES}" "  ")
+
+    # This file is processed by `shellschek` as part of the lint step
+    # It detects an issue because of un-set variables - $index and $line. This check is called SC2154.
+    # However, that's not an issue, because those variables are replaced when we run go's text/template engine over it.
+    # When executing the script, those are no long variables but actual values.
+    # shellcheck disable=SC2154
+    cat << EOF > ${TELEPORT_CONFIG_PATH}
+version: v3
+teleport:
+  nodename: ${NODENAME}
+  auth_token: ${JOIN_TOKEN}
+${CA_PINS_CONFIG}
+  proxy_server: ${TARGET_HOSTNAME}:${TARGET_PORT}
+  log:
+    output: stderr
+    severity: INFO
+auth_service:
+  enabled: no
+ssh_service:
+  enabled: no
+proxy_service:
+  enabled: no
+db_service:
+  enabled: "yes"
+  resources:
+    - labels:{{range $index, $line := .db_service_resource_labels}}
+        {{$line -}}
+{{end}}
+EOF
+}
 # installs the provided teleport config (for node service)
 install_teleport_node_config() {
     log "Writing Teleport node service config to ${TELEPORT_CONFIG_PATH}"
-    teleport node configure \
+    ${TELEPORT_BINARY_DIR}/teleport node configure \
       --token ${JOIN_TOKEN} \
       ${JOIN_METHOD_FLAG} \
       --ca-pin ${CA_PINS} \
-      --auth-server ${TARGET_HOSTNAME}:${TARGET_PORT} \
+      --proxy ${TARGET_HOSTNAME}:${TARGET_PORT} \
+      "${LABELS_FLAG[@]}" \
       --output ${TELEPORT_CONFIG_PATH}
 }
 # checks whether the given host is running MacOS
@@ -624,8 +666,8 @@ if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
             fi
         fi
         log "Detected distro type: ${DISTRO_TYPE}"
-        #suse uses a different path for its systemd then other distro types like ubuntu
-        if [[ ${DISTRO_TYPE} =~ "suse"* ]]; then
+        #suse, also identified as sles, uses a different path for its systemd then other distro types like ubuntu
+        if [[ ${DISTRO_TYPE} =~ "suse"* ]] || [[ ${DISTRO_TYPE} =~ "sles"* ]]; then
             SYSTEMD_UNIT_PATH="/etc/systemd/system/teleport.service"
         fi
     fi
@@ -634,8 +676,8 @@ elif [[ "${OSTYPE}" == "darwin"* ]]; then
     TELEPORT_BINARY_TYPE="darwin"
     ARCH=$(uname -m)
     log "Detected host: ${OSTYPE}, using Teleport binary type ${TELEPORT_BINARY_TYPE}"
-    if [[ ${ARCH} == "aarch64" ]]; then
-        TELEPORT_ARCH="aarch64"
+    if [[ ${ARCH} == "aarch64" || ${ARCH} == "arm64" ]]; then
+        TELEPORT_ARCH="arm64"
         log_important "Error: detected ${ARCH} but Teleport doesn't build binaries for this architecture yet, exiting"
         exit 1
     elif [[ ${ARCH} == "x86_64" ]]; then
@@ -828,9 +870,11 @@ if ! check_teleport_binary; then
 fi
 
 # install teleport config
-# check whether we're running in app mode so we can write the appropriate config type
+# check the mode and write the appropriate config type
 if [[ "${APP_INSTALL_MODE}" == "true" ]]; then
     install_teleport_app_config
+elif [[ "${DB_INSTALL_MODE}" == "true" ]]; then
+    install_teleport_database_config
 else
     install_teleport_node_config
 fi

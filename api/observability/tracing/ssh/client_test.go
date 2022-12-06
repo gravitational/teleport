@@ -25,7 +25,6 @@ import (
 )
 
 func TestIsTracingSupported(t *testing.T) {
-
 	rejected := &ssh.OpenChannelError{
 		Reason:  ssh.Prohibited,
 		Message: "rejected!",
@@ -39,6 +38,7 @@ func TestIsTracingSupported(t *testing.T) {
 	cases := []struct {
 		name               string
 		channelErr         *ssh.OpenChannelError
+		srvVersion         string
 		expectedCapability tracingCapability
 		errAssertion       require.ErrorAssertionFunc
 	}{
@@ -61,6 +61,13 @@ func TestIsTracingSupported(t *testing.T) {
 			name:               "supported",
 			channelErr:         nil,
 			expectedCapability: tracingSupported,
+			errAssertion:       require.NoError,
+		},
+		{
+			name:               "no backend support",
+			channelErr:         nil,
+			expectedCapability: tracingUnsupported,
+			srvVersion:         "SSH-2.0-OpenSSH_7.4", // Only Teleport supports tracing
 			errAssertion:       require.NoError,
 		},
 		{
@@ -106,6 +113,10 @@ func TestIsTracingSupported(t *testing.T) {
 					}
 				}
 			})
+
+			if tt.srvVersion != "" {
+				srv.config.ServerVersion = tt.srvVersion
+			}
 
 			go srv.Run(errChan)
 
@@ -186,11 +197,11 @@ func TestNewSession(t *testing.T) {
 
 	cases := []struct {
 		name          string
-		assertionFunc func(t *testing.T, clt *Client, session *ssh.Session, err error)
+		assertionFunc func(t *testing.T, clt *Client, session *Session, err error)
 	}{
 		{
 			name: "session prohibited",
-			assertionFunc: func(t *testing.T, clt *Client, sess *ssh.Session, err error) {
+			assertionFunc: func(t *testing.T, clt *Client, sess *Session, err error) {
 				// creating a new session should return any errors captured when creating the client
 				// and not actually probe the server
 				require.Error(t, err)
@@ -202,7 +213,7 @@ func TestNewSession(t *testing.T) {
 		},
 		{
 			name: "other failure to open tracing channel",
-			assertionFunc: func(t *testing.T, clt *Client, sess *ssh.Session, err error) {
+			assertionFunc: func(t *testing.T, clt *Client, sess *Session, err error) {
 				// this time through we should probe the server without getting a prohibited error,
 				// but things still failed, so we shouldn't know the capability
 				require.NoError(t, err)
@@ -214,7 +225,7 @@ func TestNewSession(t *testing.T) {
 		},
 		{
 			name: "active session",
-			assertionFunc: func(t *testing.T, clt *Client, sess *ssh.Session, err error) {
+			assertionFunc: func(t *testing.T, clt *Client, sess *Session, err error) {
 				// all is good now, we should have an active session
 				require.NoError(t, err)
 				require.NotNil(t, sess)

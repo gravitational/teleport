@@ -28,12 +28,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -42,10 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 const (
@@ -133,7 +135,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		if len(cfg.Addrs) == 0 {
 			return nil, trace.BadParameter("no addresses to dial")
 		}
-		contextDialer := client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout)
 		dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				conn, err = contextDialer.DialContext(ctx, network, addr)
@@ -194,8 +196,11 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 	clientParams := append(
 		[]roundtrip.ClientParam{
 			roundtrip.HTTPClient(&http.Client{
-				Timeout:   defaults.HTTPRequestTimeout,
-				Transport: otelhttp.NewTransport(breaker.NewRoundTripper(cb, transport)),
+				Timeout: defaults.HTTPRequestTimeout,
+				Transport: otelhttp.NewTransport(
+					breaker.NewRoundTripper(cb, transport),
+					otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+				),
 			}),
 			roundtrip.SanitizerEnabled(true),
 		},
@@ -285,70 +290,6 @@ func (c *Client) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &re, nil
-}
-
-// GetSessions returns a list of active sessions in the cluster as reported by
-// the auth server.
-func (c *Client) GetSessions(ctx context.Context, namespace string) ([]session.Session, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter(MissingNamespaceError)
-	}
-	out, err := c.Get(ctx, c.Endpoint("namespaces", namespace, "sessions"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var sessions []session.Session
-	if err := json.Unmarshal(out.Bytes(), &sessions); err != nil {
-		return nil, err
-	}
-	return sessions, nil
-}
-
-// GetSession returns a session by ID
-func (c *Client) GetSession(ctx context.Context, namespace string, id session.ID) (*session.Session, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter(MissingNamespaceError)
-	}
-	// saving extra round-trip
-	if err := id.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.Get(ctx, c.Endpoint("namespaces", namespace, "sessions", string(id)), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var sess *session.Session
-	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sess, nil
-}
-
-// DeleteSession removes an active session from the backend.
-func (c *Client) DeleteSession(ctx context.Context, namespace string, id session.ID) error {
-	if namespace == "" {
-		return trace.BadParameter(MissingNamespaceError)
-	}
-	_, err := c.Delete(ctx, c.Endpoint("namespaces", namespace, "sessions", string(id)))
-	return trace.Wrap(err)
-}
-
-// CreateSession creates new session
-func (c *Client) CreateSession(ctx context.Context, sess session.Session) error {
-	if sess.Namespace == "" {
-		return trace.BadParameter(MissingNamespaceError)
-	}
-	_, err := c.PostJSON(ctx, c.Endpoint("namespaces", sess.Namespace, "sessions"), createSessionReq{Session: sess})
-	return trace.Wrap(err)
-}
-
-// UpdateSession updates existing session
-func (c *Client) UpdateSession(ctx context.Context, req session.UpdateRequest) error {
-	if err := req.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-	_, err := c.PutJSON(ctx, c.Endpoint("namespaces", req.Namespace, "sessions", string(req.ID)), updateSessionReq{Update: req})
-	return trace.Wrap(err)
 }
 
 func (c *Client) Close() error {
@@ -814,21 +755,6 @@ func (c *Client) DeleteProxy(name string) error {
 	return nil
 }
 
-// UpsertPassword updates web access password for the user
-func (c *Client) UpsertPassword(user string, password []byte) error {
-	_, err := c.PostJSON(
-		context.TODO(),
-		c.Endpoint("users", user, "web", "password"),
-		upsertPasswordReq{
-			Password: string(password),
-		})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 // UpsertUser user updates user entry.
 func (c *Client) UpsertUser(user types.User) error {
 	data, err := services.MarshalUser(user)
@@ -842,24 +768,6 @@ func (c *Client) UpsertUser(user types.User) error {
 // CompareAndSwapUser not implemented: can only be called locally
 func (c *Client) CompareAndSwapUser(ctx context.Context, new, expected types.User) error {
 	return trace.NotImplemented(notImplementedMessage)
-}
-
-// ChangePassword updates users password based on the old password.
-func (c *Client) ChangePassword(req services.ChangePasswordReq) error {
-	_, err := c.PutJSON(context.TODO(), c.Endpoint("users", req.User, "web", "password"), req)
-	return trace.Wrap(err)
-}
-
-// CheckPassword checks if the suplied web access password is valid.
-func (c *Client) CheckPassword(user string, password []byte, otpToken string) error {
-	_, err := c.PostJSON(
-		context.TODO(),
-		c.Endpoint("users", user, "web", "password", "check"),
-		checkPasswordReq{
-			Password: string(password),
-			OTPToken: otpToken,
-		})
-	return trace.Wrap(err)
 }
 
 // ExtendWebSession creates a new web session for a user based on another
@@ -935,13 +843,13 @@ func (c *Client) DeleteWebSession(ctx context.Context, user string, sid string) 
 	return trace.Wrap(err)
 }
 
-// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
+// GenerateHostCert takes the public key in the Open SSH “authorized_keys“
 // plain text format, signs it using Host Certificate Authority private key and returns the
 // resulting certificate.
 func (c *Client) GenerateHostCert(
-	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
+	ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
 ) ([]byte, error) {
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("ca", "host", "certs"),
+	out, err := c.PostJSON(ctx, c.Endpoint("ca", "host", "certs"),
 		generateHostCertReq{
 			Key:         key,
 			HostID:      hostID,
@@ -965,13 +873,13 @@ func (c *Client) GenerateHostCert(
 
 // ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
 func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
-	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
+	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "requests", "validate"), ValidateOIDCAuthCallbackReq{
 		Query: q,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var rawResponse *oidcAuthRawResponse
+	var rawResponse *OIDCAuthRawResponse
 	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1001,14 +909,15 @@ func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 }
 
 // ValidateSAMLResponse validates response returned by SAML identity provider
-func (c *Client) ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error) {
-	out, err := c.PostJSON(ctx, c.Endpoint("saml", "requests", "validate"), validateSAMLResponseReq{
-		Response: re,
+func (c *Client) ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error) {
+	out, err := c.PostJSON(ctx, c.Endpoint("saml", "requests", "validate"), ValidateSAMLResponseReq{
+		Response:    re,
+		ConnectorID: connectorID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var rawResponse *samlAuthRawResponse
+	var rawResponse *SAMLAuthRawResponse
 	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1097,9 +1006,6 @@ func (c *Client) GetSessionChunk(namespace string, sid session.ID, offsetBytes, 
 //
 // afterN allows to filter by "newer than N" value where N is the cursor ID
 // of previously returned bunch (good for polling for latest)
-//
-// This function is usually used in conjunction with GetSessionReader to
-// replay recorded session streams.
 func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) (retval []events.EventFields, err error) {
 	if namespace == "" {
 		return nil, trace.BadParameter(MissingNamespaceError)
@@ -1293,6 +1199,11 @@ func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsD
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
+// ListWindowsDesktopServices not implemented: can only be called locally.
+func (c *Client) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
 // DeleteAllUsers not implemented: can only be called locally.
 func (c *Client) DeleteAllUsers() error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -1345,11 +1256,6 @@ func (c *Client) DeleteBot(ctx context.Context, botName string) error {
 // GetBotUsers fetches all bot users.
 func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
 	return c.APIClient.GetBotUsers(ctx)
-}
-
-// GetAppServers gets all application servers.
-func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	return c.APIClient.GetAppServers(ctx, namespace)
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
@@ -1458,8 +1364,6 @@ type WebService interface {
 
 // IdentityService manages identities and users
 type IdentityService interface {
-	// UpsertPassword updates web access password for the user
-	UpsertPassword(user string, password []byte) error
 	// UpsertOIDCConnector updates or creates OIDC connector
 	UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error
 	// GetOIDCConnector returns OIDC connector information by id
@@ -1486,7 +1390,7 @@ type IdentityService interface {
 	// CreateSAMLAuthRequest creates SAML AuthnRequest
 	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
 	// ValidateSAMLResponse validates SAML auth response
-	ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error)
+	ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error)
 	// GetSAMLAuthRequest returns SAML auth request if found
 	GetSAMLAuthRequest(ctx context.Context, authRequestID string) (*types.SAMLAuthRequest, error)
 
@@ -1538,10 +1442,7 @@ type IdentityService interface {
 	GetUsers(withSecrets bool) ([]types.User, error)
 
 	// ChangePassword changes user password
-	ChangePassword(req services.ChangePasswordReq) error
-
-	// CheckPassword checks if the suplied web access password is valid.
-	CheckPassword(user string, password []byte, otpToken string) error
+	ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error
 
 	// GenerateToken creates a special provisioning token for a new SSH server
 	// that is valid for ttl period seconds.
@@ -1556,7 +1457,7 @@ type IdentityService interface {
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
 	// plain text format, signs it using Host Certificate Authority private key and returns the
 	// resulting certificate.
-	GenerateHostCert(key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error)
+	GenerateHostCert(ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error)
 
 	// GenerateUserCerts takes the public key in the OpenSSH `authorized_keys` plain
 	// text format, signs it using User Certificate Authority signing key and
@@ -1678,9 +1579,10 @@ type ClientI interface {
 	services.Restrictions
 	services.Apps
 	services.Databases
+	services.Kubernetes
 	services.WindowsDesktops
 	WebService
-	session.Service
+	services.Status
 	services.ClusterConfiguration
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
@@ -1688,6 +1590,12 @@ type ClientI interface {
 
 	types.WebSessionsGetter
 	types.WebTokensGetter
+
+	// DevicesClient returns a Device Trust client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	DevicesClient() devicepb.DeviceTrustServiceClient
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
@@ -1769,4 +1677,7 @@ type ClientI interface {
 
 	// PingInventory attempts to trigger a downstream ping against a connected instance.
 	PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error)
+
+	// SubmitUsageEvent submits an external usage event.
+	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
 }

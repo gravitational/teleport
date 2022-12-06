@@ -175,23 +175,6 @@ type Presence interface {
 	// UpsertKubeServiceV2 registers kubernetes service presence
 	UpsertKubeServiceV2(context.Context, types.Server) (*types.KeepAlive, error)
 
-	// GetAppServers gets all application servers.
-	//
-	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
-	GetAppServers(context.Context, string, ...MarshalOption) ([]types.Server, error)
-	// UpsertAppServer adds an application server.
-	//
-	// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
-	UpsertAppServer(context.Context, types.Server) (*types.KeepAlive, error)
-	// DeleteAppServer removes an application server.
-	//
-	// DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
-	DeleteAppServer(ctx context.Context, namespace, name string) error
-	// DeleteAllAppServers removes all application servers.
-	//
-	// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
-	DeleteAllAppServers(context.Context, string) error
-
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
 	// UpsertApplicationServer registers an application server.
@@ -214,13 +197,28 @@ type Presence interface {
 	KeepAliveServer(ctx context.Context, h types.KeepAlive) error
 
 	// GetKubeServices returns a list of registered kubernetes services.
+	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
 	GetKubeServices(context.Context) ([]types.Server, error)
 
 	// DeleteKubeService deletes a named kubernetes service.
+	// DELETE IN 13.0. Deprecated, use DeleteKubernetesServer.
 	DeleteKubeService(ctx context.Context, name string) error
 
 	// DeleteAllKubeServices deletes all registered kubernetes services.
+	// DELETE IN 13.0. Deprecated, use DeleteAllKubernetesServers.
 	DeleteAllKubeServices(context.Context) error
+
+	// GetKubernetesServers returns a list of registered kubernetes servers.
+	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
+
+	// DeleteKubernetesServer deletes a named kubernetes servers.
+	DeleteKubernetesServer(ctx context.Context, hostID, name string) error
+
+	// DeleteAllKubernetesServers deletes all registered kubernetes servers.
+	DeleteAllKubernetesServers(context.Context) error
+
+	// UpsertKubernetesServer registers an kubernetes server.
+	UpsertKubernetesServer(context.Context, types.KubeServer) (*types.KeepAlive, error)
 
 	// GetWindowsDesktopServices returns all registered Windows desktop services.
 	GetWindowsDesktopServices(context.Context) ([]types.WindowsDesktopService, error)

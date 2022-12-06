@@ -125,6 +125,9 @@ const (
 	// ComponentDatabase is the database proxy service.
 	ComponentDatabase = "db:service"
 
+	// ComponentDiscovery is the Discovery service.
+	ComponentDiscovery = "discovery:service"
+
 	// ComponentAppProxy is the application handler within the web proxy service.
 	ComponentAppProxy = "app:web"
 
@@ -252,6 +255,12 @@ const (
 	// ComponentInstance is an abstract component common to all services.
 	ComponentInstance = "instance"
 
+	// ComponentVersionControl is the component common to all version control operations.
+	ComponentVersionControl = "version-control"
+
+	// ComponentUsageReporting is the component responsible for reporting usage metrics.
+	ComponentUsageReporting = "usage-reporting"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 
@@ -283,13 +292,21 @@ const (
 	// to all backends during initialization
 	DataDirParameterName = "data_dir"
 
-	// SSH request type to keep the connection alive. A client and a server keep
-	// pining each other with it:
+	// KeepAliveReqType is a SSH request type to keep the connection alive. A client and
+	// a server keep pining each other with it.
 	KeepAliveReqType = "keepalive@openssh.com"
 
 	// RecordingProxyReqType is the name of a global request which returns if
 	// the proxy is recording sessions or not.
+	//
+	// DEPRECATED: ClusterDetailsReqType should be used instead to avoid multiple round trips for
+	// cluster information.
+	// TODO(tross):DELETE IN 12.0
 	RecordingProxyReqType = "recording-proxy@teleport.com"
+
+	// ClusterDetailsReqType is the name of a global request which returns cluster details like
+	// if the proxy is recording sessions or not and if FIPS is enabled.
+	ClusterDetailsReqType = "cluster-details@goteleport.com"
 
 	// JSON means JSON serialization format
 	JSON = "json"
@@ -323,14 +340,6 @@ const (
 	// Off means mode is off
 	Off = "off"
 
-	// SchemeS3 is S3 file scheme, means upload or download to S3 like object
-	// storage
-	SchemeS3 = "s3"
-
-	// SchemeGCS is GCS file scheme, means upload or download to GCS like object
-	// storage
-	SchemeGCS = "gs"
-
 	// GCSTestURI turns on GCS tests
 	GCSTestURI = "TEST_GCS_URI"
 
@@ -355,11 +364,17 @@ const (
 	// SSEKMSKey is an optional switch to use an KMS CMK key for S3 SSE.
 	SSEKMSKey = "sse_kms_key"
 
-	// SchemeFile is a local disk file storage
+	// SchemeFile configures local disk-based file storage for audit events
 	SchemeFile = "file"
 
 	// SchemeStdout outputs audit log entries to stdout
 	SchemeStdout = "stdout"
+
+	// SchemeS3 is used for S3-like object storage
+	SchemeS3 = "s3"
+
+	// SchemeGCS is used for Google Cloud Storage
+	SchemeGCS = "gs"
 
 	// LogsDir is a log subdirectory for events and logs
 	LogsDir = "log"
@@ -378,16 +393,6 @@ const (
 
 	// MinimumEtcdVersion is the minimum version of etcd supported by Teleport
 	MinimumEtcdVersion = "3.3.0"
-)
-
-// OTPType is the type of the One-time Password Algorithm.
-type OTPType string
-
-const (
-	// TOTP means Time-based One-time Password Algorithm (for Two-Factor Authentication)
-	TOTP = OTPType("totp")
-	// HOTP means HMAC-based One-time Password Algorithm (for Two-Factor Authentication)
-	HOTP = OTPType("hotp")
 )
 
 const (
@@ -455,6 +460,12 @@ const (
 	// CertExtensionAllowedResources lists the resources which this certificate
 	// should be allowed to access
 	CertExtensionAllowedResources = "teleport-allowed-resources"
+	// CertExtensionConnectionDiagnosticID contains the ID of the ConnectionDiagnostic.
+	// The Node/Agent will append connection traces to this diagnostic instance.
+	CertExtensionConnectionDiagnosticID = "teleport-connection-diagnostic-id"
+	// CertExtensionPrivateKeyPolicy is used to mark certificates with their supported
+	// private key policy.
+	CertExtensionPrivateKeyPolicy = "private-key-policy"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -736,6 +747,12 @@ const (
 	ChanSession = "session"
 )
 
+const (
+	// GetHomeDirSubsystem is an SSH subsystem request that Teleport
+	// uses to get the home directory of a remote user.
+	GetHomeDirSubsystem = "gethomedir"
+)
+
 // A principal name for use in SSH certificates.
 type Principal string
 
@@ -771,3 +788,15 @@ const UserSingleUseCertTTL = time.Minute
 // StandardHTTPSPort is the default port used for the https URI scheme,
 // cf. RFC 7230 § 2.7.2.
 const StandardHTTPSPort = 443
+
+const (
+	// WebAPIConnUpgrade is the HTTP web API to make the connection upgrade
+	// call.
+	WebAPIConnUpgrade = "/webapi/connectionupgrade"
+	// WebAPIConnUpgradeHeader is the header used to indicate the requested
+	// connection upgrade types in the connection upgrade API.
+	WebAPIConnUpgradeHeader = "Upgrade"
+	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
+	// the upgraded connection should be handled by the ALPN handler.
+	WebAPIConnUpgradeTypeALPN = "alpn"
+)

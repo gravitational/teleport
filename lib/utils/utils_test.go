@@ -27,38 +27,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/lib/fixtures"
-
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 func TestMain(m *testing.M) {
 	InitLoggerForTests()
 	os.Exit(m.Run())
-}
-
-// TestLinear tests retry logic
-func TestLinear(t *testing.T) {
-	t.Parallel()
-
-	r, err := NewLinear(LinearConfig{
-		Step: time.Second,
-		Max:  3 * time.Second,
-	})
-	require.NoError(t, err)
-	require.Equal(t, r.Duration(), time.Duration(0))
-	r.Inc()
-	require.Equal(t, r.Duration(), time.Second)
-	r.Inc()
-	require.Equal(t, r.Duration(), 2*time.Second)
-	r.Inc()
-	require.Equal(t, r.Duration(), 3*time.Second)
-	r.Inc()
-	require.Equal(t, r.Duration(), 3*time.Second)
-	r.Reset()
-	require.Equal(t, r.Duration(), time.Duration(0))
 }
 
 func TestHostUUIDIdempotent(t *testing.T) {
@@ -112,7 +90,7 @@ func TestHostUUIDRegenerateEmpty(t *testing.T) {
 func TestSelfSignedCert(t *testing.T) {
 	t.Parallel()
 
-	creds, err := GenerateSelfSignedCert([]string{"example.com"})
+	creds, err := cert.GenerateSelfSignedCert([]string{"example.com"})
 	require.NoError(t, err)
 	require.NotNil(t, creds)
 	require.Equal(t, 4, len(creds.PublicKey)/100)
@@ -285,6 +263,56 @@ func TestGlobToRegexp(t *testing.T) {
 		t.Run(testCase.comment, func(t *testing.T) {
 			out := GlobToRegexp(testCase.in)
 			require.Equal(t, testCase.out, out)
+		})
+	}
+}
+
+func TestIsValidHostname(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		hostname string
+		assert   require.BoolAssertionFunc
+	}{
+		{
+			name:     "normal hostname",
+			hostname: "some-host-1.example.com",
+			assert:   require.True,
+		},
+		{
+			name:     "one component",
+			hostname: "example",
+			assert:   require.True,
+		},
+		{
+			name:     "empty",
+			hostname: "",
+			assert:   require.False,
+		},
+		{
+			name:     "invalid characters",
+			hostname: "some spaces.example.com",
+			assert:   require.False,
+		},
+		{
+			name:     "empty label",
+			hostname: "somewhere..example.com",
+			assert:   require.False,
+		},
+		{
+			name:     "label too long",
+			hostname: strings.Repeat("x", 64) + ".example.com",
+			assert:   require.False,
+		},
+		{
+			name:     "hostname too long",
+			hostname: strings.Repeat("x.", 256) + ".example.com",
+			assert:   require.False,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.assert(t, IsValidHostname(tc.hostname))
 		})
 	}
 }

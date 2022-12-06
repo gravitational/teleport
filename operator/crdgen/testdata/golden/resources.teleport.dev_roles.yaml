@@ -9,9 +9,6 @@ spec:
     kind: TeleportRole
     listKind: TeleportRoleList
     plural: teleportroles
-    shortNames:
-    - role
-    - roles
     singular: teleportrole
   scope: Namespaced
   versions:
@@ -40,9 +37,7 @@ spec:
                 properties:
                   app_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: AppLabels is a map of labels used as part of the
                       RBAC system.
                     type: object
@@ -55,17 +50,13 @@ spec:
                     type: array
                   cluster_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: ClusterLabels is a map of node labels (used to dynamically
                       grant access to clusters).
                     type: object
                   db_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: DatabaseLabels are used in RBAC system to allow/deny
                       access to databases.
                     type: object
@@ -161,9 +152,7 @@ spec:
                     type: array
                   kubernetes_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: KubernetesLabels is a map of kubernetes cluster labels
                       used for RBAC.
                     type: object
@@ -181,9 +170,7 @@ spec:
                     type: array
                   node_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: NodeLabels is a map of node labels (used to dynamically
                       grant access to nodes).
                     type: object
@@ -380,9 +367,7 @@ spec:
                     type: array
                   windows_desktop_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: WindowsDesktopLabels are used in the RBAC system
                       to allow/deny access to Windows desktops.
                     type: object
@@ -400,9 +385,7 @@ spec:
                 properties:
                   app_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: AppLabels is a map of labels used as part of the
                       RBAC system.
                     type: object
@@ -415,17 +398,13 @@ spec:
                     type: array
                   cluster_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: ClusterLabels is a map of node labels (used to dynamically
                       grant access to clusters).
                     type: object
                   db_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: DatabaseLabels are used in RBAC system to allow/deny
                       access to databases.
                     type: object
@@ -521,9 +500,7 @@ spec:
                     type: array
                   kubernetes_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: KubernetesLabels is a map of kubernetes cluster labels
                       used for RBAC.
                     type: object
@@ -541,9 +518,7 @@ spec:
                     type: array
                   node_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: NodeLabels is a map of node labels (used to dynamically
                       grant access to nodes).
                     type: object
@@ -740,9 +715,7 @@ spec:
                     type: array
                   windows_desktop_labels:
                     additionalProperties:
-                      items:
-                        type: string
-                      type: array
+                      x-kubernetes-preserve-unknown-fields: true
                     description: WindowsDesktopLabels are used in the RBAC system
                       to allow/deny access to Windows desktops.
                     type: object
@@ -898,8 +871,8 @@ spec:
                   description: "Condition contains details for one aspect of the current
                     state of this API Resource. --- This struct is intended for direct
                     use as an array at the field path .status.conditions.  For example,
-                    type FooStatus struct{ // Represents the observations of a foo's
-                    current state. // Known .status.conditions.type are: \"Available\",
+                    \n type FooStatus struct{ // Represents the observations of a
+                    foo's current state. // Known .status.conditions.type are: \"Available\",
                     \"Progressing\", and \"Degraded\" // +patchMergeKey=type // +patchStrategy=merge
                     // +listType=map // +listMapKey=type Conditions []metav1.Condition
                     `json:\"conditions,omitempty\" patchStrategy:\"merge\" patchMergeKey:\"type\"

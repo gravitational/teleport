@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"encoding/base32"
+	"errors"
 	"fmt"
 	"image/png"
 	"os"
@@ -37,6 +38,7 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 
@@ -94,7 +96,7 @@ func newMFALSCommand(parent *kingpin.CmdClause) *mfaLSCommand {
 		CmdClause: parent.Command("ls", "Get a list of registered MFA devices"),
 	}
 	c.Flag("verbose", "Print more information about MFA devices").Short('v').BoolVar(&c.verbose)
-	c.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaultFormats...)
+	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
 	return c
 }
 
@@ -605,6 +607,11 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 		if ack == nil {
 			return trace.BadParameter("server bug: server sent %T when client expected DeleteMFADeviceResponse_Ack", resp.Response)
 		}
+		// If deleted device was webauthn device, try to delete touch-id credentials.
+		if wanDevice := ack.GetDevice().GetWebauthn(); wanDevice != nil {
+			deleteTouchIDCredentialIfApplicable(string(wanDevice.CredentialId))
+		}
+
 		return nil
 	}); err != nil {
 		return trace.Wrap(err)
@@ -616,11 +623,19 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 
 func showOTPQRCode(k *otp.Key) (cleanup func(), retErr error) {
 	var imageViewer string
+	// imageViewerArgs is used to send additional arguments to exec command.
+	var imageViewerArgs []string
 	switch runtime.GOOS {
 	case "linux":
 		imageViewer = "xdg-open"
 	case "darwin":
 		imageViewer = "open"
+	case "windows":
+		// On windows start and many other commands are not executable files,
+		// rather internal commands of Command prompt. In order to use internal
+		// command it need to executed as: `cmd.exe /c start filename`
+		imageViewer = "cmd.exe"
+		imageViewerArgs = []string{"/c", "start"}
 	default:
 		return func() {}, trace.NotImplemented("showing QR codes is not implemented on %s", runtime.GOOS)
 	}
@@ -648,17 +663,26 @@ func showOTPQRCode(k *otp.Key) (cleanup func(), retErr error) {
 	}
 	log.Debugf("Wrote OTP QR code to %s", imageFile.Name())
 
-	cmd := exec.Command(imageViewer, imageFile.Name())
+	cmd := exec.Command(imageViewer, append(imageViewerArgs, imageFile.Name())...)
 	if err := cmd.Start(); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 	log.Debugf("Opened QR code via %q", imageViewer)
 	return func() {
-		if err := os.Remove(imageFile.Name()); err != nil {
+		if err := utils.RemoveSecure(imageFile.Name()); err != nil {
 			log.WithError(err).Debugf("Failed to clean up temporary QR code file %q", imageFile.Name())
 		}
 		if err := cmd.Process.Kill(); err != nil {
 			log.WithError(err).Debug("Failed to stop the QR code image viewer")
 		}
 	}, nil
+}
+
+func deleteTouchIDCredentialIfApplicable(credentialID string) {
+	switch err := touchid.AttemptDeleteNonInteractive(credentialID); {
+	case errors.Is(err, &touchid.ErrAttemptFailed{}):
+		// Nothing to do here, just proceed.
+	case err != nil:
+		log.WithError(err).Errorf("Failed to delete credential: %s\n", credentialID)
+	}
 }

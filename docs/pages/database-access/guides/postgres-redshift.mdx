@@ -13,8 +13,6 @@ This guide will help you to:
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access Redshift Self-Hosted](../../../img/database-access/guides/redshift_selfhosted.png)
 </ScopedBlock>
-
-
 <ScopedBlock scope={["cloud"]}>
 ![Teleport Database Access Redshift Cloud](../../../img/database-access/guides/redshift_cloud.png)
 </ScopedBlock>
@@ -23,6 +21,7 @@ This guide will help you to:
 
 - AWS account with a Redshift cluster and permissions to create and attach IAM
   policies.
+- Command-line client `psql` installed and added to your system's `PATH` environment variable.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
 
@@ -137,21 +136,21 @@ $ tsh db ls
 
 </ScopedBlock>
 
-Log in to a particular database using the `tsh db login` command:
+<Admonition type="note" title="Note">
+  You can override the database name by applying the `teleport.dev/database_name` AWS tag to the resource. The value of the tag will be used as the database name.
+</Admonition>
+
+To retrieve credentials for a database and connect to it:
 
 ```code
-$ tsh db login my-redshift
+$ tsh db connect my-redshift
 ```
-
-<Admonition type="tip" title="Tip">
-  You can be logged into multiple databases simultaneously.
-</Admonition>
 
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
 ```code
-$ tsh db login --db-user=awsuser --db-name=dev my-redshift
+$ tsh db connect --db-user=awsuser --db-name=dev my-redshift
 ```
 
 <Admonition type="note" title="Database users must exist">
@@ -159,22 +158,15 @@ $ tsh db login --db-user=awsuser --db-name=dev my-redshift
   tokens for Redshift databases. Users must exist in the database.
 </Admonition>
 
-Now connect to the database:
-
-```code
-$ tsh db connect my-redshift
-```
-
-<Admonition type="note" title="Note">
-  The `psql` command-line client should be available in `PATH` in order to be
-  able to connect.
-</Admonition>
-
 To log out of the database and remove credentials:
 
 ```code
 $ tsh db logout my-redshift
 ```
+
+## Troubleshooting
+
+(!docs/pages/includes/database-access/aws-troubleshooting.mdx!)
 
 ## Next steps
 

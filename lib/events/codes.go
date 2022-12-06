@@ -29,12 +29,12 @@ type Event struct {
 // There is no strict algorithm for picking an event code, however existing
 // event codes are currently loosely categorized as follows:
 //
-//  * Teleport event codes start with "T" and belong in this const block.
+//   - Teleport event codes start with "T" and belong in this const block.
 //
-//  * Related events are grouped starting with the same number.
-//		eg: All user related events are grouped under 1xxx.
+//   - Related events are grouped starting with the same number.
+//     eg: All user related events are grouped under 1xxx.
 //
-//  * Suffix code with one of these letters: I (info), W (warn), E (error).
+//   - Suffix code with one of these letters: I (info), W (warn), E (error).
 const (
 	// UserLocalLoginCode is the successful local user login event code.
 	UserLocalLoginCode = "T1000I"
@@ -96,6 +96,20 @@ const (
 	SessionUploadCode = "T2005I"
 	// SessionDataCode is the session data event code.
 	SessionDataCode = "T2006I"
+	// AppSessionStartCode is the application session start code.
+	AppSessionStartCode = "T2007I"
+	// AppSessionChunkCode is the application session chunk create code.
+	AppSessionChunkCode = "T2008I"
+	// AppSessionRequestCode is the application request/response code.
+	AppSessionRequestCode = "T2009I"
+	// SessionConnectCode is the session connect event code.
+	SessionConnectCode = "T2010I"
+	// AppSessionEndCode is the application session end event code.
+	AppSessionEndCode = "T2011I"
+	// SessionRecordingAccessCode is the session recording view data event code.
+	SessionRecordingAccessCode = "T2012I"
+	// AppSessionDynamoDBRequestCode is the application request/response code.
+	AppSessionDynamoDBRequestCode = "T2013I"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
@@ -103,18 +117,6 @@ const (
 	AppUpdateCode = "TAP04I"
 	// AppDeleteCode is the app.delete event code.
 	AppDeleteCode = "TAP05I"
-
-	// AppSessionStartCode is the application session start code.
-	AppSessionStartCode = "T2007I"
-	// AppSessionEndCode is the application session end event code.
-	AppSessionEndCode = "T2011I"
-	// AppSessionChunkCode is the application session chunk create code.
-	AppSessionChunkCode = "T2008I"
-	// AppSessionRequestCode is the application request/response code.
-	AppSessionRequestCode = "T2009I"
-
-	// SessionConnectCode is the session connect event code.
-	SessionConnectCode = "T2010I"
 
 	// DatabaseSessionStartCode is the database session start event code.
 	DatabaseSessionStartCode = "TDB00I"
@@ -172,6 +174,21 @@ const (
 	// SQLServerRPCRequestCode is the db.session.sqlserver.rpc_request event code.
 	SQLServerRPCRequestCode = "TMS00I"
 
+	// CassandraBatchEventCode is the db.session.cassandra.batch event code.
+	CassandraBatchEventCode = "TCA01I"
+	// CassandraPrepareEventCode is the db.session.cassandra.prepare event code.
+	CassandraPrepareEventCode = "TCA02I"
+	// CassandraExecuteEventCode is the db.session.cassandra.execute event code.
+	CassandraExecuteEventCode = "TCA03I"
+	// CassandraRegisterEventCode is the db.session.cassandra.register event code.
+	CassandraRegisterEventCode = "TCA04I"
+
+	// ElasticsearchRequestCode is the db.session.elasticsearch.request event code.
+	ElasticsearchRequestCode = "TES00I"
+
+	// DynamoDBRequestCode is the db.session.dynamodb.request event code.
+	DynamoDBRequestCode = "TDY01I"
+
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
 	// DatabaseUpdateCode is the db.update event code.
@@ -190,6 +207,24 @@ const (
 	DesktopClipboardSendCode = "TDP02I"
 	// DesktopClipboardReceiveCode is the desktop clipboard receive code.
 	DesktopClipboardReceiveCode = "TDP03I"
+	// DesktopSharedDirectoryStartCode is the desktop directory start code.
+	DesktopSharedDirectoryStartCode = "TDP04I"
+	// DesktopSharedDirectoryStartFailureCode is the desktop directory start code
+	// for when a start operation fails, or for when the internal cache state was corrupted
+	// causing information loss, or for when the internal cache has exceeded its max size.
+	DesktopSharedDirectoryStartFailureCode = "TDP04W"
+	// DesktopSharedDirectoryReadCode is the desktop directory read code.
+	DesktopSharedDirectoryReadCode = "TDP05I"
+	// DesktopSharedDirectoryReadFailureCode is the desktop directory read code
+	// for when a read operation fails, or for if the internal cache state was corrupted
+	// causing information loss, or for when the internal cache has exceeded its max size.
+	DesktopSharedDirectoryReadFailureCode = "TDP05W"
+	// DesktopSharedDirectoryWriteCode is the desktop directory write code.
+	DesktopSharedDirectoryWriteCode = "TDP06I"
+	// DesktopSharedDirectoryWriteFailureCode is the desktop directory write code
+	// for when a write operation fails, or for if the internal cache state was corrupted
+	// causing information loss, or for when the internal cache has exceeded its max size.
+	DesktopSharedDirectoryWriteFailureCode = "TDP06W"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
@@ -224,6 +259,13 @@ const (
 	// Note: some requests (like exec into a pod) use other codes (like
 	// ExecCode).
 	KubeRequestCode = "T3009I"
+
+	// KubernetesClusterCreateCode is the kube.create event code.
+	KubernetesClusterCreateCode = "T3010I"
+	// KubernetesClusterUpdateCode is the kube.update event code.
+	KubernetesClusterUpdateCode = "T3011I"
+	// KubernetesClusterDeleteCode is the kube.delete event code.
+	KubernetesClusterDeleteCode = "T3012I"
 
 	// The following codes correspond to SFTP file operations.
 	SFTPOpenCode            = "TS001I"
@@ -330,6 +372,24 @@ const (
 
 	// UpgradeWindowStartUpdatedCode is the edit code of UpgradeWindowStartUpdateEvent.
 	UpgradeWindowStartUpdatedCode = "TUW01I"
+
+	// SSMRunSuccessCode is the discovery script success code.
+	SSMRunSuccessCode = "TDS00I"
+	// SSMRunFailCode is the discovery script success code.
+	SSMRunFailCode = "TDS00W"
+
+	// DeviceCreateCode is the device creation/registration code.
+	DeviceCreateCode = "TV001I"
+	// DeviceDeleteCode is the device deletion code.
+	DeviceDeleteCode = "TV002I"
+	// DeviceEnrollTokenCreateCode is the device enroll token creation code
+	DeviceEnrollTokenCreateCode = "TV003I"
+	// DeviceEnrollTokenSpentCode is the device enroll token spent code.
+	DeviceEnrollTokenSpentCode = "TV004I"
+	// DeviceEnrollCode is the device enrollment completion code.
+	DeviceEnrollCode = "TV005I"
+	// DeviceAuthenticateCode is the device authentication code.
+	DeviceAuthenticateCode = "TV006I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

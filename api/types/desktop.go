@@ -19,8 +19,9 @@ package types
 import (
 	"sort"
 
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // WindowsDesktopService represents a Windows desktop service instance.
@@ -37,15 +38,24 @@ type WindowsDesktopService interface {
 	ProxiedService
 }
 
+type WindowsDesktopServices []WindowsDesktopService
+
+// AsResources returns windows desktops as type resources with labels.
+func (s WindowsDesktopServices) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, 0, len(s))
+	for _, server := range s {
+		resources = append(resources, ResourceWithLabels(server))
+	}
+	return resources
+}
+
 var _ WindowsDesktopService = &WindowsDesktopServiceV3{}
 
 // NewWindowsDesktopServiceV3 creates a new WindowsDesktopServiceV3 resource.
-func NewWindowsDesktopServiceV3(name string, spec WindowsDesktopServiceSpecV3) (*WindowsDesktopServiceV3, error) {
+func NewWindowsDesktopServiceV3(meta Metadata, spec WindowsDesktopServiceSpecV3) (*WindowsDesktopServiceV3, error) {
 	s := &WindowsDesktopServiceV3{
 		ResourceHeader: ResourceHeader{
-			Metadata: Metadata{
-				Name: name,
-			},
+			Metadata: meta,
 		},
 		Spec: spec,
 	}
@@ -129,7 +139,8 @@ func (s *WindowsDesktopServiceV3) GetHostname() string {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (s *WindowsDesktopServiceV3) MatchSearch(values []string) bool {
-	return MatchSearch(nil, values, nil)
+	fieldVals := append(utils.MapToStrings(s.GetAllLabels()), s.GetName(), s.GetHostname())
+	return MatchSearch(fieldVals, values, nil)
 }
 
 // WindowsDesktop represents a Windows desktop host.
@@ -341,6 +352,20 @@ type ListWindowsDesktopsResponse struct {
 // ListWindowsDesktopsRequest is a request type to ListWindowsDesktops.
 type ListWindowsDesktopsRequest struct {
 	WindowsDesktopFilter
+	Limit                         int
+	StartKey, PredicateExpression string
+	Labels                        map[string]string
+	SearchKeywords                []string
+}
+
+// ListWindowsDesktopServicesResponse is a response type to ListWindowsDesktopServices.
+type ListWindowsDesktopServicesResponse struct {
+	DesktopServices []WindowsDesktopService
+	NextKey         string
+}
+
+// ListWindowsDesktopServicesRequest is a request type to ListWindowsDesktopServices.
+type ListWindowsDesktopServicesRequest struct {
 	Limit                         int
 	StartKey, PredicateExpression string
 	Labels                        map[string]string

@@ -20,16 +20,20 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/auth"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/cloud"
 )
 
 // TestRegisterEngine verifies database engine registration.
 func TestRegisterEngine(t *testing.T) {
+	// Cleanup "test" engine in case this test is run in a loop.
+	RegisterEngine(nil, "test")
+
 	ec := EngineConfig{
 		Context:      context.Background(),
 		Clock:        clockwork.NewFakeClock(),
@@ -37,7 +41,7 @@ func TestRegisterEngine(t *testing.T) {
 		Auth:         &testAuth{},
 		Audit:        &testAudit{},
 		AuthClient:   &auth.Client{},
-		CloudClients: NewCloudClients(),
+		CloudClients: cloud.NewClients(),
 	}
 
 	// No engine is registered initially.

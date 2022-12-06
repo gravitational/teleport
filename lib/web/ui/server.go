@@ -17,7 +17,6 @@ limitations under the License.
 package ui
 
 import (
-	"sort"
 	"strconv"
 	"strings"
 
@@ -72,30 +71,11 @@ func (s sortedLabels) Swap(i, j int) {
 func MakeServers(clusterName string, servers []types.Server, userRoles services.RoleSet) []Server {
 	uiServers := []Server{}
 	for _, server := range servers {
-		uiLabels := []Label{}
 		serverLabels := server.GetStaticLabels()
-		for name, value := range serverLabels {
-			uiLabels = append(uiLabels, Label{
-				Name:  name,
-				Value: value,
-			})
-		}
-
 		serverCmdLabels := server.GetCmdLabels()
-		for name, cmd := range serverCmdLabels {
-			uiLabels = append(uiLabels, Label{
-				Name:  name,
-				Value: cmd.GetResult(),
-			})
-		}
-
-		sort.Sort(sortedLabels(uiLabels))
+		uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
 
 		serverLogins := userRoles.EnumerateServerLogins(server)
-		sshLogins := serverLogins.Allowed()
-		if sshLogins == nil {
-			sshLogins = []string{}
-		}
 
 		uiServers = append(uiServers, Server{
 			ClusterName: clusterName,
@@ -104,7 +84,7 @@ func MakeServers(clusterName string, servers []types.Server, userRoles services.
 			Hostname:    server.GetHostname(),
 			Addr:        server.GetAddr(),
 			Tunnel:      server.GetUseTunnel(),
-			SSHLogins:   sshLogins,
+			SSHLogins:   serverLogins.Allowed(),
 		})
 	}
 
@@ -117,51 +97,91 @@ type KubeCluster struct {
 	Name string `json:"name"`
 	// Labels is a map of static and dynamic labels associated with an kube cluster.
 	Labels []Label `json:"labels"`
+	// KubeUsers is the list of allowed Kubernetes RBAC users that the user can impersonate.
+	KubeUsers []string `json:"kubernetes_users"`
+	// KubeGroups is the list of allowed Kubernetes RBAC groups that the user can impersonate.
+	KubeGroups []string `json:"kubernetes_groups"`
 }
 
-// MakeKubes creates ui kube objects and returns a list..
-func MakeKubeClusters(clusters []types.KubeCluster) []KubeCluster {
+// MakeKubeClusters creates ui kube objects and returns a list.
+func MakeKubeClusters(clusters []types.KubeCluster, userRoles services.RoleSet) []KubeCluster {
 	uiKubeClusters := make([]KubeCluster, 0, len(clusters))
 	for _, cluster := range clusters {
 		staticLabels := cluster.GetStaticLabels()
 		dynamicLabels := cluster.GetDynamicLabels()
-		uiLabels := make([]Label, 0, len(staticLabels)+len(dynamicLabels))
+		uiLabels := makeLabels(staticLabels, transformCommandLabels(dynamicLabels))
 
-		for name, value := range staticLabels {
-			uiLabels = append(uiLabels, Label{
-				Name:  name,
-				Value: value,
-			})
-		}
-
-		for name, cmd := range dynamicLabels {
-			uiLabels = append(uiLabels, Label{
-				Name:  name,
-				Value: cmd.GetResult(),
-			})
-		}
-
-		sort.Sort(sortedLabels(uiLabels))
+		kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(userRoles, cluster)
 
 		uiKubeClusters = append(uiKubeClusters, KubeCluster{
-			Name:   cluster.GetName(),
-			Labels: uiLabels,
+			Name:       cluster.GetName(),
+			Labels:     uiLabels,
+			KubeUsers:  kubeUsers,
+			KubeGroups: kubeGroups,
 		})
 	}
 
 	return uiKubeClusters
 }
 
+// getAllowedKubeUsersAndGroupsForCluster works on a given set of roles to return
+// a list of allowed `kubernetes_users` and `kubernetes_groups` that can be used
+// to access a given kubernetes cluster.
+// This function ignores any verification of the TTL associated with
+// each Role, and focuses only on listing all users and groups that the user may
+// have access to.
+func getAllowedKubeUsersAndGroupsForCluster(roles services.RoleSet, kube types.KubeCluster) (kubeUsers []string, kubeGroups []string) {
+	matcher := services.NewKubernetesClusterLabelMatcher(kube.GetAllLabels())
+	// We ignore the TTL verification because we want to include every possibility.
+	// Later, if the user certificate expiration is longer than the maximum allowed TTL
+	// for the role that defines the `kubernetes_*` principals the request will be
+	// denied by Kubernetes Service.
+	// We ignore the returning error since we are only interested in allowed users and groups.
+	kubeGroups, kubeUsers, _ = roles.CheckKubeGroupsAndUsers(0, true /* force ttl override*/, matcher)
+	return
+}
+
 // ConnectionDiagnostic describes a connection diagnostic.
 type ConnectionDiagnostic struct {
 	// ID is the identifier of the connection diagnostic.
 	ID string `json:"id"`
-	// Labels is a map of static and dynamic labels associated with the connection diagnostic.
-	Labels []Label `json:"labels"`
 	// Success is whether the connection was successful
 	Success bool `json:"success"`
 	// Message is the diagnostic summary
 	Message string `json:"message"`
+	// Traces contains multiple checkpoints results
+	Traces []ConnectionDiagnosticTraceUI `json:"traces,omitempty"`
+}
+
+// ConnectionDiagnosticTraceUI describes a connection diagnostic trace using a UI representation.
+// This is required in order to have a more friendly representation of the enum fields - TraceType and Status.
+// They are converted into string instead of using the numbers (as they are represented in gRPC).
+type ConnectionDiagnosticTraceUI struct {
+	// TraceType as string
+	TraceType string `json:"traceType,omitempty"`
+	// Status as string
+	Status string `json:"status,omitempty"`
+	// Details of the trace
+	Details string `json:"details,omitempty"`
+	// Error in case of failure
+	Error string `json:"error,omitempty"`
+}
+
+// ConnectionDiagnosticTraceUIFromTypes converts a list of ConnectionDiagnosticTrace into its format for HTTP API.
+// This is mostly copying things around and converting the enum into a string value.
+func ConnectionDiagnosticTraceUIFromTypes(traces []*types.ConnectionDiagnosticTrace) []ConnectionDiagnosticTraceUI {
+	ret := make([]ConnectionDiagnosticTraceUI, 0)
+
+	for _, t := range traces {
+		ret = append(ret, ConnectionDiagnosticTraceUI{
+			TraceType: t.Type.String(),
+			Status:    t.Status.String(),
+			Details:   t.Details,
+			Error:     t.Error,
+		})
+	}
+
+	return ret
 }
 
 // Database describes a database server.
@@ -176,37 +196,36 @@ type Database struct {
 	Type string `json:"type"`
 	// Labels is a map of static and dynamic labels associated with a database.
 	Labels []Label `json:"labels"`
+	// Hostname is the database connection endpoint (URI) hostname (without port and protocol).
+	Hostname string `json:"hostname"`
+	// DatabaseUsers is the list of allowed Database RBAC users that the user can login.
+	DatabaseUsers []string `json:"database_users,omitempty"`
+	// DatabaseNames is the list of allowed Database RBAC names that the user can login.
+	DatabaseNames []string `json:"database_names,omitempty"`
+}
+
+// MakeDatabase creates database objects.
+func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
+	uiLabels := makeLabels(database.GetAllLabels())
+
+	return Database{
+		Name:          database.GetName(),
+		Desc:          database.GetDescription(),
+		Protocol:      database.GetProtocol(),
+		Type:          database.GetType(),
+		Labels:        uiLabels,
+		DatabaseUsers: dbUsers,
+		DatabaseNames: dbNames,
+		Hostname:      stripProtocolAndPort(database.GetURI()),
+	}
 }
 
 // MakeDatabases creates database objects.
-func MakeDatabases(clusterName string, databases []types.Database) []Database {
+func MakeDatabases(databases []types.Database) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
-		uiLabels := []Label{}
-
-		for name, value := range database.GetStaticLabels() {
-			uiLabels = append(uiLabels, Label{
-				Name:  name,
-				Value: value,
-			})
-		}
-
-		for name, cmd := range database.GetDynamicLabels() {
-			uiLabels = append(uiLabels, Label{
-				Name:  name,
-				Value: cmd.GetResult(),
-			})
-		}
-
-		sort.Sort(sortedLabels(uiLabels))
-
-		uiServers = append(uiServers, Database{
-			Name:     database.GetName(),
-			Desc:     database.GetDescription(),
-			Protocol: database.GetProtocol(),
-			Type:     database.GetType(),
-			Labels:   uiLabels,
-		})
+		db := MakeDatabase(database, nil /* database Users */, nil /* database Names */)
+		uiServers = append(uiServers, db)
 	}
 
 	return uiServers
@@ -222,6 +241,8 @@ type Desktop struct {
 	Addr string `json:"addr"`
 	// Labels is a map of static and dynamic labels associated with a desktop.
 	Labels []Label `json:"labels"`
+	// HostID is the ID of the Windows Desktop Service reporting the desktop.
+	HostID string `json:"host_id"`
 }
 
 // MakeDesktop converts a desktop from its API form to a type the UI can display.
@@ -234,22 +255,14 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
 		}
 		return addr
 	}
-	uiLabels := []Label{}
-
-	for name, value := range windowsDesktop.GetAllLabels() {
-		uiLabels = append(uiLabels, Label{
-			Name:  name,
-			Value: value,
-		})
-	}
-
-	sort.Sort(sortedLabels(uiLabels))
+	uiLabels := makeLabels(windowsDesktop.GetAllLabels())
 
 	return Desktop{
 		OS:     constants.WindowsOS,
 		Name:   windowsDesktop.GetName(),
 		Addr:   stripRdpPort(windowsDesktop.GetAddr()),
 		Labels: uiLabels,
+		HostID: windowsDesktop.GetHostID(),
 	}
 }
 
@@ -262,4 +275,63 @@ func MakeDesktops(windowsDesktops []types.WindowsDesktop) []Desktop {
 	}
 
 	return uiDesktops
+}
+
+// DesktopService describes a desktop service to pass to the ui.
+type DesktopService struct {
+	// Name is hostname of the Windows Desktop Service.
+	Name string `json:"name"`
+	// Hostname is hostname of the Windows Desktop Service.
+	Hostname string `json:"hostname"`
+	// Addr is the network address the Windows Desktop Service can be reached at.
+	Addr string `json:"addr"`
+	// Labels is a map of static and dynamic labels associated with a desktop.
+	Labels []Label `json:"labels"`
+}
+
+// MakeDesktop converts a desktop from its API form to a type the UI can display.
+func MakeDesktopService(desktopService types.WindowsDesktopService) DesktopService {
+	uiLabels := makeLabels(desktopService.GetAllLabels())
+
+	return DesktopService{
+		Name:     desktopService.GetName(),
+		Hostname: desktopService.GetHostname(),
+		Addr:     desktopService.GetAddr(),
+		Labels:   uiLabels,
+	}
+}
+
+// MakeDesktopServices converts desktops from their API form to a type the UI can display.
+func MakeDesktopServices(windowsDesktopServices []types.WindowsDesktopService) []DesktopService {
+	desktopServices := make([]DesktopService, 0, len(windowsDesktopServices))
+
+	for _, desktopService := range windowsDesktopServices {
+		desktopServices = append(desktopServices, MakeDesktopService(desktopService))
+	}
+
+	return desktopServices
+}
+
+// stripProtocolAndPort returns only the hostname of the uri.
+// Handles uri's with no protocol eg: for some database connection
+// endpoint the uri can be in the format "hostname:port".
+func stripProtocolAndPort(uri string) string {
+	stripPort := func(uri string) string {
+		splitURI := strings.Split(uri, ":")
+
+		if len(splitURI) > 1 {
+			return splitURI[0]
+		}
+
+		return uri
+	}
+
+	// Ignore protocol.
+	// eg: "rediss://some-hostname" or "mongodb+srv://some-hostname"
+	splitURI := strings.Split(uri, "//")
+	if len(splitURI) > 1 {
+		return stripPort(splitURI[1])
+	}
+
+	return stripPort(uri)
 }

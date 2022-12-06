@@ -20,16 +20,18 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/db/common"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
+	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // TestAWSMetadata tests fetching AWS metadata for RDS and Redshift databases.
@@ -57,6 +59,18 @@ func TestAWSMetadata(t *testing.T) {
 				DBClusterArn:        aws.String("arn:aws:rds:us-east-1:1234567890:cluster:postgres-aurora"),
 				DBClusterIdentifier: aws.String("postgres-aurora"),
 				DbClusterResourceId: aws.String("cluster-xyz"),
+			},
+		},
+		DBProxies: []*rds.DBProxy{
+			{
+				DBProxyArn:  aws.String("arn:aws:rds:us-east-1:1234567890:db-proxy:prx-resource-id"),
+				DBProxyName: aws.String("rds-proxy"),
+			},
+		},
+		DBProxyEndpoints: []*rds.DBProxyEndpoint{
+			{
+				DBProxyEndpointName: aws.String("rds-proxy-endpoint"),
+				DBProxyName:         aws.String("rds-proxy"),
 			},
 		},
 	}
@@ -100,13 +114,22 @@ func TestAWSMetadata(t *testing.T) {
 		},
 	}
 
+	// Configure Redshift Serverless API mock.
+	redshiftServerlessWorkgroup := cloudtest.RedshiftServerlessWorkgroup("my-workgroup", "us-west-1")
+	redshiftServerlessEndpoint := cloudtest.RedshiftServerlessEndpointAccess(redshiftServerlessWorkgroup, "my-endpoint", "us-west-1")
+	redshiftServerless := &cloudtest.RedshiftServerlessMock{
+		Workgroups: []*redshiftserverless.Workgroup{redshiftServerlessWorkgroup},
+		Endpoints:  []*redshiftserverless.EndpointAccess{redshiftServerlessEndpoint},
+	}
+
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
-		Clients: &common.TestCloudClients{
-			RDS:         rds,
-			Redshift:    redshift,
-			ElastiCache: elasticache,
-			MemoryDB:    memorydb,
+		Clients: &cloud.TestCloudClients{
+			RDS:                rds,
+			Redshift:           redshift,
+			ElastiCache:        elasticache,
+			MemoryDB:           memorydb,
+			RedshiftServerless: redshiftServerless,
 		},
 	})
 	require.NoError(t, err)
@@ -233,6 +256,76 @@ func TestAWSMetadata(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "RDS Proxy",
+			inAWS: types.AWS{
+				Region: "us-east-1",
+				RDSProxy: types.RDSProxy{
+					Name: "rds-proxy",
+				},
+			},
+			outAWS: types.AWS{
+				AccountID: "1234567890",
+				Region:    "us-east-1",
+				RDSProxy: types.RDSProxy{
+					Name:       "rds-proxy",
+					ResourceID: "prx-resource-id",
+				},
+			},
+		},
+		{
+			name: "RDS Proxy custom endpoint",
+			inAWS: types.AWS{
+				Region: "us-east-1",
+				RDSProxy: types.RDSProxy{
+					CustomEndpointName: "rds-proxy-endpoint",
+				},
+			},
+			outAWS: types.AWS{
+				AccountID: "1234567890",
+				Region:    "us-east-1",
+				RDSProxy: types.RDSProxy{
+					Name:               "rds-proxy",
+					CustomEndpointName: "rds-proxy-endpoint",
+					ResourceID:         "prx-resource-id",
+				},
+			},
+		},
+		{
+			name: "Redshift Serverless workgroup",
+			inAWS: types.AWS{
+				Region: "us-west-1",
+				RedshiftServerless: types.RedshiftServerless{
+					WorkgroupName: "my-workgroup",
+				},
+			},
+			outAWS: types.AWS{
+				AccountID: "1234567890",
+				Region:    "us-west-1",
+				RedshiftServerless: types.RedshiftServerless{
+					WorkgroupName: "my-workgroup",
+					WorkgroupID:   "some-uuid-for-my-workgroup",
+				},
+			},
+		},
+		{
+			name: "Redshift Serverless VPC endpoint",
+			inAWS: types.AWS{
+				Region: "us-west-1",
+				RedshiftServerless: types.RedshiftServerless{
+					EndpointName: "my-endpoint",
+				},
+			},
+			outAWS: types.AWS{
+				AccountID: "1234567890",
+				Region:    "us-west-1",
+				RedshiftServerless: types.RedshiftServerless{
+					WorkgroupName: "my-workgroup",
+					EndpointName:  "my-endpoint",
+					WorkgroupID:   "some-uuid-for-my-workgroup",
+				},
+			},
+		},
 	}
 
 	ctx := context.Background()
@@ -263,7 +356,7 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
-		Clients: &common.TestCloudClients{
+		Clients: &cloud.TestCloudClients{
 			RDS:      rds,
 			Redshift: redshift,
 		},
@@ -279,6 +372,22 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 			meta: types.AWS{
 				RDS: types.RDS{
 					InstanceID: "postgres-rds",
+				},
+			},
+		},
+		{
+			name: "RDS proxy",
+			meta: types.AWS{
+				RDSProxy: types.RDSProxy{
+					Name: "rds-proxy",
+				},
+			},
+		},
+		{
+			name: "RDS proxy endpoint",
+			meta: types.AWS{
+				RDSProxy: types.RDSProxy{
+					CustomEndpointName: "rds-proxy-endpoint",
 				},
 			},
 		},

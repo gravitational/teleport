@@ -23,8 +23,6 @@ This guide will help you to:
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access CockroachDB Self-Hosted](../../../img/database-access/guides/cockroachdb_selfhosted.png)
 </ScopedBlock>
-
-
 <ScopedBlock scope={["cloud"]}>
 ![Teleport Database Access CockroachDB Cloud](../../../img/database-access/guides/cockroachdb_cloud.png)
 </ScopedBlock>
@@ -185,27 +183,17 @@ $ tsh db ls
 </TabItem>
 </Tabs>
 
-Fetch short-lived client certificate for it using `tsh db login` command:
+To retrieve credentials for a database and connect to it:
 
 ```code
-$ tsh db login roach
+$ tsh db connect roach
 ```
-
-<Admonition type="tip">
-  You can be logged into multiple databases simultaneously.
-</Admonition>
 
 You can optionally specify the database name and the user to use by default
 when connecting to the database server:
 
 ```code
-$ tsh db login --db-user=alice roach
-```
-
-Now connect to the database:
-
-```code
-$ tsh db connect roach
+$ tsh db connect --db-user=alice roach
 ```
 
 <Admonition type="note">

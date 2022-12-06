@@ -30,21 +30,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/request"
-
-	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/dynamo"
-	"github.com/gravitational/teleport/lib/events"
-	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
-	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/request"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/applicationautoscaling"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -54,6 +42,16 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/backend/dynamo"
+	"github.com/gravitational/teleport/lib/events"
+	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
+	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -93,7 +91,7 @@ var tableSchema = []*dynamodb.AttributeDefinition{
 	},
 }
 
-// Config structure represents DynamoDB confniguration as appears in `storage` section
+// Config structure represents DynamoDB configuration as appears in `storage` section
 // of Teleport YAML
 type Config struct {
 	// Region is where DynamoDB Table will be used to store k/v
@@ -201,13 +199,6 @@ type Log struct {
 
 	// session holds the AWS client.
 	session *awssession.Session
-
-	// Backend holds the data backend used.
-	// This is used for locking.
-	backend backend.Backend
-
-	// isBillingModeProvisioned tracks if the table has provisioned capacity or not.
-	isBillingModeProvisioned bool
 }
 
 type event struct {
@@ -256,7 +247,7 @@ const (
 
 // New returns new instance of DynamoDB backend.
 // It's an implementation of backend API's NewFunc
-func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error) {
+func New(ctx context.Context, cfg Config) (*Log, error) {
 	l := log.WithFields(log.Fields{
 		trace.Component: teleport.Component(teleport.ComponentDynamoDB),
 	})
@@ -267,9 +258,8 @@ func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error)
 		return nil, trace.Wrap(err)
 	}
 	b := &Log{
-		Entry:   l,
-		Config:  cfg,
-		backend: backend,
+		Entry:  l,
+		Config: cfg,
 	}
 	// create an AWS session using default SDK behavior, i.e. it will interpret
 	// the environment and ~/.aws directory just like an AWS CLI tool would:
@@ -317,12 +307,7 @@ func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = b.turnOnTimeToLive(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	b.isBillingModeProvisioned, err = b.getBillingModeIsProvisioned(ctx)
+	err = dynamo.TurnOnTimeToLive(ctx, b.svc, b.Tablename, keyExpires)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -480,11 +465,8 @@ func (l *Log) GetSessionChunk(namespace string, sid session.ID, offsetBytes, max
 // GetSessionEvents Returns all events that happen during a session sorted by time
 // (oldest first).
 //
-// after tells to use only return events after a specified cursor Id
-//
-// This function is usually used in conjunction with GetSessionReader to
-// replay recorded session streams.
-func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlcudePrintEvents bool) ([]events.EventFields, error) {
+// after is used to return events after a specified cursor ID
+func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error) {
 	var values []events.EventFields
 	query := "SessionID = :sessionID AND EventIndex >= :eventIndex"
 	attributes := map[string]interface{}{
@@ -867,27 +849,6 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 	return "", trace.BadParameter("failed to convert WhereExpr %q to DynamoDB filter expression", cond)
 }
 
-func (l *Log) turnOnTimeToLive(ctx context.Context) error {
-	status, err := l.svc.DescribeTimeToLiveWithContext(ctx, &dynamodb.DescribeTimeToLiveInput{
-		TableName: aws.String(l.Tablename),
-	})
-	if err != nil {
-		return trace.Wrap(convertError(err))
-	}
-	switch aws.StringValue(status.TimeToLiveDescription.TimeToLiveStatus) {
-	case dynamodb.TimeToLiveStatusEnabled, dynamodb.TimeToLiveStatusEnabling:
-		return nil
-	}
-	_, err = l.svc.UpdateTimeToLiveWithContext(ctx, &dynamodb.UpdateTimeToLiveInput{
-		TableName: aws.String(l.Tablename),
-		TimeToLiveSpecification: &dynamodb.TimeToLiveSpecification{
-			AttributeName: aws.String(keyExpires),
-			Enabled:       aws.Bool(true),
-		},
-	})
-	return convertError(err)
-}
-
 // getTableStatus checks if a given table exists
 func (l *Log) getTableStatus(ctx context.Context, tableName string) (tableStatus, error) {
 	_, err := l.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
@@ -901,24 +862,6 @@ func (l *Log) getTableStatus(ctx context.Context, tableName string) (tableStatus
 		return tableStatusError, trace.Wrap(err)
 	}
 	return tableStatusOK, nil
-}
-
-func (l *Log) getBillingModeIsProvisioned(ctx context.Context) (bool, error) {
-	res, err := l.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
-		TableName: aws.String(l.Tablename),
-	})
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	// Guaranteed to be set.
-	table := res.Table
-
-	// Perform pessimistic nil-checks, assume the table is provisioned if they are true.
-	// Otherwise, actually check the billing mode.
-	return table.BillingModeSummary == nil ||
-		table.BillingModeSummary.BillingMode == nil ||
-		*table.BillingModeSummary.BillingMode == dynamodb.BillingModeProvisioned, nil
 }
 
 // indexExists checks if a given index exists on a given table and that it is active or updating.

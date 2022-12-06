@@ -25,10 +25,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -36,11 +42,6 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -84,7 +85,7 @@ type AgentPool struct {
 	cancel context.CancelFunc
 
 	// backoff limits the rate at which new agents are created.
-	backoff utils.Retry
+	backoff retryutils.Retry
 	log     logrus.FieldLogger
 }
 
@@ -177,10 +178,10 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	retry, err := utils.NewLinear(utils.LinearConfig{
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step:      time.Second,
 		Max:       maxBackoff,
-		Jitter:    utils.NewJitter(),
+		Jitter:    retryutils.NewJitter(),
 		AutoReset: 4,
 	})
 	if err != nil {
@@ -221,6 +222,10 @@ func (p *AgentPool) GetConnectedProxyGetter() *ConnectedProxyGetter {
 }
 
 func (p *AgentPool) updateConnectedProxies() {
+	if p.IsRemoteCluster {
+		trustedClustersStats.WithLabelValues(p.Cluster).Set(float64(p.active.len()))
+	}
+
 	if !p.runtimeConfig.reportConnectedProxies() {
 		p.ConnectedProxyGetter.setProxyIDs(nil)
 		return
@@ -348,7 +353,7 @@ func (p *AgentPool) processEvents(ctx context.Context, events <-chan Agent) erro
 
 	// Continue to process new events until an agent is required.
 	for {
-		p.log.Debugf("processing events...")
+		p.log.Debugf("Processing events...")
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
@@ -459,7 +464,7 @@ func (p *AgentPool) getStateCallback(agent Agent) AgentStateCallback {
 
 // newAgent creates a new agent instance.
 func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease track.Lease) (Agent, error) {
-	addr, err := p.Resolver(ctx)
+	addr, _, err := p.Resolver(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -579,7 +584,7 @@ type agentPoolRuntimeConfig struct {
 
 	// remoteTLSRoutingEnabled caches a remote clusters tls routing setting. This helps prevent
 	// proxy endpoint stagnation where an even numbers of proxies are hidden behind a round robin
-	// load balancer. For instance in a situation where there are two proxies [A, B] due to the
+	// load balancer. For instance in a situation where there are two proxies [A, B] due to
 	// the agent pools sequential webclient.Find and ssh dial, the Find call will always reach
 	// Proxy A and the ssh dial call will always be forwarded to Proxy B.
 	remoteTLSRoutingEnabled bool
@@ -611,7 +616,7 @@ func (c *agentPoolRuntimeConfig) reportConnectedProxies() bool {
 	return c.tunnelStrategyType == types.ProxyPeering
 }
 
-// reportConnectedProxies returns true if the the number of agents should be restricted.
+// reportConnectedProxies returns true if the number of agents should be restricted.
 func (c *agentPoolRuntimeConfig) restrictConnectionCount() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -675,8 +680,17 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 		if ok := errors.As(err, &tls.RecordHeaderError{}); !ok {
 			return trace.Wrap(err)
 		}
-	} else {
-		tlsRoutingEnabled = ping.Proxy.TLSRoutingEnabled
+	}
+
+	if ping != nil {
+		// Only use the ping results if they weren't from a minimal handler.
+		// The minimal API handler only exists when the proxy and reverse tunnel are
+		// listening on separate ports, so it will never do TLS routing.
+		isMinimalHandler := addr.Addr == ping.Proxy.SSH.TunnelListenAddr &&
+			ping.Proxy.SSH.TunnelListenAddr != ping.Proxy.SSH.WebListenAddr
+		if !isMinimalHandler {
+			tlsRoutingEnabled = ping.Proxy.TLSRoutingEnabled
+		}
 	}
 
 	c.mu.Lock()

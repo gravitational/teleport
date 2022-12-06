@@ -25,23 +25,26 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 )
 
 // UploaderConfig sets up configuration for uploader service
 type UploaderConfig struct {
 	// ScanDir is data directory with the uploads
 	ScanDir string
+	// CorruptedDir is the directory to store corrupted uploads in.
+	CorruptedDir string
 	// Clock is the clock replacement
 	Clock clockwork.Clock
 	// ScanPeriod is a uploader dir scan period
@@ -55,8 +58,6 @@ type UploaderConfig struct {
 	EventsC chan events.UploadEvent
 	// Component is used for logging purposes
 	Component string
-	// AuditLog is used for storing logs
-	AuditLog events.IAuditLog
 }
 
 // CheckAndSetDefaults checks and sets default values of UploaderConfig
@@ -67,8 +68,8 @@ func (cfg *UploaderConfig) CheckAndSetDefaults() error {
 	if cfg.ScanDir == "" {
 		return trace.BadParameter("missing parameter ScanDir")
 	}
-	if cfg.AuditLog == nil {
-		return trace.BadParameter("missing parameter AuditLog")
+	if cfg.CorruptedDir == "" {
+		return trace.BadParameter("missing parameter CorruptedDir")
 	}
 	if cfg.ConcurrentUploads <= 0 {
 		cfg.ConcurrentUploads = defaults.UploaderConcurrentUploads
@@ -91,13 +92,19 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if err := os.MkdirAll(cfg.ScanDir, teleport.SharedDirMode); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	if err := os.MkdirAll(cfg.CorruptedDir, teleport.SharedDirMode); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+
 	uploader := &Uploader{
 		cfg: cfg,
 		log: log.WithFields(log.Fields{
 			trace.Component: cfg.Component,
 		}),
 		closeC:    make(chan struct{}),
-		auditLog:  cfg.AuditLog,
 		semaphore: make(chan struct{}, cfg.ConcurrentUploads),
 		eventsCh:  make(chan events.UploadEvent, cfg.ConcurrentUploads),
 	}
@@ -114,7 +121,6 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 // the upload that have been aborted.
 //
 // It marks corrupted session files to skip their processing.
-//
 type Uploader struct {
 	semaphore chan struct{}
 
@@ -122,7 +128,6 @@ type Uploader struct {
 	log *log.Entry
 
 	eventsCh chan events.UploadEvent
-	auditLog events.IAuditLog
 	closeC   chan struct{}
 }
 
@@ -155,7 +160,7 @@ func (u *Uploader) checkSessionError(sessionID session.ID) (bool, error) {
 
 // Serve runs the uploader until stopped
 func (u *Uploader) Serve(ctx context.Context) error {
-	backoff, err := utils.NewLinear(utils.LinearConfig{
+	backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step:  u.cfg.ScanPeriod,
 		Max:   u.cfg.ScanPeriod * 100,
 		Clock: u.cfg.Clock,
@@ -221,6 +226,9 @@ type ScanStats struct {
 	Scanned int
 	// Started is how many uploads have been started
 	Started int
+	// Corrupted is how many corrupted uploads have been
+	// moved out of the scan dir.
+	Corrupted int
 }
 
 // Scan scans the streaming directory and uploads recordings
@@ -241,7 +249,7 @@ func (u *Uploader) Scan(ctx context.Context) (*ScanStats, error) {
 		}
 		stats.Scanned++
 		if err := u.startUpload(ctx, fi.Name()); err != nil {
-			if trace.IsCompareFailed(err) {
+			if errors.Is(err, utils.ErrUnsuccessfulLockTry) {
 				u.log.Debugf("Scan is skipping recording %v that is locked by another process.", fi.Name())
 				continue
 			}
@@ -251,6 +259,7 @@ func (u *Uploader) Scan(ctx context.Context) (*ScanStats, error) {
 			}
 			if isSessionError(err) {
 				u.log.WithError(err).Warningf("Skipped session recording %v.", fi.Name())
+				stats.Corrupted++
 				continue
 			}
 			return nil, trace.Wrap(err)
@@ -258,7 +267,8 @@ func (u *Uploader) Scan(ctx context.Context) (*ScanStats, error) {
 		stats.Started++
 	}
 	if stats.Scanned > 0 {
-		u.log.Debugf("Scanned %v uploads, started %v in %v.", stats.Scanned, stats.Started, u.cfg.ScanDir)
+		u.log.Debugf("Scanned %v uploads, started %v, found %v corrupted in %v.",
+			stats.Scanned, stats.Started, stats.Corrupted, u.cfg.ScanDir)
 	}
 	return &stats, nil
 }
@@ -277,6 +287,7 @@ type upload struct {
 	sessionID      session.ID
 	reader         *events.ProtoReader
 	file           *os.File
+	fileUnlockFn   func() error
 	checkpointFile *os.File
 }
 
@@ -322,7 +333,7 @@ func (u *upload) writeStatus(status apievents.StreamStatus) error {
 func (u *upload) Close() error {
 	return trace.NewAggregate(
 		u.reader.Close(),
-		utils.FSUnlock(u.file),
+		u.fileUnlockFn(),
 		u.file.Close(),
 		utils.NilCloser(u.checkpointFile).Close(),
 	)
@@ -354,10 +365,24 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 		return trace.Wrap(err)
 	}
 	if isSessionError {
+		errorFilePath := u.sessionErrorFilePath(sessionID)
+		// move the corrupted recording and the error marker to a separate directory
+		// to prevent the uploader from spinning on the same corrupted upload
+		var moveErrs []error
+		if err := os.Rename(sessionFilePath, filepath.Join(u.cfg.CorruptedDir, filepath.Base(sessionFilePath))); err != nil {
+			moveErrs = append(moveErrs, trace.Wrap(err, "moving %v to %v", sessionFilePath, u.cfg.CorruptedDir))
+		}
+		if err := os.Rename(errorFilePath, filepath.Join(u.cfg.CorruptedDir, filepath.Base(errorFilePath))); err != nil {
+			moveErrs = append(moveErrs, trace.Wrap(err, "moving %v to %v", errorFilePath, u.cfg.CorruptedDir))
+		}
+		if len(moveErrs) > 0 {
+			u.log.Errorf("Failed to move corrupted recording: %v", trace.NewAggregate(moveErrs...))
+		}
+
 		return sessionError{
 			err: trace.BadParameter(
-				"session recording %v is either corrupted or is using unsupported format, remove the file %v to correct the problem, remove the %v file to retry the upload",
-				sessionID, sessionFilePath, u.sessionErrorFilePath(sessionID)),
+				"session recording %v; check the %v directory for artifacts",
+				sessionID, u.cfg.CorruptedDir),
 		}
 	}
 
@@ -366,17 +391,19 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	if err := utils.FSTryWriteLock(sessionFile); err != nil {
+	unlock, err := utils.FSTryWriteLock(sessionFilePath)
+	if err != nil {
 		if e := sessionFile.Close(); e != nil {
 			u.log.WithError(e).Warningf("Failed to close %v.", fileName)
 		}
-		return trace.Wrap(err)
+		return trace.WrapWithMessage(err, "could not acquire file lock for %q", sessionFilePath)
 	}
 
 	upload := &upload{
-		sessionID: sessionID,
-		reader:    events.NewProtoReader(sessionFile),
-		file:      sessionFile,
+		sessionID:    sessionID,
+		reader:       events.NewProtoReader(sessionFile),
+		file:         sessionFile,
+		fileUnlockFn: unlock,
 	}
 	upload.checkpointFile, err = os.OpenFile(u.checkpointFilePath(sessionID), os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
@@ -440,7 +467,7 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 				return trace.Wrap(err)
 			}
 			u.log.WithError(err).Warningf(
-				"Upload for sesion %v, upload ID %v is not found starting a new upload from scratch.",
+				"Upload for session %v, upload ID %v is not found starting a new upload from scratch.",
 				up.sessionID, status.UploadID)
 			status = nil
 			stream, err = u.cfg.Streamer.CreateAuditStream(ctx, up.sessionID)
@@ -465,7 +492,7 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 	case <-u.closeC:
 		return trace.Errorf("operation has been canceled, uploader is closed")
 	case <-stream.Status():
-	case <-time.After(defaults.NetworkRetryDuration):
+	case <-time.After(events.NetworkRetryDuration):
 		return trace.ConnectionProblem(nil, "timeout waiting for stream status update")
 	case <-ctx.Done():
 		return trace.ConnectionProblem(ctx.Err(), "operation has been canceled")

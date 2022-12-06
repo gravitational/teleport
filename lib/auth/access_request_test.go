@@ -24,21 +24,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/gravitational/trace"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type accessRequestTestPack struct {
@@ -66,7 +65,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 
 	roles := map[string]types.RoleSpecV5{
 		// superadmins have access to all nodes
-		"superadmins": types.RoleSpecV5{
+		"superadmins": {
 			Allow: types.RoleConditions{
 				Logins: []string{"root"},
 				NodeLabels: types.Labels{
@@ -75,7 +74,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 			},
 		},
 		// admins have access to nodes in prod and staging
-		"admins": types.RoleSpecV5{
+		"admins": {
 			Allow: types.RoleConditions{
 				Logins: []string{"root"},
 				NodeLabels: types.Labels{
@@ -87,7 +86,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 			},
 		},
 		// operators can request the admins role
-		"operators": types.RoleSpecV5{
+		"operators": {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					Roles: []string{"admins"},
@@ -96,7 +95,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 		},
 		// responders can request the admins role but only with a
 		// resource request limited to specific resources
-		"responders": types.RoleSpecV5{
+		"responders": {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					SearchAsRoles: []string{"admins"},
@@ -104,7 +103,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 			},
 		},
 		// requesters can request everything possible
-		"requesters": types.RoleSpecV5{
+		"requesters": {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					Roles:         []string{"admins", "superadmins"},
@@ -112,7 +111,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 				},
 			},
 		},
-		"empty": types.RoleSpecV5{},
+		"empty": {},
 	}
 	for roleName, roleSpec := range roles {
 		role, err := types.NewRole(roleName, roleSpec)
@@ -123,11 +122,11 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 	}
 
 	users := map[string][]string{
-		"admin":     []string{"admins"},
-		"responder": []string{"responders"},
-		"operator":  []string{"operators"},
-		"requester": []string{"requesters"},
-		"nobody":    []string{"empty"},
+		"admin":     {"admins"},
+		"responder": {"responders"},
+		"operator":  {"operators"},
+		"requester": {"requesters"},
+		"nobody":    {"empty"},
 	}
 	for name, roles := range users {
 		user, err := types.NewUser(name)
@@ -141,12 +140,12 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 		labels map[string]string
 	}
 	nodes := map[string]nodeDesc{
-		"staging": nodeDesc{
+		"staging": {
 			labels: map[string]string{
 				"env": "staging",
 			},
 		},
-		"prod": nodeDesc{
+		"prod": {
 			labels: map[string]string{
 				"env": "prod",
 			},
@@ -159,7 +158,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 		require.NoError(t, err)
 	}
 
-	privKey, pubKey, err := native.GenerateKeyPair()
+	privKey, pubKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	return &accessRequestTestPack{
@@ -173,11 +172,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 }
 
 func TestAccessRequest(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			ResourceAccessRequests: true,
-		},
-	})
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 

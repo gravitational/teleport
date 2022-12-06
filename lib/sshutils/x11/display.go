@@ -177,7 +177,7 @@ func GetXDisplay() (Display, error) {
 
 // ParseDisplay parses the given display value and returns the host,
 // display number, and screen number, or a parsing error. display must be
-//in one of the following formats - hostname:d[.s], unix:d[.s], :d[.s], ::d[.s].
+// in one of the following formats - hostname:d[.s], unix:d[.s], :d[.s], ::d[.s].
 func ParseDisplay(displayString string) (Display, error) {
 
 	if displayString == "" {

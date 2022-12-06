@@ -22,26 +22,28 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
 	// TLSCertKey is the name under which TLS certificates exist in a destination.
 	TLSCertKey = "tlscert"
 
-	// TLSCertKey is the name under which SSH certificates exist in a destination.
-	SSHCertKey = "sshcert"
+	// SSHCertKey is the name under which SSH certificates exist in a destination.
+	SSHCertKey = "key-cert.pub"
 
 	// SSHCACertsKey is the name under which SSH CA certificates exist in a destination.
 	SSHCACertsKey = "sshcacerts"
@@ -197,7 +199,7 @@ func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 	if !i.HasTLSConfig() {
 		return nil, trace.NotFound("no TLS credentials setup for this identity")
 	}
-	tlsCert, err := tls.X509KeyPair(i.TLSCertBytes, i.PrivateKeyBytes)
+	tlsCert, err := keys.X509KeyPair(i.TLSCertBytes, i.PrivateKeyBytes)
 	if err != nil {
 		return nil, trace.BadParameter("failed to parse private key: %v", err)
 	}
@@ -305,7 +307,7 @@ func ReadTLSIdentityFromKeyPair(identity *Identity, keyBytes, certBytes []byte, 
 
 	clusterName := cert.Issuer.Organization[0]
 	if clusterName == "" {
-		return trace.BadParameter("misssing cluster name")
+		return trace.BadParameter("missing cluster name")
 	}
 
 	identity.ClusterName = clusterName
@@ -412,7 +414,7 @@ func SaveIdentity(id *Identity, d bot.Destination, kinds ...ArtifactKind) error 
 
 		log.Debugf("Writing %s", artifact.Key)
 		if err := d.Write(artifact.Key, data); err != nil {
-			return trace.WrapWithMessage(err, "could not write to %v", artifact.Key)
+			return trace.Wrap(err, "could not write to %v", artifact.Key)
 		}
 	}
 
@@ -432,7 +434,28 @@ func LoadIdentity(d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
 
 		data, err := d.Read(artifact.Key)
 		if err != nil {
-			return nil, trace.WrapWithMessage(err, "could not read artifact %q from destination %s", artifact.Key, d)
+			return nil, trace.Wrap(err, "could not read artifact %q from destination %s", artifact.Key, d)
+		}
+
+		// Attempt to load from an old key if there was no data in the current
+		// key. This will be in the case as d.Read for the file destination will
+		// not throw an error if the file does not exist.
+		// This allows migrations of key names.
+		if artifact.OldKey != "" && len(data) == 0 {
+			log.Debugf(
+				"Unable to load from current key %q, trying to migrate from old key %q",
+				artifact.Key,
+				artifact.OldKey,
+			)
+			data, err = d.Read(artifact.OldKey)
+			if err != nil {
+				return nil, trace.Wrap(
+					err,
+					"could not read artifact %q from destination %q",
+					artifact.OldKey,
+					d,
+				)
+			}
 		}
 
 		// We generally expect artifacts to exist beforehand regardless of

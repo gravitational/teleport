@@ -19,16 +19,18 @@ package clusters
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/teleterm/api/uri"
-
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
+	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
 // Cluster describes user settings and access to various resources.
@@ -37,7 +39,8 @@ type Cluster struct {
 	URI uri.ResourceURI
 	// Name is the cluster name
 	Name string
-
+	// ProfileName is the name of the tsh profile
+	ProfileName string
 	// Log is a component logger
 	Log *logrus.Entry
 	// dir is the directory where cluster certificates are stored
@@ -48,11 +51,36 @@ type Cluster struct {
 	clusterClient *client.TeleportClient
 	// clock is a clock for time-related operations
 	clock clockwork.Clock
+	// Auth server features
+	// only present where the auth client can be queried
+	// and set with GetClusterFeatures
+	Features *proto.Features
 }
 
 // Connected indicates if connection to the cluster can be established
 func (c *Cluster) Connected() bool {
 	return c.status.Name != "" && !c.status.IsExpired(c.clock)
+}
+
+// GetClusterFeatures returns a list of features enabled/disabled by the auth server
+func (c *Cluster) GetClusterFeatures(ctx context.Context) (*proto.Features, error) {
+	var authPingResponse proto.PingResponse
+
+	err := addMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authPingResponse, err = proxyClient.CurrentCluster().Ping(ctx)
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return authPingResponse.ServerFeatures, nil
 }
 
 // GetRoles returns currently logged-in user roles
@@ -82,19 +110,62 @@ func (c *Cluster) GetRoles(ctx context.Context) ([]*types.Role, error) {
 	return roles, nil
 }
 
+// GetRequestableRoles returns the requestable roles for the currently logged-in user
+func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest) (*types.AccessCapabilities, error) {
+	var (
+		authClient  auth.ClientI
+		proxyClient *client.ProxyClient
+		err         error
+		response    *types.AccessCapabilities
+	)
+
+	resourceIds := make([]types.ResourceID, 0, len(req.GetResourceIds()))
+	for _, r := range req.GetResourceIds() {
+		resourceIds = append(resourceIds, types.ResourceID{
+			ClusterName: r.ClusterName,
+			Kind:        r.Kind,
+			Name:        r.Name,
+		})
+	}
+
+	err = addMetadataToRetryableError(ctx, func() error {
+		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		response, err = authClient.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
+			ResourceIDs:      resourceIds,
+			RequestableRoles: true,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return response, nil
+}
+
 // GetLoggedInUser returns currently logged-in user
 func (c *Cluster) GetLoggedInUser() LoggedInUser {
 	return LoggedInUser{
-		Name:      c.status.Username,
-		SSHLogins: c.status.Logins,
-		Roles:     c.status.Roles,
+		Name:           c.status.Username,
+		SSHLogins:      c.status.Logins,
+		Roles:          c.status.Roles,
+		ActiveRequests: c.status.ActiveRequests.AccessRequests,
 	}
-}
-
-// GetActualName returns name of the cluster taken from the key
-// (see an explanation for the field `actual_name` in cluster.proto)
-func (c *Cluster) GetActualName() string {
-	return c.clusterClient.SiteName
 }
 
 // GetProxyHost returns proxy address (host:port) of the cluster
@@ -110,6 +181,8 @@ type LoggedInUser struct {
 	SSHLogins []string
 	// Roles is the user roles
 	Roles []string
+	// ActiveRequests is the user active requests
+	ActiveRequests []string
 }
 
 // addMetadataToRetryableError is Connect's equivalent of client.RetryWithRelogin. By adding the

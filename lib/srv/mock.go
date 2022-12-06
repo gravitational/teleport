@@ -25,11 +25,18 @@ import (
 	"os/user"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -38,14 +45,8 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
-	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *ServerContext {
@@ -84,7 +85,8 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 		cancel:        cancel,
 	}
 
-	scx.ExecRequest = &localExec{Ctx: scx}
+	err = scx.SetExecRequest(&localExec{Ctx: scx})
+	require.NoError(t, err)
 
 	scx.cmdr, scx.cmdw, err = os.Pipe()
 	require.NoError(t, err)
@@ -122,6 +124,11 @@ func newMockServer(t *testing.T) *mockServer {
 		Authority:    testauthority.New(),
 		ClusterName:  clusterName,
 		StaticTokens: staticTokens,
+		KeyStoreConfig: keystore.Config{
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			},
+		},
 	}
 
 	authServer, err := auth.NewServer(authCfg, auth.WithClock(clock))
@@ -129,6 +136,7 @@ func newMockServer(t *testing.T) *mockServer {
 
 	return &mockServer{
 		auth:        authServer,
+		datadir:     t.TempDir(),
 		MockEmitter: &eventstest.MockEmitter{},
 		clock:       clock,
 	}
@@ -136,6 +144,7 @@ func newMockServer(t *testing.T) *mockServer {
 
 type mockServer struct {
 	*eventstest.MockEmitter
+	datadir   string
 	auth      *auth.Server
 	component string
 	clock     clockwork.FakeClock
@@ -178,14 +187,9 @@ func (m *mockServer) GetAccessPoint() AccessPoint {
 	return m.auth
 }
 
-// GetSessionServer returns a session server.
-func (m *mockServer) GetSessionServer() rsession.Service {
-	return rsession.NewDiscardSessionServer()
-}
-
 // GetDataDir returns data directory of the server
 func (m *mockServer) GetDataDir() string {
-	return "testDataDir"
+	return m.datadir
 }
 
 // GetPAM returns PAM configuration for this server.

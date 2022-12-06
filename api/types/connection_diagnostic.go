@@ -17,8 +17,17 @@ limitations under the License.
 package types
 
 import (
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
+)
+
+const (
+	// DiagnosticMessageSuccess is the message used when we the Connection was successful
+	DiagnosticMessageSuccess = "success"
+
+	// DiagnosticMessageFailed is the message used when we the Connection failed
+	DiagnosticMessageFailed = "failed"
 )
 
 // ConnectionDiagnostic represents a Connection Diagnostic.
@@ -28,9 +37,19 @@ type ConnectionDiagnostic interface {
 
 	// Whether the connection was successful
 	IsSuccess() bool
+	// Sets the success flag
+	SetSuccess(bool)
 
 	// The underlying message
 	GetMessage() string
+	// Sets the undderlying message
+	SetMessage(string)
+
+	// The connection test traces
+	GetTraces() []*ConnectionDiagnosticTrace
+
+	// AppendTrace adds a trace to the ConnectionDiagnostic Traces
+	AppendTrace(*ConnectionDiagnosticTrace)
 }
 
 type ConnectionsDiagnostic []ConnectionDiagnostic
@@ -82,9 +101,29 @@ func (c *ConnectionDiagnosticV1) IsSuccess() bool {
 	return c.Spec.Success
 }
 
+// SetSuccess sets whether the Connection was a success or not
+func (c *ConnectionDiagnosticV1) SetSuccess(b bool) {
+	c.Spec.Success = b
+}
+
 // GetMessage returns the connection diagnostic message.
 func (c *ConnectionDiagnosticV1) GetMessage() string {
 	return c.Spec.Message
+}
+
+// SetMessage sets the summary message of the Connection Diagnostic
+func (c *ConnectionDiagnosticV1) SetMessage(s string) {
+	c.Spec.Message = s
+}
+
+// GetTraces returns the connection test traces
+func (c *ConnectionDiagnosticV1) GetTraces() []*ConnectionDiagnosticTrace {
+	return c.Spec.Traces
+}
+
+// AppendTrace adds a trace into the Traces list
+func (c *ConnectionDiagnosticV1) AppendTrace(trace *ConnectionDiagnosticTrace) {
+	c.Spec.Traces = append(c.Spec.Traces, trace)
 }
 
 // MatchSearch goes through select field values and tries to
@@ -107,4 +146,21 @@ func (c *ConnectionDiagnosticV1) SetOrigin(o string) {
 // SetStaticLabels sets the connection diagnostic static labels.
 func (c *ConnectionDiagnosticV1) SetStaticLabels(sl map[string]string) {
 	c.Metadata.Labels = sl
+}
+
+// NewTraceDiagnosticConnection creates a new Connection Diagnostic Trace.
+// If traceErr is not nil, it will set the Status to FAILED, SUCCESS otherwise.
+func NewTraceDiagnosticConnection(traceType ConnectionDiagnosticTrace_TraceType, details string, traceErr error) *ConnectionDiagnosticTrace {
+	ret := &ConnectionDiagnosticTrace{
+		Status:  ConnectionDiagnosticTrace_SUCCESS,
+		Type:    traceType,
+		Details: details,
+	}
+
+	if traceErr != nil {
+		ret.Status = ConnectionDiagnosticTrace_FAILED
+		ret.Error = traceErr.Error()
+	}
+
+	return ret
 }

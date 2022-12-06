@@ -15,8 +15,6 @@ Here's an overview of what we will do:
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access RDS Self-Hosted](../../img/database-access/guides/rds_selfhosted.png)
 </ScopedBlock>
-
-
 <ScopedBlock scope={["cloud"]}>
 ![Teleport Database Access RDS Cloud](../../img/database-access/guides/rds_cloud.png)
 </ScopedBlock>
@@ -205,20 +203,21 @@ $ tsh login --proxy=mytenant.teleport.sh --user=alice
 
 </ScopedBlock>
 
-Now we can inspect available databases and retrieve credentials for the
-configured Aurora instance:
+Now we can inspect available databases:
 
 ```code
 $ tsh db ls
-$ tsh db login aurora
 ```
 
-Finally, connect to the database using the `psql` command shown in the output of
-the `tsh db login` command, which looks similar to this:
+Finally, connect to the database:
 
 ```code
-$ psql "service=<cluster>-aurora user=alice dbname=postgres"
+$ tsh db connect --db-user=alice --db-name postgres aurora
 ```
+
+## Troubleshooting
+
+(!docs/pages/includes/database-access/aws-troubleshooting.mdx!)
 
 ## Next Steps
 
@@ -226,6 +225,6 @@ For the next steps, dive deeper into the topics relevant to your Database
 Access use-case, for example:
 
 - Check out configuration [guides](./guides.mdx).
-- Learn how to configure [GUI clients](./guides/gui-clients.mdx).
+- Learn how to configure [GUI clients](../connect-your-client/gui-clients.mdx).
 - Learn about Database Access [role-based access control](./rbac.mdx).
 - See [frequently asked questions](./faq.mdx).

@@ -26,9 +26,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// tshAliasEnvKey is an env variable storing the aliases that, so far, has been expanded.
+// tshAliasEnvKey is an env variable storing the aliases that, so far, has been expanded, and should not be expanded again.
 // This is primarily to avoid infinite loops with ill-defined aliases, but can also be used to disable a particular alias on demand.
-const tshAliasEnvKey = "TSH_ALIAS"
+const tshAliasEnvKey = "TSH_UNALIAS"
 
 // aliasRunner coordinates alias running as well as provides a suitable testing target.
 type aliasRunner struct {
@@ -96,10 +96,13 @@ func findAliasCommand(args []string) (string, []string) {
 }
 
 // numVarRegex is a regex for variables such as $0, $1 ...  $100 ... that can be used in alias definitions.
-var numVarRegex = regexp.MustCompile(`\$\d+`)
+var numVarRegex = regexp.MustCompile(`(\$\d+)|(\$TSH)`)
 
-// expandAliasDefinition expands $0, $1, ... within alias definition. Arguments not referenced in alias are appended at the end.
-func expandAliasDefinition(aliasName string, aliasDef string, runtimeArgs []string) ([]string, error) {
+// expandAliasDefinition expands variables within alias definition.
+// Typically these are $0, $1, ... corresponding to runtime arguments given.
+// Arguments not referenced in alias are appended at the end.
+// As a special case, we also support $TSH variable: it is replaced with path to the current tsh executable.
+func expandAliasDefinition(executablePath, aliasName, aliasDef string, runtimeArgs []string) ([]string, error) {
 	// prepare maps for all arguments
 	varMap := map[string]string{}
 	unusedVars := map[string]int{}
@@ -108,6 +111,8 @@ func expandAliasDefinition(aliasName string, aliasDef string, runtimeArgs []stri
 		varMap[variable] = value
 		unusedVars[variable] = i
 	}
+
+	varMap["$TSH"] = executablePath
 
 	// keep count of maximum missing variable
 	maxMissing := -1
@@ -154,7 +159,7 @@ func expandAliasDefinition(aliasName string, aliasDef string, runtimeArgs []stri
 
 // getAliasDefinition returns the alias definition if it exists and the alias is still eligible for running.
 func (ar *aliasRunner) getAliasDefinition(aliasCmd string) (string, bool) {
-	// ignore aliases found in TSH_ALIAS list
+	// ignore aliases found in TSH_UNALIAS list
 	for _, usedAlias := range ar.getSeenAliases() {
 		if usedAlias == aliasCmd {
 			return "", false
@@ -172,7 +177,7 @@ func (ar *aliasRunner) markAliasSeen(alias string) error {
 	return ar.setEnv(tshAliasEnvKey, strings.Join(aliasesSeen, ","))
 }
 
-// getSeenAliases fetches TSH_ALIAS env variable and parses it, to produce the list of already executed aliases.
+// getSeenAliases fetches TSH_UNALIAS env variable and parses it, to produce the list of already executed aliases.
 func (ar *aliasRunner) getSeenAliases() []string {
 	var aliasesSeen []string
 
@@ -223,7 +228,7 @@ func (ar *aliasRunner) runAlias(ctx context.Context, aliasCommand, aliasDefiniti
 		return trace.Wrap(err)
 	}
 
-	newArgs, err := expandAliasDefinition(aliasCommand, aliasDefinition, runtimeArgs)
+	newArgs, err := expandAliasDefinition(executablePath, aliasCommand, aliasDefinition, runtimeArgs)
 	if err != nil {
 		return trace.Wrap(err)
 	}

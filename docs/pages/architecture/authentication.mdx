@@ -143,7 +143,7 @@ services and rotates SSH and X.509 certificates.
 
 Teleport internal services - Auth, Proxy and Nodes use certificates to identify themselves
 within a cluster. To join proxies and nodes to the cluster and receive certificates, admins should use
-[short-lived tokens or cloud identity services](../setup/admin/adding-nodes.mdx).
+[short-lived tokens or cloud identity services](../management/admin/adding-nodes.mdx).
 
 Unlike users and services, internal services receive long-lived certificates.
 
@@ -151,7 +151,7 @@ To renew these certificates, admins should use certificate authority rotation, t
 previously-issued certificates for nodes or users regardless of expiry and issuing a new ones,
 using a new certificate authority.
 
-Take a look at the [Certificate Rotation Guide](../setup/operations/ca-rotation.mdx) to
+Take a look at the [Certificate Rotation Guide](../management/operations/ca-rotation.mdx) to
 learn how to do certificate rotation in practice.
 
 <Notice type="tip">

@@ -25,6 +25,8 @@ import (
 
 var pathClusters = urlpath.New("/clusters/:cluster/*")
 var pathLeafClusters = urlpath.New("/clusters/:cluster/leaves/:leaf/*")
+var pathDbs = urlpath.New("/clusters/:cluster/dbs/:dbName")
+var pathLeafDbs = urlpath.New("/clusters/:cluster/leaves/:leaf/dbs/:dbName")
 
 // New creates an instance of ResourceURI
 func New(path string) ResourceURI {
@@ -34,23 +36,26 @@ func New(path string) ResourceURI {
 }
 
 // NewClusterURI creates a new cluster URI for given cluster name
-func NewClusterURI(clusterName string) ResourceURI {
+func NewClusterURI(profileName string) ResourceURI {
 	return ResourceURI{
-		path: fmt.Sprintf("/clusters/%v", clusterName),
+		path: fmt.Sprintf("/clusters/%v", profileName),
 	}
 }
 
-// ParseClusterURI parses a string and returns cluster URI
+// ParseClusterURI parses a string and returns a cluster URI.
+//
+// If given a resource URI, it'll return the URI of the cluster to which the resource belongs to.
+// If given a leaf cluster resource URI, it'll return the URI of the leaf cluster.
 func ParseClusterURI(path string) (ResourceURI, error) {
 	URI := New(path)
-	rootClusterName := URI.GetRootClusterName()
+	profileName := URI.GetProfileName()
 	leafClusterName := URI.GetLeafClusterName()
 
-	if rootClusterName == "" {
+	if profileName == "" {
 		return URI, trace.BadParameter("missing root cluster name")
 	}
 
-	clusterURI := NewClusterURI(rootClusterName)
+	clusterURI := NewClusterURI(profileName)
 	if leafClusterName != "" {
 		clusterURI = clusterURI.AppendLeafCluster(leafClusterName)
 	}
@@ -70,8 +75,7 @@ type ResourceURI struct {
 	path string
 }
 
-// GetRootClusterName returns root cluster name
-func (r ResourceURI) GetRootClusterName() string {
+func (r ResourceURI) GetProfileName() string {
 	result, ok := pathClusters.Match(r.path + "/")
 	if !ok {
 		return ""
@@ -88,6 +92,26 @@ func (r ResourceURI) GetLeafClusterName() string {
 	}
 
 	return result.Params["leaf"]
+}
+
+// GetDbName extracts the database name from r. Returns an empty string if path is not a database URI.
+func (r ResourceURI) GetDbName() string {
+	result, ok := pathDbs.Match(r.path)
+	if ok {
+		return result.Params["dbName"]
+	}
+
+	result, ok = pathLeafDbs.Match(r.path)
+	if ok {
+		return result.Params["dbName"]
+	}
+
+	return ""
+}
+
+// GetRootClusterURI trims the existing ResourceURI into a URI that points solely at the root cluster.
+func (r ResourceURI) GetRootClusterURI() ResourceURI {
+	return NewClusterURI(r.GetProfileName())
 }
 
 // AppendServer appends server segment to the URI
@@ -123,6 +147,12 @@ func (r ResourceURI) AddGateway(id string) ResourceURI {
 // AppendApp appends app segment to the URI
 func (r ResourceURI) AppendApp(name string) ResourceURI {
 	r.path = fmt.Sprintf("%v/apps/%v", r.path, name)
+	return r
+}
+
+// AppendAccessRequest appends access request segment to the URI
+func (r ResourceURI) AppendAccessRequest(id string) ResourceURI {
+	r.path = fmt.Sprintf("%v/access_requests/%v", r.path, id)
 	return r
 }
 

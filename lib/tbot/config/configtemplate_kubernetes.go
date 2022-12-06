@@ -23,6 +23,10 @@ import (
 	"net"
 	"os"
 
+	"github.com/gravitational/trace"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -33,10 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-
-	"k8s.io/client-go/tools/clientcmd"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 const defaultKubeconfigPath = "kubeconfig.yaml"
@@ -224,10 +224,15 @@ func (t *TemplateKubernetes) Render(ctx context.Context, bot Bot, currentIdentit
 		return trace.Wrap(err)
 	}
 
+	key, err := newClientKey(currentIdentity, hostCAs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	status := &kubernetesStatus{
 		clusterAddr:           kubeAddr,
 		proxyAddr:             authPong.ProxyPublicAddr,
-		credentials:           newClientKey(currentIdentity, hostCAs),
+		credentials:           key,
 		teleportClusterName:   clusterName.GetClusterName(),
 		kubernetesClusterName: destination.KubernetesCluster.ClusterName,
 	}

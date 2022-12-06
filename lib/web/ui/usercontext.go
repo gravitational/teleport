@@ -17,12 +17,13 @@ limitations under the License.
 package ui
 
 import (
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/desktop"
 )
 
 type access struct {
@@ -73,6 +74,8 @@ type userACL struct {
 	AppServers access `json:"appServers"`
 	// DBServers defines access to database servers.
 	DBServers access `json:"dbServers"`
+	// DB defines access to database resource.
+	DB access `json:"db"`
 	// KubeServers defines access to kubernetes servers.
 	KubeServers access `json:"kubeServers"`
 	// Desktops defines access to desktops.
@@ -83,6 +86,8 @@ type userACL struct {
 	AccessRequests access `json:"accessRequests"`
 	// Billing defines access to billing information.
 	Billing access `json:"billing"`
+	// ConnectionDiagnostic defines access to connection diagnostics.
+	ConnectionDiagnostic access `json:"connectionDiagnostic"`
 	// Clipboard defines whether the user can use a shared clipboard during windows desktop sessions.
 	Clipboard bool `json:"clipboard"`
 	// DesktopSessionRecording defines whether the user's desktop sessions are being recorded.
@@ -112,6 +117,9 @@ type UserContext struct {
 	AccessStrategy accessStrategy `json:"accessStrategy"`
 	// AccessCapabilities defines allowable access request rules defined in a user's roles.
 	AccessCapabilities AccessCapabilities `json:"accessCapabilities"`
+	// ConsumedAccessRequestID is the request ID of the access request from which the assumed role was
+	// obtained
+	ConsumedAccessRequestID string `json:"accessRequestId,omitempty"`
 }
 
 func getWindowsDesktopLogins(roleSet services.RoleSet) []string {
@@ -126,7 +134,7 @@ func getWindowsDesktopLogins(roleSet services.RoleSet) []string {
 	denied = apiutils.Deduplicate(denied)
 	desktopLogins := []string{}
 	for _, login := range allowed {
-		if isDenied := apiutils.SliceContainsStr(denied, login); !isDenied {
+		if isDenied := slices.Contains(denied, login); !isDenied {
 			desktopLogins = append(desktopLogins, login)
 		}
 	}
@@ -193,9 +201,11 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	nodeAccess := newAccess(userRoles, ctx, types.KindNode)
 	appServerAccess := newAccess(userRoles, ctx, types.KindAppServer)
 	dbServerAccess := newAccess(userRoles, ctx, types.KindDatabaseServer)
-	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeService)
+	dbAccess := newAccess(userRoles, ctx, types.KindDatabase)
+	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeServer)
 	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
+	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
 
 	var billingAccess access
 	if features.Cloud {
@@ -212,6 +222,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		AccessRequests:          requestAccess,
 		AppServers:              appServerAccess,
 		DBServers:               dbServerAccess,
+		DB:                      dbAccess,
 		KubeServers:             kubeServerAccess,
 		Desktops:                desktopAccess,
 		AuthConnectors:          authConnectors,
@@ -225,10 +236,10 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		Tokens:                  tokenAccess,
 		Nodes:                   nodeAccess,
 		Billing:                 billingAccess,
+		ConnectionDiagnostic:    cnDiagnosticAccess,
 		Clipboard:               clipboard,
 		DesktopSessionRecording: desktopSessionRecording,
-		// AllowDirectorySharing() ensures this setting is modulated by build flag while in development
-		DirectorySharing: directorySharing && desktop.AllowDirectorySharing(),
+		DirectorySharing:        directorySharing,
 	}
 
 	// local user

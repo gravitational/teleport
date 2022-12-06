@@ -527,7 +527,7 @@ func (a *Aptly) GetPublishedRepoNames() ([]string, error) {
 
 			for _, repoNameMatch := range repoNameMatches {
 				// `repoNameRegexStr` is written such that there will be exactly one match and one group in repoNameMatch
-				// for example repoNameMatch could be [": [debian-bookwork-stable-v6]", "debian-bookwork-stable-v6"]
+				// for example repoNameMatch could be [": [debian-bookworm-stable-v6]", "debian-bookworm-stable-v6"]
 				publishedRepoName := repoNameMatch[1]
 				publishedRepoNames = append(publishedRepoNames, publishedRepoName)
 			}
@@ -601,9 +601,10 @@ func (a *Aptly) CreateReposFromPublishedPath(localPublishedPath string) ([]*Repo
 
 // Creates or gets Aptly repos for all permutations of the provided requirements.
 // Returns a list of repo objects describing the Aptly repos, regardless of if they
-//   already existed.
+// already existed.
+//
 // supportedOSInfo should be a dictionary keyed by OS name, with values being a list of
-//   supported OS version codenames.
+// supported OS version codenames.
 func (a *Aptly) CreateReposFromArtifactRequirements(supportedOSInfo map[string][]string,
 	releaseChannel string, majorVersion string) ([]*Repo, error) {
 	logrus.Infoln("Creating new repos from artifact requirements:")

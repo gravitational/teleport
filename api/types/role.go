@@ -21,13 +21,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 const (
@@ -158,14 +159,27 @@ type Role interface {
 	// GetSessionPolicySet returns the RBAC policy set for a role.
 	GetSessionPolicySet() SessionTrackerPolicySet
 
-	// GetSearchAsRoles returns the list of roles which the user should be able
-	// to "assume" while searching for resources, and should be able to request
-	// with a search-based access request.
-	GetSearchAsRoles() []string
-	// SetSearchAsRoles sets the list of roles which the user should be able
-	// to "assume" while searching for resources, and should be able to request
-	// with a search-based access request.
-	SetSearchAsRoles([]string)
+	// GetSearchAsRoles returns the list of extra roles which should apply to a
+	// user while they are searching for resources as part of a Resource Access
+	// Request, and defines the underlying roles which will be requested as part
+	// of any Resource Access Request.
+	GetSearchAsRoles(RoleConditionType) []string
+	// SetSearchAsRoles sets the list of extra roles which should apply to a
+	// user while they are searching for resources as part of a Resource Access
+	// Request, and defines the underlying roles which will be requested as part
+	// of any Resource Access Request.
+	SetSearchAsRoles(RoleConditionType, []string)
+
+	// GetPreviewAsRoles returns the list of extra roles which should apply to a
+	// reviewer while they are viewing a Resource Access Request for the
+	// purposes of viewing details such as the hostname and labels of requested
+	// resources.
+	GetPreviewAsRoles(RoleConditionType) []string
+	// SetPreviewAsRoles sets the list of extra roles which should apply to a
+	// reviewer while they are viewing a Resource Access Request for the
+	// purposes of viewing details such as the hostname and labels of requested
+	// resources.
+	SetPreviewAsRoles(RoleConditionType, []string)
 
 	// GetHostGroups gets the list of groups this role is put in when users are provisioned
 	GetHostGroups(RoleConditionType) []string
@@ -176,6 +190,9 @@ type Role interface {
 	GetHostSudoers(RoleConditionType) []string
 	// SetHostSudoers sets the list of sudoers entries for the role
 	SetHostSudoers(RoleConditionType, []string)
+
+	// GetPrivateKeyPolicy returns the private key policy enforced for this role.
+	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
 }
 
 // NewRole constructs new standard V5 role.
@@ -658,6 +675,18 @@ func (r *RoleV5) SetHostSudoers(rct RoleConditionType, sudoers []string) {
 	}
 }
 
+// GetPrivateKeyPolicy returns the private key policy enforced for this role.
+func (r *RoleV5) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
+	switch r.Spec.Options.RequireMFAType {
+	case RequireMFAType_SESSION_AND_HARDWARE_KEY:
+		return keys.PrivateKeyPolicyHardwareKey
+	case RequireMFAType_HARDWARE_KEY_TOUCH:
+		return keys.PrivateKeyPolicyHardwareKeyTouch
+	default:
+		return keys.PrivateKeyPolicyNone
+	}
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (r *RoleV5) setStaticFields() {
 	r.Kind = KindRole
@@ -672,6 +701,9 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// DELETE IN 13.0.0
+	r.CheckSetRequireSessionMFA()
 
 	// Make sure all fields have defaults.
 	if r.Spec.Options.CertificateFormat == "" {
@@ -703,6 +735,9 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 	}
 	if r.Spec.Options.CreateHostUser == nil {
 		r.Spec.Options.CreateHostUser = NewBoolOption(false)
+	}
+	if r.Spec.Options.SSHFileCopy == nil {
+		r.Spec.Options.SSHFileCopy = NewBoolOption(true)
 	}
 
 	switch r.Version {
@@ -818,6 +853,16 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 		}
 	}
 	return nil
+}
+
+// RequireSessionMFA must be checked/set when communicating with an old server or client.
+// DELETE IN 13.0.0
+func (r *RoleV5) CheckSetRequireSessionMFA() {
+	if r.Spec.Options.RequireMFAType != RequireMFAType_OFF {
+		r.Spec.Options.RequireSessionMFA = r.Spec.Options.RequireMFAType.IsSessionMFARequired()
+	} else if r.Spec.Options.RequireSessionMFA {
+		r.Spec.Options.RequireMFAType = RequireMFAType_SESSION
+	}
 }
 
 // String returns the human readable representation of a role.
@@ -1205,22 +1250,62 @@ func (r *RoleV5) SetSessionJoinPolicies(policies []*SessionJoinPolicy) {
 	r.Spec.Allow.JoinSessions = policies
 }
 
-// GetSearchAsRoles returns the list of roles which the user should be able to
-// "assume" while searching for resources, and should be able to request with a
-// search-based access request.
-func (r *RoleV5) GetSearchAsRoles() []string {
-	if r.Spec.Allow.Request == nil {
+// GetSearchAsRoles returns the list of extra roles which should apply to a
+// user while they are searching for resources as part of a Resource Access
+// Request, and defines the underlying roles which will be requested as part
+// of any Resource Access Request.
+func (r *RoleV5) GetSearchAsRoles(rct RoleConditionType) []string {
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
+	}
+	if roleConditions.Request == nil {
 		return nil
 	}
-	return r.Spec.Allow.Request.SearchAsRoles
+	return roleConditions.Request.SearchAsRoles
 }
 
-// SetSearchAsRoles sets the list of roles which the user should be able to
-// "assume" while searching for resources, and should be able to request with a
-// search-based access request.
-func (r *RoleV5) SetSearchAsRoles(roles []string) {
-	if r.Spec.Allow.Request == nil {
-		r.Spec.Allow.Request = &AccessRequestConditions{}
+// SetSearchAsRoles sets the list of extra roles which should apply to a
+// user while they are searching for resources as part of a Resource Access
+// Request, and defines the underlying roles which will be requested as part
+// of any Resource Access Request.
+func (r *RoleV5) SetSearchAsRoles(rct RoleConditionType, roles []string) {
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
 	}
-	r.Spec.Allow.Request.SearchAsRoles = roles
+	if roleConditions.Request == nil {
+		roleConditions.Request = &AccessRequestConditions{}
+	}
+	roleConditions.Request.SearchAsRoles = roles
+}
+
+// GetPreviewAsRoles returns the list of extra roles which should apply to a
+// reviewer while they are viewing a Resource Access Request for the
+// purposes of viewing details such as the hostname and labels of requested
+// resources.
+func (r *RoleV5) GetPreviewAsRoles(rct RoleConditionType) []string {
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
+	}
+	if roleConditions.ReviewRequests == nil {
+		return nil
+	}
+	return roleConditions.ReviewRequests.PreviewAsRoles
+}
+
+// SetPreviewAsRoles sets the list of extra roles which should apply to a
+// reviewer while they are viewing a Resource Access Request for the
+// purposes of viewing details such as the hostname and labels of requested
+// resources.
+func (r *RoleV5) SetPreviewAsRoles(rct RoleConditionType, roles []string) {
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
+	}
+	if roleConditions.ReviewRequests == nil {
+		roleConditions.ReviewRequests = &AccessReviewConditions{}
+	}
+	roleConditions.ReviewRequests.PreviewAsRoles = roles
 }

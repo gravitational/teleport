@@ -58,6 +58,86 @@ tests:
           value: 2
       - matchSnapshot: {}
 
+  - it: matches snapshot for auth-connector-name.yaml
+    values:
+      - ../.lint/auth-connector-name.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for auth-disable-local.yaml
+    values:
+      - ../.lint/auth-disable-local.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for auth-locking-mode.yaml
+    values:
+      - ../.lint/auth-locking-mode.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for auth-passwordless.yaml
+    values:
+      - ../.lint/auth-passwordless.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for auth-type.yaml
+    values:
+      - ../.lint/auth-type.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for auth-type-legacy.yaml
+    values:
+      - ../.lint/auth-type-legacy.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for auth-webauthn.yaml
+    values:
+      - ../.lint/auth-webauthn.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for auth-webauthn-legacy.yaml
+    values:
+      - ../.lint/auth-webauthn-legacy.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
   - it: matches snapshot for aws.yaml
     values:
       - ../.lint/aws.yaml
@@ -72,11 +152,11 @@ tests:
     values:
       - ../.lint/aws-dynamodb-autoscaling.yaml
     asserts:
-      - hasDocuments:
-          count: 1
-      - isKind:
-          of: ConfigMap
-      - matchSnapshot: {}
+    - hasDocuments:
+        count: 1
+    - isKind:
+        of: ConfigMap
+    - matchSnapshot: {}
 
   - it: matches snapshot for aws-ha.yaml
     values:
@@ -372,16 +452,6 @@ tests:
   - it: matches snapshot for volumes.yaml
     values:
       - ../.lint/volumes.yaml
-    asserts:
-      - hasDocuments:
-          count: 1
-      - isKind:
-          of: ConfigMap
-      - matchSnapshot: {}
-
-  - it: matches snapshot for webauthn.yaml
-    values:
-      - ../.lint/webauthn.yaml
     asserts:
       - hasDocuments:
           count: 1

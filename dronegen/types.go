@@ -36,6 +36,7 @@ type pipeline struct {
 	Trigger     trigger          `yaml:"trigger"`
 	Workspace   workspace        `yaml:"workspace,omitempty"`
 	Platform    platform         `yaml:"platform,omitempty"`
+	Node        map[string]value `yaml:"node,omitempty"`
 	Clone       clone            `yaml:"clone,omitempty"`
 	DependsOn   []string         `yaml:"depends_on,omitempty"`
 	Concurrency concurrency      `yaml:"concurrency,omitempty"`
@@ -70,14 +71,20 @@ func generatedComment() string {
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
 `
-	_, file, line, ok := runtime.Caller(2)
+	pc, file, line, ok := runtime.Caller(2)
 	if ok {
 		// Trim off the local path to the repo.
 		i := strings.LastIndex(file, "dronegen")
 		if i > 0 {
 			file = file[i:]
 		}
-		c += fmt.Sprintf("# Generated at %s:%d\n", file, line)
+
+		info := fmt.Sprintf("line %d", line)
+		fn := runtime.FuncForPC(pc)
+		if fn != nil {
+			info = fn.Name()
+		}
+		c += fmt.Sprintf("# Generated at %s (%s)\n", file, info)
 	}
 	c += "################################################\n\n"
 	return c

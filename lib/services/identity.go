@@ -22,15 +22,16 @@ package services
 
 import (
 	"context"
+	"crypto"
 	"time"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/gokyle/hotp"
-	"github.com/gravitational/trace"
 )
 
 // UserGetter is responsible for getting users
@@ -91,14 +92,6 @@ type Identity interface {
 
 	// GetPasswordHash returns the password hash for a given user
 	GetPasswordHash(user string) ([]byte, error)
-
-	// UpsertHOTP upserts HOTP state for user
-	// Deprecated: HOTP use is deprecated, use UpsertTOTP instead.
-	UpsertHOTP(user string, otp *hotp.HOTP) error
-
-	// GetHOTP gets HOTP token state for a user
-	// Deprecated: HOTP use is deprecated, use GetTOTP instead.
-	GetHOTP(user string) (*hotp.HOTP, error)
 
 	// UpsertUsedTOTPToken upserts a TOTP token to the backend so it can't be used again
 	// during the 30 second window it's valid.
@@ -257,6 +250,12 @@ type Identity interface {
 
 	// DeleteUserRecoveryAttempts removes all recovery attempts of a user.
 	DeleteUserRecoveryAttempts(ctx context.Context, user string) error
+
+	// UpsertKeyAttestationData upserts a verified public key attestation response.
+	UpsertKeyAttestationData(ctx context.Context, attestationData *keys.AttestationData, ttl time.Duration) error
+
+	// GetKeyAttestationData gets a verified public key attestation response.
+	GetKeyAttestationData(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationData, error)
 
 	types.WebSessionsGetter
 	types.WebTokensGetter

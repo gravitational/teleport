@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - branch/*
     paths:
       - '**.tf'
       - '**.tf.json'

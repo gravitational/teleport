@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,20 +19,20 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/interval"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
 // Config is the config for users service.
 type Config struct {
 	// Clients is an interface for retrieving cloud clients.
-	Clients common.CloudClients
+	Clients cloud.Clients
 	// Clock is used to control time.
 	Clock clockwork.Clock
 	// Interval is the interval between user updates. Interval is also used as
@@ -50,7 +50,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing UpdateMeta")
 	}
 	if c.Clients == nil {
-		c.Clients = common.NewCloudClients()
+		c.Clients = cloud.NewClients()
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -149,7 +149,7 @@ func (u *Users) Start(ctx context.Context, getAllDatabases func() types.Database
 
 	ticker := interval.New(interval.Config{
 		// Use jitter for HA setups.
-		Jitter: utils.NewSeventhJitter(),
+		Jitter: retryutils.NewSeventhJitter(),
 
 		// NewSeventhJitter builds a new jitter on the range [6n/7,n).
 		// Use n = cfg.Interval*7/6 gives an effective duration range of
@@ -192,7 +192,7 @@ func (u *Users) setupAllDatabasesAndRotatePassowrds(ctx context.Context, allData
 			delete(u.usersByID, userID)
 
 			if err := user.Teardown(ctx); err != nil {
-				u.cfg.Log.WithError(err).Errorf("Failed to tear down user %v.", user)
+				u.cfg.Log.WithError(err).Errorf("Failed to tear down user %v.", user.GetID())
 			}
 		}
 	}
@@ -235,7 +235,7 @@ func (u *Users) setupDatabasesAndRotatePasswords(ctx context.Context, databases 
 		var users []User
 		for _, fetchedUser := range fetchedUsers {
 			if user, err := u.setupUser(ctx, fetchedUser); err != nil {
-				u.cfg.Log.WithError(err).Errorf("Failed to setup user %v for database %v.", fetchedUser, database)
+				u.cfg.Log.WithError(err).Errorf("Failed to setup user %s for database %v.", fetchedUser.GetID(), database)
 			} else {
 				users = append(users, user)
 			}
@@ -244,7 +244,7 @@ func (u *Users) setupDatabasesAndRotatePasswords(ctx context.Context, databases 
 		// Rotate passwords.
 		for _, user := range users {
 			if err = user.RotatePassword(ctx); err != nil {
-				u.cfg.Log.WithError(err).Errorf("Failed to rotate password for user %v", user)
+				u.cfg.Log.WithError(err).Errorf("Failed to rotate password for user %s", user.GetID())
 			}
 		}
 

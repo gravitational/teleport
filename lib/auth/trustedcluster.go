@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
@@ -65,10 +66,12 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		}
 	}
 
+	logger := log.WithField("trusted_cluster", trustedCluster.GetName())
+
 	// change state
 	switch {
 	case exists == true && enable == true:
-		log.Debugf("Enabling existing Trusted Cluster relationship.")
+		logger.Info("Enabling existing Trusted Cluster relationship.")
 
 		if err := a.activateCertAuthority(trustedCluster); err != nil {
 			if trace.IsNotFound(err) {
@@ -81,7 +84,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 			return nil, trace.Wrap(err)
 		}
 	case exists == true && enable == false:
-		log.Debugf("Disabling existing Trusted Cluster relationship.")
+		logger.Info("Disabling existing Trusted Cluster relationship.")
 
 		if err := a.deactivateCertAuthority(trustedCluster); err != nil {
 			if trace.IsNotFound(err) {
@@ -94,7 +97,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 			return nil, trace.Wrap(err)
 		}
 	case exists == false && enable == true:
-		log.Debugf("Creating enabled Trusted Cluster relationship.")
+		logger.Info("Creating enabled Trusted Cluster relationship.")
 
 		if err := a.checkLocalRoles(ctx, trustedCluster.GetRoleMap()); err != nil {
 			return nil, trace.Wrap(err)
@@ -118,7 +121,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		}
 
 	case exists == false && enable == false:
-		log.Debugf("Creating disabled Trusted Cluster relationship.")
+		logger.Info("Creating disabled Trusted Cluster relationship.")
 
 		if err := a.checkLocalRoles(ctx, trustedCluster.GetRoleMap()); err != nil {
 			return nil, trace.Wrap(err)
@@ -156,7 +159,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 			Name: trustedCluster.GetName(),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit trusted cluster create event.")
+		logger.WithError(err).Warn("Failed to emit trusted cluster create event.")
 	}
 
 	return tc, nil
@@ -257,7 +260,7 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 	}
 
 	// log the local certificate authorities that we are sending
-	log.Debugf("Sending validate request; token=%s, CAs=%v", backend.MaskKeyName(validateRequest.Token), validateRequest.CAs)
+	log.Infof("Sending validate request; token=%s, CAs=%v", backend.MaskKeyName(validateRequest.Token), validateRequest.CAs)
 
 	// send the request to the remote auth server via the proxy
 	validateResponse, err := a.sendValidateRequestToProxy(trustedCluster.GetProxyAddress(), &validateRequest)
@@ -270,7 +273,7 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 	}
 
 	// log the remote certificate authorities we are adding
-	log.Debugf("Received validate response; CAs=%v", validateResponse.CAs)
+	log.Infof("Received validate response; CAs=%v", validateResponse.CAs)
 
 	for _, ca := range validateResponse.CAs {
 		for _, keyPair := range ca.GetActiveKeys().TLS {
@@ -612,18 +615,19 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *Valida
 
 		// Get the default transport, this allows picking up proxy from the
 		// environment.
-		tr, ok := http.DefaultTransport.(*http.Transport)
+		defaultTransport, ok := http.DefaultTransport.(*http.Transport)
 		if !ok {
-			return nil, trace.BadParameter("unable to get default transport")
+			return nil, trace.BadParameter("invalid transport type %T", http.DefaultTransport)
 		}
-
+		// Clone the transport to not modify the global instance.
+		tr := defaultTransport.Clone()
 		// Disable certificate checking while in debug mode.
 		tlsConfig := utils.TLSConfig(a.cipherSuites)
 		tlsConfig.InsecureSkipVerify = true
 		tr.TLSClientConfig = tlsConfig
 
 		insecureWebClient := &http.Client{
-			Transport: otelhttp.NewTransport(tr),
+			Transport: otelhttp.NewTransport(tr, otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter)),
 		}
 		opts = append(opts, roundtrip.HTTPClient(insecureWebClient))
 	}

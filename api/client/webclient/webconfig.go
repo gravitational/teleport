@@ -16,7 +16,10 @@ limitations under the License.
 
 package webclient
 
-import "github.com/gravitational/teleport/api/constants"
+import (
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/keys"
+)
 
 const (
 	// WebConfigAuthProviderOIDCType is OIDC provider type
@@ -50,6 +53,8 @@ type WebConfig struct {
 	IsCloud bool `json:"isCloud,omitempty"`
 	// TunnelPublicAddress is the public ssh tunnel address
 	TunnelPublicAddress string `json:"tunnelPublicAddress,omitempty"`
+	// RecoveryCodesEnabled is a flag that determines if recovery codes are enabled in the cluster.
+	RecoveryCodesEnabled bool `json:"recoveryCodesEnabled,omitempty"`
 }
 
 // WebConfigAuthProvider describes auth. provider
@@ -82,4 +87,6 @@ type WebConfigAuthSettings struct {
 	PreferredLocalMFA constants.SecondFactorType `json:"preferredLocalMfa,omitempty"`
 	// LocalConnectorName is the name of the local connector.
 	LocalConnectorName string `json:"localConnectorName,omitempty"`
+	// PrivateKeyPolicy is the configured private key policy for the cluster.
+	PrivateKeyPolicy keys.PrivateKeyPolicy `json:"privateKeyPolicy,omitempty"`
 }

@@ -89,7 +89,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				Spec: ProvisionTokenSpecV2{
 					Roles: []SystemRole{RoleNode},
 					Allow: []*TokenRule{
-						&TokenRule{
+						{
 							AWSAccount: "1234",
 							AWSRole:    "1234/role",
 							AWSRegions: []string{"us-west-2"},
@@ -108,7 +108,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: "ec2",
 					Allow: []*TokenRule{
-						&TokenRule{
+						{
 							AWSAccount: "1234",
 							AWSRole:    "1234/role",
 							AWSRegions: []string{"us-west-2"},
@@ -127,7 +127,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: "ec2",
-					Allow:      []*TokenRule{&TokenRule{AWSAccount: "1234"}},
+					Allow:      []*TokenRule{{AWSAccount: "1234"}},
 				},
 			},
 			expected: &ProvisionTokenV2{
@@ -140,7 +140,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: "ec2",
-					Allow:      []*TokenRule{&TokenRule{AWSAccount: "1234"}},
+					Allow:      []*TokenRule{{AWSAccount: "1234"}},
 					AWSIIDTTL:  Duration(5 * time.Minute),
 				},
 			},
@@ -168,7 +168,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: "ec2",
 					Allow: []*TokenRule{
-						&TokenRule{
+						{
 							AWSAccount: "1234",
 							AWSARN:     "1234",
 						},
@@ -186,7 +186,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: "ec2",
-					Allow:      []*TokenRule{&TokenRule{}},
+					Allow:      []*TokenRule{{}},
 				},
 			},
 			expectedErr: &trace.BadParameterError{},
@@ -200,7 +200,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: "ec2",
-					Allow:      []*TokenRule{&TokenRule{AWSAccount: "1234"}},
+					Allow:      []*TokenRule{{AWSAccount: "1234"}},
 				},
 			},
 			expected: &ProvisionTokenV2{
@@ -213,7 +213,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: "ec2",
-					Allow:      []*TokenRule{&TokenRule{AWSAccount: "1234"}},
+					Allow:      []*TokenRule{{AWSAccount: "1234"}},
 					AWSIIDTTL:  Duration(5 * time.Minute),
 				},
 			},
@@ -228,7 +228,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: "iam",
 					Allow: []*TokenRule{
-						&TokenRule{
+						{
 							AWSAccount: "1234",
 							AWSRole:    "1234/role",
 						},
@@ -247,9 +247,141 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: "iam",
 					Allow: []*TokenRule{
-						&TokenRule{
+						{
 							AWSAccount: "1234",
 							AWSRegions: []string{"us-west-2"},
+						},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "circleci valid",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodCircleCI,
+					CircleCI: &ProvisionTokenSpecV2CircleCI{
+						OrganizationID: "foo",
+						Allow: []*ProvisionTokenSpecV2CircleCI_Rule{
+							{
+								ProjectID: "foo",
+								ContextID: "bar",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "circleci and no allow",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodCircleCI,
+					CircleCI: &ProvisionTokenSpecV2CircleCI{
+						OrganizationID: "foo",
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "circleci and no org id",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodCircleCI,
+					CircleCI: &ProvisionTokenSpecV2CircleCI{
+						Allow: []*ProvisionTokenSpecV2CircleCI_Rule{
+							{
+								ProjectID: "foo",
+							},
+						},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "circleci allow rule blank",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodCircleCI,
+					CircleCI: &ProvisionTokenSpecV2CircleCI{
+						Allow: []*ProvisionTokenSpecV2CircleCI_Rule{
+							{},
+						},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "kubernetes valid",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount: "namespace:my-service-account",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "kubernetes wrong service account name",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount: "my-service-account",
+							},
+						},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "kubernetes allow rule blank",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{},
 						},
 					},
 				},
@@ -266,7 +398,9 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tc.token, tc.expected)
+			if tc.expected != nil {
+				require.Equal(t, tc.token, tc.expected)
+			}
 		})
 	}
 }
