@@ -296,6 +296,7 @@ func (a *Server) generateCerts(
 		Role: string(req.Role),
 		Method: string(provisionToken.GetJoinMethod()),
 		TokenName:  provisionToken.GetSafeName(),
+		HostID: req.HostID,
 	}
 	if joinAttributeSrc != nil {
 		attributes, err := joinAttributeSrc.JoinAuditAttributes()
