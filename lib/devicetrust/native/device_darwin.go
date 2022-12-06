@@ -32,7 +32,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/lib/apple"
+	"github.com/gravitational/teleport/lib/darwin"
 )
 
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
@@ -75,7 +75,7 @@ func deviceKeyCreate() (*devicepb.DeviceCredential, error) {
 
 func pubKeyToCredential(pubKeyC C.PublicKey) (*devicepb.DeviceCredential, error) {
 	pubKeyRaw := C.GoBytes(unsafe.Pointer(pubKeyC.pub_key), C.int(pubKeyC.pub_key_len))
-	ecPubKey, err := apple.ECDSAPublicKeyFromRaw(pubKeyRaw)
+	ecPubKey, err := darwin.ECDSAPublicKeyFromRaw(pubKeyRaw)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

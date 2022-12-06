@@ -36,8 +36,8 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/lib/apple"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/darwin"
 )
 
 var (
@@ -257,7 +257,7 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 	pubKeyRaw := resp.publicKeyRaw
 
 	// Parse public key and transform to the required CBOR object.
-	pubKey, err := apple.ECDSAPublicKeyFromRaw(pubKeyRaw)
+	pubKey, err := darwin.ECDSAPublicKeyFromRaw(pubKeyRaw)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -592,7 +592,7 @@ func ListCredentials() ([]CredentialInfo, error) {
 	// Parse public keys.
 	for i := range infos {
 		info := &infos[i]
-		key, err := apple.ECDSAPublicKeyFromRaw(info.publicKeyRaw)
+		key, err := darwin.ECDSAPublicKeyFromRaw(info.publicKeyRaw)
 		if err != nil {
 			log.Warnf("Failed to convert public key: %v", err)
 		}

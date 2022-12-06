@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package apple_test
+package darwin_test
 
 import (
 	"crypto/ecdsa"
@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/apple"
+	"github.com/gravitational/teleport/lib/darwin"
 )
 
 func TestECDSAPublicKeyFromRaw(t *testing.T) {
@@ -38,7 +38,7 @@ func TestECDSAPublicKeyFromRaw(t *testing.T) {
 	pubKey.X.FillBytes(rawAppleKey[1:33])
 	pubKey.Y.FillBytes(rawAppleKey[33:])
 
-	got, err := apple.ECDSAPublicKeyFromRaw(rawAppleKey)
+	got, err := darwin.ECDSAPublicKeyFromRaw(rawAppleKey)
 	require.NoError(t, err, "ECDSAPublicKeyFromRaw failed")
 	assert.Equal(t, pubKey, *got, "ECDSAPublicKeyFromRaw mismatch")
 }
