@@ -156,7 +156,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 				EngineConfig: common.EngineConfig{
 					Audit:   audit,
 					Log:     logrus.New(),
-					Auth:    &mockAuth{},
+					Auth:    &mockDBAuth{},
 					Context: context.Background(),
 				},
 				Connector: &mockConnector{
@@ -208,14 +208,14 @@ func (m *mockEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEven
 	return nil
 }
 
-type mockAuth struct {
+type mockDBAuth struct {
 	common.Auth
 	// GetAzureIdentityResourceID mocks.
 	azureIdentityResourceID    string
 	azureIdentityResourceIDErr error
 }
 
-func (m *mockAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+func (m *mockDBAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	return types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorWebauthn,
@@ -226,11 +226,11 @@ func (m *mockAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference,
 	})
 }
 
-func (m *mockAuth) GetTLSConfig(_ context.Context, _ *common.Session) (*tls.Config, error) {
+func (m *mockDBAuth) GetTLSConfig(_ context.Context, _ *common.Session) (*tls.Config, error) {
 	return &tls.Config{}, nil
 }
 
-func (m *mockAuth) GetAzureIdentityResourceID(_ context.Context, _ string) (string, error) {
+func (m *mockDBAuth) GetAzureIdentityResourceID(_ context.Context, _ string) (string, error) {
 	return m.azureIdentityResourceID, m.azureIdentityResourceIDErr
 }
 
