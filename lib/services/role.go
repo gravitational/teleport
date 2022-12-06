@@ -65,6 +65,7 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindWindowsDesktopService, RO()),
 	types.NewRule(types.KindWindowsDesktop, RO()),
 	types.NewRule(types.KindKubernetesCluster, RO()),
+	types.NewRule(types.KindUsageEvent, []string{types.VerbCreate}),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -2710,23 +2711,5 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 		return utils.FastMarshal(role)
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", role)
-	}
-}
-
-// DowngradeToV4 converts a V5 role to V4 so that it will be compatible with
-// older instances. Makes a shallow copy if the conversion is necessary. The
-// passed in role will not be mutated.
-// DELETE IN 10.0.0
-func DowngradeRoleToV4(r *types.RoleV5) (*types.RoleV5, error) {
-	switch r.Version {
-	case types.V3, types.V4:
-		return r, nil
-	case types.V5:
-		var downgraded types.RoleV5
-		downgraded = *r
-		downgraded.Version = types.V4
-		return &downgraded, nil
-	default:
-		return nil, trace.BadParameter("unrecognized role version %T", r.Version)
 	}
 }

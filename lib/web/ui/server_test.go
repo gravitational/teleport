@@ -26,6 +26,29 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+func TestStripProtocolAndPort(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		uri      string
+		expected string
+	}{
+		{uri: "rediss://redis.example.com:6379?mode=cluster", expected: "redis.example.com"},
+		{uri: "rediss://redis.example.com:6379", expected: "redis.example.com"},
+		{uri: "https://abc12345.snowflakecomputing.com", expected: "abc12345.snowflakecomputing.com"},
+		{uri: "mongodb://mongo1.example.com:27017,mongo2.example.com:27017/?replicaSet=rs0&readPreference=secondary", expected: "mongo1.example.com"},
+		{uri: "mongodb+srv://cluster0.abcd.mongodb.net", expected: "cluster0.abcd.mongodb.net"},
+		{uri: "mongo.example.com:27017", expected: "mongo.example.com"},
+		{uri: "example.com", expected: "example.com"},
+		{uri: "", expected: ""},
+	}
+
+	for _, tc := range cases {
+		hostname := stripProtocolAndPort(tc.uri)
+		require.Equal(t, tc.expected, hostname)
+	}
+}
+
 func TestGetAllowedKubeUsersAndGroupsForCluster(t *testing.T) {
 	devEnvRole := &types.RoleV5{
 		Spec: types.RoleSpecV5{
@@ -306,4 +329,155 @@ func makeTestKubeCluster(t *testing.T, labels map[string]string) types.KubeClust
 	)
 	require.NoError(t, err)
 	return s
+}
+
+func TestMakeClusterHiddenLabels(t *testing.T) {
+	type testCase struct {
+		name           string
+		clusters       []types.KubeCluster
+		expectedLabels [][]Label
+		roleSet        services.RoleSet
+	}
+
+	testCases := []testCase{
+		{
+			name: "Single server with internal label",
+			clusters: []types.KubeCluster{
+				makeTestKubeCluster(t, map[string]string{
+					"teleport.internal/test": "value1",
+					"label2":                 "value2",
+				}),
+			},
+			expectedLabels: [][]Label{
+				{
+					{
+						Name:  "label2",
+						Value: "value2",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			clusters := MakeKubeClusters(tc.clusters, tc.roleSet)
+			for i, cluster := range clusters {
+				require.Equal(t, tc.expectedLabels[i], cluster.Labels)
+			}
+		})
+	}
+}
+
+func TestMakeServersHiddenLabels(t *testing.T) {
+	type testCase struct {
+		name           string
+		clusterName    string
+		servers        []types.Server
+		expectedLabels [][]Label
+		roleSet        services.RoleSet
+	}
+
+	testCases := []testCase{
+		{
+			name:        "Single server with internal label",
+			clusterName: "cluster1",
+			servers: []types.Server{
+				makeTestServer(t, "server1", map[string]string{
+					"simple":                "value1",
+					"teleport.internal/app": "app1",
+				}),
+			},
+			expectedLabels: [][]Label{
+				{
+					{
+						Name:  "simple",
+						Value: "value1",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			servers := MakeServers(tc.clusterName, tc.servers, tc.roleSet)
+			for i, server := range servers {
+				require.Equal(t, tc.expectedLabels[i], server.Labels)
+			}
+		})
+	}
+}
+
+func makeTestServer(t *testing.T, name string, labels map[string]string) types.Server {
+	server, err := types.NewServerWithLabels(name, types.KindNode, types.ServerSpecV2{}, labels)
+	require.NoError(t, err)
+	return server
+}
+
+func TestMakeDatabaseHiddenLabels(t *testing.T) {
+	inputDb := &types.DatabaseV3{
+		Metadata: types.Metadata{
+			Name: "db name",
+			Labels: map[string]string{
+				"label":                    "value1",
+				"teleport.internal/label2": "value2",
+			},
+		},
+	}
+
+	outputDb := MakeDatabase(inputDb, nil, nil)
+
+	require.Equal(t, []Label{
+		{
+			Name:  "label",
+			Value: "value1",
+		},
+	}, outputDb.Labels)
+}
+
+func TestMakeDesktopHiddenLabel(t *testing.T) {
+	windowsDesktop := &types.WindowsDesktopV3{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Labels: map[string]string{
+					"teleport.internal/t2": "tt",
+					"label3":               "value2",
+				},
+			},
+		},
+	}
+
+	desktop := MakeDesktop(windowsDesktop)
+	labels := []Label{
+		{
+			Name:  "label3",
+			Value: "value2",
+		},
+	}
+
+	require.Equal(t, labels, desktop.Labels)
+}
+
+func TestMakeDesktopServiceHiddenLabel(t *testing.T) {
+	windowsDesktopService := &types.WindowsDesktopServiceV3{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Labels: map[string]string{
+					"teleport.internal/t2": "tt",
+					"label3":               "value2",
+				},
+			},
+		},
+	}
+
+	desktopService := MakeDesktopService(windowsDesktopService)
+	labels := []Label{
+		{
+			Name:  "label3",
+			Value: "value2",
+		},
+	}
+
+	require.Equal(t, labels, desktopService.Labels)
 }

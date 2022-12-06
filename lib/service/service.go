@@ -65,6 +65,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
@@ -111,6 +112,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/system"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/cert"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -997,7 +999,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	// Create a process wide key generator that will be shared. This is so the
 	// key generator can pre-generate keys and share these across services.
 	if cfg.Keygen == nil {
-		cfg.Keygen = native.New(process.ExitContext())
+		cfg.Keygen = keygen.New(process.ExitContext())
 	}
 
 	// Produce global TeleportReadyEvent
@@ -1540,7 +1542,8 @@ func (process *TeleportProcess) initAuthService() error {
 		HostUUID:                cfg.HostUUID,
 		NodeName:                cfg.Hostname,
 		Authorities:             cfg.Auth.Authorities,
-		Resources:               cfg.Auth.Resources,
+		ApplyOnStartupResources: cfg.Auth.ApplyOnStartupResources,
+		BootstrapResources:      cfg.Auth.BootstrapResources,
 		ReverseTunnels:          cfg.ReverseTunnels,
 		Trust:                   cfg.Trust,
 		Presence:                cfg.Presence,
@@ -1548,6 +1551,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Provisioner:             cfg.Provisioner,
 		Identity:                cfg.Identity,
 		Access:                  cfg.Access,
+		UsageReporter:           cfg.UsageReporter,
 		StaticTokens:            cfg.Auth.StaticTokens,
 		Roles:                   cfg.Auth.Roles,
 		AuthPreference:          cfg.Auth.Preference,
@@ -2482,33 +2486,38 @@ func (process *TeleportProcess) initUploaderService() error {
 		return trace.Wrap(err)
 	}
 
-	// prepare dir for uploader
-	path := []string{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.StreamingLogsDir, apidefaults.Namespace}
-	for i := 1; i < len(path); i++ {
-		dir := filepath.Join(path[:i+1]...)
-		log.Infof("Creating directory %v.", dir)
-		err := os.Mkdir(dir, 0o755)
-		err = trace.ConvertSystemError(err)
-		if err != nil {
-			if !trace.IsAlreadyExists(err) {
+	// prepare directories for uploader
+	paths := [][]string{
+		{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.StreamingSessionsDir, apidefaults.Namespace},
+		{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.CorruptedSessionsDir, apidefaults.Namespace},
+	}
+	for _, path := range paths {
+		for i := 1; i < len(path); i++ {
+			dir := filepath.Join(path[:i+1]...)
+			log.Infof("Creating directory %v.", dir)
+			err := os.Mkdir(dir, 0o755)
+			err = trace.ConvertSystemError(err)
+			if err != nil && !trace.IsAlreadyExists(err) {
 				return trace.Wrap(err)
 			}
-		}
-		if uid != nil && gid != nil {
-			log.Infof("Setting directory %v owner to %v:%v.", dir, *uid, *gid)
-			err := os.Chown(dir, *uid, *gid)
-			if err != nil {
-				return trace.ConvertSystemError(err)
+			if uid != nil && gid != nil {
+				log.Infof("Setting directory %v owner to %v:%v.", dir, *uid, *gid)
+				err := os.Chown(dir, *uid, *gid)
+				if err != nil {
+					return trace.ConvertSystemError(err)
+				}
 			}
 		}
 	}
 
-	uploadsDir := filepath.Join(path...)
+	uploadsDir := filepath.Join(paths[0]...)
+	corruptedDir := filepath.Join(paths[1]...)
 
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
-		Streamer: conn.Client,
-		ScanDir:  uploadsDir,
-		EventsC:  process.Config.UploadEventsC,
+		Streamer:     conn.Client,
+		ScanDir:      uploadsDir,
+		CorruptedDir: corruptedDir,
+		EventsC:      process.Config.UploadEventsC,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -4761,7 +4770,7 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 	}
 	cfg.Log.Warningf("Generating self-signed key and cert to %v %v.", keyPath, certPath)
 
-	creds, err := utils.GenerateSelfSignedCert([]string{cfg.Hostname, "localhost"})
+	creds, err := cert.GenerateSelfSignedCert([]string{cfg.Hostname, "localhost"})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4936,6 +4945,7 @@ func readOrGenerateHostID(ctx context.Context, cfg *Config, kubeBackend kubernet
 				types.JoinMethodUnspecified,
 				types.JoinMethodIAM,
 				types.JoinMethodCircleCI,
+				types.JoinMethodKubernetes,
 				types.JoinMethodGitHub:
 				// Checking error instead of the usual uuid.New() in case uuid generation
 				// fails due to not enough randomness. It's been known to happen happen when

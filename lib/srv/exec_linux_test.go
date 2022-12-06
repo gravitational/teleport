@@ -69,7 +69,6 @@ func TestOSCommandPrep(t *testing.T) {
 		"TERM=xterm",
 		fmt.Sprintf("SSH_TTY=%v", scx.session.term.TTY().Name()),
 		"SSH_SESSION_ID=xxx",
-		"SSH_SESSION_WEBPROXY_ADDR=<proxyhost>:3080",
 		"SSH_TELEPORT_HOST_UUID=testID",
 		"SSH_TELEPORT_CLUSTER_NAME=localhost",
 		"SSH_TELEPORT_USER=teleportUser",

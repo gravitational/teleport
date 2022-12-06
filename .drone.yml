@@ -593,7 +593,6 @@ steps:
   - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
   - security find-identity -v
   - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
-  - export DEBUG="electron-*"
   - export CONNECT_TSH_BIN_PATH=$WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build/tsh
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - yarn install && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION
@@ -8043,7 +8042,6 @@ steps:
   - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
   - security find-identity -v
   - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
-  - export DEBUG="electron-*"
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational
   - pkgutil --expand-full tsh-$${VERSION}.pkg tsh
   - export CONNECT_TSH_APP_PATH=$WORKSPACE_DIR/go/src/github.com/gravitational/tsh/Payload/tsh.app
@@ -8287,11 +8285,16 @@ steps:
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "$DRONE_TAG"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/$DRONE_TAG/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8609,11 +8612,16 @@ steps:
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "$DRONE_TAG"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/$DRONE_TAG/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8932,11 +8940,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for
     teleport-ent-fips
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "$DRONE_TAG"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/$DRONE_TAG/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent-fips"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -11095,12 +11108,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v11')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v11')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -11825,12 +11842,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v11')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v11')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -12559,12 +12580,16 @@ steps:
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for
     teleport-ent-fips
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v11')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v11')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent-fips"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -13749,12 +13774,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v10')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v10')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -14479,12 +14508,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v10')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v10')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -15213,12 +15246,16 @@ steps:
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for
     teleport-ent-fips
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v10')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v10')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent-fips"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -16401,12 +16438,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v9')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v9')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -17131,12 +17172,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v9')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v9')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -17865,12 +17910,16 @@ steps:
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for
     teleport-ent-fips
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v9')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v9')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent-fips"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -18365,6 +18414,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 13004e934ef02a5a5fa53ab5027f6d67cf0eb73a78fe9787eb41647ff215673d
+hmac: 1319900bf879fab43d7dc10a89a0acb99d9a2e577a36ca6b28604d1b386e2540
 
 ...

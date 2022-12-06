@@ -27,7 +27,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -49,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/labels"
@@ -60,6 +60,7 @@ import (
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	native.PrecomputeTestKeys(m)
 	os.Exit(m.Run())
 }
 
@@ -275,13 +276,6 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 	// Generate certificate for AWS console application.
 	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "readonly")
-
-	// Make sure the upload directory is created.
-	err = os.MkdirAll(filepath.Join(
-		s.dataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, defaults.Namespace,
-	), 0o755)
-	require.NoError(t, err)
 
 	lockWatcher, err := services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{

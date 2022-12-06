@@ -125,8 +125,11 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	start.Flag("config",
 		fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
 		Short('c').ExistingFileVar(&ccf.ConfigFile)
+	start.Flag("apply-on-startup",
+		fmt.Sprintf("Path to a non-empty YAML file containing resources to apply on startup. Works on initialized clusters, unlike --bootstrap. Only supports the following types: %s.", types.KindToken)).
+		ExistingFileVar(&ccf.ApplyOnStartupFile)
 	start.Flag("bootstrap",
-		"Path to bootstrap file (ignored if already initialized)").ExistingFileVar(&ccf.BootstrapFile)
+		"Path to a non-empty YAML file containing bootstrap resources (ignored if already initialized)").ExistingFileVar(&ccf.BootstrapFile)
 	start.Flag("config-string",
 		"Base64 encoded configuration string").Hidden().Envar(defaults.ConfigEnvar).
 		StringVar(&ccf.ConfigString)
@@ -364,7 +367,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dumpNodeConfigure.Flag("proxy", "Address of the proxy server.").StringVar(&dumpFlags.ProxyAddress)
 	dumpNodeConfigure.Flag("labels", "Comma-separated list of labels to add to newly created nodes ex) env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 	dumpNodeConfigure.Flag("ca-pin", "Comma-separated list of SKPI hashes for the CA used to verify the auth server.").StringVar(&dumpFlags.CAPin)
-	dumpNodeConfigure.Flag("join-method", "Method to use to join the cluster (token, iam, ec2)").Default("token").EnumVar(&dumpFlags.JoinMethod, "token", "iam", "ec2")
+	dumpNodeConfigure.Flag("join-method", "Method to use to join the cluster (token, iam, ec2, kubernetes)").Default("token").EnumVar(&dumpFlags.JoinMethod, "token", "iam", "ec2", "kubernetes")
 	dumpNodeConfigure.Flag("node-name", "Name for the teleport node.").StringVar(&dumpFlags.NodeName)
 
 	// parse CLI commands+flags:
@@ -467,12 +470,18 @@ func onStatus() error {
 	sshClient := os.Getenv("SSH_CLIENT")
 	systemUser := os.Getenv("USER")
 	teleportUser := os.Getenv(teleport.SSHTeleportUser)
-	proxyHost := os.Getenv(teleport.SSHSessionWebproxyAddr)
+	proxyAddr := os.Getenv(teleport.SSHSessionWebproxyAddr)
 	clusterName := os.Getenv(teleport.SSHTeleportClusterName)
 	hostUUID := os.Getenv(teleport.SSHTeleportHostUUID)
 	sid := os.Getenv(teleport.SSHSessionID)
 
-	if sid == "" || proxyHost == "" {
+	// For node sessions started by `ssh`, the proxyhost is not
+	// set in the session env. Provide a placeholder.
+	if proxyAddr == "" {
+		proxyAddr = "<proxyhost>:3080"
+	}
+
+	if sid == "" {
 		fmt.Println("You are not inside of a Teleport SSH session")
 		return nil
 	}
@@ -481,7 +490,7 @@ func onStatus() error {
 	fmt.Printf("Cluster Name: %s\n", clusterName)
 	fmt.Printf("Host UUID   : %s\n", hostUUID)
 	fmt.Printf("Session ID  : %s\n", sid)
-	fmt.Printf("Session URL : https://%s/web/cluster/%s/console/session/%s\n", proxyHost, clusterName, sid)
+	fmt.Printf("Session URL : https://%s/web/cluster/%s/console/session/%s\n", proxyAddr, clusterName, sid)
 
 	return nil
 }

@@ -223,6 +223,11 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []services.Azur
 
 // initGCPWatchers starts GCP resource watchers based on types provided.
 func (s *Server) initGCPWatchers(ctx context.Context, matchers []services.GCPMatcher) error {
+	// return early if there are no matchers as GetGCPGKEClient causes
+	// an error if there are no credentials present
+	if len(matchers) == 0 {
+		return nil
+	}
 	kubeClient, err := s.Clients.GetGCPGKEClient(ctx)
 	if err != nil {
 		return trace.Wrap(err)

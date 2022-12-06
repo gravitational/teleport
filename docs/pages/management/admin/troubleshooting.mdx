@@ -119,11 +119,11 @@ command:
 
 ```code
 $ tctl status
-Cluster  mytenant.teleport.sh                                          
-Version  (=cloud.version=)                                                                   
-Host CA  never updated                                                           
-User CA  never updated                                                           
-Jwt CA   never updated                                                           
+Cluster  mytenant.teleport.sh
+Version  (=cloud.version=)
+Host CA  never updated
+User CA  never updated
+Jwt CA   never updated
 CA pin   (=presets.ca_pin=)
 ```
 
@@ -187,3 +187,7 @@ list of Auth Services or to be able to connect to the Auth Service through a
 tunnel via the Proxy Service. This means that `teleport.cluster.local` appears
 in log messages that show the URL of a request made to the Auth Service, and
 does not explicitly indicate that something is misconfigured.
+
+## `ssh: overflow reading version string`
+
+(!docs/pages/includes/tls-multiplexing-warnings.mdx!)

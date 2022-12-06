@@ -7,12 +7,6 @@ on:
       - examples/etcd/certs/*.pem
     branches:
       - master
-  pull_request:
-    paths:
-      - .github/services/Dockerfile.*
-      - examples/etcd/certs/*.pem
-    branches:
-      - master
 
 env:
   REGISTRY: ghcr.io

@@ -77,6 +77,10 @@ type CommandLineFlags struct {
 	AdvertiseIP string
 	// --config flag
 	ConfigFile string
+	// --apply-on-startup contains the path of a YAML manifest whose resources should be
+	// applied on startup. Unlike the bootstrap flag, the resources are always applied,
+	// even if the cluster is already initialized. Existing resources will be updated.
+	ApplyOnStartupFile string
 	// Bootstrap flag contains a YAML file that defines a set of resources to bootstrap
 	// a cluster.
 	BootstrapFile string
@@ -1305,6 +1309,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				Redshift: service.DatabaseAWSRedshift{
 					ClusterID: database.AWS.Redshift.ClusterID,
 				},
+				RedshiftServerless: service.DatabaseAWSRedshiftServerless{
+					WorkgroupName: database.AWS.RedshiftServerless.WorkgroupName,
+					EndpointName:  database.AWS.RedshiftServerless.EndpointName,
+				},
 				RDS: service.DatabaseAWSRDS{
 					InstanceID: database.AWS.RDS.InstanceID,
 					ClusterID:  database.AWS.RDS.ClusterID,
@@ -1585,6 +1593,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		CA:                 cert,
 	}
 
+	var hlrs []service.HostLabelRule
 	for _, rule := range fc.WindowsDesktop.HostLabels {
 		r, err := regexp.Compile(rule.Match)
 		if err != nil {
@@ -1601,11 +1610,12 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			}
 		}
 
-		cfg.WindowsDesktop.HostLabels = append(cfg.WindowsDesktop.HostLabels, service.HostLabelRule{
+		hlrs = append(hlrs, service.HostLabelRule{
 			Regexp: r,
 			Labels: rule.Labels,
 		})
 	}
+	cfg.WindowsDesktop.HostLabels = service.NewHostLabelRules(hlrs...)
 
 	if fc.WindowsDesktop.Labels != nil {
 		cfg.WindowsDesktop.Labels = make(map[string]string)
@@ -1892,7 +1902,18 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		if len(resources) < 1 {
 			return trace.BadParameter("no resources found: %q", clf.BootstrapFile)
 		}
-		cfg.Auth.Resources = resources
+		cfg.Auth.BootstrapResources = resources
+	}
+
+	if clf.ApplyOnStartupFile != "" {
+		resources, err := ReadResources(clf.ApplyOnStartupFile)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(resources) < 1 {
+			return trace.BadParameter("no resources found: %q", clf.ApplyOnStartupFile)
+		}
+		cfg.Auth.ApplyOnStartupResources = resources
 	}
 
 	// Apply command line --debug flag to override logger severity.

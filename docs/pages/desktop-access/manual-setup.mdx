@@ -303,11 +303,27 @@ Computer Configuration > Policies > Administrative Templates > Windows Component
 Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security
 ```
 
-4. Right click `Require user authentication for remote connections by using Network Level Authentication`, edit, select **`Disable`** and `OK`.
+4. Right click `Require user authentication for remote connections by using Network Level Authentication`, edit, select `Disable` and `OK`.
 
 <Figure align="left" bordered caption="Disable Require user authentication...">
   ![Disable Require](../../img/desktop-access/disable.png)
 </Figure>
+
+5. Right click `Always prompt for password upon connection`, edit, select **`Disabled`** and .
+   Teleport's smart card based authentication generates a random smart card PIN for each
+   desktop session and provides the PIN to the desktop during the RDP connection establishment.
+   Since the PIN is never provided to the Teleport user, this setting must be disabled in
+   order for authentication to complete.
+
+### Allow credentials to be provided over RDP
+
+Select:
+
+```text
+Computer Configuration > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security > "Always prompt for password upon connection" 
+```
+
+Set to `Disabled` and click `OK`.
 
 ### Open firewall to inbound RDP connections
 
@@ -550,9 +566,11 @@ sudo teleport start -c /etc/teleport.yaml
 ### Create a Teleport user/role for Windows Desktop Access
 
 In order to gain access to a remote desktop, a Teleport user needs to have the
-appropriate permissions for that desktop. For example, you can create a role
-that gives its users access to all Windows desktop labels and the
-`"Administrator"` user:
+appropriate permissions for that desktop. 
+
+For example, you can create a role that gives its users access to all Windows
+desktop labels and the `"Administrator"` user. To do so, create a file called
+`windows-desktop-admins.yaml` with the following content:
 
 ```yaml
 kind: role
@@ -573,11 +591,13 @@ be allowed to access.
 Usernames shared between domain and local users will create login conflicts.
 </Admonition>
 
-See the [RBAC page](./rbac.mdx) for more information about setting up
-Windows Desktop Access permissions.
+Create the role:
 
-See the [Access Controls Getting Started](../access-controls/getting-started.mdx#step-13-add-local-users-with-preset-roles)
-guide for instructions on how to create or update a user with a given role.
+```code
+$ tctl create -f windows-desktop-admins.yaml
+```
+
+(!docs/pages/includes/add-role-to-user.mdx role="windows-desktop-admins"!)
 
 ### Connect to your Windows desktop
 
