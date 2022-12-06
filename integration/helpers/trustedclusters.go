@@ -205,7 +205,7 @@ func CheckTrustedClustersCanConnect(ctx context.Context, t *testing.T, tcSetup T
 
 	require.Eventually(t, func() bool {
 		return tc.SSH(ctx, cmd, false) == nil
-	}, time.Millisecond*500, time.Millisecond*50, "Two clusters cannot connect to each other")
+	}, time.Millisecond*5000, time.Millisecond*500, "Two clusters cannot connect to each other")
 
 	require.Equal(t, "hello world\n", output.String())
 }

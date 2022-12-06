@@ -44,7 +44,7 @@ import (
 )
 
 // UpsertTrustedCluster creates or toggles a Trusted Cluster relationship.
-func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
 	// It is recommended to omit trusted cluster name because the trusted cluster name
 	// is updated to the roots cluster name during the handshake with the root cluster.
 	var existingCluster types.TrustedCluster
@@ -79,6 +79,16 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 			existingCluster.GetEnabled()); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		// Reset previous UserCA role map if this func fails later on
+		defer func() {
+			if returnErr != nil {
+				if err := a.UpdateUserCARoleMap(ctx, trustedCluster.GetName(), existingCluster.GetRoleMap(),
+					trustedCluster.GetEnabled()); err != nil {
+					returnErr = trace.NewAggregate(err, returnErr)
+				}
+			}
+		}()
 	}
 	// Create or update state
 	switch {
