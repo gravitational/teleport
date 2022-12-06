@@ -51,12 +51,36 @@ func TestTeletermGatewayCertRenewal(t *testing.T) {
 	)
 	pack.WaitForLeaf(t)
 
+	rootClusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
+	require.NoError(t, err)
+
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 		Process:  pack.Root.Cluster.Process,
 		Username: pack.Root.User.GetName(),
 	})
 	require.NoError(t, err)
 
+	t.Run("root cluster", func(t *testing.T) {
+		t.Parallel()
+
+		databaseURI := uri.NewClusterURI(rootClusterName).
+			AppendDB(pack.Root.MysqlService.Name)
+
+		testGatewayCertRenewal(t, pack, creds, databaseURI)
+	})
+	t.Run("leaf cluster", func(t *testing.T) {
+		t.Parallel()
+
+		leafClusterName := pack.Leaf.Cluster.Secrets.SiteName
+		databaseURI := uri.NewClusterURI(rootClusterName).
+			AppendLeafCluster(leafClusterName).
+			AppendDB(pack.Leaf.MysqlService.Name)
+
+		testGatewayCertRenewal(t, pack, creds, databaseURI)
+	})
+}
+
+func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds, databaseURI uri.ResourceURI) {
 	tc, err := pack.Root.Cluster.NewClientWithCreds(helpers.ClientConfig{
 		Login:   pack.Root.User.GetName(),
 		Cluster: pack.Root.Cluster.Secrets.SiteName,
@@ -103,12 +127,8 @@ func TestTeletermGatewayCertRenewal(t *testing.T) {
 
 	// Here the test setup ends and actual test code starts.
 
-	clusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
-	require.NoError(t, err)
-
-	targetURI := uri.NewClusterURI(clusterName).AppendDB(pack.Root.MysqlService.Name).String()
 	gateway, err := daemonService.CreateGateway(context.Background(), daemon.CreateGatewayParams{
-		TargetURI:  targetURI,
+		TargetURI:  databaseURI.String(),
 		TargetUser: "root",
 	})
 	require.NoError(t, err)
@@ -157,9 +177,9 @@ func TestTeletermGatewayCertRenewal(t *testing.T) {
 	require.NoError(t, client.Close())
 
 	require.Equal(t, 1, tshdEventsClient.callCounts["Relogin"],
-		"Expected TSHDEventsClient.Relogin to have been called exactly one time")
+		"Unexpected number of calls to TSHDEventsClient.Relogin")
 	require.Equal(t, 0, tshdEventsClient.callCounts["SendNotification"],
-		"Expected TSHDEventsClient.SendNotification to have been called exactly zero times")
+		"Unexpected number of calls to TSHDEventsClient.SendNotification")
 }
 
 type mockTSHDEventsClient struct {
