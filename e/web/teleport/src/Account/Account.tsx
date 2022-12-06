@@ -34,7 +34,7 @@ export function Account({ isSso }: Props) {
           <TabItem as={NavLink} to={cfg.oss.routes.accountMfaDevices}>
             Two-Factor Devices
           </TabItem>
-          {cfg.oss.isCloud && (
+          {cfg.oss.recoveryCodesEnabled && (
             <TabItem as={NavLink} to={cfg.routes.accountRecovery}>
               Recovery
             </TabItem>
@@ -53,7 +53,7 @@ export function Account({ isSso }: Props) {
             path={cfg.oss.routes.accountMfaDevices}
             component={ManageDevices}
           />
-          {cfg.oss.isCloud && (
+          {cfg.oss.recoveryCodesEnabled && (
             <Route path={cfg.routes.accountRecovery} component={Recovery} />
           )}
           <Redirect

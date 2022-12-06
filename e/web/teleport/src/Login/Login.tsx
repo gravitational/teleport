@@ -10,7 +10,7 @@ const logoSrc = require('design/assets/images/teleport-medallion.svg');
 
 export default function Container() {
   const state = useLogin() as State;
-  state.isRecoveryEnabled = cfg.oss.isCloud;
+  state.isRecoveryEnabled = cfg.oss.recoveryCodesEnabled;
   state.onRecover = (isRecoverPassword: boolean) => {
     const path = isRecoverPassword
       ? cfg.routes.recoveryForgotPassword
