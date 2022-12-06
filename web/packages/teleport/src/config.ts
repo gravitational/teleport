@@ -34,6 +34,7 @@ const cfg = {
   isEnterprise: false,
   isCloud: false,
   tunnelPublicAddress: '',
+  recoveryCodesEnabled: false,
 
   configDir: '$HOME/.config',
 
