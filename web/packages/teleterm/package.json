@@ -29,6 +29,7 @@
   "private": true,
   "homepage": "https://goteleport.com",
   "dependencies": {
+    "emittery": "^1.0.1",
     "node-pty": "0.10.0"
   },
   "devDependencies": {

@@ -26,12 +26,14 @@ import {
 import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalContextMenu';
 import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
 import { resolveNetworkAddress } from './resolveNetworkAddress';
+import { WindowsManager } from './windowsManager';
 
 type Options = {
   settings: RuntimeSettings;
   logger: Logger;
   configService: ConfigService;
   fileStorage: FileStorage;
+  windowsManager: WindowsManager;
 };
 
 export default class MainProcess {
@@ -42,12 +44,14 @@ export default class MainProcess {
   private sharedProcess: ChildProcess;
   private fileStorage: FileStorage;
   private resolvedChildProcessAddresses: Promise<ChildProcessAddresses>;
+  private windowsManager: WindowsManager;
 
   private constructor(opts: Options) {
     this.settings = opts.settings;
     this.logger = opts.logger;
     this.configService = opts.configService;
     this.fileStorage = opts.fileStorage;
+    this.windowsManager = opts.windowsManager;
   }
 
   static create(opts: Options) {
@@ -194,6 +198,10 @@ export default class MainProcess {
         defaultPath: path.basename(filePath),
       })
     );
+
+    ipcMain.handle('main-process-force-focus-window', () => {
+      this.windowsManager.forceFocusWindow();
+    });
 
     subscribeToTerminalContextMenuEvent();
     subscribeToTabContextMenuEvent();

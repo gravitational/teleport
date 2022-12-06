@@ -120,7 +120,6 @@ function getClientMocks(): Partial<tsh.TshClient> {
     getAllServers: jest.fn().mockResolvedValueOnce([serverMock]),
     createGateway: jest.fn().mockResolvedValueOnce(gatewayMock),
     removeGateway: jest.fn().mockResolvedValueOnce(undefined),
-    restartGateway: jest.fn().mockResolvedValueOnce(undefined),
   };
 }
 
@@ -206,7 +205,6 @@ test('login into cluster and sync resources', async () => {
   expect(client.listGateways).toHaveBeenCalledWith();
   expect(client.getAllDatabases).toHaveBeenCalledWith(clusterUri);
   expect(client.getAllServers).toHaveBeenCalledWith(clusterUri);
-  expect(client.restartGateway).toHaveBeenCalledWith(gatewayMock.uri);
   expect(service.findCluster(clusterUri).connected).toBe(true);
 });
 

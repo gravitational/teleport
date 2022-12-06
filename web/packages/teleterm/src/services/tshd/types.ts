@@ -105,7 +105,6 @@ export type TshClient = {
   listGateways: () => Promise<Gateway[]>;
   createGateway: (params: CreateGatewayParams) => Promise<Gateway>;
   removeGateway: (gatewayUri: string) => Promise<void>;
-  restartGateway: (gatewayUri: string) => Promise<void>;
   setGatewayTargetSubresourceName: (
     gatewayUri: string,
     targetSubresourceName: string

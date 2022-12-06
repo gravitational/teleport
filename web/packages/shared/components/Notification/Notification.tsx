@@ -161,7 +161,6 @@ function getRenderedContent(
         </div>
         <Text
           fontSize={13}
-          title={content.description}
           lineHeight={20}
           color="text.secondary"
           css={longerTextCss}

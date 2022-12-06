@@ -16,9 +16,9 @@ limitations under the License.
 
 import React from 'react';
 
-import AppContext from './appContext';
+import { IAppContext } from 'teleterm/ui/types';
 
-export const AppReactContext = React.createContext<AppContext>(null);
+export const AppReactContext = React.createContext<IAppContext>(null);
 
 const AppContextProvider: React.FC<Props> = props => {
   return <AppReactContext.Provider {...props} />;
@@ -33,5 +33,5 @@ export function useAppContext() {
 }
 
 type Props = {
-  value: AppContext;
+  value: IAppContext;
 };

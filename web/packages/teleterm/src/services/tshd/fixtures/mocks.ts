@@ -59,7 +59,6 @@ export class MockTshClient implements TshClient {
   listGateways: () => Promise<Gateway[]>;
   createGateway: (params: CreateGatewayParams) => Promise<Gateway>;
   removeGateway: (gatewayUri: string) => Promise<undefined>;
-  restartGateway: (gatewayUri: string) => Promise<undefined>;
   setGatewayTargetSubresourceName: (
     gatewayUri: string,
     targetSubresourceName: string
@@ -87,3 +86,15 @@ export class MockTshClient implements TshClient {
   logout: (clusterUri: string) => Promise<undefined>;
   transferFile: () => undefined;
 }
+
+export const gateway: Gateway = {
+  uri: '/gateways/gateway1',
+  targetName: 'postgres',
+  targetUri: '/clusters/teleport-local/dbs/postgres',
+  targetUser: 'alice',
+  targetSubresourceName: '',
+  localAddress: 'localhost',
+  localPort: '59116',
+  protocol: 'postgres',
+  cliCommand: 'psql postgres://alice@localhost:59116',
+};

@@ -579,19 +579,6 @@ export default function createClient(
       });
     },
 
-    async restartGateway(gatewayUri = '') {
-      const req = new api.RestartGatewayRequest().setGatewayUri(gatewayUri);
-      return new Promise<void>((resolve, reject) => {
-        tshd.restartGateway(req, err => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        });
-      });
-    },
-
     async setGatewayTargetSubresourceName(
       gatewayUri = '',
       targetSubresourceName = ''

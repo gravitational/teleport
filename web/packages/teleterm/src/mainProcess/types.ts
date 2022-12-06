@@ -41,6 +41,7 @@ export type MainProcessClient = {
     relativePath: string;
     isDirectory?: boolean;
   }): Promise<void>;
+  forceFocusWindow(): void;
 };
 
 export type ChildProcessAddresses = {

@@ -56,4 +56,6 @@ export class MockMainProcessClient implements MainProcessClient {
   removeKubeConfig(): Promise<void> {
     return Promise.resolve(undefined);
   }
+
+  forceFocusWindow() {}
 }

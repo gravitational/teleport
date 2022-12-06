@@ -15,24 +15,27 @@ export {
   AppearanceConfig,
 };
 
-// SubscribeToTshdEvent is a type of the subscribeToTshdEvent function which gets exposed to the
-// renderer through the context bridge.
-//
-// A typical implementation of a gRPC service looks something like this:
-//
-//     {
-//       nameOfTheRpc: (call, callback) => {
-//         const request = call.request.toObject()
-//         // Do something with the request fields…
-//       }
-//     }
-//
-// subscribeToTshdEvent lets you add a listener that's going to be called every time a client makes
-// a particular RPC to the tshd events service. The listener receives the request converted to a
-// simple JS object since classes cannot be passed through the context bridge.
-//
-// The SubscribeToTshdEvent type expresses all of this so that our subscribeToTshdEvent can stay
-// type safe.
+/**
+ * SubscribeToTshdEvent is a type of the subscribeToTshdEvent function which gets exposed to the
+ * renderer through the context bridge.
+ *
+ * A typical implementation of a gRPC service looks something like this:
+ *
+ *     {
+ *       nameOfTheRpc: (call, callback) => {
+ *         call.onCancelled(() => { … })
+ *         const request = call.request.toObject()
+ *         // Do something with the request fields…
+ *       }
+ *     }
+ *
+ * subscribeToTshdEvent lets you add a listener that's going to be called every time a client makes
+ * a particular RPC to the tshd events service. The listener receives the request converted to a
+ * simple JS object since classes cannot be passed through the context bridge.
+ *
+ * The SubscribeToTshdEvent type expresses all of this so that our subscribeToTshdEvent can stay
+ * type safe.
+ */
 export type SubscribeToTshdEvent = <
   RpcName extends keyof ITshdEventsServiceServer,
   RpcHandler extends ITshdEventsServiceServer[RpcName],
@@ -42,7 +45,10 @@ export type SubscribeToTshdEvent = <
   >
 >(
   eventName: RpcName,
-  listener: (request: RpcHandlerRequestObject) => void
+  listener: (eventData: {
+    request: RpcHandlerRequestObject;
+    onCancelled: (callback: () => void) => void;
+  }) => void | Promise<void>
 ) => void;
 
 export type ElectronGlobals = {
