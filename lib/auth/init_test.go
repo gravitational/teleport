@@ -36,8 +36,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/keystore"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -732,53 +732,110 @@ func TestInit_bootstrap(t *testing.T) {
 	tests := []struct {
 		name         string
 		modifyConfig func(*InitConfig)
-		wantErr      bool
+		assertError  require.ErrorAssertionFunc
 	}{
 		{
 			// Issue https://github.com/gravitational/teleport/issues/7853.
 			name: "OK bootstrap CAs",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.Resources = append(cfg.Resources, hostCA.Clone(), userCA.Clone(), jwtCA.Clone(), dbCA.Clone())
+				cfg.BootstrapResources = append(cfg.BootstrapResources, hostCA.Clone(), userCA.Clone(), jwtCA.Clone(), dbCA.Clone())
 			},
+			assertError: require.NoError,
 		},
 		{
 			name: "NOK bootstrap Host CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.Resources = append(cfg.Resources, invalidHostCA.Clone(), userCA.Clone(), jwtCA.Clone(), dbCA.Clone())
+				cfg.BootstrapResources = append(cfg.BootstrapResources, invalidHostCA.Clone(), userCA.Clone(), jwtCA.Clone(), dbCA.Clone())
 			},
-			wantErr: true,
+			assertError: require.Error,
 		},
 		{
 			name: "NOK bootstrap User CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.Resources = append(cfg.Resources, hostCA.Clone(), invalidUserCA.Clone(), jwtCA.Clone(), dbCA.Clone())
+				cfg.BootstrapResources = append(cfg.BootstrapResources, hostCA.Clone(), invalidUserCA.Clone(), jwtCA.Clone(), dbCA.Clone())
 			},
-			wantErr: true,
+			assertError: require.Error,
 		},
 		{
 			name: "NOK bootstrap JWT CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.Resources = append(cfg.Resources, hostCA.Clone(), userCA.Clone(), invalidJWTCA.Clone(), dbCA.Clone())
+				cfg.BootstrapResources = append(cfg.BootstrapResources, hostCA.Clone(), userCA.Clone(), invalidJWTCA.Clone(), dbCA.Clone())
 			},
-			wantErr: true,
+			assertError: require.Error,
 		},
 		{
 			name: "NOK bootstrap Database CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.Resources = append(cfg.Resources, hostCA.Clone(), userCA.Clone(), jwtCA.Clone(), invalidDBCA.Clone())
+				cfg.BootstrapResources = append(cfg.BootstrapResources, hostCA.Clone(), userCA.Clone(), jwtCA.Clone(), invalidDBCA.Clone())
 			},
-			wantErr: true,
+			assertError: require.Error,
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			cfg := setupConfig(t)
 			test.modifyConfig(&cfg)
 
 			_, err := Init(cfg)
-			hasErr := err != nil
-			require.Equal(t, test.wantErr, hasErr, err)
+			test.assertError(t, err)
+		})
+	}
+}
+
+const (
+	userYAML = `kind: user
+version: v2
+metadata:
+  name: joe
+spec:
+  roles: ["admin"]`
+	tokenYAML = `kind: token
+version: v2
+metadata:
+  name: github-token
+  expires: "3000-01-01T00:00:00Z"
+spec:
+  roles: [Bot]
+  join_method: github
+  bot_name: github-demo
+  github:
+    allow:
+      - repository: gravitational/example`
+)
+
+func TestInit_ApplyOnStartup(t *testing.T) {
+	t.Parallel()
+
+	user := resourceFromYAML(t, userYAML).(types.User)
+	token := resourceFromYAML(t, tokenYAML).(types.ProvisionToken)
+
+	tests := []struct {
+		name         string
+		modifyConfig func(*InitConfig)
+		assertError  require.ErrorAssertionFunc
+	}{
+		{
+			name: "Apply unsupported resource",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
+			},
+			assertError: require.Error,
+		},
+		{
+			name: "Apply ProvisionToken",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, token)
+			},
+			assertError: require.NoError,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := setupConfig(t)
+			test.modifyConfig(&cfg)
+
+			_, err := Init(cfg)
+			test.assertError(t, err)
 		})
 	}
 }
@@ -942,7 +999,7 @@ func TestRotateDuplicatedCerts(t *testing.T) {
 	conf := setupConfig(t)
 
 	// suite.NewTestCA() uses the same SSH key for all created keys, which in this scenario triggers extra CA rotation.
-	keygen := native.New(context.TODO())
+	keygen := keygen.New(context.TODO())
 	privHost, _, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	privUser, _, err := keygen.GenerateKeyPair()

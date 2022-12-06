@@ -74,11 +74,11 @@ PRs with corrections and updates are welcome!
  
 To run a full test suite locally, you will need
 
-* `helm` and `helm3-unittest` plugin
+* `helm` and `helm-unittest` plugin
  
   ```shell
   brew install helm
-  helm plugin install https://github.com/vbehar/helm3-unittest
+  helm plugin install https://github.com/quintush/helm-unittest
   ```
   
 * `bats-core` version from [build.assets/Dockerfile](https://github.com/gravitational/teleport/blob/master/build.assets/Dockerfile#L183) (search for `bats-core`)

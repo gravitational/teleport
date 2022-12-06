@@ -17,7 +17,6 @@ limitations under the License.
 package ui
 
 import (
-	"sort"
 	"strconv"
 	"strings"
 
@@ -72,24 +71,9 @@ func (s sortedLabels) Swap(i, j int) {
 func MakeServers(clusterName string, servers []types.Server, userRoles services.RoleSet) []Server {
 	uiServers := []Server{}
 	for _, server := range servers {
-		uiLabels := []Label{}
 		serverLabels := server.GetStaticLabels()
-		for name, value := range serverLabels {
-			uiLabels = append(uiLabels, Label{
-				Name:  name,
-				Value: value,
-			})
-		}
-
 		serverCmdLabels := server.GetCmdLabels()
-		for name, cmd := range serverCmdLabels {
-			uiLabels = append(uiLabels, Label{
-				Name:  name,
-				Value: cmd.GetResult(),
-			})
-		}
-
-		sort.Sort(sortedLabels(uiLabels))
+		uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
 
 		serverLogins := userRoles.EnumerateServerLogins(server)
 
@@ -125,23 +109,7 @@ func MakeKubeClusters(clusters []types.KubeCluster, userRoles services.RoleSet) 
 	for _, cluster := range clusters {
 		staticLabels := cluster.GetStaticLabels()
 		dynamicLabels := cluster.GetDynamicLabels()
-		uiLabels := make([]Label, 0, len(staticLabels)+len(dynamicLabels))
-
-		for name, value := range staticLabels {
-			uiLabels = append(uiLabels, Label{
-				Name:  name,
-				Value: value,
-			})
-		}
-
-		for name, cmd := range dynamicLabels {
-			uiLabels = append(uiLabels, Label{
-				Name:  name,
-				Value: cmd.GetResult(),
-			})
-		}
-
-		sort.Sort(sortedLabels(uiLabels))
+		uiLabels := makeLabels(staticLabels, transformCommandLabels(dynamicLabels))
 
 		kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(userRoles, cluster)
 
@@ -238,17 +206,7 @@ type Database struct {
 
 // MakeDatabase creates database objects.
 func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
-
-	uiLabels := []Label{}
-
-	for name, value := range database.GetAllLabels() {
-		uiLabels = append(uiLabels, Label{
-			Name:  name,
-			Value: value,
-		})
-	}
-
-	sort.Sort(sortedLabels(uiLabels))
+	uiLabels := makeLabels(database.GetAllLabels())
 
 	return Database{
 		Name:          database.GetName(),
@@ -297,16 +255,7 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
 		}
 		return addr
 	}
-	uiLabels := []Label{}
-
-	for name, value := range windowsDesktop.GetAllLabels() {
-		uiLabels = append(uiLabels, Label{
-			Name:  name,
-			Value: value,
-		})
-	}
-
-	sort.Sort(sortedLabels(uiLabels))
+	uiLabels := makeLabels(windowsDesktop.GetAllLabels())
 
 	return Desktop{
 		OS:     constants.WindowsOS,
@@ -342,16 +291,7 @@ type DesktopService struct {
 
 // MakeDesktop converts a desktop from its API form to a type the UI can display.
 func MakeDesktopService(desktopService types.WindowsDesktopService) DesktopService {
-	uiLabels := []Label{}
-
-	for name, value := range desktopService.GetAllLabels() {
-		uiLabels = append(uiLabels, Label{
-			Name:  name,
-			Value: value,
-		})
-	}
-
-	sort.Sort(sortedLabels(uiLabels))
+	uiLabels := makeLabels(desktopService.GetAllLabels())
 
 	return DesktopService{
 		Name:     desktopService.GetName(),
