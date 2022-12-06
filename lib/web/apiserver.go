@@ -213,8 +213,8 @@ type APIHandler struct {
 // be handled by the UI and handle the request appropriately.
 func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// If the request is either to the fragment authentication endpoint or if the
-	// request is already authenticated (has a session cookie), forward to
-	// application handlers. If the request is unauthenticated and requesting a
+	// request has a session cookie or a client cert, forward to
+	// application handlers. If the request is requesting a
 	// FQDN that is not of the proxy, redirect to application launcher.
 	if app.HasFragment(r) || app.HasSession(r) || app.HasClientCert(r) {
 		h.appHandler.ServeHTTP(w, r)
