@@ -7,7 +7,7 @@ state: draft
 
 # Required Approvers
 * Engineering: @r0mant
-* Security: @reed
+* Security: @reedloden
 * Product: (@xinding33 || @klizhentas)
 
 ## What
