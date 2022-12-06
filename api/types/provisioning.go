@@ -106,8 +106,9 @@ type ProvisionToken interface {
 	// String returns user friendly representation of the resource
 	String() string
 
-	// GetSafeName returns the name, sanitised appropriately for join methods
-	// where the name is secret.
+	// GetSafeName returns the name of the token, sanitized appropriately for
+	// join methods where the name is secret. This should be used when logging
+	// the token name.
 	GetSafeName() string
 }
 
@@ -378,8 +379,9 @@ func (p *ProvisionTokenV2) SetName(e string) {
 	p.Metadata.Name = e
 }
 
-// GetSafeName returns the name, sanitised appropriately for join methods
-// where the name is secret.
+// GetSafeName returns the name of the token, sanitized appropriately for
+// join methods where the name is secret. This should be used when logging
+// the token name.
 func (p *ProvisionTokenV2) GetSafeName() string {
 	name := p.GetName()
 	if p.GetJoinMethod() != JoinMethodToken {
