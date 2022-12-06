@@ -258,6 +258,9 @@ const (
 	// ComponentVersionControl is the component common to all version control operations.
 	ComponentVersionControl = "version-control"
 
+	// ComponentUsageReporting is the component responsible for reporting usage metrics.
+	ComponentUsageReporting = "usage-reporting"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 

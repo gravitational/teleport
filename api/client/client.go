@@ -2913,3 +2913,10 @@ func (c *Client) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 	_, err := c.grpc.ChangePassword(ctx, req, c.callOpts...)
 	return trail.FromGRPC(err)
 }
+
+// SubmitUsageEvent submits an external usage event.
+func (c *Client) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
+	_, err := c.grpc.SubmitUsageEvent(ctx, req, c.callOpts...)
+
+	return trail.FromGRPC(err)
+}

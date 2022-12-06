@@ -4281,6 +4281,18 @@ func (g *GRPCServer) ChangePassword(ctx context.Context, req *proto.ChangePasswo
 	return &emptypb.Empty{}, nil
 }
 
+// SubmitUsageEvent submits an external usage event.
+func (g *GRPCServer) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.SubmitUsageEvent(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration
