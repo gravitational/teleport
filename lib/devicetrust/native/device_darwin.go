@@ -95,7 +95,7 @@ func pubKeyToCredential(pubKeyC C.PublicKey) (*devicepb.DeviceCredential, error)
 
 func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 	var dd C.DeviceData
-	defer C.free(unsafe.Pointer(dd.serial_number))
+	defer func() { C.free(unsafe.Pointer(dd.serial_number)) }()
 
 	if res := C.DeviceCollectData(&dd); res != 0 {
 		return nil, trace.Wrap(fmt.Errorf("collecting device data: status %d", res))
@@ -114,10 +114,10 @@ func signChallenge(chal []byte) (sig []byte, err error) {
 		data:     (*C.uint8_t)(C.CBytes(h[:])),
 		data_len: (C.size_t)(len(h)),
 	}
-	defer C.free(unsafe.Pointer(digC.data))
+	defer func() { C.free(unsafe.Pointer(digC.data)) }()
 
 	var sigC C.Signature
-	defer C.free(unsafe.Pointer(sigC.data))
+	defer func() { C.free(unsafe.Pointer(sigC.data)) }()
 
 	if res := C.DeviceKeySign(digC, &sigC); res != 0 {
 		return nil, trace.Wrap(fmt.Errorf("signing with device key: status %d", res))
