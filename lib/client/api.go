@@ -77,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -310,8 +311,8 @@ type Config struct {
 	// if empty, they'll go to ~/.tsh
 	KeysDir string
 
-	// Env is a map of environmnent variables to send when opening session
-	Env map[string]string
+	// SessionID is a session ID to use when opening a new session.
+	SessionID string
 
 	// Interactive, when set to true, tells tsh to launch a remote command
 	// in interactive mode, i.e. attaching the temrinal to it
@@ -3021,7 +3022,7 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 	)
 	defer span.End()
 
-	nodeSession, err := newSession(ctx, nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.EnableEscapeSequences)
+	nodeSession, err := newSession(ctx, nodeClient, nil, tc.newSessionEnv(), tc.Stdin, tc.Stdout, tc.Stderr, tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3046,6 +3047,16 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 	return nil
 }
 
+func (tc *TeleportClient) newSessionEnv() map[string]string {
+	env := map[string]string{
+		teleport.SSHSessionWebproxyAddr: tc.WebProxyAddr,
+	}
+	if tc.SessionID != "" {
+		env[sshutils.SessionEnvVar] = tc.SessionID
+	}
+	return env
+}
+
 // runShell starts an interactive SSH session/shell.
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
 func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, beforeStart func(io.Writer)) error {
@@ -3056,19 +3067,16 @@ func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, 
 	)
 	defer span.End()
 
-	env := make(map[string]string)
+	env := tc.newSessionEnv()
 	env[teleport.EnvSSHJoinMode] = string(mode)
 	env[teleport.EnvSSHSessionReason] = tc.Config.Reason
 	env[teleport.EnvSSHSessionDisplayParticipantRequirements] = strconv.FormatBool(tc.Config.DisplayParticipantRequirements)
+
 	encoded, err := json.Marshal(&tc.Config.Invited)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	env[teleport.EnvSSHSessionInvited] = string(encoded)
-	for key, value := range tc.Env {
-		env[key] = value
-	}
 
 	nodeSession, err := newSession(ctx, nodeClient, sessToJoin, env, tc.Stdin, tc.Stdout, tc.Stderr, tc.EnableEscapeSequences)
 	if err != nil {

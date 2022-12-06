@@ -88,6 +88,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
+	tlsutils "github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -142,7 +143,7 @@ type WebSuite struct {
 }
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
-// it as an argument. Otherwise it will run tests as normal.
+// it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	// If the test is re-executing itself, execute the command that comes over
@@ -151,6 +152,7 @@ func TestMain(m *testing.M) {
 		srv.RunAndExit(os.Args[1])
 		return
 	}
+	native.PrecomputeTestKeys(m)
 
 	// Otherwise run tests as normal.
 	code := m.Run()
@@ -290,7 +292,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	s.node = node
 	s.srvID = node.ID()
 	require.NoError(t, s.node.Start())
-	require.NoError(t, auth.CreateUploaderDir(nodeDataDir))
 
 	// create reverse tunnel service:
 	proxyID := "proxy"
@@ -347,6 +348,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{s.server.TLS.Listener.Addr().String()},
+		Clock:                 s.clock,
 	})
 	require.NoError(t, err)
 	s.proxyTunnel = revTunServer
@@ -492,7 +494,7 @@ type authPack struct {
 	login     string
 	password  string
 	session   *CreateSessionResponse
-	clt       *client.WebClient
+	clt       *TestWebClient
 	cookies   []*http.Cookie
 }
 
@@ -518,7 +520,7 @@ func (s *WebSuite) authPack(t *testing.T, user string) *authPack {
 	validToken, err := totp.GenerateCode(otpSecret, s.clock.Now())
 	require.NoError(t, err)
 
-	clt := s.client()
+	clt := s.client(t)
 	req := CreateSessionReq{
 		User:              user,
 		Pass:              pass,
@@ -538,7 +540,7 @@ func (s *WebSuite) authPack(t *testing.T, user string) *authPack {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	clt = s.client(roundtrip.BearerAuth(sess.Token), roundtrip.CookieJar(jar))
+	clt = s.client(t, roundtrip.BearerAuth(sess.Token), roundtrip.CookieJar(jar))
 	jar.SetCookies(s.url(), re.Cookies())
 
 	return &authPack{
@@ -577,6 +579,36 @@ func (s *WebSuite) createUser(t *testing.T, user string, login string, pass stri
 		require.NoError(t, err)
 		err = s.server.Auth().UpsertMFADevice(context.Background(), user, dev)
 		require.NoError(t, err)
+	}
+}
+
+func verifySecurityResponseHeaders(t *testing.T, h http.Header) {
+	t.Helper()
+	cases := []struct {
+		header        string
+		expectedValue string
+	}{
+		{
+			header:        "X-Content-Type-Options",
+			expectedValue: "nosniff",
+		},
+		{
+			header:        "Referrer-Policy",
+			expectedValue: "origin",
+		},
+		{
+			header:        "X-Frame-Options",
+			expectedValue: "SAMEORIGIN",
+		},
+		{
+			header:        "Strict-Transport-Security",
+			expectedValue: "max-age=31536000; includeSubDomains",
+		},
+	}
+
+	for _, tc := range cases {
+		require.Contains(t, h, tc.header)
+		require.Equal(t, tc.expectedValue, h.Get(tc.header))
 	}
 }
 
@@ -684,7 +716,7 @@ func TestCSRF(t *testing.T) {
 		{reqToken: encodedToken1, cookieToken: ""},
 	}
 
-	clt := s.client()
+	clt := s.client(t)
 
 	// valid
 	_, err = s.login(clt, encodedToken1, encodedToken1, loginForm)
@@ -760,7 +792,7 @@ func TestWebSessionsBadInput(t *testing.T) {
 	validToken, err := totp.GenerateCode(otpSecret, time.Now())
 	require.NoError(t, err)
 
-	clt := s.client()
+	clt := s.client(t)
 
 	reqs := []CreateSessionReq{
 		// empty request
@@ -1276,19 +1308,51 @@ func TestTerminalPing(t *testing.T) {
 
 func TestTerminal(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t)
-	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
-	termHandler := newTerminalHandler()
-	stream := termHandler.asTerminalStream(ws)
+	cases := []struct {
+		name            string
+		recordingConfig types.SessionRecordingConfigV2
+	}{
+		{
+			name: "node recording mode",
+			recordingConfig: types.SessionRecordingConfigV2{
+				Spec: types.SessionRecordingConfigSpecV2{
+					Mode: types.RecordAtNode,
+				},
+			},
+		},
+		{
+			name: "proxy recording mode",
+			recordingConfig: types.SessionRecordingConfigV2{
+				Spec: types.SessionRecordingConfigSpecV2{
+					Mode: types.RecordAtProxySync,
+				},
+			},
+		},
+	}
 
-	_, err = io.WriteString(stream, "echo vinsong\r\n")
-	require.NoError(t, err)
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			s := newWebSuite(t)
 
-	err = waitForOutput(stream, "vinsong")
-	require.NoError(t, err)
+			require.NoError(t, s.server.Auth().SetSessionRecordingConfig(context.Background(), &tt.recordingConfig))
+
+			ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, ws.Close()) })
+
+			termHandler := newTerminalHandler()
+			stream := termHandler.asTerminalStream(ws)
+
+			// here we intentionally run a command where the output we're looking
+			// for is not present in the command itself
+			_, err = io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
+			require.NoError(t, err)
+			require.NoError(t, waitForOutput(stream, "teleport"))
+		})
+	}
 }
 
 func TestTerminalRequireSessionMfa(t *testing.T) {
@@ -1775,7 +1839,7 @@ func TestLogin_PrivateKeyEnabledError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	clt := s.client()
+	clt := s.client(t)
 	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(loginReq))
 	require.NoError(t, err)
 	ua := "test-ua"
@@ -1814,7 +1878,7 @@ func TestLogin(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	clt := s.client()
+	clt := s.client(t)
 	ua := "test-ua"
 	req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(loginReq))
 	require.NoError(t, err)
@@ -1856,7 +1920,7 @@ func TestLogin(t *testing.T) {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	clt = s.client(roundtrip.BearerAuth(rawSess.Token), roundtrip.CookieJar(jar))
+	clt = s.client(t, roundtrip.BearerAuth(rawSess.Token), roundtrip.CookieJar(jar))
 	jar.SetCookies(s.url(), re.Cookies())
 
 	re, err = clt.Get(s.ctx, clt.Endpoint("webapi", "sites"), url.Values{})
@@ -1868,13 +1932,13 @@ func TestLogin(t *testing.T) {
 	// in absence of session cookie or bearer auth the same request fill fail
 
 	// no session cookie:
-	clt = s.client(roundtrip.BearerAuth(rawSess.Token))
+	clt = s.client(t, roundtrip.BearerAuth(rawSess.Token))
 	_, err = clt.Get(s.ctx, clt.Endpoint("webapi", "sites"), url.Values{})
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// no bearer token:
-	clt = s.client(roundtrip.CookieJar(jar))
+	clt = s.client(t, roundtrip.CookieJar(jar))
 	_, err = clt.Get(s.ctx, clt.Endpoint("webapi", "sites"), url.Values{})
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
@@ -1885,7 +1949,7 @@ func TestLogin(t *testing.T) {
 func TestEmptyMotD(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	wc := s.client()
+	wc := s.client(t)
 
 	// Given an auth server configured *not* to expose a Message Of The
 	// Day...
@@ -1916,7 +1980,7 @@ func TestMotD(t *testing.T) {
 	const motd = "Hello. I'm a Teleport cluster!"
 
 	s := newWebSuite(t)
-	wc := s.client()
+	wc := s.client(t)
 
 	// Given an auth server configured to expose a Message Of The Day...
 	prefs := types.DefaultAuthPreference()
@@ -1946,7 +2010,7 @@ func TestMotD(t *testing.T) {
 func TestMultipleConnectors(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	wc := s.client()
+	wc := s.client(t)
 
 	// create two oidc connectors, one named "foo" and another named "bar"
 	oidcConnectorSpec := types.OIDCConnectorSpecV3{
@@ -3805,7 +3869,7 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		clt     *client.WebClient
+		clt     *TestWebClient
 		ep      []string
 		reqBody client.MFAChallengeRequest
 	}{
@@ -4465,7 +4529,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 
 		initialUser := users[0]
 
-		clt := s.client()
+		clt := s.client(t)
 
 		// create register challenge
 		token, err := s.server.Auth().CreateResetPasswordToken(s.ctx, auth.CreateUserTokenRequest{
@@ -5837,16 +5901,33 @@ func waitForOutput(stream *terminalStream, substr string) error {
 	}
 }
 
-func (s *WebSuite) client(opts ...roundtrip.ClientParam) *client.WebClient {
+func (s *WebSuite) client(t *testing.T, opts ...roundtrip.ClientParam) *TestWebClient {
 	opts = append(opts, roundtrip.HTTPClient(client.NewInsecureWebClient()))
 	wc, err := client.NewWebClient(s.url().String(), opts...)
 	if err != nil {
 		panic(err)
 	}
-	return wc
+	return &TestWebClient{wc, t}
 }
 
-func (s *WebSuite) login(clt *client.WebClient, cookieToken string, reqToken string, reqData interface{}) (*roundtrip.Response, error) {
+type TestWebClient struct {
+	*client.WebClient
+	t *testing.T
+}
+
+// It is understood that implementing RoundTrip here will NOT result in calls from `Get`, or `PostJSON` from
+// client.WebClient getting this verification.  Those functions would additionally need to be specified here.
+// Despite that, currently our use of RoundTrip directly is providing us enough broad coverage to verify these headers.
+func (c *TestWebClient) RoundTrip(fn roundtrip.RoundTripFn) (*roundtrip.Response, error) {
+	c.t.Helper()
+	resp, err := c.WebClient.RoundTrip(fn)
+
+	verifySecurityResponseHeaders(c.t, resp.Headers())
+
+	return resp, err
+}
+
+func (s *WebSuite) login(clt *TestWebClient, cookieToken string, reqToken string, reqData interface{}) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
 		data, err := json.Marshal(reqData)
 		if err != nil {
@@ -6019,7 +6100,6 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 
 	require.NoError(t, node.Start())
 	t.Cleanup(func() { require.NoError(t, node.Close()) })
-	require.NoError(t, auth.CreateUploaderDir(nodeDataDir))
 
 	var proxies []*testProxy
 	for p := 0; p < numProxies; p++ {
@@ -6377,11 +6457,11 @@ func (r *testProxy) createUser(ctx context.Context, t *testing.T, user, login, p
 	}
 }
 
-func (r *testProxy) newClient(t *testing.T, opts ...roundtrip.ClientParam) *client.WebClient {
+func (r *testProxy) newClient(t *testing.T, opts ...roundtrip.ClientParam) *TestWebClient {
 	opts = append(opts, roundtrip.HTTPClient(client.NewInsecureWebClient()))
 	clt, err := client.NewWebClient(r.webURL.String(), opts...)
 	require.NoError(t, err)
-	return clt
+	return &TestWebClient{clt, t}
 }
 
 func (r *testProxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID) (*websocket.Conn, session.Session) {
@@ -6475,7 +6555,7 @@ func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID s
 	return ws
 }
 
-func login(t *testing.T, clt *client.WebClient, cookieToken, reqToken string, reqData interface{}) *roundtrip.Response {
+func login(t *testing.T, clt *TestWebClient, cookieToken, reqToken string, reqData interface{}) *roundtrip.Response {
 	resp, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
 		data, err := json.Marshal(reqData)
 		if err != nil {
@@ -6631,7 +6711,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		kubeConfigLocation = newKubeConfigFile(ctx, t, cfg.clusters...)
 	}
 
-	keyGen := native.New(ctx)
+	keyGen := tlsutils.New(ctx)
 	hostID := uuid.New().String()
 	// heartbeatsWaitChannel waits for clusters heartbeats to start.
 	heartbeatsWaitChannel := make(chan struct{}, len(cfg.clusters))

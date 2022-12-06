@@ -460,8 +460,8 @@ package `teleport/loginrule/v1`.
 // LoginRule is a resource to configure rules and logic which should run during
 // Teleport user login.
 message LoginRule {
-  // Name is the name of this login rule. It must be unique within the cluster.
-  string name = 1;
+  // Metadata is resource metadata.
+  types.Metadata metadata = 1;
 
   // Version is the resource version of this login rule. Initially "v1" is
   // supported.

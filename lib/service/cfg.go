@@ -166,6 +166,9 @@ type Config struct {
 	// Access is a service that controls access
 	Access services.Access
 
+	// UsageReporter is a service that reports usage events.
+	UsageReporter services.UsageReporter
+
 	// ClusterConfiguration is a service that provides cluster configuration
 	ClusterConfiguration services.ClusterConfiguration
 
@@ -855,12 +858,22 @@ type DatabaseAWS struct {
 	SecretStore DatabaseAWSSecretStore
 	// AccountID is the AWS account ID.
 	AccountID string
+	// RedshiftServerless contains AWS Redshift Serverless specific settings.
+	RedshiftServerless DatabaseAWSRedshiftServerless
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
 type DatabaseAWSRedshift struct {
 	// ClusterID is the Redshift cluster identifier.
 	ClusterID string
+}
+
+// DatabaseAWSRedshiftServerless contains AWS Redshift Serverless specific settings.
+type DatabaseAWSRedshiftServerless struct {
+	// WorkgroupName is the Redshift Serverless workgroup name.
+	WorkgroupName string
+	// EndpointName is the Redshift Serverless VPC endpoint name.
+	EndpointName string
 }
 
 // DatabaseAWSRDS contains AWS RDS specific settings.
@@ -998,6 +1011,10 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			Region:    d.AWS.Region,
 			Redshift: types.Redshift{
 				ClusterID: d.AWS.Redshift.ClusterID,
+			},
+			RedshiftServerless: types.RedshiftServerless{
+				WorkgroupName: d.AWS.RedshiftServerless.WorkgroupName,
+				EndpointName:  d.AWS.RedshiftServerless.EndpointName,
 			},
 			RDS: types.RDS{
 				InstanceID: d.AWS.RDS.InstanceID,
@@ -1265,22 +1282,40 @@ type LDAPDiscoveryConfig struct {
 }
 
 // HostLabelRules is a collection of rules describing how to apply labels to hosts.
-type HostLabelRules []HostLabelRule
+type HostLabelRules struct {
+	rules  []HostLabelRule
+	labels map[string]map[string]string
+}
+
+func NewHostLabelRules(rules ...HostLabelRule) HostLabelRules {
+	return HostLabelRules{
+		rules: rules,
+	}
+}
 
 // LabelsForHost returns the set of all labels that should be applied
 // to the specified host. If multiple rules match and specify the same
 // label keys, the value will be that of the last matching rule.
 func (h HostLabelRules) LabelsForHost(host string) map[string]string {
-	// TODO(zmb3): consider memoizing this call - the set of rules doesn't
-	// change, so it may be worth not matching regexps on each heartbeat.
+	labels, ok := h.labels[host]
+	if ok {
+		return labels
+	}
+
 	result := make(map[string]string)
-	for _, rule := range h {
+	for _, rule := range h.rules {
 		if rule.Regexp.MatchString(host) {
 			for k, v := range rule.Labels {
 				result[k] = v
 			}
 		}
 	}
+
+	if h.labels == nil {
+		h.labels = make(map[string]map[string]string)
+	}
+	h.labels[host] = result
+
 	return result
 }
 

@@ -16,6 +16,8 @@ steps:
     id: run-tests
     dir: /workspace/.cloudbuild/scripts
     entrypoint: bash
+    env:
+      - 'HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new'
     args:
       - -c
       - |

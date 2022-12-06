@@ -1,6 +1,6 @@
 {{- define "teleport.kube.agent.isUpgrade" -}}
 {{- /* Checks if action is an upgrade from an old release that didn't support Secret storage */}}
-{{- if and .Release.IsUpgrade  }}
+{{- if .Release.IsUpgrade }}
   {{- $deployment := (lookup "apps/v1" "Deployment"  .Release.Namespace .Release.Name ) -}}
   {{- if ($deployment) }}
 true
