@@ -26,17 +26,17 @@ import (
 	"github.com/gravitational/teleport/lib/circleci"
 )
 
-func (a *Server) checkCircleCIJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
+func (a *Server) checkCircleCIJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*circleci.IDTokenClaims, error) {
 	if req.IDToken == "" {
-		return trace.BadParameter("IDToken not provided for %q join request", types.JoinMethodCircleCI)
+		return nil, trace.BadParameter("IDToken not provided for %q join request", types.JoinMethodCircleCI)
 	}
 	pt, err := a.GetToken(ctx, req.Token)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	token, ok := pt.(*types.ProvisionTokenV2)
 	if !ok {
-		return trace.BadParameter("%q join method only support ProvisionTokenV2, '%T' was provided", types.JoinMethodCircleCI, pt)
+		return nil, trace.BadParameter("%q join method only support ProvisionTokenV2, '%T' was provided", types.JoinMethodCircleCI, pt)
 	}
 
 	claims, err := a.circleCITokenValidate(
@@ -45,10 +45,10 @@ func (a *Server) checkCircleCIJoinRequest(ctx context.Context, req *types.Regist
 		req.IDToken,
 	)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return trace.Wrap(checkCircleCIAllowRules(token, claims))
+	return claims, trace.Wrap(checkCircleCIAllowRules(token, claims))
 }
 
 func checkCircleCIAllowRules(token *types.ProvisionTokenV2, claims *circleci.IDTokenClaims) error {
