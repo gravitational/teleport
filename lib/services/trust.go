@@ -70,5 +70,5 @@ type Trust interface {
 	DeactivateCertAuthority(id types.CertAuthID) error
 
 	// UpdateUserCARoleMap updates the role map of the userCA of the specified existing cluster.
-	UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, deactivated bool) error
+	UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, activated bool) error
 }
