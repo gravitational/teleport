@@ -154,7 +154,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		certs, err := a.generateCertsBot(ctx, provisionToken, req, joinAttributeSrc)
 		return certs, trace.Wrap(err)
 	}
-	certs, err := a.generateCertsInstance(ctx, provisionToken, req, joinAttributeSrc)
+	certs, err := a.generateCerts(ctx, provisionToken, req, joinAttributeSrc)
 	return certs, trace.Wrap(err)
 }
 
@@ -242,7 +242,7 @@ func (a *Server) generateCertsBot(
 	return certs, nil
 }
 
-func (a *Server) generateCertsInstance(
+func (a *Server) generateCerts(
 	ctx context.Context,
 	provisionToken types.ProvisionToken,
 	req *types.RegisterUsingTokenRequest,
