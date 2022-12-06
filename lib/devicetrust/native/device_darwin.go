@@ -38,6 +38,8 @@ import (
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	cred, err := deviceKeyCreate()
 	if err != nil {
+		// TODO(codingllama): Show a nicer message if we are erroring because of an
+		//  unsigned/not-notarized binary.
 		return nil, trace.Wrap(err)
 	}
 
