@@ -273,7 +273,7 @@ func (rv *ReleaseVersion) getTagsForVersion(onlyBuildFullSemver bool) []*ImageTa
 			ShellBaseValue:   semver.GetSemverValue(),
 			DisplayBaseValue: semver.Name,
 			IsImmutable:      semver.IsImmutable,
-			IsForFullSemver: semver.IsFull,
+			IsForFullSemver:  semver.IsFull,
 		})
 	}
 
