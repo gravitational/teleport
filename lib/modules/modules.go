@@ -93,6 +93,8 @@ type Modules interface {
 	BuildType() string
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
 	AttestHardwareKey(context.Context, interface{}, keys.PrivateKeyPolicy, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (keys.PrivateKeyPolicy, error)
+	// EnableRecoveryCodes enables the usage of recovery codes for resetting forgotten passwords
+	EnableRecoveryCodes()
 }
 
 const (
@@ -175,6 +177,12 @@ func (p *defaultModules) IsBoringBinary() bool {
 func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
 	// Default modules do not support attesting hardware keys.
 	return keys.PrivateKeyPolicyNone, nil
+}
+
+// EnableRecoveryCodes enables recovery codes. This is a noop since OSS teleport does not
+// support recovery codes
+func (p *defaultModules) EnableRecoveryCodes() {
+	return
 }
 
 var (
