@@ -43,16 +43,20 @@ const (
 // of the legacy proto package is being used.
 const _ = proto.ProtoPackageIsVersion4
 
-type TestRequest struct {
+type ReloginRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Foo string `protobuf:"bytes,1,opt,name=foo,proto3" json:"foo,omitempty"`
+	RootClusterUri string `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
+	// Types that are assignable to Reason:
+	//
+	//	*ReloginRequest_GatewayCertExpired
+	Reason isReloginRequest_Reason `protobuf_oneof:"reason"`
 }
 
-func (x *TestRequest) Reset() {
-	*x = TestRequest{}
+func (x *ReloginRequest) Reset() {
+	*x = ReloginRequest{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_v1_tshd_events_service_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -60,13 +64,13 @@ func (x *TestRequest) Reset() {
 	}
 }
 
-func (x *TestRequest) String() string {
+func (x *ReloginRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TestRequest) ProtoMessage() {}
+func (*ReloginRequest) ProtoMessage() {}
 
-func (x *TestRequest) ProtoReflect() protoreflect.Message {
+func (x *ReloginRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_v1_tshd_events_service_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -78,26 +82,59 @@ func (x *TestRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TestRequest.ProtoReflect.Descriptor instead.
-func (*TestRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use ReloginRequest.ProtoReflect.Descriptor instead.
+func (*ReloginRequest) Descriptor() ([]byte, []int) {
 	return file_v1_tshd_events_service_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *TestRequest) GetFoo() string {
+func (x *ReloginRequest) GetRootClusterUri() string {
 	if x != nil {
-		return x.Foo
+		return x.RootClusterUri
 	}
 	return ""
 }
 
-type TestResponse struct {
+func (m *ReloginRequest) GetReason() isReloginRequest_Reason {
+	if m != nil {
+		return m.Reason
+	}
+	return nil
+}
+
+func (x *ReloginRequest) GetGatewayCertExpired() *GatewayCertExpired {
+	if x, ok := x.GetReason().(*ReloginRequest_GatewayCertExpired); ok {
+		return x.GatewayCertExpired
+	}
+	return nil
+}
+
+type isReloginRequest_Reason interface {
+	isReloginRequest_Reason()
+}
+
+type ReloginRequest_GatewayCertExpired struct {
+	GatewayCertExpired *GatewayCertExpired `protobuf:"bytes,2,opt,name=gateway_cert_expired,json=gatewayCertExpired,proto3,oneof"`
+}
+
+func (*ReloginRequest_GatewayCertExpired) isReloginRequest_Reason() {}
+
+// GatewayCertExpired is given as the reason when a database client attempts to make a connection
+// through the gateway, the gateway middleware notices that the db cert has expired and tries to
+// connect to the cluster to reissue the cert, but fails because the user cert has expired as well.
+//
+// At that point in order to let the connection through, tshd needs the Electron app to refresh the
+// user cert by asking the user to log in again.
+type GatewayCertExpired struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
+
+	GatewayUri string `protobuf:"bytes,1,opt,name=gateway_uri,json=gatewayUri,proto3" json:"gateway_uri,omitempty"`
+	TargetUri  string `protobuf:"bytes,2,opt,name=target_uri,json=targetUri,proto3" json:"target_uri,omitempty"`
 }
 
-func (x *TestResponse) Reset() {
-	*x = TestResponse{}
+func (x *GatewayCertExpired) Reset() {
+	*x = GatewayCertExpired{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_v1_tshd_events_service_proto_msgTypes[1]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -105,13 +142,13 @@ func (x *TestResponse) Reset() {
 	}
 }
 
-func (x *TestResponse) String() string {
+func (x *GatewayCertExpired) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TestResponse) ProtoMessage() {}
+func (*GatewayCertExpired) ProtoMessage() {}
 
-func (x *TestResponse) ProtoReflect() protoreflect.Message {
+func (x *GatewayCertExpired) ProtoReflect() protoreflect.Message {
 	mi := &file_v1_tshd_events_service_proto_msgTypes[1]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -123,9 +160,233 @@ func (x *TestResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TestResponse.ProtoReflect.Descriptor instead.
-func (*TestResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use GatewayCertExpired.ProtoReflect.Descriptor instead.
+func (*GatewayCertExpired) Descriptor() ([]byte, []int) {
 	return file_v1_tshd_events_service_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *GatewayCertExpired) GetGatewayUri() string {
+	if x != nil {
+		return x.GatewayUri
+	}
+	return ""
+}
+
+func (x *GatewayCertExpired) GetTargetUri() string {
+	if x != nil {
+		return x.TargetUri
+	}
+	return ""
+}
+
+type ReloginResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *ReloginResponse) Reset() {
+	*x = ReloginResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_v1_tshd_events_service_proto_msgTypes[2]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ReloginResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReloginResponse) ProtoMessage() {}
+
+func (x *ReloginResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_tshd_events_service_proto_msgTypes[2]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReloginResponse.ProtoReflect.Descriptor instead.
+func (*ReloginResponse) Descriptor() ([]byte, []int) {
+	return file_v1_tshd_events_service_proto_rawDescGZIP(), []int{2}
+}
+
+type SendNotificationRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Types that are assignable to Subject:
+	//
+	//	*SendNotificationRequest_CannotProxyGatewayConnection
+	Subject isSendNotificationRequest_Subject `protobuf_oneof:"subject"`
+}
+
+func (x *SendNotificationRequest) Reset() {
+	*x = SendNotificationRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_v1_tshd_events_service_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SendNotificationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SendNotificationRequest) ProtoMessage() {}
+
+func (x *SendNotificationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_tshd_events_service_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SendNotificationRequest.ProtoReflect.Descriptor instead.
+func (*SendNotificationRequest) Descriptor() ([]byte, []int) {
+	return file_v1_tshd_events_service_proto_rawDescGZIP(), []int{3}
+}
+
+func (m *SendNotificationRequest) GetSubject() isSendNotificationRequest_Subject {
+	if m != nil {
+		return m.Subject
+	}
+	return nil
+}
+
+func (x *SendNotificationRequest) GetCannotProxyGatewayConnection() *CannotProxyGatewayConnection {
+	if x, ok := x.GetSubject().(*SendNotificationRequest_CannotProxyGatewayConnection); ok {
+		return x.CannotProxyGatewayConnection
+	}
+	return nil
+}
+
+type isSendNotificationRequest_Subject interface {
+	isSendNotificationRequest_Subject()
+}
+
+type SendNotificationRequest_CannotProxyGatewayConnection struct {
+	CannotProxyGatewayConnection *CannotProxyGatewayConnection `protobuf:"bytes,1,opt,name=cannot_proxy_gateway_connection,json=cannotProxyGatewayConnection,proto3,oneof"`
+}
+
+func (*SendNotificationRequest_CannotProxyGatewayConnection) isSendNotificationRequest_Subject() {}
+
+// CannotProxyGatewayConnection is the subject when the middleware used by the gateway encounters an
+// unrecoverable error and cannot let the connection through. The middleware code is executed within
+// a separate goroutine so if the error wasn't passed to the Electron app, it would have been
+// visible only in the logs.
+type CannotProxyGatewayConnection struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	GatewayUri string `protobuf:"bytes,1,opt,name=gateway_uri,json=gatewayUri,proto3" json:"gateway_uri,omitempty"`
+	TargetUri  string `protobuf:"bytes,2,opt,name=target_uri,json=targetUri,proto3" json:"target_uri,omitempty"`
+	Error      string `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
+}
+
+func (x *CannotProxyGatewayConnection) Reset() {
+	*x = CannotProxyGatewayConnection{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_v1_tshd_events_service_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *CannotProxyGatewayConnection) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CannotProxyGatewayConnection) ProtoMessage() {}
+
+func (x *CannotProxyGatewayConnection) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_tshd_events_service_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CannotProxyGatewayConnection.ProtoReflect.Descriptor instead.
+func (*CannotProxyGatewayConnection) Descriptor() ([]byte, []int) {
+	return file_v1_tshd_events_service_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *CannotProxyGatewayConnection) GetGatewayUri() string {
+	if x != nil {
+		return x.GatewayUri
+	}
+	return ""
+}
+
+func (x *CannotProxyGatewayConnection) GetTargetUri() string {
+	if x != nil {
+		return x.TargetUri
+	}
+	return ""
+}
+
+func (x *CannotProxyGatewayConnection) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type SendNotificationResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *SendNotificationResponse) Reset() {
+	*x = SendNotificationResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_v1_tshd_events_service_proto_msgTypes[5]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SendNotificationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SendNotificationResponse) ProtoMessage() {}
+
+func (x *SendNotificationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_tshd_events_service_proto_msgTypes[5]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SendNotificationResponse.ProtoReflect.Descriptor instead.
+func (*SendNotificationResponse) Descriptor() ([]byte, []int) {
+	return file_v1_tshd_events_service_proto_rawDescGZIP(), []int{5}
 }
 
 var File_v1_tshd_events_service_proto protoreflect.FileDescriptor
@@ -134,16 +395,57 @@ var file_v1_tshd_events_service_proto_rawDesc = []byte{
 	0x0a, 0x1c, 0x76, 0x31, 0x2f, 0x74, 0x73, 0x68, 0x64, 0x5f, 0x65, 0x76, 0x65, 0x6e, 0x74, 0x73,
 	0x5f, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x14,
 	0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x74, 0x65, 0x72, 0x6d, 0x69, 0x6e, 0x61,
-	0x6c, 0x2e, 0x76, 0x31, 0x22, 0x1f, 0x0a, 0x0b, 0x54, 0x65, 0x73, 0x74, 0x52, 0x65, 0x71, 0x75,
-	0x65, 0x73, 0x74, 0x12, 0x10, 0x0a, 0x03, 0x66, 0x6f, 0x6f, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
-	0x52, 0x03, 0x66, 0x6f, 0x6f, 0x22, 0x0e, 0x0a, 0x0c, 0x54, 0x65, 0x73, 0x74, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x32, 0x62, 0x0a, 0x11, 0x54, 0x73, 0x68, 0x64, 0x45, 0x76, 0x65,
-	0x6e, 0x74, 0x73, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x4d, 0x0a, 0x04, 0x54, 0x65,
-	0x73, 0x74, 0x12, 0x21, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x74, 0x65,
-	0x72, 0x6d, 0x69, 0x6e, 0x61, 0x6c, 0x2e, 0x76, 0x31, 0x2e, 0x54, 0x65, 0x73, 0x74, 0x52, 0x65,
-	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x22, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74,
-	0x2e, 0x74, 0x65, 0x72, 0x6d, 0x69, 0x6e, 0x61, 0x6c, 0x2e, 0x76, 0x31, 0x2e, 0x54, 0x65, 0x73,
-	0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x33, 0x5a, 0x31, 0x67, 0x69, 0x74,
+	0x6c, 0x2e, 0x76, 0x31, 0x22, 0xa2, 0x01, 0x0a, 0x0e, 0x52, 0x65, 0x6c, 0x6f, 0x67, 0x69, 0x6e,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x28, 0x0a, 0x10, 0x72, 0x6f, 0x6f, 0x74, 0x5f,
+	0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x5f, 0x75, 0x72, 0x69, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x0e, 0x72, 0x6f, 0x6f, 0x74, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x55, 0x72,
+	0x69, 0x12, 0x5c, 0x0a, 0x14, 0x67, 0x61, 0x74, 0x65, 0x77, 0x61, 0x79, 0x5f, 0x63, 0x65, 0x72,
+	0x74, 0x5f, 0x65, 0x78, 0x70, 0x69, 0x72, 0x65, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32,
+	0x28, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x74, 0x65, 0x72, 0x6d, 0x69,
+	0x6e, 0x61, 0x6c, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x61, 0x74, 0x65, 0x77, 0x61, 0x79, 0x43, 0x65,
+	0x72, 0x74, 0x45, 0x78, 0x70, 0x69, 0x72, 0x65, 0x64, 0x48, 0x00, 0x52, 0x12, 0x67, 0x61, 0x74,
+	0x65, 0x77, 0x61, 0x79, 0x43, 0x65, 0x72, 0x74, 0x45, 0x78, 0x70, 0x69, 0x72, 0x65, 0x64, 0x42,
+	0x08, 0x0a, 0x06, 0x72, 0x65, 0x61, 0x73, 0x6f, 0x6e, 0x22, 0x54, 0x0a, 0x12, 0x47, 0x61, 0x74,
+	0x65, 0x77, 0x61, 0x79, 0x43, 0x65, 0x72, 0x74, 0x45, 0x78, 0x70, 0x69, 0x72, 0x65, 0x64, 0x12,
+	0x1f, 0x0a, 0x0b, 0x67, 0x61, 0x74, 0x65, 0x77, 0x61, 0x79, 0x5f, 0x75, 0x72, 0x69, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x67, 0x61, 0x74, 0x65, 0x77, 0x61, 0x79, 0x55, 0x72, 0x69,
+	0x12, 0x1d, 0x0a, 0x0a, 0x74, 0x61, 0x72, 0x67, 0x65, 0x74, 0x5f, 0x75, 0x72, 0x69, 0x18, 0x02,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x74, 0x61, 0x72, 0x67, 0x65, 0x74, 0x55, 0x72, 0x69, 0x22,
+	0x11, 0x0a, 0x0f, 0x52, 0x65, 0x6c, 0x6f, 0x67, 0x69, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x22, 0xa1, 0x01, 0x0a, 0x17, 0x53, 0x65, 0x6e, 0x64, 0x4e, 0x6f, 0x74, 0x69, 0x66,
+	0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x7b,
+	0x0a, 0x1f, 0x63, 0x61, 0x6e, 0x6e, 0x6f, 0x74, 0x5f, 0x70, 0x72, 0x6f, 0x78, 0x79, 0x5f, 0x67,
+	0x61, 0x74, 0x65, 0x77, 0x61, 0x79, 0x5f, 0x63, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x69, 0x6f,
+	0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x32, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f,
+	0x72, 0x74, 0x2e, 0x74, 0x65, 0x72, 0x6d, 0x69, 0x6e, 0x61, 0x6c, 0x2e, 0x76, 0x31, 0x2e, 0x43,
+	0x61, 0x6e, 0x6e, 0x6f, 0x74, 0x50, 0x72, 0x6f, 0x78, 0x79, 0x47, 0x61, 0x74, 0x65, 0x77, 0x61,
+	0x79, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x48, 0x00, 0x52, 0x1c, 0x63,
+	0x61, 0x6e, 0x6e, 0x6f, 0x74, 0x50, 0x72, 0x6f, 0x78, 0x79, 0x47, 0x61, 0x74, 0x65, 0x77, 0x61,
+	0x79, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x42, 0x09, 0x0a, 0x07, 0x73,
+	0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x22, 0x74, 0x0a, 0x1c, 0x43, 0x61, 0x6e, 0x6e, 0x6f, 0x74,
+	0x50, 0x72, 0x6f, 0x78, 0x79, 0x47, 0x61, 0x74, 0x65, 0x77, 0x61, 0x79, 0x43, 0x6f, 0x6e, 0x6e,
+	0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x1f, 0x0a, 0x0b, 0x67, 0x61, 0x74, 0x65, 0x77, 0x61,
+	0x79, 0x5f, 0x75, 0x72, 0x69, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x67, 0x61, 0x74,
+	0x65, 0x77, 0x61, 0x79, 0x55, 0x72, 0x69, 0x12, 0x1d, 0x0a, 0x0a, 0x74, 0x61, 0x72, 0x67, 0x65,
+	0x74, 0x5f, 0x75, 0x72, 0x69, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x74, 0x61, 0x72,
+	0x67, 0x65, 0x74, 0x55, 0x72, 0x69, 0x12, 0x14, 0x0a, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x18,
+	0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x22, 0x1a, 0x0a, 0x18,
+	0x53, 0x65, 0x6e, 0x64, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x32, 0xde, 0x01, 0x0a, 0x11, 0x54, 0x73, 0x68,
+	0x64, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x73, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x56,
+	0x0a, 0x07, 0x52, 0x65, 0x6c, 0x6f, 0x67, 0x69, 0x6e, 0x12, 0x24, 0x2e, 0x74, 0x65, 0x6c, 0x65,
+	0x70, 0x6f, 0x72, 0x74, 0x2e, 0x74, 0x65, 0x72, 0x6d, 0x69, 0x6e, 0x61, 0x6c, 0x2e, 0x76, 0x31,
+	0x2e, 0x52, 0x65, 0x6c, 0x6f, 0x67, 0x69, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
+	0x25, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x74, 0x65, 0x72, 0x6d, 0x69,
+	0x6e, 0x61, 0x6c, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x6c, 0x6f, 0x67, 0x69, 0x6e, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x71, 0x0a, 0x10, 0x53, 0x65, 0x6e, 0x64, 0x4e, 0x6f,
+	0x74, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x2d, 0x2e, 0x74, 0x65, 0x6c,
+	0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x74, 0x65, 0x72, 0x6d, 0x69, 0x6e, 0x61, 0x6c, 0x2e, 0x76,
+	0x31, 0x2e, 0x53, 0x65, 0x6e, 0x64, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74, 0x69,
+	0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2e, 0x2e, 0x74, 0x65, 0x6c, 0x65,
+	0x70, 0x6f, 0x72, 0x74, 0x2e, 0x74, 0x65, 0x72, 0x6d, 0x69, 0x6e, 0x61, 0x6c, 0x2e, 0x76, 0x31,
+	0x2e, 0x53, 0x65, 0x6e, 0x64, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f,
+	0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x33, 0x5a, 0x31, 0x67, 0x69, 0x74,
 	0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x67, 0x72, 0x61, 0x76, 0x69, 0x74, 0x61, 0x74,
 	0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x2f, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2f, 0x6c,
 	0x69, 0x62, 0x2f, 0x74, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x72, 0x6d, 0x2f, 0x76, 0x31, 0x62, 0x06,
@@ -162,19 +464,27 @@ func file_v1_tshd_events_service_proto_rawDescGZIP() []byte {
 	return file_v1_tshd_events_service_proto_rawDescData
 }
 
-var file_v1_tshd_events_service_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_v1_tshd_events_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_v1_tshd_events_service_proto_goTypes = []interface{}{
-	(*TestRequest)(nil),  // 0: teleport.terminal.v1.TestRequest
-	(*TestResponse)(nil), // 1: teleport.terminal.v1.TestResponse
+	(*ReloginRequest)(nil),               // 0: teleport.terminal.v1.ReloginRequest
+	(*GatewayCertExpired)(nil),           // 1: teleport.terminal.v1.GatewayCertExpired
+	(*ReloginResponse)(nil),              // 2: teleport.terminal.v1.ReloginResponse
+	(*SendNotificationRequest)(nil),      // 3: teleport.terminal.v1.SendNotificationRequest
+	(*CannotProxyGatewayConnection)(nil), // 4: teleport.terminal.v1.CannotProxyGatewayConnection
+	(*SendNotificationResponse)(nil),     // 5: teleport.terminal.v1.SendNotificationResponse
 }
 var file_v1_tshd_events_service_proto_depIdxs = []int32{
-	0, // 0: teleport.terminal.v1.TshdEventsService.Test:input_type -> teleport.terminal.v1.TestRequest
-	1, // 1: teleport.terminal.v1.TshdEventsService.Test:output_type -> teleport.terminal.v1.TestResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	1, // 0: teleport.terminal.v1.ReloginRequest.gateway_cert_expired:type_name -> teleport.terminal.v1.GatewayCertExpired
+	4, // 1: teleport.terminal.v1.SendNotificationRequest.cannot_proxy_gateway_connection:type_name -> teleport.terminal.v1.CannotProxyGatewayConnection
+	0, // 2: teleport.terminal.v1.TshdEventsService.Relogin:input_type -> teleport.terminal.v1.ReloginRequest
+	3, // 3: teleport.terminal.v1.TshdEventsService.SendNotification:input_type -> teleport.terminal.v1.SendNotificationRequest
+	2, // 4: teleport.terminal.v1.TshdEventsService.Relogin:output_type -> teleport.terminal.v1.ReloginResponse
+	5, // 5: teleport.terminal.v1.TshdEventsService.SendNotification:output_type -> teleport.terminal.v1.SendNotificationResponse
+	4, // [4:6] is the sub-list for method output_type
+	2, // [2:4] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_v1_tshd_events_service_proto_init() }
@@ -184,7 +494,7 @@ func file_v1_tshd_events_service_proto_init() {
 	}
 	if !protoimpl.UnsafeEnabled {
 		file_v1_tshd_events_service_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TestRequest); i {
+			switch v := v.(*ReloginRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -196,7 +506,55 @@ func file_v1_tshd_events_service_proto_init() {
 			}
 		}
 		file_v1_tshd_events_service_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TestResponse); i {
+			switch v := v.(*GatewayCertExpired); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_v1_tshd_events_service_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ReloginResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_v1_tshd_events_service_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SendNotificationRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_v1_tshd_events_service_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CannotProxyGatewayConnection); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_v1_tshd_events_service_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SendNotificationResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -208,13 +566,19 @@ func file_v1_tshd_events_service_proto_init() {
 			}
 		}
 	}
+	file_v1_tshd_events_service_proto_msgTypes[0].OneofWrappers = []interface{}{
+		(*ReloginRequest_GatewayCertExpired)(nil),
+	}
+	file_v1_tshd_events_service_proto_msgTypes[3].OneofWrappers = []interface{}{
+		(*SendNotificationRequest_CannotProxyGatewayConnection)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_v1_tshd_events_service_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
@@ -240,10 +604,13 @@ const _ = grpc.SupportPackageIsVersion6
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type TshdEventsServiceClient interface {
-	// Test is an RPC that's used to demonstrate how the implementation of a tshd event may look like
-	// from the beginning till the end.
-	// TODO(ravicious): Remove this once we add an actual RPC to tshd events service.
-	Test(ctx context.Context, in *TestRequest, opts ...grpc.CallOption) (*TestResponse, error)
+	// Relogin makes the Electron app display a login modal for the specific root cluster. The request
+	// returns a response after the relogin procedure has been successfully finished.
+	Relogin(ctx context.Context, in *ReloginRequest, opts ...grpc.CallOption) (*ReloginResponse, error)
+	// SendNotification causes the Electron app to display a notification in the UI. The request
+	// accepts a specific message rather than a generic string so that the Electron is in control as
+	// to what message is displayed and how exactly it looks.
+	SendNotification(ctx context.Context, in *SendNotificationRequest, opts ...grpc.CallOption) (*SendNotificationResponse, error)
 }
 
 type tshdEventsServiceClient struct {
@@ -254,9 +621,18 @@ func NewTshdEventsServiceClient(cc grpc.ClientConnInterface) TshdEventsServiceCl
 	return &tshdEventsServiceClient{cc}
 }
 
-func (c *tshdEventsServiceClient) Test(ctx context.Context, in *TestRequest, opts ...grpc.CallOption) (*TestResponse, error) {
-	out := new(TestResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TshdEventsService/Test", in, out, opts...)
+func (c *tshdEventsServiceClient) Relogin(ctx context.Context, in *ReloginRequest, opts ...grpc.CallOption) (*ReloginResponse, error) {
+	out := new(ReloginResponse)
+	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TshdEventsService/Relogin", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tshdEventsServiceClient) SendNotification(ctx context.Context, in *SendNotificationRequest, opts ...grpc.CallOption) (*SendNotificationResponse, error) {
+	out := new(SendNotificationResponse)
+	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TshdEventsService/SendNotification", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -265,38 +641,62 @@ func (c *tshdEventsServiceClient) Test(ctx context.Context, in *TestRequest, opt
 
 // TshdEventsServiceServer is the server API for TshdEventsService service.
 type TshdEventsServiceServer interface {
-	// Test is an RPC that's used to demonstrate how the implementation of a tshd event may look like
-	// from the beginning till the end.
-	// TODO(ravicious): Remove this once we add an actual RPC to tshd events service.
-	Test(context.Context, *TestRequest) (*TestResponse, error)
+	// Relogin makes the Electron app display a login modal for the specific root cluster. The request
+	// returns a response after the relogin procedure has been successfully finished.
+	Relogin(context.Context, *ReloginRequest) (*ReloginResponse, error)
+	// SendNotification causes the Electron app to display a notification in the UI. The request
+	// accepts a specific message rather than a generic string so that the Electron is in control as
+	// to what message is displayed and how exactly it looks.
+	SendNotification(context.Context, *SendNotificationRequest) (*SendNotificationResponse, error)
 }
 
 // UnimplementedTshdEventsServiceServer can be embedded to have forward compatible implementations.
 type UnimplementedTshdEventsServiceServer struct {
 }
 
-func (*UnimplementedTshdEventsServiceServer) Test(context.Context, *TestRequest) (*TestResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Test not implemented")
+func (*UnimplementedTshdEventsServiceServer) Relogin(context.Context, *ReloginRequest) (*ReloginResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Relogin not implemented")
+}
+func (*UnimplementedTshdEventsServiceServer) SendNotification(context.Context, *SendNotificationRequest) (*SendNotificationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendNotification not implemented")
 }
 
 func RegisterTshdEventsServiceServer(s *grpc.Server, srv TshdEventsServiceServer) {
 	s.RegisterService(&_TshdEventsService_serviceDesc, srv)
 }
 
-func _TshdEventsService_Test_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(TestRequest)
+func _TshdEventsService_Relogin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReloginRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TshdEventsServiceServer).Test(ctx, in)
+		return srv.(TshdEventsServiceServer).Relogin(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TshdEventsService/Test",
+		FullMethod: "/teleport.terminal.v1.TshdEventsService/Relogin",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TshdEventsServiceServer).Test(ctx, req.(*TestRequest))
+		return srv.(TshdEventsServiceServer).Relogin(ctx, req.(*ReloginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TshdEventsService_SendNotification_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendNotificationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TshdEventsServiceServer).SendNotification(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/teleport.terminal.v1.TshdEventsService/SendNotification",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TshdEventsServiceServer).SendNotification(ctx, req.(*SendNotificationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -306,8 +706,12 @@ var _TshdEventsService_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*TshdEventsServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Test",
-			Handler:    _TshdEventsService_Test_Handler,
+			MethodName: "Relogin",
+			Handler:    _TshdEventsService_Relogin_Handler,
+		},
+		{
+			MethodName: "SendNotification",
+			Handler:    _TshdEventsService_SendNotification_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
