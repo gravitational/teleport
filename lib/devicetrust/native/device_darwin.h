@@ -25,11 +25,11 @@ typedef struct _Bytes Digest;
 // Signature is a signature over a Digest.
 typedef struct _Bytes Signature;
 
-// DeviceKeyCreate creates a new Secure Enclave key for the device, or returns
-// the existing key if one is already present.
+// DeviceKeyGetOrCreate creates a new Secure Enclave key for the device, or
+// returns the existing key if one is already present.
 // Callers are responsible for allocating and freeing all "out" parameters.
 // Returns zero for success, non-zero for failures (likely an OSStatus value).
-int32_t DeviceKeyCreate(const char *newID, PublicKey *pubKeyOut);
+int32_t DeviceKeyGetOrCreate(const char *newID, PublicKey *pubKeyOut);
 
 // DeviceKeyGet returns the current device key or fails.
 // Callers are responsible for allocating and freeing all "out" parameters.

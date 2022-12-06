@@ -38,7 +38,7 @@ void copyPublicKey(const char *id, CFDataRef pubKeyRep, PublicKey *pubKeyOut) {
          pubKeyOut->pub_key_len);
 }
 
-int32_t DeviceKeyCreate(const char *newID, PublicKey *pubKeyOut) {
+int32_t DeviceKeyGetOrCreate(const char *newID, PublicKey *pubKeyOut) {
   CFErrorRef err = NULL;
   SecAccessControlRef access = NULL;
   NSString *label = NULL;     // managed by ARC

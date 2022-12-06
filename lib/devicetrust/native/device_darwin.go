@@ -36,7 +36,7 @@ import (
 )
 
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
-	cred, err := deviceKeyCreate()
+	cred, err := deviceKeyGetOrCreate()
 	if err != nil {
 		// TODO(codingllama): Show a nicer message if we are erroring because of an
 		//  unsigned/not-notarized binary.
@@ -57,7 +57,7 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	}, nil
 }
 
-func deviceKeyCreate() (*devicepb.DeviceCredential, error) {
+func deviceKeyGetOrCreate() (*devicepb.DeviceCredential, error) {
 	newID := uuid.NewString()
 	newIDC := C.CString(newID)
 	defer C.free(unsafe.Pointer(newIDC))
@@ -68,7 +68,7 @@ func deviceKeyCreate() (*devicepb.DeviceCredential, error) {
 		C.free(unsafe.Pointer(pubKeyC.pub_key))
 	}()
 
-	if res := C.DeviceKeyCreate(newIDC, &pubKeyC); res != 0 {
+	if res := C.DeviceKeyGetOrCreate(newIDC, &pubKeyC); res != 0 {
 		return nil, trace.Wrap(fmt.Errorf("creating device key: status %d", res))
 	}
 
