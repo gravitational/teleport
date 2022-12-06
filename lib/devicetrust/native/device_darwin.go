@@ -72,11 +72,12 @@ func deviceKeyGetOrCreate() (*devicepb.DeviceCredential, error) {
 		return nil, trace.Wrap(fmt.Errorf("creating device key: status %d", res))
 	}
 
-	return pubKeyToCredential(pubKeyC)
+	id := C.GoString(pubKeyC.id)
+	pubKeyRaw := C.GoBytes(unsafe.Pointer(pubKeyC.pub_key), C.int(pubKeyC.pub_key_len))
+	return pubKeyToCredential(id, pubKeyRaw)
 }
 
-func pubKeyToCredential(pubKeyC C.PublicKey) (*devicepb.DeviceCredential, error) {
-	pubKeyRaw := C.GoBytes(unsafe.Pointer(pubKeyC.pub_key), C.int(pubKeyC.pub_key_len))
+func pubKeyToCredential(id string, pubKeyRaw []byte) (*devicepb.DeviceCredential, error) {
 	ecPubKey, err := darwin.ECDSAPublicKeyFromRaw(pubKeyRaw)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -85,8 +86,6 @@ func pubKeyToCredential(pubKeyC C.PublicKey) (*devicepb.DeviceCredential, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	id := C.GoString(pubKeyC.id)
 	return &devicepb.DeviceCredential{
 		Id:           id,
 		PublicKeyDer: pubKeyDER,
