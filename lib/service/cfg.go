@@ -166,6 +166,9 @@ type Config struct {
 	// Access is a service that controls access
 	Access services.Access
 
+	// UsageReporter is a service that reports usage events.
+	UsageReporter services.UsageReporter
+
 	// ClusterConfiguration is a service that provides cluster configuration
 	ClusterConfiguration services.ClusterConfiguration
 
@@ -606,9 +609,13 @@ type AuthConfig struct {
 	// that will be added by this auth server on the first start
 	Authorities []types.CertAuthority
 
-	// Resources is a set of previously backed up resources
+	// BootstrapResources is a set of previously backed up resources
 	// used to bootstrap backend state on the first start.
-	Resources []types.Resource
+	BootstrapResources []types.Resource
+
+	// ApplyOnStartupResources is a set of resources that should be applied
+	// on each Teleport start.
+	ApplyOnStartupResources []types.Resource
 
 	// Roles is a set of roles to pre-provision for this cluster
 	Roles []types.Role

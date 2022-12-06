@@ -39,10 +39,6 @@ type Product struct {
 
 func NewTeleportProduct(isEnterprise, isFips bool, version *ReleaseVersion) *Product {
 	workingDirectory := "/go/build"
-	downloadURL := fmt.Sprintf(
-		"https://raw.githubusercontent.com/gravitational/teleport/%s/build.assets/charts/Dockerfile",
-		version.ShellVersion,
-	)
 	name := "teleport"
 	dockerfileTarget := "teleport"
 	supportedArches := []string{"amd64"}
@@ -57,7 +53,7 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *ReleaseVersion) *Pro
 		supportedArches = append(supportedArches, "arm", "arm64")
 	}
 
-	setupSteps, dockerfilePath, downloadProfileName := getTeleportSetupSteps(name, workingDirectory, downloadURL)
+	setupSteps, dockerfilePath, downloadProfileName := getTeleportSetupSteps(name, workingDirectory, version.ShellVersion)
 	archSetupSteps, debPaths := getTeleportArchsSetupSteps(supportedArches, workingDirectory, downloadProfileName, version, isEnterprise, isFips)
 
 	return &Product{
@@ -140,9 +136,9 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 // Builds all the steps required to prepare the pipeline for building Teleport images.
 // Returns the setup steps, the path to the downloaded Teleport dockerfile, and the name of the
 // AWS profile that can be used to download artifacts from S3.
-func getTeleportSetupSteps(productName, workingPath, downloadURL string) ([]step, string, string) {
+func getTeleportSetupSteps(productName, workingPath, checkoutRef string) ([]step, string, string) {
 	assumeS3DownloadRoleStep, profileName := assumeS3DownloadRoleStep(productName)
-	downloadDockerfileStep, dockerfilePath := downloadTeleportDockerfileStep(productName, workingPath, downloadURL)
+	downloadDockerfileStep, dockerfilePath := downloadTeleportDockerfileStep(productName, workingPath, checkoutRef)
 	// Additional setup steps in the future should go here
 
 	return []step{assumeS3DownloadRoleStep, downloadDockerfileStep}, dockerfilePath, profileName
@@ -264,19 +260,27 @@ func wrapCommandsInTimeout(commands []string, successCommand string, timeoutSeco
 
 // Generates a step that downloads the Teleport Dockerfile
 // Returns the generated step and the path to the downloaded Dockerfile
-func downloadTeleportDockerfileStep(productName, workingPath, downloadURL string) (step, string) {
+func downloadTeleportDockerfileStep(productName, workingPath, checkoutRef string) (step, string) {
+	clonePath := "/tmp/repo"
 	// Enterprise and fips specific dockerfiles should be configured here in the future if needed
-	dockerfilePath := path.Join(workingPath, fmt.Sprintf("Dockerfile-%s", productName))
+	repoRelativeDockerfilePath := path.Join("build.assets", "charts", "Dockerfile")
+	destinationDockerfilePath := path.Join(workingPath, fmt.Sprintf("Dockerfile-%s", productName))
+
+	// Note that this specific method of retrieving the Dockerfile is used because Drone has
+	// access to a SSH private key for GitHub, but not an API token.
+	// If a simple `curl https://raw.githubusercontent.com/...` is used here it will fail on private
+	// repos that require authentication. The existence of the private key handles all of this for us.
 
 	return step{
-		Name:  fmt.Sprintf("Download Teleport Dockerfile to %q for %s", dockerfilePath, productName),
-		Image: "alpine",
-		Commands: []string{
-			"apk add curl",
-			fmt.Sprintf("mkdir -pv $(dirname %q)", dockerfilePath),
-			fmt.Sprintf("curl -Ls -o %q %q", dockerfilePath, downloadURL),
-		},
-	}, dockerfilePath
+		Name:  fmt.Sprintf("Download Teleport Dockerfile to %q for %s", destinationDockerfilePath, productName),
+		Image: "alpine/git:latest",
+		Commands: append(
+			cloneRepoCommands(clonePath, checkoutRef),
+			[]string{
+				fmt.Sprintf("mkdir -pv $(dirname %q)", destinationDockerfilePath),
+				fmt.Sprintf("cp %q %q", path.Join(clonePath, repoRelativeDockerfilePath), destinationDockerfilePath),
+			}...),
+	}, destinationDockerfilePath
 }
 
 func assumeS3DownloadRoleStep(productName string) (step, string) {
@@ -301,6 +305,7 @@ func (p *Product) getBaseImage(arch string, version *ReleaseVersion, containerRe
 			ShellBaseValue:   version.GetFullSemver().GetSemverValue(),
 			DisplayBaseValue: version.MajorVersion,
 			Arch:             arch,
+			IsForFullSemver:  true,
 		},
 	)
 }

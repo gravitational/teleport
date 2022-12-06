@@ -164,14 +164,16 @@ func GetPublicEcrPullRegistry() *ContainerRepo {
 }
 
 func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput, flags *TriggerFlags) []step {
+	// This is used to grab information that is (or at least should be by design) the same for all values in the slice
 	if len(buildStepDetails) == 0 {
 		return nil
 	}
+	sourceBuildStep := buildStepDetails[0]
 
 	steps := make([]step, 0)
 
 	// Tag and push, collecting the names of the tag/push steps and the images pushed.
-	imageTags := cr.BuildImageTags(buildStepDetails[0].Version, flags)
+	imageTags := cr.BuildImageTags(sourceBuildStep.Version, flags)
 	pushedImages := make(map[*ImageTag][]*Image, len(imageTags))
 	pushStepNames := make([]string, 0, len(buildStepDetails))
 	for _, buildStepDetail := range buildStepDetails {
@@ -189,8 +191,14 @@ func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput, flags *
 		multiarchImageTag := *imageTag
 		multiarchImageTag.Arch = ""
 		manifestImage := buildStepDetails[0].Product.ImageBuilder(cr, &multiarchImageTag)
-		manifestStepName := cr.createAndPushManifestStep(manifestImage, pushStepNames, pushedImages[imageTag])
-		steps = append(steps, manifestStepName)
+		manifestStep := cr.createAndPushManifestStep(manifestImage, pushStepNames, pushedImages[imageTag])
+
+		// Only create and push manifest for major and minor versions if the release version is not a prerelease
+		if !flags.ShouldOnlyPublishFullSemver && !imageTag.IsForFullSemver {
+			manifestStep.Commands = buildPrereleaseExclusionaryCommands(sourceBuildStep.Version, manifestStep.Commands)
+		}
+
+		steps = append(steps, manifestStep)
 	}
 
 	return steps
@@ -338,4 +346,21 @@ func buildImmutableSafeCommands(isImmutable bool, imageToCheck string, commandsT
 	conditionalCommand := fmt.Sprintf("docker manifest inspect %s > /dev/null 2>&1", imageToCheck)
 	commandToRun := strings.Join(commandsToRun, " && ")
 	return []string{fmt.Sprintf("%s && echo 'Found existing image, skipping' || (%s)", conditionalCommand, commandToRun)}
+}
+
+// Modifies a set of commands to only be ran if `version.ShellIsPrerelease` evaluates at runtiem to false.
+func buildPrereleaseExclusionaryCommands(version *ReleaseVersion, commandsToRun []string) []string {
+	// If no check is defined, just pass the commands through without a check
+	if version.ShellIsPrerelease == "" {
+		return commandsToRun
+	}
+
+	checkCommands := []string{
+		fmt.Sprintf(`printf "Prerelease "; ! %s && printf "not "; printf "detected for version %s, "; %s && echo "skipping" || echo "continuing"`,
+			version.ShellIsPrerelease, version.ShellVersion, version.ShellIsPrerelease),
+		// This will cause the step to exit without error, allowing future steps to continue without killing the pipeline
+		fmt.Sprintf("%s && exit 0", version.ShellIsPrerelease),
+	}
+
+	return append(checkCommands, commandsToRun...)
 }
