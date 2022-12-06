@@ -77,6 +77,10 @@ type CommandLineFlags struct {
 	AdvertiseIP string
 	// --config flag
 	ConfigFile string
+	// --apply-on-startup contains the path of a YAML manifest whose resources should be
+	// applied on startup. Unlike the bootstrap flag, the resources are always applied,
+	// even if the cluster is already initialized. Existing resources will be updated.
+	ApplyOnStartupFile string
 	// Bootstrap flag contains a YAML file that defines a set of resources to bootstrap
 	// a cluster.
 	BootstrapFile string
@@ -1913,7 +1917,18 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		if len(resources) < 1 {
 			return trace.BadParameter("no resources found: %q", clf.BootstrapFile)
 		}
-		cfg.Auth.Resources = resources
+		cfg.Auth.BootstrapResources = resources
+	}
+
+	if clf.ApplyOnStartupFile != "" {
+		resources, err := ReadResources(clf.ApplyOnStartupFile)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(resources) < 1 {
+			return trace.BadParameter("no resources found: %q", clf.ApplyOnStartupFile)
+		}
+		cfg.Auth.ApplyOnStartupResources = resources
 	}
 
 	// Apply command line --debug flag to override logger severity.
