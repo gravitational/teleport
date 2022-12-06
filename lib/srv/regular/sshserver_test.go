@@ -70,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 // teleportTestUser is additional user used for tests
@@ -263,7 +264,6 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		nodeClient,
 		serverOptions...)
 	require.NoError(t, err)
-	require.NoError(t, auth.CreateUploaderDir(nodeDir))
 	require.NoError(t, sshSrv.Start())
 	t.Cleanup(func() {
 		require.NoError(t, sshSrv.Close())
@@ -1205,7 +1205,7 @@ func TestKeyAlgorithms(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 
-	_, ellipticSigner, err := utils.CreateEllipticCertificate("foo", ssh.UserCert)
+	_, ellipticSigner, err := cert.CreateEllipticCertificate("foo", ssh.UserCert)
 	require.NoError(t, err)
 
 	sshConfig := &ssh.ClientConfig{
@@ -1781,7 +1781,6 @@ func TestLimiter(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, srv.Start())
 
-	require.NoError(t, auth.CreateUploaderDir(nodeStateDir))
 	defer srv.Close()
 
 	config := &ssh.ClientConfig{

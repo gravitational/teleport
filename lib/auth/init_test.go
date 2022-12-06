@@ -36,8 +36,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/keystore"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -942,7 +942,7 @@ func TestRotateDuplicatedCerts(t *testing.T) {
 	conf := setupConfig(t)
 
 	// suite.NewTestCA() uses the same SSH key for all created keys, which in this scenario triggers extra CA rotation.
-	keygen := native.New(context.TODO())
+	keygen := keygen.New(context.TODO())
 	privHost, _, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	privUser, _, err := keygen.GenerateKeyPair()

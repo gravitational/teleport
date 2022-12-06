@@ -231,21 +231,7 @@ Next, create the role:
 $ tctl create -f teleport-event-handler-impersonator.yaml
 ```
 
-Assign this role to the current user by running the following command, substituting
-the user as appropriate:
-
-```code
-$ tctl get users/<USER> > out.yaml
-```
-
-Now edit `out.yaml`, adding `teleport-event-handler-impersonator` to the list of
-existing roles and update via `tctl` again:
-
-```
-$ tctl create -f out.yaml
-```
-
-Log in to your Teleport cluster again to assume the new role.
+(!docs/pages/includes/add-role-to-user.mdx role="teleport-event-handler-impersonator"!)
 
 ### Export an identity file for the Fluentd plugin user
 
