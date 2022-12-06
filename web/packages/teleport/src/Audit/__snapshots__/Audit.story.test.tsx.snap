@@ -144,7 +144,7 @@ exports[`list of all events 1`] = `
 }
 
 .c12 > tbody > tr > td {
-  vertical-align: baseline;
+  vertical-align: middle;
 }
 
 .c12 > thead > tr > th {
@@ -6393,7 +6393,7 @@ exports[`loaded audit log screen 1`] = `
 }
 
 .c16 > tbody > tr > td {
-  vertical-align: baseline;
+  vertical-align: middle;
 }
 
 .c16 > thead > tr > th {

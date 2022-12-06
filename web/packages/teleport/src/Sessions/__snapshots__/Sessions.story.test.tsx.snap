@@ -179,7 +179,7 @@ exports[`loaded 1`] = `
 }
 
 .c14 > tbody > tr > td {
-  vertical-align: baseline;
+  vertical-align: middle;
 }
 
 .c14 > thead > tr > th {

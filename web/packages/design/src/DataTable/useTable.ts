@@ -200,6 +200,10 @@ function sortAndFilter<T>(
         const aValue = a[sort.key];
         const bValue = b[sort.key];
 
+        if (isISODate(aValue) && isISODate(bValue)) {
+          return new Date(aValue).getTime() - new Date(bValue).getTime();
+        }
+
         if (typeof aValue === 'string' && typeof bValue === 'string') {
           return aValue.localeCompare(bValue, undefined, { numeric: true });
         }
@@ -223,6 +227,16 @@ function sortAndFilter<T>(
   }
 
   return output;
+}
+
+function isISODate(value: any): boolean {
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  const date = new Date(value);
+
+  return !isNaN(date.getTime());
 }
 
 export type State<T> = Omit<

@@ -48,7 +48,7 @@ export const StyledTable = styled.table(
   }
 
   & > tbody > tr > td {
-    vertical-align: baseline;
+    vertical-align: middle;
   }
 
   & > thead > tr > th {

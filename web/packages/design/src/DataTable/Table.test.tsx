@@ -319,3 +319,48 @@ describe('sorting by field defined in key and altSortKey', () => {
     expect(cells[2]).toHaveTextContent('1');
   });
 });
+
+describe('sorting by iso date string', () => {
+  const sample = [
+    {
+      created: '2022-09-09T19:08:17.27Z',
+      text: 'a2',
+    },
+    {
+      created: '2022-09-09T19:08:17.261Z',
+      text: 'a3',
+    },
+    {
+      created: new Date('2023-09-09T19:08:17.261Z').toISOString(),
+      text: 'a1',
+    },
+  ];
+
+  test('sort by iso date string', () => {
+    render(
+      <Table
+        data={sample}
+        columns={[
+          {
+            key: 'created',
+            headerText: 'created',
+            isSortable: true,
+          },
+          {
+            key: 'text',
+            headerText: 'text',
+            isSortable: false,
+          },
+        ]}
+        emptyText=""
+        initialSort={{ key: 'created', dir: 'DESC' }}
+      />
+    );
+
+    const { rows } = getTableRows();
+
+    expect(rows[0]).toHaveTextContent('a1');
+    expect(rows[1]).toHaveTextContent('a2');
+    expect(rows[2]).toHaveTextContent('a3');
+  });
+});
