@@ -64,5 +64,6 @@ const props: State = {
     labels: [],
     names: ['name1', 'name2'],
     users: ['user1', 'user2'],
+    hostname: 'db-hostname',
   },
 };

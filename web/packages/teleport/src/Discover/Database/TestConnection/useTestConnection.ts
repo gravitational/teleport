@@ -24,12 +24,14 @@ export function useTestConnection(props: AgentStepProps) {
   const { runConnectionDiagnostic, ...connectionDiagnostic } =
     useConnectionDiagnostic(props);
 
-  function testConnection() {
+  function testConnection({ name, user }: { name: string; user: string }) {
     runConnectionDiagnostic({
       resourceKind: 'db',
       resourceName: props.agentMeta.resourceName,
-      // TODO (lisa or ryan): possible more fields specific to database
-      // once backend finalizes.
+      dbTester: {
+        name,
+        user,
+      },
     });
   }
 

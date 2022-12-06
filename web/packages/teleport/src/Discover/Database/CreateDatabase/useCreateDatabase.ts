@@ -20,14 +20,35 @@ import useTeleport from 'teleport/useTeleport';
 
 import type { AgentStepProps } from '../../types';
 import type { CreateDatabaseRequest } from 'teleport/services/databases';
+import type { DbMeta } from 'teleport/Discover/useDiscover';
 
 export function useCreateDatabase(props: AgentStepProps) {
   const ctx = useTeleport();
-  const { attempt, setAttempt } = useAttempt('processing');
+  const { attempt, setAttempt } = useAttempt('');
 
   async function createDbAndQueryDb(db: CreateDatabaseRequest) {
     setAttempt({ status: 'processing' });
     try {
+      // TODO (lisa): The exisitng logic below is no longer correct, will modify/update
+      // after this issue gets resolved: https://github.com/gravitational/teleport/issues/19032
+      //
+      // Logic to implement:
+      //
+      // 1) See if there is a service/agent that can pick up this database (matching labels)
+      //    Note: since defining labels in this step is optional,
+      //          only an agent that has asteriks in its labels can pick it up
+      // 2) Based on whether service exists:
+      //    - If exists:
+      //      - create database
+      //      - wait for it to be picked up by the existing service
+      //      - skip next step (take user directly to set up mutual TLS)
+      //    - If not exists:
+      //      - create database
+      //      - take user to next step that instructs user to add a service
+      //        ** save the labels user defined in here, and set it as the default
+      //           for the next step (this is how the agent will pick up the db)
+      //        ** if user did not define any labels, then next step will require asteriks
+
       const clusterId = ctx.storeUser.getClusterId();
       // Create the Database.
       await ctx.databaseService.createDatabase(clusterId, db);
@@ -45,6 +66,12 @@ export function useCreateDatabase(props: AgentStepProps) {
         request
       );
 
+      const dbMeta: DbMeta = {
+        ...(props.agentMeta as DbMeta),
+        resourceName: db.name,
+        agentMatcherLabels: db.labels,
+      };
+
       // If an agent was found, skip the next step that requires you
       // to set up the db service, and set the database we queried to
       // refer to it in later steps (this queried db will include current
@@ -53,10 +80,13 @@ export function useCreateDatabase(props: AgentStepProps) {
       if (queriedDb) {
         numSteps = 2;
         props.updateAgentMeta({
-          ...props.agentMeta,
-          resourceName: queriedDb.name,
+          ...dbMeta,
           db: queriedDb,
         });
+      } else {
+        // Set the new db name to query by this name after user
+        // adds a db service.
+        props.updateAgentMeta(dbMeta);
       }
       props.nextStep(numSteps);
     } catch (err) {
@@ -67,9 +97,11 @@ export function useCreateDatabase(props: AgentStepProps) {
     }
   }
 
+  const access = ctx.storeUser.getDatabaseAccess();
   return {
     attempt,
     createDbAndQueryDb,
+    canCreateDatabase: access.create,
   };
 }
 

@@ -15,18 +15,21 @@
  */
 
 import React, { useState } from 'react';
-import { Text, Box } from 'design';
+import { Text, Box, Flex } from 'design';
 import { Danger } from 'design/Alert';
 import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
+import TextEditor from 'shared/components/TextEditor';
 
 import {
   ActionButtons,
   HeaderSubtitle,
   Header,
   LabelsCreater,
+  Mark,
 } from '../../Shared';
+import { dbCU } from '../../yamlTemplates';
 
 import { useCreateDatabase, State } from './useCreateDatabase';
 
@@ -38,7 +41,11 @@ export function CreateDatabase(props: AgentStepProps) {
   return <CreateDatabaseView {...state} />;
 }
 
-export function CreateDatabaseView({ attempt, createDbAndQueryDb }: State) {
+export function CreateDatabaseView({
+  attempt,
+  createDbAndQueryDb,
+  canCreateDatabase,
+}: State) {
   const [dbName, setDbName] = useState('');
   const [dbUri, setDbUri] = useState('');
   const [labels, setLabels] = useState<AgentLabel[]>([]);
@@ -67,46 +74,69 @@ export function CreateDatabaseView({ attempt, createDbAndQueryDb }: State) {
   return (
     <Validation>
       {({ validator }) => (
-        <Box>
+        <Box maxWidth="800px">
           <Header>Register a Database</Header>
           <HeaderSubtitle>Lorem ipsum dolores</HeaderSubtitle>
           {attempt.status === 'failed' && (
             <Danger children={attempt.statusText} />
           )}
-          <Box width="500px" mb={2}>
-            <FieldInput
-              label="Database Name"
-              rule={requiredField('database name is required')}
-              autoFocus
-              value={dbName}
-              placeholder="Enter database name"
-              onChange={e => setDbName(e.target.value)}
-            />
-          </Box>
-          <Box width="500px" mb={6}>
-            <FieldInput
-              label="Database Connection Endpoint"
-              rule={requiredField('database connection endpoint is required')}
-              autoFocus
-              value={dbUri}
-              placeholder="Enter database connection endpoint"
-              onChange={e => setDbUri(e.target.value)}
-            />
-          </Box>
-          {/* TODO (lisa or ryan): add AWS input fields */}
-          <Box>
-            <Text bold>Labels (optional)</Text>
-            <LabelsCreater
-              labels={labels}
-              setLabels={setLabels}
-              isLabelOptional={true}
-              disableBtns={attempt.status === 'processing'}
-            />
-          </Box>
+          {!canCreateDatabase && (
+            <Box>
+              <Text>
+                You don't have permission to register a database.
+                <br />
+                Please ask your Teleport administrator to update your role and
+                add the <Mark>db</Mark> rule:
+              </Text>
+              <Flex minHeight="195px" mt={3}>
+                <TextEditor
+                  readOnly={true}
+                  data={[{ content: dbCU, type: 'yaml' }]}
+                />
+              </Flex>
+            </Box>
+          )}
+          {canCreateDatabase && (
+            <>
+              <Box width="500px" mb={2}>
+                <FieldInput
+                  label="Database Name"
+                  rule={requiredField('database name is required')}
+                  autoFocus
+                  value={dbName}
+                  placeholder="Enter database name"
+                  onChange={e => setDbName(e.target.value)}
+                />
+              </Box>
+              <Box width="500px" mb={6}>
+                <FieldInput
+                  label="Database Connection Endpoint"
+                  rule={requiredField(
+                    'database connection endpoint is required'
+                  )}
+                  value={dbUri}
+                  placeholder="db.example.com:1234"
+                  onChange={e => setDbUri(e.target.value)}
+                />
+              </Box>
+              {/* TODO (lisa or ryan): add AWS input fields */}
+              <Box>
+                <Text bold>Labels (optional)</Text>
+                <LabelsCreater
+                  labels={labels}
+                  setLabels={setLabels}
+                  isLabelOptional={true}
+                  disableBtns={attempt.status === 'processing'}
+                />
+              </Box>
+            </>
+          )}
           <ActionButtons
             onProceed={() => handleOnProceed(validator)}
             // On failure, allow user to attempt again.
-            disableProceed={attempt.status === 'processing'}
+            disableProceed={
+              attempt.status === 'processing' || !canCreateDatabase
+            }
           />
         </Box>
       )}

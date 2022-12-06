@@ -31,6 +31,12 @@ export const Init = () => (
   </MemoryRouter>
 );
 
+export const NoPerm = () => (
+  <MemoryRouter>
+    <CreateDatabaseView {...props} canCreateDatabase={false} />
+  </MemoryRouter>
+);
+
 export const Processing = () => (
   <MemoryRouter>
     <CreateDatabaseView {...props} attempt={{ status: 'processing' }} />
@@ -49,4 +55,5 @@ export const Failed = () => (
 const props: State = {
   attempt: { status: '' },
   createDbAndQueryDb: () => null,
+  canCreateDatabase: true,
 };

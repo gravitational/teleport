@@ -36,6 +36,8 @@ test('createConnectionDiagnostic request', () => {
       kubernetes_user: undefined,
       kubernetes_groups: undefined,
     },
+    database_name: undefined,
+    database_user: undefined,
   });
 
   // Test all fields gets set as requested.
@@ -48,6 +50,10 @@ test('createConnectionDiagnostic request', () => {
       user: 'kubernetes_user',
       groups: ['group1', 'group2'],
     },
+    dbTester: {
+      name: 'db_name',
+      user: 'db_user',
+    },
   };
   agentService.createConnectionDiagnostic(mock);
   expect(api.post).toHaveBeenCalledWith(cfg.getConnectionDiagnosticUrl(), {
@@ -59,6 +65,8 @@ test('createConnectionDiagnostic request', () => {
       kubernetes_user: 'kubernetes_user',
       kubernetes_groups: ['group1', 'group2'],
     },
+    database_name: 'db_name',
+    database_user: 'db_user',
   });
 });
 

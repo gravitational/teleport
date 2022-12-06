@@ -9,6 +9,7 @@ import { ResourceKind } from 'teleport/Discover/Shared/ResourceKind';
 interface PingTeleportContextState<T> {
   active: boolean;
   start: () => void;
+  setAlternateSearchTerm: (resourceName: string) => void;
   timeout: number;
   timedOut: boolean;
   result: T | null;
@@ -28,6 +29,12 @@ export function PingTeleportProvider<T>(props: {
   const [active, setActive] = useState(false);
   const [timeout, setPollTimeout] = useState<number>(null);
 
+  // alternateSearchTerm when set will be used as the search term
+  // instead of the default search term which is the internal resource ID.
+  // Only applies to certain resource's eg: looking up database server
+  // that proxies a database that goes by this alternateSearchTerm (eg. resourceName).
+  const [alternateSearchTerm, setAlternateSearchTerm] = useState('');
+
   const joinToken = useJoinTokenValue();
 
   const { timedOut, result } = usePoll<T>(
@@ -46,8 +53,12 @@ export function PingTeleportProvider<T>(props: {
 
   function servicesFetchFn(signal: AbortSignal) {
     const clusterId = ctx.storeUser.getClusterId();
+    let search = `${INTERNAL_RESOURCE_ID_LABEL_KEY} ${joinToken.internalResourceId}`;
+    if (alternateSearchTerm) {
+      search = alternateSearchTerm;
+    }
     const request = {
-      search: `${INTERNAL_RESOURCE_ID_LABEL_KEY} ${joinToken.internalResourceId}`,
+      search,
       limit: 1,
     };
     switch (props.resourceKind) {
@@ -89,19 +100,27 @@ export function PingTeleportProvider<T>(props: {
 
   return (
     <pingTeleportContext.Provider
-      value={{ active, start, result, timedOut, timeout }}
+      value={{
+        active,
+        start,
+        result,
+        timedOut,
+        timeout,
+        setAlternateSearchTerm,
+      }}
     >
       {props.children}
     </pingTeleportContext.Provider>
   );
 }
 
-export function usePingTeleport<T>() {
+export function usePingTeleport<T>(alternateSearchTerm?: string) {
   const ctx = useContext<PingTeleportContextState<T>>(pingTeleportContext);
 
   useEffect(() => {
     if (!ctx.active) {
       ctx.start();
+      ctx.setAlternateSearchTerm(alternateSearchTerm);
     }
   }, []);
 

@@ -98,6 +98,7 @@ export type ConnectionDiagnosticRequest = {
   resourceName: string; //`json:"resource_name"`
   sshPrincipal?: string; //`json:"ssh_principal"`
   kubeImpersonation?: KubeImpersonation; // `json:"kubernetes_impersonation`
+  dbTester?: DatabaseTester;
 };
 
 export type KubeImpersonation = {
@@ -111,4 +112,9 @@ export type KubeImpersonation = {
   // When KubernetesGroups is specified, KubernetesUser must be provided
   // as well.
   groups?: string[]; // `json:"kubernetes_impersonation.kubernetes_groups"
+};
+
+export type DatabaseTester = {
+  user?: string; // `json:"database_user"`
+  name?: string; // `json:"database_name"`
 };

@@ -26,6 +26,7 @@ export interface Database {
   labels: AgentLabel[];
   names?: string[];
   users?: string[];
+  hostname: string;
 }
 
 export type DatabasesResponse = {

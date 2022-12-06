@@ -46,9 +46,16 @@ export default function Container(
   props: AgentStepProps & { runJoinTokenPromise?: boolean }
 ) {
   const [showScript, setShowScript] = useState(props.runJoinTokenPromise);
-  const [labels, setLabels] = useState<AgentLabel[]>([
-    { name: '*', value: '*' },
-  ]);
+  const [labels, setLabels] = useState<AgentLabel[]>(
+    props.agentMeta?.agentMatcherLabels?.length > 0
+      ? // TODO (lisa): make it so that either asteriks, or one of the
+        // user defined labels is included
+        props.agentMeta.agentMatcherLabels
+      : // If user did not define any labels from previous step (create db)
+        // then the only way the agent will know how to pick up the
+        // new db is through asteriks.
+        [{ name: '*', value: '*' }]
+  );
 
   function handleGenerateCommand(validator: Validator) {
     if (!validator.validate()) {
@@ -140,7 +147,7 @@ export function DownloadScript(
     timedOut: pollingTimedOut,
     start,
     result,
-  } = usePingTeleport<Database>();
+  } = usePingTeleport<Database>(props.agentMeta.resourceName);
 
   function regenerateScriptAndRepoll() {
     reloadJoinToken();

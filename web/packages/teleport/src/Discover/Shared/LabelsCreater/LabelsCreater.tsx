@@ -24,7 +24,7 @@ import { requiredField } from 'shared/components/Validation/rules';
 import { AgentLabel } from 'teleport/services/agents';
 
 export function LabelsCreater({
-  labels,
+  labels = [],
   setLabels,
   disableBtns = false,
   isLabelOptional = false,

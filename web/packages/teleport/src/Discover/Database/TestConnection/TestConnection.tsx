@@ -118,7 +118,9 @@ export function TestConnectionView({
         attempt={attempt}
         diagnosis={diagnosis}
         canTestConnection={canTestConnection}
-        testConnection={testConnection}
+        testConnection={() =>
+          testConnection({ name: selectedName.value, user: selectedUser.value })
+        }
         stepNumber={2}
         stepDescription="Verify that your database is accessible"
       />

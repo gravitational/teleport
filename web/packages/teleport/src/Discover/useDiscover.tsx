@@ -30,6 +30,7 @@ import { resources } from './resources';
 import type { Node } from 'teleport/services/nodes';
 import type { Kube } from 'teleport/services/kube';
 import type { Database } from 'teleport/services/databases';
+import type { AgentLabel } from 'teleport/services/agents';
 
 export function getKindFromString(value: string) {
   switch (value) {
@@ -76,7 +77,7 @@ export function useDiscover(config: UseMainConfig) {
     const nextView = findViewAtIndex(views, currentStep + numToIncrement);
 
     if (nextView) {
-      setCurrentStep(currentStep + 1);
+      setCurrentStep(currentStep + numToIncrement);
     }
   }
 
@@ -120,6 +121,10 @@ type BaseMeta = {
   // by different field names.
   // Eg. used in Finish (last step) component.
   resourceName: string;
+  // agentMatcherLabels are labels that will be used by the agent
+  // to pick up the newly created database (looks for matching labels).
+  // At least one must match.
+  agentMatcherLabels: AgentLabel[];
 };
 
 // NodeMeta describes the fields for node resource

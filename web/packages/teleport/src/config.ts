@@ -176,6 +176,8 @@ const cfg = {
     mfaDevicesPath: '/v1/webapi/mfa/devices',
     mfaDevicePath: '/v1/webapi/mfa/token/:tokenId/devices/:deviceName',
 
+    dbSign: 'v1/webapi/sites/:clusterId/sign/db',
+
     installADDSPath: '/v1/webapi/scripts/desktop-access/install-ad-ds.ps1',
     installADCSPath: '/v1/webapi/scripts/desktop-access/install-ad-cs.ps1',
     configureADPath:
@@ -429,7 +431,7 @@ const cfg = {
   },
 
   getDatabaseUrl(clusterId: string, dbName: string) {
-    return generateResourcePath(cfg.api.databasePath, {
+    return generatePath(cfg.api.databasePath, {
       clusterId,
       database: dbName,
     });
@@ -440,6 +442,10 @@ const cfg = {
       clusterId,
       ...params,
     });
+  },
+
+  getDatabaseSignUrl(clusterId: string) {
+    return generatePath(cfg.api.dbSign, { clusterId });
   },
 
   getDesktopsUrl(clusterId: string, params: UrlResourcesParams) {

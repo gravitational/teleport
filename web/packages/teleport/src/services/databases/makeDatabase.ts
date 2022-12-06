@@ -31,5 +31,6 @@ export default function makeDatabase(json: any): Database {
     labels,
     names: json.database_names || [],
     users: json.database_users || [],
+    hostname: json.hostname,
   };
 }

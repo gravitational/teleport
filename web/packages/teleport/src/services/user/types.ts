@@ -65,6 +65,7 @@ export interface Acl {
   accessRequests: Access;
   billing: Access;
   dbServers: Access;
+  db: Access;
   desktops: Access;
   nodes: Access;
   connectionDiagnostic: Access;
