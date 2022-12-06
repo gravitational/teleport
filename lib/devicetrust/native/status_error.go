@@ -34,7 +34,7 @@ type statusError struct {
 func (e *statusError) Error() string {
 	switch e.status {
 	case errSecItemNotFound:
-		return "device key not found"
+		return "device key not found, was the device enrolled?"
 	case errSecMissingEntitlement:
 		return "binary missing signature or entitlements, download the client binaries from https://goteleport.com/download/"
 	default:
