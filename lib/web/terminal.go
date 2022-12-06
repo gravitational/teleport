@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -480,15 +481,15 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 		stream.Recv()
 	}()
 
-	pk, err := keys.ParsePrivateKey(t.ctx.session.GetPriv())
+	pk, err := keys.ParsePrivateKey(t.ctx.cfg.Session.GetPriv())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	key := &client.Key{
 		PrivateKey: pk,
-		Cert:       t.ctx.session.GetPub(),
-		TLSCert:    t.ctx.session.GetTLSCert(),
+		Cert:       t.ctx.cfg.Session.GetPub(),
+		TLSCert:    t.ctx.cfg.Session.GetTLSCert(),
 	}
 
 	tlsCert, err := key.TeleportTLSCertificate()
@@ -626,7 +627,11 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		return
 	}
 
-	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), t.sessionData.ServerHostname, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, nil)
+	agentGetter := func() (teleagent.Agent, error) {
+		return teleagent.NopCloser(tc.LocalAgent()), nil
+	}
+
+	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), t.sessionData.ServerHostname, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, agentGetter)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
 		t.writeError(err, ws)
@@ -689,7 +694,7 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		sshConfig.Auth = tc.AuthMethods
 
 		// connect to the node again with the new certs
-		conn, err = t.router.DialHost(ctx, ws.RemoteAddr(), t.sessionData.ServerHostname, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, nil)
+		conn, err = t.router.DialHost(ctx, ws.RemoteAddr(), t.sessionData.ServerHostname, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, agentGetter)
 		if err != nil {
 			t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host")
 			t.writeError(err, ws)

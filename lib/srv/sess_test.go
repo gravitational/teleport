@@ -101,11 +101,6 @@ func TestSession_newRecorder(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	nodeRecording, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode: types.RecordAtNode,
-	})
-	require.NoError(t, err)
-
 	nodeRecordingSync, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtNodeSync,
 	})
@@ -167,28 +162,6 @@ func TestSession_newRecorder(t *testing.T) {
 				_, ok := i.(*events.DiscardStream)
 				require.True(t, ok)
 			},
-		},
-		{
-			desc: "err-new-streamer-fails",
-			sess: &session{
-				id:  "test",
-				log: logger,
-				registry: &SessionRegistry{
-					SessionRegistryConfig: SessionRegistryConfig{
-						Srv: &mockServer{
-							component: teleport.ComponentNode,
-						},
-					},
-				},
-			},
-			sctx: &ServerContext{
-				SessionRecordingConfig: nodeRecording,
-				srv: &mockServer{
-					component: teleport.ComponentNode,
-				},
-			},
-			errAssertion: require.Error,
-			recAssertion: require.Nil,
 		},
 		{
 			desc: "strict-err-new-audit-writer-fails",

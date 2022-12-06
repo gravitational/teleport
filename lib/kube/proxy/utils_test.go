@@ -22,7 +22,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -43,9 +42,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -155,7 +153,7 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 			}
 		}
 	}()
-	keyGen := native.New(testCtx.ctx)
+	keyGen := keygen.New(testCtx.ctx)
 
 	// heartbeatsWaitChannel waits for clusters heartbeats to start.
 	heartbeatsWaitChannel := make(chan struct{}, len(cfg.clusters)+1)
@@ -204,17 +202,6 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 		ResourceMatchers: cfg.resourceMatchers,
 		OnReconcile:      cfg.onReconcile,
 	})
-	require.NoError(t, err)
-	// create session recording path
-	// testCtx.kubeServer.DataDir/log/upload/streaming/default
-	err = os.MkdirAll(
-		filepath.Join(
-			testCtx.kubeServer.DataDir,
-			teleport.LogsDir,
-			teleport.ComponentUpload,
-			events.StreamingLogsDir,
-			apidefaults.Namespace,
-		), os.ModePerm)
 	require.NoError(t, err)
 
 	// Waits for len(clusters) heartbeats to start
