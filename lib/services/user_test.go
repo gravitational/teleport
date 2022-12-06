@@ -219,6 +219,22 @@ func TestOIDCMapping(t *testing.T) {
 			},
 		},
 		{
+			comment: "invalid regexp",
+			mappings: []types.ClaimMapping{
+				{Claim: "role", Value: `^admin-(?!)$`, Roles: []string{"admin"}},
+			},
+			inputs: []input{
+				{
+					comment:       "invalid regexp",
+					claims:        jose.Claims{},
+					expectedRoles: nil,
+					warnings: []string{
+						`case-insensitive expression "^admin-(?!)$" is not a valid regexp`,
+					},
+				},
+			},
+		},
+		{
 			comment: "Whitespace/dashes",
 			mappings: []types.ClaimMapping{
 				{Claim: "groups", Value: "DemoCorp - Backend Engineers", Roles: []string{"backend"}},
