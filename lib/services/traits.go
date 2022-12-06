@@ -27,8 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
-// maxMismatchedTraitValuesLogged indicates the maximum number of trait values that do not match a
-// certain expression to be shown in a warning
+// maxMismatchedTraitValuesLogged indicates the maximum number of trait values (that do not match a
+// certain expression) to be shown in a warning
 const maxMismatchedTraitValuesWarned = 100
 
 // TraitsToRoles maps the supplied traits to a list of teleport role names.
