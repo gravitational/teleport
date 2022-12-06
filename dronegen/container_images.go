@@ -70,15 +70,8 @@ type ImageTag struct {
 	DisplayBaseValue string // Should be set to a human-readable version of ShellTag
 	Arch             string
 	IsImmutable      bool
+	IsForFullSemver  bool // True if the image tag contains a full semver
 }
-
-// Commented out for linter but left incase needed in the future
-// func NewLatestTag() *ImageTag {
-// 	return &ImageTag{
-// 		ShellBaseValue:   "latest",
-// 		DisplayBaseValue: "latest",
-// 	}
-// }
 
 func (it *ImageTag) AppendString(s string) {
 	it.ShellBaseValue += fmt.Sprintf("-%s", s)
