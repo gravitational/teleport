@@ -271,7 +271,6 @@ func TestOIDCMapping(t *testing.T) {
 					},
 					expectedRoles: []string{"approver"},
 					warnings: []string{
-
 						`1 trait value(s) did not match expression "DemoCorp - Backend Engineers": ["DemoCorp - SRE"]`,
 						`1 trait value(s) did not match expression "DemoCorp - SRE Managers": ["DemoCorp - SRE"]`,
 						`1 trait value(s) did not match expression "DemoCorp Infrastructure": ["DemoCorp - SRE"]`,

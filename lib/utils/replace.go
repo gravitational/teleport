@@ -50,6 +50,7 @@ func ReplaceRegexp(expression string, replaceWith string, input string) (string,
 }
 
 // RegexpWithConfig compiles a regular expression given some configuration.
+// There are several important differences with standard lib (see ReplaceRegexp).
 func RegexpWithConfig(expression string, config RegexpConfig) (*regexp.Regexp, error) {
 	if !strings.HasPrefix(expression, "^") || !strings.HasSuffix(expression, "$") {
 		// replace glob-style wildcards with regexp wildcards
@@ -67,7 +68,7 @@ func RegexpWithConfig(expression string, config RegexpConfig) (*regexp.Regexp, e
 	return expr, nil
 }
 
-// ReplaceRegexp replaces value in string given some regexp.
+// ReplaceRegexp replaces string in a given regexp.
 func ReplaceRegexpWith(expr *regexp.Regexp, replaceWith string, input string) (string, error) {
 	// if there is no match, return NotFound error
 	index := expr.FindStringIndex(input)
