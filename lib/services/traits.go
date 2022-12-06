@@ -18,6 +18,7 @@ package services
 
 import (
 	"fmt"
+	"regexp"
 
 	"github.com/gravitational/trace"
 
@@ -77,23 +78,10 @@ func TraitsToRoleMatchers(ms types.TraitMappingSet, traits map[string][]string) 
 
 // traitsToRoles maps the supplied traits to teleport role names and passes them to a collector.
 func traitsToRoles(ms types.TraitMappingSet, traits map[string][]string, collect func(role string, expanded bool)) (warnings []string) {
-	// if no traits, avoid compiling of trait mapping values as regular expressions
-	if len(traits) == 0 {
-		return
-	}
-
+TraitMappingLoop:
 	for _, mapping := range ms {
-		// compile each trait mapping value exactly twice
-		regexpIgnoreCase, err := utils.RegexpWithConfig(mapping.Value, utils.RegexpConfig{IgnoreCase: true})
-		if err != nil {
-			warnings = append(warnings, fmt.Sprintf("case-insensitive expression %q is not a valid regexp", mapping.Value))
-			continue
-		}
-		regexp, err := utils.RegexpWithConfig(mapping.Value, utils.RegexpConfig{})
-		if err != nil {
-			warnings = append(warnings, fmt.Sprintf("case-sensitive expression %q is not a valid regexp", mapping.Value))
-			continue
-		}
+		var regexpIgnoreCase *regexp.Regexp
+		var regexp *regexp.Regexp
 
 		for traitName, traitValues := range traits {
 			if traitName != mapping.Trait {
@@ -103,6 +91,17 @@ func traitsToRoles(ms types.TraitMappingSet, traits map[string][]string, collect
 		TraitLoop:
 			for _, traitValue := range traitValues {
 				for _, role := range mapping.Roles {
+					// this ensures that the case-insensitive regexp is compiled at most once, and only if strictly needed;
+					// after this if, regexpIgnoreCase must be non-nil
+					if regexpIgnoreCase == nil {
+						var err error
+						regexpIgnoreCase, err = utils.RegexpWithConfig(mapping.Value, utils.RegexpConfig{IgnoreCase: true})
+						if err != nil {
+							warnings = append(warnings, fmt.Sprintf("case-insensitive expression %q is not a valid regexp", mapping.Value))
+							continue TraitMappingLoop
+						}
+					}
+
 					// Run the initial replacement case-insensitively. Doing so will filter out all literal non-matches
 					// but will match on case discrepancies. We do another case-sensitive match below to see if the
 					// case is different
@@ -114,6 +113,17 @@ func traitsToRoles(ms types.TraitMappingSet, traits map[string][]string, collect
 						continue TraitLoop
 					case outRole == "":
 					case outRole != "":
+						// this ensures that the case-sensitive regexp is compiled at most once, and only if strictly needed;
+						// after this if, regexp must be non-nil
+						if regexp == nil {
+							var err error
+							regexp, err = utils.RegexpWithConfig(mapping.Value, utils.RegexpConfig{})
+							if err != nil {
+								warnings = append(warnings, fmt.Sprintf("case-sensitive expression %q is not a valid regexp", mapping.Value))
+								continue TraitMappingLoop
+							}
+						}
+
 						// Run the replacement case-sensitively to see if it matches.
 						// If there's no match, the trait specifies a mapping which is case-sensitive;
 						// we should log a warning but return an error.
