@@ -178,17 +178,12 @@ and **Azure SQL Managed Instances**:
 }
 ```
 
-<Admonition
-  type="tip"
-  title="Tip"
->
-  The `assignableScopes` field above includes a subscription
-  `/subscriptions/<subscription>`, allowing the role to be assigned at any
-  resource scope within that subscription or the subscription scope itself.
-  If you want to further limit the `assignableScopes`, you can use a resource
-  group (`/subscriptions/<subscription>/resourceGroups/<group>`) or a management
-  group (`/providers/Microsoft.Management/managementGroups/<group>`) instead.
-</Admonition>
+The `assignableScopes` field above includes a subscription
+`/subscriptions/<subscription>`, allowing the role to be assigned at any
+resource scope within that subscription or the subscription scope itself.
+If you want to further limit the `assignableScopes`, you can use a resource
+group (`/subscriptions/<subscription>/resourceGroups/<group>`) or a management
+group (`/providers/Microsoft.Management/managementGroups/<group>`) instead.
 
 Now go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade)
 page and select a subscription.
@@ -196,17 +191,13 @@ page and select a subscription.
 Click on **Access control (IAM)** in the subscription and select **Add** >
 **Add custom role**:
 
-<Figure align="left">
 ![IAM custom role](../../../img/database-access/guides/azure/add-custom-role@2x.png)
-</Figure>
 
 In the custom role creation page, click the **JSON** tab and click **Edit**,
 then paste the JSON example and replace the subscription in `assignableScopes`
 with your own subscription id:
 
-<Figure align="left">
 ![Create JSON role](../../../img/database-access/guides/sqlserver/create-role-from-json.png)
-</Figure>
 
 ### Create a role assignment for the Teleport Database Service principal
 
