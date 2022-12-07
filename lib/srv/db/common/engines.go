@@ -82,6 +82,8 @@ type EngineConfig struct {
 	Log logrus.FieldLogger
 	// Users handles database users.
 	Users Users
+	// DataDir is the Teleport data directory
+	DataDir string
 }
 
 // CheckAndSetDefaults validates the config and sets default values.

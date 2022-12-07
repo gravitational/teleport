@@ -594,7 +594,7 @@ func verifySecurityResponseHeaders(t *testing.T, h http.Header) {
 		},
 		{
 			header:        "Referrer-Policy",
-			expectedValue: "origin",
+			expectedValue: "strict-origin",
 		},
 		{
 			header:        "X-Frame-Options",
