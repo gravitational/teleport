@@ -40,11 +40,24 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 		errAssert require.ErrorAssertionFunc
 	}{
 		{
-			desc: "valid",
+			desc: "valid general",
 			req: createDatabaseRequest{
 				Name:     "name",
 				Protocol: "protocol",
 				URI:      "uri",
+			},
+			errAssert: require.NoError,
+		},
+		{
+			desc: "valid aws rds",
+			req: createDatabaseRequest{
+				Name:     "name",
+				Protocol: "protocol",
+				URI:      "uri",
+				AWSRDS: &awsRDS{
+					ResourceID: "resource-id",
+					AccountID:  "account-id",
+				},
 			},
 			errAssert: require.NoError,
 		},
@@ -78,6 +91,36 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 				Name:     "name",
 				Protocol: "protocol",
 				URI:      "",
+			},
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
+			},
+		},
+		{
+			desc: "invalid missing aws rds account id",
+			req: createDatabaseRequest{
+				Name:     "",
+				Protocol: "protocol",
+				URI:      "uri",
+				AWSRDS: &awsRDS{
+					ResourceID: "resource-id",
+				},
+			},
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
+			},
+		},
+		{
+			desc: "invalid missing aws rds resource id",
+			req: createDatabaseRequest{
+				Name:     "",
+				Protocol: "protocol",
+				URI:      "uri",
+				AWSRDS: &awsRDS{
+					AccountID: "account-id",
+				},
 			},
 			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)

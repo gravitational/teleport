@@ -53,6 +53,8 @@ type WebConfig struct {
 	IsCloud bool `json:"isCloud,omitempty"`
 	// TunnelPublicAddress is the public ssh tunnel address
 	TunnelPublicAddress string `json:"tunnelPublicAddress,omitempty"`
+	// RecoveryCodesEnabled is a flag that determines if recovery codes are enabled in the cluster.
+	RecoveryCodesEnabled bool `json:"recoveryCodesEnabled,omitempty"`
 }
 
 // WebConfigAuthProvider describes auth. provider

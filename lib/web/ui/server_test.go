@@ -26,6 +26,29 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+func TestStripProtocolAndPort(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		uri      string
+		expected string
+	}{
+		{uri: "rediss://redis.example.com:6379?mode=cluster", expected: "redis.example.com"},
+		{uri: "rediss://redis.example.com:6379", expected: "redis.example.com"},
+		{uri: "https://abc12345.snowflakecomputing.com", expected: "abc12345.snowflakecomputing.com"},
+		{uri: "mongodb://mongo1.example.com:27017,mongo2.example.com:27017/?replicaSet=rs0&readPreference=secondary", expected: "mongo1.example.com"},
+		{uri: "mongodb+srv://cluster0.abcd.mongodb.net", expected: "cluster0.abcd.mongodb.net"},
+		{uri: "mongo.example.com:27017", expected: "mongo.example.com"},
+		{uri: "example.com", expected: "example.com"},
+		{uri: "", expected: ""},
+	}
+
+	for _, tc := range cases {
+		hostname := stripProtocolAndPort(tc.uri)
+		require.Equal(t, tc.expected, hostname)
+	}
+}
+
 func TestGetAllowedKubeUsersAndGroupsForCluster(t *testing.T) {
 	devEnvRole := &types.RoleV5{
 		Spec: types.RoleSpecV5{
