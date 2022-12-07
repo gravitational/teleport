@@ -417,7 +417,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 		},
 	})
 	require.NoError(t, err)
-	cfg.Auth.Resources = []types.Resource{user, role}
+	cfg.Auth.BootstrapResources = []types.Resource{user, role}
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{
 			{

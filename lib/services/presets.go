@@ -70,6 +70,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindRemoteCluster, RW()),
 					types.NewRule(types.KindToken, RW()),
 					types.NewRule(types.KindConnectionDiagnostic, RW()),
+					types.NewRule(types.KindDatabase, RW()),
 					types.NewRule(types.KindDatabaseCertificate, RW()),
 					types.NewRule(types.KindInstaller, RW()),
 					types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
@@ -174,6 +175,7 @@ func defaultAllowRules() map[string][]types.Rule {
 		},
 		teleport.PresetEditorRoleName: {
 			types.NewRule(types.KindConnectionDiagnostic, RW()),
+			types.NewRule(types.KindDatabase, RW()),
 		},
 	}
 }
