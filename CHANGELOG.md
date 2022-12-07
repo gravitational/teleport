@@ -1,5 +1,52 @@
 # Changelog
 
+## 9.3.23
+
+This release of Teleport contains two security fixes as well as multiple improvements and bug fixes.
+
+### SFTP in moderated sessions
+
+Fixed issue with SFTP connections not being blocked when moderated sessions are
+enforced.
+
+[#18244](https://github.com/gravitational/teleport/pull/18244)
+
+### Insecure TOTP MFA seed removal
+
+Fixed issue where an attacker with physical access to user's computer and raw
+access to the filesystem could potentially recover the seed QR code.
+
+[#18922](https://github.com/gravitational/teleport/pull/18922)
+
+## Other fixes and improvements
+
+* Fixed issue with RDS discovery failing on unrecognized engine names. [#18621](https://github.com/gravitational/teleport/pull/18621)
+* Fixed issue with `teleport-kube-agent` Helm chart joining not working with static tokens. [#18971](https://github.com/gravitational/teleport/pull/18971)
+* Fixed compatibility issue trying to list nodes in Teleport 8 leaf clusters. [#18262](https://github.com/gravitational/teleport/pull/18262)
+* Fixed issue with extra question mark being added to application access requests. [#17958](https://github.com/gravitational/teleport/pull/17958)
+* Fixed issue with websocket application access requests intermittently failing in some browsers. [#18005](https://github.com/gravitational/teleport/pull/18005)
+* Fixed issue with cloud labels not being used for RBAC in application access. [#18681](https://github.com/gravitational/teleport/pull/18681)
+* Fixed connection leak in IAM joining. [#17741](https://github.com/gravitational/teleport/pull/17741)
+* Fixed `tsh db ls` panic. [#17781](https://github.com/gravitational/teleport/pull/17781)
+* Fixed issue with `tbot` failing to parse some kernel versions. [#18301](https://github.com/gravitational/teleport/pull/18301)
+* Fixed issue with connecting to Redis 7 in cluster mode in database access. [#17861](https://github.com/gravitational/teleport/pull/17861)
+* Fixed issue with `tsh aws s3` failing in some scenarios. [#18435](https://github.com/gravitational/teleport/pull/18435)
+* Fixed issue with user's Kubernetes credentials being reused between `tsh` sessions. [#18112](https://github.com/gravitational/teleport/pull/18112)
+* Fixed issue with reverse tunnel connections not always being properly closed. [#18235](https://github.com/gravitational/teleport/pull/18235)
+* Added `LimitNOFILE` to all systemd unit files. [#17973](https://github.com/gravitational/teleport/pull/17973)
+* Added trusted clusters support to desktop access. [#18665](https://github.com/gravitational/teleport/pull/18665)
+* Added support for `user.spec` syntax in moderated session filters. [#18456](https://github.com/gravitational/teleport/pull/18456)
+* Added support for terminating in-flight connections for locked users in TCP application access. [#18208](https://github.com/gravitational/teleport/pull/18208)
+* Added support for new Azure PostgreSQL CA. [#18174](https://github.com/gravitational/teleport/pull/18174)
+* Added ability to disable service account creation in `teleport-kube-agent` Helm chart. [#18201](https://github.com/gravitational/teleport/pull/18201)
+* Added `windows_desktops` as a valid resource name for `tctl` resource commands. [#18817](https://github.com/gravitational/teleport/pull/18817)
+* Added support for arm and arm64 container images. [#18279](https://github.com/gravitational/teleport/pull/18279)
+* Improved etcd backend error reporting. [#18830](https://github.com/gravitational/teleport/pull/18830)
+* Improved `tsh play` JSON and YAML output. [#18827](https://github.com/gravitational/teleport/pull/18827)
+* Improved `tsh` performance by reducing number of roundtrips to the cluster. [#17804](https://github.com/gravitational/teleport/pull/17804), [#18057](https://github.com/gravitational/teleport/pull/18057)
+* Improved memory usage in clusters with large numbers of concurrent sessions. [#18053](https://github.com/gravitational/teleport/pull/18053)
+* Improved availability during auth server outage. [#18442](https://github.com/gravitational/teleport/pull/18442), [#18915](https://github.com/gravitational/teleport/pull/18915)
+
 ## 9.3.22
 
 This release of Teleport contains a security fix as well as multiple improvements and bug fixes.

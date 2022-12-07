@@ -1160,7 +1160,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 
 	eventIdentity := identity.GetEventIdentity()
 	eventIdentity.Expires = certRequest.NotAfter
-	if a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
 		Metadata: apievents.Metadata{
 			Type: events.CertificateCreateEvent,
 			Code: events.CertificateCreateCode,

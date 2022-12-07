@@ -19,17 +19,17 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/ui"
-
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 )
 
 // clusterKubesGet returns a list of kube clusters in a form the UI can present.
-func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := ctx.GetUserClient(site)
+func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -43,8 +43,8 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 }
 
 // clusterDatabasesGet returns a list of db servers in a form the UI can present.
-func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := ctx.GetUserClient(site)
+func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -57,8 +57,8 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 }
 
 // clusterDesktopsGet returns a list of desktops in a form the UI can present.
-func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := ctx.GetUserClient(site)
+func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -72,8 +72,8 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 }
 
 // getDesktopHandle returns a desktop.
-func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := ctx.GetUserClient(site)
+func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -101,7 +101,7 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 // Response body:
 //
 // {"active": bool}
-func (h *Handler) desktopIsActive(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) desktopIsActive(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	desktopName := p.ByName("desktopName")
 	trackers, err := h.auth.proxyClient.GetActiveSessionTrackersWithFilter(r.Context(), &types.SessionTrackerFilter{
 		Kind: string(types.WindowsDesktopSessionKind),
@@ -115,12 +115,15 @@ func (h *Handler) desktopIsActive(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := ctx.GetUserClient(site)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	for _, tracker := range trackers {
+		// clt is an auth.ClientI with the role of the user, so
+		// clt.GetWindowsDesktops() can be used to confirm that
+		// the user has access to the requested desktop.
 		desktops, err := clt.GetWindowsDesktops(r.Context(),
 			types.WindowsDesktopFilter{Name: tracker.GetDesktopName()})
 		if err != nil {
@@ -128,6 +131,8 @@ func (h *Handler) desktopIsActive(w http.ResponseWriter, r *http.Request, p http
 		}
 
 		if len(desktops) == 0 {
+			// There are no active sessions for this desktop
+			// or the user doesn't have access to it
 			break
 		} else {
 			return desktopIsActive{true}, nil

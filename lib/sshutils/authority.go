@@ -79,11 +79,11 @@ func GetSigningAlgName(ca types.CertAuthority) string {
 	// field was added. Default to RSA-SHA1 to match the implicit algorithm
 	// used in those clusters.
 	case types.CertAuthoritySpecV2_RSA_SHA1, types.CertAuthoritySpecV2_UNKNOWN:
-		return ssh.SigAlgoRSA
+		return ssh.KeyAlgoRSA
 	case types.CertAuthoritySpecV2_RSA_SHA2_256:
-		return ssh.SigAlgoRSASHA2256
+		return ssh.KeyAlgoRSASHA256
 	case types.CertAuthoritySpecV2_RSA_SHA2_512:
-		return ssh.SigAlgoRSASHA2512
+		return ssh.KeyAlgoRSASHA512
 	default:
 		return ""
 	}
@@ -101,11 +101,11 @@ func SetSigningAlgName(ca types.CertAuthority, alg string) {
 // constants, types.CertAuthoritySpecV2_UNKNOWN is returned.
 func ParseSigningAlg(alg string) types.CertAuthoritySpecV2_SigningAlgType {
 	switch alg {
-	case ssh.SigAlgoRSA:
+	case ssh.KeyAlgoRSA:
 		return types.CertAuthoritySpecV2_RSA_SHA1
-	case ssh.SigAlgoRSASHA2256:
+	case ssh.KeyAlgoRSASHA256:
 		return types.CertAuthoritySpecV2_RSA_SHA2_256
-	case ssh.SigAlgoRSASHA2512:
+	case ssh.KeyAlgoRSASHA512:
 		return types.CertAuthoritySpecV2_RSA_SHA2_512
 	default:
 		return types.CertAuthoritySpecV2_UNKNOWN

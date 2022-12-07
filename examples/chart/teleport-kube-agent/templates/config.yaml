@@ -15,9 +15,13 @@ metadata:
 data:
   teleport.yaml: |
     teleport:
+      {{- if eq .Values.joinParams.method "token" }}
+      auth_token: "/etc/teleport-secrets/auth-token"
+      {{- else }}
       join_params:
         method: "{{ .Values.joinParams.method }}"
         token_name: "/etc/teleport-secrets/auth-token"
+      {{- end }}
       auth_servers: ["{{ required "proxyAddr is required in chart values" .Values.proxyAddr }}"]
       log:
         severity: {{ $logLevel }}

@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -265,6 +266,7 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 			WebProxyAddr: proxy1,
 			// MFA opts.
 			PreferOTP: false,
+			Tracer:    tracing.NoopProvider().Tracer("test"),
 		},
 	}
 
@@ -274,6 +276,7 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 			WebProxyAddr: proxy1,
 			// MFA opts.
 			PreferOTP: true,
+			Tracer:    tracing.NoopProvider().Tracer("test"),
 		},
 	}
 
@@ -331,7 +334,6 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 				gotOpts *client.PromptMFAChallengeOpts,
 			) (*proto.MFAAuthenticateResponse, error) {
 				promptCalled = true
-				assert.Equal(t, ctx, gotCtx, "ctx mismatch")
 				assert.Equal(t, challenge, gotChallenge, "challenge mismatch")
 				assert.Equal(t, test.wantProxy, gotProxy, "proxy mismatch")
 				assert.Equal(t, test.wantOpts, gotOpts, "opts mismatch")
@@ -354,7 +356,8 @@ type standaloneBundle struct {
 }
 
 // TODO(codingllama): Consider refactoring newStandaloneTeleport into a public
-//  function and reusing in other places.
+//
+//	function and reusing in other places.
 func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundle {
 	randomAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
