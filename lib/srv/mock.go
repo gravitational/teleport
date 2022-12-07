@@ -25,6 +25,12 @@ import (
 	"os/user"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -42,11 +48,6 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *ServerContext {
@@ -125,7 +126,9 @@ func newMockServer(t *testing.T) *mockServer {
 		ClusterName:  clusterName,
 		StaticTokens: staticTokens,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			},
 		},
 	}
 
@@ -134,6 +137,7 @@ func newMockServer(t *testing.T) *mockServer {
 
 	return &mockServer{
 		auth:        authServer,
+		datadir:     t.TempDir(),
 		MockEmitter: &eventstest.MockEmitter{},
 		clock:       clock,
 	}
@@ -141,6 +145,7 @@ func newMockServer(t *testing.T) *mockServer {
 
 type mockServer struct {
 	*eventstest.MockEmitter
+	datadir   string
 	auth      *auth.Server
 	component string
 	clock     clockwork.FakeClock
@@ -190,7 +195,7 @@ func (m *mockServer) GetSessionServer() rsession.Service {
 
 // GetDataDir returns data directory of the server
 func (m *mockServer) GetDataDir() string {
-	return "testDataDir"
+	return m.datadir
 }
 
 // GetPAM returns PAM configuration for this server.

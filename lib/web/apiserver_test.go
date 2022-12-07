@@ -108,7 +108,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/pam"
-	libproxy "github.com/gravitational/teleport/lib/proxy"
+	"github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
@@ -135,8 +135,9 @@ type WebSuite struct {
 	proxyTunnel reversetunnel.Server
 	srvID       string
 
-	user      string
-	webServer *httptest.Server
+	user       string
+	webServer  *httptest.Server
+	webHandler *APIHandler
 
 	mockU2F     *mocku2f.Key
 	server      *auth.TestServer
@@ -256,9 +257,20 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	})
 	require.NoError(t, err)
 
+	nodeSessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   nodeClient,
+		AccessPoint:  nodeClient,
+		LockEnforcer: nodeLockWatcher,
+		Emitter:      nodeClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     nodeID,
+	})
+	require.NoError(t, err)
+
 	// create SSH service:
 	nodeDataDir := t.TempDir()
 	node, err := regular.New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
 		[]ssh.Signer{signer},
@@ -276,12 +288,12 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(nodeLockWatcher),
+		regular.SetSessionController(nodeSessionController),
 	)
 	require.NoError(t, err)
 	s.node = node
 	s.srvID = node.ID()
 	require.NoError(t, s.node.Start())
-	require.NoError(t, auth.CreateUploaderDir(nodeDataDir))
 
 	// create reverse tunnel service:
 	proxyID := "proxy"
@@ -338,11 +350,12 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{s.server.TLS.Listener.Addr().String()},
+		Clock:                 s.clock,
 	})
 	require.NoError(t, err)
 	s.proxyTunnel = revTunServer
 
-	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+	router, err := proxy.NewRouter(proxy.RouterConfig{
 		ClusterName:         s.server.ClusterName(),
 		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
 		RemoteClusterGetter: s.proxyClient,
@@ -351,8 +364,19 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	})
 	require.NoError(t, err)
 
+	proxySessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   s.proxyClient,
+		AccessPoint:  s.proxyClient,
+		LockEnforcer: proxyLockWatcher,
+		Emitter:      s.proxyClient,
+		Component:    teleport.ComponentProxy,
+		ServerID:     proxyID,
+	})
+	require.NoError(t, err)
+
 	// proxy server:
 	s.proxy, err = regular.New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
 		[]ssh.Signer{signer},
@@ -370,6 +394,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(proxyLockWatcher),
 		regular.SetNodeWatcher(proxyNodeWatcher),
+		regular.SetSessionController(proxySessionController),
 	)
 	require.NoError(t, err)
 
@@ -392,10 +417,13 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		StaticFS:                        fs,
 		cachedSessionLingeringThreshold: &sessionLingeringThreshold,
 		ProxySettings:                   &mockProxySettings{},
+		SessionControl:                  proxySessionController,
+		Router:                          router,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
 	require.NoError(t, err)
 
 	s.webServer = httptest.NewUnstartedServer(handler)
+	s.webHandler = handler
 	s.webServer.StartTLS()
 	err = s.proxy.Start()
 	require.NoError(t, err)
@@ -1012,7 +1040,7 @@ func TestClusterAlertsGet(t *testing.T) {
 func TestSiteNodeConnectInvalidSessionID(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	_, err := s.makeTerminal(t, s.authPack(t, "foo"), withSessionID(session.ID("/../../../foo")))
+	_, _, err := s.makeTerminal(t, s.authPack(t, "foo"), withSessionID("/../../../foo"))
 	require.Error(t, err)
 }
 
@@ -1089,109 +1117,114 @@ func TestResolveServerHostPort(t *testing.T) {
 }
 
 func TestNewTerminalHandler(t *testing.T) {
-	validNode := types.ServerV2{}
-	validNode.SetName("eca53e45-86a9-11e7-a893-0242ac0a0101")
-	validNode.Spec.Hostname = "nodehostname"
+	ctx := context.Background()
 
-	validServer := "localhost"
-	validLogin := "root"
-	validSID := session.ID("eca53e45-86a9-11e7-a893-0242ac0a0101")
-	validParams := session.TerminalParams{
-		H: 1,
-		W: 1,
-	}
-
-	makeProvider := func(server types.ServerV2) AuthProvider {
-		return authProviderMock{
-			server: server,
-		}
-	}
-
-	// valid cases
-	validCases := []struct {
-		req          TerminalRequest
-		authProvider AuthProvider
-		expectedHost string
-		expectedPort int
-	}{
-		{
-			req: TerminalRequest{
-				Login:     validLogin,
-				Server:    validServer,
-				SessionID: validSID,
-				Term:      validParams,
-			},
-			authProvider: makeProvider(validNode),
-			expectedHost: validServer,
-			expectedPort: 0,
-		},
-		{
-			req: TerminalRequest{
-				Login:     validLogin,
-				Server:    "eca53e45-86a9-11e7-a893-0242ac0a0101",
-				SessionID: validSID,
-				Term:      validParams,
-			},
-			authProvider: makeProvider(validNode),
-			expectedHost: "nodehostname",
-			expectedPort: 0,
-		},
-	}
-
-	// invalid cases
 	invalidCases := []struct {
-		req          TerminalRequest
-		authProvider AuthProvider
-		expectedErr  string
+		expectedErr string
+		cfg         TerminalHandlerConfig
 	}{
 		{
-			expectedErr:  "invalid session",
-			authProvider: makeProvider(validNode),
-			req: TerminalRequest{
-				SessionID: "",
-				Login:     validLogin,
-				Server:    validServer,
-				Term:      validParams,
+			expectedErr: "sid: invalid session id",
+			cfg: TerminalHandlerConfig{
+				SessionData: session.Session{
+					ID: session.ID("not a uuid"),
+				},
 			},
-		},
-		{
-			expectedErr:  "bad term dimensions",
-			authProvider: makeProvider(validNode),
-			req: TerminalRequest{
-				SessionID: validSID,
-				Login:     validLogin,
-				Server:    validServer,
-				Term: session.TerminalParams{
-					H: -1,
-					W: 0,
+		}, {
+			expectedErr: "login: missing login",
+			cfg: TerminalHandlerConfig{
+				SessionData: session.Session{
+					ID:    session.NewID(),
+					Login: "",
+				},
+			},
+		}, {
+			expectedErr: "server: missing server",
+			cfg: TerminalHandlerConfig{
+				SessionData: session.Session{
+					ID:       session.NewID(),
+					Login:    "root",
+					ServerID: "",
 				},
 			},
 		},
 		{
-			expectedErr:  "invalid server name",
-			authProvider: makeProvider(validNode),
-			req: TerminalRequest{
-				Server:    "localhost:port",
-				SessionID: validSID,
-				Login:     validLogin,
-				Term:      validParams,
+			expectedErr: "term: bad dimensions(-1x0)",
+			cfg: TerminalHandlerConfig{
+				SessionData: session.Session{
+					ID:       session.NewID(),
+					Login:    "root",
+					ServerID: uuid.New().String(),
+				},
+				Term: session.TerminalParams{
+					W: -1,
+					H: 0,
+				},
+			},
+		},
+		{
+			expectedErr: "term: bad dimensions(1x4097)",
+			cfg: TerminalHandlerConfig{
+				SessionData: session.Session{
+					ID:       session.NewID(),
+					Login:    "root",
+					ServerID: uuid.New().String(),
+				},
+				Term: session.TerminalParams{
+					W: 1,
+					H: 4097,
+				},
 			},
 		},
 	}
 
-	ctx := context.Background()
-	for _, testCase := range validCases {
-		term, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(testCase.req, term.params))
-		require.Equal(t, testCase.expectedHost, testCase.expectedHost)
-		require.Equal(t, testCase.expectedPort, testCase.expectedPort)
+	for _, testCase := range invalidCases {
+		_, err := NewTerminal(ctx, testCase.cfg)
+		require.Equal(t, err.Error(), testCase.expectedErr)
 	}
 
-	for _, testCase := range invalidCases {
-		_, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
-		require.Regexp(t, ".*"+testCase.expectedErr+".*", err.Error())
+	validNode := types.ServerV2{}
+	validNode.SetName("eca53e45-86a9-11e7-a893-0242ac0a0101")
+	validNode.Spec.Hostname = "nodehostname"
+
+	// Valid Case
+	validCfg := TerminalHandlerConfig{
+		Term: session.TerminalParams{
+			W: 100,
+			H: 100,
+		},
+		SessionCtx: &SessionContext{},
+		AuthProvider: authProviderMock{
+			server: validNode,
+		},
+		SessionData: session.Session{
+			ID:       session.NewID(),
+			Login:    "root",
+			ServerID: uuid.New().String(),
+		},
+		KeepAliveInterval:  time.Duration(100),
+		ProxyHostPort:      "1234",
+		InteractiveCommand: make([]string, 1),
+		DisplayLogin:       "tree",
+		Router:             &proxy.Router{},
 	}
+
+	term, err := NewTerminal(ctx, validCfg)
+	require.NoError(t, err)
+	// passed through
+	require.Equal(t, validCfg.SessionCtx, term.ctx)
+	require.Equal(t, validCfg.AuthProvider, term.authProvider)
+	require.Equal(t, validCfg.SessionData, term.sessionData)
+	require.Equal(t, validCfg.KeepAliveInterval, term.keepAliveInterval)
+	require.Equal(t, validCfg.ProxyHostPort, term.proxyHostPort)
+	require.Equal(t, validCfg.InteractiveCommand, term.interactiveCommand)
+	require.Equal(t, validCfg.Term, term.term)
+	require.Equal(t, validCfg.DisplayLogin, term.displayLogin)
+	// newly added
+	require.NotNil(t, term.encoder)
+	require.NotNil(t, term.decoder)
+	require.NotNil(t, term.wsLock)
+	require.NotNil(t, term.log)
 }
 
 func TestResizeTerminal(t *testing.T) {
@@ -1228,15 +1261,17 @@ func TestResizeTerminal(t *testing.T) {
 
 	// Create a new user "foo", open a terminal to a new session
 	pack1 := s.authPack(t, "foo")
-	ws1, err := s.makeTerminal(t, pack1, withSessionID(sid))
+	ws1, sess, err := s.makeTerminal(t, pack1)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws1.Close()) })
 
 	// Create a new user "bar", open a terminal to the session created above
 	pack2 := s.authPack(t, "bar")
-	ws2, err := s.makeTerminal(t, pack2, withSessionID(sid))
+	ws2, sess2, err := s.makeTerminal(t, pack2, withSessionID(sess.ID))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws2.Close()) })
+
+	require.Equal(t, sess.ID, sess2.ID)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -1255,7 +1290,7 @@ t1ready:
 	for {
 		select {
 		case <-done:
-			require.FailNow(t, "expected to receive 2 resize events (got %d) and at least 1 raw event (got %d)", t1ResizeEvents, t1RawEvents)
+			require.FailNowf(t, "", "expected to receive 2 resize events (got %d) and at least 1 raw event (got %d)", t1ResizeEvents, t1RawEvents)
 		case err := <-errs:
 			require.NoError(t, err)
 		case e := <-ws1Messages:
@@ -1335,7 +1370,7 @@ func isResizeEventEnvelope(e *Envelope) bool {
 func TestTerminalPing(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	ws, err := s.makeTerminal(t, s.authPack(t, "foo"), withKeepaliveInterval(500*time.Millisecond))
+	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"), withKeepaliveInterval(500*time.Millisecond))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -1376,19 +1411,51 @@ func TestTerminalPing(t *testing.T) {
 
 func TestTerminal(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t)
-	ws, err := s.makeTerminal(t, s.authPack(t, "foo"))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
-	termHandler := newTerminalHandler()
-	stream := termHandler.asTerminalStream(ws)
+	cases := []struct {
+		name            string
+		recordingConfig types.SessionRecordingConfigV2
+	}{
+		{
+			name: "node recording mode",
+			recordingConfig: types.SessionRecordingConfigV2{
+				Spec: types.SessionRecordingConfigSpecV2{
+					Mode: types.RecordAtNode,
+				},
+			},
+		},
+		{
+			name: "proxy recording mode",
+			recordingConfig: types.SessionRecordingConfigV2{
+				Spec: types.SessionRecordingConfigSpecV2{
+					Mode: types.RecordAtProxySync,
+				},
+			},
+		},
+	}
 
-	_, err = io.WriteString(stream, "echo vinsong\r\n")
-	require.NoError(t, err)
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			s := newWebSuite(t)
 
-	err = waitForOutput(stream, "vinsong")
-	require.NoError(t, err)
+			require.NoError(t, s.server.Auth().SetSessionRecordingConfig(context.Background(), &tt.recordingConfig))
+
+			ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, ws.Close()) })
+
+			termHandler := newTerminalHandler()
+			stream := termHandler.asTerminalStream(ws)
+
+			// here we intentionally run a command where the output we're looking
+			// for is not present in the command itself
+			_, err = io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
+			require.NoError(t, err)
+			require.NoError(t, waitForOutput(stream, "teleport"))
+		})
+	}
 }
 
 func TestTerminalRequireSessionMfa(t *testing.T) {
@@ -1449,7 +1516,7 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 			dev := tc.registerDevice()
 
 			// Open a terminal to a new session.
-			ws := proxy.makeTerminal(t, pack, session.NewID())
+			ws, _ := proxy.makeTerminal(t, pack, "")
 
 			// Wait for websocket authn challenge event.
 			ty, raw, err := ws.ReadMessage()
@@ -1651,7 +1718,7 @@ func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.Test
 func TestWebAgentForward(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	ws, err := s.makeTerminal(t, s.authPack(t, "foo"))
+	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -1748,10 +1815,9 @@ func TestActiveSessions(t *testing.T) {
 func TestCloseConnectionsOnLogout(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	sid := session.NewID()
 	pack := s.authPack(t, "foo")
 
-	ws, err := s.makeTerminal(t, pack, withSessionID(sid))
+	ws, _, err := s.makeTerminal(t, pack)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -1838,8 +1904,7 @@ func TestPlayback(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
 	pack := s.authPack(t, "foo")
-	sid := session.NewID()
-	ws, err := s.makeTerminal(t, pack, withSessionID(sid))
+	ws, _, err := s.makeTerminal(t, pack)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 }
@@ -4101,7 +4166,7 @@ func TestWebSessionsRenewDoesNotBreakExistingTerminalSession(t *testing.T) {
 	pack1 := proxy1.authPack(t, "foo", nil /* roles */)
 	pack2 := proxy2.authPackFromPack(t, pack1)
 
-	ws := proxy2.makeTerminal(t, pack2, session.NewID())
+	ws, _ := proxy2.makeTerminal(t, pack2, "")
 
 	// Advance the time before renewing the session.
 	// This will allow the new session to have a more plausible
@@ -5510,7 +5575,7 @@ func TestCreateDatabase(t *testing.T) {
 			req: createDatabaseRequest{
 				Name:     "mydatabase",
 				Protocol: "mysql",
-				URI:      "someuri",
+				URI:      "someuri:3306",
 			},
 			expectedStatus: http.StatusOK,
 			errAssert:      require.NoError,
@@ -5520,7 +5585,7 @@ func TestCreateDatabase(t *testing.T) {
 			req: createDatabaseRequest{
 				Name:     "dbwithlabels",
 				Protocol: "mysql",
-				URI:      "someuri",
+				URI:      "someuri:3306",
 				Labels: []ui.Label{
 					{
 						Name:  "env",
@@ -5536,7 +5601,7 @@ func TestCreateDatabase(t *testing.T) {
 			req: createDatabaseRequest{
 				Name:     "",
 				Protocol: "mysql",
-				URI:      "someuri",
+				URI:      "someuri:3306",
 			},
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
@@ -5548,7 +5613,7 @@ func TestCreateDatabase(t *testing.T) {
 			req: createDatabaseRequest{
 				Name:     "emptyprotocol",
 				Protocol: "",
-				URI:      "someuri",
+				URI:      "someuri:3306",
 			},
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
@@ -5565,6 +5630,18 @@ func TestCreateDatabase(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "missing uri")
+			},
+		},
+		{
+			name: "missing port",
+			req: createDatabaseRequest{
+				Name:     "missingport",
+				Protocol: "mysql",
+				URI:      "someuri",
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "missing port in address")
 			},
 		},
 	} {
@@ -5623,7 +5700,7 @@ func TestUpdateDatabase(t *testing.T) {
 	_, err = pack.clt.PostJSON(ctx, createDatabaseEndpoint, createDatabaseRequest{
 		Name:     databaseName,
 		Protocol: "mysql",
-		URI:      "somuri",
+		URI:      "someuri:3306",
 	})
 	require.NoError(t, err)
 
@@ -5697,6 +5774,14 @@ func (mock authProviderMock) GetSessionTracker(ctx context.Context, sessionID st
 	return nil, trace.NotFound("foo")
 }
 
+func (mock authProviderMock) IsMFARequired(ctx context.Context, req *authproto.IsMFARequiredRequest) (*authproto.IsMFARequiredResponse, error) {
+	return nil, nil
+}
+
+func (mock authProviderMock) GenerateUserSingleUseCerts(ctx context.Context) (authproto.AuthService_GenerateUserSingleUseCertsClient, error) {
+	return nil, nil
+}
+
 type terminalOpt func(t *TerminalRequest)
 
 func withSessionID(sid session.ID) terminalOpt {
@@ -5707,7 +5792,7 @@ func withKeepaliveInterval(d time.Duration) terminalOpt {
 	return func(t *TerminalRequest) { t.KeepAliveInterval = d }
 }
 
-func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOpt) (*websocket.Conn, error) {
+func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOpt) (*websocket.Conn, *session.Session, error) {
 	req := TerminalRequest{
 		Server: s.srvID,
 		Login:  pack.login,
@@ -5715,7 +5800,6 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 			W: 100,
 			H: 100,
 		},
-		SessionID: session.NewID(),
 	}
 	for _, opt := range opts {
 		opt(&req)
@@ -5728,7 +5812,7 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 	}
 	data, err := json.Marshal(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	q := u.Query()
@@ -5749,11 +5833,34 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 
 	ws, resp, err := dialer.Dial(u.String(), header)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	require.NoError(t, resp.Body.Close())
-	return ws, nil
+	ty, raw, err := ws.ReadMessage()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	require.Equal(t, websocket.BinaryMessage, ty)
+	var env Envelope
+
+	err = proto.Unmarshal(raw, &env)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	var sessResp siteSessionGenerateResponse
+
+	err = json.Unmarshal([]byte(env.Payload), &sessResp)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	err = resp.Body.Close()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return ws, &sessResp.Session, nil
 }
 
 func waitForOutput(stream *terminalStream, substr string) error {
@@ -5935,9 +6042,20 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	require.NoError(t, err)
 	t.Cleanup(nodeLockWatcher.Close)
 
+	nodeSessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   nodeClient,
+		AccessPoint:  nodeClient,
+		LockEnforcer: nodeLockWatcher,
+		Emitter:      nodeClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     nodeID,
+	})
+	require.NoError(t, err)
+
 	// create SSH service:
 	nodeDataDir := t.TempDir()
 	node, err := regular.New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		server.TLS.ClusterName(),
 		hostSigners,
@@ -5955,14 +6073,14 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(clock),
 		regular.SetLockWatcher(nodeLockWatcher),
+		regular.SetSessionController(nodeSessionController),
 	)
 	require.NoError(t, err)
 
 	require.NoError(t, node.Start())
 	t.Cleanup(func() { require.NoError(t, node.Close()) })
-	require.NoError(t, auth.CreateUploaderDir(nodeDataDir))
 
-	var proxies []*proxy
+	var proxies []*testProxy
 	for p := 0; p < numProxies; p++ {
 		proxyID := fmt.Sprintf("proxy%v", p)
 		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock))
@@ -5990,7 +6108,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 
 func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *auth.TestTLSServer,
 	hostSigners []ssh.Signer, clock clockwork.FakeClock,
-) *proxy {
+) *testProxy {
 	// create reverse tunnel service:
 	client, err := authServer.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
@@ -6053,7 +6171,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, revTunServer.Close()) })
 
-	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+	router, err := proxy.NewRouter(proxy.RouterConfig{
 		ClusterName:         authServer.ClusterName(),
 		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
 		RemoteClusterGetter: client,
@@ -6062,7 +6180,18 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	})
 	require.NoError(t, err)
 
+	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   client,
+		AccessPoint:  client,
+		LockEnforcer: proxyLockWatcher,
+		Emitter:      client,
+		Component:    teleport.ComponentProxy,
+		ServerID:     proxyID,
+	})
+	require.NoError(t, err)
+
 	proxyServer, err := regular.New(
+		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		authServer.ClusterName(),
 		hostSigners,
@@ -6080,6 +6209,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		regular.SetClock(clock),
 		regular.SetLockWatcher(proxyLockWatcher),
 		regular.SetNodeWatcher(proxyNodeWatcher),
+		regular.SetSessionController(sessionController),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })
@@ -6099,6 +6229,8 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		Emitter:          client,
 		StaticFS:         fs,
 		ProxySettings:    &mockProxySettings{},
+		SessionControl:   sessionController,
+		Router:           router,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
@@ -6128,7 +6260,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	url, err := url.Parse("https://" + webServer.Listener.Addr().String())
 	require.NoError(t, err)
 
-	return &proxy{
+	return &testProxy{
 		clock:   clock,
 		auth:    authServer,
 		client:  client,
@@ -6146,13 +6278,13 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 // transition the test suite to use the testing package
 // directly.
 type webPack struct {
-	proxies []*proxy
+	proxies []*testProxy
 	server  *auth.TestServer
 	node    *regular.Server
 	clock   clockwork.FakeClock
 }
 
-type proxy struct {
+type testProxy struct {
 	clock   clockwork.FakeClock
 	client  *auth.Client
 	auth    *auth.TestTLSServer
@@ -6166,7 +6298,7 @@ type proxy struct {
 
 // authPack returns new authenticated package consisting of created valid
 // user, otp token, created web session and authenticated client.
-func (r *proxy) authPack(t *testing.T, teleportUser string, roles []types.Role) *authPack {
+func (r *testProxy) authPack(t *testing.T, teleportUser string, roles []types.Role) *authPack {
 	ctx := context.Background()
 	const (
 		pass      = "abc123"
@@ -6227,7 +6359,7 @@ func (r *proxy) authPack(t *testing.T, teleportUser string, roles []types.Role) 
 	}
 }
 
-func (r *proxy) authPackFromPack(t *testing.T, pack *authPack) *authPack {
+func (r *testProxy) authPackFromPack(t *testing.T, pack *authPack) *authPack {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
@@ -6239,7 +6371,7 @@ func (r *proxy) authPackFromPack(t *testing.T, pack *authPack) *authPack {
 	return &result
 }
 
-func (r *proxy) authPackFromResponse(t *testing.T, httpResp *roundtrip.Response) *authPack {
+func (r *testProxy) authPackFromResponse(t *testing.T, httpResp *roundtrip.Response) *authPack {
 	var resp *CreateSessionResponse
 	require.NoError(t, json.Unmarshal(httpResp.Bytes(), &resp))
 
@@ -6271,7 +6403,7 @@ func defaultRoleForNewUser(teleUser types.User, login string) types.Role {
 	return role
 }
 
-func (r *proxy) createUser(ctx context.Context, t *testing.T, user, login, pass, otpSecret string, roles []types.Role) {
+func (r *testProxy) createUser(ctx context.Context, t *testing.T, user, login, pass, otpSecret string, roles []types.Role) {
 	teleUser, err := types.NewUser(user)
 	require.NoError(t, err)
 
@@ -6304,28 +6436,34 @@ func (r *proxy) createUser(ctx context.Context, t *testing.T, user, login, pass,
 	}
 }
 
-func (r *proxy) newClient(t *testing.T, opts ...roundtrip.ClientParam) *client.WebClient {
+func (r *testProxy) newClient(t *testing.T, opts ...roundtrip.ClientParam) *client.WebClient {
 	opts = append(opts, roundtrip.HTTPClient(client.NewInsecureWebClient()))
 	clt, err := client.NewWebClient(r.webURL.String(), opts...)
 	require.NoError(t, err)
 	return clt
 }
 
-func (r *proxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID) *websocket.Conn {
+func (r *testProxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID) (*websocket.Conn, session.Session) {
 	u := url.URL{
 		Host:   r.webURL.Host,
 		Scheme: client.WSS,
 		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect", currentSiteShortcut),
 	}
-	data, err := json.Marshal(TerminalRequest{
+
+	requestData := TerminalRequest{
 		Server: r.node.ID(),
 		Login:  pack.login,
 		Term: session.TerminalParams{
 			W: 100,
 			H: 100,
 		},
-		SessionID: sessionID,
-	})
+	}
+
+	if sessionID != "" {
+		requestData.SessionID = sessionID
+	}
+
+	data, err := json.Marshal(requestData)
 	require.NoError(t, err)
 
 	q := u.Query()
@@ -6350,10 +6488,20 @@ func (r *proxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID)
 		require.NoError(t, ws.Close())
 		require.NoError(t, resp.Body.Close())
 	})
-	return ws
+
+	ty, raw, err := ws.ReadMessage()
+	require.NoError(t, err)
+	require.Equal(t, websocket.BinaryMessage, ty)
+	var env Envelope
+	require.NoError(t, proto.Unmarshal(raw, &env))
+
+	var sessResp siteSessionGenerateResponse
+	require.NoError(t, json.Unmarshal([]byte(env.Payload), &sessResp))
+
+	return ws, sessResp.Session
 }
 
-func (r *proxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID session.ID, addr net.Addr) *websocket.Conn {
+func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID session.ID, addr net.Addr) *websocket.Conn {
 	u := url.URL{
 		Host:   r.webURL.Host,
 		Scheme: client.WSS,

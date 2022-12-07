@@ -20,10 +20,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/gravitational/trace"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-
-	"github.com/gravitational/trace"
 )
 
 // collection is responsible for managing collection

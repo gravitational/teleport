@@ -23,6 +23,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/oxy/forward"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -37,13 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/oxy/forward"
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
-
-	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 )
 
 // sessionChunkCloseTimeout is the default timeout used for sessionChunk.closeTimeout
@@ -332,7 +331,7 @@ func (s *Server) newStreamer(ctx context.Context, chunkID string, recConfig type
 	s.log.Debugf("Using async streamer for session chunk %v.", chunkID)
 	uploadDir := filepath.Join(
 		s.c.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, apidefaults.Namespace,
+		events.StreamingSessionsDir, apidefaults.Namespace,
 	)
 	fileStreamer, err := filesessions.NewStreamer(uploadDir)
 	if err != nil {

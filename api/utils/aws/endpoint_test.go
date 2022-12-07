@@ -428,6 +428,12 @@ func TestCassandraEndpointRegion(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name:        "us-gov-east-1",
+			inputURI:    "cassandra.us-gov-east-1.amazonaws.com",
+			wantRegion:  "us-gov-east-1",
+			expectError: false,
+		},
+		{
 			name:        "invalid uri",
 			inputURI:    "foo.cassandra.us-east-1.amazonaws.com",
 			wantRegion:  "us-east-1",
@@ -439,9 +445,11 @@ func TestCassandraEndpointRegion(t *testing.T) {
 			got, err := CassandraEndpointRegion(test.inputURI)
 			if test.expectError {
 				require.Error(t, err)
+				require.False(t, IsKeyspacesEndpoint(test.inputURI))
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, got, test.wantRegion)
+				require.True(t, IsKeyspacesEndpoint(test.inputURI))
 			}
 		})
 	}

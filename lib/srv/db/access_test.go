@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	cqlclient "github.com/datastax/go-cassandra-native-protocol/client"
 	mssql "github.com/denisenkom/go-mssqldb"
 	elastic "github.com/elastic/go-elasticsearch/v8"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
@@ -73,8 +74,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	cqlclient "github.com/datastax/go-cassandra-native-protocol/client"
 )
 
 func TestMain(m *testing.M) {

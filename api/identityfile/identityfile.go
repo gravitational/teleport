@@ -28,12 +28,12 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 const (

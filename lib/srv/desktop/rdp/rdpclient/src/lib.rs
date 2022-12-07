@@ -264,7 +264,7 @@ fn connect_rdp_inner(
         .tcp
         .set_read_timeout(Some(RDP_HANDSHAKE_TIMEOUT))?;
     let tcp = Link::new(Stream::Raw(shared_tcp.clone()));
-    let protocols = x224::Protocols::ProtocolSSL as u32 | x224::Protocols::ProtocolRDP as u32;
+    let protocols = x224::Protocols::ProtocolSSL as u32;
     let x224 = x224::Client::connect(tpkt::Client::new(tcp), protocols, false, None, false, false)?;
     let mut mcs = mcs::Client::new(x224);
 

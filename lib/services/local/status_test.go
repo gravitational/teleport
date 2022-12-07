@@ -22,11 +22,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/jonboulle/clockwork"
-
-	"github.com/stretchr/testify/require"
 )
 
 // TestClusterAlerts verifies basic expected behavior of cluster alert creation, querying, and expiry.

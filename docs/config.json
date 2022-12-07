@@ -98,6 +98,11 @@
               "forScopes": ["enterprise"]
             },
             {
+              "title": "Google Cloud KMS",
+              "slug": "/deploy-a-cluster/teleport-enterprise/gcp-kms/",
+              "forScopes": ["enterprise"]
+            },
+            {
               "title": "Enterprise License File",
               "slug": "/deploy-a-cluster/teleport-enterprise/license/",
               "forScopes": ["enterprise"]
@@ -234,7 +239,8 @@
           "entries": [
             {
               "title": "GitHub SSO",
-              "slug": "/access-controls/sso/github-sso/"
+              "slug": "/access-controls/sso/github-sso/",
+              "forScopes": ["enterprise", "cloud", "oss"]
             },
             {
               "title": "Azure Active Directory (AD)",
@@ -322,6 +328,11 @@
             {
               "title": "Email",
               "slug": "/access-controls/access-request-plugins/ssh-approval-email/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Discord",
+              "slug": "/access-controls/access-request-plugins/ssh-approval-discord/",
               "forScopes": ["enterprise", "cloud"]
             }
           ]
@@ -717,6 +728,10 @@
             {
               "title": "Azure",
               "slug": "/kubernetes-access/discovery/azure/"
+            },
+            {
+              "title": "Google Cloud",
+              "slug": "/kubernetes-access/discovery/google-cloud/"
             }
           ]
         }
@@ -1230,14 +1245,14 @@
     },
     "teleport": {
       "major_version": "11",
-      "version": "11.0.3",
+      "version": "11.1.2",
       "golang": "1.19",
       "plugin": {
-        "version": "11.0.3"
+        "version": "11.1.2"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport:11.0.3",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent:11.0.3"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport:11.1.2",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent:11.1.2"
     },
     "terraform": {
       "version": "1.0.0"

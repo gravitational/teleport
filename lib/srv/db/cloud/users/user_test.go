@@ -22,11 +22,11 @@ import (
 	"testing"
 	"time"
 
-	libsecrets "github.com/gravitational/teleport/lib/srv/db/secrets"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	libsecrets "github.com/gravitational/teleport/lib/srv/db/secrets"
 )
 
 func TestBaseUser(t *testing.T) {

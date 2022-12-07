@@ -20,6 +20,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -30,10 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // CreateAppSession creates and inserts a services.WebSession into the
@@ -213,7 +213,7 @@ func (s *Server) generateAppToken(ctx context.Context, username string, roles []
 	}
 
 	// Extract the JWT signing key and sign the claims.
-	signer, err := s.GetKeyStore().GetJWTSigner(ca)
+	signer, err := s.GetKeyStore().GetJWTSigner(ctx, ca)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

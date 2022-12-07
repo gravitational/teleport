@@ -46,9 +46,9 @@ import (
 // ErrGithubNoTeams results from a github user not belonging to any teams.
 var ErrGithubNoTeams = trace.BadParameter("user does not belong to any teams configured in connector; the configuration may have typos.")
 
-// githubConverter is a thin wrapper around the ClientI interface that
+// GithubConverter is a thin wrapper around the ClientI interface that
 // ensures GitHub auth connectors use the registered implementation.
-type githubConverter struct {
+type GithubConverter struct {
 	ClientI
 }
 
@@ -64,12 +64,12 @@ type githubConverter struct {
 // [github.com/gravitational/teleport/api] module does not import
 // [github.com/gravitational/teleport/lib/services].
 func WithGithubConnectorConversions(c ClientI) ClientI {
-	return &githubConverter{
+	return &GithubConverter{
 		ClientI: c,
 	}
 }
 
-func (g *githubConverter) GetGithubConnector(ctx context.Context, name string, withSecrets bool) (types.GithubConnector, error) {
+func (g *GithubConverter) GetGithubConnector(ctx context.Context, name string, withSecrets bool) (types.GithubConnector, error) {
 	connector, err := g.ClientI.GetGithubConnector(ctx, name, withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -81,7 +81,7 @@ func (g *githubConverter) GetGithubConnector(ctx context.Context, name string, w
 	return connector, nil
 }
 
-func (g *githubConverter) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
+func (g *GithubConverter) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
 	connectors, err := g.ClientI.GetGithubConnectors(ctx, withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -95,7 +95,7 @@ func (g *githubConverter) GetGithubConnectors(ctx context.Context, withSecrets b
 	return connectors, nil
 }
 
-func (g *githubConverter) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
+func (g *GithubConverter) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
 	convertedConnector, err := services.ConvertGithubConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)

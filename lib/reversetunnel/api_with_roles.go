@@ -17,12 +17,12 @@ limitations under the License.
 package reversetunnel
 
 import (
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // ClusterGetter is an interface that defines GetRemoteCluster method

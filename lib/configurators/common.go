@@ -12,19 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package databases
+package configurators
 
 import (
 	"context"
-
-	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/config"
 )
 
 // BootstrapFlags flags provided by users to configure and define how the
 // configurators will work.
 type BootstrapFlags struct {
+	DiscoveryService bool
 	// ConfigPath database agent configuration path.
 	ConfigPath string
 	// Manual boolean indicating if the configurator will perform the
@@ -46,18 +43,8 @@ type BootstrapFlags struct {
 	ForceElastiCachePermissions bool
 	// ForceMemoryDBPermissions forces the presence of MemoryDB permissions.
 	ForceMemoryDBPermissions bool
-}
-
-// Configurator responsible for generating a list of actions that needs to be
-// performed in the database agent bootstrap process.
-type Configurator interface {
-	// Actions return the list of actions that needs to be performed by the
-	// users (when in manual mode) or by the configurator itself.
-	Actions() []ConfiguratorAction
-	// Name returns the configurator name.
-	Name() string
-	// IsEmpty defines if the configurator will have to perform any action.
-	IsEmpty() bool
+	// ForceEC2Permissions forces the presence of EC2 permissions.
+	ForceEC2Permissions bool
 }
 
 // ConfiguratorActionContext context passed across configurator actions. It is
@@ -69,7 +56,7 @@ type ConfiguratorActionContext struct {
 	AWSPolicyBoundaryArn string
 }
 
-// ConfiguratorAction single configurator action, its details can be retrieved
+// ConfiguratorAction is single configurator action, its details can be retrieved
 // using `Description` and `Details`, and executed using `Execute` function.
 type ConfiguratorAction interface {
 	// Description returns human-readable description of what the action will
@@ -88,26 +75,14 @@ type ConfiguratorAction interface {
 	Execute(context.Context, *ConfiguratorActionContext) error
 }
 
-// BuildConfigurators reads the configuration and returns a list of
-// configurators. Configurators that are "empty" are not returned.
-func BuildConfigurators(flags BootstrapFlags) ([]Configurator, error) {
-	fileConfig, err := config.ReadFromFile(flags.ConfigPath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	aws, err := NewAWSConfigurator(AWSConfiguratorConfig{
-		Flags:      flags,
-		FileConfig: fileConfig,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var configurators []Configurator
-	if !aws.IsEmpty() {
-		configurators = append(configurators, aws)
-	}
-
-	return configurators, nil
+// Configurator responsible for generating a list of actions that needs to be
+// performed in the database agent bootstrap process.
+type Configurator interface {
+	// Actions return the list of actions that needs to be performed by the
+	// users (when in manual mode) or by the configurator itself.
+	Actions() []ConfiguratorAction
+	// Name returns the configurator name.
+	Name() string
+	// IsEmpty defines if the configurator will have to perform any action.
+	IsEmpty() bool
 }

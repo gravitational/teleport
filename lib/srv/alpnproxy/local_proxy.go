@@ -292,7 +292,12 @@ func (l *LocalProxy) CheckDBCerts(dbRoute tlsca.RouteToDatabase) error {
 		return trace.Wrap(err)
 	}
 
-	// Check the subject matches.
+	return trace.Wrap(CheckCertSubject(cert, dbRoute))
+}
+
+// CheckCertSubject checks if the route to the database from the cert matches the provided route in
+// terms of username and database (if present).
+func CheckCertSubject(cert *x509.Certificate, dbRoute tlsca.RouteToDatabase) error {
 	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 	if err != nil {
 		return trace.Wrap(err)
@@ -305,6 +310,7 @@ func (l *LocalProxy) CheckDBCerts(dbRoute tlsca.RouteToDatabase) error {
 		return trace.Errorf("certificate subject is for database name %s, but need %s",
 			identity.RouteToDatabase.Database, dbRoute.Database)
 	}
+
 	return nil
 }
 

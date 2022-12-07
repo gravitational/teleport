@@ -762,6 +762,8 @@ enum PrivateKeyType {
   RAW = 0;
   // PKCS11 is a private key backed by a PKCS11 device such as HSM.
   PKCS11 = 1;
+  // GCP_KMS is a private key backed by GCP KMS.
+  GCP_KMS = 2;
 }
 
 // SSHKeyPair is an SSH CA key pair.
@@ -1811,6 +1813,8 @@ message AccessCapabilities {
   repeated string RequestableRoles = 1 [(gogoproto.jsontag) = "requestable_roles,omitempty"];
   // SuggestedReviewers is a list of all reviewers which are suggested by the user's roles.
   repeated string SuggestedReviewers = 2 [(gogoproto.jsontag) = "suggested_reviewers,omitempty"];
+  // ApplicableRolesForResources is a list of the roles applicable for access to a given set of resources.
+  repeated string ApplicableRolesForResources = 3 [(gogoproto.jsontag) = "applicable_roles,omitempty"];
 }
 
 // AccessCapabilitiesRequest encodes parameters for the GetAccessCapabilities method.
@@ -1824,6 +1828,12 @@ message AccessCapabilitiesRequest {
   // SuggestedReviewers is a flag indicating that we would like to view the list of all
   // reviewers which are suggested by the user's roles.
   bool SuggestedReviewers = 3 [(gogoproto.jsontag) = "suggested_reviewers,omitempty"];
+  // ResourceIDs is the list of the ResourceIDs of the resources we would like to view
+  // the necessary roles for.
+  repeated ResourceID ResourceIDs = 4 [
+    (gogoproto.jsontag) = "resource_ids,omitempty",
+    (gogoproto.nullable) = false
+  ];
 }
 
 // ResourceID is a unique identifier for a teleport resource.

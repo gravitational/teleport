@@ -1,5 +1,63 @@
 # Changelog
 
+## 11.1.2
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with EC2 discovery failing to install Teleport on older Ubuntu instances. [#18965](https://github.com/gravitational/teleport/pull/18965)
+* Fixed issue with log spam when cleaning up groups for automatically created Linux users. [#18990](https://github.com/gravitational/teleport/pull/18990)
+* Fixed issue with `tctl windows_desktops ls` not producing results in JSON and YAML formats. [#19016](https://github.com/gravitational/teleport/pull/19016)
+* Fixed issue with web SSH sessions in proxy recording mode. [#19021](https://github.com/gravitational/teleport/pull/19021)
+* Improved handling of corrupted session recordings. [#19040](https://github.com/gravitational/teleport/pull/19040)
+
+## 11.1.1
+
+This release of Teleport contains a security fix as well as multiple improvements and bug fixes.
+
+### Insecure TOTP MFA seed removal
+
+Fixed issue where an attacker with physical access to user's computer and raw
+access to the filesystem could potentially recover the seed QR code.
+
+[#18917](https://github.com/gravitational/teleport/pull/18917)
+
+### Other improvements and fixes
+
+* Fixed issue with Teleport Connect not working on macOS. [#18921](https://github.com/gravitational/teleport/pull/18921)
+* Added support for Cloud HSM on Google Cloud. [#18835](https://github.com/gravitational/teleport/pull/18835)
+* Added `server_hostname` to `session.*` audit events. [#18832](https://github.com/gravitational/teleport/pull/18832)
+* Added ability to specify roles when making access requests in web UI. [#18868](https://github.com/gravitational/teleport/pull/18868)
+* Improved error reporting from etcd backend. [#18822](https://github.com/gravitational/teleport/pull/18822)
+* Improved failed session recording upload logs to include upload and session IDs. [#18872](https://github.com/gravitational/teleport/pull/18872)
+
+## 11.1.0
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Added support for self-hosted Github Enterprise SSO connectors in Teleport Enterprise edition. [#18521](https://github.com/gravitational/teleport/pull/18521), [#18687](https://github.com/gravitational/teleport/pull/18687)
+* Added audit events for DynamoDB via AWS CLI access. [#18035](https://github.com/gravitational/teleport/pull/18035)
+* Added auth connectors support in Kubernetes Operator. [#18350](https://github.com/gravitational/teleport/pull/18350)
+* Added audit events for Desktop Access directory sharing. [#18398](https://github.com/gravitational/teleport/pull/18398)
+* Added trusted clusters support for Desktop Access. [#18666](https://github.com/gravitational/teleport/pull/18666)
+* Added support for `user.spec` syntax in moderated session filters. [#18455](https://github.com/gravitational/teleport/pull/18455)
+* Added support for GKE auto-discovery to Kubernetes Access. [#18396](https://github.com/gravitational/teleport/pull/18396)
+* Added FIPS support to Desktop Access. [#18743](https://github.com/gravitational/teleport/pull/18743)
+* Added `teleport discovery bootstrap` command. [#18641](https://github.com/gravitational/teleport/pull/18641)
+* Added `windows_desktops` as the correct resource for `tctl` commands. [#18816](https://github.com/gravitational/teleport/pull/18816)
+* Updated `tsh db ls` JSON and YAML output to include allowed users. [#18543](https://github.com/gravitational/teleport/pull/18543)
+* Updated `tctl auth sign --format kubernetes` to allow merging multiple clusters in the same kubeconfig. [#18525](https://github.com/gravitational/teleport/pull/18525)
+* Improved web UI SSH performance. [#18797](https://github.com/gravitational/teleport/pull/18797), [#18839](https://github.com/gravitational/teleport/pull/18839)
+* Improved `tsh play` output in JSON and YAML formats. [#18825](https://github.com/gravitational/teleport/pull/18825)
+* Fixed issue with RDS auto-discovery failing to start in some cases. [#18590](https://github.com/gravitational/teleport/pull/18590)
+* Fixed "cannot read properties of null" error when trying to add a new server using web UI. [webapps#1356](https://github.com/gravitational/webapps/pull/1356)
+* Fixed issue with applications list pagination in web UI. [#18601](https://github.com/gravitational/teleport/pull/18601)
+* Fixed issue with MongoDB commands sometimes failing through Database Access. [#18738](https://github.com/gravitational/teleport/pull/18738)
+* Fixed issue with automatically imported cloud labels not being used in RBAC in App Access. [#18642](https://github.com/gravitational/teleport/pull/18642)
+* Fixed issue with Kubernetes sessions lingering after all participants have disconnected. [#18684](https://github.com/gravitational/teleport/pull/18684)
+* Fixed issue with auth server being down affecting ability to establish new non-moderated SSH sessions. [#18441](https://github.com/gravitational/teleport/pull/18441)
+* Fixed issue with launching SSH sessions when SELinux is enabled. [#18810](https://github.com/gravitational/teleport/pull/18810)
+* Fixed issue with not being able to create SAML connectors with templated role names. [#18766](https://github.com/gravitational/teleport/pull/18766)
+
 ## 11.0.3
 
 This release of Teleport contains multiple improvements and bug fixes.
@@ -38,13 +96,13 @@ This release of Teleport contains multiple improvements and bug fixes.
 
 This release of Teleport contains a security fix and multiple bug fixes.
 
-## Block SFTP in Moderated Sessions
+### Block SFTP in Moderated Sessions
 
 Teleport did not block SFTP protocol in Moderated Sessions.
 
 [#17727](https://github.com/gravitational/teleport/pull/17727)
 
-## Other fixes
+### Other fixes
 
 * Fixed issue with agent forwarding not working for auto-created users. [#17586](https://github.com/gravitational/teleport/pull/17586)
 * Fixed "traits missing" error in Application Access. [#17737](https://github.com/gravitational/teleport/pull/17737)

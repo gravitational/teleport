@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
-
 	"github.com/mailgun/timetools"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"

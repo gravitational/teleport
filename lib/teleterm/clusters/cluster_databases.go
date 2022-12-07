@@ -19,6 +19,8 @@ package clusters
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -30,8 +32,6 @@ import (
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/gravitational/trace"
 )
 
 // Database describes database
@@ -108,7 +108,7 @@ func (c *Cluster) GetDatabases(ctx context.Context, r *api.GetDatabasesRequest) 
 		}
 		defer proxyClient.Close()
 
-		authClient, err = proxyClient.ConnectToRootCluster(ctx)
+		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -154,7 +154,7 @@ func (c *Cluster) GetDatabases(ctx context.Context, r *api.GetDatabasesRequest) 
 	return response, nil
 }
 
-// ReissueDBCerts issues new certificates for specific DB access
+// ReissueDBCerts issues new certificates for specific DB access and saves them to disk.
 func (c *Cluster) ReissueDBCerts(ctx context.Context, routeToDatabase tlsca.RouteToDatabase) error {
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database

@@ -17,10 +17,10 @@ limitations under the License.
 package services
 
 import (
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // ResourceMatcher matches cluster resources.

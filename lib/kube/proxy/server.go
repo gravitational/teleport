@@ -24,6 +24,11 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/gravitational/trace"
+	logrus "github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
+	"golang.org/x/net/http2"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -38,12 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	logrus "github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
-	"golang.org/x/net/http2"
 )
 
 // TLSServerConfig is a configuration for TLS server

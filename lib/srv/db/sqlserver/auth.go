@@ -17,14 +17,13 @@ limitations under the License.
 package sqlserver
 
 import (
-	"github.com/gravitational/teleport/lib/srv/db/common"
-
+	"github.com/gravitational/trace"
 	"github.com/jcmturner/gokrb5/v8/client"
 	"github.com/jcmturner/gokrb5/v8/config"
 	"github.com/jcmturner/gokrb5/v8/keytab"
 	"github.com/jcmturner/gokrb5/v8/spnego"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 // getAuth returns Kerberos authenticator used by SQL Server driver.

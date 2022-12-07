@@ -19,18 +19,18 @@ package clusters
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/teleterm/api/uri"
-
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
+	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
 // Cluster describes user settings and access to various resources.
@@ -111,13 +111,23 @@ func (c *Cluster) GetRoles(ctx context.Context) ([]*types.Role, error) {
 }
 
 // GetRequestableRoles returns the requestable roles for the currently logged-in user
-func (c *Cluster) GetRequestableRoles(ctx context.Context) ([]string, error) {
+func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest) (*types.AccessCapabilities, error) {
 	var (
 		authClient  auth.ClientI
 		proxyClient *client.ProxyClient
 		err         error
-		results     []string
+		response    *types.AccessCapabilities
 	)
+
+	resourceIds := make([]types.ResourceID, 0, len(req.GetResourceIds()))
+	for _, r := range req.GetResourceIds() {
+		resourceIds = append(resourceIds, types.ResourceID{
+			ClusterName: r.ClusterName,
+			Kind:        r.Kind,
+			Name:        r.Name,
+		})
+	}
+
 	err = addMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
@@ -131,18 +141,21 @@ func (c *Cluster) GetRequestableRoles(ctx context.Context) ([]string, error) {
 		}
 		defer authClient.Close()
 
-		response, err := authClient.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
+		response, err = authClient.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
+			ResourceIDs:      resourceIds,
 			RequestableRoles: true,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		results = append(results, response.RequestableRoles...)
-
 		return nil
 	})
-	return results, nil
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return response, nil
 }
 
 // GetLoggedInUser returns currently logged-in user

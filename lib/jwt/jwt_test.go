@@ -20,13 +20,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	josejwt "gopkg.in/square/go-jose.v2/jwt"
+
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	josejwt "gopkg.in/square/go-jose.v2/jwt"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSignAndVerify(t *testing.T) {

@@ -32,10 +32,9 @@ import (
 	"testing"
 	"unicode"
 
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-
-	"github.com/gravitational/kingpin"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"

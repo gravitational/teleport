@@ -22,9 +22,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/pkg/sftp"
-
 	"github.com/gravitational/trace"
+	"github.com/pkg/sftp"
 )
 
 // remoteFS provides API for accessing the files on

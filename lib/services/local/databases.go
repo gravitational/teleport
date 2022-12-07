@@ -19,11 +19,11 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
 )
 
 // DatabaseService manages database resources in the backend.
@@ -74,7 +74,7 @@ func (s *DatabaseService) GetDatabase(ctx context.Context, name string) (types.D
 
 // CreateDatabase creates a new database resource.
 func (s *DatabaseService) CreateDatabase(ctx context.Context, database types.Database) error {
-	if err := database.CheckAndSetDefaults(); err != nil {
+	if err := services.ValidateDatabase(database); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.MarshalDatabase(database)

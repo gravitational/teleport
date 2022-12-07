@@ -18,6 +18,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -25,8 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
-
-	"github.com/gravitational/trace"
 )
 
 type AccessRequest struct {
@@ -76,10 +76,10 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 	}
 
 	// Role-based and Resource-based AccessRequests are mutually exclusive.
-	if len(req.Roles) > 0 {
-		request, err = services.NewAccessRequest(c.status.Username, req.Roles...)
+	if len(req.ResourceIds) > 0 {
+		request, err = services.NewAccessRequestWithResources(c.status.Username, req.Roles, resourceIDs)
 	} else {
-		request, err = services.NewAccessRequestWithResources(c.status.Username, nil, resourceIDs)
+		request, err = services.NewAccessRequest(c.status.Username, req.Roles...)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -181,9 +181,7 @@ func (c *Cluster) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccess
 }
 
 func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) error {
-	var (
-		err error
-	)
+	var err error
 
 	err = addMetadataToRetryableError(ctx, func() error {
 		params := client.ReissueParams{
@@ -211,5 +209,4 @@ func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 	}
 
 	return nil
-
 }

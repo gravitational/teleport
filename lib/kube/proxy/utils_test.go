@@ -21,6 +21,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"testing"
 	"time"
@@ -39,10 +40,12 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -58,6 +61,7 @@ type testContext struct {
 	emitter     *eventstest.ChannelEmitter
 	listener    net.Listener
 	ctx         context.Context
+	cancel      context.CancelFunc
 }
 
 // kubeClusterConfig defines the cluster to be created
@@ -71,14 +75,17 @@ type testConfig struct {
 	clusters         []kubeClusterConfig
 	resourceMatchers []services.ResourceMatcher
 	onReconcile      func(types.KubeClusters)
+	onEvent          func(apievents.AuditEvent)
 }
 
 // setupTestContext creates a kube service with clusters configured.
 func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testContext {
+	ctx, cancel := context.WithCancel(ctx)
 	testCtx := &testContext{
 		clusterName: "root.example.com",
 		hostID:      uuid.New().String(),
 		ctx:         ctx,
+		cancel:      cancel,
 	}
 	t.Cleanup(func() { testCtx.Close() })
 
@@ -102,7 +109,7 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 	// Use sync recording to not involve the uploader.
 	recConfig, err := authServer.AuthServer.GetSessionRecordingConfig(ctx)
 	require.NoError(t, err)
-	recConfig.SetMode(types.RecordAtNodeSync)
+	recConfig.SetMode(types.RecordAtNode)
 	err = authServer.AuthServer.SetSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
@@ -134,6 +141,18 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 
 	// Create test audit events emitter.
 	testCtx.emitter = eventstest.NewChannelEmitter(100)
+	go func() {
+		for {
+			select {
+			case evt := <-testCtx.emitter.C():
+				if cfg.onEvent != nil {
+					cfg.onEvent(evt)
+				}
+			case <-testCtx.ctx.Done():
+				return
+			}
+		}
+	}()
 	keyGen := native.New(testCtx.ctx)
 
 	// heartbeatsWaitChannel waits for clusters heartbeats to start.
@@ -147,7 +166,7 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 			ClusterName:       testCtx.clusterName,
 			Authz:             proxyAuthorizer,
 			AuthClient:        testCtx.authClient,
-			StreamEmitter:     testCtx.authClient,
+			StreamEmitter:     testCtx.emitter,
 			DataDir:           t.TempDir(),
 			CachingAuthClient: testCtx.authClient,
 			HostID:            testCtx.hostID,
@@ -224,6 +243,7 @@ func (c *testContext) Close() error {
 	err := c.kubeServer.Close()
 	authCErr := c.authClient.Close()
 	authSErr := c.authServer.Close()
+	c.cancel()
 	return trace.NewAggregate(err, authCErr, authSErr)
 }
 
@@ -234,9 +254,11 @@ func (c *testContext) KubeServiceAddress() string {
 
 // roleSpec defiens the role name and kube details to be created.
 type roleSpec struct {
-	name       string
-	kubeUsers  []string
-	kubeGroups []string
+	name           string
+	kubeUsers      []string
+	kubeGroups     []string
+	sessionRequire []*types.SessionRequirePolicy
+	sessionJoin    []*types.SessionJoinPolicy
 }
 
 // createUserAndRole creates Teleport user and role with specified names
@@ -245,6 +267,8 @@ func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, usern
 	require.NoError(t, err)
 	role.SetKubeUsers(types.Allow, roleSpec.kubeUsers)
 	role.SetKubeGroups(types.Allow, roleSpec.kubeGroups)
+	role.SetSessionRequirePolicies(roleSpec.sessionRequire)
+	role.SetSessionJoinPolicies(roleSpec.sessionJoin)
 	err = c.tlsServer.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	return user, role
@@ -287,13 +311,13 @@ func (c *testContext) genTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 
 	ttl := roles.AdjustSessionTTL(10 * time.Minute)
 
-	ca, err := authServer.GetCertAuthority(context.Background(), types.CertAuthID{
+	ca, err := authServer.GetCertAuthority(c.ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	require.NoError(t, err)
 
-	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(ca)
+	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(c.ctx, ca)
 	require.NoError(t, err)
 
 	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)
@@ -339,4 +363,22 @@ func (c *testContext) genTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 	require.NoError(t, err)
 
 	return client, restConfig
+}
+
+func (c *testContext) newJoiningSession(cfg *rest.Config, sessionID string, mode types.SessionParticipantMode) (*streamproto.SessionStream, error) {
+	ws, err := newWebSocketExecutor(cfg, http.MethodPost, &url.URL{
+		Scheme: "wss",
+		Host:   c.KubeServiceAddress(),
+		Path:   "/api/v1/teleport/join/" + sessionID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = ws.connectViaWebsocket()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	stream, err := streamproto.NewSessionStream(ws.conn, streamproto.ClientHandshake{Mode: mode})
+	return stream, trace.Wrap(err)
 }

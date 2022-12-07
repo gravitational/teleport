@@ -20,13 +20,14 @@ import (
 	"context"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -145,7 +146,7 @@ func (c *TemplateSSHHostCert) Render(ctx context.Context, bot Bot, currentIdenti
 	// For now, we'll reuse the bot's regular TTL, and hostID and nodeName are
 	// left unset.
 	botCfg := bot.Config()
-	key.Cert, err = authClient.GenerateHostCert(key.MarshalSSHPublicKey(),
+	key.Cert, err = authClient.GenerateHostCert(ctx, key.MarshalSSHPublicKey(),
 		"", "", c.Principals,
 		clusterName, types.RoleNode, botCfg.CertificateTTL)
 	if err != nil {

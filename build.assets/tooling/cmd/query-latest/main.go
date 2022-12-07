@@ -34,9 +34,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/build.assets/tooling/lib/github"
 	"github.com/gravitational/trace"
 	"golang.org/x/mod/semver"
+
+	"github.com/gravitational/teleport/build.assets/tooling/lib/github"
 )
 
 func main() {

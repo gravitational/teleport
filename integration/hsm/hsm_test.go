@@ -180,7 +180,11 @@ func (t *teleportService) waitForLocalAdditionalKeys(ctx context.Context) error 
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if t.process.GetAuthServer().GetKeyStore().HasLocalAdditionalKeys(ca) {
+		hasUsableKeys, err := t.process.GetAuthServer().GetKeyStore().HasUsableAdditionalKeys(ctx, ca)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if hasUsableKeys {
 			break
 		}
 	}
@@ -263,12 +267,19 @@ func newHSMAuthConfig(ctx context.Context, t *testing.T, storageConfig *backend.
 		},
 	})
 	require.NoError(t, err)
-	config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
 	config.Log = log
 	if storageConfig != nil {
 		config.Auth.StorageConfig = *storageConfig
 	}
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+
+	if gcpKeyring := os.Getenv("TEST_GCP_KMS_KEYRING"); gcpKeyring != "" {
+		config.Auth.KeyStore.GCPKMS.KeyRing = gcpKeyring
+		config.Auth.KeyStore.GCPKMS.ProtectionLevel = "HSM"
+	} else {
+		config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
+	}
+
 	return config
 }
 
@@ -328,11 +339,21 @@ func liteBackendConfig(t *testing.T) *backend.Config {
 	}
 }
 
+func requireHSMAvailable(t *testing.T) {
+	if os.Getenv("SOFTHSM2_PATH") == "" && os.Getenv("TEST_GCP_KMS_KEYRING") == "" {
+		t.Skip("Skipping test because neither SOFTHSM2_PATH or TEST_GCP_KMS_KEYRING are set")
+	}
+}
+
+func requireETCDAvailable(t *testing.T) {
+	if os.Getenv("TELEPORT_ETCD_TEST") == "" {
+		t.Skip("Skipping test because TELEPORT_ETCD_TEST is not set")
+	}
+}
+
 // Tests a single CA rotation with a single HSM auth server
 func TestHSMRotation(t *testing.T) {
-	if os.Getenv("SOFTHSM2_PATH") == "" {
-		t.Skip("Skipping test as SOFTHSM2_PATH is not set")
-	}
+	requireHSMAvailable(t)
 
 	// pick a conservative timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
@@ -343,7 +364,7 @@ func TestHSMRotation(t *testing.T) {
 	authConfig := newHSMAuthConfig(ctx, t, liteBackendConfig(t), log)
 	auth1 := newTeleportService(t, authConfig, "auth1")
 	t.Cleanup(func() {
-		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(nil))
+		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil))
 	})
 	teleportServices := TeleportServices{auth1}
 
@@ -395,9 +416,8 @@ func TestHSMRotation(t *testing.T) {
 
 // Tests multiple CA rotations and rollbacks with 2 HSM auth servers in an HA configuration
 func TestHSMDualAuthRotation(t *testing.T) {
-	if os.Getenv("TELEPORT_ETCD_TEST") == "" || os.Getenv("SOFTHSM2_PATH") == "" {
-		t.Skip("Skipping test as either etcd or SoftHSM2 is not enabled")
-	}
+	requireHSMAvailable(t)
+	requireETCDAvailable(t)
 
 	// pick a global timeout for the test
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
@@ -410,7 +430,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	auth1Config := newHSMAuthConfig(ctx, t, storageConfig, log)
 	auth1 := newTeleportService(t, auth1Config, "auth1")
 	t.Cleanup(func() {
-		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(nil),
+		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil),
 			"failed to delete hsm keys during test cleanup")
 	})
 	authServices := TeleportServices{auth1}
@@ -443,7 +463,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	auth2 := newTeleportService(t, auth2Config, "auth2")
 	require.NoError(t, auth2.waitForStart(ctx))
 	t.Cleanup(func() {
-		require.NoError(t, auth2.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(nil))
+		require.NoError(t, auth2.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil))
 	})
 	authServices = append(authServices, auth2)
 	teleportServices = append(teleportServices, auth2)
@@ -683,9 +703,8 @@ func TestHSMDualAuthRotation(t *testing.T) {
 
 // Tests a dual-auth server migration from raw keys to HSM keys
 func TestHSMMigrate(t *testing.T) {
-	if os.Getenv("TELEPORT_ETCD_TEST") == "" || os.Getenv("SOFTHSM2_PATH") == "" {
-		t.Skip("Skipping test as either etcd or SoftHSM2 is not enabled")
-	}
+	requireHSMAvailable(t)
+	requireETCDAvailable(t)
 
 	// pick a global timeout for the test
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)

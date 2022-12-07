@@ -19,11 +19,11 @@ package reversetunnel
 import (
 	"encoding/json"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 // discoveryRequest is a request sent from a connected proxy with the missing proxies.

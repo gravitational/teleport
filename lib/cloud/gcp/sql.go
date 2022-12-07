@@ -26,12 +26,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/trace"
+	sqladmin "google.golang.org/api/sqladmin/v1beta4"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
-
-	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
 
 // SQLAdminClient defines an interface providing access to the GCP Cloud SQL API.

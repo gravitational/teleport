@@ -31,11 +31,11 @@ import (
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/flynn/u2f/u2ftoken"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/trace"
-
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
 // U2FRegister implements Register for U2F/CTAP1 devices.

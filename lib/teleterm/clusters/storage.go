@@ -20,11 +20,11 @@ import (
 	"context"
 	"net"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
-
-	"github.com/gravitational/trace"
 )
 
 // NewStorage creates an instance of Cluster profile storage.
