@@ -236,7 +236,9 @@ $ teleport-jira start
 </TabItem>
 <TabItem label="Helm Chart" scopes={["oss", "enterprise", "cloud"]}>
 ```code
-$ helm install teleport-plugin-jira teleport/teleport-plugin-jira --values teleport-jira-helm.yaml
+$ helm install teleport-plugin-jira teleport/teleport-plugin-jira \
+  --values teleport-jira-helm.yaml \
+  --version (=teleport.plugin.version=)
 ```
 </TabItem>
 </Tabs>

@@ -432,7 +432,9 @@ persistentVolumeClaim:
 To start the event handler in Kubernetes, run the following command:
 
 ```code
-$ helm install teleport-plugin-event-handler teleport/teleport-plugin-event-handler --values teleport-plugin-event-handler-values.yaml
+$ helm install teleport-plugin-event-handler teleport/teleport-plugin-event-handler \
+  --values teleport-plugin-event-handler-values.yaml \
+  --version (=teleport.plugin.version=)
 ```
 
 </TabItem>

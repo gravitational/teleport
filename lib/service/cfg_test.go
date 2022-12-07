@@ -439,43 +439,43 @@ func TestHostLabelMatching(t *testing.T) {
 		{
 			desc:      "single rule matches all",
 			hostnames: []string{"foo", "foo.bar", "127.0.0.1", "test.example.com"},
-			rules:     HostLabelRules{HostLabelRule{Regexp: matchAllRule, Labels: map[string]string{"foo": "bar"}}},
+			rules:     NewHostLabelRules(HostLabelRule{Regexp: matchAllRule, Labels: map[string]string{"foo": "bar"}}),
 			expected:  map[string]string{"foo": "bar"},
 		},
 		{
 			desc:      "only one rule matches",
 			hostnames: []string{"db.example.com"},
-			rules: HostLabelRules{
+			rules: NewHostLabelRules(
 				HostLabelRule{Regexp: regexp.MustCompile(`^db\.example\.com$`), Labels: map[string]string{"role": "db"}},
 				HostLabelRule{Regexp: regexp.MustCompile(`^app\.example\.com$`), Labels: map[string]string{"role": "app"}},
-			},
+			),
 			expected: map[string]string{"role": "db"},
 		},
 		{
 			desc:      "all rules match",
 			hostnames: []string{"test.example.com"},
-			rules: HostLabelRules{
+			rules: NewHostLabelRules(
 				HostLabelRule{Regexp: regexp.MustCompile(`\.example\.com$`), Labels: map[string]string{"foo": "bar"}},
 				HostLabelRule{Regexp: regexp.MustCompile(`\.example\.com$`), Labels: map[string]string{"baz": "quux"}},
-			},
+			),
 			expected: map[string]string{"foo": "bar", "baz": "quux"},
 		},
 		{
 			desc:      "no rules match",
 			hostnames: []string{"test.example.com"},
-			rules: HostLabelRules{
+			rules: NewHostLabelRules(
 				HostLabelRule{Regexp: regexp.MustCompile(`\.xyz$`), Labels: map[string]string{"foo": "bar"}},
 				HostLabelRule{Regexp: regexp.MustCompile(`\.xyz$`), Labels: map[string]string{"baz": "quux"}},
-			},
+			),
 			expected: map[string]string{},
 		},
 		{
 			desc:      "conflicting rules, last one wins",
 			hostnames: []string{"test.example.com"},
-			rules: HostLabelRules{
+			rules: NewHostLabelRules(
 				HostLabelRule{Regexp: regexp.MustCompile(`\.example\.com$`), Labels: map[string]string{"test": "one"}},
 				HostLabelRule{Regexp: regexp.MustCompile(`^test\.`), Labels: map[string]string{"test": "two"}},
-			},
+			),
 			expected: map[string]string{"test": "two"},
 		},
 	} {
