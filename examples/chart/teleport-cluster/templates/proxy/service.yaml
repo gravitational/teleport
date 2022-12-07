@@ -1,33 +1,33 @@
-{{- $backendProtocol := ternary "ssl" "tcp" (hasKey .Values.annotations.service "service.beta.kubernetes.io/aws-load-balancer-ssl-cert") -}}
+{{- $proxy := mustMergeOverwrite .Values .Values.proxy -}}
+{{- $backendProtocol := ternary "ssl" "tcp" (hasKey $proxy.annotations.service "service.beta.kubernetes.io/aws-load-balancer-ssl-cert") -}}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
-  labels:
-    app: {{ .Release.Name }}
-  {{- if (or (.Values.annotations.service) (eq .Values.chartMode "aws")) }}
+  labels: {{- include "teleport-cluster.proxy.labels" . | nindent 4 }}
+  {{- if (or ($proxy.annotations.service) (eq $proxy.chartMode "aws")) }}
   annotations:
-    {{- if eq .Values.chartMode "aws" }}
+    {{- if eq $proxy.chartMode "aws" }}
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: {{ $backendProtocol }}
     service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
     service.beta.kubernetes.io/aws-load-balancer-type: nlb
     {{- end }}
-    {{- if .Values.annotations.service }}
-      {{- toYaml .Values.annotations.service | nindent 4 }}
+    {{- if $proxy.annotations.service }}
+      {{- toYaml $proxy.annotations.service | nindent 4 }}
     {{- end }}
   {{- end }}
 spec:
-  type: {{ default "LoadBalancer" .Values.service.type }}
-  {{- with .Values.service.spec }}
+  type: {{ default "LoadBalancer" $proxy.service.type }}
+{{- with $proxy.service.spec }}
   {{- toYaml . | nindent 2 }}
-  {{- end }}
+{{- end }}
   ports:
   - name: https
     port: 443
     targetPort: 3080
     protocol: TCP
-  {{- if not .Values.proxyListenerMode }}
+{{- if eq $proxy.proxyListenerMode "separate" }}
   - name: sshproxy
     port: 3023
     targetPort: 3023
@@ -44,18 +44,17 @@ spec:
     port: 3036
     targetPort: 3036
     protocol: TCP
-  {{- if .Values.separatePostgresListener }}
+  {{- if $proxy.separatePostgresListener }}
   - name: postgres
     port: 5432
     targetPort: 5432
     protocol: TCP
   {{- end }}
-  {{- if .Values.separateMongoListener }}
+  {{- if $proxy.separateMongoListener }}
   - name: mongo
     port: 27017
     targetPort: 27017
     protocol: TCP
   {{- end }}
-  {{- end }}
-  selector:
-    app: {{ .Release.Name }}
+{{- end }}
+  selector: {{- include "teleport-cluster.proxy.selectorLabels" . | nindent 4 }}

@@ -30,6 +30,19 @@
             "type": "string",
             "default": ""
         },
+        "auth": {
+            "$id": "#/properties/auth",
+            "type": "object"
+        },
+        "proxy": {
+            "$id": "#/properties/proxy",
+            "type": "object"
+        },
+        "createProxyToken": {
+            "$id": "#/properties/createProxyToken",
+            "type": "boolean",
+            "default": true
+        },
         "authentication": {
             "$id": "#/properties/authentication",
             "type": "object",
@@ -267,7 +280,7 @@
                 "standalone",
                 "aws",
                 "gcp",
-                "custom"
+                "scratch"
             ],
             "default": "standalone"
         },
