@@ -565,7 +565,7 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	// copy. This way we only need one copy into img.Pix below.
 	ptr := unsafe.Pointer(cb.data_ptr)
 	uptr := (*uint8)(ptr)
-	data := unsafe.Slice(uptr, C.int(cb.data_len))
+	data := unsafe.Slice(uptr, int(cb.data_len))
 
 	// Convert BGRA to RGBA. It's likely due to Windows using uint32 values for
 	// pixels (ARGB) and encoding them as big endian. The image.RGBA type uses
@@ -573,8 +573,10 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	//
 	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegdi/8ab64b94-59cb-43f4-97ca-79613838e0bd
 	//
+	// Also, always force Alpha value to 100% (opaque). On some Windows
+	// versions (e.g. Windows 10) it's sent as 0% after decompression for some reason.
 	for i := 0; i < len(data); i += 4 {
-		data[i], data[i+2] = data[i+2], data[i]
+		data[i], data[i+2], data[i+3] = data[i+2], data[i], 255
 	}
 
 	rect := image.Rectangle{
