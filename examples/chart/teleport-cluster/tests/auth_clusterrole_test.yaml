@@ -1,6 +1,6 @@
-suite: ClusterRole
+suite: Auth ClusterRole
 templates:
-  - clusterrole.yaml
+  - auth/clusterrole.yaml
 tests:
   - it: creates a ClusterRole
     asserts:
@@ -8,7 +8,6 @@ tests:
           count: 1
       - isKind:
           of: ClusterRole
-      - matchSnapshot: {}
   - it: adds operator permissions to ClusterRole
     values:
       - ../.lint/operator.yaml
