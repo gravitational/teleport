@@ -21,6 +21,7 @@ import (
 	"regexp"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -138,22 +139,23 @@ TraitMappingLoop:
 				}
 			}
 
-			// warn at most maxMismatchedTraitValuesWarned trait values to prevent huge warning lines
-			if len(mismatched) > maxMismatchedTraitValuesWarned {
-				warnings = append(warnings, fmt.Sprintf(
+			// show at most maxMismatchedTraitValuesWarned trait values to prevent huge log lines
+			switch l := len(mismatched); {
+			case l > maxMismatchedTraitValuesWarned:
+				log.Debugf(
 					"%d trait value(s) did not match expression %q: %s (first %d values)",
 					len(mismatched),
 					mapping.Value,
 					mismatched[0:maxMismatchedTraitValuesWarned],
 					maxMismatchedTraitValuesWarned,
-				))
-			} else if len(mismatched) > 0 {
-				warnings = append(warnings, fmt.Sprintf(
+				)
+			case l > 0:
+				log.Debugf(
 					"%d trait value(s) did not match expression %q: %s",
 					len(mismatched),
 					mapping.Value,
 					mismatched,
-				))
+				)
 			}
 		}
 	}
