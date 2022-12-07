@@ -5,6 +5,11 @@ state: draft
 
 # RFD X - Azure join method
 
+## Required Approvers
+Engineering: @jakule && @r0mant
+Product: @klizhentas && @xinding33
+Security: @reedloden
+
 ## What
 
 Teleport nodes running on Azure virtual machines will be able to join a
