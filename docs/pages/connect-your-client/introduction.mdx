@@ -13,7 +13,7 @@ Teleport, and includes links to more detailed documentation at the end.
 
 ### tsh
 
-`tsh` lets you authenticate to Teleport and list and connect to resources. After [downloading](/downloads)
+`tsh` lets you authenticate to Teleport and list and connect to resources. After [downloading](https://goteleport.com/downloads)
 and installing `tsh`, sign in to your Teleport cluster:
 
 <Tabs>
@@ -89,7 +89,7 @@ found at the same URL used to connect to Teleport with (e.g.
 <ScopedBlock scope={["oss", "enterprise"]}>`https://teleport.example.com`</ScopedBlock>
 <ScopedBlock scope={["cloud"]}>`https://mytenant.teleport.sh`</ScopedBlock>),
 but you should confirm the Web UI URL with the team that manages your Teleport deployment. The Web UI provides similar
-access to resources as Telport Connect, and additional access to to Request and
+access to resources as Teleport Connect, and additional access to to Request and
 Activity logs for users with the right permissions.
 
 ## Protocols
@@ -140,8 +140,8 @@ button will open a new tab with a terminal emulator to provide access to that se
 `tsh scp` will let you transfer files to servers behind Teleport:
 
 ```code
-$ tsh scp somefile.ext xeon.tp.alexf.xyz:
-somefile.ext   7% |███████                | (25/342 MB, 2.9 MB/s) [9s:1m48s]
+$ tsh scp some-file.ext server.example.com:
+some-file.ext   7% |███████                | (25/342 MB, 2.9 MB/s) [9s:1m48s]
 ```
 
 ### Kubernetes Access (`kubectl`)
@@ -310,8 +310,8 @@ either directly or through proxy tunnels.
   Learn more about it from [Using the tsh Command Line Tool](./tsh.mdx).
 
 - Teleport Connect is a graphic utility for connecting to resources through
-Teleport. You can initaite Server Access, connect to databases, and start
-Desktop Acesss sessions. See [Using Teleport Connect](./teleport-connect.mdx).
+Teleport. You can initiate Server Access, connect to databases, and start
+Desktop Access sessions. See [Using Teleport Connect](./teleport-connect.mdx).
 
 - [Database Access GUI Clients](./gui-clients.mdx) details
 how to connect many popular database GUI clients through Teleport.

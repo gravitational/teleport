@@ -18,6 +18,7 @@ package sqlserver
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"strconv"
@@ -26,8 +27,11 @@ import (
 	"github.com/denisenkom/go-mssqldb/azuread"
 	"github.com/denisenkom/go-mssqldb/msdsn"
 	"github.com/gravitational/trace"
+	"github.com/jcmturner/gokrb5/v8/client"
 
+	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/sqlserver/kinit"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 )
 
@@ -38,7 +42,36 @@ type Connector interface {
 }
 
 type connector struct {
-	Auth common.Auth
+	// Auth is the database auth client
+	DBAuth common.Auth
+	// AuthClient is the teleport client
+	AuthClient windows.AuthInterface
+	// DataDir is the Teleport data directory
+	DataDir string
+
+	kinitCommandGenerator kinit.CommandGenerator
+	caFunc                func(ctx context.Context, clusterName string) ([]byte, error)
+}
+
+var errBadKerberosConfig = errors.New("configuration must have either keytab or kdc_host_name and ldap_cert")
+
+func (c *connector) getKerberosClient(ctx context.Context, sessionCtx *common.Session) (*client.Client, error) {
+	switch {
+	case sessionCtx.Database.GetAD().KeytabFile != "":
+		kt, err := c.keytabClient(sessionCtx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return kt, nil
+	case sessionCtx.Database.GetAD().KDCHostName != "" && sessionCtx.Database.GetAD().LDAPCert != "":
+		kt, err := c.kinitClient(ctx, sessionCtx, c.AuthClient, c.DataDir)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return kt, nil
+
+	}
+	return nil, trace.Wrap(errBadKerberosConfig)
 }
 
 // Connect connects to the target SQL Server with Kerberos authentication.
@@ -53,7 +86,7 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 		return nil, nil, trace.Wrap(err)
 	}
 
-	tlsConfig, err := c.Auth.GetTLSConfig(ctx, sessionCtx)
+	tlsConfig, err := c.DBAuth.GetTLSConfig(ctx, sessionCtx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -80,7 +113,7 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 		// If the client is connecting to Azure SQL, and no AD configuration is
 		// provided, authenticate using the Azure AD Integrated authentication
 		// method.
-		managedIdentityID, err := c.Auth.GetAzureIdentityResourceID(ctx, sessionCtx.DatabaseUser)
+		managedIdentityID, err := c.DBAuth.GetAzureIdentityResourceID(ctx, sessionCtx.DatabaseUser)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -93,12 +126,16 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 			return nil, nil, trace.Wrap(err)
 		}
 	} else {
-		auth, err := c.getAuth(sessionCtx)
+		kc, err := c.getKerberosClient(ctx, sessionCtx)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		dbAuth, err := c.getAuth(sessionCtx, kc)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		connector = mssql.NewConnectorConfig(dsnConfig, auth)
+		connector = mssql.NewConnectorConfig(dsnConfig, dbAuth)
 	}
 
 	conn, err := connector.Connect(ctx)

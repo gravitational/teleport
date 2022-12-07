@@ -27,7 +27,7 @@ import (
 )
 
 // GetAWSPolicyDocument returns the AWS IAM policy document for provided
-// database.
+// database for setting up the default IAM identity of the database agent.
 func GetAWSPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholders, error) {
 	switch db.GetType() {
 	case types.DatabaseTypeRDS, types.DatabaseTypeRDSProxy:
@@ -35,14 +35,38 @@ func GetAWSPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholde
 	case types.DatabaseTypeRedshift:
 		return getRedshiftPolicyDocument(db)
 	default:
-		return nil, nil, trace.BadParameter("GetAWSPolicyDocument is not supported policy for database type %s", db.GetType())
+		return nil, nil, trace.BadParameter("GetAWSPolicyDocument is not supported for database type %s", db.GetType())
 	}
+
+}
+
+// GetAWSPolicyDocumentForAssumedRole returns the AWS IAM policy document for
+// provided database for setting up the IAM role assumed by the database agent.
+func GetAWSPolicyDocumentForAssumedRole(db types.Database) (*awslib.PolicyDocument, Placeholders, error) {
+	if db.GetType() == types.DatabaseTypeRedshiftServerless {
+		return getRedshiftServerlessPolicyDocument(db)
+	}
+	return nil, nil, trace.BadParameter("GetAWSPolicyDocumentForAssumedRole is not supported for database type %s", db.GetType())
 }
 
 // GetReadableAWSPolicyDocument returns the indented JSON string of the AWS IAM
 // policy document for provided database.
 func GetReadableAWSPolicyDocument(db types.Database) (string, error) {
 	policyDoc, _, err := GetAWSPolicyDocument(db)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	marshaled, err := policyDoc.Marshal()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return marshaled, nil
+}
+
+// GetReadableAWSPolicyDocumentForAssumedRole returns the indented JSON string
+// of the AWS IAM policy document for provided database.
+func GetReadableAWSPolicyDocumentForAssumedRole(db types.Database) (string, error) {
+	policyDoc, _, err := GetAWSPolicyDocumentForAssumedRole(db)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -108,6 +132,33 @@ func getRedshiftPolicyDocument(db types.Database) (*awslib.PolicyDocument, Place
 			fmt.Sprintf("arn:%v:redshift:%v:%v:dbuser:%v/*", partition, region, accountID, clusterID),
 			fmt.Sprintf("arn:%v:redshift:%v:%v:dbname:%v/*", partition, region, accountID, clusterID),
 			fmt.Sprintf("arn:%v:redshift:%v:%v:dbgroup:%v/*", partition, region, accountID, clusterID),
+		},
+	})
+	return policyDoc, placeholders, nil
+}
+
+// getRedshiftServerlessPolicyDocument returns the policy document used for
+// Redshift Serverless databases.
+//
+// https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonredshiftserverless.html
+func getRedshiftServerlessPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholders, error) {
+	aws := db.GetAWS()
+	partition := awsutils.GetPartitionFromRegion(aws.Region)
+	region := aws.Region
+	accountID := aws.AccountID
+	workgroupID := aws.RedshiftServerless.WorkgroupID
+
+	placeholders := Placeholders(nil).
+		setPlaceholderIfEmpty(&region, "{region}").
+		setPlaceholderIfEmpty(&partition, "{partition}").
+		setPlaceholderIfEmpty(&accountID, "{account_id}").
+		setPlaceholderIfEmpty(&workgroupID, "{workgroup_id}")
+
+	policyDoc := awslib.NewPolicyDocument(&awslib.Statement{
+		Effect:  awslib.EffectAllow,
+		Actions: awslib.SliceOrString{"redshift-serverless:GetCredentials"},
+		Resources: awslib.SliceOrString{
+			fmt.Sprintf("arn:%v:redshift-serverless:%v:%v:workgroup/%v", partition, region, accountID, workgroupID),
 		},
 	})
 	return policyDoc, placeholders, nil

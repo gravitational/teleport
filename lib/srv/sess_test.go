@@ -80,7 +80,7 @@ func TestParseAccessRequestIDs(t *testing.T) {
 	}
 	for _, tt := range testCases {
 		t.Run(tt.comment, func(t *testing.T) {
-			out, err := parseAccessRequestIDs(tt.input)
+			out, err := ParseAccessRequestIDs(tt.input)
 			tt.assertErr(t, err)
 			require.Equal(t, out, tt.result)
 		})
@@ -98,11 +98,6 @@ func TestSession_newRecorder(t *testing.T) {
 
 	proxyRecordingSync, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxySync,
-	})
-	require.NoError(t, err)
-
-	nodeRecording, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode: types.RecordAtNode,
 	})
 	require.NoError(t, err)
 
@@ -167,28 +162,6 @@ func TestSession_newRecorder(t *testing.T) {
 				_, ok := i.(*events.DiscardStream)
 				require.True(t, ok)
 			},
-		},
-		{
-			desc: "err-new-streamer-fails",
-			sess: &session{
-				id:  "test",
-				log: logger,
-				registry: &SessionRegistry{
-					SessionRegistryConfig: SessionRegistryConfig{
-						Srv: &mockServer{
-							component: teleport.ComponentNode,
-						},
-					},
-				},
-			},
-			sctx: &ServerContext{
-				SessionRecordingConfig: nodeRecording,
-				srv: &mockServer{
-					component: teleport.ComponentNode,
-				},
-			},
-			errAssertion: require.Error,
-			recAssertion: require.Nil,
 		},
 		{
 			desc: "strict-err-new-audit-writer-fails",

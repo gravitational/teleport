@@ -30,21 +30,16 @@ func SetNoCacheHeaders(h http.Header) {
 	h.Set("Expires", "0")
 }
 
-// SetStaticFileHeaders sets security header flags for static non-html resources
-func SetStaticFileHeaders(h http.Header) {
-	SetSameOriginIFrame(h)
-	SetNoSniff(h)
-}
+// SetDefaultSecurityHeaders adds headers that should generally be considered safe defaults.  It is expected that all
+// responses should be able to add these headers without negative impact.
+func SetDefaultSecurityHeaders(h http.Header) {
+	// Prevent web browsers from using content sniffing to discover a file’s MIME type
+	h.Set("X-Content-Type-Options", "nosniff")
 
-// SetIndexHTMLHeaders sets security header flags for main index.html page
-func SetIndexHTMLHeaders(h http.Header) {
-	SetNoCacheHeaders(h)
-	SetSameOriginIFrame(h)
-	SetNoSniff(h)
-
-	// Only send the origin of the document as the referrer in all cases.
+	// Only send the origin of the document as the referrer in all cases.  The use of `strict-origin` will also prevent
+	// the sending of the origin if a request is downgraded from https to http.
 	// The document https://example.com/page.html will send the referrer https://example.com/.
-	h.Set("Referrer-Policy", "origin")
+	h.Set("Referrer-Policy", "strict-origin")
 
 	// X-Frame-Options indicates that the page can only be displayed in iframe on the same origin as the page itself
 	h.Set("X-Frame-Options", "SAMEORIGIN")
@@ -57,47 +52,41 @@ func SetIndexHTMLHeaders(h http.Header) {
 	// being sent over HTTP to the specified domain and will instead send all communications over HTTPS.
 	// It also prevents HTTPS click through prompts on browsers
 	h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+}
 
-	// Prevent web browsers from using content sniffing to discover a file’s MIME type
-	h.Set("X-Content-Type-Options", "nosniff")
-
-	// Set content policy flags
+// SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page
+func SetIndexContentSecurityPolicy(h http.Header) {
 	var cspValue = strings.Join([]string{
-		"default-src 'self'",
-		"frame-ancestors 'none'",
+		GetDefaultContentSecurityPolicy(),
 		// 'unsafe-inline' is required by CSS-in-JS to work
 		"style-src 'self' 'unsafe-inline'",
-		"object-src 'none'",
 		"img-src 'self' data: blob:",
 		"font-src 'self' data:",
-		"base-uri 'self'",
-		"form-action 'self'",
 		"connect-src 'self' wss:",
 	}, ";")
 
 	h.Set("Content-Security-Policy", cspValue)
 }
 
-// SetSameOriginIFrame sets X-Frame-Options flag
-func SetSameOriginIFrame(h http.Header) {
-	// X-Frame-Options indicates that the page can only be displayed in iframe on the same origin as the page itself
-	h.Set("X-Frame-Options", "SAMEORIGIN")
-}
-
-// SetNoSniff sets X-Content-Type-Options flag
-func SetNoSniff(h http.Header) {
-	// Prevent web browsers from using content sniffing to discover a file’s MIME type
-	h.Set("X-Content-Type-Options", "nosniff")
+// GetDefaultContentSecurityPolicy provides a starting Content Security Policy with safe defaults.
+func GetDefaultContentSecurityPolicy() string {
+	return strings.Join([]string{
+		"default-src 'self'",
+		// specify CSP directives not covered by `default-src`
+		"base-uri 'self'",
+		"form-action 'self'",
+		"frame-ancestors 'none'",
+		// additional default restrictions
+		"object-src 'none'",
+	}, ";")
 }
 
 // SetWebConfigHeaders sets headers for webConfig.js
 func SetWebConfigHeaders(h http.Header) {
-	SetStaticFileHeaders(h)
 	h.Set("Content-Type", "application/javascript")
 }
 
 // SetScriptHeaders sets headers for the teleport install script
 func SetScriptHeaders(h http.Header) {
-	SetStaticFileHeaders(h)
 	h.Set("Content-Type", "text/x-shellscript")
 }

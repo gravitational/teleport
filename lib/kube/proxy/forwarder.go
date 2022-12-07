@@ -802,13 +802,13 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 // async streamer buffers the events to disk and uploads the events later
 func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
 	if services.IsRecordSync(ctx.recordingConfig.GetMode()) {
-		f.log.Debugf("Using sync streamer for session.")
+		f.log.Debug("Using sync streamer for session.")
 		return f.cfg.AuthClient, nil
 	}
-	f.log.Debugf("Using async streamer for session.")
+	f.log.Debug("Using async streamer for session.")
 	dir := filepath.Join(
 		f.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, apidefaults.Namespace,
+		events.StreamingSessionsDir, apidefaults.Namespace,
 	)
 	fileStreamer, err := filesessions.NewStreamer(dir)
 	if err != nil {
@@ -843,9 +843,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	f.mu.Lock()
-	session := f.sessions[sessionID]
-	f.mu.Unlock()
+	session := f.getSession(sessionID)
 	if session == nil {
 		return nil, trace.NotFound("session %v not found", sessionID)
 	}
@@ -865,9 +863,9 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		party := newParty(*ctx, stream.Mode, client)
 		go func() {
 			<-stream.Done()
-			session.mu.Lock()
-			defer session.mu.Unlock()
-			session.leave(party.ID)
+			if err := session.leave(party.ID); err != nil {
+				f.log.WithError(err).Debugf("Participant %q was unable to leave session %s", party.ID, session.id)
+			}
 		}()
 
 		err = session.join(party)
@@ -885,6 +883,32 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	}
 
 	return nil, nil
+}
+
+// getSession retrieves the session from in-memory database.
+// If the session was not found, returns nil.
+// This method locks f.mu.
+func (f *Forwarder) getSession(id uuid.UUID) *session {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.sessions[id]
+}
+
+// setSession sets the session into in-memory database.
+// If the session was not found, returns nil.
+// This method locks f.mu.
+func (f *Forwarder) setSession(id uuid.UUID, sess *session) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.sessions[id] = sess
+}
+
+// deleteSession removes a session.
+// This method locks f.mu.
+func (f *Forwarder) deleteSession(id uuid.UUID) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.sessions, id)
 }
 
 // remoteJoin forwards a join request to a remote cluster.
@@ -1248,18 +1272,18 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	f.mu.Lock()
-	f.sessions[session.id] = session
-	f.mu.Unlock()
+	f.setSession(session.id, session)
 	err = session.join(party)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	<-party.closeC
-	f.mu.Lock()
-	delete(f.sessions, session.id)
-	f.mu.Unlock()
+
+	if err := session.leave(party.ID); err != nil {
+		f.log.WithError(err).Debugf("Participant %q was unable to leave session %s", party.ID, session.id)
+	}
+
 	return nil, nil
 }
 

@@ -48,7 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/pam"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -1305,7 +1304,7 @@ type PAM struct {
 func (p *PAM) Parse() *pam.Config {
 	serviceName := p.ServiceName
 	if serviceName == "" {
-		serviceName = defaults.ServiceName
+		serviceName = defaults.PAMServiceName
 	}
 	enabled, _ := apiutils.ParseBool(p.Enabled)
 	return &pam.Config{
@@ -1348,7 +1347,7 @@ func (b *BPF) Parse() *bpf.Config {
 
 // RestrictedSession is a configuration for limiting access to kernel objects
 type RestrictedSession struct {
-	// Enabled enables or disables enforcemant for this node.
+	// Enabled enables or disables enforcement for this node.
 	Enabled string `yaml:"enabled"`
 
 	// EventsBufferSize is the size in bytes of the channel to report events
@@ -1357,13 +1356,13 @@ type RestrictedSession struct {
 }
 
 // Parse will parse the enhanced session recording configuration.
-func (r *RestrictedSession) Parse() (*restricted.Config, error) {
+func (r *RestrictedSession) Parse() (*bpf.RestrictedSessionConfig, error) {
 	enabled, err := apiutils.ParseBool(r.Enabled)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &restricted.Config{
+	return &bpf.RestrictedSessionConfig{
 		Enabled:          enabled,
 		EventsBufferSize: r.EventsBufferSize,
 	}, nil
@@ -1391,7 +1390,7 @@ type Databases struct {
 	Databases []*Database `yaml:"databases"`
 	// ResourceMatchers match cluster database resources.
 	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
-	// AWSMatchers match AWS hosted databases.
+	// AWSMatchers match AWS-hosted databases.
 	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
 	// AzureMatchers match Azure hosted databases.
 	AzureMatchers []AzureMatcher `yaml:"azure,omitempty"`
@@ -1472,7 +1471,7 @@ type Database struct {
 	StaticLabels map[string]string `yaml:"static_labels,omitempty"`
 	// DynamicLabels is a list of database dynamic labels.
 	DynamicLabels []CommandLabel `yaml:"dynamic_labels,omitempty"`
-	// AWS contains AWS specific settings for RDS/Aurora/Redshift databases.
+	// AWS contains AWS specific settings for AWS-hosted databases.
 	AWS DatabaseAWS `yaml:"aws"`
 	// GCP contains GCP specific settings for Cloud SQL databases.
 	GCP DatabaseGCP `yaml:"gcp"`
@@ -1536,6 +1535,8 @@ type DatabaseAWS struct {
 	MemoryDB DatabaseAWSMemoryDB `yaml:"memorydb"`
 	// AccountID is the AWS account ID.
 	AccountID string `yaml:"account_id,omitempty"`
+	// RedshiftServerless contains RedshiftServerless specific settings.
+	RedshiftServerless DatabaseAWSRedshiftServerless `yaml:"redshift_severless"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -1562,6 +1563,14 @@ type DatabaseAWSElastiCache struct {
 type DatabaseAWSMemoryDB struct {
 	// ClusterName is the MemoryDB cluster name.
 	ClusterName string `yaml:"cluster_name,omitempty"`
+}
+
+// DatabaseAWSRedshiftServerless contains AWS Redshift Serverless specific settings.
+type DatabaseAWSRedshiftServerless struct {
+	// WorkgroupName is the Redshift Serverless workgroup name.
+	WorkgroupName string `yaml:"workgroup_name,omitempty"`
+	// EndpointName is the Redshift Serverless VPC endpoint name.
+	EndpointName string `yaml:"endpoint_name,omitempty"`
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.

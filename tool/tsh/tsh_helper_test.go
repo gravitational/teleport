@@ -115,7 +115,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	s.user, err = types.NewUser("alice")
 	require.NoError(t, err)
 	s.user.SetRoles([]string{"access", "ssh-login", "kube-login"})
-	cfg.Auth.Resources = []types.Resource{s.connector, s.user, sshLoginRole, kubeLoginRole}
+	cfg.Auth.BootstrapResources = []types.Resource{s.connector, s.user, sshLoginRole, kubeLoginRole}
 
 	if options.rootConfigFunc != nil {
 		options.rootConfigFunc(cfg)
@@ -189,7 +189,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 		},
 	})
 	require.NoError(t, err)
-	cfg.Auth.Resources = []types.Resource{sshLoginRole}
+	cfg.Auth.BootstrapResources = []types.Resource{sshLoginRole}
 	if options.leafConfigFunc != nil {
 		options.leafConfigFunc(cfg)
 	}

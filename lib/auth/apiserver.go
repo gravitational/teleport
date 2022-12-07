@@ -17,7 +17,6 @@ limitations under the License.
 package auth
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -33,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -105,8 +103,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 
 	// Passwords and sessions
 	srv.POST("/:version/users", srv.WithAuth(srv.upsertUser))
-	srv.PUT("/:version/users/:user/web/password", srv.WithAuth(srv.changePassword))
-	srv.POST("/:version/users/:user/web/password/check", srv.withRate(srv.WithAuth(srv.checkPassword)))
 	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.createWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.WithAuth(srv.authenticateWebUser))
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.WithAuth(srv.authenticateSSHUser))
@@ -164,8 +160,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/configuration/static_tokens", srv.WithAuth(srv.setStaticTokens))
 
 	// SSO validation handlers
-	srv.POST("/:version/oidc/requests/validate", srv.WithAuth(srv.validateOIDCAuthCallback))
-	srv.POST("/:version/saml/requests/validate", srv.WithAuth(srv.validateSAMLResponse))
 	srv.POST("/:version/github/requests/validate", srv.WithAuth(srv.validateGithubAuthCallback))
 
 	// Audit logs AKA events
@@ -222,33 +216,6 @@ func (s *APIServer) WithAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 		}
 		return handler(auth, w, r, p, version)
 	})
-}
-
-// withRate wrap a rate limiter around the passed in httprouter.Handle and
-// returns a httprouter.Handle. Because the rate limiter wraps a http.Handler,
-// internally withRate converts to the standard handler and back.
-func (s *APIServer) withRate(handle httprouter.Handle) httprouter.Handle {
-	limiter := defaults.CheckPasswordLimiter()
-
-	fromStandard := func(h http.Handler) httprouter.Handle {
-		return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-			ctx := context.WithValue(r.Context(), contextParams, p)
-			r = r.WithContext(ctx)
-			h.ServeHTTP(w, r)
-		}
-	}
-	toStandard := func(handle httprouter.Handle) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			p, ok := r.Context().Value(contextParams).(httprouter.Params)
-			if !ok {
-				trace.WriteError(w, trace.BadParameter("parameters missing from request"))
-				return
-			}
-			handle(w, r, p)
-		})
-	}
-	limiter.WrapHandle(toStandard(handle))
-	return fromStandard(limiter)
 }
 
 type upsertServerRawReq struct {
@@ -541,20 +508,6 @@ func (s *APIServer) authenticateSSHUser(auth ClientI, w http.ResponseWriter, r *
 	return auth.AuthenticateSSHUser(r.Context(), req)
 }
 
-// changePassword updates users password based on the old password.
-func (s *APIServer) changePassword(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req services.ChangePasswordReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := auth.ChangePassword(req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message(fmt.Sprintf("password has been changed for user %q", req.User)), nil
-}
-
 type upsertUserRawReq struct {
 	User json.RawMessage `json:"user"`
 }
@@ -574,25 +527,6 @@ func (s *APIServer) upsertUser(auth ClientI, w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("'%v' user upserted", user.GetName())), nil
-}
-
-type checkPasswordReq struct {
-	Password string `json:"password"`
-	OTPToken string `json:"otp_token"`
-}
-
-func (s *APIServer) checkPassword(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req checkPasswordReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	user := p.ByName("user")
-	if err := auth.CheckPassword(user, []byte(req.Password), req.OTPToken); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message(fmt.Sprintf("%q user password matches", user)), nil
 }
 
 func (s *APIServer) getUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -782,98 +716,6 @@ func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("cert '%v' deleted", id)), nil
-}
-
-type validateOIDCAuthCallbackReq struct {
-	Query url.Values `json:"query"`
-}
-
-// oidcAuthRawResponse is returned when auth server validated callback parameters
-// returned from OIDC provider
-type oidcAuthRawResponse struct {
-	// Username is authenticated teleport username
-	Username string `json:"username"`
-	// Identity contains validated OIDC identity
-	Identity types.ExternalIdentity `json:"identity"`
-	// Web session will be generated by auth server if requested in OIDCAuthRequest
-	Session json.RawMessage `json:"session,omitempty"`
-	// Cert will be generated by certificate authority
-	Cert []byte `json:"cert,omitempty"`
-	// TLSCert is PEM encoded TLS certificate
-	TLSCert []byte `json:"tls_cert,omitempty"`
-	// Req is original oidc auth request
-	Req OIDCAuthRequest `json:"req"`
-	// HostSigners is a list of signing host public keys
-	// trusted by proxy, used in console login
-	HostSigners []json.RawMessage `json:"host_signers"`
-}
-
-func (s *APIServer) validateOIDCAuthCallback(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *validateOIDCAuthCallbackReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response, err := auth.ValidateOIDCAuthCallback(r.Context(), req.Query)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	raw := oidcAuthRawResponse{
-		Username: response.Username,
-		Identity: response.Identity,
-		Cert:     response.Cert,
-		TLSCert:  response.TLSCert,
-		Req:      response.Req,
-	}
-	if response.Session != nil {
-		rawSession, err := services.MarshalWebSession(response.Session, services.WithVersion(version))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		raw.Session = rawSession
-	}
-	raw.HostSigners = make([]json.RawMessage, len(response.HostSigners))
-	for i, ca := range response.HostSigners {
-		data, err := services.MarshalCertAuthority(ca, services.WithVersion(version))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		raw.HostSigners[i] = data
-	}
-	return &raw, nil
-}
-
-func (s *APIServer) validateSAMLResponse(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *ValidateSAMLResponseReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response, err := auth.ValidateSAMLResponse(r.Context(), req.Response, req.ConnectorID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	raw := SAMLAuthRawResponse{
-		Username: response.Username,
-		Identity: response.Identity,
-		Cert:     response.Cert,
-		Req:      response.Req,
-		TLSCert:  response.TLSCert,
-	}
-	if response.Session != nil {
-		rawSession, err := services.MarshalWebSession(response.Session, services.WithVersion(version))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		raw.Session = rawSession
-	}
-	raw.HostSigners = make([]json.RawMessage, len(response.HostSigners))
-	for i, ca := range response.HostSigners {
-		data, err := services.MarshalCertAuthority(ca, services.WithVersion(version))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		raw.HostSigners[i] = data
-	}
-	return &raw, nil
 }
 
 // validateGithubAuthCallbackReq is a request to validate Github OAuth2 callback
@@ -1383,9 +1225,3 @@ func (s *APIServer) processKubeCSR(auth ClientI, w http.ResponseWriter, r *http.
 func message(msg string) map[string]interface{} {
 	return map[string]interface{}{"message": msg}
 }
-
-type contextParamsKey string
-
-// contextParams is the name of of the key that holds httprouter.Params in
-// a context.
-const contextParams contextParamsKey = "params"

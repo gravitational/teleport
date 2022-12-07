@@ -258,6 +258,9 @@ const (
 	// ComponentVersionControl is the component common to all version control operations.
 	ComponentVersionControl = "version-control"
 
+	// ComponentUsageReporting is the component responsible for reporting usage metrics.
+	ComponentUsageReporting = "usage-reporting"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 
@@ -337,14 +340,6 @@ const (
 	// Off means mode is off
 	Off = "off"
 
-	// SchemeS3 is S3 file scheme, means upload or download to S3 like object
-	// storage
-	SchemeS3 = "s3"
-
-	// SchemeGCS is GCS file scheme, means upload or download to GCS like object
-	// storage
-	SchemeGCS = "gs"
-
 	// GCSTestURI turns on GCS tests
 	GCSTestURI = "TEST_GCS_URI"
 
@@ -369,11 +364,17 @@ const (
 	// SSEKMSKey is an optional switch to use an KMS CMK key for S3 SSE.
 	SSEKMSKey = "sse_kms_key"
 
-	// SchemeFile is a local disk file storage
+	// SchemeFile configures local disk-based file storage for audit events
 	SchemeFile = "file"
 
 	// SchemeStdout outputs audit log entries to stdout
 	SchemeStdout = "stdout"
+
+	// SchemeS3 is used for S3-like object storage
+	SchemeS3 = "s3"
+
+	// SchemeGCS is used for Google Cloud Storage
+	SchemeGCS = "gs"
 
 	// LogsDir is a log subdirectory for events and logs
 	LogsDir = "log"

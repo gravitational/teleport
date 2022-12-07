@@ -165,10 +165,13 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	cfg.TLS.ClientAuth = tls.VerifyClientCertIfGiven
 	cfg.TLS.NextProtos = []string{http2.NextProtoTLS}
 
+	securityHeaderHandler := httplib.MakeSecurityHeaderHandler(limiter)
+	tracingHandler := httplib.MakeTracingHandler(securityHeaderHandler, teleport.ComponentAuth)
+
 	server := &TLSServer{
 		cfg: cfg,
 		httpServer: &http.Server{
-			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentAuth),
+			Handler:           tracingHandler,
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 		},
 		log: logrus.WithFields(logrus.Fields{
@@ -343,6 +346,7 @@ func getCustomRate(endpoint string) *ratelimit.RateSet {
 	// Account recovery RPCs.
 	case
 		"/proto.AuthService/ChangeUserAuthentication",
+		"/proto.AuthService/ChangePassword",
 		"/proto.AuthService/GetAccountRecoveryToken",
 		"/proto.AuthService/StartAccountRecovery",
 		"/proto.AuthService/VerifyAccountRecovery":

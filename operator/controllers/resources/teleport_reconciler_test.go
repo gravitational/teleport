@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
@@ -123,7 +124,7 @@ func testResourceDeletionDrift[T types.ResourceWithOrigin, K TeleportKubernetesR
 		return trace.IsNotFound(err)
 	})
 
-	// We flag the rresource for deletion in Kubernetes (it won't be fully removed until the operator has processed it and removed the finalizer)
+	// We flag the resource for deletion in Kubernetes (it won't be fully removed until the operator has processed it and removed the finalizer)
 	err = test.deleteKubernetesResource(ctx, resourceName)
 	require.NoError(t, err)
 
@@ -171,7 +172,10 @@ func testResourceUpdate[T types.ResourceWithOrigin, K TeleportKubernetesResource
 	})
 
 	// Updating the resource in Kubernetes
-	err = test.modifyKubernetesResource(ctx, resourceName)
+	// The modification can fail because of a conflict with the resource controller. We retry if that happens.
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		return test.modifyKubernetesResource(ctx, resourceName)
+	})
 	require.NoError(t, err)
 
 	// Check the resource was updated in Teleport
