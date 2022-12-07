@@ -150,7 +150,7 @@ register SQL Server instances.
 ### Create a custom role
 
 Teleport requires `<resource-type>/read` permissions for discovery, but
-Teleport only needs permissions for the resource types you have.
+only for the resource types you have.
 
 Here is a sample role definition allowing Teleport to read **Azure SQL Servers**
 and **Azure SQL Managed Instances**:
@@ -186,8 +186,8 @@ and **Azure SQL Managed Instances**:
   `/subscriptions/<subscription>`, allowing the role to be assigned at any
   resource scope within that subscription or the subscription scope itself.
   If you want to further limit the `assignableScopes`, you can use a resource
-  group `/subscriptions/<subscription>/resourceGroups/<group>` or a management
-  group `/providers/Microsoft.Management/managementGroups/<group>` instead.
+  group (`/subscriptions/<subscription>/resourceGroups/<group>`) or a management
+  group (`/providers/Microsoft.Management/managementGroups/<group>`) instead.
 </Admonition>
 
 Now go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade)
