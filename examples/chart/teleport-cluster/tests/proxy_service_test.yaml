@@ -1,6 +1,6 @@
-suite: Service
+suite: Proxy Service
 templates:
-  - service.yaml
+  - proxy/service.yaml
 tests:
   - it: uses a LoadBalancer by default
     set:
@@ -13,7 +13,6 @@ tests:
       - equal:
           path: spec.type
           value: LoadBalancer
-      - matchSnapshot: {}
 
   - it: uses a ClusterIP when service.type=ClusterIP
     set:
@@ -28,7 +27,6 @@ tests:
       - equal:
           path: spec.type
           value: ClusterIP
-      - matchSnapshot: {}
 
   - it: sets AWS annotations when chartMode=aws
     set:
@@ -51,7 +49,6 @@ tests:
       - equal:
           path: metadata.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-cross-zone-load-balancing-enabled
           value: "true"
-      - matchSnapshot: {}
 
   - it: sets service annotations when specified
     values:
@@ -63,7 +60,6 @@ tests:
       - equal:
           path: metadata.annotations.kubernetes\.io/service-different
           value: 5
-      - matchSnapshot: {}
 
   - it: adds a separate Postgres listener port when separatePostgresListener is true
     values:
@@ -76,7 +72,6 @@ tests:
             port: 5432
             targetPort: 5432
             protocol: TCP
-      - matchSnapshot: {}
 
   - it: adds a separate Mongo listener port when separateMongoListener is true
     values:
@@ -89,7 +84,6 @@ tests:
             port: 27017
             targetPort: 27017
             protocol: TCP
-      - matchSnapshot: {}
 
   - it: sets AWS backend protocol annotation to ssl when in AWS mode and ACM annotation is set
     values:
@@ -103,7 +97,6 @@ tests:
       - equal:
           path: metadata.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol
           value: ssl
-      - matchSnapshot: {}
 
   - it: sets AWS backend protocol annotation to tcp when in AWS mode and ACM annotation is not set
     values:
@@ -112,4 +105,24 @@ tests:
       - equal:
           path: metadata.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol
           value: tcp
-      - matchSnapshot: {}
+
+  - it: exposes separate listener ports by default
+    values:
+      - ../.lint/example-minimal-standalone.yaml
+    asserts:
+      - matchSnapshot:
+          path: spec.ports
+
+  - it: exposes separate listener ports when running in separate mode
+    values:
+      - ../.lint/proxy-listener-mode-separate.yaml
+    asserts:
+      - matchSnapshot:
+          path: spec.ports
+
+  - it: exposes a single port when running in multiplex mode
+    values:
+      - ../.lint/proxy-listener-mode-multiplex.yaml
+    asserts:
+      - matchSnapshot:
+          path: spec.ports

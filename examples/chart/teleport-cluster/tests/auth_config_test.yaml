@@ -1,6 +1,6 @@
 suite: ConfigMap
 templates:
-  - config.yaml
+  - auth/config.yaml
 tests:
   - it: matches snapshot for acme-off.yaml
     values:
@@ -10,7 +10,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for acme-on.yaml
     values:
@@ -20,7 +21,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for acme-uri-staging.yaml
     values:
@@ -30,19 +32,10 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
-  - it: matches snapshot for affinity.yaml
-    values:
-      - ../.lint/affinity.yaml
-    asserts:
-      - hasDocuments:
-          count: 1
-      - isKind:
-          of: ConfigMap
-      - matchSnapshot: {}
-
-  - it: matches snapshot and tests for annotations.yaml
+  - it: wears annotations (annotations.yaml)
     values:
       - ../.lint/annotations.yaml
     asserts:
@@ -56,7 +49,6 @@ tests:
       - equal:
           path: metadata.annotations.kubernetes\.io/config-different
           value: 2
-      - matchSnapshot: {}
 
   - it: matches snapshot for auth-connector-name.yaml
     values:
@@ -66,7 +58,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for auth-disable-local.yaml
     values:
@@ -76,7 +69,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for auth-locking-mode.yaml
     values:
@@ -86,7 +80,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for auth-passwordless.yaml
     values:
@@ -96,7 +91,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for auth-type.yaml
     values:
@@ -106,7 +102,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for auth-type-legacy.yaml
     values:
@@ -116,7 +113,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for auth-webauthn.yaml
     values:
@@ -126,7 +124,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for auth-webauthn-legacy.yaml
     values:
@@ -136,7 +135,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for aws.yaml
     values:
@@ -146,17 +146,19 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for aws-dynamodb-autoscaling.yaml
     values:
       - ../.lint/aws-dynamodb-autoscaling.yaml
     asserts:
-    - hasDocuments:
-        count: 1
-    - isKind:
-        of: ConfigMap
-    - matchSnapshot: {}
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for aws-ha.yaml
     values:
@@ -166,7 +168,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for aws-ha-acme.yaml
     values:
@@ -176,7 +179,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for aws-ha-antiaffinity.yaml
     values:
@@ -186,7 +190,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for aws-ha-log.yaml
     values:
@@ -196,21 +201,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
-
-  - it: does not generate a config for cert-manager.yaml
-    values:
-      - ../.lint/cert-manager.yaml
-    asserts:
-      - hasDocuments:
-          count: 0
-
-  - it: does not generate a config for cert-secret.yaml
-    values:
-      - ../.lint/cert-secret.yaml
-    asserts:
-      - hasDocuments:
-          count: 0
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for existing-tls-secret.yaml
     values:
@@ -220,7 +212,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for existing-tls-secret-with-ca.yaml
     values:
@@ -230,7 +223,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for gcp-ha-acme.yaml
     values:
@@ -240,7 +234,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for gcp-ha-antiaffinity.yaml
     values:
@@ -250,7 +245,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for gcp-ha-log.yaml
     values:
@@ -260,7 +256,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for gcp.yaml
     values:
@@ -270,7 +267,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for initcontainers.yaml
     values:
@@ -280,7 +278,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for kube-cluster-name.yaml
     values:
@@ -290,7 +289,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for log-basic.yaml
     values:
@@ -300,7 +300,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for log-extra.yaml
     values:
@@ -310,7 +311,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for log-legacy.yaml
     values:
@@ -320,14 +322,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
-
-  - it: does not generate a config for pdb.yaml
-    values:
-      - ../.lint/pdb.yaml
-    asserts:
-      - hasDocuments:
-          count: 0
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for priority-class-name.yaml
     values:
@@ -337,27 +333,30 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
-  - it: matches snapshot for proxy-listener-mode.yaml
+  - it: matches snapshot for proxy-listener-mode-multiplex.yaml
     values:
-      - ../.lint/proxy-listener-mode.yaml
+      - ../.lint/proxy-listener-mode-multiplex.yaml
     asserts:
       - hasDocuments:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
-  - it: matches snapshot for resources.yaml
+  - it: matches snapshot for proxy-listener-mode-separate.yaml
     values:
-      - ../.lint/resources.yaml
+      - ../.lint/proxy-listener-mode-separate.yaml
     asserts:
       - hasDocuments:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for service.yaml
     values:
@@ -367,7 +366,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for separate-mongo-listener.yaml
     values:
@@ -377,7 +377,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for separate-postgres-listener.yaml
     values:
@@ -387,7 +388,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for public-addresses.yaml
     values:
@@ -397,7 +399,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for session-recording.yaml
     values:
@@ -407,7 +410,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for standalone-customsize.yaml
     values:
@@ -417,7 +421,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for standalone-existingpvc.yaml
     values:
@@ -427,7 +432,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for tolerations.yaml
     values:
@@ -437,7 +443,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for version-override.yaml
     values:
@@ -447,7 +454,8 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml
 
   - it: matches snapshot for volumes.yaml
     values:
@@ -457,4 +465,5 @@ tests:
           count: 1
       - isKind:
           of: ConfigMap
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: data.teleport\.yaml

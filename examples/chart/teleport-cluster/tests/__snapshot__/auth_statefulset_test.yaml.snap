@@ -1,0 +1,288 @@
+should add an operator side-car when operator is enabled:
+  1: |
+    image: public.ecr.aws/gravitational/teleport-operator:12.0.0-dev
+    imagePullPolicy: IfNotPresent
+    livenessProbe:
+      httpGet:
+        path: /healthz
+        port: 8081
+      initialDelaySeconds: 15
+      periodSeconds: 20
+    name: operator
+    readinessProbe:
+      httpGet:
+        path: /readyz
+        port: 8081
+      initialDelaySeconds: 5
+      periodSeconds: 10
+    volumeMounts:
+    - mountPath: /etc/teleport
+      name: config
+      readOnly: true
+    - mountPath: /var/lib/teleport
+      name: data
+? should not add named PersistentVolumeClaim as volume when in scratch mode, persistence.existingClaimName
+  is set and persistence.enabled is false
+: 1: |
+    affinity:
+      podAntiAffinity: null
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
+      image: public.ecr.aws/gravitational/teleport:12.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - configMap:
+        name: RELEASE-NAME-auth
+      name: config
+    - emptyDir: {}
+      name: data
+should provision initContainer correctly when set in values:
+  1: |
+    - args:
+      - echo test
+      image: alpine
+      name: teleport-init
+      resources:
+        limits:
+          cpu: 2
+          memory: 4Gi
+        requests:
+          cpu: 1
+          memory: 2Gi
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    - args:
+      - echo test2
+      image: alpine
+      name: teleport-init2
+      resources:
+        limits:
+          cpu: 2
+          memory: 4Gi
+        requests:
+          cpu: 1
+          memory: 2Gi
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+should set affinity when set in values:
+  1: |
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: gravitational.io/dedicated
+            operator: In
+            values:
+            - teleport
+should set required affinity when highAvailability.requireAntiAffinity is set:
+  1: |
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/instance
+            operator: In
+            values:
+            - RELEASE-NAME
+          - key: app.kubernetes.io/component
+            operator: In
+            values:
+            - proxy
+        topologyKey: kubernetes.io/hostname
+should set resources when set in values:
+  1: |
+    affinity:
+      podAntiAffinity: null
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
+      image: public.ecr.aws/gravitational/teleport:12.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      resources:
+        limits:
+          cpu: 2
+          memory: 4Gi
+        requests:
+          cpu: 1
+          memory: 2Gi
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - configMap:
+        name: RELEASE-NAME-auth
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
+should set securityContext when set in values:
+  1: |
+    affinity:
+      podAntiAffinity: null
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
+      image: public.ecr.aws/gravitational/teleport:12.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      securityContext:
+        allowPrivilegeEscalation: false
+        privileged: false
+        readOnlyRootFilesystem: false
+        runAsGroup: 99
+        runAsNonRoot: true
+        runAsUser: 99
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - configMap:
+        name: RELEASE-NAME-auth
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
+should set tolerations when set in values:
+  1: |
+    - effect: NoExecute
+      key: dedicated
+      operator: Equal
+      value: teleport
+    - effect: NoSchedule
+      key: dedicated
+      operator: Equal
+      value: teleport
+should use OSS image and not mount license when enterprise is not set in values:
+  1: |
+    affinity:
+      podAntiAffinity: null
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
+      image: public.ecr.aws/gravitational/teleport:8.3.4
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - configMap:
+        name: RELEASE-NAME-auth
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
