@@ -482,15 +482,15 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 		stream.Recv()
 	}()
 
-	pk, err := keys.ParsePrivateKey(t.ctx.session.GetPriv())
+	pk, err := keys.ParsePrivateKey(t.ctx.cfg.Session.GetPriv())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	key := &client.Key{
 		PrivateKey: pk,
-		Cert:       t.ctx.session.GetPub(),
-		TLSCert:    t.ctx.session.GetTLSCert(),
+		Cert:       t.ctx.cfg.Session.GetPub(),
+		TLSCert:    t.ctx.cfg.Session.GetTLSCert(),
 	}
 
 	tlsCert, err := key.TeleportTLSCertificate()
