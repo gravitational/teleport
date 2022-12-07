@@ -1,6 +1,6 @@
 should add an operator side-car when operator is enabled:
   1: |
-    image: public.ecr.aws/gravitational/teleport-operator:12.0.0-dev
+    image: public.ecr.aws/gravitational/teleport-operator:12.0.0-hugochartsplit.1
     imagePullPolicy: IfNotPresent
     livenessProbe:
       httpGet:
@@ -30,7 +30,7 @@ should add an operator side-car when operator is enabled:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport:12.0.0-dev
+      image: public.ecr.aws/gravitational/teleport:12.0.0-hugochartsplit.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -135,7 +135,7 @@ should set resources when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport:12.0.0-dev
+      image: public.ecr.aws/gravitational/teleport:12.0.0-hugochartsplit.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -187,7 +187,7 @@ should set securityContext when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport:12.0.0-dev
+      image: public.ecr.aws/gravitational/teleport:12.0.0-hugochartsplit.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
