@@ -371,7 +371,7 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 	}
 	defer pc.Close()
 
-	pk, err := keys.ParsePrivateKey(t.ctx.session.GetPriv())
+	pk, err := keys.ParsePrivateKey(t.ctx.cfg.Session.GetPriv())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -381,8 +381,8 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 		NodeName:       t.params.Server,
 		ExistingCreds: &client.Key{
 			PrivateKey: pk,
-			Cert:       t.ctx.session.GetPub(),
-			TLSCert:    t.ctx.session.GetTLSCert(),
+			Cert:       t.ctx.cfg.Session.GetPub(),
+			TLSCert:    t.ctx.cfg.Session.GetTLSCert(),
 		},
 	}, promptMFAChallenge(ws, t.wsLock, protobufMFACodec{}))
 	if err != nil {
