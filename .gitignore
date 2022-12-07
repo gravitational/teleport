@@ -3,7 +3,7 @@ gitref.go
 .data
 debug
 default.etcd
-darwin
+/darwin
 
 # web asset directory
 /lib/web/build

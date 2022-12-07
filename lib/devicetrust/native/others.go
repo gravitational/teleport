@@ -1,5 +1,4 @@
-// TODO(codingllama): Tweak build tag above once we have the darwin impl.
-//go:build darwin || !darwin
+//go:build !darwin
 
 // Copyright 2022 Gravitational, Inc
 //
