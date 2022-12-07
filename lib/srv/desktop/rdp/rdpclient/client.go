@@ -66,6 +66,7 @@ import "C"
 import (
 	"context"
 	"errors"
+	"fmt"
 	"image"
 	"io"
 	"os"
@@ -278,7 +279,6 @@ func (c *Client) start() {
 		// calls handle_bitmap repeatedly with the incoming bitmaps.
 		if errCode := C.read_rdp_output(c.rustClient); errCode != C.ErrCodeSuccess {
 			c.cfg.Log.Warningf("Failed reading RDP output frame: %v", errCode)
-			c.cfg.Conn.SendError("There was an error reading data from the Windows Desktop")
 		}
 	}()
 
@@ -565,7 +565,7 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	// copy. This way we only need one copy into img.Pix below.
 	ptr := unsafe.Pointer(cb.data_ptr)
 	uptr := (*uint8)(ptr)
-	data := unsafe.Slice(uptr, C.int(cb.data_len))
+	data := unsafe.Slice(uptr, int(cb.data_len))
 
 	// Convert BGRA to RGBA. It's likely due to Windows using uint32 values for
 	// pixels (ARGB) and encoding them as big endian. The image.RGBA type uses
@@ -573,8 +573,10 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	//
 	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegdi/8ab64b94-59cb-43f4-97ca-79613838e0bd
 	//
+	// Also, always force Alpha value to 100% (opaque). On some Windows
+	// versions (e.g. Windows 10) it's sent as 0% after decompression for some reason.
 	for i := 0; i < len(data); i += 4 {
-		data[i], data[i+2] = data[i+2], data[i]
+		data[i], data[i+2], data[i+3] = data[i+2], data[i], 255
 	}
 
 	rect := image.Rectangle{
@@ -816,6 +818,26 @@ func (c *Client) sharedDirectoryMoveRequest(req tdp.SharedDirectoryMoveRequest) 
 // the TDP connection to the browser.
 func (c *Client) close() {
 	c.closeOnce.Do(func() {
+		// In the case that the session ends due to an RDP server disconnect,
+		// the TDP connection will still be open at this point. Therefore
+		// we can ask for the RDP server disconnect reason here and send it
+		// back to the user via TDP.
+		res := C.get_server_disconnect_reason(c.rustClient)
+		if res.err != C.ErrCodeSuccess {
+			c.cfg.Log.Errorf("error getting server disconnect reason: %v", res.err)
+		} else {
+			reason := C.GoString(res.reason)
+			C.free_c_string(res.reason)
+			if reason != "" {
+				c.cfg.Log.Errorf("RDP server disconnected with reason: %v", reason)
+				if err := c.cfg.Conn.WriteMessage(tdp.Error{
+					Message: fmt.Sprintf("The Windows Desktop disconnected. %v", reason),
+				}); err != nil {
+					c.cfg.Log.WithError(err).Error("error sending server disconnect reason over TDP")
+				}
+			}
+		}
+
 		// Ensure the RDP connection is closed
 		if errCode := C.close_rdp(c.rustClient); errCode != C.ErrCodeSuccess {
 			c.cfg.Log.Warningf("error closing the RDP connection")

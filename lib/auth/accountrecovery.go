@@ -570,8 +570,8 @@ func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 // isAccountRecoveryAllowed gets cluster auth configuration and check if cloud, local auth
 // and second factor is allowed, which are required for account recovery.
 func (s *Server) isAccountRecoveryAllowed(ctx context.Context) error {
-	if !modules.GetModules().Features().Cloud {
-		return trace.AccessDenied("account recovery is only available for enterprise cloud")
+	if !modules.GetModules().Features().RecoveryCodes {
+		return trace.AccessDenied("account recovery is only available for Teleport enterprise")
 	}
 
 	authPref, err := s.GetAuthPreference(ctx)
