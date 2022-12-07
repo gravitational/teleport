@@ -27,10 +27,10 @@ use std::io::{Cursor, Read};
 /// See https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/343e4888-4c48-4054-b0e3-4e0762d1993c
 /// for more information about chunks.
 pub struct Client {
-    // capacity is effectively the maximum size of an RDP
-    // message we will receive from the RDP server, minus any
-    // ChannelPDUHeaders.
-    capacity: usize,
+    // size_limit is the maximum size of an RDP
+    // message we will receive from the RDP server,
+    // minus any ChannelPDUHeaders.
+    size_limit: usize,
     data: Vec<u8>,
     drop_current_message: bool,
 }
@@ -39,7 +39,7 @@ impl Client {
     /// Client will drop all messages with length greater than the specified capacity.
     pub fn new(capacity: usize) -> Self {
         Self {
-            capacity,
+            size_limit: capacity,
             data: Vec::new(),
             drop_current_message: false,
         }
@@ -65,7 +65,7 @@ impl Client {
         let this_chunk_size = raw_payload.get_ref().len() - raw_payload.position() as usize;
         let cumulative_message_size = self.data.len();
 
-        if this_chunk_size + cumulative_message_size <= self.capacity {
+        if this_chunk_size + cumulative_message_size <= self.size_limit {
             raw_payload.read_to_end(&mut self.data)?;
         } else {
             self.drop_current_message = true;
@@ -78,7 +78,7 @@ impl Client {
             if !self.drop_current_message {
                 return Ok(Some(Cursor::new(self.data.split_off(0))));
             }
-            warn!("RDP client received a message that exceeded the maximum allowed message size ({:?} bytes), message was dropped", self.capacity);
+            warn!("RDP client received a message that exceeded the maximum allowed message size ({:?} bytes), message was dropped", self.size_limit);
             self.drop_current_message = false; // reset for the next message
             self.data.clear(); // clear the pending data
         }

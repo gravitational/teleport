@@ -340,13 +340,8 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 			require.NoError(t, err)
 			_, err = Decode(bytes)
 			require.True(t, trace.IsLimitExceeded(err))
-			if !test.fatal {
-				require.True(t, IsNonFatalErr(err))
-				require.False(t, IsFatalErr(err))
-			} else {
-				require.False(t, IsNonFatalErr(err))
-				require.True(t, IsFatalErr(err))
-			}
+			require.Equal(t, test.fatal, IsFatalErr(err))
+			require.Equal(t, !test.fatal, IsNonFatalErr(err))
 		})
 	}
 }

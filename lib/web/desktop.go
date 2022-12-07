@@ -103,7 +103,7 @@ func (h *Handler) createDesktopConnection(
 	defer ws.Close()
 
 	sendTDPError := func(err error) error {
-		sendErr := sendTDPNotification(ws, err, true)
+		sendErr := sendTDPNotification(ws, err, tdp.SeverityError)
 		if sendErr != nil {
 			return sendErr
 		}
@@ -353,7 +353,11 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 				return
 			} else if err != nil {
 				isFatal := tdp.IsFatalErr(err)
-				sendErr := sendTDPNotification(ws, err, isFatal)
+				severity := tdp.SeverityError
+				if !isFatal {
+					severity = tdp.SeverityWarning
+				}
+				sendErr := sendTDPNotification(ws, err, severity)
 
 				// If the error wasn't fatal and we successfully
 				// sent it back to the client, continue.
@@ -510,11 +514,7 @@ func (h *Handler) desktopAccessScriptInstallADCSHandle(w http.ResponseWriter, r 
 
 // sendTDPNotification sends a tdp Notification over the supplied websocket with the
 // error message of err.
-func sendTDPNotification(ws *websocket.Conn, err error, fatal bool) error {
-	severity := tdp.SeverityError
-	if !fatal {
-		severity = tdp.SeverityWarning
-	}
+func sendTDPNotification(ws *websocket.Conn, err error, severity tdp.Severity) error {
 	msg := tdp.Notification{Message: err.Error(), Severity: severity}
 	b, err := msg.Encode()
 	if err != nil {

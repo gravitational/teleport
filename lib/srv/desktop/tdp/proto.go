@@ -453,8 +453,9 @@ func decodeClientUsername(in io.Reader) (ClientUsername, error) {
 	return ClientUsername{Username: username}, nil
 }
 
-// Error is a tdp Error. It has been deprecated
-// and replaced with Notification.
+// Error is used to send a fatal error message to the browser.
+// In Teleport 12 and up, Error is deprecated and Notification
+// should be preferred.
 type Error struct {
 	Message string
 }
@@ -625,7 +626,7 @@ func (m MFA) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-const mfaDataMaxLenErrMsg = "mfa challenge data exceeds maximum length"
+const mfaDataMaxLenErrMsg = "MFA challenge data exceeds maximum length"
 
 func DecodeMFA(in byteReader) (*MFA, error) {
 	mt, err := in.ReadByte()
