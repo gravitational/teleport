@@ -561,7 +561,7 @@ func TestTCP(t *testing.T) {
 // TestTCPLock tests locking TCP applications.
 func TestTCPLock(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Now())
-	mCloseChannel := make(chan struct{})
+	mCloseChannel := make(chan struct{}, 1)
 	pack := SetupWithOptions(t, AppTestOptions{
 		Clock:               clock,
 		MonitorCloseChannel: mCloseChannel,
