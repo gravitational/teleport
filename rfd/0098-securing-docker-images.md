@@ -66,8 +66,8 @@ provenance of a given image](https://github.com/GoogleContainerTools/distroless#
 using `cosign` and a public key. Stronger, SLSA-2 level guarantees [can be verified with additional
 tooling](https://security.googleblog.com/2021/09/distroless-builds-are-now-slsa-2.html). 
 
-**Note** that we are _already_  using Distroless images to distribute some Teleport 
-plugins. This would extend their use to Teleport proper.
+> **NOTE:** We are _already_  using Distroless images to distribute some Teleport 
+> plugins. This would extend their use to Teleport proper.
 
 ### 2. Ongoing scanning
 
@@ -145,6 +145,13 @@ COPY --from=dumb-init /opt/dumb-init/bin/dumb-init /bin
 COPY --from=teleport /opt/teleport/bin/* /bin
 ENTRYPOINT ["/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
 ```
+> **NOTE:** This unpack-and-copy installation method is only appropriate for
+> packages with no complex installation requirements. It won't work for 
+> packages that have post-install scripts, for example.
+>
+>
+> Both of the packages we are considering here (`dumb-init` and `teleport`) 
+> have simple `xcopy` installs, and so will work with this method.
 
 ### Troubleshooting Images
 
