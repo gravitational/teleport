@@ -37,11 +37,11 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 
 	// "tsh device" command.
 	parentCmd := app.Command(
-		"device", "Manage your device. Requires Teleport Enterprise.")
+		"device", "Manage this device. Requires Teleport Enterprise.")
 
 	// "tsh device enroll" command.
 	root.enroll.CmdClause = parentCmd.Command(
-		"enroll", "Enroll your device as a trusted device. Requires Teleport Enterprise")
+		"enroll", "Enroll this device as a trusted device. Requires Teleport Enterprise")
 	root.enroll.Flag("token", "Device enrollment token").
 		Required().
 		StringVar(&root.enroll.token)
