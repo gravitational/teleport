@@ -305,11 +305,27 @@ Computer Configuration > Policies > Administrative Templates > Windows Component
 Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security
 ```
 
-4. Right click `Require user authentication for remote connections by using Network Level Authentication`, edit, select **`Disable`** and `OK`.
+4. Right click `Require user authentication for remote connections by using Network Level Authentication`, edit, select `Disable` and `OK`.
 
 <Figure align="left" bordered caption="Disable Require user authentication...">
   ![Disable Require](../../img/desktop-access/disable.png)
 </Figure>
+
+5. Right click `Always prompt for password upon connection`, edit, select **`Disabled`** and .
+   Teleport's smart card based authentication generates a random smart card PIN for each
+   desktop session and provides the PIN to the desktop during the RDP connection establishment.
+   Since the PIN is never provided to the Teleport user, this setting must be disabled in
+   order for authentication to complete.
+
+### Allow credentials to be provided over RDP
+
+Select:
+
+```text
+Computer Configuration > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security > "Always prompt for password upon connection" 
+```
+
+Set to `Disabled` and click `OK`.
 
 ### Open firewall to inbound RDP connections
 
