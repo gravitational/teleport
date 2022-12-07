@@ -325,7 +325,7 @@ func (w *writer) writeMap(m map[string]interface{}) {
 			continue
 		}
 		switch value := m[key].(type) {
-		case log.Fields:
+		case map[string]interface{}:
 			w.writeMap(value)
 		default:
 			w.writeKeyValue(key, value)
