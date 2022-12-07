@@ -2892,3 +2892,10 @@ func (c *Client) UpsertClusterAlert(ctx context.Context, alert types.ClusterAler
 	}, c.callOpts...)
 	return trail.FromGRPC(err)
 }
+
+// SubmitUsageEvent submits an external usage event.
+func (c *Client) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
+	_, err := c.grpc.SubmitUsageEvent(ctx, req, c.callOpts...)
+
+	return trail.FromGRPC(err)
+}

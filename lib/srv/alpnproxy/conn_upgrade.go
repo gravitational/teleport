@@ -23,12 +23,12 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
@@ -77,18 +77,15 @@ func IsALPNConnUpgradeRequired(addr string, insecure bool) bool {
 // alpnConnUpgradeDialer makes an "HTTP" upgrade call to the Proxy Service then
 // tunnels the connection with this connection upgrade.
 type alpnConnUpgradeDialer struct {
-	netDialer *net.Dialer
-	insecure  bool
+	dialer   apiclient.ContextDialer
+	insecure bool
 }
 
 // newALPNConnUpgradeDialer creates a new alpnConnUpgradeDialer.
-func newALPNConnUpgradeDialer(keepAlivePeriod, dialTimeout time.Duration, insecure bool) ContextDialer {
+func newALPNConnUpgradeDialer(dialer apiclient.ContextDialer, insecure bool) ContextDialer {
 	return &alpnConnUpgradeDialer{
 		insecure: insecure,
-		netDialer: &net.Dialer{
-			KeepAlive: keepAlivePeriod,
-			Timeout:   dialTimeout,
-		},
+		dialer:   dialer,
 	}
 }
 
@@ -96,12 +93,13 @@ func newALPNConnUpgradeDialer(keepAlivePeriod, dialTimeout time.Duration, insecu
 func (d alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	logrus.Debugf("ALPN connection upgrade for %v.", addr)
 
-	tlsConn, err := tls.DialWithDialer(d.netDialer, network, addr, &tls.Config{
-		InsecureSkipVerify: d.insecure,
-	})
+	conn, err := d.dialer.DialContext(ctx, network, addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	tlsConn := tls.Client(conn, &tls.Config{
+		InsecureSkipVerify: d.insecure,
+	})
 
 	err = upgradeConnThroughWebAPI(tlsConn, url.URL{
 		Host:   addr,

@@ -1,0 +1,81 @@
+// Copyright 2022 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.usageevents.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1";
+
+// UIBannerClickEvent is a usage event sent by the UI when the upgrade
+// banner is clicked.
+message UIBannerClickEvent {
+  // The cluster alert name.
+  string alert = 1;
+}
+
+// UIOnboardGetStartedClickEvent is a UI event sent when the "get started"
+// button is clicked.
+message UIOnboardGetStartedClickEvent {
+  // The event username. Not extracted from identity as this is pre-registration.
+  string username = 1;
+}
+
+// UIOnboardCompleteGoToDashboardClickEvent is a UI event sent when initial
+// registration is complete.
+message UIOnboardCompleteGoToDashboardClickEvent {}
+
+// UIOnboardAddFirstResourceClickEvent is a UI event sent when a user clicks the
+// "add first resource" button.
+message UIOnboardAddFirstResourceClickEvent {}
+
+// UIOnboardAddFirstResourceLaterClickEvent is a UI event sent when a user
+// clicks the "add first resource later" button.
+message UIOnboardAddFirstResourceLaterClickEvent {}
+
+// UIOnboardSetCredentialSubmitEvent is a UI event sent during registration when
+// users configure their credentials.
+message UIOnboardSetCredentialSubmitEvent {
+  // The event username. Not extracted from identity as this is pre-registration.
+  string username = 1;
+}
+
+// UIOnboardRegisterChallengeSubmitEvent is a UI event sent during registration
+// when the MFA challenge is completed.
+message UIOnboardRegisterChallengeSubmitEvent {
+  // The event username. Not extracted from identity as this is pre-registration.
+  string username = 1;
+}
+
+// UIRecoveryCodesContinueClickEvent is a UI event sent during
+// registration when the user configures cluster recovery codes.
+message UIRecoveryCodesContinueClickEvent {
+  // The event username. Not extracted from identity as this is pre-registration.
+  string username = 1;
+}
+
+// UsageEventOneOf is a message that can accept a oneof of any supported
+// external usage event.
+message UsageEventOneOf {
+  oneof event {
+    UIBannerClickEvent ui_banner_click = 1;
+    UIOnboardGetStartedClickEvent ui_onboard_get_started_click = 2;
+    UIOnboardCompleteGoToDashboardClickEvent ui_onboard_complete_go_to_dashboard_click = 3;
+    UIOnboardAddFirstResourceClickEvent ui_onboard_add_first_resource_click = 4;
+    UIOnboardAddFirstResourceLaterClickEvent ui_onboard_add_first_resource_later_click = 5;
+    UIOnboardSetCredentialSubmitEvent ui_onboard_set_credential_submit = 6;
+    UIOnboardRegisterChallengeSubmitEvent ui_onboard_register_challenge_submit = 7;
+    UIRecoveryCodesContinueClickEvent ui_recovery_codes_continue_click = 8;
+  }
+}

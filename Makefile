@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=11.1.1
+VERSION=11.1.2
 
 DOCKER_IMAGE ?= teleport
 
@@ -807,6 +807,7 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'gitref.go' \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
 		-ignore 'lib/teleterm/api/protogen/**' \
+		-ignore 'lib/prehog/gen/**' \
 		-ignore 'lib/web/build/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
@@ -952,17 +953,20 @@ protos/all: protos/build protos/lint protos/format
 protos/build: buf/installed
 	$(BUF) build
 	cd lib/teleterm && $(BUF) build
+	cd lib/prehog && $(BUF) build
 
 .PHONY: protos/format
 protos/format: buf/installed
 	$(BUF) format -w
 	cd lib/teleterm && $(BUF) format -w
+	cd lib/prehog && $(BUF) format -w
 
 .PHONY: protos/lint
 protos/lint: buf/installed
 	$(BUF) lint
 	cd api/proto && $(BUF) lint --config=buf-legacy.yaml
 	cd lib/teleterm && $(BUF) lint
+	cd lib/prehog && $(BUF) lint
 
 .PHONY: lint-protos
 lint-protos: protos/lint
