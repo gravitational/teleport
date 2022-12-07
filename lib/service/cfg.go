@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web"
 )
 
 // Rate describes a rate ratio, i.e. the number of "events" that happen over
@@ -256,7 +257,7 @@ type Config struct {
 	// CircuitBreakerConfig configures the auth client circuit breaker.
 	CircuitBreakerConfig breaker.Config
 
-	ExtraWebHandlers map[string]http.Handler
+	ExtraWebHandlers map[string]web.ContextHandler
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//

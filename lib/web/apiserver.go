@@ -228,7 +228,7 @@ type Config struct {
 	TracerProvider oteltrace.TracerProvider
 
 	// ExtraHandlers is a map of extra handlers
-	ExtraHandlers map[string]http.Handler
+	ExtraHandlers map[string]ContextHandler
 }
 
 type APIHandler struct {
@@ -361,7 +361,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	extraHandlers := cfg.ExtraHandlers
 	if extraHandlers == nil {
-		extraHandlers = map[string]http.Handler{}
+		extraHandlers = map[string]ContextHandler{}
 	}
 
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -369,14 +369,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		if strings.HasPrefix(r.URL.Path, apiPrefix) {
 			http.StripPrefix(apiPrefix, h).ServeHTTP(w, r)
 			return
-		}
-
-		// Look at the extra handlers and see if any of them apply
-		for prefix, handler := range extraHandlers {
-			if strings.HasPrefix(r.URL.Path, prefix) {
-				handler.ServeHTTP(w, r)
-				return
-			}
 		}
 
 		// request is going to the web UI

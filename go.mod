@@ -168,23 +168,9 @@ require (
 )
 
 require (
-	github.com/amdonov/lite-idp v0.8.0
+	github.com/crewjam/saml v0.0.0-00010101000000-000000000000
+	github.com/crewjam/saml/samlidp v0.0.0-20220625143334-5e0ffd290abf
 	github.com/okta/okta-sdk-golang/v2 v2.15.0
-)
-
-require (
-	github.com/allegro/bigcache v1.2.1 // indirect
-	github.com/amdonov/xmlsig v0.1.0 // indirect
-	github.com/elazarl/go-bindata-assetfs v1.0.0 // indirect
-	github.com/hashicorp/hcl v1.0.0 // indirect
-	github.com/ma314smith/signedxml v0.0.0-20161222022618-9781f7e0c2f1 // indirect
-	github.com/magiconair/properties v1.8.1 // indirect
-	github.com/pelletier/go-toml v1.4.0 // indirect
-	github.com/spf13/afero v1.6.0 // indirect
-	github.com/spf13/cast v1.3.0 // indirect
-	github.com/spf13/jwalterweatherman v1.1.0 // indirect
-	github.com/spf13/viper v1.7.0 // indirect
-	github.com/subosito/gotenv v1.2.0 // indirect
 )
 
 require (
@@ -242,6 +228,7 @@ require (
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.1 // indirect
+	github.com/crewjam/httperr v0.2.0 // indirect
 	github.com/danieljoos/wincred v1.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
@@ -367,6 +354,7 @@ require (
 	github.com/xlab/treeprint v1.1.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64 // indirect
+	github.com/zenazn/goji v1.0.1 // indirect
 	go.etcd.io/bbolt v1.3.6 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.6 // indirect
 	go.etcd.io/etcd/client/v2 v2.305.5 // indirect
@@ -414,8 +402,10 @@ replace (
 	github.com/julienschmidt/httprouter => github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5
 	github.com/keys-pub/go-libfido2 => github.com/gravitational/go-libfido2 v1.5.3-0.20220630200200-45a8c53e4500
 	github.com/pkg/sftp => github.com/gravitational/sftp v1.13.6-0.20220927202521-0e74d42f8055
+	github.com/russellhaering/goxmldsig => github.com/russellhaering/goxmldsig v1.1.1
 	github.com/sirupsen/logrus => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.2.1
+
 )
 
 // Exclude etcd/v3 from the modules graph.
