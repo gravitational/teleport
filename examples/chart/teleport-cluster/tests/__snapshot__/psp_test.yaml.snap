@@ -7,6 +7,7 @@ creates a PodSecurityPolicy when enabled in values and supported:
         seccomp.security.alpha.kubernetes.io/allowedProfileNames: docker/default,runtime/default
         seccomp.security.alpha.kubernetes.io/defaultProfileName: runtime/default
       name: RELEASE-NAME
+      namespace: NAMESPACE
     spec:
       allowPrivilegeEscalation: false
       fsGroup:
@@ -37,6 +38,7 @@ creates a PodSecurityPolicy when enabled in values and supported:
     kind: Role
     metadata:
       name: RELEASE-NAME-psp
+      namespace: NAMESPACE
     rules:
     - apiGroups:
       - policy
@@ -51,6 +53,7 @@ creates a PodSecurityPolicy when enabled in values and supported:
     kind: RoleBinding
     metadata:
       name: RELEASE-NAME-psp
+      namespace: NAMESPACE
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: Role

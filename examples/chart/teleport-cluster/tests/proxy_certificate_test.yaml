@@ -1,6 +1,6 @@
-suite: Certificate
+suite: Proxy Certificate
 templates:
-  - certificate.yaml
+  - proxy/certificate.yaml
 tests:
   - it: should request a certificate for cluster name when cert-manager is enabled (cert-manager.yaml)
     values:
