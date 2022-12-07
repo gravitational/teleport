@@ -288,34 +288,6 @@ func TestOIDCMapping(t *testing.T) {
 		}
 	}
 }
-
-
-/*
-goos: darwin
-goarch: arm64
-
-❯ go test -bench ^BenchmarkTraitToRoles$ github.com/gravitational/teleport/lib/services | grep BenchmarkTraitToRoles | awk '{printf "%-100s%-15s %7s %s\n", $1, $2, $3, $4}'
-BenchmarkTraitToRoles/no_mappings_no_match-10                                                       374511232         3.049 ns/op
-BenchmarkTraitToRoles/simple_mappings_no_match-10                                                   18636192          64.57 ns/op
-BenchmarkTraitToRoles/simple_mappings_no_value_match-10                                             97311             12264 ns/op
-BenchmarkTraitToRoles/simple_mappings_direct_admin_value_match-10                                   92966             12802 ns/op
-BenchmarkTraitToRoles/simple_mappings_direct_user_value_match-10                                    100602            11805 ns/op
-BenchmarkTraitToRoles/simple_mappings_direct_user_value_match_with_array-10                         100832            11814 ns/op
-BenchmarkTraitToRoles/regexp_mappings_match_no_match-10                                             36021477          33.60 ns/op
-BenchmarkTraitToRoles/regexp_mappings_match_no_match_-_subprefix-10                                 166546             7118 ns/op
-BenchmarkTraitToRoles/regexp_mappings_match_value_with_capture_match-10                             134823             8808 ns/op
-BenchmarkTraitToRoles/regexp_mappings_match_multiple_value_with_capture_match,_deduplication-10     115350            10400 ns/op
-BenchmarkTraitToRoles/regexp_mappings_match_first_matches,_second_does_not-10                       98511             12234 ns/op
-BenchmarkTraitToRoles/regexp_compilation_invalid_regexp-10                                          58684             20419 ns/op
-BenchmarkTraitToRoles/regexp_compilation_regexp_are_not_compiled_if_not_needed-10                   42062830          28.59 ns/op
-BenchmarkTraitToRoles/empty_expands_are_skipped_value_with_capture_match-10                         148668             8227 ns/op
-BenchmarkTraitToRoles/glob_wildcard_match_empty_value_match-10                                      230226             5171 ns/op
-BenchmarkTraitToRoles/glob_wildcard_match_any_value_match-10                                        222951             5325 ns/op
-BenchmarkTraitToRoles/Whitespace/dashes_Matches_multiple_groups-10                                  19573             61473 ns/op
-BenchmarkTraitToRoles/Whitespace/dashes_Matches_one_group-10                                        28248             42368 ns/op
-BenchmarkTraitToRoles/Whitespace/dashes_Matches_one_group_with_multiple_roles-10                    27547             44463 ns/op
-BenchmarkTraitToRoles/Whitespace/dashes_No_match_only_due_to_case-sensitivity-10                    26466             44907 ns/op
-*/
 func BenchmarkTraitToRoles(b *testing.B) {
 	for _, testCase := range oidcTestCases {
 		samlConn := types.SAMLConnectorV2{
