@@ -664,17 +664,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 
 	// Only override networking configuration if some of its fields is
 	// specified in file configuration.
-	customNetworkingConfig := fc.Auth.ClientIdleTimeout != 0 ||
-		fc.Auth.ClientIdleTimeoutMessage != "" ||
-		fc.Auth.WebIdleTimeout != 0 ||
-		fc.Auth.KeepAliveInterval != 0 ||
-		fc.Auth.KeepAliveCountMax != 0 ||
-		fc.Auth.SessionControlTimeout != 0 ||
-		fc.Auth.ProxyListenerMode != 0 ||
-		fc.Auth.RoutingStrategy != 0 ||
-		fc.Auth.TunnelStrategy != nil ||
-		fc.Auth.ProxyPingInterval != 0
-	if customNetworkingConfig {
+	if fc.Auth.hasCustomNetworkingConfig() {
 		cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 			ClientIdleTimeout:        fc.Auth.ClientIdleTimeout,
 			ClientIdleTimeoutMessage: fc.Auth.ClientIdleTimeoutMessage,
@@ -694,8 +684,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 
 	// Only override session recording configuration if either field is
 	// specified in file configuration.
-	customSessionRecordingConfig := fc.Auth.SessionRecording != "" || fc.Auth.ProxyChecksHostKeys != nil
-	if customSessionRecordingConfig {
+	if fc.Auth.hasCustomSessionRecording() {
 		cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 			Mode:                fc.Auth.SessionRecording,
 			ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
