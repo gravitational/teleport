@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
 	"net"
@@ -537,7 +538,12 @@ func TestAuthenticate(t *testing.T) {
 				RemoteAddr: remoteAddr,
 				TLS: &tls.ConnectionState{
 					PeerCertificates: []*x509.Certificate{
-						{NotAfter: certExpiration},
+						{
+							Subject: pkix.Name{
+								CommonName:   username,
+								Organization: []string{"example"},
+							},
+							NotAfter: certExpiration},
 					},
 				},
 			}
