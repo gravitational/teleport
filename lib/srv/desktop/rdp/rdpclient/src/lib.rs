@@ -1473,7 +1473,11 @@ fn to_c_string(s: &str) -> Result<*const c_char, NulError> {
     Ok(c_string.into_raw())
 }
 
-/// See the docstring for to_go_string.
+/// See the docstring for to_c_string.
+///
+/// # Safety
+///
+/// s must be a pointer originally created by to_c_string
 #[no_mangle]
 pub unsafe extern "C" fn free_c_string(s: *mut c_char) {
     // retake pointer to free memory
