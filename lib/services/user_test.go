@@ -212,9 +212,9 @@ func TestOIDCMapping(t *testing.T) {
 		{
 			comment: "regexp compilation",
 			mappings: []types.ClaimMapping{
-				{Claim: "role", Value: `^admin-(?!)$`, Roles: []string{"admin"}},
+				{Claim: "role", Value: `^admin-(?!)$`, Roles: []string{"admin"}}, // "?!" is invalid.
 				{Claim: "role", Value: "^admin-(.*)$", Roles: []string{"role-$1", "bob"}},
-				{Claim: "role", Value: `^admin2-(?!)$`, Roles: []string{"admin2"}},
+				{Claim: "role", Value: `^admin2-(?!)$`, Roles: []string{"admin2"}}, // "?!" is invalid.
 			},
 			inputs: []input{
 				{
