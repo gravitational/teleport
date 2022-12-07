@@ -856,6 +856,19 @@ message DatabaseCertRequest {
   }
   // RequesterName identifies who sent the request.
   Requester RequesterName = 5 [(gogoproto.jsontag) = "requester_name"];
+
+  // Extensions are the extensions to add to the certificate.
+  enum Extensions {
+    // NORMAL is used in all cases except Windows.
+    NORMAL = 0;
+    // WINDOWS adds specific required extensions for SQL Server, similar to Desktop Access.
+    WINDOWS_SMARTCARD = 1;
+  }
+  // CertificateExtensions identifies which extensions, if any, should be added to the certificate.
+  Extensions CertificateExtensions = 6 [(gogoproto.jsontag) = "certificate_extensions"];
+
+  // CRLEndpoint is a certificate revocation list distribution point. Required for Windows smartcard certs.
+  string CRLEndpoint = 7 [(gogoproto.jsontag) = "crl_endpoint"];
 }
 
 // DatabaseCertResponse contains the signed certificate.
