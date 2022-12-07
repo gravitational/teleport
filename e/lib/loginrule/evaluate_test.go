@@ -10,14 +10,13 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 )
 
-func newLoginRule(name string, priority int32, traitsMap map[string][]string, expression string) *loginrulepb.LoginRule {
+func newLoginRuleWithTraitsMap(name string, priority int32, traitsMap map[string][]string) *loginrulepb.LoginRule {
 	rule := &loginrulepb.LoginRule{
 		Metadata: &types.Metadata{
 			Name: name,
 		},
-		Priority:         priority,
-		TraitsExpression: expression,
-		TraitsMap:        make(map[string]*wrappers.StringValues),
+		Priority:  priority,
+		TraitsMap: make(map[string]*wrappers.StringValues),
 	}
 	for key, values := range traitsMap {
 		rule.TraitsMap[key] = &wrappers.StringValues{
@@ -25,6 +24,16 @@ func newLoginRule(name string, priority int32, traitsMap map[string][]string, ex
 		}
 	}
 	return rule
+}
+
+func newLoginRuleWithTraitsExpression(name string, priority int32, expression string) *loginrulepb.LoginRule {
+	return &loginrulepb.LoginRule{
+		Metadata: &types.Metadata{
+			Name: name,
+		},
+		Priority:         priority,
+		TraitsExpression: expression,
+	}
 }
 
 func TestEvaluate(t *testing.T) {
@@ -49,12 +58,12 @@ func TestEvaluate(t *testing.T) {
 		{
 			desc: "simple traits map",
 			rules: []*loginrulepb.LoginRule{
-				newLoginRule("rule0", 0, map[string][]string{
+				newLoginRuleWithTraitsMap("rule0", 0, map[string][]string{
 					"groups": []string{
 						"external.groups",
 						"admins",
 					},
-				}, ""),
+				}),
 			},
 			inputTraits: baseInputTraits,
 			expectedTraits: map[string][]string{
@@ -64,11 +73,10 @@ func TestEvaluate(t *testing.T) {
 		{
 			desc: "simple traits expression",
 			rules: []*loginrulepb.LoginRule{
-				newLoginRule("rule0", 0, nil,
-					`dict(
-						pair("groups", external.groups),
-						pair("example", set("a", "b")),
-					)`),
+				newLoginRuleWithTraitsExpression("rule0", 0, `dict(
+					pair("groups", external.groups),
+					pair("example", set("a", "b")),
+				)`),
 			},
 			inputTraits: baseInputTraits,
 			expectedTraits: map[string][]string{
@@ -79,17 +87,16 @@ func TestEvaluate(t *testing.T) {
 		{
 			desc: "multiple rules",
 			rules: []*loginrulepb.LoginRule{
-				newLoginRule("rule0", 0, map[string][]string{
+				newLoginRuleWithTraitsMap("rule0", 0, map[string][]string{
 					"groups": []string{
 						"external.groups",
 						"admins",
 					},
-				}, ""),
-				newLoginRule("rule1", 1, nil,
-					`dict(
-						pair("groups", external.groups),
-						pair("example", set("a", "b")),
-					)`),
+				}),
+				newLoginRuleWithTraitsExpression("rule1", 1, `dict(
+					pair("groups", external.groups),
+					pair("example", set("a", "b")),
+				)`),
 			},
 			inputTraits: baseInputTraits,
 			expectedTraits: map[string][]string{
@@ -102,15 +109,15 @@ func TestEvaluate(t *testing.T) {
 			// evaluated will set the output traits.
 			desc: "priority sort",
 			rules: []*loginrulepb.LoginRule{
-				newLoginRule("rule", 0, map[string][]string{
+				newLoginRuleWithTraitsMap("rule", 0, map[string][]string{
 					"last_rule": []string{"rule0"},
-				}, ""),
-				newLoginRule("rule", 2, map[string][]string{
+				}),
+				newLoginRuleWithTraitsMap("rule", 2, map[string][]string{
 					"last_rule": []string{"rule2"},
-				}, ""),
-				newLoginRule("rule", 1, map[string][]string{
+				}),
+				newLoginRuleWithTraitsMap("rule", 1, map[string][]string{
 					"last_rule": []string{"rule1"},
-				}, ""),
+				}),
 			},
 			inputTraits: baseInputTraits,
 			expectedTraits: map[string][]string{
@@ -122,15 +129,15 @@ func TestEvaluate(t *testing.T) {
 			// rule to be evaluated will set the output traits.
 			desc: "equal priority name sort",
 			rules: []*loginrulepb.LoginRule{
-				newLoginRule("rule0", 0, map[string][]string{
+				newLoginRuleWithTraitsMap("rule0", 0, map[string][]string{
 					"last_rule": []string{"rule0"},
-				}, ""),
-				newLoginRule("rule2", 0, map[string][]string{
+				}),
+				newLoginRuleWithTraitsMap("rule2", 0, map[string][]string{
 					"last_rule": []string{"rule2"},
-				}, ""),
-				newLoginRule("rule1", 0, map[string][]string{
+				}),
+				newLoginRuleWithTraitsMap("rule1", 0, map[string][]string{
 					"last_rule": []string{"rule1"},
-				}, ""),
+				}),
 			},
 			inputTraits: baseInputTraits,
 			expectedTraits: map[string][]string{
@@ -140,18 +147,39 @@ func TestEvaluate(t *testing.T) {
 		{
 			desc: "wrong map return type",
 			rules: []*loginrulepb.LoginRule{
-				newLoginRule("rule0", 0, map[string][]string{
+				newLoginRuleWithTraitsMap("rule0", 0, map[string][]string{
 					"groups": []string{"external"},
-				}, ""),
+				}),
 			},
 			errorContains: "traits_map expression must evaluate to type string or set, the following expression evaluates to loginrule.dict:",
 		},
 		{
 			desc: "wrong expression return type",
 			rules: []*loginrulepb.LoginRule{
-				newLoginRule("rule0", 0, nil, "external.groups"),
+				newLoginRuleWithTraitsExpression("rule0", 0, "external.groups"),
 			},
 			errorContains: "traits_expression must evaluate to type dict, the following expression evaluates to loginrule.set:",
+		},
+		{
+			desc: "ifelse",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsMap("rule", 0, map[string][]string{
+					"a": []string{
+						`ifelse(true, "correct", "wrong")`,
+						`ifelse(false, "wrong", "correct")`,
+						`ifelse(ifelse(true, true, false), "correct", "wrong")`,
+						`set(ifelse(true, "correct", "wrong"), "correct")`,
+					},
+					"groups": []string{
+						`ifelse(true, external.groups, "wrong")`,
+					},
+				}),
+			},
+			inputTraits: baseInputTraits,
+			expectedTraits: map[string][]string{
+				"a":      []string{"correct"},
+				"groups": baseInputTraits["groups"],
+			},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {

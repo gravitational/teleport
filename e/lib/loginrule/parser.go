@@ -19,10 +19,16 @@ type parseEnv struct {
 func (p *parseEnv) getIdentifier(fields []string) (interface{}, error) {
 	switch len(fields) {
 	case 1:
-		if fields[0] != "external" {
+		switch fields[0] {
+		case "true":
+			return true, nil
+		case "false":
+			return false, nil
+		case "external":
+			return p.external, nil
+		default:
 			return unknownIdentifier(fields[0]), nil
 		}
-		return p.external, nil
 	case 2:
 		if fields[0] != "external" {
 			return nil, trace.NotFound("identifier %q not found in env", fields[0])
@@ -48,9 +54,10 @@ func newParser(env *parseEnv) (predicate.Parser, error) {
 		GetIdentifier: env.getIdentifier,
 		GetProperty:   predicate.GetStringMapValue,
 		Functions: map[string]any{
-			"set":  newSet,
-			"dict": newDict,
-			"pair": newPair,
+			"set":    newSet,
+			"dict":   newDict,
+			"pair":   newPair,
+			"ifelse": ifelse,
 		},
 	})
 	return parser, trace.Wrap(err)
@@ -106,4 +113,20 @@ func newPair(first string, second set) pair {
 		first:  first,
 		second: second,
 	}
+}
+
+func ifelse(cond, valueIfTrue, valueIfFalse any) (any, error) {
+	var b bool
+	switch v := cond.(type) {
+	case predicate.BoolPredicate:
+		b = v()
+	case bool:
+		b = v
+	default:
+		return nil, trace.BadParameter("first argument to ifelse must be bool or predicate.BoolPredicate, got %T", v)
+	}
+	if b {
+		return valueIfTrue, nil
+	}
+	return valueIfFalse, nil
 }
