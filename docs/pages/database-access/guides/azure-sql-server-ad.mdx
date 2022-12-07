@@ -90,6 +90,7 @@ want to access.
 
 To create contained users for the identities, connect to your SQL server using
 its Activity Directory Admin and execute the query:
+
 ```sql
 USE MyDatabase;
 CREATE USER [sqlserver-identity] FROM EXTERNAL PROVIDER;
@@ -99,6 +100,7 @@ The newly created user will be attached to the public role, which might not
 have enough permissions to perform queries. Consider granting individual
 permissions to the user or assigning it to an existing role. For example, add
 the user as a member of the `db_datareader` role:
+
 ```sql
 ALTER ROLE db_datareader ADD MEMBER [sqlserver-identity];
 ```
@@ -112,6 +114,7 @@ Install Teleport on the host where you will run the Teleport Database Service:
 Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
+
 ```code
 $ teleport db configure create \
    -o file \
@@ -119,6 +122,7 @@ $ teleport db configure create \
    --proxy=teleport.example.com:3080 \
    --azure-sqlserver-discovery=eastus
 ```
+
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 ```code
@@ -231,6 +235,7 @@ Log in to your Teleport cluster. Your database should appear in the list of
 available databases:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
+
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
@@ -238,8 +243,10 @@ $ tsh db ls
 # --------- ------------------- -------
 # sqlserver                     env=dev
 ```
+
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
+
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
 $ tsh db ls
@@ -247,6 +254,7 @@ $ tsh db ls
 # --------- ------------------- -------
 # sqlserver                     env=dev
 ```
+
 </ScopedBlock>
 
 To retrieve credentials for a database and connect to it:
