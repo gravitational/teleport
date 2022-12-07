@@ -30,8 +30,8 @@ import (
 )
 
 // maxMismatchedTraitValuesLogged indicates the maximum number of trait values (that do not match a
-// certain expression) to be shown in a warning
-const maxMismatchedTraitValuesWarned = 100
+// certain expression) to be shown in the log
+const maxMismatchedTraitValuesLogged = 100
 
 // TraitsToRoles maps the supplied traits to a list of teleport role names.
 // Returns the list of roles mapped from traits.
@@ -110,7 +110,7 @@ TraitMappingLoop:
 					switch {
 					case err != nil:
 						// this trait value clearly did not match, move on to another
-						mismatched = append(mismatched, fmt.Sprintf("%q", traitValue))
+						mismatched = append(mismatched, traitValue)
 						continue TraitLoop
 					case outRole == "":
 					case outRole != "":
@@ -139,23 +139,16 @@ TraitMappingLoop:
 				}
 			}
 
-			// show at most maxMismatchedTraitValuesWarned trait values to prevent huge log lines
+			// show at most maxMismatchedTraitValuesLogged trait values to prevent huge log lines
 			switch l := len(mismatched); {
-			case l > maxMismatchedTraitValuesWarned:
-				log.Debugf(
-					"%d trait value(s) did not match expression %q: %s (first %d values)",
-					len(mismatched),
-					mapping.Value,
-					mismatched[0:maxMismatchedTraitValuesWarned],
-					maxMismatchedTraitValuesWarned,
-				)
+			case l > maxMismatchedTraitValuesLogged:
+				log.WithField("expression", mapping.Value).
+					WithField("values", mismatched[0:maxMismatchedTraitValuesLogged]).
+					Debugf("%d trait value(s) did not match (showing first %d values)", len(mismatched), maxMismatchedTraitValuesLogged)
 			case l > 0:
-				log.Debugf(
-					"%d trait value(s) did not match expression %q: %s",
-					len(mismatched),
-					mapping.Value,
-					mismatched,
-				)
+				log.WithField("expression", mapping.Value).
+					WithField("values", mismatched).
+					Debugf("%d trait value(s) did not match", len(mismatched))
 			}
 		}
 	}
