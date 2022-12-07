@@ -196,6 +196,28 @@ For possible values, [see the Teleport Configuration Reference](../../reference/
   </TabItem>
 </Tabs>
 
+## `motd`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `""` | no | `auth_service.message_of_the_day` | ❌ |
+
+`motd` set the cluster wide message of the day. 
+The message will be shown during the tsh login process, and must be positively acknowledged before the user is allowed to log in to the cluster.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  motd: Unauthorized access is prohibited
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set motd="Unauthorized access is prohibited"
+  ```
+  </TabItem>
+</Tabs>
+
 
 ## `separatePostgresListener`
 
