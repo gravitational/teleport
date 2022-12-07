@@ -528,6 +528,8 @@ message Features {
   reserved 11; // bool ModeratedSessions
   reserved 12; // bool MachineID
   reserved 13; // bool ResourceAccessRequests
+  // RecoveryCodes enables recovery codes
+  bool RecoveryCodes = 14 [(gogoproto.jsontag) = "recovery_codes"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.

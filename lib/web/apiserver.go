@@ -1238,10 +1238,11 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	webCfg := webclient.WebConfig{
-		Auth:                authSettings,
-		CanJoinSessions:     canJoinSessions,
-		IsCloud:             h.ClusterFeatures.GetCloud(),
-		TunnelPublicAddress: tunnelPublicAddr,
+		Auth:                 authSettings,
+		CanJoinSessions:      canJoinSessions,
+		IsCloud:              h.ClusterFeatures.GetCloud(),
+		TunnelPublicAddress:  tunnelPublicAddr,
+		RecoveryCodesEnabled: h.ClusterFeatures.GetRecoveryCodes(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()

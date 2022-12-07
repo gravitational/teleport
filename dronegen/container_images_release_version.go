@@ -32,6 +32,7 @@ const (
 type ReleaseVersion struct {
 	MajorVersion        string // This is the major version of a given build. `SearchVersion` should match this when evaluated.
 	ShellVersion        string // This value will be evaluated by the shell in the context of a Drone step
+	ShellIsPrerelease   string // This value will be evaluated in a shell context to determine if a release version is a prerelease. Must be POSIX compliant and not rely on other external utilities.
 	RelativeVersionName string // The set of values for this should not change between major releases
 	SetupSteps          []step // Version-specific steps that must be ran before executing build and push steps
 }
@@ -272,6 +273,7 @@ func (rv *ReleaseVersion) getTagsForVersion(onlyBuildFullSemver bool) []*ImageTa
 			ShellBaseValue:   semver.GetSemverValue(),
 			DisplayBaseValue: semver.Name,
 			IsImmutable:      semver.IsImmutable,
+			IsForFullSemver:  semver.IsFull,
 		})
 	}
 
