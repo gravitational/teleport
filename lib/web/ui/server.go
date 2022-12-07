@@ -196,6 +196,8 @@ type Database struct {
 	Type string `json:"type"`
 	// Labels is a map of static and dynamic labels associated with a database.
 	Labels []Label `json:"labels"`
+	// Hostname is the database connection endpoint (URI) hostname (without port and protocol).
+	Hostname string `json:"hostname"`
 	// DatabaseUsers is the list of allowed Database RBAC users that the user can login.
 	DatabaseUsers []string `json:"database_users,omitempty"`
 	// DatabaseNames is the list of allowed Database RBAC names that the user can login.
@@ -214,6 +216,7 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 		Labels:        uiLabels,
 		DatabaseUsers: dbUsers,
 		DatabaseNames: dbNames,
+		Hostname:      stripProtocolAndPort(database.GetURI()),
 	}
 }
 
@@ -307,4 +310,28 @@ func MakeDesktopServices(windowsDesktopServices []types.WindowsDesktopService) [
 	}
 
 	return desktopServices
+}
+
+// stripProtocolAndPort returns only the hostname of the uri.
+// Handles uri's with no protocol eg: for some database connection
+// endpoint the uri can be in the format "hostname:port".
+func stripProtocolAndPort(uri string) string {
+	stripPort := func(uri string) string {
+		splitURI := strings.Split(uri, ":")
+
+		if len(splitURI) > 1 {
+			return splitURI[0]
+		}
+
+		return uri
+	}
+
+	// Ignore protocol.
+	// eg: "rediss://some-hostname" or "mongodb+srv://some-hostname"
+	splitURI := strings.Split(uri, "//")
+	if len(splitURI) > 1 {
+		return stripPort(splitURI[1])
+	}
+
+	return stripPort(uri)
 }
