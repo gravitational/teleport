@@ -21,7 +21,7 @@ TEST_KUBE ?=
 
 OS ?= linux
 ARCH ?= amd64
-GOLANG_VERSION ?= go1.18.6
+GOLANG_VERSION ?= go1.18.9
 RUST_VERSION ?= 1.63.0 # don't bump this without checking GLIBC compatibility
 NODE_VERSION ?= 16.13.2
 BORINGCRYPTO_RUNTIME=$(GOLANG_VERSION)b7
