@@ -352,7 +352,7 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 	}
 	defer pc.Close()
 
-	priv, err := ssh.ParsePrivateKey(t.ctx.session.GetPriv())
+	priv, err := ssh.ParsePrivateKey(t.ctx.cfg.Session.GetPriv())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -362,9 +362,9 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 		NodeName:       t.params.Server,
 		ExistingCreds: &client.Key{
 			Pub:     ssh.MarshalAuthorizedKey(priv.PublicKey()),
-			Priv:    t.ctx.session.GetPriv(),
-			Cert:    t.ctx.session.GetPub(),
-			TLSCert: t.ctx.session.GetTLSCert(),
+			Priv:    t.ctx.cfg.Session.GetPriv(),
+			Cert:    t.ctx.cfg.Session.GetPub(),
+			TLSCert: t.ctx.cfg.Session.GetTLSCert(),
 		},
 	}, promptMFAChallenge(ws, t.wsLock, protobufMFACodec{}))
 	if err != nil {
