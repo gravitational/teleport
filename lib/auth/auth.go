@@ -186,6 +186,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.TraceClient == nil {
 		cfg.TraceClient = tracing.NewNoopClient()
 	}
+	if cfg.UsageReporter == nil {
+		cfg.UsageReporter = local.NewDiscardUsageReporter()
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -233,6 +236,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Enforcer:              cfg.Enforcer,
 		ConnectionsDiagnostic: cfg.ConnectionsDiagnostic,
 		StatusInternal:        cfg.Status,
+		UsageReporter:         cfg.UsageReporter,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -290,15 +294,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		as.kubernetesTokenValidator = &kubernetestoken.Validator{}
 	}
 
-	oas, err := NewOIDCAuthService(&OIDCAuthServiceConfig{
-		Auth:    &as,
-		Emitter: as.emitter,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	as.SetOIDCService(oas)
-
 	return &as, nil
 }
 
@@ -319,6 +314,7 @@ type Services struct {
 	services.Enforcer
 	services.ConnectionsDiagnostic
 	services.StatusInternal
+	services.UsageReporter
 	types.Events
 	events.IAuditLog
 }
@@ -868,9 +864,18 @@ func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
 	a.Services.IAuditLog = auditLog
 }
 
+func (a *Server) SetEmitter(emitter apievents.Emitter) {
+	a.emitter = emitter
+}
+
 // SetEnforcer sets the server's enforce service
 func (a *Server) SetEnforcer(enforcer services.Enforcer) {
 	a.Services.Enforcer = enforcer
+}
+
+// SetUsageReporter sets the server's usage reporter
+func (a *Server) SetUsageReporter(reporter services.UsageReporter) {
+	a.Services.UsageReporter = reporter
 }
 
 // GetDomainName returns the domain name that identifies this authority server.
@@ -1024,6 +1029,11 @@ type certRequest struct {
 	// mfaVerified is the UUID of an MFA device when this certRequest was
 	// created immediately after an MFA check.
 	mfaVerified string
+	// previousIdentityExpires is the expiry time of the identity/cert that this
+	// identity/cert was derived from. It is used to determine a session's hard
+	// deadline in cases where both require_session_mfa and disconnect_expired_cert
+	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
+	previousIdentityExpires time.Time
 	// clientIP is an IP of the client requesting the certificate.
 	clientIP string
 	// sourceIP is an IP this certificate should be pinned to
@@ -1073,6 +1083,10 @@ type certRequestOption func(*certRequest)
 
 func certRequestMFAVerified(mfaID string) certRequestOption {
 	return func(r *certRequest) { r.mfaVerified = mfaID }
+}
+
+func certRequestPreviousIdentityExpires(previousIdentityExpires time.Time) certRequestOption {
+	return func(r *certRequest) { r.previousIdentityExpires = previousIdentityExpires }
 }
 
 func certRequestClientIP(ip string) certRequestOption {
@@ -1353,30 +1367,31 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	}
 
 	params := services.UserCertParams{
-		CASigner:               caSigner,
-		PublicUserKey:          req.publicKey,
-		Username:               req.user.GetName(),
-		Impersonator:           req.impersonator,
-		AllowedLogins:          allowedLogins,
-		TTL:                    sessionTTL,
-		Roles:                  req.checker.RoleNames(),
-		CertificateFormat:      certificateFormat,
-		PermitPortForwarding:   req.checker.CanPortForward(),
-		PermitAgentForwarding:  req.checker.CanForwardAgents(),
-		PermitX11Forwarding:    req.checker.PermitX11Forwarding(),
-		RouteToCluster:         req.routeToCluster,
-		Traits:                 req.traits,
-		ActiveRequests:         req.activeRequests,
-		MFAVerified:            req.mfaVerified,
-		ClientIP:               req.clientIP,
-		DisallowReissue:        req.disallowReissue,
-		Renewable:              req.renewable,
-		Generation:             req.generation,
-		CertificateExtensions:  req.checker.CertificateExtensions(),
-		AllowedResourceIDs:     requestedResourcesStr,
-		SourceIP:               req.sourceIP,
-		ConnectionDiagnosticID: req.connectionDiagnosticID,
-		PrivateKeyPolicy:       attestedKeyPolicy,
+		CASigner:                caSigner,
+		PublicUserKey:           req.publicKey,
+		Username:                req.user.GetName(),
+		Impersonator:            req.impersonator,
+		AllowedLogins:           allowedLogins,
+		TTL:                     sessionTTL,
+		Roles:                   req.checker.RoleNames(),
+		CertificateFormat:       certificateFormat,
+		PermitPortForwarding:    req.checker.CanPortForward(),
+		PermitAgentForwarding:   req.checker.CanForwardAgents(),
+		PermitX11Forwarding:     req.checker.PermitX11Forwarding(),
+		RouteToCluster:          req.routeToCluster,
+		Traits:                  req.traits,
+		ActiveRequests:          req.activeRequests,
+		MFAVerified:             req.mfaVerified,
+		PreviousIdentityExpires: req.previousIdentityExpires,
+		ClientIP:                req.clientIP,
+		DisallowReissue:         req.disallowReissue,
+		Renewable:               req.renewable,
+		Generation:              req.generation,
+		CertificateExtensions:   req.checker.CertificateExtensions(),
+		AllowedResourceIDs:      requestedResourcesStr,
+		SourceIP:                req.sourceIP,
+		ConnectionDiagnosticID:  req.connectionDiagnosticID,
+		PrivateKeyPolicy:        attestedKeyPolicy,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -1448,17 +1463,18 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 			Username:    req.dbUser,
 			Database:    req.dbName,
 		},
-		DatabaseNames:      dbNames,
-		DatabaseUsers:      dbUsers,
-		MFAVerified:        req.mfaVerified,
-		ClientIP:           req.clientIP,
-		AWSRoleARNs:        roleARNs,
-		ActiveRequests:     req.activeRequests.AccessRequests,
-		DisallowReissue:    req.disallowReissue,
-		Renewable:          req.renewable,
-		Generation:         req.generation,
-		AllowedResourceIDs: req.checker.GetAllowedResourceIDs(),
-		PrivateKeyPolicy:   attestedKeyPolicy,
+		DatabaseNames:           dbNames,
+		DatabaseUsers:           dbUsers,
+		MFAVerified:             req.mfaVerified,
+		PreviousIdentityExpires: req.previousIdentityExpires,
+		ClientIP:                req.clientIP,
+		AWSRoleARNs:             roleARNs,
+		ActiveRequests:          req.activeRequests.AccessRequests,
+		DisallowReissue:         req.disallowReissue,
+		Renewable:               req.renewable,
+		Generation:              req.generation,
+		AllowedResourceIDs:      req.checker.GetAllowedResourceIDs(),
+		PrivateKeyPolicy:        attestedKeyPolicy,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -3410,6 +3426,25 @@ func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit kube cluster delete event.")
 	}
+	return nil
+}
+
+// SubmitUsageEvent submits an external usage event.
+func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
+	username, err := GetClientUsername(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	event, err := services.ConvertUsageEvent(req.GetEvent(), username)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.SubmitAnonymizedUsageEvents(event); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 

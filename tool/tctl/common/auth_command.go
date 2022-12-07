@@ -35,7 +35,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/identityfile"
@@ -190,7 +190,7 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt auth.ClientI) e
 
 // GenerateKeys generates a new keypair
 func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
-	keygen := native.New(ctx)
+	keygen := keygen.New(ctx)
 	defer keygen.Close()
 	privBytes, pubBytes, err := keygen.GenerateKeyPair()
 	if err != nil {

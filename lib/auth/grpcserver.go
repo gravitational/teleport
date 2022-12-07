@@ -2226,7 +2226,7 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 		return trace.Wrap(err)
 	}
 
-	// Generate the cert.
+	// Generate the cert
 	respCert, err := userSingleUseCertsGenerate(ctx, actx, *initReq, mfaDev)
 	if err != nil {
 		g.Entry.Warningf("Failed to generate single-use cert: %v", err)
@@ -2325,7 +2325,12 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 	}
 
 	// Generate the cert.
-	certs, err := actx.generateUserCerts(ctx, req, certRequestMFAVerified(mfaDev.Id), certRequestClientIP(clientIP))
+	certs, err := actx.generateUserCerts(
+		ctx, req,
+		certRequestMFAVerified(mfaDev.Id),
+		certRequestPreviousIdentityExpires(actx.Identity.GetIdentity().Expires),
+		certRequestClientIP(clientIP),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4275,6 +4280,18 @@ func (g *GRPCServer) ChangePassword(ctx context.Context, req *proto.ChangePasswo
 		return nil, trace.Wrap(err)
 	}
 	if err := auth.ChangePassword(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// SubmitUsageEvent submits an external usage event.
+func (g *GRPCServer) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.SubmitUsageEvent(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil

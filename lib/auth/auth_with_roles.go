@@ -5042,7 +5042,7 @@ func (a *ServerWithRoles) checkAccessToWindowsDesktop(w types.WindowsDesktop) er
 	)
 }
 
-// GenerateWindowsDesktopCert generates a certificate for Windows RDP
+// GenerateWindowsDesktopCert generates a certificate for Windows RDP or SQL Server
 // authentication.
 func (a *ServerWithRoles) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
 	// Only windows_desktop_service should be requesting Windows certificates.
@@ -5177,6 +5177,19 @@ func (a *ServerWithRoles) UpdatePresence(ctx context.Context, sessionID, user st
 // since it's handled by the session presence task. This is never valid to call.
 func (a *ServerWithRoles) MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// SubmitUsageEvent submits an external usage event.
+func (a *ServerWithRoles) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
+	if err := a.action(apidefaults.Namespace, types.KindUsageEvent, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.SubmitUsageEvent(ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

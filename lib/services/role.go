@@ -65,6 +65,7 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindWindowsDesktopService, RO()),
 	types.NewRule(types.KindWindowsDesktop, RO()),
 	types.NewRule(types.KindKubernetesCluster, RO()),
+	types.NewRule(types.KindUsageEvent, []string{types.VerbCreate}),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources

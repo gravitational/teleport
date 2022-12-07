@@ -18,6 +18,7 @@ package tbot
 
 import (
 	"context"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -27,11 +28,18 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	native.PrecomputeTestKeys(m)
+	os.Exit(m.Run())
+}
 
 func rotate(
 	ctx context.Context, t *testing.T, log logrus.FieldLogger, svc *service.TeleportProcess, phase string,
