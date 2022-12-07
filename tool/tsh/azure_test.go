@@ -441,3 +441,47 @@ func Test_getMSISecret(t *testing.T) {
 		})
 	}
 }
+
+func Test_formatAzureIdentities(t *testing.T) {
+	tests := []struct {
+		name       string
+		identities []string
+		want       string
+	}{
+		{
+			name:       "empty string",
+			identities: nil,
+			want:       "",
+		},
+		{
+			name:       "empty string #2",
+			identities: []string{},
+			want:       "",
+		},
+		{
+			name:       "one item",
+			identities: []string{"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure"},
+			want: `Available Azure identities                                                                                                                                     
+-------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure 
+`,
+		},
+		{
+			name: "multiple items, sorting",
+			identities: []string{
+				"/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
+				"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
+			},
+			want: `Available Azure identities                                                                                                                                     
+-------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure 
+/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure 
+`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, formatAzureIdentities(tt.identities))
+		})
+	}
+}

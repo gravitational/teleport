@@ -348,14 +348,22 @@ func (a *azureApp) startLocalForwardProxy(port string) error {
 }
 
 func printAzureIdentities(identities []string) {
+	fmt.Println(formatAzureIdentities(identities))
+}
+
+func formatAzureIdentities(identities []string) string {
 	if len(identities) == 0 {
-		return
+		return ""
 	}
 
-	sort.Strings(identities)
+	t := asciitable.MakeTable([]string{"Available Azure identities"})
 
-	t := asciitable.MakeTable([]string{"Available Azure identities"}, identities)
-	fmt.Println(t.AsBuffer().String())
+	sort.Strings(identities)
+	for _, identity := range identities {
+		t.AddRow([]string{identity})
+	}
+
+	return t.AsBuffer().String()
 }
 
 func getAzureIdentityFromFlags(cf *CLIConf, profile *client.ProfileStatus) (string, error) {
