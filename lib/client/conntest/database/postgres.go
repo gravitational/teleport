@@ -37,7 +37,7 @@ const (
 type PostgresPinger struct{}
 
 // Ping connects to the database and issues a basic select statement to validate the connection.
-func (p PostgresPinger) Ping(ctx context.Context, ping PingParams) error {
+func (p *PostgresPinger) Ping(ctx context.Context, ping PingParams) error {
 	if err := ping.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -71,7 +71,7 @@ func (p PostgresPinger) Ping(ctx context.Context, ping PingParams) error {
 	}
 
 	if len(result) != 1 {
-		return trace.Errorf("unexpected length for result: %+v", result)
+		return trace.BadParameter("unexpected length for result: %+v", result)
 	}
 
 	return nil
@@ -79,7 +79,7 @@ func (p PostgresPinger) Ping(ctx context.Context, ping PingParams) error {
 
 // IsConnectionRefusedError checks whether the error is of type invalid database user.
 // This can happen when the user doesn't exist.
-func (p PostgresPinger) IsConnectionRefusedError(err error) bool {
+func (p *PostgresPinger) IsConnectionRefusedError(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -89,7 +89,7 @@ func (p PostgresPinger) IsConnectionRefusedError(err error) bool {
 
 // IsInvalidDatabaseUserError checks whether the error is of type invalid database user.
 // This can happen when the user doesn't exist.
-func (p PostgresPinger) IsInvalidDatabaseUserError(err error) bool {
+func (p *PostgresPinger) IsInvalidDatabaseUserError(err error) bool {
 	var pge *pgconn.PgError
 	if errors.As(err, &pge) {
 		if pge.SQLState() == pgerrcode.InvalidAuthorizationSpecification {
@@ -102,7 +102,7 @@ func (p PostgresPinger) IsInvalidDatabaseUserError(err error) bool {
 
 // IsInvalidDatabaseNameError checks whether the error is of type invalid database name.
 // This can happen when the database doesn't exist.
-func (p PostgresPinger) IsInvalidDatabaseNameError(err error) bool {
+func (p *PostgresPinger) IsInvalidDatabaseNameError(err error) bool {
 	var pge *pgconn.PgError
 	if errors.As(err, &pge) {
 		if pge.SQLState() == pgerrcode.InvalidCatalogName {

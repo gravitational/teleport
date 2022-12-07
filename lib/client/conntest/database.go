@@ -22,6 +22,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -33,12 +34,12 @@ import (
 	"github.com/gravitational/teleport/lib/client/conntest/database"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 )
 
 // databasePinger describes the required methods to test a Database Connection.
 type databasePinger interface {
-
 	// Ping tests the connection to the Database with a simple request.
 	Ping(ctx context.Context, req database.PingParams) error
 
@@ -131,7 +132,7 @@ func (s *DatabaseConnectionTester) TestConnection(ctx context.Context, req TestC
 		connDiag, err := s.appendDiagnosticTrace(ctx,
 			connectionDiagnosticID,
 			types.ConnectionDiagnosticTrace_RBAC_DATABASE,
-			"You are not authorized to access this Database. "+
+			"Database not found. "+
 				"Ensure your role grants access by adding it to the 'db_labels' property. "+
 				"This can also happen when you don't have a Database Agent proxying the database - "+
 				"you can fix that by adding the database labels to the 'db_service.resources.labels' in 'teleport.yaml' file of the database agent.",
@@ -195,10 +196,16 @@ func (s *DatabaseConnectionTester) runALPNTunnel(ctx context.Context, req TestCo
 		return nil, trace.Wrap(err)
 	}
 
+	alpnProtocol, err := alpn.ToALPNProtocol(routeToDatabase.Protocol)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	err = client.RunALPNAuthTunnel(ctx, client.ALPNAuthTunnelConfig{
 		AuthClient:             s.cfg.UserClient,
 		Listener:               list,
-		Protocol:               routeToDatabase.Protocol,
+		Protocol:               alpnProtocol,
+		Expires:                time.Now().Add(time.Minute).UTC(),
 		PublicProxyAddr:        s.cfg.PublicProxyAddr,
 		ConnectionDiagnosticID: connectionDiagnosticID,
 		RouteToDatabase:        routeToDatabase,
@@ -402,7 +409,7 @@ func (s DatabaseConnectionTester) appendDiagnosticTrace(ctx context.Context, con
 func getDatabaseConnTester(protocol string) (databasePinger, error) {
 	switch protocol {
 	case defaults.ProtocolPostgres:
-		return database.PostgresPinger{}, nil
+		return &database.PostgresPinger{}, nil
 	}
-	return nil, trace.Errorf("Database protocol not supported yet for Test Connection")
+	return nil, trace.NotImplemented("database protocol %q is not supported yet for testing connection", protocol)
 }

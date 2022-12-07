@@ -38,7 +38,7 @@ import (
 // TestServerConfig combines parameters for a test Postgres/MySQL server.
 type TestServerConfig struct {
 	// AuthClient will be used to retrieve trusted CA.
-	AuthClient AuthClientGenerateCert
+	AuthClient AuthClientCA
 	// Name is the server name for identification purposes.
 	Name string
 	// AuthUser is used in tests simulating IAM token authentication.
@@ -92,9 +92,9 @@ func (cfg *TestServerConfig) Port() (string, error) {
 	return port, nil
 }
 
-// AuthClientGenerateCert contains the required methods to Generate mTLS certificate to be used
+// AuthClientCA contains the required methods to Generate mTLS certificate to be used
 // by the postgres TestServer.
-type AuthClientGenerateCert interface {
+type AuthClientCA interface {
 	// GenerateDatabaseCert generates client certificate used by a database
 	// service to authenticate with the database instance.
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)

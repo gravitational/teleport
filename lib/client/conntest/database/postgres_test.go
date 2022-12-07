@@ -82,7 +82,7 @@ func TestPostgresErrors(t *testing.T) {
 // mockClient is a mock that implements AuthClient interface.
 
 type mockClient struct {
-	common.AuthClientGenerateCert
+	common.AuthClientCA
 
 	ca types.CertAuthority
 }
