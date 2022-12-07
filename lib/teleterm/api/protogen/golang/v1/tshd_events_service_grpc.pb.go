@@ -22,10 +22,13 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type TshdEventsServiceClient interface {
-	// Test is an RPC that's used to demonstrate how the implementation of a tshd event may look like
-	// from the beginning till the end.
-	// TODO(ravicious): Remove this once we add an actual RPC to tshd events service.
-	Test(ctx context.Context, in *TestRequest, opts ...grpc.CallOption) (*TestResponse, error)
+	// Relogin makes the Electron app display a login modal for the specific root cluster. The request
+	// returns a response after the relogin procedure has been successfully finished.
+	Relogin(ctx context.Context, in *ReloginRequest, opts ...grpc.CallOption) (*ReloginResponse, error)
+	// SendNotification causes the Electron app to display a notification in the UI. The request
+	// accepts a specific message rather than a generic string so that the Electron is in control as
+	// to what message is displayed and how exactly it looks.
+	SendNotification(ctx context.Context, in *SendNotificationRequest, opts ...grpc.CallOption) (*SendNotificationResponse, error)
 }
 
 type tshdEventsServiceClient struct {
@@ -36,9 +39,18 @@ func NewTshdEventsServiceClient(cc grpc.ClientConnInterface) TshdEventsServiceCl
 	return &tshdEventsServiceClient{cc}
 }
 
-func (c *tshdEventsServiceClient) Test(ctx context.Context, in *TestRequest, opts ...grpc.CallOption) (*TestResponse, error) {
-	out := new(TestResponse)
-	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TshdEventsService/Test", in, out, opts...)
+func (c *tshdEventsServiceClient) Relogin(ctx context.Context, in *ReloginRequest, opts ...grpc.CallOption) (*ReloginResponse, error) {
+	out := new(ReloginResponse)
+	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TshdEventsService/Relogin", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tshdEventsServiceClient) SendNotification(ctx context.Context, in *SendNotificationRequest, opts ...grpc.CallOption) (*SendNotificationResponse, error) {
+	out := new(SendNotificationResponse)
+	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TshdEventsService/SendNotification", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -49,10 +61,13 @@ func (c *tshdEventsServiceClient) Test(ctx context.Context, in *TestRequest, opt
 // All implementations must embed UnimplementedTshdEventsServiceServer
 // for forward compatibility
 type TshdEventsServiceServer interface {
-	// Test is an RPC that's used to demonstrate how the implementation of a tshd event may look like
-	// from the beginning till the end.
-	// TODO(ravicious): Remove this once we add an actual RPC to tshd events service.
-	Test(context.Context, *TestRequest) (*TestResponse, error)
+	// Relogin makes the Electron app display a login modal for the specific root cluster. The request
+	// returns a response after the relogin procedure has been successfully finished.
+	Relogin(context.Context, *ReloginRequest) (*ReloginResponse, error)
+	// SendNotification causes the Electron app to display a notification in the UI. The request
+	// accepts a specific message rather than a generic string so that the Electron is in control as
+	// to what message is displayed and how exactly it looks.
+	SendNotification(context.Context, *SendNotificationRequest) (*SendNotificationResponse, error)
 	mustEmbedUnimplementedTshdEventsServiceServer()
 }
 
@@ -60,8 +75,11 @@ type TshdEventsServiceServer interface {
 type UnimplementedTshdEventsServiceServer struct {
 }
 
-func (UnimplementedTshdEventsServiceServer) Test(context.Context, *TestRequest) (*TestResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Test not implemented")
+func (UnimplementedTshdEventsServiceServer) Relogin(context.Context, *ReloginRequest) (*ReloginResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Relogin not implemented")
+}
+func (UnimplementedTshdEventsServiceServer) SendNotification(context.Context, *SendNotificationRequest) (*SendNotificationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendNotification not implemented")
 }
 func (UnimplementedTshdEventsServiceServer) mustEmbedUnimplementedTshdEventsServiceServer() {}
 
@@ -76,20 +94,38 @@ func RegisterTshdEventsServiceServer(s grpc.ServiceRegistrar, srv TshdEventsServ
 	s.RegisterService(&TshdEventsService_ServiceDesc, srv)
 }
 
-func _TshdEventsService_Test_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(TestRequest)
+func _TshdEventsService_Relogin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReloginRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TshdEventsServiceServer).Test(ctx, in)
+		return srv.(TshdEventsServiceServer).Relogin(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.terminal.v1.TshdEventsService/Test",
+		FullMethod: "/teleport.terminal.v1.TshdEventsService/Relogin",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TshdEventsServiceServer).Test(ctx, req.(*TestRequest))
+		return srv.(TshdEventsServiceServer).Relogin(ctx, req.(*ReloginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TshdEventsService_SendNotification_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendNotificationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TshdEventsServiceServer).SendNotification(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/teleport.terminal.v1.TshdEventsService/SendNotification",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TshdEventsServiceServer).SendNotification(ctx, req.(*SendNotificationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -102,8 +138,12 @@ var TshdEventsService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*TshdEventsServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Test",
-			Handler:    _TshdEventsService_Test_Handler,
+			MethodName: "Relogin",
+			Handler:    _TshdEventsService_Relogin_Handler,
+		},
+		{
+			MethodName: "SendNotification",
+			Handler:    _TshdEventsService_SendNotification_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
