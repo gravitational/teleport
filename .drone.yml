@@ -39,7 +39,7 @@ name: push-build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.18.6
+  RUNTIME: go1.18.9
   UID: "1000"
 trigger:
   event:
@@ -152,7 +152,7 @@ name: push-build-linux-386
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.18.6
+  RUNTIME: go1.18.9
   UID: "1000"
 trigger:
   event:
@@ -257,7 +257,7 @@ name: push-build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.18.6
+  RUNTIME: go1.18.9
   UID: "1000"
 trigger:
   event:
@@ -366,7 +366,7 @@ name: push-build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.18.6
+  RUNTIME: go1.18.9
   UID: "1000"
 trigger:
   event:
@@ -533,7 +533,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.18.6
+    RUNTIME: go1.18.9
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -1114,7 +1114,7 @@ name: push-build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.18.6
+  RUNTIME: go1.18.9
   UID: "1000"
 trigger:
   event:
@@ -1219,7 +1219,7 @@ name: push-build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.18.6
+  RUNTIME: go1.18.9
   UID: "1000"
 trigger:
   event:
@@ -1660,7 +1660,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.6
+  RUNTIME: go1.18.9
 trigger:
   event:
     include:
@@ -1849,7 +1849,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.6
+  RUNTIME: go1.18.9
 trigger:
   event:
     include:
@@ -2037,7 +2037,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.6
+  RUNTIME: go1.18.9
 trigger:
   event:
     include:
@@ -2238,7 +2238,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.6
+  RUNTIME: go1.18.9
 trigger:
   event:
     include:
@@ -3452,7 +3452,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.6
+  RUNTIME: go1.18.9
 trigger:
   event:
     include:
@@ -4212,7 +4212,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.18.6
+    RUNTIME: go1.18.9
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -4783,7 +4783,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.6
+  RUNTIME: go1.18.9
 trigger:
   event:
     include:
@@ -4969,7 +4969,7 @@ type: kubernetes
 name: build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.6
+  RUNTIME: go1.18.9
 trigger:
   event:
     include:
@@ -6183,7 +6183,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.6
+  RUNTIME: go1.18.9
 trigger:
   event:
     include:
@@ -7070,7 +7070,7 @@ steps:
   - Verify build is tagged
   - Check out code
 - name: Publish debs to APT repos for "${DRONE_TAG}"
-  image: golang:1.18.4-bullseye
+  image: golang:1.18.9-bullseye
   commands:
   - apt update
   - apt install -y aptly
@@ -7273,7 +7273,7 @@ steps:
   - Verify build is tagged
   - Check out code
 - name: Publish rpms to YUM repos for "${DRONE_TAG}"
-  image: golang:1.18.4-bullseye
+  image: golang:1.18.9-bullseye
   commands:
   - apt update
   - apt install -y createrepo-c
@@ -8231,11 +8231,16 @@ steps:
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "$DRONE_TAG"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/$DRONE_TAG/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8553,11 +8558,16 @@ steps:
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "$DRONE_TAG"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/$DRONE_TAG/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8876,11 +8886,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for
     teleport-ent-fips
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "$DRONE_TAG"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/$DRONE_TAG/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent-fips"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -10943,12 +10958,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v11')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v11')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -11673,12 +11692,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v11')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v11')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -12407,12 +12430,16 @@ steps:
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for
     teleport-ent-fips
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v11')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v11')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent-fips"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -13597,12 +13624,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v10')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v10')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -14327,12 +14358,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v10')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v10')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -15061,12 +15096,16 @@ steps:
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for
     teleport-ent-fips
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v10')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v10')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent-fips"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -16249,12 +16288,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v9')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
-  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v9')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -16979,12 +17022,16 @@ steps:
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v9')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v9')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -17713,12 +17760,16 @@ steps:
   - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for
     teleport-ent-fips
-  image: alpine
+  image: alpine/git:latest
   commands:
-  - apk add curl
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "v$(cat '/go/vars/full-version-v9')"
   - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
-  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/v$(cat
-    '/go/vars/full-version-v9')/build.assets/charts/Dockerfile"
+  - cp "/tmp/repo/build.assets/charts/Dockerfile" "/go/build/Dockerfile-teleport-ent-fips"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -18213,6 +18264,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 0563a434992d317095294eea074ab8b36090744ba6d2bbb86d584cccc7fa11bd
+hmac: a1b56ad487d98821ff1b5f7b8441e094ba840c85c0af2e1a6b7c299714d4132b
 
 ...

@@ -27,7 +27,7 @@ docker run \
     -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
     -e AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN" \
     -e DEBIAN_FRONTEND="noninteractive" \
-    golang:1.18.4-bullseye /go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/build-os-package-repos/test-rpm.sh
+    golang:1.18.9-bullseye /go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/build-os-package-repos/test-rpm.sh
 '
 
 # Download the artifacts
