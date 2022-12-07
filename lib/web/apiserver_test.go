@@ -100,7 +100,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/pam"
-	libproxy "github.com/gravitational/teleport/lib/proxy"
+	"github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
@@ -127,8 +127,9 @@ type WebSuite struct {
 	proxyTunnel reversetunnel.Server
 	srvID       string
 
-	user      string
-	webServer *httptest.Server
+	user       string
+	webServer  *httptest.Server
+	webHandler *APIHandler
 
 	mockU2F     *mocku2f.Key
 	server      *auth.TestServer
@@ -333,11 +334,12 @@ func newWebSuite(t *testing.T) *WebSuite {
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{s.server.TLS.Listener.Addr().String()},
+		Clock:                 s.clock,
 	})
 	require.NoError(t, err)
 	s.proxyTunnel = revTunServer
 
-	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+	router, err := proxy.NewRouter(proxy.RouterConfig{
 		ClusterName:         s.server.ClusterName(),
 		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
 		RemoteClusterGetter: s.proxyClient,
@@ -398,10 +400,13 @@ func newWebSuite(t *testing.T) *WebSuite {
 		StaticFS:                        fs,
 		cachedSessionLingeringThreshold: &sessionLingeringThreshold,
 		ProxySettings:                   &mockProxySettings{},
+		SessionControl:                  proxySessionController,
+		Router:                          router,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
 	require.NoError(t, err)
 
 	s.webServer = httptest.NewUnstartedServer(handler)
+	s.webHandler = handler
 	s.webServer.StartTLS()
 	err = s.proxy.Start()
 	require.NoError(t, err)
@@ -1021,7 +1026,7 @@ func TestClusterAlertsGet(t *testing.T) {
 func TestSiteNodeConnectInvalidSessionID(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	_, err := s.makeTerminal(t, s.authPack(t, "foo"), withSessionID(session.ID("/../../../foo")))
+	_, err := s.makeTerminal(t, s.authPack(t, "foo"), withSessionID("/../../../foo"))
 	require.Error(t, err)
 }
 
@@ -1164,7 +1169,7 @@ func TestNewTerminalHandler(t *testing.T) {
 			},
 		},
 		{
-			expectedErr:  "bad term dimensions",
+			expectedErr:  "invalid dimensions",
 			authProvider: makeProvider(validNode),
 			req: TerminalRequest{
 				SessionID: validSID,
@@ -1190,7 +1195,12 @@ func TestNewTerminalHandler(t *testing.T) {
 
 	ctx := context.Background()
 	for _, testCase := range validCases {
-		term, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
+		term, err := NewTerminal(ctx, TerminalHandlerConfig{
+			Req:          testCase.req,
+			AuthProvider: testCase.authProvider,
+			SessionCtx:   &SessionContext{},
+			Router:       &proxy.Router{},
+		})
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(testCase.req, term.params))
 		require.Equal(t, testCase.expectedHost, testCase.expectedHost)
@@ -1198,7 +1208,12 @@ func TestNewTerminalHandler(t *testing.T) {
 	}
 
 	for _, testCase := range invalidCases {
-		_, err := NewTerminal(ctx, testCase.req, testCase.authProvider, nil)
+		_, err := NewTerminal(ctx, TerminalHandlerConfig{
+			Req:          testCase.req,
+			AuthProvider: testCase.authProvider,
+			SessionCtx:   &SessionContext{},
+			Router:       &proxy.Router{},
+		})
 		require.Regexp(t, ".*"+testCase.expectedErr+".*", err.Error())
 	}
 }
@@ -1385,19 +1400,51 @@ func TestTerminalPing(t *testing.T) {
 
 func TestTerminal(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t)
-	ws, err := s.makeTerminal(t, s.authPack(t, "foo"))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
-	termHandler := newTerminalHandler()
-	stream := termHandler.asTerminalStream(ws)
+	cases := []struct {
+		name            string
+		recordingConfig types.SessionRecordingConfigV2
+	}{
+		{
+			name: "node recording mode",
+			recordingConfig: types.SessionRecordingConfigV2{
+				Spec: types.SessionRecordingConfigSpecV2{
+					Mode: types.RecordAtNode,
+				},
+			},
+		},
+		{
+			name: "proxy recording mode",
+			recordingConfig: types.SessionRecordingConfigV2{
+				Spec: types.SessionRecordingConfigSpecV2{
+					Mode: types.RecordAtProxySync,
+				},
+			},
+		},
+	}
 
-	_, err = io.WriteString(stream, "echo vinsong\r\n")
-	require.NoError(t, err)
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			s := newWebSuite(t)
 
-	err = waitForOutput(stream, "vinsong")
-	require.NoError(t, err)
+			require.NoError(t, s.server.Auth().SetSessionRecordingConfig(context.Background(), &tt.recordingConfig))
+
+			ws, err := s.makeTerminal(t, s.authPack(t, "foo"))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, ws.Close()) })
+
+			termHandler := newTerminalHandler()
+			stream := termHandler.asTerminalStream(ws)
+
+			// here we intentionally run a command where the output we're looking
+			// for is not present in the command itself
+			_, err = io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
+			require.NoError(t, err)
+			require.NoError(t, waitForOutput(stream, "teleport"))
+		})
+	}
 }
 
 func TestTerminalRequireSessionMfa(t *testing.T) {
@@ -4779,6 +4826,14 @@ func (mock authProviderMock) GetSessionTracker(ctx context.Context, sessionID st
 	return nil, trace.NotFound("foo")
 }
 
+func (mock authProviderMock) IsMFARequired(ctx context.Context, req *authproto.IsMFARequiredRequest) (*authproto.IsMFARequiredResponse, error) {
+	return nil, nil
+}
+
+func (mock authProviderMock) GenerateUserSingleUseCerts(ctx context.Context) (authproto.AuthService_GenerateUserSingleUseCertsClient, error) {
+	return nil, nil
+}
+
 type terminalOpt func(t *TerminalRequest)
 
 func withSessionID(sid session.ID) terminalOpt {
@@ -5057,7 +5112,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	t.Cleanup(func() { require.NoError(t, node.Close()) })
 	require.NoError(t, auth.CreateUploaderDir(nodeDataDir))
 
-	var proxies []*proxy
+	var proxies []*testProxy
 	for p := 0; p < numProxies; p++ {
 		proxyID := fmt.Sprintf("proxy%v", p)
 		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock))
@@ -5085,7 +5140,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 
 func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *auth.TestTLSServer,
 	hostSigners []ssh.Signer, clock clockwork.FakeClock,
-) *proxy {
+) *testProxy {
 	// create reverse tunnel service:
 	client, err := authServer.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
@@ -5148,7 +5203,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, revTunServer.Close()) })
 
-	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+	router, err := proxy.NewRouter(proxy.RouterConfig{
 		ClusterName:         authServer.ClusterName(),
 		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
 		RemoteClusterGetter: client,
@@ -5207,6 +5262,8 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		Emitter:          client,
 		StaticFS:         fs,
 		ProxySettings:    &mockProxySettings{},
+		SessionControl:   sessionController,
+		Router:           router,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
@@ -5236,7 +5293,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	url, err := url.Parse("https://" + webServer.Listener.Addr().String())
 	require.NoError(t, err)
 
-	return &proxy{
+	return &testProxy{
 		clock:   clock,
 		auth:    authServer,
 		client:  client,
@@ -5254,13 +5311,13 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 // transition the test suite to use the testing package
 // directly.
 type webPack struct {
-	proxies []*proxy
+	proxies []*testProxy
 	server  *auth.TestServer
 	node    *regular.Server
 	clock   clockwork.FakeClock
 }
 
-type proxy struct {
+type testProxy struct {
 	clock   clockwork.FakeClock
 	client  *auth.Client
 	auth    *auth.TestTLSServer
@@ -5274,7 +5331,7 @@ type proxy struct {
 
 // authPack returns new authenticated package consisting of created valid
 // user, otp token, created web session and authenticated client.
-func (r *proxy) authPack(t *testing.T, teleportUser string, roles []types.Role) *authPack {
+func (r *testProxy) authPack(t *testing.T, teleportUser string, roles []types.Role) *authPack {
 	ctx := context.Background()
 	const (
 		pass      = "abc123"
@@ -5335,7 +5392,7 @@ func (r *proxy) authPack(t *testing.T, teleportUser string, roles []types.Role) 
 	}
 }
 
-func (r *proxy) authPackFromPack(t *testing.T, pack *authPack) *authPack {
+func (r *testProxy) authPackFromPack(t *testing.T, pack *authPack) *authPack {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
@@ -5347,7 +5404,7 @@ func (r *proxy) authPackFromPack(t *testing.T, pack *authPack) *authPack {
 	return &result
 }
 
-func (r *proxy) authPackFromResponse(t *testing.T, httpResp *roundtrip.Response) *authPack {
+func (r *testProxy) authPackFromResponse(t *testing.T, httpResp *roundtrip.Response) *authPack {
 	var resp *CreateSessionResponse
 	require.NoError(t, json.Unmarshal(httpResp.Bytes(), &resp))
 
@@ -5379,7 +5436,7 @@ func defaultRoleForNewUser(teleUser types.User, login string) types.Role {
 	return role
 }
 
-func (r *proxy) createUser(ctx context.Context, t *testing.T, user, login, pass, otpSecret string, roles []types.Role) {
+func (r *testProxy) createUser(ctx context.Context, t *testing.T, user, login, pass, otpSecret string, roles []types.Role) {
 	teleUser, err := types.NewUser(user)
 	require.NoError(t, err)
 
@@ -5412,14 +5469,14 @@ func (r *proxy) createUser(ctx context.Context, t *testing.T, user, login, pass,
 	}
 }
 
-func (r *proxy) newClient(t *testing.T, opts ...roundtrip.ClientParam) *client.WebClient {
+func (r *testProxy) newClient(t *testing.T, opts ...roundtrip.ClientParam) *client.WebClient {
 	opts = append(opts, roundtrip.HTTPClient(client.NewInsecureWebClient()))
 	clt, err := client.NewWebClient(r.webURL.String(), opts...)
 	require.NoError(t, err)
 	return clt
 }
 
-func (r *proxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID) *websocket.Conn {
+func (r *testProxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID) *websocket.Conn {
 	u := url.URL{
 		Host:   r.webURL.Host,
 		Scheme: client.WSS,
@@ -5461,7 +5518,7 @@ func (r *proxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID)
 	return ws
 }
 
-func (r *proxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID session.ID, addr net.Addr) *websocket.Conn {
+func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID session.ID, addr net.Addr) *websocket.Conn {
 	u := url.URL{
 		Host:   r.webURL.Host,
 		Scheme: client.WSS,
