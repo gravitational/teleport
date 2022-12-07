@@ -18,6 +18,7 @@ package services
 
 import (
 	"fmt"
+	"regexp"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -27,6 +28,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 )
+
+// maxMismatchedTraitValuesLogged indicates the maximum number of trait values (that do not match a
+// certain expression) to be shown in the log
+const maxMismatchedTraitValuesLogged = 100
 
 // TraitsToRoles maps the supplied traits to a list of teleport role names.
 // Returns the list of roles mapped from traits.
@@ -74,32 +79,57 @@ func TraitsToRoleMatchers(ms types.TraitMappingSet, traits map[string][]string) 
 
 // traitsToRoles maps the supplied traits to teleport role names and passes them to a collector.
 func traitsToRoles(ms types.TraitMappingSet, traits map[string][]string, collect func(role string, expanded bool)) (warnings []string) {
+TraitMappingLoop:
 	for _, mapping := range ms {
+		var regexpIgnoreCase *regexp.Regexp
+		var regexp *regexp.Regexp
+
 		for traitName, traitValues := range traits {
 			if traitName != mapping.Trait {
 				continue
 			}
+			var mismatched []string
 		TraitLoop:
 			for _, traitValue := range traitValues {
 				for _, role := range mapping.Roles {
+					// this ensures that the case-insensitive regexp is compiled at most once, and only if strictly needed;
+					// after this if, regexpIgnoreCase must be non-nil
+					if regexpIgnoreCase == nil {
+						var err error
+						regexpIgnoreCase, err = utils.RegexpWithConfig(mapping.Value, utils.RegexpConfig{IgnoreCase: true})
+						if err != nil {
+							warnings = append(warnings, fmt.Sprintf("case-insensitive expression %q is not a valid regexp", mapping.Value))
+							continue TraitMappingLoop
+						}
+					}
+
 					// Run the initial replacement case-insensitively. Doing so will filter out all literal non-matches
 					// but will match on case discrepancies. We do another case-sensitive match below to see if the
 					// case is different
-					outRole, err := utils.ReplaceRegexpWithConfig(mapping.Value, role, traitValue, utils.RegexpConfig{IgnoreCase: true})
+					outRole, err := utils.ReplaceRegexpWith(regexpIgnoreCase, role, traitValue)
 					switch {
 					case err != nil:
-						if trace.IsNotFound(err) {
-							log.WithError(err).Debugf("Failed to match expression %q, replace with: %q input: %q.", mapping.Value, role, traitValue)
-						}
 						// this trait value clearly did not match, move on to another
+						mismatched = append(mismatched, traitValue)
 						continue TraitLoop
 					case outRole == "":
 					case outRole != "":
+						// this ensures that the case-sensitive regexp is compiled at most once, and only if strictly needed;
+						// after this if, regexp must be non-nil
+						if regexp == nil {
+							var err error
+							regexp, err = utils.RegexpWithConfig(mapping.Value, utils.RegexpConfig{})
+							if err != nil {
+								warnings = append(warnings, fmt.Sprintf("case-sensitive expression %q is not a valid regexp", mapping.Value))
+								continue TraitMappingLoop
+							}
+						}
+
 						// Run the replacement case-sensitively to see if it matches.
 						// If there's no match, the trait specifies a mapping which is case-sensitive;
 						// we should log a warning but return an error.
 						// See https://github.com/gravitational/teleport/issues/6016 for details.
-						if _, err := utils.ReplaceRegexp(mapping.Value, role, traitValue); err != nil {
+						if _, err := utils.ReplaceRegexpWith(regexp, role, traitValue); err != nil {
 							warnings = append(warnings, fmt.Sprintf("trait %q matches value %q case-insensitively and would have yielded %q role", traitValue, mapping.Value, outRole))
 							continue
 						}
@@ -108,9 +138,21 @@ func traitsToRoles(ms types.TraitMappingSet, traits map[string][]string, collect
 					}
 				}
 			}
+
+			// show at most maxMismatchedTraitValuesLogged trait values to prevent huge log lines
+			switch l := len(mismatched); {
+			case l > maxMismatchedTraitValuesLogged:
+				log.WithField("expression", mapping.Value).
+					WithField("values", mismatched[0:maxMismatchedTraitValuesLogged]).
+					Debugf("%d trait value(s) did not match (showing first %d values)", len(mismatched), maxMismatchedTraitValuesLogged)
+			case l > 0:
+				log.WithField("expression", mapping.Value).
+					WithField("values", mismatched).
+					Debugf("%d trait value(s) did not match", len(mismatched))
+			}
 		}
 	}
-	return warnings
+	return
 }
 
 // literalMatcher is used to "escape" values which are not allowed to
