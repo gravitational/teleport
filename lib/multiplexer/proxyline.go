@@ -464,7 +464,7 @@ func (p *ProxyLine) VerifySignature(hostCACerts [][]byte, clock clockwork.Clock)
 
 	signingCert, err := tlsca.ParseCertificatePEM(proxyCert)
 	if err != nil {
-		return false, err
+		return false, trace.Wrap(err)
 	}
 
 	roots := x509.NewCertPool()
