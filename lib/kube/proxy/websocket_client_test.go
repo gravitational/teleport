@@ -18,16 +18,19 @@ package proxy
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 
 	gwebsocket "github.com/gorilla/websocket"
+	"github.com/gravitational/trace"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
@@ -54,8 +57,8 @@ const (
 	streamResize
 )
 
-// wsStreamExecutor handles transporting standard shell streams over a websocket connection.
-type wsStreamExecutor struct {
+// wsStreamClient handles transporting standard shell streams over a websocket connection.
+type wsStreamClient struct {
 	config    *rest.Config
 	tlsConfig *tls.Config
 	method    string
@@ -64,23 +67,67 @@ type wsStreamExecutor struct {
 	cacheBuff *bytes.Buffer
 	conn      *gwebsocket.Conn
 	mu        *sync.Mutex
+	localPort *int32
+	readyChan chan struct{}
+	listener  net.Listener
 }
 
-// newWebSocketExecutor allows running exec commands via Websocket protocol.
+type websocketOption func(*wsStreamClient)
+
+func withLocalPortforwarding(port int32, readyChan chan struct{}) websocketOption {
+	return func(c *wsStreamClient) {
+		c.localPort = &port
+		c.readyChan = readyChan
+	}
+}
+
+// newWebSocketClient allows running exec commands via Websocket protocol.
 // The existing code exists for tests purpose where the final endpoint is a fictional Kubernetes API.
 // The code in question should never be used outside testing.
-func newWebSocketExecutor(config *rest.Config, method string, u *url.URL) (*wsStreamExecutor, error) {
-	return &wsStreamExecutor{
+func newWebSocketClient(config *rest.Config, method string, u *url.URL, opts ...websocketOption) (*wsStreamClient, error) {
+	c := &wsStreamClient{
 		config:    config,
 		method:    method,
 		url:       u.String(),
 		protocols: supportedProtocols,
 		cacheBuff: bytes.NewBuffer(nil),
 		mu:        &sync.Mutex{},
-	}, nil
+	}
+
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c, nil
 }
 
-func (e *wsStreamExecutor) Stream(options clientremotecommand.StreamOptions) error {
+// Stream copies the contents from stdin into the connection and respective stdout and stderr
+// from the connection into the desired buffers.
+// This method will block until the server closes the connection.
+// Unfortunately, the K8S Websocket protocol does not support half-closed streams,
+// i.e. indicating that nothing else will be sent via stdin. If the server
+// reads the stdin stream until io.EOF is received, it will block on reading.
+// This issue is being tracked by https://github.com/kubernetes/kubernetes/issues/89899
+// To prevent this issue, and uniquely for testing, this client will send
+// an exit keyword specified by testingkubemock.CloseStreamMessage. Our mock server is expecting that
+// keyword and will return once it's received.
+
+// The protocol docs are at https://pkg.go.dev/k8s.io/apiserver/pkg/util/wsstream#pkg-constants
+// Below we have a copy of the implemented binary protocol specification.
+
+// The Websocket subprotocol "channel.k8s.io" prepends each binary message with a byte indicating
+// the channel number (zero indexed) the message was sent on. Messages in both directions should
+// prefix their messages with this channel byte. When used for remote execution, the channel numbers
+// are by convention defined to match the POSIX file-descriptors assigned to STDIN, STDOUT, and STDERR
+// (0, 1, and 2). No other conversion is performed on the raw subprotocol - writes are sent as they
+// are received by the server.
+//
+// Example client session:
+//
+//	CONNECT http://server.com with subprotocol "channel.k8s.io"
+//	WRITE []byte{0, 102, 111, 111, 10} # send "foo\n" on channel 0 (STDIN)
+//	READ  []byte{1, 10}                # receive "\n" on channel 1 (STDOUT)
+//	CLOSE
+func (e *wsStreamClient) Stream(options clientremotecommand.StreamOptions) error {
 	if options.TerminalSizeQueue != nil || options.Tty {
 		return fmt.Errorf("client does not support resizes or Tty shells")
 	}
@@ -108,6 +155,42 @@ func (e *wsStreamExecutor) Stream(options clientremotecommand.StreamOptions) err
 	return e.stream(conn, options)
 }
 
+// ForwardPorts opens a listener at the specified port and waits for new connections.
+// once a connection is received, it waits for the upstream data and writes it
+// into the original connection.
+// Due to portforward websocket limitations, the listener do not accept
+// concurrent connections.
+func (e *wsStreamClient) ForwardPorts() error {
+	err := e.connectViaWebsocket()
+	if err != nil {
+		return err
+	}
+	conn := e.conn
+	// stream will block until execution is finished.
+	defer conn.Close()
+	streamingProto := conn.Subprotocol()
+
+	found := false
+	for _, p := range supportedProtocols {
+		if p == streamingProto {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("unsupported streaming protocol: %q", streamingProto)
+	}
+
+	// hang until server closes streams.
+	return e.portforward(conn)
+}
+
+func (e *wsStreamClient) Close() {
+	if e.listener != nil {
+		e.listener.Close()
+	}
+}
+
 // stream copies the contents from stdin into the connection and respective stdout and stderr
 // from the connection into the desired buffers.
 // This method will block until the server closes the connection.
@@ -120,7 +203,7 @@ func (e *wsStreamExecutor) Stream(options clientremotecommand.StreamOptions) err
 // keyword and will return once it's received.
 
 // The protocol docs are at https://pkg.go.dev/k8s.io/apiserver/pkg/util/wsstream#pkg-constants
-// Bellow we have a copy of the implemented binary protocol specification.
+// Below we have a copy of the implemented binary protocol specification.
 
 // The Websocket subprotocol "channel.k8s.io" prepends each binary message with a byte indicating
 // the channel number (zero indexed) the message was sent on. Messages in both directions should
@@ -135,7 +218,7 @@ func (e *wsStreamExecutor) Stream(options clientremotecommand.StreamOptions) err
 //	WRITE []byte{0, 102, 111, 111, 10} # send "foo\n" on channel 0 (STDIN)
 //	READ  []byte{1, 10}                # receive "\n" on channel 1 (STDOUT)
 //	CLOSE
-func (e *wsStreamExecutor) stream(conn *gwebsocket.Conn, options clientremotecommand.StreamOptions) error {
+func (e *wsStreamClient) stream(conn *gwebsocket.Conn, options clientremotecommand.StreamOptions) error {
 	errChan := make(chan error, 3)
 	wg := sync.WaitGroup{}
 	if options.Stdin != nil {
@@ -241,7 +324,119 @@ func (e *wsStreamExecutor) stream(conn *gwebsocket.Conn, options clientremotecom
 	return err
 }
 
-func (e *wsStreamExecutor) connectViaWebsocket() error {
+const (
+	// portforwardDataChan is the websocket channel for transferring data.
+	portforwardDataChan = iota
+	// portforwardErrChan is the websocket channel for transferring errors.
+	portforwardErrChan
+)
+
+// portforward opens a listener at the specified port and waits for new connections.
+// once a connection is received, it waits for the upstream data and writes it
+// into the original connection.
+// Due to portforward websocket limitations, the listener do not accept
+// concurrent connections.
+func (e *wsStreamClient) portforward(remoteConn *gwebsocket.Conn) (err error) {
+	if e.localPort == nil || e.readyChan == nil {
+		return trace.BadParameter("cannot use portforward without proper initialization")
+	}
+
+	e.listener, err = net.Listen("tcp", fmt.Sprintf("localhost:%d", *e.localPort))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	close(e.readyChan)
+	for {
+		conn, err := e.listener.Accept()
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				err = nil
+			}
+			return trace.Wrap(err)
+		}
+		if err := e.handlePortForwardRequest(conn, remoteConn); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+}
+
+// handlePortForwardRequest copies data streams from local connection to upstream and
+// vice versa.
+func (e *wsStreamClient) handlePortForwardRequest(conn net.Conn, remoteConn *gwebsocket.Conn) error {
+	wg := sync.WaitGroup{}
+	// errChan will receive the errors returned from 2 goroutines.
+	// It needs to be buffered because we rely on sync.WaitGroup to control
+	// when the two goroutines are terminated and the channel has to have enough
+	// size to not block.
+	errChan := make(chan error, 2)
+
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		p := make([]byte, 1024)
+		for {
+			n, err := conn.Read(p)
+			if n == 0 && err != nil {
+				if errors.Is(err, io.EOF) {
+					err = nil
+				}
+				errChan <- trace.Wrap(err)
+				return
+			}
+			if err := remoteConn.WriteMessage(
+				gwebsocket.BinaryMessage,
+				append([]byte{portforwardDataChan}, p[:n]...),
+			); err != nil {
+				errChan <- trace.Wrap(err)
+				return
+			}
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for {
+			_, buf, err := remoteConn.ReadMessage()
+			if err != nil {
+				// check the connection was properly closed by server, and if true ignore the error.
+				var websocketErr *gwebsocket.CloseError
+				if errors.As(err, &websocketErr) && websocketErr.Code == gwebsocket.CloseNormalClosure {
+					err = nil
+				}
+				errChan <- trace.Wrap(err)
+				return
+			}
+			// if len(buf)==3, it is the mandatory protocol message. This message
+			// includes the port number from proxy and we can safelly ignore it.
+			// [channel, uint16]
+			if len(buf) > 1 && len(buf) != 3 {
+				// We let the server send the stream number and we choose the desired stream accordingly.
+				// If the stream is nil, we ignore the payload and continue.
+				switch buf[0] {
+				case portforwardDataChan:
+					_, err := conn.Write(buf[1:])
+					if err != nil {
+						errChan <- trace.Wrap(err)
+						return
+					}
+				case portforwardErrChan:
+					err := trace.Errorf(string(buf[1:]))
+					errChan <- trace.Wrap(err)
+					// Once we receive an error from streamErr, we must stop processing.
+					// The server also stops the execution and closes the connection.
+					return
+				}
+			}
+		}
+	}()
+
+	wg.Wait()
+	close(errChan)
+	return trace.NewAggregateFromChannel(errChan, context.Background())
+}
+
+func (e *wsStreamClient) connectViaWebsocket() error {
 	transportCfg, err := e.config.TransportConfig()
 	if err != nil {
 		return err
@@ -298,7 +493,7 @@ func dial(rt http.RoundTripper, method string, url string) error {
 }
 
 // RoundTrip connects to the remote websocket using TLS configuration.
-func (e *wsStreamExecutor) RoundTrip(request *http.Request) (retResp *http.Response, retErr error) {
+func (e *wsStreamClient) RoundTrip(request *http.Request) (retResp *http.Response, retErr error) {
 	dialer := gwebsocket.Dialer{
 		TLSClientConfig: e.tlsConfig,
 		Subprotocols:    supportedProtocols,
