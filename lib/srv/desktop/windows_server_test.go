@@ -92,34 +92,6 @@ func TestConfigDesktopDiscovery(t *testing.T) {
 	}
 }
 
-func TestCRLDN(t *testing.T) {
-	for _, test := range []struct {
-		clusterName string
-		crlDN       string
-	}{
-		{
-			clusterName: "test",
-			crlDN:       "CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
-		},
-		{
-			clusterName: "cluster.goteleport.com",
-			crlDN:       "CN=cluster.goteleport.com,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
-		},
-	} {
-		t.Run(test.clusterName, func(t *testing.T) {
-			w := &WindowsService{
-				clusterName: test.clusterName,
-				cfg: WindowsServiceConfig{
-					LDAPConfig: windows.LDAPConfig{
-						Domain: "test.goteleport.com",
-					},
-				},
-			}
-			require.Equal(t, test.crlDN, w.crlDN())
-		})
-	}
-}
-
 // TestGenerateCredentials verifies that the smartcard certificates generated
 // by Teleport meet the requirements for Windows logon.
 func TestGenerateCredentials(t *testing.T) {

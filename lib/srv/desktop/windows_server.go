@@ -1028,18 +1028,6 @@ func timer() func() int64 {
 	}
 }
 
-// crlDN generates the LDAP distinguished name (DN) where this Windows Service
-// will publish its certificate revocation list
-func (s *WindowsService) crlDN() string {
-	return "CN=" + s.clusterName + "," + s.crlContainerDN()
-}
-
-// crlContainerDN generates the LDAP distinguished name (DN) of the container
-// where the certificate revocation list is published
-func (s *WindowsService) crlContainerDN() string {
-	return "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration," + s.cfg.LDAPConfig.DomainDN()
-}
-
 // generateCredentials generates a private key / certificate pair for the given
 // Windows username. The certificate has certain special fields different from
 // the regular Teleport user certificate, to meet the requirements of Active

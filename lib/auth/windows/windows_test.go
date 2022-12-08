@@ -102,3 +102,26 @@ func TestGenerateCredentials(t *testing.T) {
 	require.True(t, foundKeyUsage)
 	require.True(t, foundAltName)
 }
+
+func TestCRLDN(t *testing.T) {
+	for _, test := range []struct {
+		clusterName string
+		crlDN       string
+	}{
+		{
+			clusterName: "test",
+			crlDN:       "CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
+		},
+		{
+			clusterName: "cluster.goteleport.com",
+			crlDN:       "CN=cluster.goteleport.com,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
+		},
+	} {
+		t.Run(test.clusterName, func(t *testing.T) {
+			cfg := LDAPConfig{
+				Domain: "test.goteleport.com",
+			}
+			require.Equal(t, test.crlDN, crlDN(test.clusterName, cfg))
+		})
+	}
+}
