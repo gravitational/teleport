@@ -73,7 +73,7 @@ func (s *AuthProxyDialerService) HandleConnection(ctx context.Context, conn net.
 	// We'll write signed PROXY header to the outgoing connection to securely
 	// propagate observed client ip to the auth server.
 	if s.jwtSigner != nil && s.signingCert != nil {
-		b, err := multiplexer.GetSignedPROXYHeader(conn.RemoteAddr(), conn.LocalAddr(), clusterName, s.signingCert, s.jwtSigner)
+		b, err := multiplexer.GetSignedPROXYHeader(conn.RemoteAddr(), conn.LocalAddr(), s.localClusterName, s.signingCert, s.jwtSigner)
 		if err != nil {
 			return trace.Wrap(err, "could not create signed PROXY header")
 		}
