@@ -273,6 +273,12 @@ const (
 	// KindClusterAlert is a resource that conveys a cluster-level alert message.
 	KindClusterAlert = "cluster_alert"
 
+	// KindDevice represents a registered or trusted device.
+	KindDevice = "device"
+
+	// KindDownload represents Teleport binaries downloads.
+	KindDownload = "download"
+
 	// KindUsageEvent is an external cluster usage event. Similar to
 	// KindHostCert, this kind is not backed by a real resource.
 	KindUsageEvent = "usage_event"
