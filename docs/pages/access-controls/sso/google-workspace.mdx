@@ -177,8 +177,8 @@ most deployments, this URL is your `public_addr` value. This consists of a domai
 
 You can lookup the `public_addr` of your Teleport proxy using the following command:
 
-```
-curl https://example.teleport.com/webapi/ping | jq '.proxy'
+```code
+$ curl https://example.teleport.com/webapi/ping | jq '.proxy'
 ```
 
 Within the output of that command look for ```"public_addr": "example.teleport.com:443"```. Some cluster may specify a different port. Use the port you find in the output of the previous command for the next steps.
