@@ -270,6 +270,8 @@ func MustGetCurrentUser(t *testing.T) *user.User {
 }
 
 func WaitForDatabaseServers(t *testing.T, authServer *auth.Server, dbs []service.Database) {
+	t.Helper()
+
 	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
 	defer cancel()
 
