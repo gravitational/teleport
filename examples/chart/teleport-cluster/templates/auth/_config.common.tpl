@@ -2,13 +2,6 @@
 {{- $authentication := mustMergeOverwrite .Values.authentication (default dict .Values.authenticationSecondFactor) -}}
 {{- $logLevel := (coalesce .Values.logLevel .Values.log.level "INFO") -}}
 version: v3
-teleport:
-  log:
-    severity: {{ $logLevel }}
-    output: {{ .Values.log.output }}
-    format:
-      output: {{ .Values.log.format }}
-      extra_fields: {{ .Values.log.extraFields | toJson }}
 kubernetes_service:
   enabled: true
   listen_addr: 0.0.0.0:3026
@@ -61,4 +54,11 @@ auth_service:
 {{- if .Values.proxyListenerMode }}
   proxy_listener_mode: {{ .Values.proxyListenerMode }}
 {{- end }}
+teleport:
+  log:
+    severity: {{ $logLevel }}
+    output: {{ .Values.log.output }}
+    format:
+      output: {{ .Values.log.format }}
+      extra_fields: {{ .Values.log.extraFields | toJson }}
 {{- end -}}
