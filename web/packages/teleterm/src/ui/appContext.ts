@@ -78,6 +78,7 @@ export default class AppContext implements IAppContext {
     this.quickInputService = new QuickInputService(
       this.commandLauncher,
       this.clustersService,
+      this.resourcesService,
       this.workspacesService
     );
 

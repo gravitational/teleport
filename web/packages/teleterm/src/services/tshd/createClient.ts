@@ -65,7 +65,7 @@ export default function createClient(
     async getKubes({
       clusterUri,
       search,
-      sort,
+      sort = { fieldName: 'name', dir: 'ASC' },
       query,
       searchAsRoles,
       startKey,
@@ -145,7 +145,7 @@ export default function createClient(
     async getDatabases({
       clusterUri,
       search,
-      sort,
+      sort = { fieldName: 'name', dir: 'ASC' },
       query,
       searchAsRoles,
       startKey,
@@ -228,7 +228,7 @@ export default function createClient(
       clusterUri,
       search,
       query,
-      sort,
+      sort = { fieldName: 'hostname', dir: 'ASC' },
       searchAsRoles,
       startKey,
       limit,
