@@ -19,6 +19,7 @@ package utils
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -89,4 +90,23 @@ func TestLocks(t *testing.T) {
 	require.Nil(t, unlock2)
 
 	require.NoError(t, unlock())
+}
+
+func TestOverwriteFile(t *testing.T) {
+	have := []byte("Sensitive Information")
+	fName := filepath.Join(t.TempDir(), "teleport-overwrite-file-test")
+
+	require.NoError(t, os.WriteFile(fName, have, 0600))
+	require.NoError(t, overwriteFile(fName))
+
+	contents, err := os.ReadFile(fName)
+	require.NoError(t, err)
+	require.NotContains(t, contents, have, "File contents were not overwritten")
+}
+
+func TestRemoveSecure(t *testing.T) {
+	f, err := os.Create(filepath.Join(t.TempDir(), "teleport-remove-secure-test"))
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+	require.NoError(t, RemoveSecure(f.Name()))
 }

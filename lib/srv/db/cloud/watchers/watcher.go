@@ -197,9 +197,10 @@ func makeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (res
 func makeAzureFetchers(ctx context.Context, clients cloud.Clients, matchers []services.AzureMatcher) (result []Fetcher, err error) {
 	type makeFetcherFunc func(azureFetcherConfig) (Fetcher, error)
 	makeFetcherFuncs := map[string][]makeFetcherFunc{
-		services.AzureMatcherMySQL:    {newAzureMySQLFetcher},
-		services.AzureMatcherPostgres: {newAzurePostgresFetcher},
-		services.AzureMatcherRedis:    {newAzureRedisFetcher, newAzureRedisEnterpriseFetcher},
+		services.AzureMatcherMySQL:     {newAzureMySQLFetcher},
+		services.AzureMatcherPostgres:  {newAzurePostgresFetcher},
+		services.AzureMatcherRedis:     {newAzureRedisFetcher, newAzureRedisEnterpriseFetcher},
+		services.AzureMatcherSQLServer: {newAzureSQLServerFetcher, newAzureManagedSQLServerFetcher},
 	}
 	for _, matcher := range matchers {
 		for _, matcherType := range matcher.Types {

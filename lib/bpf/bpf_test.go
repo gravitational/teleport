@@ -82,13 +82,14 @@ func TestRootWatch(t *testing.T) {
 	// Create a monitoring session for init. The events we execute should not
 	// have PID 1, so nothing should be captured in the Audit Log.
 	cgroupID, err := service.OpenSession(&SessionContext{
-		Namespace: apidefaults.Namespace,
-		SessionID: uuid.New().String(),
-		ServerID:  uuid.New().String(),
-		Login:     "foo",
-		User:      "foo@example.com",
-		PID:       cmd.Process.Pid,
-		Emitter:   emitter,
+		Namespace:      apidefaults.Namespace,
+		SessionID:      uuid.New().String(),
+		ServerID:       uuid.New().String(),
+		ServerHostname: "ip-172-31-11-148",
+		Login:          "foo",
+		User:           "foo@example.com",
+		PID:            cmd.Process.Pid,
+		Emitter:        emitter,
 		Events: map[string]bool{
 			constants.EnhancedRecordingCommand: true,
 			constants.EnhancedRecordingDisk:    true,

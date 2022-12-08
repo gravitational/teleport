@@ -399,6 +399,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_ElasticsearchRequest{
 			ElasticsearchRequest: e,
 		}
+	case *DynamoDBRequest:
+		out.Event = &OneOf_DynamoDBRequest{
+			DynamoDBRequest: e,
+		}
 	case *DatabaseSessionMalformedPacket:
 		out.Event = &OneOf_DatabaseSessionMalformedPacket{
 			DatabaseSessionMalformedPacket: e,

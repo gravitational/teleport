@@ -1828,7 +1828,7 @@ func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns [
 
 // GetKubeServices is a part of auth.Cache implementation
 //
-// DELETE IN 12.0.0 Deprecated, use GetKubernetesServers.
+// DELETE IN 13.0.0 Deprecated, use GetKubernetesServers.
 func (c *Cache) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubeServices")
 	defer span.End()

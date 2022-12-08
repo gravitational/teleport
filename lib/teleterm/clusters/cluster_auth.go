@@ -86,10 +86,12 @@ func (c *Cluster) Logout(ctx context.Context) error {
 
 // LocalLogin processes local logins for this cluster
 func (c *Cluster) LocalLogin(ctx context.Context, user, password, otpToken string) error {
-	pingResp, err := c.clusterClient.Ping(ctx)
+	pingResp, err := c.updateClientFromPingResponse(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	c.clusterClient.AuthConnector = constants.LocalConnector
 
 	var sshLoginFunc client.SSHLoginFunc
 	switch pingResp.Auth.SecondFactor {
@@ -116,7 +118,6 @@ func (c *Cluster) LocalLogin(ctx context.Context, user, password, otpToken strin
 		return trace.BadParameter("unsupported second factor type: %q", pingResp.Auth.SecondFactor)
 	}
 
-	c.clusterClient.PrivateKeyPolicy = pingResp.Auth.PrivateKeyPolicy
 	if err := c.login(ctx, sshLoginFunc); err != nil {
 		return trace.Wrap(err)
 	}
@@ -126,12 +127,12 @@ func (c *Cluster) LocalLogin(ctx context.Context, user, password, otpToken strin
 
 // SSOLogin logs in a user to the Teleport cluster using supported SSO provider
 func (c *Cluster) SSOLogin(ctx context.Context, providerType, providerName string) error {
-	pingResp, err := c.clusterClient.Ping(ctx)
-	if err != nil {
+	if _, err := c.updateClientFromPingResponse(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
-	c.clusterClient.PrivateKeyPolicy = pingResp.Auth.PrivateKeyPolicy
+	c.clusterClient.AuthConnector = providerName
+
 	if err := c.login(ctx, c.ssoLogin(providerType, providerName)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -141,17 +142,28 @@ func (c *Cluster) SSOLogin(ctx context.Context, providerType, providerName strin
 
 // PasswordlessLogin processes passwordless logins for this cluster.
 func (c *Cluster) PasswordlessLogin(ctx context.Context, stream api.TerminalService_LoginPasswordlessServer) error {
-	pingResp, err := c.clusterClient.Ping(ctx)
-	if err != nil {
+	if _, err := c.updateClientFromPingResponse(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
-	c.clusterClient.PrivateKeyPolicy = pingResp.Auth.PrivateKeyPolicy
+	c.clusterClient.AuthConnector = constants.PasswordlessConnector
+
 	if err := c.login(ctx, c.passwordlessLogin(stream)); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
+}
+
+func (c *Cluster) updateClientFromPingResponse(ctx context.Context) (*webclient.PingResponse, error) {
+	pingResp, err := c.clusterClient.Ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	c.clusterClient.PrivateKeyPolicy = pingResp.Auth.PrivateKeyPolicy
+
+	return pingResp, nil
 }
 
 type SSHLoginFunc func(context.Context, *keys.PrivateKey) (*auth.SSHLoginResponse, error)

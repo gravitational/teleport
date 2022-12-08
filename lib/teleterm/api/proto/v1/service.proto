@@ -203,10 +203,12 @@ message AssumeRoleRequest {
 
 message GetRequestableRolesRequest {
   string cluster_uri = 1;
+  repeated ResourceID resource_ids = 2;
 }
 
 message GetRequestableRolesResponse {
   repeated string roles = 1;
+  repeated string applicable_roles = 2;
 }
 
 message ReviewAccessRequestRequest {

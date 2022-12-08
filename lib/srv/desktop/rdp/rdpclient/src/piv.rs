@@ -26,7 +26,7 @@ use std::fmt::Write as _;
 use std::io::{Cursor, Read};
 use uuid::Uuid;
 
-// AID (Application ID) of PIV application, per
+// AID (Application ID) of PIV application, per:
 // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf
 const PIV_AID: Aid = Aid::new_truncatable(
     &[

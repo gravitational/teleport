@@ -75,8 +75,9 @@ func (e *Engine) SendError(err error) {
 		return
 	}
 
+	reason := err.Error()
 	cause := elastic.ErrorCause{
-		Reason: err.Error(),
+		Reason: &reason,
 		Type:   "internal_server_error_exception",
 	}
 

@@ -17,7 +17,6 @@ limitations under the License.
 package ui
 
 import (
-	"sort"
 	"strconv"
 	"strings"
 
@@ -72,24 +71,9 @@ func (s sortedLabels) Swap(i, j int) {
 func MakeServers(clusterName string, servers []types.Server, userRoles services.RoleSet) []Server {
 	uiServers := []Server{}
 	for _, server := range servers {
-		uiLabels := []Label{}
 		serverLabels := server.GetStaticLabels()
-		for name, value := range serverLabels {
-			uiLabels = append(uiLabels, Label{
-				Name:  name,
-				Value: value,
-			})
-		}
-
 		serverCmdLabels := server.GetCmdLabels()
-		for name, cmd := range serverCmdLabels {
-			uiLabels = append(uiLabels, Label{
-				Name:  name,
-				Value: cmd.GetResult(),
-			})
-		}
-
-		sort.Sort(sortedLabels(uiLabels))
+		uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
 
 		serverLogins := userRoles.EnumerateServerLogins(server)
 
@@ -125,23 +109,7 @@ func MakeKubeClusters(clusters []types.KubeCluster, userRoles services.RoleSet) 
 	for _, cluster := range clusters {
 		staticLabels := cluster.GetStaticLabels()
 		dynamicLabels := cluster.GetDynamicLabels()
-		uiLabels := make([]Label, 0, len(staticLabels)+len(dynamicLabels))
-
-		for name, value := range staticLabels {
-			uiLabels = append(uiLabels, Label{
-				Name:  name,
-				Value: value,
-			})
-		}
-
-		for name, cmd := range dynamicLabels {
-			uiLabels = append(uiLabels, Label{
-				Name:  name,
-				Value: cmd.GetResult(),
-			})
-		}
-
-		sort.Sort(sortedLabels(uiLabels))
+		uiLabels := makeLabels(staticLabels, transformCommandLabels(dynamicLabels))
 
 		kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(userRoles, cluster)
 
@@ -228,6 +196,8 @@ type Database struct {
 	Type string `json:"type"`
 	// Labels is a map of static and dynamic labels associated with a database.
 	Labels []Label `json:"labels"`
+	// Hostname is the database connection endpoint (URI) hostname (without port and protocol).
+	Hostname string `json:"hostname"`
 	// DatabaseUsers is the list of allowed Database RBAC users that the user can login.
 	DatabaseUsers []string `json:"database_users,omitempty"`
 	// DatabaseNames is the list of allowed Database RBAC names that the user can login.
@@ -236,17 +206,7 @@ type Database struct {
 
 // MakeDatabase creates database objects.
 func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
-
-	uiLabels := []Label{}
-
-	for name, value := range database.GetAllLabels() {
-		uiLabels = append(uiLabels, Label{
-			Name:  name,
-			Value: value,
-		})
-	}
-
-	sort.Sort(sortedLabels(uiLabels))
+	uiLabels := makeLabels(database.GetAllLabels())
 
 	return Database{
 		Name:          database.GetName(),
@@ -256,6 +216,7 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 		Labels:        uiLabels,
 		DatabaseUsers: dbUsers,
 		DatabaseNames: dbNames,
+		Hostname:      stripProtocolAndPort(database.GetURI()),
 	}
 }
 
@@ -294,16 +255,7 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
 		}
 		return addr
 	}
-	uiLabels := []Label{}
-
-	for name, value := range windowsDesktop.GetAllLabels() {
-		uiLabels = append(uiLabels, Label{
-			Name:  name,
-			Value: value,
-		})
-	}
-
-	sort.Sort(sortedLabels(uiLabels))
+	uiLabels := makeLabels(windowsDesktop.GetAllLabels())
 
 	return Desktop{
 		OS:     constants.WindowsOS,
@@ -339,16 +291,7 @@ type DesktopService struct {
 
 // MakeDesktop converts a desktop from its API form to a type the UI can display.
 func MakeDesktopService(desktopService types.WindowsDesktopService) DesktopService {
-	uiLabels := []Label{}
-
-	for name, value := range desktopService.GetAllLabels() {
-		uiLabels = append(uiLabels, Label{
-			Name:  name,
-			Value: value,
-		})
-	}
-
-	sort.Sort(sortedLabels(uiLabels))
+	uiLabels := makeLabels(desktopService.GetAllLabels())
 
 	return DesktopService{
 		Name:     desktopService.GetName(),
@@ -367,4 +310,28 @@ func MakeDesktopServices(windowsDesktopServices []types.WindowsDesktopService) [
 	}
 
 	return desktopServices
+}
+
+// stripProtocolAndPort returns only the hostname of the uri.
+// Handles uri's with no protocol eg: for some database connection
+// endpoint the uri can be in the format "hostname:port".
+func stripProtocolAndPort(uri string) string {
+	stripPort := func(uri string) string {
+		splitURI := strings.Split(uri, ":")
+
+		if len(splitURI) > 1 {
+			return splitURI[0]
+		}
+
+		return uri
+	}
+
+	// Ignore protocol.
+	// eg: "rediss://some-hostname" or "mongodb+srv://some-hostname"
+	splitURI := strings.Split(uri, "//")
+	if len(splitURI) > 1 {
+		return stripPort(splitURI[1])
+	}
+
+	return stripPort(uri)
 }

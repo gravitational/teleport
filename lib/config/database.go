@@ -200,6 +200,29 @@ db_service:
     tags:
       "*": "*"
   {{- end }}
+  {{- if or .AzureSQLServerDiscoveryRegions }}
+  # Azure SQL server and Managed instances auto-discovery.
+  # For more information about SQL server and Managed instances auto-discovery: https://goteleport.com/docs/database-access/guides/azure-sql-server-ad/
+  - types: ["sqlserver"]
+    # Azure subscription IDs to match.
+    subscriptions:
+    {{- range .DatabaseAzureSubscriptions }}
+    - "{{ . }}"
+    {{- end }}
+    # Azure resource groups to match.
+    resource_groups:
+    {{- range .DatabaseAzureResourceGroups }}
+    - "{{ . }}"
+    {{- end }}
+    # Azure regions to register databases from.
+    regions:
+    {{- range .AzureSQLServerDiscoveryRegions }}
+    - "{{ . }}"
+    {{- end }}
+    # Azure resource tags to match when registering databases.
+    tags:
+      "*": "*"
+  {{- end }}
   # Lists statically registered databases proxied by this agent.
   {{- if .StaticDatabaseName }}
   databases:
@@ -387,6 +410,9 @@ type DatabaseSampleFlags struct {
 	// AzureRedisDiscoveryRegions is a list of regions Azure auto-discovery is
 	// configured to discover Azure Cache for Redis servers in.
 	AzureRedisDiscoveryRegions []string
+	// AzureSQLServerDiscoveryRegions is a list of regions Azure auto-discovery is
+	// configured to discover Azure SQL servers and managed instances.
+	AzureSQLServerDiscoveryRegions []string
 	// RDSDiscoveryRegions is a list of regions the RDS auto-discovery is
 	// configured.
 	RDSDiscoveryRegions []string
