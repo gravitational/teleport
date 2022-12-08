@@ -1,11 +1,14 @@
 import { RuntimeSettings, MainProcessClient } from 'teleterm/types';
 import { ConfigService } from 'teleterm/services/config';
 import { createMockFileStorage } from 'teleterm/services/fileStorage/fixtures/mocks';
+import { keyboardShortcutsConfigProvider } from 'teleterm/services/config/providers/keyboardShortcutsConfigProvider';
+
+const platform = 'darwin';
 
 export class MockMainProcessClient implements MainProcessClient {
   getRuntimeSettings(): RuntimeSettings {
     return {
-      platform: 'darwin',
+      platform,
       dev: true,
       userDataDir: '',
       binDir: '',
@@ -43,7 +46,7 @@ export class MockMainProcessClient implements MainProcessClient {
 
   configService = {
     get: () => ({
-      keyboardShortcuts: {},
+      keyboardShortcuts: keyboardShortcutsConfigProvider.getDefaults(platform),
       appearance: {
         fonts: {},
       },

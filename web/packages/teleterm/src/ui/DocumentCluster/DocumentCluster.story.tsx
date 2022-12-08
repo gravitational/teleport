@@ -23,56 +23,85 @@ import {
   createClusterServiceState,
   ClustersServiceState,
 } from 'teleterm/ui/services/clusters';
+import { routing } from 'teleterm/ui/uri';
+
+import * as docTypes from '../services/workspacesService/documentsService/types';
 
 import DocumentCluster from './DocumentCluster';
 
 export default {
-  title: 'Teleterm/Cluster',
+  title: 'Teleterm/DocumentCluster',
+};
+
+const rootClusterDoc = {
+  kind: 'doc.cluster' as const,
+  clusterUri: '/clusters/localhost',
+  uri: '/docs/123',
+  title: 'sample',
+};
+
+const leafClusterDoc = {
+  kind: 'doc.cluster' as const,
+  clusterUri: '/clusters/localhost/leaves/foo',
+  uri: '/docs/456',
+  title: 'sample',
 };
 
 export const Online = () => {
   const state = createClusterServiceState();
-  state.clusters.set('/clusters/localhost', {
-    uri: '/clusters/localhost',
+  state.clusters.set(rootClusterDoc.clusterUri, {
+    uri: rootClusterDoc.clusterUri,
     leaf: false,
     name: 'localhost',
     connected: true,
     proxyHost: 'localhost:3080',
   });
 
-  return renderState(state);
+  return renderState(state, rootClusterDoc);
 };
 
 export const Offline = () => {
   const state = createClusterServiceState();
-  state.clusters.set('/clusters/localhost', {
-    uri: '/clusters/localhost',
+  state.clusters.set(rootClusterDoc.clusterUri, {
+    uri: rootClusterDoc.clusterUri,
     leaf: false,
     name: 'localhost',
     connected: false,
     proxyHost: 'localhost:3080',
   });
 
-  return renderState(state);
+  return renderState(state, rootClusterDoc);
 };
 
 export const Notfound = () => {
   const state = createClusterServiceState();
-  return renderState(state);
+  state.clusters.set(rootClusterDoc.clusterUri, {
+    uri: rootClusterDoc.clusterUri,
+    leaf: false,
+    name: 'localhost',
+    connected: true,
+    proxyHost: 'localhost:3080',
+  });
+  return renderState(state, leafClusterDoc);
 };
 
-function renderState(state: ClustersServiceState) {
+function renderState(
+  state: ClustersServiceState,
+  doc: docTypes.DocumentCluster
+) {
   const appContext = new MockAppContext();
-  appContext.workspacesService.getActiveWorkspaceDocumentService().update =
-    () => null;
   appContext.clustersService.state = state;
 
-  const doc = {
-    kind: 'doc.cluster',
-    clusterUri: '/clusters/localhost',
-    uri: '123',
-    title: 'sample',
-  } as const;
+  appContext.workspacesService.setState(draftState => {
+    const rootClusterUri = routing.ensureRootClusterUri(doc.clusterUri);
+    draftState.rootClusterUri = rootClusterUri;
+    draftState.workspaces[rootClusterUri] = {
+      localClusterUri: doc.clusterUri,
+      documents: [doc],
+      location: doc.uri,
+      accessRequests: undefined,
+    };
+  });
 
   return (
     <AppContextProvider value={appContext}>
