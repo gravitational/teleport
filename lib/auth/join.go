@@ -19,15 +19,15 @@ package auth
 import (
 	"context"
 	"fmt"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
 	"strings"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 )
 
 // tokenJoinMethod returns the join method of the token with the given tokenName
@@ -222,11 +222,11 @@ func (a *Server) generateCertsBot(
 		Status: apievents.Status{
 			Success: true,
 		},
-		BotName:    provisionToken.GetBotName(),
-		Method: string(joinMethod),
-		TokenName:  provisionToken.GetSafeName(),
+		BotName:   provisionToken.GetBotName(),
+		Method:    string(joinMethod),
+		TokenName: provisionToken.GetSafeName(),
 	}
-	if joinAttributeSrc !=  nil {
+	if joinAttributeSrc != nil {
 		attributes, err := joinAttributeSrc.JoinAuditAttributes()
 		if err != nil {
 			log.WithError(err).Warn("Unable to fetch join attributes from join method.")
@@ -292,11 +292,11 @@ func (a *Server) generateCerts(
 		Status: apievents.Status{
 			Success: true,
 		},
-		NodeName:   req.NodeName,
-		Role: string(req.Role),
-		Method: string(provisionToken.GetJoinMethod()),
-		TokenName:  provisionToken.GetSafeName(),
-		HostID: req.HostID,
+		NodeName:  req.NodeName,
+		Role:      string(req.Role),
+		Method:    string(provisionToken.GetJoinMethod()),
+		TokenName: provisionToken.GetSafeName(),
+		HostID:    req.HostID,
 	}
 	if joinAttributeSrc != nil {
 		attributes, err := joinAttributeSrc.JoinAuditAttributes()

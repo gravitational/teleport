@@ -100,7 +100,7 @@ func (c *IDTokenClaims) JoinAuditAttributes() (map[string]interface{}, error) {
 	res := map[string]interface{}{}
 	d, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		TagName: "json",
-		Result: &res,
+		Result:  &res,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

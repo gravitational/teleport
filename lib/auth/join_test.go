@@ -18,9 +18,6 @@ package auth
 
 import (
 	"context"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
 	"testing"
 	"time"
 
@@ -30,11 +27,14 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
