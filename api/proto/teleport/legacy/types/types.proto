@@ -394,6 +394,11 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "rdsproxy,omitempty"
   ];
+  // RedshiftServerless contains AWS Redshift Serverless specific metadata.
+  RedshiftServerless RedshiftServerless = 9 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "redshift_serverless,omitempty"
+  ];
 }
 
 // SecretStore contains secret store configurations.
@@ -456,6 +461,16 @@ message MemoryDB {
   string EndpointType = 4 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
 
+// RedshiftServerless contains AWS Redshift Serverless specific metadata.
+message RedshiftServerless {
+  // WorkgroupName is the workgroup name.
+  string WorkgroupName = 1 [(gogoproto.jsontag) = "workgroup_name,omitempty"];
+  // EndpointName is the VPC endpoint name.
+  string EndpointName = 2 [(gogoproto.jsontag) = "endpoint_name,omitempty"];
+  // WorkgroupID is the workgroup ID.
+  string WorkgroupID = 3 [(gogoproto.jsontag) = "workgroup_id,omitempty"];
+}
+
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
 message GCPCloudSQL {
   // ProjectID is the GCP project ID the Cloud SQL instance resides in.
@@ -486,13 +501,17 @@ message AzureRedis {
 // AD contains Active Directory specific database configuration.
 message AD {
   // KeytabFile is the path to the Kerberos keytab file.
-  string KeytabFile = 1 [(gogoproto.jsontag) = "keytab_file"];
+  string KeytabFile = 1 [(gogoproto.jsontag) = "keytab_file,omitempty"];
   // Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf.
   string Krb5File = 2 [(gogoproto.jsontag) = "krb5_file,omitempty"];
   // Domain is the Active Directory domain the database resides in.
   string Domain = 3 [(gogoproto.jsontag) = "domain"];
   // SPN is the service principal name for the database.
   string SPN = 4 [(gogoproto.jsontag) = "spn"];
+  // LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509 Authentication.
+  string LDAPCert = 5 [(gogoproto.jsontag) = "ldap_cert,omitempty"];
+  // KDCHostName is the host name for a KDC for x509 Authentication.
+  string KDCHostName = 6 [(gogoproto.jsontag) = "kdc_host_name,omitempty"];
 }
 
 // DatabaseTLSMode represents the level of TLS verification performed by
@@ -1003,8 +1022,12 @@ message ProvisionTokenSpecV2 {
     (gogoproto.jsontag) = "suggested_agent_matcher_labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];
+  // Kubernetes allows the configuration of options specific to the "kubernetes" join method.
+  ProvisionTokenSpecV2Kubernetes Kubernetes = 10 [(gogoproto.jsontag) = "kubernetes,omitempty"];
 }
 
+// ProvisionTokenSpecV2Github contains the GitHub-specific part of the
+// ProvisionTokenSpecV2
 message ProvisionTokenSpecV2GitHub {
   // Rule includes fields mapped from `lib/githubactions.IDToken`
   // Not all fields should be included, only ones that we expect to be useful
@@ -1036,6 +1059,8 @@ message ProvisionTokenSpecV2GitHub {
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
 }
 
+// ProvisionTokenSpecV2CircleCI contains the CircleCI-specific part of the
+// ProvisionTokenSpecV2
 message ProvisionTokenSpecV2CircleCI {
   message Rule {
     string ProjectID = 1 [(gogoproto.jsontag) = "project_id,omitempty"];
@@ -1045,6 +1070,21 @@ message ProvisionTokenSpecV2CircleCI {
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
   string OrganizationID = 2 [(gogoproto.jsontag) = "organization_id,omitempty"];
+}
+
+// ProvisionTokenSpecV2Kubernetes contains the Kubernetes-specific part of the
+// ProvisionTokenSpecV2
+message ProvisionTokenSpecV2Kubernetes {
+  // Rule is a set of properties the Kubernetes-issued token might have to be
+  // allowed to use this ProvisionToken
+  message Rule {
+    // ServiceAccount is the namespaced name of the Kubernetes service account.
+    // Its format is "namespace:service-account".
+    string ServiceAccount = 1 [(gogoproto.jsontag) = "service_account,omitempty"];
+  }
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.

@@ -25,10 +25,12 @@ import (
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
+	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -112,13 +114,22 @@ func TestAWSMetadata(t *testing.T) {
 		},
 	}
 
+	// Configure Redshift Serverless API mock.
+	redshiftServerlessWorkgroup := cloudtest.RedshiftServerlessWorkgroup("my-workgroup", "us-west-1")
+	redshiftServerlessEndpoint := cloudtest.RedshiftServerlessEndpointAccess(redshiftServerlessWorkgroup, "my-endpoint", "us-west-1")
+	redshiftServerless := &cloudtest.RedshiftServerlessMock{
+		Workgroups: []*redshiftserverless.Workgroup{redshiftServerlessWorkgroup},
+		Endpoints:  []*redshiftserverless.EndpointAccess{redshiftServerlessEndpoint},
+	}
+
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
 		Clients: &cloud.TestCloudClients{
-			RDS:         rds,
-			Redshift:    redshift,
-			ElastiCache: elasticache,
-			MemoryDB:    memorydb,
+			RDS:                rds,
+			Redshift:           redshift,
+			ElastiCache:        elasticache,
+			MemoryDB:           memorydb,
+			RedshiftServerless: redshiftServerless,
 		},
 	})
 	require.NoError(t, err)
@@ -277,6 +288,41 @@ func TestAWSMetadata(t *testing.T) {
 					Name:               "rds-proxy",
 					CustomEndpointName: "rds-proxy-endpoint",
 					ResourceID:         "prx-resource-id",
+				},
+			},
+		},
+		{
+			name: "Redshift Serverless workgroup",
+			inAWS: types.AWS{
+				Region: "us-west-1",
+				RedshiftServerless: types.RedshiftServerless{
+					WorkgroupName: "my-workgroup",
+				},
+			},
+			outAWS: types.AWS{
+				AccountID: "1234567890",
+				Region:    "us-west-1",
+				RedshiftServerless: types.RedshiftServerless{
+					WorkgroupName: "my-workgroup",
+					WorkgroupID:   "some-uuid-for-my-workgroup",
+				},
+			},
+		},
+		{
+			name: "Redshift Serverless VPC endpoint",
+			inAWS: types.AWS{
+				Region: "us-west-1",
+				RedshiftServerless: types.RedshiftServerless{
+					EndpointName: "my-endpoint",
+				},
+			},
+			outAWS: types.AWS{
+				AccountID: "1234567890",
+				Region:    "us-west-1",
+				RedshiftServerless: types.RedshiftServerless{
+					WorkgroupName: "my-workgroup",
+					EndpointName:  "my-endpoint",
+					WorkgroupID:   "some-uuid-for-my-workgroup",
 				},
 			},
 		},

@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -32,6 +33,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -151,15 +153,8 @@ func ValidateDatabase(db types.Database) error {
 	if db.GetProtocol() == defaults.ProtocolMongoDB &&
 		(strings.HasPrefix(db.GetURI(), connstring.SchemeMongoDB+"://") ||
 			strings.HasPrefix(db.GetURI(), connstring.SchemeMongoDBSRV+"://")) {
-		connString, err := connstring.ParseAndValidate(db.GetURI())
-		if err != nil {
-			return trace.BadParameter("invalid MongoDB database %q connection string %q: %v", db.GetName(), db.GetURI(), err)
-		}
-		// Validate read preference to catch typos early.
-		if connString.ReadPreference != "" {
-			if _, err := readpref.ModeFromString(connString.ReadPreference); err != nil {
-				return trace.BadParameter("invalid MongoDB database %q read preference %q", db.GetName(), connString.ReadPreference)
-			}
+		if err := validateMongoDB(db); err != nil {
+			return trace.Wrap(err)
 		}
 	} else if db.GetProtocol() == defaults.ProtocolRedis {
 		_, err := connection.ParseRedisAddress(db.GetURI())
@@ -198,6 +193,45 @@ func ValidateDatabase(db types.Database) error {
 		}
 	}
 	return nil
+}
+
+// validateMongoDB validates MongoDB URIs with "mongodb" schemes.
+func validateMongoDB(db types.Database) error {
+	connString, err := connstring.ParseAndValidate(db.GetURI())
+	// connstring.ParseAndValidate requires DNS resolution on TXT/SRV records
+	// for a full validation for "mongodb+srv" URIs. We will try to skip the
+	// DNS errors here by replacing the scheme and then ParseAndValidate again
+	// to validate as much as we can.
+	if isDNSError(err) {
+		log.Warnf("MongoDB database %q (connection string %q) failed validation with DNS error: %v.", db.GetName(), db.GetURI(), err)
+
+		connString, err = connstring.ParseAndValidate(strings.Replace(
+			db.GetURI(),
+			connstring.SchemeMongoDBSRV+"://",
+			connstring.SchemeMongoDB+"://",
+			1,
+		))
+	}
+	if err != nil {
+		return trace.BadParameter("invalid MongoDB database %q connection string %q: %v", db.GetName(), db.GetURI(), err)
+	}
+
+	// Validate read preference to catch typos early.
+	if connString.ReadPreference != "" {
+		if _, err := readpref.ModeFromString(connString.ReadPreference); err != nil {
+			return trace.BadParameter("invalid MongoDB database %q read preference %q", db.GetName(), connString.ReadPreference)
+		}
+	}
+	return nil
+}
+
+func isDNSError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var dnsErr *net.DNSError
+	return errors.As(err, &dnsErr)
 }
 
 // setDBNameByLabel modifies the types.Metadata argument in place, setting the database name.
@@ -779,7 +813,7 @@ func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, endpo
 	}, nil
 }
 
-// MetadataFromMemoryDBCluster creates AWS metadata for the providec MemoryDB
+// MetadataFromMemoryDBCluster creates AWS metadata for the provided MemoryDB
 // cluster.
 func MetadataFromMemoryDBCluster(cluster *memorydb.Cluster, endpointType string) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(cluster.ARN))
@@ -795,6 +829,43 @@ func MetadataFromMemoryDBCluster(cluster *memorydb.Cluster, endpointType string)
 			ACLName:      aws.StringValue(cluster.ACLName),
 			TLSEnabled:   aws.BoolValue(cluster.TLSEnabled),
 			EndpointType: endpointType,
+		},
+	}, nil
+}
+
+// MetadataFromRedshiftServerlessWorkgroup creates AWS metadata for the
+// provided Redshift Serverless Workgroup.
+func MetadataFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workgroup) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.StringValue(workgroup.WorkgroupArn))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &types.AWS{
+		Region:    parsedARN.Region,
+		AccountID: parsedARN.AccountID,
+		RedshiftServerless: types.RedshiftServerless{
+			WorkgroupName: aws.StringValue(workgroup.WorkgroupName),
+			WorkgroupID:   aws.StringValue(workgroup.WorkgroupId),
+		},
+	}, nil
+}
+
+// MetadataFromRedshiftServerlessVPCEndpoint creates AWS metadata for the
+// provided Redshift Serverless VPC endpoint.
+func MetadataFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.EndpointAccess, workgroup *redshiftserverless.Workgroup) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.StringValue(endpoint.EndpointArn))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &types.AWS{
+		Region:    parsedARN.Region,
+		AccountID: parsedARN.AccountID,
+		RedshiftServerless: types.RedshiftServerless{
+			WorkgroupName: aws.StringValue(endpoint.WorkgroupName),
+			EndpointName:  aws.StringValue(endpoint.EndpointName),
+			WorkgroupID:   aws.StringValue(workgroup.WorkgroupId),
 		},
 	}, nil
 }

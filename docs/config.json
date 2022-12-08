@@ -728,6 +728,10 @@
             {
               "title": "Azure",
               "slug": "/kubernetes-access/discovery/azure/"
+            },
+            {
+              "title": "Google Cloud",
+              "slug": "/kubernetes-access/discovery/google-cloud/"
             }
           ]
         }

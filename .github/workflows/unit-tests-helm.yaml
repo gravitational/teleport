@@ -16,12 +16,12 @@ jobs:
 
     permissions:
       contents: read
-      packages: read
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport12
       env:
-        HELM_PLUGINS: /root/.local/share/helm/plugins
+        # TODO(hugoShaka) remove the '-new' prefix when updating to teleport13 buildbox
+        HELM_PLUGINS: /home/ci/.local/share/helm/plugins-new
 
     steps:
       - name: Checkout Teleport

@@ -13,7 +13,6 @@ jobs:
 
     permissions:
       contents: read
-      packages: read
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport12

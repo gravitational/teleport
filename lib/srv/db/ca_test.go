@@ -73,6 +73,21 @@ func TestInitCACert(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	redshiftServerless, err := types.NewDatabaseV3(types.Metadata{
+		Name: "redshift",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+		AWS: types.AWS{
+			Region:    "us-east-1",
+			AccountID: "1234567890",
+			RedshiftServerless: types.RedshiftServerless{
+				WorkgroupName: "workgroup",
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	memoryDB, err := types.NewDatabaseV3(types.Metadata{
 		Name: "memorydb",
 	}, types.DatabaseSpecV3{
@@ -101,7 +116,7 @@ func TestInitCACert(t *testing.T) {
 	require.NoError(t, err)
 
 	allDatabases := []types.Database{
-		selfHosted, rds, rdsWithCert, redshift, cloudSQL, azureMySQL, memoryDB,
+		selfHosted, rds, rdsWithCert, redshift, redshiftServerless, cloudSQL, azureMySQL, memoryDB,
 	}
 
 	tests := []struct {
@@ -127,6 +142,11 @@ func TestInitCACert(t *testing.T) {
 		{
 			desc:     "should download Redshift CA when it's not set",
 			database: redshift.GetName(),
+			cert:     fixtures.TLSCACertPEM,
+		},
+		{
+			desc:     "should download Redshift Serverless CA when it's not set",
+			database: redshiftServerless.GetName(),
 			cert:     fixtures.TLSCACertPEM,
 		},
 		{
