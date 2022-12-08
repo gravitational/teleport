@@ -232,6 +232,12 @@ type IdentityContext struct {
 	// AllowedResourceIDs lists the resources this identity should be allowed to
 	// access
 	AllowedResourceIDs []types.ResourceID
+
+	// PreviousIdentityExpires is the expiry time of the identity/cert that this
+	// identity/cert was derived from. It is used to determine a session's hard
+	// deadline in cases where both require_session_mfa and disconnect_expired_cert
+	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
+	PreviousIdentityExpires time.Time
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
@@ -418,10 +424,10 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		childErr := child.Close()
 		return nil, nil, trace.NewAggregate(err, childErr)
 	}
-	disconnectExpiredCert := identityContext.AccessChecker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
-	if !identityContext.CertValidBefore.IsZero() && disconnectExpiredCert {
-		child.disconnectExpiredCert = identityContext.CertValidBefore
-	}
+
+	child.disconnectExpiredCert = getDisconnectExpiredCertFromIdentityContext(
+		identityContext.AccessChecker, authPref, &identityContext,
+	)
 
 	// Update log entry fields.
 	if !child.disconnectExpiredCert.IsZero() {
