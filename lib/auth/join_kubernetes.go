@@ -43,7 +43,7 @@ func (a *Server) checkKubernetesJoinRequest(ctx context.Context, req *types.Regi
 
 	userInfo, err := a.kubernetesTokenValidator.Validate(ctx, req.IDToken)
 	if err != nil {
-		return trace.WrapWithMessage(err, "Failed to validate the Kubernetes token")
+		return trace.WrapWithMessage(err, "failed to validate the Kubernetes token")
 	}
 
 	log.WithFields(logrus.Fields{
