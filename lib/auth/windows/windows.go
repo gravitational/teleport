@@ -110,7 +110,8 @@ type AuthInterface interface {
 // the regular Teleport user certificate, to meet the requirements of Active
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
-func GenerateCredentials(ctx context.Context, username, domain string, ttl time.Duration, clusterName string, ldapConfig LDAPConfig, authClient AuthInterface) (certDER, keyDER []byte, err error) {
+// TODO(isaiah): convert the parameters into a struct
+func GenerateCredentials(ctx context.Context, username, domain string, ttl time.Duration, clusterName string, ldapConfig LDAPConfig, authClient AuthInterface, objectSid string) (certDER, keyDER []byte, err error) {
 	certReq, err := getCertRequest(username, domain, clusterName, ldapConfig)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

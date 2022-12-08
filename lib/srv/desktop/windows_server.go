@@ -797,6 +797,28 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	rdpc, err := rdpclient.New(rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
+			// Find the user's SID
+			s.cfg.Log.Debugf("querying LDAP for objectSid of Windows username: %v", username)
+			var filters []string
+			filters = append(filters, "(objectCategory=person)")
+			filters = append(filters, "(objectClass=user)")
+			filters = append(filters, fmt.Sprintf("(name=%s)", username))
+			s.cfg.Log.Debugf("s.cfg.LDAPConfig.DomainDN() = %v", s.cfg.LDAPConfig.DomainDN())
+			entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), windows.CombineLDAPFilters(filters), []string{"objectSid"})
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+			if len(entries) == 0 {
+				return nil, nil, trace.NotFound("LDAP failed to return objectSid for Windows username: %v", username)
+			} else if len(entries) > 1 {
+				s.cfg.Log.Warnf("LDAP unexpectedly returned multiple entries for objectSid for username: %v, taking the first", username)
+			}
+			s.cfg.Log.Debugf("len(entries) = %v", len(entries))
+			entry := entries[0]
+			// TODO(isaiah) this sid comes out looking like "\x01\x05\x00\x00\x00\x00\x00\x05\x15\x00\x00\x004\xfb?O\xa3\x98\r\x9dD\xb6Lq\xf4\x01\x00\x00"
+			// however we may need to change this to another format
+			sid := entry.GetAttributeValue("objectSid")
+			s.cfg.Log.Debugf("sid = %v", sid)
 			return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl)
 		},
 		CertTTL:               windows.CertTTL,
