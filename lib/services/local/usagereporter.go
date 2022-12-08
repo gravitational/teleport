@@ -216,21 +216,19 @@ func (r *UsageReporter) runSubmit(ctx context.Context) {
 				r.WithField("batch_size", len(batch)).Warnf("failed to submit batch of usage events: %v", err)
 				usageBatchesFailed.Inc()
 
-				var dropped []*SubmittedEvent
 				var resubmit []*SubmittedEvent
 				for _, e := range failed {
 					e.retriesRemaining -= 1
 
 					if e.retriesRemaining > 0 {
 						resubmit = append(resubmit, e)
-					} else {
-						dropped = append(dropped, e)
 					}
 				}
 
-				if len(dropped) > 0 {
-					r.WithField("dropped_count", len(dropped)).Warnf("dropping events due to error: %+v", err)
-					usageEventsDropped.Add(float64(len(dropped)))
+				dropped_count := len(failed) - len(resubmit)
+				if dropped_count > 0 {
+					r.WithField("dropped_count", dropped_count).Warnf("dropping events due to error: %+v", err)
+					usageEventsDropped.Add(float64(dropped_count))
 				}
 
 				// Put the failed events back on the queue.
