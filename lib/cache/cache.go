@@ -1259,7 +1259,7 @@ func (c *Cache) fetch(ctx context.Context) (fn applyFn, err error) {
 
 			applyfn, err := collection.fetch(ctx)
 			if err != nil {
-				return trace.Wrap(err, fmt.Sprintf("failed to fetch resource: %q", kind))
+				return trace.Wrap(err, "failed to fetch resource: %q", kind)
 			}
 
 			applyfns[ii] = tracedApplyFn(fetchSpan, c.Tracer, kind, applyfn)
