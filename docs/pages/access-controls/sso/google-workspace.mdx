@@ -181,7 +181,9 @@ You can lookup the `public_addr` of your Teleport proxy using the following comm
 $ curl https://example.teleport.com/webapi/ping | jq '.proxy'
 ```
 
-Within the output of that command look for ```"public_addr": "example.teleport.com:443"```. Some cluster may specify a different port. Use the port you find in the output of the previous command for the next steps.
+Within the output of that command look for `"public_addr": "example.teleport.com:443"`. Some
+cluster may specify a different port. Use the port you find in the output of the previous command
+for the next steps.
 
 #### Configure the OAuth Client ID
 In the [Create an OAuth client ID](https://console.cloud.google.com/apis/credentials/oauthclient) page of the GCP console, select "Web application" as the Application type, pick a name, then add the callback URL you gathered in the [Determine your callback URL](#determine-your-callback-url) section in the Callback URI field.
