@@ -71,23 +71,18 @@ metadata:
   name: example_azure_token
 spec:
   roles: [Node,Kube,Db]
-  allow:
-    # new token fields below
+  azure:
+    allow:
+      # Subscription from which nodes can join. Required.
+      - azure_subscription: "22222222"
 
-    # Subscription from which nodes can join. Required.
-    - azure_subscription: "22222222"
-
-      # Resource groups from which nodes can join. If empty or omitted, nodes
-      # from any resource group are allowed.
-      azure_resource_groups: ["rg1", "rg2"]
-      
-      # Regions from which nodes can join. If empty or omitted, nodes from any
-      # region are allowed.
-      azure_regions: ["r1", "r2"]
-
-  # The duration after the attested data created time that the document will
-  # be accepted. The default is 5 minutes.
-  azure_attested_data_ttl: 5m
+        # Resource groups from which nodes can join. If empty or omitted, nodes
+        # from any resource group are allowed.
+        azure_resource_groups: ["rg1", "rg2"]
+        
+        # Regions from which nodes can join. If empty or omitted, nodes from any
+        # region are allowed.
+        azure_regions: ["r1", "r2"]
 ```
 
 teleport.yaml on the nodes should be configured so that they will use the Azure
