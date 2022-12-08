@@ -662,7 +662,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 
-	// Only override networking configuration if some of its fields is
+	// Only override networking configuration if some of its fields are
 	// specified in file configuration.
 	if fc.Auth.hasCustomNetworkingConfig() {
 		cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
