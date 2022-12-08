@@ -956,28 +956,6 @@
           "slug": "/machine-id/getting-started/"
         },
         {
-          "title": "Architecture",
-          "slug": "/machine-id/architecture/"
-        },
-        {
-          "title": "Troubleshooting",
-          "slug": "/machine-id/troubleshooting/"
-        },
-        {
-          "title": "FAQ",
-          "slug": "/machine-id/faq/"
-        },
-        {
-          "title": "Reference",
-          "slug": "/machine-id/reference/",
-          "entries": [
-            {
-              "title": "Configuration",
-              "slug": "/machine-id/reference/configuration/"
-            }
-          ]
-        },
-        {
           "title": "Guides",
           "slug": "/machine-id/guides/",
           "entries": [
@@ -1010,6 +988,28 @@
               "slug": "/machine-id/guides/host-certificate/"
             }
           ]
+        },
+        {
+          "title": "Architecture",
+          "slug": "/machine-id/architecture/"
+        },
+        {
+          "title": "Reference",
+          "slug": "/machine-id/reference/",
+          "entries": [
+            {
+              "title": "Configuration",
+              "slug": "/machine-id/reference/configuration/"
+            }
+          ]
+        },
+        {
+          "title": "FAQ",
+          "slug": "/machine-id/faq/"
+        },
+        {
+          "title": "Troubleshooting",
+          "slug": "/machine-id/troubleshooting/"
         }
       ]
     },
