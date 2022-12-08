@@ -17,11 +17,13 @@ limitations under the License.
 import { Store, useStore } from 'shared/libs/stores';
 
 import { CommandLauncher } from 'teleterm/ui/commandLauncher';
-import { ClustersService } from 'teleterm/ui/services/clusters';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
+import { ResourcesService } from 'teleterm/ui/services/resources';
+import { ClustersService } from 'teleterm/ui/services/clusters';
 
-import * as pickers from './quickPickers';
-import { AutocompleteResult, AutocompleteToken, Suggestion } from './types';
+import * as parsers from './parsers';
+import * as suggesters from './suggesters';
+import { AutocompleteToken, ParseResult, Suggestion } from './types';
 
 type State = {
   inputValue: string;
@@ -29,41 +31,42 @@ type State = {
 };
 
 export class QuickInputService extends Store<State> {
-  private quickCommandPicker: pickers.QuickCommandPicker;
+  private quickCommandParser: parsers.QuickCommandParser;
   lastFocused: WeakRef<HTMLElement>;
 
   constructor(
     launcher: CommandLauncher,
     clustersService: ClustersService,
+    resourcesService: ResourcesService,
     workspacesService: WorkspacesService
   ) {
     super();
     this.lastFocused = new WeakRef(document.createElement('div'));
-    this.quickCommandPicker = new pickers.QuickCommandPicker(this, launcher);
+    this.quickCommandParser = new parsers.QuickCommandParser(launcher);
     this.setState({
       inputValue: '',
     });
 
-    const sshLoginPicker = new pickers.QuickSshLoginPicker(
+    const sshLoginSuggester = new suggesters.QuickSshLoginSuggester(
       workspacesService,
       clustersService
     );
-    const serverPicker = new pickers.QuickServerPicker(
+    const serverSuggester = new suggesters.QuickServerSuggester(
       workspacesService,
-      clustersService
+      resourcesService
     );
-    const databasePicker = new pickers.QuickDatabasePicker(
+    const databaseSuggester = new suggesters.QuickDatabaseSuggester(
       workspacesService,
-      clustersService
+      resourcesService
     );
 
-    this.quickCommandPicker.registerPickerForCommand(
+    this.quickCommandParser.registerParserForCommand(
       'tsh ssh',
-      new pickers.QuickTshSshPicker(sshLoginPicker, serverPicker)
+      new parsers.QuickTshSshParser(sshLoginSuggester, serverSuggester)
     );
-    this.quickCommandPicker.registerPickerForCommand(
+    this.quickCommandParser.registerParserForCommand(
       'tsh proxy db',
-      new pickers.QuickTshProxyDbPicker(databasePicker)
+      new parsers.QuickTshProxyDbParser(databaseSuggester)
     );
   }
 
@@ -99,31 +102,25 @@ export class QuickInputService extends Store<State> {
   // Parses the input string and returns AutocompleteResult which includes information about which
   // token we currently show the autocomplete for and what are the autocomplete suggestions (items)
   // to show.
-  //
-  // TODO(ravicious): This function needs to take cursor index into account instead of assuming that
-  // you want to complete only what's at the end of the input string.
-  getAutocompleteResult(input: string): AutocompleteResult {
-    const autocompleteResult =
-      this.quickCommandPicker.getAutocompleteResult(input);
+  parse(input: string): ParseResult {
+    const parseResult = this.quickCommandParser.parse(input);
 
-    // Automatically handle some universal edge cases so that each individual picker doesn't have to
-    // care about them.
-    if (autocompleteResult.kind === 'autocomplete.partial-match') {
-      const { targetToken, suggestions } = autocompleteResult;
-      const isEmpty = suggestions.length === 0;
-      // Don't show suggestions if the only suggestion completely matches the target token.
-      const hasSingleCompleteMatch =
-        suggestions.length === 1 && suggestions[0].token === targetToken.value;
+    // Automatically handle a universal edge case so that each individual suggester doesn't have to
+    // care about it.
+    const getSuggestionsThenHandleEdgeCase = () =>
+      parseResult.getSuggestions().then(suggestions => {
+        // Don't show suggestions if the only suggestion completely matches the target token.
+        const hasSingleCompleteMatch =
+          suggestions.length === 1 &&
+          suggestions[0].token === parseResult.targetToken.value;
 
-      if (isEmpty || hasSingleCompleteMatch) {
-        return {
-          kind: 'autocomplete.no-match',
-          command: autocompleteResult.command,
-        };
-      }
-    }
+        return hasSingleCompleteMatch ? [] : suggestions;
+      });
 
-    return autocompleteResult;
+    return {
+      ...parseResult,
+      getSuggestions: getSuggestionsThenHandleEdgeCase,
+    };
   }
 
   // Replaces the token that is being autocompleted with the token from the suggestion.

@@ -19,6 +19,7 @@ import styled from 'styled-components';
 import { debounce } from 'lodash';
 import { Box, Flex } from 'design';
 import { color, height, space, width } from 'styled-system';
+import { Spinner } from 'design/Icon';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
@@ -38,9 +39,10 @@ export default function Container() {
 
 function QuickInput() {
   const props = useQuickInput();
-  const { visible, activeSuggestion, autocompleteResult, inputValue } = props;
+  const { visible, activeSuggestion, suggestionsAttempt, inputValue } = props;
   const hasSuggestions =
-    autocompleteResult.kind === 'autocomplete.partial-match';
+    suggestionsAttempt.data?.length > 0 &&
+    suggestionsAttempt.status === 'success';
   const refInput = useRef<HTMLInputElement>();
   const measuringInputRef = useRef<HTMLSpanElement>();
   const refList = useRef<HTMLElement>();
@@ -96,7 +98,7 @@ function QuickInput() {
     }
     const next = getNext(
       activeSuggestion + nudge,
-      autocompleteResult.suggestions.length
+      suggestionsAttempt.data?.length
     );
     props.onActiveSuggestion(next);
   };
@@ -116,7 +118,7 @@ function QuickInput() {
         props.onEnter(activeSuggestion);
         return;
       case KeyEnum.ESC:
-        props.onBack();
+        props.onEscape();
         return;
       case KeyEnum.TAB:
         return;
@@ -162,12 +164,21 @@ function QuickInput() {
         onKeyDown={handleKeyDown}
         isOpened={visible}
       />
+      {suggestionsAttempt.status === 'processing' && (
+        <Animate>
+          <Spinner
+            css={`
+              vertical-align: top;
+            `}
+          />
+        </Animate>
+      )}
       {!visible && <Shortcut>{props.keyboardShortcut}</Shortcut>}
       {visible && hasSuggestions && (
         <QuickInputList
           ref={refList}
           position={measuredInputTextWidth}
-          items={autocompleteResult.suggestions}
+          items={suggestionsAttempt.data}
           activeItem={activeSuggestion}
           onPick={props.onEnter}
         />
@@ -232,6 +243,24 @@ const Shortcut = styled(Box)`
   line-height: 12px;
   font-size: 12px;
   border-radius: 2px;
+`;
+
+const Animate = styled(Box)`
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  padding: 2px 2px;
+  line-height: 12px;
+  font-size: 12px;
+  animation: spin 1s linear infinite;
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
 `;
 
 const KeyEnum = {

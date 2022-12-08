@@ -16,34 +16,63 @@ limitations under the License.
 
 import React, { useEffect } from 'react';
 
+import { CanceledError, useAsync } from 'shared/hooks/useAsync';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   useKeyboardShortcuts,
   useKeyboardShortcutFormatters,
 } from 'teleterm/ui/services/keyboardShortcuts';
 import {
-  AutocompleteResult,
-  AutocompletePartialMatch,
+  AutocompleteCommand,
+  AutocompleteToken,
+  Suggestion,
 } from 'teleterm/ui/services/quickInput/types';
 import { routing } from 'teleterm/ui/uri';
 import { KeyboardShortcutType } from 'teleterm/services/config';
 
+import { retryWithRelogin } from '../utils';
+
 export default function useQuickInput() {
-  const { quickInputService, workspacesService, commandLauncher } =
-    useAppContext();
+  const appContext = useAppContext();
+  const { quickInputService, workspacesService, commandLauncher } = appContext;
   workspacesService.useState();
   const documentsService =
     workspacesService.getActiveWorkspaceDocumentService();
   const { visible, inputValue } = quickInputService.useState();
   const [activeSuggestion, setActiveSuggestion] = React.useState(0);
-  const autocompleteResult = React.useMemo(
-    () => quickInputService.getAutocompleteResult(inputValue),
+
+  const parseResult = React.useMemo(
+    () => quickInputService.parse(inputValue),
     // `localClusterUri` has been added to refresh suggestions from
     // `QuickSshLoginPicker` and `QuickServerPicker` when it changes
     [inputValue, workspacesService.getActiveWorkspace()?.localClusterUri]
   );
+
+  const [suggestionsAttempt, getSuggestions] = useAsync(() =>
+    retryWithRelogin(
+      appContext,
+      workspacesService.getActiveWorkspace()?.localClusterUri,
+      () => parseResult.getSuggestions()
+    )
+  );
+
+  useEffect(() => {
+    async function get() {
+      const [, err] = await getSuggestions();
+      if (err && !(err instanceof CanceledError)) {
+        appContext.notificationsService.notifyError({
+          title: 'Error fetching suggestions',
+          description: err.message,
+        });
+      }
+    }
+    get();
+  }, [parseResult]);
+
   const hasSuggestions =
-    autocompleteResult.kind === 'autocomplete.partial-match';
+    suggestionsAttempt.status === 'success' &&
+    suggestionsAttempt.data.length > 0;
   const openQuickInputShortcutKey: KeyboardShortcutType = 'open-quick-input';
   const { getShortcut } = useKeyboardShortcutFormatters();
 
@@ -62,18 +91,14 @@ export default function useQuickInput() {
 
   const onEnter = (index?: number) => {
     if (!hasSuggestions || !visible) {
-      executeCommand(autocompleteResult);
+      executeCommand(parseResult.command);
       return;
     }
 
-    // Passing `autocompleteResult` directly to narrow down AutocompleteResult type to
-    // AutocompletePartialMatch.
-    pickSuggestion(autocompleteResult, index);
+    pickSuggestion(parseResult.targetToken, suggestionsAttempt.data, index);
   };
 
-  const executeCommand = (autocompleteResult: AutocompleteResult) => {
-    const { command } = autocompleteResult;
-
+  const executeCommand = (command: AutocompleteCommand) => {
     switch (command.kind) {
       case 'command.unknown': {
         const params = routing.parseClusterUri(
@@ -103,19 +128,17 @@ export default function useQuickInput() {
   };
 
   const pickSuggestion = (
-    autocompleteResult: AutocompletePartialMatch,
+    targetToken: AutocompleteToken,
+    suggestions: Suggestion[],
     index?: number
   ) => {
-    const suggestion = autocompleteResult.suggestions[index];
+    const suggestion = suggestions[index];
 
     setActiveSuggestion(index);
-    quickInputService.pickSuggestion(
-      autocompleteResult.targetToken,
-      suggestion
-    );
+    quickInputService.pickSuggestion(targetToken, suggestion);
   };
 
-  const onBack = () => {
+  const onEscape = () => {
     setActiveSuggestion(0);
 
     // If there are suggestions to show, the first onBack call should always just close the
@@ -136,22 +159,24 @@ export default function useQuickInput() {
   // Reset active suggestion when the suggestion list changes.
   // We extract just the tokens and stringify the list to avoid stringifying big objects.
   // See https://github.com/facebook/react/issues/14476#issuecomment-471199055
+  // TODO(ravicious): Remove the unnecessary effect.
+  // https://beta.reactjs.org/learn/you-might-not-need-an-effect#chains-of-computations
+  // https://beta.reactjs.org/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
   useEffect(() => {
     setActiveSuggestion(0);
   }, [
-    hasSuggestions &&
-      JSON.stringify(
-        autocompleteResult.suggestions.map(suggestion => suggestion.token)
-      ),
+    // We want to reset the active suggestion only if the
+    // suggestions have changed.
+    suggestionsAttempt.data?.map(suggestion => suggestion.token).join(','),
   ]);
 
   return {
     visible,
-    autocompleteResult,
+    suggestionsAttempt,
     activeSuggestion,
     inputValue,
     onFocus,
-    onBack,
+    onEscape,
     onEnter,
     onActiveSuggestion,
     onInputChange: quickInputService.setInputValue,
