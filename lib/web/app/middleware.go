@@ -93,6 +93,9 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 	if p.path != "" {
 		urlQuery.Add("path", p.path)
 	}
+	if p.okta != "" {
+		urlQuery.Add("okta", p.okta)
+	}
 
 	u := url.URL{
 		Scheme:   "https",
@@ -110,6 +113,7 @@ type launcherURLParams struct {
 	stateToken  string
 	awsRole     string
 	path        string
+	okta        string
 }
 
 // makeRouterHandler creates a httprouter.Handle.

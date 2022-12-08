@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
+	"github.com/gravitational/teleport/lib/web/cookie"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -249,10 +250,12 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// application handlers. If the request is unauthenticated and requesting a
 	// FQDN that is not of the proxy, redirect to application launcher.
 	if h.appHandler != nil && (app.HasFragment(r) || app.HasSession(r) || app.HasClientCert(r)) {
+		h.handler.log.Infof("AppHandler: %s", r.URL)
 		h.appHandler.ServeHTTP(w, r)
 		return
 	}
 	if redir, ok := app.HasName(r, h.handler.cfg.ProxyPublicAddrs); ok {
+		h.handler.log.Infof("Redirect: %s", redir)
 		http.Redirect(w, r, redir, http.StatusFound)
 		return
 	}
@@ -394,7 +397,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				h.log.WithError(err).Warn("Failed to generate CSRF token.")
 			}
 
-			session, err := h.authenticateWebSession(w, r)
+			session, err := h.AuthenticateWebSession(w, r)
 			if err != nil {
 				h.log.WithError(err).Debug("Could not authenticate.")
 			}
@@ -450,7 +453,7 @@ type webSession struct {
 	XCSRF   string
 }
 
-func (h *Handler) authenticateWebSession(w http.ResponseWriter, r *http.Request) (webSession, error) {
+func (h *Handler) AuthenticateWebSession(w http.ResponseWriter, r *http.Request) (webSession, error) {
 	ctx, err := h.AuthenticateRequest(w, r, false)
 	if err != nil {
 		return webSession{}, trace.Wrap(err)
@@ -463,6 +466,7 @@ func (h *Handler) authenticateWebSession(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		return webSession{}, trace.Wrap(err)
 	}
+	h.log.Infof("%s", string(out))
 	return webSession{
 		Session: base64.StdEncoding.EncodeToString(out),
 	}, nil
@@ -1697,7 +1701,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	if err := SetSessionCookie(w, req.User, webSession.GetName()); err != nil {
+	if err := cookie.SetSessionCookie(w, req.User, webSession.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1739,7 +1743,7 @@ func (h *Handler) logout(ctx context.Context, w http.ResponseWriter, scx *Sessio
 	if err := scx.Invalidate(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	ClearSession(w)
+	cookie.ClearSession(w)
 
 	return nil
 }
@@ -1779,7 +1783,7 @@ func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params ht
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := SetSessionCookie(w, newSession.GetUser(), newSession.GetName()); err != nil {
+	if err := cookie.SetSessionCookie(w, newSession.GetUser(), newSession.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1860,7 +1864,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		h.log.WithError(err).Error("Failed to set passwordless as connector name.")
 	}
 
-	if err := SetSessionCookie(w, sess.GetUser(), sess.GetName()); err != nil {
+	if err := cookie.SetSessionCookie(w, sess.GetUser(), sess.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2081,7 +2085,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 
 	// Fetch user from session, user is empty for passwordless requests.
 	user := session.GetUser()
-	if err := SetSessionCookie(w, user, session.GetName()); err != nil {
+	if err := cookie.SetSessionCookie(w, user, session.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2775,7 +2779,7 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	if err != nil {
 		h.log.WithError(err).Warn("Failed to authenticate.")
 		// clear session just in case if the authentication request is not valid
-		ClearSession(w)
+		cookie.ClearSession(w)
 		onError(trace.Wrap(err))
 		return
 	}
@@ -3234,14 +3238,14 @@ func (h *Handler) withLimiter(l *limiter.RateLimiter, fn httplib.HandlerFunc) ht
 func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, checkBearerToken bool) (*SessionContext, error) {
 	const missingCookieMsg = "missing session cookie"
 	logger := h.log.WithField("request", fmt.Sprintf("%v %v", r.Method, r.URL.Path))
-	cookie, err := r.Cookie(CookieName)
-	if err != nil || (cookie != nil && cookie.Value == "") {
+	requestCookie, err := r.Cookie(cookie.CookieName)
+	if err != nil || (requestCookie != nil && requestCookie.Value == "") {
 		if err != nil {
 			logger.Warn(err)
 		}
 		return nil, trace.AccessDenied(missingCookieMsg)
 	}
-	decodedCookie, err := DecodeCookie(cookie.Value)
+	decodedCookie, err := cookie.DecodeCookie(requestCookie.Value)
 	if err != nil {
 		logger.WithError(err).Warn("Failed to decode cookie.")
 		return nil, trace.AccessDenied("failed to decode cookie")
@@ -3249,7 +3253,7 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 	ctx, err := h.auth.validateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
 	if err != nil {
 		logger.WithError(err).Warn("Invalid session.")
-		ClearSession(w)
+		cookie.ClearSession(w)
 		return nil, trace.AccessDenied("need auth")
 	}
 	if checkBearerToken {
@@ -3445,7 +3449,7 @@ func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 		}
 	}
 
-	if err := SetSessionCookie(w, response.Username, response.SessionName); err != nil {
+	if err := cookie.SetSessionCookie(w, response.Username, response.SessionName); err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -15,7 +15,7 @@ limitations under the License.
 
 */
 
-package web
+package cookie
 
 import (
 	"encoding/hex"
@@ -60,6 +60,7 @@ func SetSessionCookie(w http.ResponseWriter, user, sid string) error {
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
 	}
 	http.SetCookie(w, c)
 	return nil

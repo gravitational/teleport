@@ -58,6 +58,13 @@ const js = `
         var stateValue = params.get("state");
         var path = params.get("path");
 
+        fetch('https://dev-53161101.okta.com/api/v1/sessions/me', {
+          method: 'DELETE', // *GET, POST, PUT, DELETE, etc.
+          mode: 'cors', // no-cors, *cors, same-origin
+          cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+          credentials: 'include', // include, *same-origin, omit
+        });
+
         // this utility is used to check if a passed in path param is a full URL (which we dont want)
         function isFullUrl (pathToCheck) {
           try {
