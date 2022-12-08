@@ -22,6 +22,8 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -73,7 +75,9 @@ db_service:
     {{- end }}
     # AWS resource tags to match when registering databases.
     tags:
-      "*": "*"
+    {{- range $name, $value := .AWSTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
   {{- end }}
   {{- if .RDSProxyDiscoveryRegions }}
   # RDS Proxies auto-discovery.
@@ -86,7 +90,9 @@ db_service:
     {{- end }}
     # AWS resource tags to match when registering databases.
     tags:
-      "*": "*"
+    {{- range $name, $value := .AWSTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
   {{- end }}
   {{- if .RedshiftDiscoveryRegions }}
   # Redshift databases auto-discovery.
@@ -99,7 +105,9 @@ db_service:
     {{- end }}
     # AWS resource tags to match when registering databases.
     tags:
-      "*": "*"
+    {{- range $name, $value := .AWSTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
   {{- end }}
   {{- if .RedshiftServerlessDiscoveryRegions }}
   # Redshift Serverless databases auto-discovery.
@@ -112,7 +120,9 @@ db_service:
     {{- end }}
     # AWS resource tags to match when registering databases.
     tags:
-      "*": "*"
+    {{- range $name, $value := .AWSTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
   {{- end }}
   {{- if .ElastiCacheDiscoveryRegions }}
   # ElastiCache databases auto-discovery.
@@ -125,7 +135,9 @@ db_service:
     {{- end }}
     # AWS resource tags to match when registering databases.
     tags:
-      "*": "*"
+    {{- range $name, $value := .AWSTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
   {{- end }}
   {{- if .MemoryDBDiscoveryRegions }}
   # MemoryDB databases auto-discovery.
@@ -138,7 +150,9 @@ db_service:
     {{- end }}
     # AWS resource tags to match when registering databases.
     tags:
-      "*": "*"
+    {{- range $name, $value := .AWSTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
   {{- end }}
   {{- if or .AzureMySQLDiscoveryRegions .AzurePostgresDiscoveryRegions .AzureRedisDiscoveryRegions}}
   # Matchers for registering Azure-hosted databases.
@@ -150,12 +164,12 @@ db_service:
   - types: ["mysql"]
     # Azure subscription IDs to match.
     subscriptions:
-    {{- range .DatabaseAzureSubscriptions }}
+    {{- range .AzureSubscriptions }}
     - "{{ . }}"
     {{- end }}
     # Azure resource groups to match.
     resource_groups:
-    {{- range .DatabaseAzureResourceGroups }}
+    {{- range .AzureResourceGroups }}
     - "{{ . }}"
     {{- end }}
     # Azure regions to register databases from.
@@ -165,7 +179,9 @@ db_service:
     {{- end }}
     # Azure resource tags to match when registering databases.
     tags:
-      "*": "*"
+    {{- range $name, $value := .AzureTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
   {{- end }}
   {{- if or .AzurePostgresDiscoveryRegions }}
   # Azure Postgres databases auto-discovery.
@@ -173,12 +189,12 @@ db_service:
   - types: ["postgres"]
     # Azure subscription IDs to match.
     subscriptions:
-    {{- range .DatabaseAzureSubscriptions }}
+    {{- range .AzureSubscriptions }}
     - "{{ . }}"
     {{- end }}
     # Azure resource groups to match.
     resource_groups:
-    {{- range .DatabaseAzureResourceGroups }}
+    {{- range .AzureResourceGroups }}
     - "{{ . }}"
     {{- end }}
     # Azure regions to register databases from.
@@ -188,7 +204,9 @@ db_service:
     {{- end }}
     # Azure resource tags to match when registering databases.
     tags:
-      "*": "*"
+    {{- range $name, $value := .AzureTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
   {{- end }}
   {{- if or .AzureRedisDiscoveryRegions }}
   # Azure Cache For Redis databases auto-discovery.
@@ -196,12 +214,12 @@ db_service:
   - types: ["redis"]
     # Azure subscription IDs to match.
     subscriptions:
-    {{- range .DatabaseAzureSubscriptions }}
+    {{- range .AzureSubscriptions }}
     - "{{ . }}"
     {{- end }}
     # Azure resource groups to match.
     resource_groups:
-    {{- range .DatabaseAzureResourceGroups }}
+    {{- range .AzureResourceGroups }}
     - "{{ . }}"
     {{- end }}
     # Azure regions to register databases from.
@@ -211,7 +229,9 @@ db_service:
     {{- end }}
     # Azure resource tags to match when registering databases.
     tags:
-      "*": "*"
+    {{- range $name, $value := .AzureTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
   {{- end }}
   {{- if or .AzureSQLServerDiscoveryRegions }}
   # Azure SQL server and Managed instances auto-discovery.
@@ -219,12 +239,12 @@ db_service:
   - types: ["sqlserver"]
     # Azure subscription IDs to match.
     subscriptions:
-    {{- range .DatabaseAzureSubscriptions }}
+    {{- range .AzureSubscriptions }}
     - "{{ . }}"
     {{- end }}
     # Azure resource groups to match.
     resource_groups:
-    {{- range .DatabaseAzureResourceGroups }}
+    {{- range .AzureResourceGroups }}
     - "{{ . }}"
     {{- end }}
     # Azure regions to register databases from.
@@ -234,7 +254,9 @@ db_service:
     {{- end }}
     # Azure resource tags to match when registering databases.
     tags:
-      "*": "*"
+    {{- range $name, $value := .AzureTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
   {{- end }}
   # Lists statically registered databases proxied by this agent.
   {{- if .StaticDatabaseName }}
@@ -426,6 +448,14 @@ type DatabaseSampleFlags struct {
 	// AzureSQLServerDiscoveryRegions is a list of regions Azure auto-discovery is
 	// configured to discover Azure SQL servers and managed instances.
 	AzureSQLServerDiscoveryRegions []string
+	// AzureSubscriptions is a list of Azure subscriptions.
+	AzureSubscriptions []string
+	// AzureResourceGroups is a list of Azure resource groups.
+	AzureResourceGroups []string
+	// AzureTags is the list of the Azure resource tags used for Azure discoveries.
+	AzureTags map[string]string
+	// AzureRawTags is the "raw" list of Azure resource tags used for Azure discoveries.
+	AzureRawTags string
 	// RDSDiscoveryRegions is a list of regions the RDS auto-discovery is
 	// configured.
 	RDSDiscoveryRegions []string
@@ -444,6 +474,10 @@ type DatabaseSampleFlags struct {
 	// MemoryDBDiscoveryRegions is a list of regions the MemoryDB
 	// auto-discovery is configured.
 	MemoryDBDiscoveryRegions []string
+	// AWSTags is the list of the AWS resource tags used for AWS discoveries.
+	AWSTags map[string]string
+	// AWSRawTags is the "raw" list of AWS resource tags used for AWS discoveries.
+	AWSRawTags string
 	// DatabaseProtocols is a list of database protocols supported.
 	DatabaseProtocols []string
 	// DatabaseAWSRegion is an optional database cloud region e.g. when using AWS RDS.
@@ -462,10 +496,6 @@ type DatabaseSampleFlags struct {
 	DatabaseGCPInstanceID string
 	// DatabaseCACertFile is the database CA cert path.
 	DatabaseCACertFile string
-	// DatabaseAzureSubscriptions is a list of Azure subscriptions.
-	DatabaseAzureSubscriptions []string
-	// DatabaseAzureResourceGroups is a list of Azure resource groups.
-	DatabaseAzureResourceGroups []string
 }
 
 // CheckAndSetDefaults checks and sets default values for the flags.
@@ -480,6 +510,21 @@ func (f *DatabaseSampleFlags) CheckAndSetDefaults() error {
 		f.DataDir = conf.DataDir
 	}
 
+	var err error
+	if f.AWSTags, err = client.ParseLabelSpec(f.AWSRawTags); err != nil {
+		return trace.Wrap(err)
+	}
+	if f.AzureTags, err = client.ParseLabelSpec(f.AzureRawTags); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(f.AWSTags) == 0 {
+		f.AWSTags = map[string]string{types.Wildcard: types.Wildcard}
+	}
+	if len(f.AzureTags) == 0 {
+		f.AzureTags = map[string]string{types.Wildcard: types.Wildcard}
+	}
+
 	if f.StaticDatabaseName != "" || f.StaticDatabaseProtocol != "" || f.StaticDatabaseURI != "" {
 		if f.StaticDatabaseName == "" {
 			return trace.BadParameter("--name is required when configuring static database")
@@ -492,7 +537,6 @@ func (f *DatabaseSampleFlags) CheckAndSetDefaults() error {
 		}
 
 		if f.StaticDatabaseRawLabels != "" {
-			var err error
 			f.StaticDatabaseStaticLabels, f.StaticDatabaseDynamicLabels, err = parseLabels(f.StaticDatabaseRawLabels)
 			if err != nil {
 				return trace.Wrap(err)
