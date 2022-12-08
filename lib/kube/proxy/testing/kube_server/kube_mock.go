@@ -76,6 +76,15 @@ const (
 	// underlying protocol does not support half closed streams.
 	// It is only required for websockets.
 	CloseStreamMessage = "\r\nexit_message\r\n"
+
+	// portForwardProtocolV1Name is the subprotocol "portforward.k8s.io" is used for port forwarding
+	portForwardProtocolV1Name = "portforward.k8s.io"
+	// portHeader is the "container" port to forward
+	portHeader = "port"
+
+	// PortForwardPayload is the message that dummy portforward handler writes
+	// into the connection before terminating the portforward connection.
+	PortForwardPayload = "Portforward handler message"
 )
 
 // statusScheme is private scheme for the decoding here until someone fixes the TODO in NewConnection
@@ -121,6 +130,8 @@ func (s *KubeMockServer) setup() {
 	s.router.UseRawPath = true
 	s.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", s.withWriter(s.exec))
 	s.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", s.withWriter(s.exec))
+	s.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", s.withWriter(s.portforward))
+	s.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", s.withWriter(s.portforward))
 	s.router.POST("/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", s.withWriter(s.selfSubjectAccessReviews))
 	s.server = httptest.NewUnstartedServer(s.router)
 	s.server.EnableHTTP2 = true
@@ -292,7 +303,7 @@ func createSPDYStreams(req remoteCommandRequest) (*remoteCommandProxy, error) {
 		case streamCh <- streamAndReply{Stream: stream, replySent: replySent}:
 			return nil
 		case <-req.context.Done():
-			return trace.BadParameter("request has been canceled")
+			return trace.Wrap(req.context.Err())
 		}
 	})
 	// from this point on, we can no longer call methods on response
@@ -526,4 +537,83 @@ func (s *KubeMockServer) selfSubjectAccessReviews(w http.ResponseWriter, req *ht
 	}
 
 	return s1, nil
+}
+
+// portforward supports SPDY protocols only. Teleport always uses SPDY when
+// portforwarding to upstreams even if the original request is WebSocket.
+func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
+	_, err := httpstream.Handshake(req, w, []string{portForwardProtocolV1Name})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	streamChan := make(chan httpstream.Stream)
+
+	upgrader := spdystream.NewResponseUpgraderWithPings(defaults.HighResPollingPeriod)
+	conn := upgrader.UpgradeResponse(w, req, httpStreamReceived(req.Context(), streamChan))
+	if conn == nil {
+		err = trace.ConnectionProblem(nil, "unable to upgrade SPDY connection")
+		return nil, err
+	}
+	defer conn.Close()
+	var (
+		data      httpstream.Stream
+		errStream httpstream.Stream
+	)
+
+	for {
+		select {
+		case <-conn.CloseChan():
+			return nil, nil
+		case stream := <-streamChan:
+			switch stream.Headers().Get(StreamType) {
+			case StreamTypeError:
+				errStream = stream
+			case StreamTypeData:
+				data = stream
+			}
+		}
+		if errStream != nil && data != nil {
+			break
+		}
+	}
+
+	buf := make([]byte, 1024)
+	n, err := data.Read(buf)
+	if err != nil {
+		errStream.Write([]byte(err.Error()))
+		return nil, nil
+	}
+	fmt.Fprint(data, PortForwardPayload, p.ByName("podName"), string(buf[:n]))
+	return nil, nil
+}
+
+// httpStreamReceived is the httpstream.NewStreamHandler for port
+// forward streams. It checks each stream's port and stream type headers,
+// rejecting any streams that with missing or invalid values. Each valid
+// stream is sent to the streams channel.
+func httpStreamReceived(ctx context.Context, streams chan httpstream.Stream) func(httpstream.Stream, <-chan struct{}) error {
+	return func(stream httpstream.Stream, _ <-chan struct{}) error {
+		// make sure it has a valid port header
+		portString := stream.Headers().Get(portHeader)
+		if len(portString) == 0 {
+			return trace.BadParameter("%q header is required", portHeader)
+		}
+
+		// make sure it has a valid stream type header
+		streamType := stream.Headers().Get(StreamType)
+		if len(streamType) == 0 {
+			return trace.BadParameter("%q header is required", StreamType)
+		}
+		if streamType != StreamTypeError && streamType != StreamTypeData {
+			return trace.BadParameter("invalid stream type %q", streamType)
+		}
+
+		select {
+		case streams <- stream:
+			return nil
+		case <-ctx.Done():
+			return trace.BadParameter("request has been canceled")
+		}
+	}
 }
