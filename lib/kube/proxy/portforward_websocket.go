@@ -19,10 +19,8 @@ package proxy
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -34,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -128,8 +127,12 @@ func runPortForwardingWebSocket(req portForwardRequest) error {
 		binary.LittleEndian.PutUint16(portBytes, port)
 		// Protocol requires sending the port to identify which channels belong to
 		// each port.
-		dataStream.Write(portBytes)
-		errorStream.Write(portBytes)
+		if _, err := dataStream.Write(portBytes); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := errorStream.Write(portBytes); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	h := &websocketPortforwardHandler{
@@ -250,23 +253,12 @@ func (h *websocketPortforwardHandler) forwardStreamPair(p *websocketChannelPair)
 	}
 	defer targetErrorStream.Close()
 	wg := &sync.WaitGroup{}
-	wg.Add(2)
+	wg.Add(1)
 
 	go func() {
 		defer wg.Done()
-		_, err := io.Copy(targetErrorStream, p.errorStream)
-		if err != nil && !errors.Is(err, io.EOF) {
-			h.Debugf("Copy stream error: %v.", err)
-		}
-	}()
-
-	errClose := make(chan struct{})
-	go func() {
-		defer wg.Done()
-		defer close(errClose)
-		_, err := io.Copy(p.errorStream, targetErrorStream)
-		if err != nil && !errors.Is(err, io.EOF) {
-			h.Debugf("Copy stream error: %v.", err)
+		if err := utils.ProxyConn(h.context, p.errorStream, targetErrorStream); err != nil {
+			h.WithError(err).Debugf("Unable to proxy portforward error-stream.")
 		}
 	}()
 
@@ -281,57 +273,15 @@ func (h *websocketPortforwardHandler) forwardStreamPair(p *websocketChannelPair)
 	}
 	defer dataStream.Close()
 
-	localError := make(chan struct{})
-	remoteDone := make(chan struct{})
-	wg.Add(2)
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		// inform the select below that the remote copy is done
-		defer close(remoteDone)
-		// Copy from the remote side to the local port.
-		if _, err := io.Copy(p.dataStream, dataStream); err != nil && !errors.Is(err, net.ErrClosed) {
-			h.Errorf("Error copying from remote stream to local connection: %v", err)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		// inform server we're not sending any more data after copy unblocks
-		defer dataStream.Close()
-
-		// Copy from the local port to the target side.
-		if _, err := io.Copy(dataStream, p.dataStream); err != nil && !errors.Is(err, net.ErrClosed) {
-			h.Warningf("Error copying from local connection to remote stream: %v.", err)
-			// break out of the select below without waiting for the other copy to finish
-			close(localError)
+		if err := utils.ProxyConn(h.context, p.dataStream, dataStream); err != nil {
+			h.WithError(err).Debugf("Unable to proxy portforward data-stream.")
 		}
 	}()
 
 	h.Debugf("Streams have been created, Waiting for copy to complete.")
-
-	// Wait for either a local->remote error or for copying from remote->local to finish
-	select {
-	case <-remoteDone:
-	case <-localError:
-	case <-h.context.Done():
-		h.Debugf("Context is closing, cleaning up.")
-	}
-
-	// Wait until errClose is terminated indicating the copy is finished.
-	select {
-	case <-errClose:
-	case <-h.context.Done():
-		h.Debugf("Context is closing, cleaning up.")
-	}
-
-	// Close local data stream and error stream.
-	// We need to close the streams first because WebSocket channels are io.Pipes
-	// and if nothing is written or if they are not closed, they will block and the
-	// two goroutines responsible for copying from local connection to upstream
-	// will not complete.
-	// We can safely close the streams because the goroutines responsible
-	// for copying from upstream to local connection already finished.
-	p.close()
 	// Wait until every goroutine exits.
 	wg.Wait()
 
