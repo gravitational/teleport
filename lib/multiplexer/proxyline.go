@@ -429,7 +429,7 @@ func (p *ProxyLine) getSignatureAndSigningCert() (string, []byte, error) {
 		if tlv.Type == PP2TypeTeleport {
 			teleportSubTLVs, err := UnmarshalTLVs(tlv.Value)
 			if err != nil {
-				return "", nil, err
+				return "", nil, trace.Wrap(err)
 			}
 
 			for _, subTLV := range teleportSubTLVs {
