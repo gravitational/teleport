@@ -486,7 +486,7 @@ func (p *ProxyLine) VerifySignature(hostCACerts [][]byte, clock clockwork.Clock)
 
 	identity, err := tlsca.FromSubject(signingCert.Subject, signingCert.NotAfter)
 	if err != nil {
-		return false, err
+		return false, trace.Wrap(err)
 	}
 	clusterName := identity.TeleportCluster
 
