@@ -478,7 +478,7 @@ func (p *ProxyLine) VerifySignature(hostCACerts [][]byte, clock clockwork.Clock)
 	// Make sure that transmitted proxy cert is signed by one of the provided HostCAs
 	chains, err := signingCert.Verify(x509.VerifyOptions{Roots: roots})
 	if err != nil && !errors.As(err, &x509.UnknownAuthorityError{}) {
-		return false, err
+		return false, trace.Wrap(err)
 	}
 	if chains == nil {
 		return false, nil
