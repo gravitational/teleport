@@ -456,7 +456,7 @@ func (p *ProxyLine) VerifySignature(hostCACerts [][]byte, clock clockwork.Clock)
 
 	token, proxyCert, err := p.getSignatureAndSigningCert()
 	if err != nil {
-		return false, err
+		return false, trace.Wrap(err)
 	}
 	if len(token) == 0 || proxyCert == nil {
 		return false, nil
