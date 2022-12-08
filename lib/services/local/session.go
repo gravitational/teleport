@@ -149,7 +149,6 @@ func (s *IdentityService) ListAppSessions(ctx context.Context, pageSize int, pag
 	}
 
 	return out, nextKey, nil
-
 }
 
 // GetSnowflakeSessions gets all Snowflake web sessions.
