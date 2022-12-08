@@ -68,7 +68,7 @@ export function Banner({
             onClick={() =>
               userEventService.captureUserEvent({
                 event: CaptureEvent.BannerClickEvent,
-                alertId: id,
+                alert: id,
               })
             }
           >

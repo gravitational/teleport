@@ -5,7 +5,7 @@ import { CaptureEvent } from './types';
 
 export type UserEvent = {
   event: CaptureEvent;
-  alertId?: string;
+  alert?: string;
 };
 
 export type PreUserEvent = UserEvent & {
