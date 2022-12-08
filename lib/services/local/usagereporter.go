@@ -218,17 +218,17 @@ func (r *UsageReporter) runSubmit(ctx context.Context) {
 
 				var resubmit []*SubmittedEvent
 				for _, e := range failed {
-					e.retriesRemaining -= 1
+					e.retriesRemaining--
 
 					if e.retriesRemaining > 0 {
 						resubmit = append(resubmit, e)
 					}
 				}
 
-				dropped_count := len(failed) - len(resubmit)
-				if dropped_count > 0 {
-					r.WithField("dropped_count", dropped_count).Warnf("dropping events due to error: %+v", err)
-					usageEventsDropped.Add(float64(dropped_count))
+				droppedCount := len(failed) - len(resubmit)
+				if droppedCount > 0 {
+					r.WithField("dropped_count", droppedCount).Warnf("dropping events due to error: %+v", err)
+					usageEventsDropped.Add(float64(droppedCount))
 				}
 
 				// Put the failed events back on the queue.
