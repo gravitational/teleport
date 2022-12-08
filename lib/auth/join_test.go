@@ -391,6 +391,7 @@ func TestRegister_Bot(t *testing.T) {
 					types.EventOrderDescending,
 					"",
 				)
+				require.NoError(t, err)
 				require.Len(t, evts, 1)
 				evt, ok := evts[0].(*apievents.BotJoin)
 				require.True(t, ok)
