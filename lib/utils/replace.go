@@ -24,7 +24,7 @@ import (
 // ContainsExpansion returns true if value contains
 // expansion syntax, e.g. $1 or ${10}
 func ContainsExpansion(val string) bool {
-	return reExpansion.FindAllStringIndex(val, -1) != nil
+	return reExpansion.FindStringIndex(val) != nil
 }
 
 // GlobToRegexp replaces glob-style standalone wildcard values
@@ -35,19 +35,23 @@ func GlobToRegexp(in string) string {
 }
 
 // ReplaceRegexp replaces value in string, accepts regular expression and simplified
-// wildcard syntax, it has several important differeneces with standard lib
+// wildcard syntax, it has several important differences with standard lib
 // regexp replacer:
 // * Wildcard globs '*' are treated as regular expression .* expression
 // * Expression is treated as regular expression if it starts with ^ and ends with $
 // * Full match is expected, partial replacements ignored
 // * If there is no match, returns a NotFound error
 func ReplaceRegexp(expression string, replaceWith string, input string) (string, error) {
-	return ReplaceRegexpWithConfig(expression, replaceWith, input, RegexpConfig{})
+	expr, err := RegexpWithConfig(expression, RegexpConfig{})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return ReplaceRegexpWith(expr, replaceWith, input)
 }
 
-// ReplaceRegexpWithConfig behaves exactly like ReplaceRegexp but its behavior
-// can be customized
-func ReplaceRegexpWithConfig(expression string, replaceWith string, input string, config RegexpConfig) (string, error) {
+// RegexpWithConfig compiles a regular expression given some configuration.
+// There are several important differences with standard lib (see ReplaceRegexp).
+func RegexpWithConfig(expression string, config RegexpConfig) (*regexp.Regexp, error) {
 	if !strings.HasPrefix(expression, "^") || !strings.HasSuffix(expression, "$") {
 		// replace glob-style wildcards with regexp wildcards
 		// for plain strings, and quote all characters that could
@@ -59,11 +63,16 @@ func ReplaceRegexpWithConfig(expression string, replaceWith string, input string
 	}
 	expr, err := regexp.Compile(expression)
 	if err != nil {
-		return "", trace.BadParameter(err.Error())
+		return nil, trace.BadParameter(err.Error())
 	}
+	return expr, nil
+}
+
+// ReplaceRegexp replaces string in a given regexp.
+func ReplaceRegexpWith(expr *regexp.Regexp, replaceWith string, input string) (string, error) {
 	// if there is no match, return NotFound error
-	index := expr.FindAllStringIndex(input, -1)
-	if len(index) == 0 {
+	index := expr.FindStringIndex(input)
+	if index == nil {
 		return "", trace.NotFound("no match found")
 	}
 	return expr.ReplaceAllString(input, replaceWith), nil

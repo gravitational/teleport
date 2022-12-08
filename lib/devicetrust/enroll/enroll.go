@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/trace"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
 
@@ -33,6 +34,14 @@ var (
 
 // RunCeremony performs the client-side device enrollment ceremony.
 func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, enrollToken string) (*devicepb.Device, error) {
+	dev, err := runCeremony(ctx, devicesClient, enrollToken)
+	if err != nil {
+		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
+	}
+	return dev, err
+}
+
+func runCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, enrollToken string) (*devicepb.Device, error) {
 	// Start by checking the OSType, this lets us exit early with a nicer message
 	// for non-supported OSes.
 	if getOSType() != devicepb.OSType_OS_TYPE_MACOS {
