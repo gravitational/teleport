@@ -67,7 +67,7 @@ type testCommand struct {
 }
 
 func (t *testCommand) initialize(parent *kingpin.CmdClause) {
-	t.cmd = parent.Command("test", "Test the parsing and evaluation of login rules before loading them into your cluster")
+	t.cmd = parent.Command("test", "Test the parsing and evaluation of login rules before loading them into your cluster").Hidden()
 	t.cmd.Flag("resource-file", "login rule resource file name (YAML or JSON)").Required().StringsVar(&t.inputResourceFiles)
 	t.cmd.Flag("format", "Output format: 'yaml' or 'json'").Default(teleport.YAML).StringVar(&t.outputFormat)
 	t.cmd.Arg("traits-file", "input user traits file name (YAML or JSON), empty for stdin").StringVar(&t.inputTraitsFile)
