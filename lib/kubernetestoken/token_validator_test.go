@@ -148,9 +148,8 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 			},
 			kubeVersion: &boundTokenKubernetesVersion,
 			expectedError: trace.BadParameter(
-				fmt.Sprintf(
-					"legacy SA tokens are not accepted as kubernetes version %s supports bound tokens",
-					boundTokenKubernetesVersion.GitVersion),
+				"legacy SA tokens are not accepted as kubernetes version %s supports bound tokens",
+				boundTokenKubernetesVersion.GitVersion),
 			),
 		},
 		{
