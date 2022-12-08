@@ -294,12 +294,12 @@ matches snapshot for auth-type.yaml:
 matches snapshot for auth-webauthn-legacy.yaml:
   1: |
     |-
-      Error: 'error converting YAML to JSON: yaml: line 27: mapping values are not allowed
+      Error: 'error converting YAML to JSON: yaml: line 20: mapping values are not allowed
         in this context'
 matches snapshot for auth-webauthn.yaml:
   1: |
     |-
-      Error: 'error converting YAML to JSON: yaml: line 27: mapping values are not allowed
+      Error: 'error converting YAML to JSON: yaml: line 20: mapping values are not allowed
         in this context'
 matches snapshot for aws-dynamodb-autoscaling.yaml:
   1: |
@@ -312,6 +312,26 @@ matches snapshot for aws-dynamodb-autoscaling.yaml:
         cluster_name: test-aws-cluster
         enabled: true
         proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-aws-cluster
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
         storage:
           audit_events_uri:
           - dynamodb://test-dynamodb-auditlog-table
@@ -327,26 +347,6 @@ matches snapshot for aws-dynamodb-autoscaling.yaml:
           write_max_capacity: 100
           write_min_capacity: 5
           write_target_value: 50
-      kubernetes_service:
-        enabled: true
-        kube_cluster_name: test-aws-cluster
-        listen_addr: 0.0.0.0:3026
-        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
-      proxy_service:
-        enabled: false
-      ssh_service:
-        enabled: false
-      teleport:
-        log:
-          format:
-            extra_fields:
-            - timestamp
-            - level
-            - component
-            - caller
-            output: text
-          output: stderr
-          severity: INFO
       version: v3
 matches snapshot for aws-ha-acme.yaml:
   1: |
@@ -359,15 +359,6 @@ matches snapshot for aws-ha-acme.yaml:
         cluster_name: test-aws-cluster
         enabled: true
         proxy_listener_mode: separate
-        storage:
-          audit_events_uri:
-          - dynamodb://test-dynamodb-auditlog-table
-          audit_sessions_uri: s3://test-s3-session-storage-bucket
-          auto_scaling: false
-          continuous_backups: false
-          region: us-west-2
-          table_name: test-dynamodb-backend-table
-          type: dynamodb
       kubernetes_service:
         enabled: true
         kube_cluster_name: test-aws-cluster
@@ -390,6 +381,15 @@ matches snapshot for aws-ha-acme.yaml:
             output: text
           output: stderr
           severity: INFO
+        storage:
+          audit_events_uri:
+          - dynamodb://test-dynamodb-auditlog-table
+          audit_sessions_uri: s3://test-s3-session-storage-bucket
+          auto_scaling: false
+          continuous_backups: false
+          region: us-west-2
+          table_name: test-dynamodb-backend-table
+          type: dynamodb
       version: v3
 matches snapshot for aws-ha-antiaffinity.yaml:
   1: |
@@ -402,15 +402,6 @@ matches snapshot for aws-ha-antiaffinity.yaml:
         cluster_name: test-aws-cluster
         enabled: true
         proxy_listener_mode: separate
-        storage:
-          audit_events_uri:
-          - dynamodb://test-dynamodb-auditlog-table
-          audit_sessions_uri: s3://test-s3-session-storage-bucket
-          auto_scaling: false
-          continuous_backups: false
-          region: us-west-2
-          table_name: test-dynamodb-backend-table
-          type: dynamodb
       kubernetes_service:
         enabled: true
         kube_cluster_name: test-aws-cluster
@@ -433,6 +424,15 @@ matches snapshot for aws-ha-antiaffinity.yaml:
             output: text
           output: stderr
           severity: INFO
+        storage:
+          audit_events_uri:
+          - dynamodb://test-dynamodb-auditlog-table
+          audit_sessions_uri: s3://test-s3-session-storage-bucket
+          auto_scaling: false
+          continuous_backups: false
+          region: us-west-2
+          table_name: test-dynamodb-backend-table
+          type: dynamodb
       version: v3
 matches snapshot for aws-ha-log.yaml:
   1: |
@@ -445,16 +445,6 @@ matches snapshot for aws-ha-log.yaml:
         cluster_name: test-aws-cluster
         enabled: true
         proxy_listener_mode: separate
-        storage:
-          audit_events_uri:
-          - dynamodb://test-dynamodb-auditlog-table
-          - stdout://
-          audit_sessions_uri: s3://test-s3-session-storage-bucket
-          auto_scaling: false
-          continuous_backups: false
-          region: us-west-2
-          table_name: test-dynamodb-backend-table
-          type: dynamodb
       kubernetes_service:
         enabled: true
         kube_cluster_name: test-aws-cluster
@@ -477,6 +467,16 @@ matches snapshot for aws-ha-log.yaml:
             output: text
           output: stderr
           severity: DEBUG
+        storage:
+          audit_events_uri:
+          - dynamodb://test-dynamodb-auditlog-table
+          - stdout://
+          audit_sessions_uri: s3://test-s3-session-storage-bucket
+          auto_scaling: false
+          continuous_backups: false
+          region: us-west-2
+          table_name: test-dynamodb-backend-table
+          type: dynamodb
       version: v3
 matches snapshot for aws-ha.yaml:
   1: |
@@ -489,15 +489,6 @@ matches snapshot for aws-ha.yaml:
         cluster_name: test-aws-cluster
         enabled: true
         proxy_listener_mode: separate
-        storage:
-          audit_events_uri:
-          - dynamodb://test-dynamodb-auditlog-table
-          audit_sessions_uri: s3://test-s3-session-storage-bucket
-          auto_scaling: false
-          continuous_backups: false
-          region: us-west-2
-          table_name: test-dynamodb-backend-table
-          type: dynamodb
       kubernetes_service:
         enabled: true
         kube_cluster_name: test-aws-cluster
@@ -520,6 +511,15 @@ matches snapshot for aws-ha.yaml:
             output: text
           output: stderr
           severity: INFO
+        storage:
+          audit_events_uri:
+          - dynamodb://test-dynamodb-auditlog-table
+          audit_sessions_uri: s3://test-s3-session-storage-bucket
+          auto_scaling: false
+          continuous_backups: false
+          region: us-west-2
+          table_name: test-dynamodb-backend-table
+          type: dynamodb
       version: v3
 matches snapshot for aws.yaml:
   1: |
@@ -532,15 +532,6 @@ matches snapshot for aws.yaml:
         cluster_name: test-aws-cluster
         enabled: true
         proxy_listener_mode: separate
-        storage:
-          audit_events_uri:
-          - dynamodb://test-dynamodb-auditlog-table
-          audit_sessions_uri: s3://test-s3-session-storage-bucket
-          auto_scaling: false
-          continuous_backups: false
-          region: us-west-2
-          table_name: test-dynamodb-backend-table
-          type: dynamodb
       kubernetes_service:
         enabled: true
         kube_cluster_name: test-aws-cluster
@@ -563,6 +554,15 @@ matches snapshot for aws.yaml:
             output: text
           output: stderr
           severity: INFO
+        storage:
+          audit_events_uri:
+          - dynamodb://test-dynamodb-auditlog-table
+          audit_sessions_uri: s3://test-s3-session-storage-bucket
+          auto_scaling: false
+          continuous_backups: false
+          region: us-west-2
+          table_name: test-dynamodb-backend-table
+          type: dynamodb
       version: v3
 matches snapshot for existing-tls-secret-with-ca.yaml:
   1: |
@@ -639,14 +639,6 @@ matches snapshot for gcp-ha-acme.yaml:
         cluster_name: test-gcp-cluster
         enabled: true
         proxy_listener_mode: separate
-        storage:
-          audit_events_uri:
-          - firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
-          audit_sessions_uri: gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
-          collection_name: test-teleport-firestore-storage-collection
-          credentials_path: /etc/teleport-secrets/gcp-credentials.json
-          project_id: gcpproj-123456
-          type: firestore
       kubernetes_service:
         enabled: true
         kube_cluster_name: test-gcp-cluster
@@ -669,6 +661,14 @@ matches snapshot for gcp-ha-acme.yaml:
             output: text
           output: stderr
           severity: INFO
+        storage:
+          audit_events_uri:
+          - firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          audit_sessions_uri: gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          collection_name: test-teleport-firestore-storage-collection
+          credentials_path: /etc/teleport-secrets/gcp-credentials.json
+          project_id: gcpproj-123456
+          type: firestore
       version: v3
 matches snapshot for gcp-ha-antiaffinity.yaml:
   1: |
@@ -681,14 +681,6 @@ matches snapshot for gcp-ha-antiaffinity.yaml:
         cluster_name: test-gcp-cluster
         enabled: true
         proxy_listener_mode: separate
-        storage:
-          audit_events_uri:
-          - firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
-          audit_sessions_uri: gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
-          collection_name: test-teleport-firestore-storage-collection
-          credentials_path: /etc/teleport-secrets/gcp-credentials.json
-          project_id: gcpproj-123456
-          type: firestore
       kubernetes_service:
         enabled: true
         kube_cluster_name: test-gcp-cluster
@@ -711,6 +703,14 @@ matches snapshot for gcp-ha-antiaffinity.yaml:
             output: text
           output: stderr
           severity: INFO
+        storage:
+          audit_events_uri:
+          - firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          audit_sessions_uri: gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          collection_name: test-teleport-firestore-storage-collection
+          credentials_path: /etc/teleport-secrets/gcp-credentials.json
+          project_id: gcpproj-123456
+          type: firestore
       version: v3
 matches snapshot for gcp-ha-log.yaml:
   1: |
@@ -723,15 +723,6 @@ matches snapshot for gcp-ha-log.yaml:
         cluster_name: test-gcp-cluster
         enabled: true
         proxy_listener_mode: separate
-        storage:
-          audit_events_uri:
-          - firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
-          - stdout://
-          audit_sessions_uri: gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
-          collection_name: test-teleport-firestore-storage-collection
-          credentials_path: /etc/teleport-secrets/gcp-credentials.json
-          project_id: gcpproj-123456
-          type: firestore
       kubernetes_service:
         enabled: true
         kube_cluster_name: test-gcp-cluster
@@ -754,6 +745,15 @@ matches snapshot for gcp-ha-log.yaml:
             output: text
           output: stderr
           severity: DEBUG
+        storage:
+          audit_events_uri:
+          - firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          - stdout://
+          audit_sessions_uri: gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          collection_name: test-teleport-firestore-storage-collection
+          credentials_path: /etc/teleport-secrets/gcp-credentials.json
+          project_id: gcpproj-123456
+          type: firestore
       version: v3
 matches snapshot for gcp.yaml:
   1: |
@@ -766,14 +766,6 @@ matches snapshot for gcp.yaml:
         cluster_name: test-gcp-cluster
         enabled: true
         proxy_listener_mode: separate
-        storage:
-          audit_events_uri:
-          - firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
-          audit_sessions_uri: gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
-          collection_name: test-teleport-firestore-storage-collection
-          credentials_path: /etc/teleport-secrets/gcp-credentials.json
-          project_id: gcpproj-123456
-          type: firestore
       kubernetes_service:
         enabled: true
         kube_cluster_name: test-gcp-cluster
@@ -796,6 +788,14 @@ matches snapshot for gcp.yaml:
             output: text
           output: stderr
           severity: INFO
+        storage:
+          audit_events_uri:
+          - firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          audit_sessions_uri: gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          collection_name: test-teleport-firestore-storage-collection
+          credentials_path: /etc/teleport-secrets/gcp-credentials.json
+          project_id: gcpproj-123456
+          type: firestore
       version: v3
 matches snapshot for initcontainers.yaml:
   1: |
@@ -1293,15 +1293,6 @@ matches snapshot for tolerations.yaml:
         cluster_name: test-aws-cluster
         enabled: true
         proxy_listener_mode: separate
-        storage:
-          audit_events_uri:
-          - dynamodb://test-dynamodb-auditlog-table
-          audit_sessions_uri: s3://test-s3-session-storage-bucket
-          auto_scaling: false
-          continuous_backups: false
-          region: us-west-2
-          table_name: test-dynamodb-backend-table
-          type: dynamodb
       kubernetes_service:
         enabled: true
         kube_cluster_name: test-aws-cluster
@@ -1322,6 +1313,15 @@ matches snapshot for tolerations.yaml:
             output: text
           output: stderr
           severity: INFO
+        storage:
+          audit_events_uri:
+          - dynamodb://test-dynamodb-auditlog-table
+          audit_sessions_uri: s3://test-s3-session-storage-bucket
+          auto_scaling: false
+          continuous_backups: false
+          region: us-west-2
+          table_name: test-dynamodb-backend-table
+          type: dynamodb
       version: v3
 matches snapshot for version-override.yaml:
   1: |
