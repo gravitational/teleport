@@ -19,10 +19,6 @@ your Teleport cluster:
 
 <Tabs>
 <TabItem label="Local user">
-
-After entering your Teleport variables above you can copy and paste the below command.  You should see similar output
-after running.
-
 ```code
 $ tsh login --proxy=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/> --user=<Var name="user" description="Your Teleport username"/>
 Enter password for Teleport user alice:
@@ -39,10 +35,6 @@ Tap any security key
 
 </TabItem>
 <TabItem label="SAML / OIDC / GitHub user">
-
-After entering your Teleport variables above you can copy and paste the below command.  You should see similar output
-after running. The username is set from the Identity Provider so it is not required as a parameter.
-
 ```code
 $ tsh login --proxy=<Var name="teleport.example.com"/> --auth=<Var name="your-idp-connector" description="Your Identity Provider connection name, if implemented by your administrators"/>
 If browser window does not open automatically, open it by clicking on the link:
