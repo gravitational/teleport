@@ -303,7 +303,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	lcConf.Clock = p.clock
 	lcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	if opts.leafConfig != nil {
-		opts.rootConfig(lcConf)
+		opts.leafConfig(lcConf)
 	}
 
 	// Establish trust b/w root and leaf.
