@@ -55,6 +55,10 @@
       "title": "Deploy a Cluster",
       "entries": [
         {
+          "title": "Introduction",
+          "slug": "/deploy-a-cluster/introduction/"
+        },
+        {
           "title": "Open Source Teleport",
           "slug": "/deploy-a-cluster/open-source/",
           "forScopes": ["oss"]
@@ -112,6 +116,10 @@
               "forScopes": ["enterprise"]
             }
           ]
+        },
+        {
+          "title": "High Availability Deployments",
+          "slug": "/deploy-a-cluster/high-availability/"
         },
         {
           "title": "Deploy with Helm",
