@@ -81,6 +81,7 @@ function resolveRedirectUrl(params: UrlLauncherParams) {
   return service.createAppSession(params).then(result => {
     const url = new URL(`https://${result.fqdn}${port}/x-teleport-auth`);
     url.searchParams.set('state', state);
+    url.searchParams.append('subject', result.subject);
     url.hash = `#value=${result.value}`;
     if (redirectPath) {
       url.searchParams.set('path', redirectPath);
