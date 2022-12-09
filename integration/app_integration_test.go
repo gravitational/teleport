@@ -190,13 +190,12 @@ func TestWSSLock(t *testing.T) {
 
 	// Try to read for a short amount of time.
 	require.Eventually(t, func() bool {
+		// These are closed outside of the scope of this function.
+		//nolint:bodyclose
 		conn, httpResponse, err = dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, pack.rootCluster.GetPortWeb()), "/"), header)
-		require.NoError(t, err)
 		if err != nil {
 			return false
 		}
-
-		// Try to read
 
 		// Read, write, and read again to make sure its working as expected.
 		stream = &web.WebsocketIO{Conn: conn}
@@ -243,7 +242,13 @@ func TestWSSLock(t *testing.T) {
 	_ = conn.Close()
 
 	require.Eventually(t, func() bool {
+		// These are closed outside of the scope of this function.
+		//nolint:bodyclose
 		conn, httpResponse, err = dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, pack.rootCluster.GetPortWeb()), "/"), header)
+		if err == nil {
+			conn.Close()
+			httpResponse.Body.Close()
+		}
 		return err != nil
 	}, time.Second*5, time.Millisecond*100)
 
@@ -290,13 +295,12 @@ func TestWSSCertExpiration(t *testing.T) {
 
 	// Try to read for a short amount of time.
 	require.Eventually(t, func() bool {
+		// These are closed outside of the scope of this function.
+		//nolint:bodyclose
 		conn, httpResponse, err = dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, pack.rootCluster.GetPortWeb()), "/"), header)
-		require.NoError(t, err)
 		if err != nil {
 			return false
 		}
-
-		// Try to read
 
 		// Read, write, and read again to make sure its working as expected.
 		stream = &web.WebsocketIO{Conn: conn}
@@ -343,7 +347,13 @@ func TestWSSCertExpiration(t *testing.T) {
 	_ = conn.Close()
 
 	require.Eventually(t, func() bool {
+		// These are closed outside of the scope of this function.
+		//nolint:bodyclose
 		conn, httpResponse, err = dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, pack.rootCluster.GetPortWeb()), "/"), header)
+		if err == nil {
+			conn.Close()
+			httpResponse.Body.Close()
+		}
 		return err != nil
 	}, time.Second*5, time.Millisecond*100)
 
