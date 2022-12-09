@@ -40,7 +40,8 @@ func TestEvaluate(t *testing.T) {
 	t.Parallel()
 
 	baseInputTraits := map[string][]string{
-		"groups": []string{"devs", "security"},
+		"groups":   []string{"devs", "security"},
+		"username": []string{"alice"},
 	}
 
 	for _, tc := range []struct {
@@ -180,6 +181,56 @@ func TestEvaluate(t *testing.T) {
 				"a":      []string{"correct"},
 				"groups": baseInputTraits["groups"],
 			},
+		},
+		{
+			desc: "set methods",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsMap("rule", 0, map[string][]string{
+					"extragroups":            []string{`external.groups.add("extra", "surplus")`},
+					"fewergroups":            []string{`external.groups.remove("security")`},
+					"nogroups":               []string{`external.groups.remove("devs", "security").add("test").remove("test").remove("not-a-group")`},
+					"groups-by-another-name": []string{`external.groups.remove("not-a-group")`},
+					"logins": []string{
+						// external.groups does not contain "admins", so we
+						// expect to just get the username.
+						`ifelse(external.groups.contains("admins"), external.username.add("root"), external.username)`,
+						// external.groups does contain "security", so expect
+						// the "security-team" login.
+						`ifelse(external.groups.contains("security"), "security-team", set())`,
+					},
+				}),
+			},
+			inputTraits: baseInputTraits,
+			expectedTraits: map[string][]string{
+				"extragroups":            append([]string{"extra", "surplus"}, baseInputTraits["groups"]...),
+				"fewergroups":            []string{"devs"},
+				"nogroups":               []string{},
+				"groups-by-another-name": baseInputTraits["groups"],
+				"logins":                 []string{"alice", "security-team"},
+			},
+		},
+		{
+			desc: "set union",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsMap("rule", 0, map[string][]string{
+					"groups": []string{`union(external.groups, set("test1", "test2"))`},
+					"fruits": []string{`union(set("apple", "banana"), set("cherry"), set("dragonfruit", "eggplant"))`},
+				}),
+			},
+			inputTraits: baseInputTraits,
+			expectedTraits: map[string][]string{
+				"groups": append([]string{"test1", "test2"}, baseInputTraits["groups"]...),
+				"fruits": []string{"apple", "banana", "cherry", "dragonfruit", "eggplant"},
+			},
+		},
+		{
+			desc: "wrong set.add argument type",
+			rules: []*loginrulepb.LoginRule{
+				// Cannot add a set to a set - should use union.
+				newLoginRuleWithTraitsExpression("rule", 0, `external.groups.add(external.username)`),
+			},
+			inputTraits:   baseInputTraits,
+			errorContains: "arguments to set.add must have type string, got loginrule.set",
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {

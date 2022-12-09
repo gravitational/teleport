@@ -91,7 +91,10 @@ func evaluateTraitsMap(p predicate.Parser, traitsMap map[string]*wrappers.String
 				return nil, trace.Wrap(err)
 			}
 
-			d[key] = union(d[key], s)
+			d[key], err = union(d[key], s)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
 	return d, nil

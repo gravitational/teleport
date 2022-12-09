@@ -58,6 +58,12 @@ func newParser(env *parseEnv) (predicate.Parser, error) {
 			"dict":   newDict,
 			"pair":   newPair,
 			"ifelse": ifelse,
+			"union":  union,
+		},
+		Methods: map[string]any{
+			"add":      set.add,
+			"remove":   set.remove,
+			"contains": set.contains,
 		},
 	})
 	return parser, trace.Wrap(err)
@@ -83,14 +89,60 @@ func (s set) items() []string {
 	return out
 }
 
-func union(sets ...set) set {
+func (s set) contains(value any) (bool, error) {
+	str, ok := value.(string)
+	if !ok {
+		return false, trace.BadParameter("argument to set.contains must have type string, got %T", value)
+	}
+	_, ok = s[str]
+	return ok, nil
+}
+
+// add returns a copy of the set with the given values added.
+func (s set) add(values ...any) (set, error) {
+	out := make(set)
+	for value := range s {
+		out[value] = struct{}{}
+	}
+	for _, value := range values {
+		str, ok := value.(string)
+		if !ok {
+			return nil, trace.BadParameter("arguments to set.add must have type string, got %T", value)
+		}
+		out[str] = struct{}{}
+	}
+	return out, nil
+}
+
+// remove returns a copy of the set with values added.
+func (s set) remove(values ...any) (set, error) {
+	out := make(set, len(s))
+	for value := range s {
+		out[value] = struct{}{}
+	}
+	for _, value := range values {
+		str, ok := value.(string)
+		if !ok {
+			return nil, trace.BadParameter("arguments to set.remove must have type string, got %T", value)
+		}
+		delete(out, str)
+	}
+	return out, nil
+}
+
+func union(sets ...any) (set, error) {
 	result := make(set)
-	for _, s := range sets {
+	for _, value := range sets {
+		s, ok := value.(set)
+		if !ok {
+			return nil, trace.BadParameter("arguments to union must have type set, got %T", value)
+
+		}
 		for v := range s {
 			result[v] = struct{}{}
 		}
 	}
-	return result
+	return result, nil
 }
 
 type dict map[string]set
