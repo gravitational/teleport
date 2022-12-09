@@ -117,6 +117,10 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		if err := a.checkCircleCIJoinRequest(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case types.JoinMethodKubernetes:
+		if err := a.checkKubernetesJoinRequest(ctx, req); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	case types.JoinMethodToken:
 		// carry on to common token checking logic
 	default:
@@ -162,7 +166,8 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 			renewable = true
 		case types.JoinMethodIAM,
 			types.JoinMethodGitHub,
-			types.JoinMethodCircleCI:
+			types.JoinMethodCircleCI,
+			types.JoinMethodKubernetes:
 			shouldDeleteToken = false
 			renewable = false
 		default:

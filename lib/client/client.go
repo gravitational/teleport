@@ -1714,7 +1714,7 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 	)
 	defer span.End()
 
-	env := make(map[string]string)
+	env := c.TC.newSessionEnv()
 	env[teleport.EnvSSHJoinMode] = string(mode)
 	env[teleport.EnvSSHSessionReason] = c.TC.Config.Reason
 	env[teleport.EnvSSHSessionDisplayParticipantRequirements] = strconv.FormatBool(c.TC.Config.DisplayParticipantRequirements)
@@ -1724,9 +1724,6 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 	}
 
 	env[teleport.EnvSSHSessionInvited] = string(encoded)
-	for key, value := range c.TC.Env {
-		env[key] = value
-	}
 
 	nodeSession, err := newSession(ctx, c, sessToJoin, env, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, c.TC.EnableEscapeSequences)
 	if err != nil {

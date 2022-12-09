@@ -853,6 +853,7 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 		Clock:        s.cfg.Clock,
 		Log:          sessionCtx.Log,
 		Users:        s.cfg.CloudUsers,
+		DataDir:      s.cfg.DataDir,
 	})
 }
 

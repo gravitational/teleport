@@ -299,3 +299,21 @@ func TestSudoersSanitization(t *testing.T) {
 		require.Equal(t, tc.userExpected, actual)
 	}
 }
+
+func TestIsUnknownGroupError(t *testing.T) {
+	unknownGroupName := "unknown"
+	for _, tc := range []struct {
+		err                 error
+		isUnknownGroupError bool
+	}{
+		{
+			err:                 user.UnknownGroupError(unknownGroupName),
+			isUnknownGroupError: true,
+		}, {
+			err:                 fmt.Errorf("lookup groupname %s: no such file or directory", unknownGroupName),
+			isUnknownGroupError: true,
+		},
+	} {
+		require.Equal(t, tc.isUnknownGroupError, isUnknownGroupError(tc.err, unknownGroupName))
+	}
+}
