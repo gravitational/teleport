@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
@@ -149,17 +150,12 @@ func (a *azureApp) Close() error {
 // GetEnvVars returns required environment variables to configure the
 // clients.
 func (a *azureApp) GetEnvVars() (map[string]string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	envVars := map[string]string{
 		// set custom Azure home path; this helps with the scenario in which user runs
 		// 1. `tsh az login` in one console
 		// 2. `az ...` in another console
 		// without custom config dir the second invocation will hang, attempting to connect to (inaccessible without configuration) MSI.
-		"AZURE_CONFIG_DIR": path.Join(homeDir, ".azure-teleport-"+a.app.Name),
+		"AZURE_CONFIG_DIR": path.Join(profile.FullProfilePath(a.cf.HomePath), "azure", a.app.ClusterName, a.app.Name),
 		// setting MSI_ENDPOINT instructs Azure CLI to make managed identity calls on this address.
 		// the requests will be handled by tsh proxy.
 		"MSI_ENDPOINT": "https://" + types.TeleportAzureMSIEndpoint + "/" + a.msiSecret,
