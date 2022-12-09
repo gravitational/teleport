@@ -313,7 +313,7 @@ func (w *writer) writeValue(value interface{}, color int) {
 	w.WriteString(s)
 }
 
-func (w *writer) writeMap(m map[string]interface{}) {
+func (w *writer) writeMap(m map[string]any) {
 	if len(m) == 0 {
 		return
 	}
@@ -327,6 +327,8 @@ func (w *writer) writeMap(m map[string]interface{}) {
 			continue
 		}
 		switch value := m[key].(type) {
+		case map[string]any:
+			w.writeMap(value)
 		case log.Fields:
 			w.writeMap(value)
 		default:
