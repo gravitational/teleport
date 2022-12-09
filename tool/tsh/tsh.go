@@ -682,6 +682,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	proxyAzure.Flag("app", "Optional Name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
 	proxyAzure.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAzure.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
+	proxyAzure.Alias("az")
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
