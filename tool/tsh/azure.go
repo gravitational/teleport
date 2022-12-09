@@ -178,14 +178,6 @@ func (a *azureApp) GetEnvVars() (map[string]string, error) {
 	return envVars, nil
 }
 
-// GetForwardProxyAddr returns local forward proxy address.
-func (a *azureApp) GetForwardProxyAddr() string {
-	if a.localForwardProxy != nil {
-		return a.localForwardProxy.GetAddr()
-	}
-	return ""
-}
-
 // RunCommand executes provided command.
 func (a *azureApp) RunCommand(cmd *exec.Cmd) error {
 	environmentVariables, err := a.GetEnvVars()
