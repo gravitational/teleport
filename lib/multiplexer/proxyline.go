@@ -74,6 +74,13 @@ var (
 
 	// ErrTruncatedTLV is returned when there's no enough bytes to read full TLV
 	ErrTruncatedTLV = errors.New("TLV value was truncated")
+
+	// ErrNoSignature is returned when proxy line doesn't have full required data (JWT and cert) for verification
+	ErrNoSignature = errors.New("could not find signature data on the proxy line")
+	// ErrBadCACert is returned when a HostCA cert could not successfully be added to roots for signing certificate verification
+	ErrBadCACert = errors.New("could not add host CA to roots for verification")
+	// ErrIncorrectRole is returned when signing cert doesn't have required system role (Proxy)
+	ErrIncorrectRole = errors.New("could not find required system role on the signing certificate")
 )
 
 // ProxyLine implements PROXY protocol version 1 and 2
@@ -448,51 +455,48 @@ func (p *ProxyLine) getSignatureAndSigningCert() (string, []byte, error) {
 }
 
 // VerifySignature checks that signature contained in the proxy line is securely signed.
-func (p *ProxyLine) VerifySignature(hostCACerts [][]byte, clock clockwork.Clock) (bool, error) {
+func (p *ProxyLine) VerifySignature(hostCACerts [][]byte, clock clockwork.Clock) error {
 	// If there's no TLVs it can't be verified
 	if len(p.TLVs) == 0 {
-		return false, nil
+		return trace.Wrap(ErrNoSignature)
 	}
 
 	token, proxyCert, err := p.getSignatureAndSigningCert()
 	if err != nil {
-		return false, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	if len(token) == 0 || proxyCert == nil {
-		return false, nil
+		return trace.Wrap(ErrNoSignature)
 	}
 
 	signingCert, err := tlsca.ParseCertificatePEM(proxyCert)
 	if err != nil {
-		return false, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	roots := x509.NewCertPool()
 	for _, cert := range hostCACerts {
 		ok := roots.AppendCertsFromPEM(cert)
 		if !ok {
-			return false, nil
+			return trace.Wrap(ErrBadCACert)
 		}
 	}
 
 	// Make sure that transmitted proxy cert is signed by one of the provided HostCAs
-	chains, err := signingCert.Verify(x509.VerifyOptions{Roots: roots})
-	if err != nil && !errors.As(err, &x509.UnknownAuthorityError{}) {
-		return false, trace.Wrap(err)
-	}
-	if chains == nil {
-		return false, nil
+	_, err = signingCert.Verify(x509.VerifyOptions{Roots: roots})
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	identity, err := tlsca.FromSubject(signingCert.Subject, signingCert.NotAfter)
 	if err != nil {
-		return false, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	clusterName := identity.TeleportCluster
 
 	foundRole := checkForSystemRole(identity, types.RoleProxy)
 	if !foundRole {
-		return false, nil
+		return trace.Wrap(ErrIncorrectRole)
 	}
 
 	// Check JWT using proxy cert's public key
@@ -503,7 +507,7 @@ func (p *ProxyLine) VerifySignature(hostCACerts [][]byte, clock clockwork.Clock)
 		ClusterName: clusterName,
 	})
 	if err != nil {
-		return false, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	_, err = jwtVerifier.VerifyPROXY(jwt.PROXYVerifyParams{
 		ClusterName:        clusterName,
@@ -512,11 +516,11 @@ func (p *ProxyLine) VerifySignature(hostCACerts [][]byte, clock clockwork.Clock)
 		RawToken:           token,
 	})
 	if err != nil {
-		return false, nil
+		return trace.Wrap(err)
 	}
 
 	p.IsVerified = true
-	return true, nil
+	return nil
 }
 
 func checkForSystemRole(identity *tlsca.Identity, roleToFind types.SystemRole) bool {

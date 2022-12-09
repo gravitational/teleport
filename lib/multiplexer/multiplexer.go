@@ -347,7 +347,6 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 				return nil, trace.Wrap(err)
 			}
 
-			verified := false
 			// If TLVs are empty we know it can't be signed, so we don't try to verify to avoid unnecessary load
 			if m.CertAuthoritiesGetter != nil && len(newProxyLine.TLVs) > 0 {
 				hostCACerts := [][]byte{}
@@ -360,24 +359,24 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 					caCerts := services.GetTLSCerts(ca)
 					hostCACerts = append(hostCACerts, caCerts...)
 				}
-				verified, err = newProxyLine.VerifySignature(hostCACerts, m.Clock)
+				err = newProxyLine.VerifySignature(hostCACerts, m.Clock)
 				if err != nil {
 					return nil, err
 				}
 			}
 
 			// If proxy line is signed and successfully verified, it's always accepted as current proxy line
-			if verified {
+			if newProxyLine.IsVerified {
 				proxyLine = newProxyLine
 				continue
 			}
 
-			// If proxy line was signed but couldn't be verified it's ignored
-			if !verified && newProxyLine.isSigned() {
-				m.Warnf("Rejected signed PROXY header, incoming connection remote/local: %q, PROXY source/destination: %q",
+			// If proxy line was signed but was not successfully verified we fail
+			if m.CertAuthoritiesGetter != nil && newProxyLine.isSigned() && !newProxyLine.IsVerified {
+				return nil, trace.AccessDenied(
+					"rejected signed PROXY header, incoming connection remote/local: %q, PROXY source/destination: %q",
 					conn.RemoteAddr().String()+"->"+conn.LocalAddr().String(),
 					newProxyLine.Source.String()+"->"+newProxyLine.Destination.String())
-				continue
 			}
 
 			// This is unsigned proxy line, return error if external PROXY protocol is not enabled

@@ -437,7 +437,7 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 	require.NoError(t, err)
 
 	wrongSourceSignature, err := jwtSigner.SignPROXY(jwt.PROXYSignParams{
-		ClusterName:        "wrong-cluster",
+		ClusterName:        clusterName,
 		SourceAddress:      "4.3.2.1:1234",
 		DestinationAddress: dAddr.String(),
 	})
@@ -460,78 +460,70 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 		signature   string
 		cert        []byte
 
-		wantErr      string
-		wantVerified bool
+		wantErr string
 	}{
 		{
-			desc:         "no host CA certificate",
-			sAddr:        sAddr,
-			dAddr:        dAddr,
-			hostCACerts:  [][]byte{},
-			signature:    signature,
-			cert:         tlsProxyCert,
-			wantErr:      "",
-			wantVerified: false,
+			desc:        "no host CA certificate",
+			sAddr:       sAddr,
+			dAddr:       dAddr,
+			hostCACerts: [][]byte{},
+			signature:   signature,
+			cert:        tlsProxyCert,
+			wantErr:     "certificate signed by unknown authority",
 		},
 		{
-			desc:         "mangled signing certificate",
-			sAddr:        sAddr,
-			dAddr:        dAddr,
-			hostCACerts:  [][]byte{hostCA},
-			signature:    signature,
-			cert:         []byte{0x01},
-			wantErr:      "expected PEM-encoded block",
-			wantVerified: false,
+			desc:        "mangled signing certificate",
+			sAddr:       sAddr,
+			dAddr:       dAddr,
+			hostCACerts: [][]byte{hostCA},
+			signature:   signature,
+			cert:        []byte{0x01},
+			wantErr:     "expected PEM-encoded block",
 		},
 		{
-			desc:         "mangled signature",
-			sAddr:        sAddr,
-			dAddr:        dAddr,
-			hostCACerts:  [][]byte{hostCA},
-			signature:    "42",
-			cert:         tlsProxyCert,
-			wantErr:      "",
-			wantVerified: false,
+			desc:        "mangled signature",
+			sAddr:       sAddr,
+			dAddr:       dAddr,
+			hostCACerts: [][]byte{hostCA},
+			signature:   "42",
+			cert:        tlsProxyCert,
+			wantErr:     "compact JWS format must have three parts",
 		},
 		{
-			desc:         "wrong signature (source address)",
-			sAddr:        sAddr,
-			dAddr:        dAddr,
-			hostCACerts:  [][]byte{hostCA},
-			signature:    wrongSourceSignature,
-			cert:         tlsProxyCert,
-			wantErr:      "",
-			wantVerified: false,
+			desc:        "wrong signature (source address)",
+			sAddr:       sAddr,
+			dAddr:       dAddr,
+			hostCACerts: [][]byte{hostCA},
+			signature:   wrongSourceSignature,
+			cert:        tlsProxyCert,
+			wantErr:     "validation failed, invalid subject claim (sub)",
 		},
 		{
-			desc:         "wrong signature (cluster)",
-			sAddr:        sAddr,
-			dAddr:        dAddr,
-			hostCACerts:  [][]byte{hostCA},
-			signature:    wrongClusterSignature,
-			cert:         tlsProxyCert,
-			wantErr:      "",
-			wantVerified: false,
+			desc:        "wrong signature (cluster)",
+			sAddr:       sAddr,
+			dAddr:       dAddr,
+			hostCACerts: [][]byte{hostCA},
+			signature:   wrongClusterSignature,
+			cert:        tlsProxyCert,
+			wantErr:     "validation failed, invalid issuer claim (iss)",
 		},
 		{
-			desc:         "wrong CA cert",
-			sAddr:        sAddr,
-			dAddr:        dAddr,
-			hostCACerts:  [][]byte{wrongCACert},
-			signature:    signature,
-			cert:         tlsProxyCert,
-			wantErr:      "",
-			wantVerified: false,
+			desc:        "wrong CA cert",
+			sAddr:       sAddr,
+			dAddr:       dAddr,
+			hostCACerts: [][]byte{wrongCACert},
+			signature:   signature,
+			cert:        tlsProxyCert,
+			wantErr:     "certificate signed by unknown authority",
 		},
 		{
-			desc:         "success",
-			sAddr:        sAddr,
-			dAddr:        dAddr,
-			hostCACerts:  [][]byte{hostCA},
-			signature:    signature,
-			cert:         tlsProxyCert,
-			wantErr:      "",
-			wantVerified: true,
+			desc:        "success",
+			sAddr:       sAddr,
+			dAddr:       dAddr,
+			hostCACerts: [][]byte{hostCA},
+			signature:   signature,
+			cert:        tlsProxyCert,
+			wantErr:     "",
 		},
 	}
 
@@ -544,13 +536,12 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 			err := pl.AddSignature([]byte(tt.signature), tt.cert)
 			require.NoError(t, err)
 
-			verified, err := pl.VerifySignature(tt.hostCACerts, clock)
+			err = pl.VerifySignature(tt.hostCACerts, clock)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 			} else {
 				require.NoError(t, err)
 			}
-			require.Equal(t, tt.wantVerified, verified)
 		})
 	}
 }
