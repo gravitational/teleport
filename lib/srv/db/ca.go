@@ -38,8 +38,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// caRenewer renewer which is going to renew cloud-based database CA.
-func (s *Server) caRenewer(ctx context.Context) {
+// startCARenewer renewer which is going to renew cloud-based database CA.
+func (s *Server) startCARenewer(ctx context.Context) {
 	schedule := s.cfg.Clock.NewTicker(caRenewInterval)
 	defer schedule.Stop()
 
@@ -60,7 +60,11 @@ func (s *Server) caRenewer(ctx context.Context) {
 // initCACert initializes the provided server's CA certificate in case of a
 // cloud hosted database instance.
 func (s *Server) initCACert(ctx context.Context, database types.Database) error {
-	// CA certificate may be set explicitly via configuration.
+	// To identify if the CA cert was set automatically, compare the result of
+	// `GetCA` (which can return user-provided CA) with `GetStatusCA`, which
+	// only returns the CA set by the Teleport. If both contents differ, we will
+	// not download CAs for the database. Both sides will be empty at the first
+	// pass, downloading and populating the `StatusCA`.
 	if database.GetCA() != database.GetStatusCA() {
 		return nil
 	}
@@ -329,7 +333,8 @@ func (d *realDownloader) GetVersion(ctx context.Context, database types.Database
 	switch database.GetType() {
 	case types.DatabaseTypeRDS:
 		return d.getVersionFromURL(database, rdsCAURLForDatabase(database))
-	case types.DatabaseTypeRedshift:
+	case types.DatabaseTypeRedshift,
+		types.DatabaseTypeRedshiftServerless:
 		return d.getVersionFromURL(database, redshiftCAURLForDatabase(database))
 	case types.DatabaseTypeElastiCache,
 		types.DatabaseTypeMemoryDB:

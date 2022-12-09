@@ -307,7 +307,7 @@ func TestCARenewer(t *testing.T) {
 	defer cancel()
 	caRenewerChan := make(chan struct{})
 	go func() {
-		databaseServer.caRenewer(renewerCtx)
+		databaseServer.startCARenewer(renewerCtx)
 		caRenewerChan <- struct{}{}
 	}()
 
@@ -320,7 +320,6 @@ func TestCARenewer(t *testing.T) {
 	testCtx.clock.Advance(caRenewInterval)
 
 	// Check if the database status CA is updated with new contents.
-	time.Sleep(time.Second)
 	require.Eventually(t, func() bool {
 		return atomic.LoadInt64(&caDownloader.count) == 2
 	}, 5*time.Second, time.Second, "failed to wait the CA download")
