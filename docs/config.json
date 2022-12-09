@@ -9,6 +9,10 @@
           "slug": "/"
         },
         {
+          "title": "Core Concepts",
+          "slug": "/core-concepts/"
+        },
+        {
           "title": "Adopters",
           "slug": "/adopters/"
         },
@@ -1131,10 +1135,6 @@
       "title": "Architecture",
       "entries": [
         {
-          "title": "Overview",
-          "slug": "/architecture/overview/"
-        },
-        {
           "title": "Authentication",
           "slug": "/architecture/authentication/"
         },
@@ -1472,11 +1472,6 @@
     {
       "source": "/setup/reference/license/",
       "destination": "/deploy-a-cluster/teleport-enterprise/license/",
-      "permanent": true
-    },
-    {
-      "source": "/architecture/",
-      "destination": "/architecture/overview/",
       "permanent": true
     },
     {
@@ -2022,6 +2017,11 @@
     {
       "source": "/getting-started/local-kubernetes/",
       "destination": "/try-out-teleport/local-kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/architecture/overview/",
+      "destination": "/core-concepts/",
       "permanent": true
     }
   ]
