@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -54,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 func TestMain(m *testing.M) {
@@ -64,7 +66,7 @@ func TestMain(m *testing.M) {
 // TestMux tests multiplexing protocols
 // using the same listener.
 func TestMux(t *testing.T) {
-	_, signer, err := utils.CreateCertificate("foo", ssh.HostCert)
+	_, signer, err := cert.CreateCertificate("foo", ssh.HostCert)
 	require.NoError(t, err)
 
 	// TestMux tests basic use case of multiplexing TLS
@@ -654,7 +656,7 @@ func TestMux(t *testing.T) {
 		certPool.AppendCertsFromPEM(caCert)
 
 		// Sign server certificate.
-		serverRSAKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+		serverRSAKey, err := native.GenerateRSAPrivateKey()
 		require.NoError(t, err)
 		serverPEM, err := ca.GenerateCertificate(tlsca.CertificateRequest{
 			Subject:   pkix.Name{CommonName: "localhost"},

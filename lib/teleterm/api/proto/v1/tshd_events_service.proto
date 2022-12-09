@@ -19,17 +19,55 @@ package teleport.terminal.v1;
 option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
 
 // TshdEventsService is served by the Electron app. The tsh daemon calls this service to notify the
-// app about actions that happen outside of the app itself. For example, when the user tries to
-// connect to a gateway served by the daemon but the cert has since expired and needs to be
-// reissued.
+// app about actions that happen outside of the app itself.
 service TshdEventsService {
-  // Test is an RPC that's used to demonstrate how the implementation of a tshd event may look like
-  // from the beginning till the end.
-  // TODO(ravicious): Remove this once we add an actual RPC to tshd events service.
-  rpc Test(TestRequest) returns (TestResponse);
+  // Relogin makes the Electron app display a login modal for the specific root cluster. The request
+  // returns a response after the relogin procedure has been successfully finished.
+  rpc Relogin(ReloginRequest) returns (ReloginResponse);
+  // SendNotification causes the Electron app to display a notification in the UI. The request
+  // accepts a specific message rather than a generic string so that the Electron is in control as
+  // to what message is displayed and how exactly it looks.
+  rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse);
 }
 
-message TestRequest {
-  string foo = 1;
+// Relogin
+
+message ReloginRequest {
+  string root_cluster_uri = 1;
+  oneof reason {
+    GatewayCertExpired gateway_cert_expired = 2;
+  }
 }
-message TestResponse {}
+
+// GatewayCertExpired is given as the reason when a database client attempts to make a connection
+// through the gateway, the gateway middleware notices that the db cert has expired and tries to
+// connect to the cluster to reissue the cert, but fails because the user cert has expired as well.
+//
+// At that point in order to let the connection through, tshd needs the Electron app to refresh the
+// user cert by asking the user to log in again.
+message GatewayCertExpired {
+  string gateway_uri = 1;
+  string target_uri = 2;
+}
+
+message ReloginResponse {}
+
+// SendNotification
+
+message SendNotificationRequest {
+  oneof subject {
+    CannotProxyGatewayConnection cannot_proxy_gateway_connection = 1;
+  }
+}
+
+// CannotProxyGatewayConnection is the subject when the middleware used by the gateway encounters an
+// unrecoverable error and cannot let the connection through. The middleware code is executed within
+// a separate goroutine so if the error wasn't passed to the Electron app, it would have been
+// visible only in the logs.
+message CannotProxyGatewayConnection {
+  string gateway_uri = 1;
+  string target_uri = 2;
+  string error = 3;
+}
+
+message SendNotificationResponse {}

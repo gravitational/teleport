@@ -1557,15 +1557,28 @@ func (a *appSession) erase(ctx context.Context) error {
 }
 
 func (a *appSession) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := a.AppSession.GetAppSessions(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var (
+		startKey string
+		sessions []types.WebSession
+	)
+	for {
+		webSessions, nextKey, err := a.AppSession.ListAppSessions(ctx, 0, startKey, "")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		sessions = append(sessions, webSessions...)
+
+		if nextKey == "" {
+			break
+		}
+		startKey = nextKey
 	}
 	return func(ctx context.Context) error {
 		if err := a.erase(ctx); err != nil {
 			return trace.Wrap(err)
 		}
-		for _, resource := range resources {
+		for _, resource := range sessions {
 			if err := a.appSessionCache.UpsertAppSession(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}

@@ -22,7 +22,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -406,19 +405,7 @@ func (s *WindowsService) newStreamer(ctx context.Context, recConfig types.Sessio
 	}
 	s.cfg.Log.Debugf("using async streamer (for mode %v)", recConfig.GetMode())
 	uploadDir := filepath.Join(s.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		libevents.StreamingLogsDir, apidefaults.Namespace)
-
-	// ensure upload dir exists
-	_, err := utils.StatDir(uploadDir)
-	if trace.IsNotFound(err) {
-		s.cfg.Log.Debugf("Creating upload dir %v.", uploadDir)
-		if err := os.MkdirAll(uploadDir, 0755); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+		libevents.StreamingSessionsDir, apidefaults.Namespace)
 	fileStreamer, err := filesessions.NewStreamer(uploadDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -825,26 +812,23 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	}
 
 	monitorCfg := srv.MonitorConfig{
-		Context:           ctx,
-		Conn:              tdpConn,
-		Clock:             s.cfg.Clock,
-		ClientIdleTimeout: authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
-		Entry:             log,
-		Emitter:           s.cfg.Emitter,
-		LockWatcher:       s.cfg.LockWatcher,
-		LockingMode:       authCtx.Checker.LockingMode(authPref.GetLockingMode()),
-		LockTargets:       append(services.LockTargetsFromTLSIdentity(identity), types.LockTarget{WindowsDesktop: desktop.GetName()}),
-		Tracker:           rdpc,
-		TeleportUser:      identity.Username,
-		ServerID:          s.cfg.Heartbeat.HostUUID,
+		Context:               ctx,
+		Conn:                  tdpConn,
+		Clock:                 s.cfg.Clock,
+		ClientIdleTimeout:     authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		DisconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(authCtx.Checker, authPref, &identity),
+		Entry:                 log,
+		Emitter:               s.cfg.Emitter,
+		LockWatcher:           s.cfg.LockWatcher,
+		LockingMode:           authCtx.Checker.LockingMode(authPref.GetLockingMode()),
+		LockTargets:           append(services.LockTargetsFromTLSIdentity(identity), types.LockTarget{WindowsDesktop: desktop.GetName()}),
+		Tracker:               rdpc,
+		TeleportUser:          identity.Username,
+		ServerID:              s.cfg.Heartbeat.HostUUID,
 		MessageWriter: &monitorErrorSender{
 			log:     log,
 			tdpConn: tdpConn,
 		},
-	}
-	shouldDisconnectExpiredCert := authCtx.Checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
-	if shouldDisconnectExpiredCert && !identity.Expires.IsZero() {
-		monitorCfg.DisconnectExpiredCert = identity.Expires
 	}
 
 	// UpdateClientActivity before starting monitor to

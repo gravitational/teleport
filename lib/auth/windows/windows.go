@@ -28,7 +28,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 const (
@@ -39,28 +40,29 @@ const (
 	CertTTL = 5 * time.Minute
 )
 
-// GenerateCredentials generates a private key / certificate pair for the given
-// Windows username. The certificate has certain special fields different from
-// the regular Teleport user certificate, to meet the requirements of Active
-// Directory. See:
-// https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
-func GenerateCredentials(ctx context.Context, username, domain string, ttl time.Duration, clusterName string, ldapConfig LDAPConfig, authClient auth.ClientI) (certDER, keyDER []byte, err error) {
+type certRequest struct {
+	csrPEM      []byte
+	crlEndpoint string
+	keyDER      []byte
+}
+
+func getCertRequest(username, domain string, clusterName string, ldapConfig LDAPConfig) (*certRequest, error) {
 	// Important: rdpclient currently only supports 2048-bit RSA keys.
 	// If you switch the key type here, update handle_general_authentication in
 	// rdp/rdpclient/src/piv.rs accordingly.
 	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	// Also important: rdpclient expects the private key to be in PKCS1 format.
-	keyDER = x509.MarshalPKCS1PrivateKey(rsaKey)
+	keyDER := x509.MarshalPKCS1PrivateKey(rsaKey)
 
 	// Generate the Windows-compatible certificate, see
 	// https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
 	// for requirements.
 	san, err := SubjectAltNameExtension(username, domain)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	csr := &x509.CertificateRequest{
 		Subject: pkix.Name{CommonName: username},
@@ -77,7 +79,7 @@ func GenerateCredentials(ctx context.Context, username, domain string, ttl time.
 	}
 	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csr, rsaKey)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})
 	// Note: this CRL DN may or may not be the same DN published in updateCRL.
@@ -88,8 +90,33 @@ func GenerateCredentials(ctx context.Context, username, domain string, ttl time.
 	// domain, with the assumption that some other windows_desktop_service
 	// published a CRL there.
 	crlDN := crlDN(clusterName, ldapConfig)
+	return &certRequest{csrPEM: csrPEM, crlEndpoint: fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN), keyDER: keyDER}, nil
+}
+
+// AuthInterface is a subset of auth.ClientI
+type AuthInterface interface {
+	// GenerateDatabaseCert generates a database certificate for windows SQL Server
+	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
+	// GenerateWindowsDesktopCert generates a windows remote desktop certificate
+	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
+	// GetCertAuthority returns a types.CertAuthority interface
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	// GetClusterName returns a types.ClusterName interface
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+}
+
+// GenerateCredentials generates a private key / certificate pair for the given
+// Windows username. The certificate has certain special fields different from
+// the regular Teleport user certificate, to meet the requirements of Active
+// Directory. See:
+// https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
+func GenerateCredentials(ctx context.Context, username, domain string, ttl time.Duration, clusterName string, ldapConfig LDAPConfig, authClient AuthInterface) (certDER, keyDER []byte, err error) {
+	certReq, err := getCertRequest(username, domain, clusterName, ldapConfig)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	genResp, err := authClient.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{
-		CSR: csrPEM,
+		CSR: certReq.csrPEM,
 		// LDAP URI pointing at the CRL created with updateCRL.
 		//
 		// The full format is:
@@ -98,7 +125,7 @@ func GenerateCredentials(ctx context.Context, username, domain string, ttl time.
 		// Using ldap:///distinguished_name_and_parameters (with empty
 		// domain_controller_addr) will cause Windows to fetch the CRL from any
 		// of its current domain controllers.
-		CRLEndpoint: fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN),
+		CRLEndpoint: certReq.crlEndpoint,
 		TTL:         proto.Duration(ttl),
 	})
 	if err != nil {
@@ -106,12 +133,46 @@ func GenerateCredentials(ctx context.Context, username, domain string, ttl time.
 	}
 	certBlock, _ := pem.Decode(genResp.Cert)
 	certDER = certBlock.Bytes
+	keyDER = certReq.keyDER
+	return certDER, keyDER, nil
+}
+
+// GenerateDatabaseCredentials generates a private key / certificate pair for the given
+// Windows username. The certificate has certain special fields different from
+// the regular Teleport user certificate, to meet the requirements of Active
+// Directory. See:
+// https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
+func GenerateDatabaseCredentials(ctx context.Context, username, domain string, ttl time.Duration, clusterName string, ldapConfig LDAPConfig, authClient AuthInterface) (certDER, keyDER []byte, err error) {
+	certReq, err := getCertRequest(username, domain, clusterName, ldapConfig)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	genResp, err := authClient.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{
+		CSR: certReq.csrPEM,
+		// LDAP URI pointing at the CRL created with updateCRL.
+		//
+		// The full format is:
+		// ldap://domain_controller_addr/distinguished_name_and_parameters.
+		//
+		// Using ldap:///distinguished_name_and_parameters (with empty
+		// domain_controller_addr) will cause Windows to fetch the CRL from any
+		// of its current domain controllers.
+		CRLEndpoint:           certReq.crlEndpoint,
+		TTL:                   proto.Duration(ttl),
+		CertificateExtensions: proto.DatabaseCertRequest_WINDOWS_SMARTCARD,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	certBlock, _ := pem.Decode(genResp.Cert)
+	certDER = certBlock.Bytes
+	keyDER = certReq.keyDER
 	return certDER, keyDER, nil
 }
 
 // CertKeyPEM returns certificate and private key bytes encoded in PEM format for use with `kinit`
-func CertKeyPEM(ctx context.Context, username, domain string, ttl time.Duration, clusterName string, ldapConfig LDAPConfig, authClient auth.ClientI) (certPEM, keyPEM []byte, err error) {
-	certDER, keyDER, err := GenerateCredentials(ctx, username, domain, ttl, clusterName, ldapConfig, authClient)
+func CertKeyPEM(ctx context.Context, username, domain string, ttl time.Duration, clusterName string, ldapConfig LDAPConfig, authClient AuthInterface) (certPEM, keyPEM []byte, err error) {
+	certDER, keyDER, err := GenerateDatabaseCredentials(ctx, username, domain, ttl, clusterName, ldapConfig, authClient)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

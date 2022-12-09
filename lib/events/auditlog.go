@@ -52,11 +52,17 @@ const (
 	// in /var/lib/teleport/log/sessions
 	SessionLogsDir = "sessions"
 
-	// StreamingLogsDir is a subdirectory of sessions /var/lib/teleport/log/streaming
-	// is used in new versions of the uploader. This directory is used in asynchronous
+	// StreamingSessionsDir is a subdirectory of sessions (/var/lib/teleport/log/upload/streaming)
+	// that is used in new versions of the uploader. This directory is used in asynchronous
 	// recording modes where recordings are buffered to disk before being uploaded
 	// to the auth server.
-	StreamingLogsDir = "streaming"
+	StreamingSessionsDir = "streaming"
+
+	// CorruptedSessionsDir is a subdirectory of sessions (/var/lib/teleport/log/upload/corrupted)
+	// where corrupted session recordings are placed. This ensures that the uploader doesn't
+	// continue to try to upload corrupted sessions, but preserves the recording in case it contains
+	// valuable info.
+	CorruptedSessionsDir = "corrupted"
 
 	// RecordsDir is an auth server subdirectory with session recordings that is used
 	// when the auth server is not configured for external cloud storage. It is not

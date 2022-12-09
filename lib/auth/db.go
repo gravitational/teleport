@@ -82,10 +82,20 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		PublicKey: csr.PublicKey,
 		Subject:   csr.Subject,
 		NotAfter:  s.clock.Now().UTC().Add(req.TTL.Get()),
+	}
+	if req.CertificateExtensions == proto.DatabaseCertRequest_WINDOWS_SMARTCARD {
+		// Pass through ExtKeyUsage (which we need for Smartcard Logon usage)
+		// and SubjectAltName (which we need for otherName SAN, not supported
+		// out of the box in crypto/x509) extensions only.
+		certReq.ExtraExtensions = filterExtensions(csr.Extensions, oidExtKeyUsage, oidSubjectAltName)
+		certReq.KeyUsage = x509.KeyUsageDigitalSignature
+		// CRL is required for Windows smartcard certs.
+		certReq.CRLDistributionPoints = []string{req.CRLEndpoint}
+	} else {
 		// Include provided server names as SANs in the certificate, CommonName
 		// has been deprecated since Go 1.15:
 		//   https://golang.org/doc/go1.15#commonname
-		DNSNames: getServerNames(req),
+		certReq.DNSNames = getServerNames(req)
 	}
 	cert, err := tlsCA.GenerateCertificate(certReq)
 	if err != nil {
