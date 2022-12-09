@@ -159,7 +159,7 @@ func TestAppAccessWebsockets(t *testing.T) {
 // TestWSSLock tests locks with WSS connections.
 func TestWSSLock(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Now())
-	mCloseChannel := make(chan struct{})
+	mCloseChannel := make(chan struct{}, 1)
 
 	pack := setupWithOptions(t, appTestOptions{
 		clock:               clock,
@@ -180,21 +180,40 @@ func TestWSSLock(t *testing.T) {
 	dialer.TLSClientConfig = &tls.Config{
 		InsecureSkipVerify: true,
 	}
-	conn, httpResponse, err := dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, pack.rootCluster.GetPortWeb()), "/"), header)
-	require.NoError(t, err)
+
+	var conn *websocket.Conn
+	var err error
+	var httpResponse *http.Response
+	var n int
+	var stream *web.WebsocketIO
+	buf := make([]byte, 1024)
+
+	// Try to read for a short amount of time.
+	require.Eventually(t, func() bool {
+		// These are closed outside of the scope of this function.
+		//nolint:bodyclose
+		conn, httpResponse, err = dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, pack.rootCluster.GetPortWeb()), "/"), header)
+		if err != nil {
+			return false
+		}
+
+		// Read, write, and read again to make sure its working as expected.
+		stream = &web.WebsocketIO{Conn: conn}
+		n, err = stream.Read(buf)
+		if err != nil {
+			conn.Close()
+			httpResponse.Body.Close()
+		}
+		return err == nil
+	}, time.Second*5, time.Millisecond*100)
 
 	defer conn.Close()
 	defer httpResponse.Body.Close()
-	stream := &web.WebsocketIO{Conn: conn}
-
-	// Read, write, and read again to make sure its working as expected.
-	buf := make([]byte, 1024)
-	n, err := stream.Read(buf)
-	require.NoError(t, err)
 
 	resp := strings.TrimSpace(string(buf[:n]))
 	require.Equal(t, pack.rootWSSTwoWayMessage, resp)
 
+	// Once we've read successfully, write, and then read again to verify the connection
 	_, err = stream.Write(msg)
 	require.NoError(t, err)
 
@@ -222,8 +241,16 @@ func TestWSSLock(t *testing.T) {
 	// Close and re-open the connection. We don't care about the error message here.
 	_ = conn.Close()
 
-	conn, httpResponse, err = dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, pack.rootCluster.GetPortWeb()), "/"), header)
-	require.Error(t, err)
+	require.Eventually(t, func() bool {
+		// These are closed outside of the scope of this function.
+		//nolint:bodyclose
+		conn, httpResponse, err = dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, pack.rootCluster.GetPortWeb()), "/"), header)
+		if err == nil {
+			conn.Close()
+			httpResponse.Body.Close()
+		}
+		return err != nil
+	}, time.Second*5, time.Millisecond*100)
 
 	if conn != nil {
 		defer conn.Close()
@@ -237,7 +264,7 @@ func TestWSSLock(t *testing.T) {
 // TestWSSCertExpiration tests WSS application with certs expiring.
 func TestWSSCertExpiration(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Now())
-	mCloseChannel := make(chan struct{})
+	mCloseChannel := make(chan struct{}, 1)
 
 	pack := setupWithOptions(t, appTestOptions{
 		clock:               clock,
@@ -258,21 +285,40 @@ func TestWSSCertExpiration(t *testing.T) {
 	dialer.TLSClientConfig = &tls.Config{
 		InsecureSkipVerify: true,
 	}
-	conn, httpResponse, err := dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, pack.rootCluster.GetPortWeb()), "/"), header)
-	require.NoError(t, err)
+
+	var conn *websocket.Conn
+	var err error
+	var httpResponse *http.Response
+	var n int
+	var stream *web.WebsocketIO
+	buf := make([]byte, 1024)
+
+	// Try to read for a short amount of time.
+	require.Eventually(t, func() bool {
+		// These are closed outside of the scope of this function.
+		//nolint:bodyclose
+		conn, httpResponse, err = dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, pack.rootCluster.GetPortWeb()), "/"), header)
+		if err != nil {
+			return false
+		}
+
+		// Read, write, and read again to make sure its working as expected.
+		stream = &web.WebsocketIO{Conn: conn}
+		n, err = stream.Read(buf)
+		if err != nil {
+			conn.Close()
+			httpResponse.Body.Close()
+		}
+		return err == nil
+	}, time.Second*5, time.Millisecond*100)
 
 	defer conn.Close()
 	defer httpResponse.Body.Close()
-	stream := &web.WebsocketIO{Conn: conn}
-
-	// Read, write, and read again to make sure its working as expected.
-	buf := make([]byte, 1024)
-	n, err := stream.Read(buf)
-	require.NoError(t, err)
 
 	resp := strings.TrimSpace(string(buf[:n]))
 	require.Equal(t, pack.rootWSSTwoWayMessage, resp)
 
+	// Once we've read successfully, write, and then read again to verify the connection
 	_, err = stream.Write(msg)
 	require.NoError(t, err)
 
@@ -300,8 +346,16 @@ func TestWSSCertExpiration(t *testing.T) {
 	// Close and re-open the connection. We don't care about the error message here.
 	_ = conn.Close()
 
-	conn, httpResponse, err = dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, pack.rootCluster.GetPortWeb()), "/"), header)
-	require.Error(t, err)
+	require.Eventually(t, func() bool {
+		// These are closed outside of the scope of this function.
+		//nolint:bodyclose
+		conn, httpResponse, err = dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, pack.rootCluster.GetPortWeb()), "/"), header)
+		if err == nil {
+			conn.Close()
+			httpResponse.Body.Close()
+		}
+		return err != nil
+	}, time.Second*5, time.Millisecond*100)
 
 	if conn != nil {
 		defer conn.Close()
