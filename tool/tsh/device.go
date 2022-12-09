@@ -19,20 +19,28 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/enroll"
+	dtnative "github.com/gravitational/teleport/lib/devicetrust/native"
 )
 
 type deviceCommand struct {
 	enroll *deviceEnrollCommand
+
+	// collect and keyget are debug commands.
+	collect *deviceCollectCommand
+	keyget  *deviceKeygetCommand
 }
 
 func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 	root := &deviceCommand{
-		enroll: &deviceEnrollCommand{},
+		enroll:  &deviceEnrollCommand{},
+		collect: &deviceCollectCommand{},
+		keyget:  &deviceKeygetCommand{},
 	}
 
 	// "tsh device" command.
@@ -45,6 +53,10 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 	root.enroll.Flag("token", "Device enrollment token").
 		Required().
 		StringVar(&root.enroll.token)
+
+	// "tsh device" hidden debug commands.
+	root.collect.CmdClause = parentCmd.Command("collect", "Simulate enroll/authn device data collection").Hidden()
+	root.keyget.CmdClause = parentCmd.Command("keyget", "Get information about the device key").Hidden()
 
 	return root
 }
@@ -87,5 +99,51 @@ func (c *deviceEnrollCommand) run(cf *CLIConf) error {
 		"Device %q/%v enrolled\n",
 		dev.AssetTag, devicetrust.FriendlyOSType(dev.OsType),
 	)
+	return nil
+}
+
+type deviceCollectCommand struct {
+	*kingpin.CmdClause
+}
+
+func (c *deviceCollectCommand) run(cf *CLIConf) error {
+	cdd, err := dtnative.CollectDeviceData()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	opts := &protojson.MarshalOptions{
+		Multiline:     true,
+		Indent:        "  ",
+		UseProtoNames: true,
+	}
+	val, err := opts.Marshal(cdd)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("DeviceCollectedData %s\n", val)
+	return nil
+}
+
+type deviceKeygetCommand struct {
+	*kingpin.CmdClause
+}
+
+func (c *deviceKeygetCommand) run(cf *CLIConf) error {
+	cred, err := dtnative.GetDeviceCredential()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	opts := &protojson.MarshalOptions{
+		Multiline:     true,
+		Indent:        "  ",
+		UseProtoNames: true,
+	}
+	val, err := opts.Marshal(cred)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("DeviceCredential %s\n", val)
 	return nil
 }
