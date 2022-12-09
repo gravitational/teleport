@@ -1,7 +1,7 @@
 import { generatePath } from 'react-router';
 import ossCfg from 'teleport/config';
 
-import { AccessRequestFilter } from 'e-teleport/services/workflow';
+import { AccessRequestFilter, ResourceId } from 'e-teleport/services/workflow';
 
 const cfg = {
   oss: ossCfg,
@@ -31,6 +31,8 @@ const cfg = {
   api: {
     accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
     accessRequestFilterPath: '/v1/enterprise/accessrequest?user=:user?',
+    resourceRequestRolesPath:
+      '/v1/enterprise/resourcerequestroles?resourceIds=:resourceIds?',
 
     authConnectorsListPath: '/v1/enterprise/authconnectors',
     samlConnectorsPath: '/v1/enterprise/saml/:name?',
@@ -64,6 +66,14 @@ const cfg = {
 
   getAccessRequestFilterUrl(filter: AccessRequestFilter) {
     return generatePath(cfg.api.accessRequestFilterPath, { ...filter });
+  },
+
+  getResourceRequestRolesUrl(resourceIds: ResourceId[]) {
+    const stringified = JSON.stringify(resourceIds);
+
+    return generatePath(cfg.api.resourceRequestRolesPath, {
+      resourceIds: stringified,
+    });
   },
 
   getAuthConnectorsListUrl() {

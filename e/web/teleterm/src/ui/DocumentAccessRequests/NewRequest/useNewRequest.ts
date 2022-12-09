@@ -13,6 +13,7 @@ import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { ServerSideParams } from 'teleterm/services/tshd/types';
+import { routing } from 'teleterm/ui/uri';
 
 import type {
   AgentLabel,
@@ -28,6 +29,8 @@ export default function useNewRequest() {
   const ctx = useAppContext();
   const { accessRequestsService, localClusterUri: clusterUri } =
     useWorkspaceContext();
+
+  const isLeafCluster = routing.isLeafCluster(clusterUri);
 
   const { attempt, setAttempt } = useAttempt('processing');
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
@@ -96,9 +99,12 @@ export default function useNewRequest() {
       if (selectedResource === 'role') {
         setFetchStatus('loading');
         const data = await retry(() =>
-          ctx.clustersService.getRequestableRoles(clusterUri)
+          ctx.clustersService.getRequestableRoles({
+            rootClusterUri: ctx.workspacesService.getRootClusterUri(),
+            resourceIds: [],
+          })
         );
-        setRequestableRoles(data);
+        setRequestableRoles(data.rolesList);
         setAttempt({ status: 'success' });
         setFetchStatus('');
       } else {
@@ -253,6 +259,7 @@ export default function useNewRequest() {
     agentFilter,
     updateSort,
     attempt,
+    isLeafCluster,
     fetchStatus,
     updateQuery,
     updateSearch,

@@ -86,7 +86,7 @@ exports[`failed state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c23 {
+.c24 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -110,24 +110,23 @@ exports[`failed state 1`] = `
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
-  margin-top: 24px;
   width: 100%;
 }
 
-.c23:active {
+.c24:active {
   opacity: 0.56;
 }
 
-.c23:hover,
-.c23:focus {
+.c24:hover,
+.c24:focus {
   background: #651FFF;
 }
 
-.c23:active {
+.c24:active {
   background: #354AA4;
 }
 
-.c23:disabled {
+.c24:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -465,6 +464,15 @@ exports[`failed state 1`] = `
   background-color: #414b70;
 }
 
+.c23 {
+  box-sizing: border-box;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  position: sticky;
+  bottom: 0;
+  background: #111B48;
+}
+
 .c22 {
   box-sizing: border-box;
   padding: 8px;
@@ -789,13 +797,17 @@ exports[`failed state 1`] = `
           width="100%"
         />
       </div>
-      <button
+      <div
         class="c23"
-        kind="primary"
-        width="100%"
       >
-        Submit Request
-      </button>
+        <button
+          class="c24"
+          kind="primary"
+          width="100%"
+        >
+          Submit Request
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -866,7 +878,7 @@ exports[`loaded state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c22 {
+.c23 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -890,24 +902,23 @@ exports[`loaded state 1`] = `
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
-  margin-top: 24px;
   width: 100%;
 }
 
-.c22:active {
+.c23:active {
   opacity: 0.56;
 }
 
-.c22:hover,
-.c22:focus {
+.c23:hover,
+.c23:focus {
   background: #651FFF;
 }
 
-.c22:active {
+.c23:active {
   background: #354AA4;
 }
 
-.c22:disabled {
+.c23:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -1245,6 +1256,15 @@ exports[`loaded state 1`] = `
   background-color: #414b70;
 }
 
+.c22 {
+  box-sizing: border-box;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  position: sticky;
+  bottom: 0;
+  background: #111B48;
+}
+
 .c21 {
   box-sizing: border-box;
   padding: 8px;
@@ -1563,13 +1583,17 @@ exports[`loaded state 1`] = `
           width="100%"
         />
       </div>
-      <button
+      <div
         class="c22"
-        kind="primary"
-        width="100%"
       >
-        Submit Request
-      </button>
+        <button
+          class="c23"
+          kind="primary"
+          width="100%"
+        >
+          Submit Request
+        </button>
+      </div>
     </div>
   </div>
 </div>

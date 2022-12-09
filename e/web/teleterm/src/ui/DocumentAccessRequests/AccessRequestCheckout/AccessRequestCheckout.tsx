@@ -52,13 +52,17 @@ export function AccessRequestCheckout() {
     isCollapsed,
     collapseBar,
     setHasExited,
+    createRequestAttempt,
     toggleResource,
+    selectedResourceRequestRoles,
     createRequest,
+    resourceRequestRoles,
+    fetchResourceRolesAttempt,
+    setSelectedResourceRequestRoles,
     clearCreateAttempt,
     data,
     assumedRequests,
     requestedCount,
-    attempt,
     goToRequestsList: reset, // have to pass through RequestCheckout because works differently on web
     setShowCheckout,
   } = useAccessRequestCheckout();
@@ -101,12 +105,17 @@ export function AccessRequestCheckout() {
             SuccessComponent={RequestCheckoutSuccess}
             reset={reset}
             data={data}
-            attempt={attempt}
+            createAttempt={createRequestAttempt}
+            resourceRequestRoles={resourceRequestRoles}
+            fetchResourceRequestRolesAttempt={fetchResourceRolesAttempt}
+            selectedResourceRequestRoles={selectedResourceRequestRoles}
+            setSelectedResourceRequestRoles={setSelectedResourceRequestRoles}
             createRequest={createRequest}
             clearAttempt={clearCreateAttempt}
             reviewers={[]} // need a way to get reviewers as options. for now you can create a text entry
             requireReason={false}
             numRequestedResources={requestedCount}
+            isResourceRequest={data[0]?.kind !== 'role'}
           />
         )}
       </Transition>

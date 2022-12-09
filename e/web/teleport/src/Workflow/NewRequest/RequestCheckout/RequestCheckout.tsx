@@ -10,11 +10,14 @@ import {
   Text,
   LabelInput,
   Alert,
+  Indicator,
 } from 'design';
-import { ArrowBack, Trash } from 'design/Icon';
+import { ArrowBack, Trash, ArrowDown, ArrowRight, Warning } from 'design/Icon';
 import Table, { Cell } from 'design/DataTable';
+import { CheckboxInput, CheckboxWrapper } from 'design/Checkbox';
 import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 import { pluralize } from 'teleport/lib/util';
 
 import cfg from 'e-teleport/config';
@@ -83,16 +86,32 @@ export function RequestCheckout({
   transitionState,
   reset,
   data,
-  attempt,
+  createAttempt,
+  fetchResourceRequestRolesAttempt,
+  resourceRequestRoles,
   createRequest,
   clearAttempt,
   reviewers,
   SuccessComponent,
   requireReason,
   numRequestedResources,
+  isResourceRequest,
+  selectedResourceRequestRoles,
+  setSelectedResourceRequestRoles,
 }: RequestCheckoutProps) {
   const [reason, setReason] = useState('');
   const ref = useRef<HTMLDivElement>();
+
+  const isInvalidRoleSelection =
+    resourceRequestRoles.length > 0 &&
+    isResourceRequest &&
+    selectedResourceRequestRoles.length < 1;
+  const submitBtnDisabled =
+    data.length === 0 ||
+    createAttempt.status === 'processing' ||
+    isInvalidRoleSelection ||
+    fetchResourceRequestRolesAttempt.status === 'failed' ||
+    fetchResourceRequestRolesAttempt.status === 'processing';
 
   const [selectedReviewers, setSelectedReviewers] = useState<CreateOption[]>(
     []
@@ -160,7 +179,13 @@ export function RequestCheckout({
     >
       <Dimmer className={transitionState} />
       <SidePanel state={transitionState} className={transitionState}>
-        {attempt.status === 'success' ? (
+        {fetchResourceRequestRolesAttempt.status === 'failed' && (
+          <Alert
+            kind="danger"
+            children={fetchResourceRequestRolesAttempt.statusText}
+          />
+        )}
+        {createAttempt.status === 'success' ? (
           <Box>
             <Box mt={2} mb={7} textAlign="center">
               <Text typography="h4" color="light" bold>
@@ -190,12 +215,12 @@ export function RequestCheckout({
             </Box>
           </Flex>
         )}
-        {attempt.status === 'success' ? (
+        {createAttempt.status === 'success' ? (
           <SuccessComponent cfg={cfg} onClose={onClose} reset={reset} />
         ) : (
           <>
-            {attempt.status === 'failed' && (
-              <Alert kind="danger" children={attempt.statusText} />
+            {createAttempt.status === 'failed' && (
+              <Alert kind="danger" children={createAttempt.statusText} />
             )}
             <StyledTable
               data={data}
@@ -224,7 +249,7 @@ export function RequestCheckout({
                             resource.name
                           );
                         }}
-                        disabled={attempt.status === 'processing'}
+                        disabled={createAttempt.status === 'processing'}
                         css={`
                           cursor: pointer;
                           background-color: #2e3860;
@@ -240,6 +265,14 @@ export function RequestCheckout({
               ]}
               emptyText="No resources are selected"
             />
+            {isResourceRequest && (
+              <ResourceRequestRoles
+                roles={resourceRequestRoles}
+                selectedRoles={selectedResourceRequestRoles}
+                setSelectedRoles={setSelectedResourceRequestRoles}
+                fetchAttempt={fetchResourceRequestRolesAttempt}
+              />
+            )}
             <Box mt={6} mb={1}>
               <SelectReviewers
                 reviewers={reviewers}
@@ -255,17 +288,23 @@ export function RequestCheckout({
                     updateReason={updateReason}
                     requireReason={requireReason}
                   />
-                  <ButtonPrimary
-                    mt={4}
-                    width="100%"
-                    size="large"
-                    onClick={() => handleOnSubmit(validator)}
-                    disabled={
-                      data.length === 0 || attempt.status === 'processing'
-                    }
+                  <Box
+                    py={4}
+                    css={`
+                      position: sticky;
+                      bottom: 0;
+                      background: ${({ theme }) => theme.colors.primary.dark};
+                    `}
                   >
-                    Submit Request
-                  </ButtonPrimary>
+                    <ButtonPrimary
+                      width="100%"
+                      size="large"
+                      onClick={() => handleOnSubmit(validator)}
+                      disabled={submitBtnDisabled}
+                    >
+                      Submit Request
+                    </ButtonPrimary>
+                  </Box>
                 </>
               )}
             </Validation>
@@ -273,6 +312,124 @@ export function RequestCheckout({
         )}
       </SidePanel>
     </div>
+  );
+}
+
+function ResourceRequestRoles({
+  roles,
+  selectedRoles,
+  setSelectedRoles,
+  fetchAttempt,
+}: {
+  roles: string[];
+  selectedRoles: string[];
+  setSelectedRoles: (roles: string[]) => void;
+  fetchAttempt: Attempt;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const ArrowIcon = expanded ? ArrowDown : ArrowRight;
+
+  function onInputChange(
+    roleName: string,
+    e: React.ChangeEvent<HTMLInputElement>
+  ) {
+    if (e.target.checked) {
+      return setSelectedRoles([...selectedRoles, roleName]);
+    }
+    setSelectedRoles(selectedRoles.filter(role => role !== roleName));
+  }
+
+  return (
+    <Box mt={7} width="100%">
+      <Box style={{ cursor: 'pointer' }}>
+        <Flex
+          justifyContent="space-between"
+          width="100%"
+          borderBottom={1}
+          borderColor="primary.main"
+          onClick={() => setExpanded(!expanded)}
+        >
+          <Flex flexDirection="column" width="100%">
+            <LabelInput mb={0} style={{ cursor: 'pointer' }}>
+              Roles
+            </LabelInput>
+            <Text typography="subtitle2" mb={2}>
+              {selectedRoles.length} role{selectedRoles.length !== 1 ? 's' : ''}{' '}
+              selected
+            </Text>
+          </Flex>
+          {fetchAttempt.status === 'processing' ? (
+            <Box height="100%">
+              <Indicator fontSize="16px" />
+            </Box>
+          ) : (
+            <Flex
+              mt={3}
+              mr={1}
+              height="100%"
+              alignItems="center"
+              justifyContent="center"
+            >
+              <ArrowIcon fontSize="16px" />
+            </Flex>
+          )}
+        </Flex>
+      </Box>
+      {fetchAttempt.status === 'success' && expanded && (
+        <Box mt={2}>
+          {roles.map((roleName, index) => {
+            const id = `${roleName}${index}`;
+            return (
+              <CheckboxWrapper
+                key={index}
+                css={`
+                  width: 100%;
+                  cursor: pointer;
+                  background: ${({ theme }) => theme.colors.primary.light};
+                  &:hover {
+                    border-color: ${({ theme }) =>
+                      theme.colors.primary.lighter};
+                  }
+                `}
+                as="label"
+                htmlFor={id}
+              >
+                <CheckboxInput
+                  type="checkbox"
+                  name={roleName}
+                  id={id}
+                  onChange={e => {
+                    onInputChange(roleName, e);
+                  }}
+                  checked={selectedRoles.includes(roleName)}
+                />
+                {roleName}
+              </CheckboxWrapper>
+            );
+          })}
+          {selectedRoles.length < roles.length && (
+            <Flex
+              alignItems="center"
+              justifyContent="space-between"
+              mt={3}
+              py={2}
+              px={3}
+              borderRadius={3}
+              css={`
+                width: 100%;
+                background: ${({ theme }) => theme.colors.primary.light};
+              `}
+            >
+              <Warning mr={3} fontSize="16px" color="warning" />
+              <Text typography="subtitle2">
+                Modifying this role set may disable access to some of the above
+                resources. Use with caution.
+              </Text>
+            </Flex>
+          )}
+        </Box>
+      )}
+    </Box>
   );
 }
 
@@ -380,6 +537,7 @@ type Props = {
   reset: NewRequestState['clearAddedResources'];
   SuccessComponent?: (params: SuccessComponentParams) => JSX.Element;
   transitionState: TransitionStatus;
+  isResourceRequest: boolean;
 };
 
 type SuccessComponentParams = {

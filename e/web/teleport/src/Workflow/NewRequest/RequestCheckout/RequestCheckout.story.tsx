@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 
 import {
@@ -18,8 +18,41 @@ export const Failed = () => (
   <RequestCheckout
     {...props}
     requireReason={false}
-    attempt={{ status: 'failed', statusText: 'some error message' }}
+    createAttempt={{ status: 'failed', statusText: 'some error message' }}
     SuccessComponent={SuccessActionComponent}
+  />
+);
+
+export const LoadedResourceRequest = () => {
+  const [selectedResourceRequestRoles, setSelectedResourceRequestRoles] =
+    useState(props.resourceRequestRoles);
+  return (
+    <RequestCheckout
+      {...props}
+      isResourceRequest={true}
+      fetchResourceRequestRolesAttempt={{ status: 'success' }}
+      selectedResourceRequestRoles={selectedResourceRequestRoles}
+      setSelectedResourceRequestRoles={setSelectedResourceRequestRoles}
+    />
+  );
+};
+
+export const ProcessingResourceRequest = () => (
+  <RequestCheckout
+    {...props}
+    isResourceRequest={true}
+    fetchResourceRequestRolesAttempt={{ status: 'processing' }}
+  />
+);
+
+export const FailedResourceRequest = () => (
+  <RequestCheckout
+    {...props}
+    isResourceRequest={true}
+    fetchResourceRequestRolesAttempt={{
+      status: 'failed',
+      statusText: 'An error has occurred',
+    }}
   />
 );
 
@@ -28,14 +61,16 @@ export const Success = () => (
     <RequestCheckout
       {...props}
       requireReason={false}
-      attempt={{ status: 'success' }}
+      createAttempt={{ status: 'success' }}
       SuccessComponent={SuccessActionComponent}
     />
   </MemoryRouter>
 );
 
 const props: RequestCheckoutProps = {
-  attempt: { status: '' },
+  createAttempt: { status: '' },
+  fetchResourceRequestRolesAttempt: { status: '' },
+  isResourceRequest: false,
   requireReason: true,
   reviewers: ['bob', 'cat', 'george washington'],
   createRequest: () => null,
@@ -51,4 +86,7 @@ const props: RequestCheckoutProps = {
   reset: () => null,
   transitionState: 'entered',
   numRequestedResources: 4,
+  resourceRequestRoles: ['admin', 'access', 'developer'],
+  selectedResourceRequestRoles: ['admin', 'access'],
+  setSelectedResourceRequestRoles: () => null,
 };

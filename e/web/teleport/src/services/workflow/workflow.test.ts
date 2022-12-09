@@ -26,6 +26,17 @@ test('handling of empty lists in an access request', async () => {
   expect(response.resources).toHaveLength(0);
 });
 
+test('handling of empty resource request roles response', async () => {
+  jest.spyOn(api, 'get').mockResolvedValue(null);
+
+  const workflow = new Workflow();
+  const response = await workflow.fetchResourceRequestRoles([
+    { clusterName: 'cluster', name: 'name', kind: 'app' },
+  ]);
+
+  expect(response).toHaveLength(0);
+});
+
 test('correct formatting of access request json response', async () => {
   jest.spyOn(api, 'get').mockResolvedValue(requestApproved);
 

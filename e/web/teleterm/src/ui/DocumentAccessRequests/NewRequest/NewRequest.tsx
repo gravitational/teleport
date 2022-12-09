@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 
 import styled from 'styled-components';
 
@@ -46,6 +46,7 @@ export function NewRequest() {
     updateResourceKind,
     prevPage,
     requestableRoles,
+    isLeafCluster,
     nextPage,
     agents,
   } = useNewRequest();
@@ -69,6 +70,15 @@ export function NewRequest() {
     }
   }
 
+  // Leaf clusters do not allow role requests, so we do not show that option in the UI if leaf
+  const filteredAgentOptions = useMemo(
+    () =>
+      agentOptions.filter(agent =>
+        isLeafCluster ? agent.value !== 'role' : agent
+      ),
+    [isLeafCluster]
+  );
+
   return (
     <Layout mx="auto" px={5} pt={3} height="100%" flexDirection="column">
       {attempt.status === 'failed' && (
@@ -81,7 +91,7 @@ export function NewRequest() {
       />
       <StyledMain>
         <StyledNav mt={3} mb={3}>
-          {agentOptions.map(agent => (
+          {filteredAgentOptions.map(agent => (
             <StyledNavButton
               key={agent.value}
               mr={6}

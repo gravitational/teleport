@@ -160,6 +160,10 @@ export class MockedWorkflowService {
     return Promise.resolve(requestRolePending);
   };
 
+  fetchResourceRequestRoles = () => {
+    return Promise.resolve(requestRoleApproved.roles);
+  };
+
   createAccessRequest = () => {
     return Promise.reject(new Error('not implemented'));
   };

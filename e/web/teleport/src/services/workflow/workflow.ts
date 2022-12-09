@@ -9,6 +9,7 @@ import {
   CreateAccessRequest,
   UpdateAccessRequest,
   AccessRequest,
+  ResourceId,
 } from './types';
 
 class WorkflowService {
@@ -23,6 +24,12 @@ class WorkflowService {
       }
       return requests.map(req => makeAccessRequest(req));
     });
+  }
+
+  fetchResourceRequestRoles(resourceIds: ResourceId[]): Promise<string[]> {
+    return api
+      .get(cfg.getResourceRequestRolesUrl(resourceIds))
+      .then(roles => roles || []);
   }
 
   createAccessRequest(request: CreateAccessRequest) {

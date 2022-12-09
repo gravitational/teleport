@@ -109,16 +109,20 @@ export function NewRequest(props: State) {
     resourceOptions[resourceOptions.length - 1]
   );
 
-  const numAddedAgents =
+  // numAddedResources is the number of resources added to the Access Request without counting roles.
+  // Having any of these resources added to the Access Request makes it a Resource Access Request
+  const numAddedResources =
     Object.keys(addedResources.node).length +
     Object.keys(addedResources.db).length +
     Object.keys(addedResources.app).length +
     Object.keys(addedResources.kube_cluster).length +
     Object.keys(addedResources.windows_desktop).length;
 
+  const isResourceRequest = numAddedResources > 0;
+
   const numAddedRoles = Object.keys(addedResources.role).length;
 
-  const numAddedResources = numAddedAgents + numAddedRoles;
+  const numTotalSelections = numAddedResources + numAddedRoles;
 
   // 'confirmed' parameter is only true when user agrees to the warning dialogue.
   function handleOnChangeResourceOption(o: ResourceOption, confirmed = false) {
@@ -126,7 +130,7 @@ export function NewRequest(props: State) {
     // role based requests when items were selected.
     if (
       !confirmed &&
-      ((o.value === 'role' && numAddedAgents > 0) ||
+      ((o.value === 'role' && numAddedResources > 0) ||
         (o.value !== 'role' && numAddedRoles > 0))
     ) {
       setWarningConfirm(o);
@@ -232,9 +236,9 @@ export function NewRequest(props: State) {
                 background: ${({ theme }) => theme.colors.primary.main};
               `}
             >
-              <Text bold>Resources Added ({numAddedResources})</Text>
+              <Text bold>Resources Added ({numTotalSelections})</Text>
               <Box>
-                {numAddedResources > 0 && (
+                {numTotalSelections > 0 && (
                   <ButtonSecondary
                     mr={3}
                     width="165px"
@@ -247,7 +251,7 @@ export function NewRequest(props: State) {
                   width="182px"
                   onClick={() => setShowCheckout(true)}
                   disabled={
-                    numAddedResources === 0 || fetchStatus === 'loading'
+                    numTotalSelections === 0 || fetchStatus === 'loading'
                   }
                 >
                   Proceed to Request
@@ -265,6 +269,7 @@ export function NewRequest(props: State) {
               transitionState={transitionState}
               reset={clearAddedResources}
               selectedResource={selectedResource}
+              isResourceRequest={isResourceRequest}
             />
           )}
         </Transition>
@@ -272,12 +277,12 @@ export function NewRequest(props: State) {
          * Used when user navigates away or changes cluster (which changes the route).
          */}
         <Prompt
-          when={numAddedResources > 0}
+          when={numTotalSelections > 0}
           message={location => {
             if (location.pathname.endsWith('/requests/new')) {
               return `Resources from different clusters cannot be combined in an access request. Current items selected will be cleared. Are you sure you want to continue?`;
             } else {
-              return `${numAddedResources} item(s) selected for a new access request will be cleared if you leave this page. Are you sure you want to continue?`;
+              return `${numTotalSelections} item(s) selected for a new access request will be cleared if you leave this page. Are you sure you want to continue?`;
             }
           }}
         />

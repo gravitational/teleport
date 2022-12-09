@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
@@ -15,11 +15,22 @@ export function useRequestCheckout({
   addedResources,
   reset,
 }: Props) {
+  const isResourceRequest = selectedResource !== 'role';
   const { clusterId } = useStickyClusterId();
-  const { attempt, setAttempt } = useAttempt('');
+  const createAttempt = useAttempt('');
+  const fetchResourceRequestRolesAttempt = useAttempt('');
+  const [resourceRequestRoles, setResourceRequestRoles] = useState<string[]>(
+    []
+  );
+  const [selectedResourceRequestRoles, setSelectedResourceRequestRoles] =
+    useState<string[]>([]);
 
   // Format data suitable for table listing.
-  const data: { kind: ResourceKind; name: string; id: string }[] = [];
+  const data: {
+    kind: ResourceKind;
+    name: string;
+    id: string;
+  }[] = [];
   const resourceKeys = Object.keys(addedResources) as ResourceKind[];
   resourceKeys.forEach(kind => {
     Object.keys(addedResources[kind]).forEach(id =>
@@ -27,6 +38,10 @@ export function useRequestCheckout({
     );
   });
   const [numRequestedResources, setNumRequestedResources] = useState(0);
+
+  useEffect(() => {
+    if (isResourceRequest) fetchResourceRequestRoles();
+  }, [addedResources]);
 
   function createRequest(reason = '', suggestedReviewers?: string[]) {
     // field 'roles' is expected as just a list of strings
@@ -41,9 +56,10 @@ export function useRequestCheckout({
         kind: item.kind as AgentIdKind,
         clusterName: clusterId,
       }));
+      roles = selectedResourceRequestRoles;
     }
 
-    setAttempt({ status: 'processing' });
+    createAttempt.setAttempt({ status: 'processing' });
     ctx.workflowService
       .createAccessRequest({
         reason,
@@ -52,27 +68,59 @@ export function useRequestCheckout({
         suggestedReviewers,
       })
       .then(() => {
-        setAttempt({ status: 'success' });
+        createAttempt.setAttempt({ status: 'success' });
         setNumRequestedResources(data.length);
         reset();
       })
       .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
+        createAttempt.setAttempt({ status: 'failed', statusText: err.message });
+      });
+  }
+
+  // Fetches the necessary roles for a resource request
+  function fetchResourceRequestRoles() {
+    fetchResourceRequestRolesAttempt.setAttempt({ status: 'processing' });
+    const resourceIdRequest: {
+      kind: AgentIdKind;
+      name: string;
+      clusterName: string;
+    }[] = data.map(resource => ({
+      kind: resource.kind as AgentIdKind,
+      name: resource.id,
+      clusterName: clusterId,
+    }));
+
+    ctx.workflowService
+      .fetchResourceRequestRoles(resourceIdRequest)
+      .then(roles => {
+        fetchResourceRequestRolesAttempt.setAttempt({ status: 'success' });
+        setResourceRequestRoles(roles);
+        setSelectedResourceRequestRoles(roles);
+      })
+      .catch((err: Error) => {
+        fetchResourceRequestRolesAttempt.setAttempt({
+          status: 'failed',
+          statusText: err.message,
+        });
       });
   }
 
   function clearAttempt() {
-    setAttempt({ status: '' });
+    createAttempt.setAttempt({ status: '' });
   }
 
   return {
-    attempt,
+    createAttempt: createAttempt.attempt,
+    fetchResourceRequestRolesAttempt: fetchResourceRequestRolesAttempt.attempt,
     requireReason: ctx.storeUser.getAccessStrategy().type === 'reason',
     reviewers: ctx.storeUser.getSuggestedReviewers(),
     createRequest,
+    resourceRequestRoles,
     data,
     clearAttempt,
     numRequestedResources,
+    selectedResourceRequestRoles,
+    setSelectedResourceRequestRoles,
   };
 }
 

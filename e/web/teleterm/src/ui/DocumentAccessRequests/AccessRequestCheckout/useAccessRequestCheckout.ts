@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { PendingAccessRequest } from 'teleterm/ui/services/workspacesService';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import { ResourceKind } from '../NewRequest/useNewRequest';
@@ -17,6 +18,11 @@ export default function useAccessRequestCheckout() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [hasExited, setHasExited] = useState(false);
   const [requestedCount, setRequestedCount] = useState(0);
+  const [resourceRequestRoles, setResourceRequestRoles] = useState<string[]>(
+    []
+  );
+  const [selectedResourceRequestRoles, setSelectedResourceRequestRoles] =
+    useState<string[]>([]);
 
   const {
     attempt: createRequestAttempt,
@@ -24,9 +30,30 @@ export default function useAccessRequestCheckout() {
     run: runCreateRequest,
   } = useAttempt('');
 
+  const { attempt: fetchResourceRolesAttempt, run: runFetchResourceRoles } =
+    useAttempt('success');
+
   const workspaceAccessRequest =
     ctx.workspacesService.getActiveWorkspaceAccessRequestsService();
   const docService = ctx.workspacesService.getActiveWorkspaceDocumentService();
+  const pendingAccessRequest =
+    workspaceAccessRequest?.getPendingAccessRequest();
+
+  useEffect(() => {
+    const data = getPendingAccessRequestsPerResource(pendingAccessRequest);
+    const req = {
+      rootClusterUri,
+      resourceIds: data.filter(d => d.kind !== 'role'),
+    };
+    runFetchResourceRoles(() =>
+      retryWithRelogin(ctx, clusterUri, () =>
+        ctx.clustersService.getRequestableRoles(req)
+      ).then(response => {
+        setResourceRequestRoles(response.applicableRolesList);
+        setSelectedResourceRequestRoles(response.applicableRolesList);
+      })
+    );
+  }, [pendingAccessRequest]);
 
   useEffect(() => {
     clearCreateAttempt();
@@ -43,7 +70,9 @@ export default function useAccessRequestCheckout() {
     }
   }, [showCheckout, hasExited, createRequestAttempt.status]);
 
-  function getPendingAccessRequestsPerResource() {
+  function getPendingAccessRequestsPerResource(
+    resourceIds: PendingAccessRequest
+  ) {
     const data: {
       kind: ResourceKind;
       clusterName: string;
@@ -54,7 +83,6 @@ export default function useAccessRequestCheckout() {
       return data;
     }
     const clusterName = ctx.clustersService.findCluster(clusterUri)?.name;
-    const resourceIds = workspaceAccessRequest.getPendingAccessRequest();
     const resourceKeys = Object.keys(resourceIds) as ResourceKind[];
     resourceKeys.forEach(kind => {
       Object.keys(resourceIds[kind]).forEach(id => {
@@ -91,7 +119,7 @@ export default function useAccessRequestCheckout() {
   }
 
   function createRequest(reason: string, suggestedReviewers: string[]) {
-    const data = getPendingAccessRequestsPerResource();
+    const data = getPendingAccessRequestsPerResource(pendingAccessRequest);
     const req = {
       rootClusterUri,
       reason,
@@ -99,6 +127,11 @@ export default function useAccessRequestCheckout() {
       resourceIds: data.filter(d => d.kind !== 'role'),
       roles: data.filter(d => d.kind === 'role').map(d => d.name),
     };
+
+    // if we have a resource access request, we pass along the selected roles from the checkout
+    if (req.resourceIds.length > 0) {
+      req.roles = selectedResourceRequestRoles;
+    }
     runCreateRequest(() =>
       retryWithRelogin(ctx, clusterUri, () =>
         ctx.clustersService.createAccessRequest(req).then(() => {
@@ -149,7 +182,7 @@ export default function useAccessRequestCheckout() {
     isCollapsed,
     assumedRequests: getAssumedRequests(),
     toggleResource,
-    data: getPendingAccessRequestsPerResource(),
+    data: getPendingAccessRequestsPerResource(pendingAccessRequest),
     createRequest,
     reset,
     setHasExited,
@@ -157,8 +190,12 @@ export default function useAccessRequestCheckout() {
     requestedCount,
     clearCreateAttempt,
     clusterUri,
+    selectedResourceRequestRoles,
+    setSelectedResourceRequestRoles,
+    resourceRequestRoles,
     rootClusterUri,
-    attempt: createRequestAttempt,
+    fetchResourceRolesAttempt,
+    createRequestAttempt,
     collapseBar,
     setShowCheckout,
   };
