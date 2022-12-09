@@ -58,13 +58,6 @@ const js = `
         var stateValue = params.get("state");
         var path = params.get("path");
 
-        fetch('https://dev-53161101.okta.com/api/v1/sessions/me', {
-          method: 'DELETE', // *GET, POST, PUT, DELETE, etc.
-          mode: 'cors', // no-cors, *cors, same-origin
-          cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
-          credentials: 'include', // include, *same-origin, omit
-        });
-
         // this utility is used to check if a passed in path param is a full URL (which we dont want)
         function isFullUrl (pathToCheck) {
           try {
@@ -87,30 +80,37 @@ const js = `
           cookie_value: hashParts[1],
         };
 
-        fetch('/x-teleport-auth', {
-          method: 'POST',
-          mode: 'same-origin',
-          cache: 'no-store',
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8',
-          },
-          body: JSON.stringify(data),
+        fetch('https://dev-53161101.okta.com/api/v1/sessions/me', {
+          method: 'DELETE', // *GET, POST, PUT, DELETE, etc.
+          mode: 'cors', // no-cors, *cors, same-origin
+          cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+          credentials: 'include', // include, *same-origin, omit
         }).then(response => {
-          if (response.ok) {
-            try {
-              // if a path parameter was passed through the redirect, append that path to the target url
-              // if the path given is a full url, redirect to url.origin ONLY
-              if (path && !isFullUrl(path)) {
-                var redirectUrl = new URL(path, url.origin)
-                window.location.replace(redirectUrl.toString());
-              } else {
-                window.location.replace(url.origin);
+          fetch('/x-teleport-auth', {
+            method: 'POST',
+            mode: 'same-origin',
+            cache: 'no-store',
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+            },
+            body: JSON.stringify(data),
+          }).then(response => {
+            if (response.ok) {
+              try {
+                // if a path parameter was passed through the redirect, append that path to the target url
+                // if the path given is a full url, redirect to url.origin ONLY
+                if (path && !isFullUrl(path)) {
+                  var redirectUrl = new URL(path, url.origin)
+                  window.location.replace(redirectUrl.toString());
+                } else {
+                  window.location.replace(url.origin);
+                }
+              } catch (error) {
+                  // in case of malformed url, return to origin
+                  window.location.replace(url.origin)
               }
-            } catch (error) {
-                // in case of malformed url, return to origin
-                window.location.replace(url.origin)
             }
-          }
+          });
         });
       })();
     </script>
