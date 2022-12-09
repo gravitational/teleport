@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package desktop
+package playback
 
 import (
 	"context"
@@ -25,13 +25,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 const (
@@ -39,17 +39,21 @@ const (
 	maxPlaybackSpeed = 16
 )
 
-// Player manages the playback of a recorded desktop session.
+type delayCancelSignal = chan interface{}
+
+// Player manages the playback of a recorded session.
 // It streams events from the audit log to the browser over
 // a websocket connection.
 type Player struct {
-	ws       *websocket.Conn
-	streamer Streamer
+	ws *websocket.Conn
 
-	mu        sync.Mutex
-	cond      *sync.Cond
-	playState playbackState
-	playSpeed float32
+	mu                sync.Mutex
+	cond              *sync.Cond
+	playState         playbackState
+	playSpeed         float32
+	eventHandler      eventHandler
+	streamer          Streamer
+	delayCancelSignal delayCancelSignal
 
 	log logrus.FieldLogger
 	sID string
@@ -66,19 +70,17 @@ type Streamer interface {
 	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
 }
 
-// NewPlayer creates a player that streams a desktop session
-// over the provided websocket connection.
-func NewPlayer(sID string, ws *websocket.Conn, streamer Streamer, log logrus.FieldLogger) *Player {
-	p := &Player{
-		ws:        ws,
-		streamer:  streamer,
-		playState: playStatePlaying,
-		log:       log,
-		sID:       sID,
-		playSpeed: 1.0,
-	}
-	p.cond = sync.NewCond(&p.mu)
-	return p
+// eventHandlerPayload has all necessary data to correctly handle event
+type eventHandlerPayload struct {
+	cancel    context.CancelFunc
+	pp        *Player
+	event     apievents.AuditEvent
+	lastDelay *int64
+}
+
+// eventHandler is the interface that provides specific event handling for concreate player
+type eventHandler interface {
+	handleEvent(ctx context.Context, payload eventHandlerPayload) error
 }
 
 // Play kicks off goroutines for receiving actions
@@ -148,6 +150,7 @@ func (pp *Player) togglePlaying() {
 	switch pp.playState {
 	case playStatePlaying:
 		pp.playState = playStatePaused
+		pp.delayCancelSignal <- playStatePaused
 	case playStatePaused:
 		pp.playState = playStatePlaying
 	}
@@ -213,17 +216,41 @@ func (pp *Player) receiveActions(cancel context.CancelFunc) {
 	}
 }
 
-// streamSessionEvents streams the session's events as playback events over the websocket.
+func (pp *Player) marshalAndSendEvent(e interface{}) error {
+	msg, err := utils.FastMarshal(e)
+	if err != nil {
+		pp.log.WithError(err).Errorf("failed to marshal %T event into JSON: %v", e, e)
+		if _, err := pp.ws.Write([]byte(`{"message":"error","errorText":"server error"}`)); err != nil {
+			pp.log.WithError(err).Error("failed to write \"error\" message over websocket")
+		}
+		return err
+	}
+
+	if _, err := pp.ws.Write(msg); err != nil {
+		// We expect net.ErrClosed to arise when another goroutine returns before
+		// this one or the browser window is closed, both of which cause the websocket to close.
+		if !errors.Is(err, net.ErrClosed) {
+			pp.log.WithError(err).Error("failed to write %T event over websocket", e)
+		}
+
+		return err
+	}
+
+	return nil
+}
+
+func (pp *Player) scaleDelay(delay int64) int64 {
+	pp.mu.Lock()
+	defer pp.mu.Unlock()
+	return int64(float32(delay) / pp.playSpeed)
+}
+
 func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.CancelFunc) {
 	defer pp.log.Debug("playbackPlayer.StreamSessionEvents returned")
 	defer pp.close(cancel)
 
 	var lastDelay int64
-	scaleDelay := func(delay int64) int64 {
-		pp.mu.Lock()
-		defer pp.mu.Unlock()
-		return int64(float32(delay) / pp.playSpeed)
-	}
+
 	eventsC, errC := pp.streamer.StreamSessionEvents(ctx, session.ID(pp.sID), 0)
 	for {
 		pp.waitWhilePaused()
@@ -251,38 +278,36 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 				}
 				return
 			}
-			switch e := evt.(type) {
-			case *apievents.DesktopRecording:
-				if e.DelayMilliseconds > lastDelay {
-					// TODO(zmb3): replace with time.After so we can cancel
-					time.Sleep(time.Duration(scaleDelay(e.DelayMilliseconds-lastDelay)) * time.Millisecond)
-					lastDelay = e.DelayMilliseconds
-				}
-				msg, err := utils.FastMarshal(e)
-				if err != nil {
-					pp.log.WithError(err).Errorf("failed to marshal DesktopRecording event into JSON: %v", e)
-					if _, err := pp.ws.Write([]byte(`{"message":"error","errorText":"server error"}`)); err != nil {
-						pp.log.WithError(err).Error("failed to write \"error\" message over websocket")
-					}
-					return
-				}
-				if _, err := pp.ws.Write(msg); err != nil {
-					// We expect net.ErrClosed to arise when another goroutine returns before
-					// this one or the browser window is closed, both of which cause the websocket to close.
-					if !errors.Is(err, net.ErrClosed) {
-						pp.log.WithError(err).Error("failed to write DesktopRecording event over websocket")
-					}
-					return
-				}
-			case *apievents.WindowsDesktopSessionStart, *apievents.WindowsDesktopSessionEnd:
-				// these events are part of the stream but never needed for playback
-			case *apievents.DesktopClipboardReceive, *apievents.DesktopClipboardSend:
-				// these events are not currently needed for playback,
-				// but may be useful in the future
 
-			default:
-				pp.log.Warnf("session %v contains unexpected event type %T", pp.sID, evt)
+			payload := eventHandlerPayload{
+				pp:        pp,
+				lastDelay: &lastDelay,
+				cancel:    cancel,
+				event:     evt,
 			}
+
+			if err := pp.eventHandler.handleEvent(ctx, payload); err != nil {
+				return
+			}
+		}
+	}
+}
+
+// waitForDelay pauses sending the event until given delay is met takes account for pause during delay.
+// It scales delay by playback speed.
+func (pp *Player) waitForDelay(delayMilliseconds int64, lastDelay *int64) {
+	startTime := time.Now()
+	for {
+		pp.waitWhilePaused()
+		duration := time.Duration(pp.scaleDelay(delayMilliseconds-*lastDelay)) * time.Millisecond
+
+		select {
+		case <-time.After(duration):
+			*lastDelay = delayMilliseconds
+			return
+		case <-pp.delayCancelSignal:
+			sleepDuration := pp.scaleDelay(time.Now().Local().Sub(startTime).Milliseconds())
+			*lastDelay += sleepDuration
 		}
 	}
 }

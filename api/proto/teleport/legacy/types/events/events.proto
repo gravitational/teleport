@@ -282,7 +282,7 @@ message SessionPrint {
   // Data is data transferred, it is not marshaled to JSON format
   bytes Data = 3 [
     (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "-"
+    (gogoproto.jsontag) = "data"
   ];
 
   // Bytes says how many bytes have been written into the session
