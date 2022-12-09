@@ -262,6 +262,40 @@ func TestEvaluate(t *testing.T) {
 				"replaced": []string{"snake-case-example", "user_example-com", "dev", "platform"},
 			},
 		},
+		{
+			desc: "choose",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsMap("rule", 0, map[string][]string{
+					"choose_first": []string{
+						`choose(option(true, "first"), option(false, "second"))`,
+					},
+					"choose_second": []string{
+						`choose(option(false, "first"), option(true, "second"))`,
+					},
+					"groups": []string{
+						`choose(
+							option(external.username.contains("alice"), set("devs", "security", "requester")),
+							option(external.username.contains("bob"), set("security", "reviewer")),
+							option(external.username.contains("charlie"), set("devs")),
+							option(true, set()),
+						)`,
+					},
+				}),
+			},
+			inputTraits: baseInputTraits,
+			expectedTraits: map[string][]string{
+				"choose_first":  []string{"first"},
+				"choose_second": []string{"second"},
+				"groups":        []string{"devs", "security", "requester"},
+			},
+		},
+		{
+			desc: "wrong choose argument type",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsExpression("rule", 0, `choose(external.groups.contains("devs"), external)`),
+			},
+			errorContains: "arguments to choose must have type option, got bool",
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			result, err := Evaluate(tc.rules, &EvaluationInput{Traits: tc.inputTraits})

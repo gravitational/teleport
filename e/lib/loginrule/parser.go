@@ -64,6 +64,8 @@ func newParser(env *parseEnv) (predicate.Parser, error) {
 			"strings.upper":      upper,
 			"strings.lower":      lower,
 			"strings.replaceall": replaceAll,
+			"choose":             choose,
+			"option":             newOption,
 		},
 		Methods: map[string]any{
 			"add":      set.add,
@@ -172,20 +174,55 @@ func newPair(first string, second set) pair {
 	}
 }
 
-func ifelse(cond, valueIfTrue, valueIfFalse any) (any, error) {
-	var b bool
-	switch v := cond.(type) {
+func boolValue(expr any) (bool, error) {
+	switch v := expr.(type) {
 	case predicate.BoolPredicate:
-		b = v()
+		return v(), nil
 	case bool:
-		b = v
+		return v, nil
 	default:
-		return nil, trace.BadParameter("first argument to ifelse must be bool or predicate.BoolPredicate, got %T", v)
+		return false, trace.BadParameter("expected bool or predicate.BoolPredicate, got %T", v)
+	}
+}
+
+func ifelse(cond, valueIfTrue, valueIfFalse any) (any, error) {
+	b, err := boolValue(cond)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing first argument to ifelse")
 	}
 	if b {
 		return valueIfTrue, nil
 	}
 	return valueIfFalse, nil
+}
+
+func choose(options ...any) (any, error) {
+	for _, optionAny := range options {
+		opt, ok := optionAny.(*option)
+		if !ok {
+			return nil, trace.BadParameter("arguments to choose must have type option, got %T", optionAny)
+		}
+		if opt.condition {
+			return opt.value, nil
+		}
+	}
+	return nil, trace.BadParameter(`parsing choose expression: no option could be selected, consider adding a default option by hardcoding the condition to "true"`)
+}
+
+type option struct {
+	condition bool
+	value     any
+}
+
+func newOption(cond, value any) (*option, error) {
+	b, err := boolValue(cond)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing first argument to option")
+	}
+	return &option{
+		condition: b,
+		value:     value,
+	}, nil
 }
 
 // stringTransform transforms [input], using [f].
