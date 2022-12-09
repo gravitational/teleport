@@ -36,9 +36,10 @@ func SetDefaultSecurityHeaders(h http.Header) {
 	// Prevent web browsers from using content sniffing to discover a file’s MIME type
 	h.Set("X-Content-Type-Options", "nosniff")
 
-	// Only send the origin of the document as the referrer in all cases.
+	// Only send the origin of the document as the referrer in all cases.  The use of `strict-origin` will also prevent
+	// the sending of the origin if a request is downgraded from https to http.
 	// The document https://example.com/page.html will send the referrer https://example.com/.
-	h.Set("Referrer-Policy", "origin")
+	h.Set("Referrer-Policy", "strict-origin")
 
 	// X-Frame-Options indicates that the page can only be displayed in iframe on the same origin as the page itself
 	h.Set("X-Frame-Options", "SAMEORIGIN")

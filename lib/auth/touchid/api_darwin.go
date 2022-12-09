@@ -131,7 +131,7 @@ func (c *touchIDContext) Guard(fn func()) error {
 	defer handle.Delete()
 
 	var errMsgC *C.char
-	defer C.free(unsafe.Pointer(errMsgC))
+	defer func() { C.free(unsafe.Pointer(errMsgC)) }()
 
 	res := C.AuthContextGuard(c.ctx, reasonC, C.uintptr_t(handle), &errMsgC)
 	if res != 0 {
@@ -250,7 +250,7 @@ func (touchIDImpl) ListCredentials() ([]CredentialInfo, error) {
 	defer C.free(unsafe.Pointer(reasonC))
 
 	var errMsgC *C.char
-	defer C.free(unsafe.Pointer(errMsgC))
+	defer func() { C.free(unsafe.Pointer(errMsgC)) }()
 
 	infos, res := readCredentialInfos(func(infosOut **C.CredentialInfo) C.int {
 		// ListCredentials lists all Keychain entries we have access to, without
@@ -270,7 +270,7 @@ func (touchIDImpl) ListCredentials() ([]CredentialInfo, error) {
 
 func readCredentialInfos(find func(**C.CredentialInfo) C.int) ([]CredentialInfo, int) {
 	var infosC *C.CredentialInfo
-	defer C.free(unsafe.Pointer(infosC))
+	defer func() { C.free(unsafe.Pointer(infosC)) }()
 
 	res := find(&infosC)
 	if res < 0 {
@@ -357,7 +357,7 @@ func (touchIDImpl) DeleteCredential(credentialID string) error {
 	defer C.free(unsafe.Pointer(idC))
 
 	var errC *C.char
-	defer C.free(unsafe.Pointer(errC))
+	defer func() { C.free(unsafe.Pointer(errC)) }()
 
 	switch res := C.DeleteCredential(reasonC, idC, &errC); res {
 	case 0: // aka success
