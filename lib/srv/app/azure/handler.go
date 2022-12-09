@@ -277,13 +277,15 @@ type cacheKey struct {
 	scope           string
 }
 
+const getTokenTimeout = time.Second * 5
+
 func (s *Forwarder) getToken(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
 	key := cacheKey{managedIdentity, scope}
 
-	ctxT, cancel := context.WithTimeout(ctx, time.Second*5)
+	timeoutCtx, cancel := context.WithTimeout(ctx, getTokenTimeout)
 	defer cancel()
 
-	return utils.FnCacheGet(ctxT, s.tokenCache, key, func(ctx context.Context) (*azcore.AccessToken, error) {
+	return utils.FnCacheGet(timeoutCtx, s.tokenCache, key, func(ctx context.Context) (*azcore.AccessToken, error) {
 		return s.getAccessToken(ctx, managedIdentity, scope)
 	})
 }
@@ -299,5 +301,4 @@ func copyHeaders(r *http.Request, reqCopy *http.Request) {
 			reqCopy.Header.Add(key, v)
 		}
 	}
-	reqCopy.Header.Del("Content-Length")
 }
