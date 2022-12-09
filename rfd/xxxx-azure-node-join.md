@@ -48,16 +48,26 @@ following flow at a new `RegisterWithAzureToken` gRPC endpoint:
   nonce. Azure returns the signed document.
 5. The node sends a join request to the auth server, including the signed
   document and other paramaters in a `RegisterUsingTokenRequest`.
-  - `RegisterUsingTokenRequest` will need to be extended to include info not in
-  the attested data document (notably the VM's resource group and region).
 6. The auth server checks that signed document is valid:
   - The document's pkcs7 signature is valid.
   - The returned nonce matches the issued challenge.
   - The requested token allows the node to join.
+    - The attested data document doesn't include the VM's resource group or
+      region. Teleport will need to use the Azure API to fetch those based on
+      the VM ID in the document. We can use the
+      [DiscoveredServer](https://github.com/gravitational/teleport/pull/18676/files#diff-98ac11a30d5f8c28ec2327bd002ba8dfc50c153824ca7281963807a423dc5eb7R370-R380)
+      resource created by the discovery service.
 7. The auth server sends credentials to join the cluster.
 
 As with IAM join, the flow will occur within a single streaming gRPC request and
 only 1 attempt with a given challenge will be allowed, with a 1 minute timeout.
+
+### Teleport Cloud
+
+The auth and proxy servers in Telport cloud won't have access to customers'
+Azure subscriptions to confirm their resource groups and regions. Cloud users
+will need to run their own discovery service that has access to their
+subscriptions.
 
 ### Teleport Configuration
 
