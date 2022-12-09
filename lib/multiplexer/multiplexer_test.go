@@ -911,9 +911,8 @@ func TestMux(t *testing.T) {
 
 			clt := tls.Client(conn, clientConfig(backend))
 
-			out, err := utils.RoundtripWithConn(clt)
-			require.NoError(t, err)
-			require.Equal(t, addr1.String(), out)
+			_, err = utils.RoundtripWithConn(clt)
+			require.Error(t, err)
 		})
 		t.Run("three signed PROXY headers with same info", func(t *testing.T) {
 			conn, err := net.Dial("tcp", listener.Addr().String())
@@ -1018,7 +1017,7 @@ func TestMux(t *testing.T) {
 		})
 	})
 	// Ensures that we can correctly send and verify signed PROXY header
-	t.Run("ignores signed PROXY header if it can't be verified (wrong CA)", func(t *testing.T) {
+	t.Run("fails if signed PROXY header can't be verified (wrong CA)", func(t *testing.T) {
 		t.Parallel()
 
 		const clusterName = "teleport-test"
@@ -1067,9 +1066,8 @@ func TestMux(t *testing.T) {
 
 		clt := tls.Client(conn, clientConfig(backend))
 
-		out, err := utils.RoundtripWithConn(clt)
-		require.NoError(t, err)
-		require.Equal(t, conn.LocalAddr().String(), out)
+		_, err = utils.RoundtripWithConn(clt)
+		require.Error(t, err)
 	})
 }
 

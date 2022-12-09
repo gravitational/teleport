@@ -361,7 +361,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 				}
 				err = newProxyLine.VerifySignature(hostCACerts, m.Clock)
 				if err != nil {
-					return nil, err
+					return nil, trace.Wrap(err, "could not verify PROXY signature")
 				}
 			}
 
