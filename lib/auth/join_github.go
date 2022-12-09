@@ -27,7 +27,7 @@ import (
 )
 
 type ghaIDTokenValidator interface {
-	Validate(context.Context, string) (*githubactions.IDTokenClaims, error)
+	Validate(context.Context, string, string) (*githubactions.IDTokenClaims, error)
 }
 
 func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
@@ -39,7 +39,14 @@ func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.Register
 		return trace.Wrap(err)
 	}
 
-	claims, err := a.ghaIDTokenValidator.Validate(ctx, req.IDToken)
+	token, ok := pt.(*types.ProvisionTokenV2)
+	if !ok {
+		return trace.BadParameter("github join method only supports ProvisionTokenV2, '%T' was provided", pt)
+	}
+
+	claims, err := a.ghaIDTokenValidator.Validate(
+		ctx, token.Spec.GitHub.EnterpriseServerHost, req.IDToken,
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -49,15 +56,10 @@ func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.Register
 		"token":  pt.GetName(),
 	}).Info("Github actions run trying to join cluster")
 
-	return trace.Wrap(checkGithubAllowRules(pt, claims))
+	return trace.Wrap(checkGithubAllowRules(token, claims))
 }
 
-func checkGithubAllowRules(pt types.ProvisionToken, claims *githubactions.IDTokenClaims) error {
-	token, ok := pt.(*types.ProvisionTokenV2)
-	if !ok {
-		return trace.BadParameter("github join method only supports ProvisionTokenV2, '%T' was provided", pt)
-	}
-
+func checkGithubAllowRules(token *types.ProvisionTokenV2, claims *githubactions.IDTokenClaims) error {
 	// If a single rule passes, accept the IDToken
 	for _, rule := range token.Spec.GitHub.Allow {
 		// Please consider keeping these field validators in the same order they

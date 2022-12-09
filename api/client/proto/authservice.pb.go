@@ -3553,7 +3553,8 @@ type ListAppSessionsRequest struct {
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// The next_page_token value returned from a previous List request, if any.
 	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
-	// Optional user to filter app sessions by.
+	// Optional username which will filter the returned web sessions
+	// to include only those for the given user.
 	User                 string   `protobuf:"bytes,3,opt,name=user,proto3" json:"user,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
