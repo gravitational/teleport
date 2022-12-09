@@ -2846,8 +2846,9 @@ func TestDeleteUserAppSessions(t *testing.T) {
 	}
 
 	// Ensure the correct number of sessions.
-	sessions, err := srv.Auth().GetAppSessions(ctx)
+	sessions, nextKey, err := srv.Auth().ListAppSessions(ctx, 10, "", "")
 	require.NoError(t, err)
+	require.Empty(t, nextKey)
 	require.Len(t, sessions, 6)
 
 	// Try to delete other user app sessions.
@@ -2864,21 +2865,28 @@ func TestDeleteUserAppSessions(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check if only bob's sessions are left.
-	sessions, err = srv.Auth().GetAppSessions(ctx)
+	sessions, nextKey, err = srv.Auth().ListAppSessions(ctx, 10, "", "bob")
 	require.NoError(t, err)
+	require.Empty(t, nextKey)
 	require.Len(t, sessions, 3)
 	for _, session := range sessions {
 		require.Equal(t, "bob", session.GetUser())
 	}
+
+	sessions, nextKey, err = srv.Auth().ListAppSessions(ctx, 10, "", "alice")
+	require.NoError(t, err)
+	require.Empty(t, sessions)
+	require.Empty(t, nextKey)
 
 	// Delete bob sessions.
 	err = bobClt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: "bob"})
 	require.NoError(t, err)
 
 	// No sessions left.
-	sessions, err = srv.Auth().GetAppSessions(ctx)
+	sessions, nextKey, err = srv.Auth().ListAppSessions(ctx, 10, "", "")
 	require.NoError(t, err)
 	require.Len(t, sessions, 0)
+	require.Empty(t, nextKey)
 }
 
 func TestListResources_SortAndDeduplicate(t *testing.T) {
