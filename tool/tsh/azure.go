@@ -186,14 +186,6 @@ func (a *azureApp) GetForwardProxyAddr() string {
 	return ""
 }
 
-// GetEndpointURL returns Azure endpoint URL that clients can use.
-func (a *azureApp) GetEndpointURL() string {
-	if a.localALPNProxy != nil {
-		return "https://" + a.localALPNProxy.GetAddr()
-	}
-	return ""
-}
-
 // RunCommand executes provided command.
 func (a *azureApp) RunCommand(cmd *exec.Cmd) error {
 	environmentVariables, err := a.GetEnvVars()
