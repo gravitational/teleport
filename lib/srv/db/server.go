@@ -17,6 +17,7 @@ limitations under the License.
 package db
 
 //nolint:goimports
+
 import (
 	"context"
 	"crypto/tls"
@@ -54,6 +55,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	// Import to register Postgres engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/postgres"
+	// Import to register Redis engine.
+	_ "github.com/gravitational/teleport/lib/srv/db/redis"
 	// Import to register Snowflake engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/snowflake"
 	"github.com/gravitational/teleport/lib/utils"
