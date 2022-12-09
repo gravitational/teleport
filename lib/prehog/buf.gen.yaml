@@ -1,0 +1,16 @@
+version: v1
+managed:
+  enabled: true
+  go_package_prefix:
+    default: github.com/gravitational/teleport/lib/prehog/gen
+plugins:
+  - name: go
+    path: bin/protoc-gen-go
+    out: gen
+    opt:
+      - paths=source_relative
+  - name: connect-go
+    path: bin/protoc-gen-connect-go
+    out: gen
+    opt:
+      - paths=source_relative

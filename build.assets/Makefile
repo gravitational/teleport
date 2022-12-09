@@ -7,7 +7,8 @@ endif
 HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
 GOMODCACHE ?= /tmp/gomodcache
-DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE)
+# TODO(hugoShaka) remove HELM_PLUGINS with teleport13 buildbox
+DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE) -e HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new
 
 # delete after webapps migration to teleport
 WEBAPPSSRCDIR=/go/src/github.com/gravitational/webapps
@@ -22,7 +23,7 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 
-GOLANG_VERSION ?= go1.19.2
+GOLANG_VERSION ?= go1.19.4
 
 NODE_VERSION ?= 16.18.1
 

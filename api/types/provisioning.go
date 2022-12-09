@@ -18,6 +18,7 @@ package types
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -47,6 +48,10 @@ const (
 	// join method. Documentation regarding the implementation of this can be
 	// found in lib/circleci
 	JoinMethodCircleCI JoinMethod = "circleci"
+	// JoinMethodKubernetes indicates that the node will join with the
+	// Kubernetes join method. Documentation regarding implementation can be
+	// found in lib/kubernetestoken
+	JoinMethodKubernetes JoinMethod = "kubernetes"
 )
 
 var JoinMethods = []JoinMethod{
@@ -55,6 +60,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodIAM,
 	JoinMethodGitHub,
 	JoinMethodCircleCI,
+	JoinMethodKubernetes,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -225,6 +231,17 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			return trace.BadParameter(
 				`"cirleci" configuration must be provided for join method %q`,
 				JoinMethodCircleCI,
+			)
+		}
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	case JoinMethodKubernetes:
+		providerCfg := p.Spec.Kubernetes
+		if providerCfg == nil {
+			return trace.BadParameter(
+				`"kubernetes" configuration must be provided for the join method %q`,
+				JoinMethodKubernetes,
 			)
 		}
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
@@ -456,6 +473,31 @@ func (a *ProvisionTokenSpecV2CircleCI) checkAndSetDefaults() error {
 			return trace.BadParameter(
 				`allow rule for %q must include at least "project_id" or "context_id"`,
 				JoinMethodCircleCI,
+			)
+		}
+	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2Kubernetes) checkAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter(
+			"the %q join method requires defined kubernetes allow rules",
+			JoinMethodKubernetes,
+		)
+	}
+	for _, allowRule := range a.Allow {
+		if allowRule.ServiceAccount == "" {
+			return trace.BadParameter(
+				"the %q join method requires kubernetes allow rules with non-empty service account name",
+				JoinMethodKubernetes,
+			)
+		}
+		if len(strings.Split(allowRule.ServiceAccount, ":")) != 2 {
+			return trace.BadParameter(
+				`the %q join method service account rule format is "namespace:service_account", got %q instead`,
+				JoinMethodKubernetes,
+				allowRule.ServiceAccount,
 			)
 		}
 	}
