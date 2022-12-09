@@ -609,9 +609,13 @@ type AuthConfig struct {
 	// that will be added by this auth server on the first start
 	Authorities []types.CertAuthority
 
-	// Resources is a set of previously backed up resources
+	// BootstrapResources is a set of previously backed up resources
 	// used to bootstrap backend state on the first start.
-	Resources []types.Resource
+	BootstrapResources []types.Resource
+
+	// ApplyOnStartupResources is a set of resources that should be applied
+	// on each Teleport start.
+	ApplyOnStartupResources []types.Resource
 
 	// Roles is a set of roles to pre-provision for this cluster
 	Roles []types.Role
@@ -922,6 +926,10 @@ type DatabaseAD struct {
 	Domain string
 	// SPN is the service principal name for the database.
 	SPN string
+	// LDAPCert is the Active Directory LDAP Certificate.
+	LDAPCert string
+	// KDCHostName is the Key Distribution Center Hostname for x509 authentication
+	KDCHostName string
 }
 
 // IsEmpty returns true if the database AD configuration is empty.
@@ -937,8 +945,8 @@ type DatabaseAzure struct {
 
 // CheckAndSetDefaults validates database Active Directory configuration.
 func (d *DatabaseAD) CheckAndSetDefaults(name string) error {
-	if d.KeytabFile == "" {
-		return trace.BadParameter("missing keytab file path for database %q", name)
+	if d.KeytabFile == "" && d.KDCHostName == "" {
+		return trace.BadParameter("missing keytab file path or kdc_host_name for database %q", name)
 	}
 	if d.Krb5File == "" {
 		d.Krb5File = defaults.Krb5FilePath
@@ -949,6 +957,13 @@ func (d *DatabaseAD) CheckAndSetDefaults(name string) error {
 	if d.SPN == "" {
 		return trace.BadParameter("missing service principal name for database %q", name)
 	}
+
+	if d.KDCHostName != "" {
+		if d.LDAPCert == "" {
+			return trace.BadParameter("missing LDAP certificate for x509 authentication for database %q", name)
+		}
+	}
+
 	return nil
 }
 
@@ -1037,10 +1052,12 @@ func (d *Database) ToDatabase() (types.Database, error) {
 		},
 		DynamicLabels: types.LabelsToV2(d.DynamicLabels),
 		AD: types.AD{
-			KeytabFile: d.AD.KeytabFile,
-			Krb5File:   d.AD.Krb5File,
-			Domain:     d.AD.Domain,
-			SPN:        d.AD.SPN,
+			KeytabFile:  d.AD.KeytabFile,
+			Krb5File:    d.AD.Krb5File,
+			Domain:      d.AD.Domain,
+			SPN:         d.AD.SPN,
+			LDAPCert:    d.AD.LDAPCert,
+			KDCHostName: d.AD.KDCHostName,
 		},
 		Azure: types.Azure{
 			ResourceID: d.Azure.ResourceID,

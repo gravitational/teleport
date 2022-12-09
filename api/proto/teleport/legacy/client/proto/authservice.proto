@@ -530,6 +530,8 @@ message Features {
   reserved 11; // bool ModeratedSessions
   reserved 12; // bool MachineID
   reserved 13; // bool ResourceAccessRequests
+  // RecoveryCodes enables recovery codes
+  bool RecoveryCodes = 14 [(gogoproto.jsontag) = "recovery_codes"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -650,9 +652,37 @@ message GetAppSessionResponse {
 }
 
 // GetAppSessionsResponse contains all the requested application web sessions.
+// DELETE IN 13.0. Deprecated, use ListAppSessions instead
 message GetAppSessionsResponse {
   // Sessions is a list of application web sessions.
   repeated types.WebSessionV2 Sessions = 1 [(gogoproto.jsontag) = "sessions"];
+}
+
+// ListAppSessionRequest are the parameters used to request an application web session.
+//
+// Follows the pagination semantics of
+// https://cloud.google.com/apis/design/standard_methods#list.
+message ListAppSessionsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+
+  // Optional username which will filter the returned web sessions
+  // to include only those for the given user.
+  string user = 3;
+}
+
+// ListAppSessionResponse contains the requested application web session.
+message ListAppSessionsResponse {
+  // Sessions for the retrieved page.
+  repeated types.WebSessionV2 sessions = 1;
+
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
 }
 
 // GetSnowflakeSessionsResponse contains all the requested Snowflake web sessions.
@@ -858,6 +888,19 @@ message DatabaseCertRequest {
   }
   // RequesterName identifies who sent the request.
   Requester RequesterName = 5 [(gogoproto.jsontag) = "requester_name"];
+
+  // Extensions are the extensions to add to the certificate.
+  enum Extensions {
+    // NORMAL is used in all cases except Windows.
+    NORMAL = 0;
+    // WINDOWS adds specific required extensions for SQL Server, similar to Desktop Access.
+    WINDOWS_SMARTCARD = 1;
+  }
+  // CertificateExtensions identifies which extensions, if any, should be added to the certificate.
+  Extensions CertificateExtensions = 6 [(gogoproto.jsontag) = "certificate_extensions"];
+
+  // CRLEndpoint is a certificate revocation list distribution point. Required for Windows smartcard certs.
+  string CRLEndpoint = 7 [(gogoproto.jsontag) = "crl_endpoint"];
 }
 
 // DatabaseCertResponse contains the signed certificate.
@@ -2067,7 +2110,10 @@ service AuthService {
   // GetAppSession gets an application web session.
   rpc GetAppSession(GetAppSessionRequest) returns (GetAppSessionResponse);
   // GetAppSessions gets all application web sessions.
+  // DELETE IN 13.0. Deprecated, use ListAppSessions instead
   rpc GetAppSessions(google.protobuf.Empty) returns (GetAppSessionsResponse);
+  // ListAppSessions gets all application web sessions.
+  rpc ListAppSessions(ListAppSessionsRequest) returns (ListAppSessionsResponse);
   // CreateAppSession creates an application web session. Application web
   // sessions represent a browser session the client holds.
   rpc CreateAppSession(CreateAppSessionRequest) returns (CreateAppSessionResponse);

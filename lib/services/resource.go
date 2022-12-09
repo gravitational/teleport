@@ -512,6 +512,24 @@ func init() {
 		}
 		return role, nil
 	})
+	RegisterResourceMarshaler(types.KindToken, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
+		token, ok := resource.(types.ProvisionToken)
+		if !ok {
+			return nil, trace.BadParameter("expected Token, got %T", resource)
+		}
+		bytes, err := MarshalProvisionToken(token, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return bytes, nil
+	})
+	RegisterResourceUnmarshaler(types.KindToken, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
+		token, err := UnmarshalProvisionToken(bytes, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return token, nil
+	})
 }
 
 // MarshalResource attempts to marshal a resource dynamically, returning NotImplementedError

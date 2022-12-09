@@ -501,13 +501,17 @@ message AzureRedis {
 // AD contains Active Directory specific database configuration.
 message AD {
   // KeytabFile is the path to the Kerberos keytab file.
-  string KeytabFile = 1 [(gogoproto.jsontag) = "keytab_file"];
+  string KeytabFile = 1 [(gogoproto.jsontag) = "keytab_file,omitempty"];
   // Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf.
   string Krb5File = 2 [(gogoproto.jsontag) = "krb5_file,omitempty"];
   // Domain is the Active Directory domain the database resides in.
   string Domain = 3 [(gogoproto.jsontag) = "domain"];
   // SPN is the service principal name for the database.
   string SPN = 4 [(gogoproto.jsontag) = "spn"];
+  // LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509 Authentication.
+  string LDAPCert = 5 [(gogoproto.jsontag) = "ldap_cert,omitempty"];
+  // KDCHostName is the host name for a KDC for x509 Authentication.
+  string KDCHostName = 6 [(gogoproto.jsontag) = "kdc_host_name,omitempty"];
 }
 
 // DatabaseTLSMode represents the level of TLS verification performed by
