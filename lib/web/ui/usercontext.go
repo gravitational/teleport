@@ -90,6 +90,10 @@ type userACL struct {
 	DesktopSessionRecording bool `json:"desktopSessionRecording"`
 	// DirectorySharing defines whether a user is permitted to share a directory during windows desktop sessions.
 	DirectorySharing bool `json:"directorySharing"`
+	// Download defines whether the user has access to download Teleport Enterprise Binaries
+	Download access `json:"download"`
+	// Download defines whether the user has access to download the license
+	License access `json:"license"`
 }
 
 type authType string
@@ -212,6 +216,8 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	clipboard := userRoles.DesktopClipboard()
 	desktopSessionRecording := desktopRecordingEnabled && userRoles.RecordDesktopSession()
 	directorySharing := userRoles.DesktopDirectorySharing()
+	download := newAccess(userRoles, ctx, types.KindDownload)
+	license := newAccess(userRoles, ctx, types.KindLicense)
 
 	acl := userACL{
 		AccessRequests:          requestAccess,
@@ -234,6 +240,8 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		Clipboard:               clipboard,
 		DesktopSessionRecording: desktopSessionRecording,
 		DirectorySharing:        directorySharing,
+		Download:                download,
+		License:                 license,
 	}
 
 	// local user
