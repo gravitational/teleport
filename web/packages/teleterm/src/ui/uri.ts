@@ -114,6 +114,11 @@ export const routing = {
     return appUri.startsWith(`${clusterUri}/apps/`);
   },
 
+  isLeafCluster(clusterUri: string) {
+    const match = routing.parseClusterUri(clusterUri);
+    return match && Boolean(match.params.leafClusterId);
+  },
+
   belongsToProfile(clusterUri: string, resourceUri: string) {
     const rootClusterUri = this.ensureRootClusterUri(clusterUri);
     const resourceRootClusterUri = this.ensureRootClusterUri(resourceUri);
