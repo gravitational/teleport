@@ -357,6 +357,7 @@ type LoginPasswordlessRequest struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Request:
+	//
 	//	*LoginPasswordlessRequest_Init
 	//	*LoginPasswordlessRequest_Pin
 	//	*LoginPasswordlessRequest_Credential
@@ -454,6 +455,7 @@ type LoginRequest struct {
 	// cluster_uri is the cluster uri
 	ClusterUri string `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
 	// Types that are assignable to Params:
+	//
 	//	*LoginRequest_Local
 	//	*LoginRequest_Sso
 	Params isLoginRequest_Params `protobuf_oneof:"params"`

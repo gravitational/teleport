@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/api
 
-go 1.18
+go 1.19
 
 require (
 	github.com/gogo/protobuf v1.3.2

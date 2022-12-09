@@ -21,10 +21,9 @@ TEST_KUBE ?=
 
 OS ?= linux
 ARCH ?= amd64
-GOLANG_VERSION ?= go1.18.9
+GOLANG_VERSION ?= go1.19.4
 RUST_VERSION ?= 1.63.0 # don't bump this without checking GLIBC compatibility
 NODE_VERSION ?= 16.13.2
-BORINGCRYPTO_RUNTIME=$(GOLANG_VERSION)b7
 LIBBPF_VERSION ?= 0.7.0-teleport
 
 UID := $$(id -u)
@@ -37,7 +36,7 @@ RUNTIME_ARCH_arm64 := arm64
 RUNTIME_ARCH_aarch64 := arm64
 RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 
-PROTOC_VER ?= 3.13.0
+PROTOC_VER ?= 3.20.3
 # Keep in sync with api/proto/buf.yaml (and buf.lock).
 GOGO_PROTO_TAG ?= v1.3.2
 
@@ -143,7 +142,7 @@ buildbox-fips:
 		docker build \
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
-			--build-arg BORINGCRYPTO_RUNTIME=$(BORINGCRYPTO_RUNTIME) \
+			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 			--cache-from $(BUILDBOX_FIPS) \
 			--tag $(BUILDBOX_FIPS) -f Dockerfile-fips . ; \
@@ -175,7 +174,7 @@ buildbox-centos7-fips:
 	docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
-		--build-arg BORINGCRYPTO_RUNTIME=$(BORINGCRYPTO_RUNTIME) \
+		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--cache-from $(BUILDBOX_CENTOS7_FIPS) \
