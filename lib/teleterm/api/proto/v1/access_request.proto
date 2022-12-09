@@ -38,6 +38,7 @@ message AccessRequest {
   repeated string threshold_names = 11;
   // a list of resourceIDs requested in the AccessRequest
   repeated ResourceID resource_ids = 12;
+  repeated Resource resources = 13;
 }
 
 message AccessRequestReview {
@@ -56,4 +57,13 @@ message ResourceID {
   string kind = 1;
   string name = 2;
   string cluster_name = 3;
+}
+
+message ResourceDetails {
+  string hostname = 1;
+}
+
+message Resource {
+  ResourceID id = 1;
+  ResourceDetails details = 2;
 }
