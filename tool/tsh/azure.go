@@ -257,12 +257,12 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 	// backend expects the tokens to be signed with web session private key
 	ws, err := tc.GetAppSession(a.cf.Context, types.GetAppSessionRequest{SessionID: a.app.SessionID})
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 
 	wsPK, err := utils.ParsePrivateKey(ws.GetPriv())
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 
 	a.localALPNProxy, err = alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
