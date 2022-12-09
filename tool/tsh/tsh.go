@@ -845,6 +845,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	webauthnwin := newWebauthnwinCommand(app)
 
+	// Device Trust commands.
+	deviceCmd := newDeviceCommand(app)
+
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
@@ -1087,6 +1090,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = tid.diag.run(&cf)
 	case webauthnwin.diag.FullCommand():
 		err = webauthnwin.diag.run(&cf)
+	case deviceCmd.enroll.FullCommand():
+		err = deviceCmd.enroll.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {

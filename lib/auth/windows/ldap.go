@@ -103,6 +103,11 @@ const (
 	AttrOSVersion = "operatingSystemVersion"
 	// AttrPrimaryGroupID is the primary group id of an LDAP object
 	AttrPrimaryGroupID = "primaryGroupID"
+
+	// searchPageSize is desired page size for LDAP search. In Active Directory the default search size limit is 1000 entries,
+	// so in most cases the 1000 search page size will result in the optimal amount of requests made to
+	// LDAP server.
+	searchPageSize = 1000
 )
 
 // Note: if you want to browse LDAP on the Windows machine, run ADSIEdit.msc.
@@ -151,7 +156,7 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 	)
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	res, err := c.client.Search(req)
+	res, err := c.client.SearchWithPaging(req, searchPageSize)
 	if ldap.IsErrorWithCode(err, ldap.ErrorNetwork) {
 		return nil, trace.ConnectionProblem(err, "fetching LDAP object %q", dn)
 	} else if err != nil {
