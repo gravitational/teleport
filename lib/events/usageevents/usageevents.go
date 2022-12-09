@@ -18,6 +18,7 @@ package usageevents
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -25,7 +26,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -91,23 +91,25 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 }
 
 func (u *UsageLogger) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	fmt.Printf("=== DEBUG === Emitting audit event 1: %T\n", event)
 	if err := u.reportAuditEvent(ctx, event); err != nil {
 		// We don't ever want this to fail or bubble up errors, so the best we
 		// can do is complain to the logs.
 		u.Warnf("Failed to filter audit event: %+v", err)
 	}
-
+	fmt.Printf("=== DEBUG === Emitting audit event 2: %T\n", event)
 	if u.inner != nil {
+		fmt.Printf("=== DEBUG === Emitting audit event 3: %T %T\n", u.inner, event)
 		return u.inner.EmitAuditEvent(ctx, event)
 	}
-
+	fmt.Printf("=== DEBUG === Emitting audit event 4: %T\n", event)
 	return nil
 }
 
 // New creates a new usage event IAuditLog impl, which wraps another IAuditLog
 // impl and forwards a subset of audit log events to the cluster UsageReporter
 // service.
-func New(reporter services.UsageReporter, log logrus.FieldLogger, inner events.IAuditLog) (*UsageLogger, error) {
+func New(reporter services.UsageReporter, log logrus.FieldLogger, inner apievents.Emitter) (*UsageLogger, error) {
 	if log == nil {
 		log = logrus.StandardLogger()
 	}
