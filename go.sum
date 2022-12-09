@@ -725,8 +725,8 @@ github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621 h1:ivU//THq
 github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621/go.mod h1:IIxugQsS57BiOTe+8zDv3sfnvM2BQ3smcF1xJdj3Has=
 github.com/gravitational/oxy v0.0.0-20221029012416-9fbf4c444680 h1:acbjjEJoR2vu1cuSE15Q9YDgWZxWRFj7nr2Vsi/Pn18=
 github.com/gravitational/oxy v0.0.0-20221029012416-9fbf4c444680/go.mod h1:SP8xfwGas4wleDVXDmeVpfn/Fv+wD8rrb2SqN/DlNXQ=
-github.com/gravitational/predicate v1.2.1 h1:CXgXyZ90F2x4VHzOab1bBsBlpY2l+MGvb5RX3avrJ5U=
-github.com/gravitational/predicate v1.2.1/go.mod h1:VipoNYXny6c8N381zGUWkjuuNHiRbeAZhE7Qm9c+2GA=
+github.com/gravitational/predicate v1.3.0 h1:n1lmH6YU1oX/Y546qHQNJb50FJy6Ou/+MvW8W9ICrlw=
+github.com/gravitational/predicate v1.3.0/go.mod h1:wPNu01gNYh2LRVtIGmFBvRpfBzl4nI2EaxbYDG8Mm4w=
 github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf h1:MQ4e8XcxvZTeuOmRl7yE519vcWc2h/lyvYzsvt41cdY=
 github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf/go.mod h1:SlYgWuQ5SjCEi6WLHjHCa1yvBfUnHcTbrrZtXPKa29o=
 github.com/gravitational/redis/v9 v9.0.0-teleport.2 h1:cX6NjKFy8zcqS0RF+EsOuHBqv+XWAgNUTVxS1y6hg88=
@@ -737,7 +737,6 @@ github.com/gravitational/roundtrip v1.0.2 h1:eOCY0NEKKaB0ksJmvhO6lPMFz1pIIef+vyP
 github.com/gravitational/roundtrip v1.0.2/go.mod h1:fuI1booM2hLRA/B/m5MRAPOU6mBZNYcNycono2UuTw0=
 github.com/gravitational/sftp v1.13.6-0.20220927202521-0e74d42f8055 h1:iUQqKNaW1lywWSVZkeCQX0vygPfJ63UGx6Ng94e2t1o=
 github.com/gravitational/sftp v1.13.6-0.20220927202521-0e74d42f8055/go.mod h1:wHDZ0IZX6JcBYRK1TH9bcVq8G7TLpVHYIGJRFnmPfxg=
-github.com/gravitational/trace v1.1.16-0.20220114165159-14a9a7dd6aaf/go.mod h1:zXqxTI6jXDdKnlf8s+nT+3c8LrwUEy3yNpO4XJL90lA=
 github.com/gravitational/trace v1.1.19 h1:MHxfSvqHRNyOGF2440JILYrLdseAhCMErenSkg+i8+s=
 github.com/gravitational/trace v1.1.19/go.mod h1:n0ijrq6psJY0sOI/NzLp+xdd8xl79jjwzVOFHDY6+kQ=
 github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c h1:C2iWDiod8vQ3YnOiCdMP9qYeg2UifQ8KSk36r0NswSE=
