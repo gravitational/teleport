@@ -300,6 +300,7 @@ func warnInvalidAzureIdentities(candidates []string) {
 	}
 }
 
+// ParseResourceID from Azure SDK is too lenient; we use a strict regexp instead.
 var azureIdentityPattern = regexp.MustCompile(`(?i)^/subscriptions/([a-fA-F0-9-]+)/resourceGroups/([0-9a-zA-Z-]+)/providers/Microsoft\.ManagedIdentity/userAssignedIdentities/([0-9a-zA-Z-]+)$`)
 
 func MatchValidAzureIdentity(identity string) bool {

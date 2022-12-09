@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -5516,14 +5517,16 @@ func TestMatchAzureIdentity(t *testing.T) {
 
 func TestMatchValidAzureIdentity(t *testing.T) {
 	tests := []struct {
-		name     string
-		identity string
-		valid    bool
+		name                  string
+		identity              string
+		valid                 bool
+		ignoreParseResourceID bool
 	}{
 		{
-			name:     "wildcard",
-			identity: "*",
-			valid:    true,
+			name:                  "wildcard",
+			identity:              "*",
+			valid:                 true,
+			ignoreParseResourceID: true,
 		},
 		{
 			name:     "correct format",
@@ -5565,10 +5568,23 @@ func TestMatchValidAzureIdentity(t *testing.T) {
 			identity: "whatever /subscriptions/0000000000000-0000-0000-000000000000/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/foo",
 			valid:    false,
 		},
+		{
+			name:     "invalid format # 7",
+			identity: "///subscriptions///1020304050607-cafe-8090-a0b0c0d0e0f0///resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
+			valid:    false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.valid, MatchValidAzureIdentity(tt.identity))
+
+			if tt.ignoreParseResourceID == false {
+				// if it ParseResourceID returns an error, we expect MatchValidAzureIdentity to do the same.
+				_, err := arm.ParseResourceID(tt.identity)
+				if err != nil {
+					require.False(t, MatchValidAzureIdentity(tt.identity))
+				}
+			}
 		})
 	}
 }
