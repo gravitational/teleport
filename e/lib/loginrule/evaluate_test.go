@@ -232,6 +232,36 @@ func TestEvaluate(t *testing.T) {
 			inputTraits:   baseInputTraits,
 			errorContains: "arguments to set.add must have type string, got loginrule.set",
 		},
+		{
+			desc: "string helpers",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsMap("rule", 0, map[string][]string{
+					"lower": []string{
+						`strings.lower("APPLE")`,
+						`strings.lower("BaNaNa")`,
+						`strings.lower(set("cherry", "dragonFRUIT"))`,
+						`strings.lower(external.username)`,
+					},
+					"upper": []string{
+						`strings.upper("APPLE")`,
+						`strings.upper("BaNaNa")`,
+						`strings.upper(set("cherry", "dragonFRUIT"))`,
+						`strings.upper(external.username)`,
+					},
+					"replaced": []string{
+						`strings.replaceall("snake_case_example", "_", "-")`,
+						`strings.replaceall(strings.replaceall("user@example.com", "@", "_"), ".", "-")`,
+						`strings.replaceall(set("dev-team", "platform-team"), "-team", "")`,
+					},
+				}),
+			},
+			inputTraits: baseInputTraits,
+			expectedTraits: map[string][]string{
+				"lower":    []string{"apple", "banana", "cherry", "dragonfruit", "alice"},
+				"upper":    []string{"APPLE", "BANANA", "CHERRY", "DRAGONFRUIT", "ALICE"},
+				"replaced": []string{"snake-case-example", "user_example-com", "dev", "platform"},
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			result, err := Evaluate(tc.rules, &EvaluationInput{Traits: tc.inputTraits})

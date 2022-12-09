@@ -1,6 +1,8 @@
 package loginrule
 
 import (
+	"strings"
+
 	"github.com/gravitational/trace"
 	"github.com/vulcand/predicate"
 )
@@ -54,11 +56,14 @@ func newParser(env *parseEnv) (predicate.Parser, error) {
 		GetIdentifier: env.getIdentifier,
 		GetProperty:   predicate.GetStringMapValue,
 		Functions: map[string]any{
-			"set":    newSet,
-			"dict":   newDict,
-			"pair":   newPair,
-			"ifelse": ifelse,
-			"union":  union,
+			"set":                newSet,
+			"dict":               newDict,
+			"pair":               newPair,
+			"union":              union,
+			"ifelse":             ifelse,
+			"strings.upper":      upper,
+			"strings.lower":      lower,
+			"strings.replaceall": replaceAll,
 		},
 		Methods: map[string]any{
 			"add":      set.add,
@@ -181,4 +186,45 @@ func ifelse(cond, valueIfTrue, valueIfFalse any) (any, error) {
 		return valueIfTrue, nil
 	}
 	return valueIfFalse, nil
+}
+
+// stringTransform transforms [input], using [f].
+// It returns either a `string` or a `set`, depending on [input].
+func stringTransform(input any, f func(string) string) (any, error) {
+	switch v := input.(type) {
+	case string:
+		return f(v), nil
+	case set:
+		out := make(set, len(v))
+		for str := range v {
+			out[f(str)] = struct{}{}
+		}
+		return out, nil
+	}
+	return nil, trace.BadParameter("expected string or set, got %T", input)
+}
+
+func upper(input any) (any, error) {
+	out, err := stringTransform(input, strings.ToUpper)
+	return out, trace.Wrap(err, "parsing upper")
+}
+
+func lower(input any) (any, error) {
+	out, err := stringTransform(input, strings.ToLower)
+	return out, trace.Wrap(err, "parsing upper")
+}
+
+func replaceAll(input, match, replacement any) (any, error) {
+	matchStr, ok := match.(string)
+	if !ok {
+		return nil, trace.BadParameter("second argument (match) to strings.replaceall must have type string, got %T", match)
+	}
+	replacementStr, ok := replacement.(string)
+	if !ok {
+		return nil, trace.BadParameter("third argument (replacement) to strings.replaceall must have type string, got %T", replacement)
+	}
+	out, err := stringTransform(input, func(inputStr string) string {
+		return strings.ReplaceAll(inputStr, matchStr, replacementStr)
+	})
+	return out, trace.Wrap(err, "parsing strings.replaceall")
 }
