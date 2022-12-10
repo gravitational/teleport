@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -76,6 +77,10 @@ type CommandLineFlags struct {
 	AdvertiseIP string
 	// --config flag
 	ConfigFile string
+	// --apply-on-startup contains the path of a YAML manifest whose resources should be
+	// applied on startup. Unlike the bootstrap flag, the resources are always applied,
+	// even if the cluster is already initialized. Existing resources will be updated.
+	ApplyOnStartupFile string
 	// Bootstrap flag contains a YAML file that defines a set of resources to bootstrap
 	// a cluster.
 	BootstrapFile string
@@ -1166,6 +1171,18 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) {
 		)
 	}
 
+	for _, matcher := range fc.Discovery.GCPMatchers {
+		cfg.Discovery.GCPMatchers = append(
+			cfg.Discovery.GCPMatchers,
+			services.GCPMatcher{
+				Types:      matcher.Types,
+				Locations:  matcher.Locations,
+				Tags:       matcher.Tags,
+				ProjectIDs: matcher.ProjectIDs,
+			},
+		)
+	}
+
 }
 
 // applyKubeConfig applies file configuration for the "kubernetes_service" section.
@@ -1291,6 +1308,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				Region:    database.AWS.Region,
 				Redshift: service.DatabaseAWSRedshift{
 					ClusterID: database.AWS.Redshift.ClusterID,
+				},
+				RedshiftServerless: service.DatabaseAWSRedshiftServerless{
+					WorkgroupName: database.AWS.RedshiftServerless.WorkgroupName,
+					EndpointName:  database.AWS.RedshiftServerless.EndpointName,
 				},
 				RDS: service.DatabaseAWSRDS{
 					InstanceID: database.AWS.RDS.InstanceID,
@@ -1456,11 +1477,11 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Metrics.MTLS = true
 
 	if len(fc.Metrics.KeyPairs) == 0 {
-		return trace.BadParameter("at least one keypair shoud be provided when mtls is enabled in the metrics config")
+		return trace.BadParameter("at least one keypair should be provided when mtls is enabled in the metrics config")
 	}
 
 	if len(fc.Metrics.CACerts) == 0 {
-		return trace.BadParameter("at least one CA cert shoud be provided when mtls is enabled in the metrics config")
+		return trace.BadParameter("at least one CA cert should be provided when mtls is enabled in the metrics config")
 	}
 
 	for _, p := range fc.Metrics.KeyPairs {
@@ -1572,6 +1593,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		CA:                 cert,
 	}
 
+	var hlrs []service.HostLabelRule
 	for _, rule := range fc.WindowsDesktop.HostLabels {
 		r, err := regexp.Compile(rule.Match)
 		if err != nil {
@@ -1588,11 +1610,12 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			}
 		}
 
-		cfg.WindowsDesktop.HostLabels = append(cfg.WindowsDesktop.HostLabels, service.HostLabelRule{
+		hlrs = append(hlrs, service.HostLabelRule{
 			Regexp: r,
 			Labels: rule.Labels,
 		})
 	}
+	cfg.WindowsDesktop.HostLabels = service.NewHostLabelRules(hlrs...)
 
 	if fc.WindowsDesktop.Labels != nil {
 		cfg.WindowsDesktop.Labels = make(map[string]string)
@@ -1879,7 +1902,18 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		if len(resources) < 1 {
 			return trace.BadParameter("no resources found: %q", clf.BootstrapFile)
 		}
-		cfg.Auth.Resources = resources
+		cfg.Auth.BootstrapResources = resources
+	}
+
+	if clf.ApplyOnStartupFile != "" {
+		resources, err := ReadResources(clf.ApplyOnStartupFile)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(resources) < 1 {
+			return trace.BadParameter("no resources found: %q", clf.ApplyOnStartupFile)
+		}
+		cfg.Auth.ApplyOnStartupResources = resources
 	}
 
 	// Apply command line --debug flag to override logger severity.
@@ -1897,7 +1931,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// If this process is trying to join a cluster as an application service,
 	// make sure application name and URI are provided.
-	if apiutils.SliceContainsStr(splitRoles(clf.Roles), defaults.RoleApp) &&
+	if slices.Contains(splitRoles(clf.Roles), defaults.RoleApp) &&
 		(clf.AppName == "" || clf.AppURI == "") {
 		return trace.BadParameter("application name (--app-name) and URI (--app-uri) flags are both required to join application proxy to the cluster")
 	}

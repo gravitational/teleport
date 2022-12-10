@@ -30,6 +30,7 @@ import (
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -65,6 +66,8 @@ func New(cfg Config) (*Gateway, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	cfg.LocalPort = port
+
 	protocol, err := alpncommon.ToALPNProtocol(cfg.Protocol)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -80,7 +83,12 @@ func New(cfg Config) (*Gateway, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	localProxy, err := alpn.NewLocalProxy(alpn.LocalProxyConfig{
+	if err := checkCertSubject(tlsCert, cfg.RouteToDatabase()); err != nil {
+		return nil, trace.Wrap(err,
+			"database certificate check failed, try restarting the database connection")
+	}
+
+	localProxyConfig := alpn.LocalProxyConfig{
 		InsecureSkipVerify: cfg.Insecure,
 		RemoteProxyAddr:    cfg.WebProxyAddr,
 		Protocols:          []alpncommon.Protocol{protocol},
@@ -88,12 +96,22 @@ func New(cfg Config) (*Gateway, error) {
 		ParentContext:      closeContext,
 		SNI:                address.Host(),
 		Certs:              []tls.Certificate{tlsCert},
-	})
+		Clock:              cfg.Clock,
+	}
+
+	localProxyMiddleware := &localProxyMiddleware{
+		log:     cfg.Log,
+		dbRoute: cfg.RouteToDatabase(),
+	}
+
+	if cfg.OnExpiredCert != nil {
+		localProxyConfig.Middleware = localProxyMiddleware
+	}
+
+	localProxy, err := alpn.NewLocalProxy(localProxyConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	cfg.LocalPort = port
 
 	gateway := &Gateway{
 		cfg:          &cfg,
@@ -102,13 +120,20 @@ func New(cfg Config) (*Gateway, error) {
 		localProxy:   localProxy,
 	}
 
+	if cfg.OnExpiredCert != nil {
+		localProxyMiddleware.onExpiredCert = func(ctx context.Context) error {
+			err := cfg.OnExpiredCert(ctx, gateway)
+			return trace.Wrap(err)
+		}
+	}
+
 	ok = true
 	return gateway, nil
 }
 
 // NewWithLocalPort initializes a copy of an existing gateway which has all config fields identical
 // to the existing gateway with the exception of the local port.
-func NewWithLocalPort(gateway Gateway, port string) (*Gateway, error) {
+func NewWithLocalPort(gateway *Gateway, port string) (*Gateway, error) {
 	if port == gateway.LocalPort() {
 		return nil, trace.BadParameter("port is already set to %s", port)
 	}
@@ -205,6 +230,53 @@ func (g *Gateway) CLICommand() (string, error) {
 	}
 
 	return cliCommand, nil
+}
+
+// RouteToDatabase returns tlsca.RouteToDatabase based on the config of the gateway.
+//
+// The tlsca.RouteToDatabase.Database field is skipped, as it's an optional field and gateways can
+// change their Config.TargetSubresourceName at any moment.
+func (g *Gateway) RouteToDatabase() tlsca.RouteToDatabase {
+	return g.cfg.RouteToDatabase()
+}
+
+// ReloadCert loads the key pair from cfg.CertPath & cfg.KeyPath and updates the cert of the running
+// local proxy. This is typically done after the cert is reissued and saved to disk.
+//
+// In the future, we're probably going to make this method accept the cert as an arg rather than
+// reading from disk.
+func (g *Gateway) ReloadCert() error {
+	g.cfg.Log.Debug("Reloading cert")
+
+	tlsCert, err := keys.LoadX509KeyPair(g.cfg.CertPath, g.cfg.KeyPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := checkCertSubject(tlsCert, g.RouteToDatabase()); err != nil {
+		return trace.Wrap(err,
+			"database certificate check failed, try restarting the database connection")
+	}
+
+	g.localProxy.SetCerts([]tls.Certificate{tlsCert})
+
+	return nil
+}
+
+// checkCertSubject checks if the cert subject matches the expected db route.
+//
+// Database certs are scoped per database server but not per database user or database name.
+// It might happen that after we save the cert but before we load it, another process obtains a
+// cert for another db user.
+//
+// Before using the cert for the proxy, we have to perform this check.
+func checkCertSubject(tlsCert tls.Certificate, dbRoute tlsca.RouteToDatabase) error {
+	cert, err := utils.TLSCertToX509(tlsCert)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(alpn.CheckCertSubject(cert, dbRoute))
 }
 
 // Gateway describes local proxy that creates a gateway to the remote Teleport resource.

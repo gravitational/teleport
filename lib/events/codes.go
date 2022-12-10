@@ -108,6 +108,8 @@ const (
 	AppSessionEndCode = "T2011I"
 	// SessionRecordingAccessCode is the session recording view data event code.
 	SessionRecordingAccessCode = "T2012I"
+	// AppSessionDynamoDBRequestCode is the application request/response code.
+	AppSessionDynamoDBRequestCode = "T2013I"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
@@ -183,6 +185,9 @@ const (
 
 	// ElasticsearchRequestCode is the db.session.elasticsearch.request event code.
 	ElasticsearchRequestCode = "TES00I"
+
+	// DynamoDBRequestCode is the db.session.dynamodb.request event code.
+	DynamoDBRequestCode = "TDY01I"
 
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"

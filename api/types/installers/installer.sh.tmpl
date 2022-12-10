@@ -5,22 +5,34 @@
     exit 0
   fi
 
-  distro_id="$(awk -F= '$1 == "ID" { print tolower($2) }' /etc/os-release | xargs echo)"
-  if [ "$distro_id" = "debian" ] || [ "$distro_id" = "ubuntu" ]; then
-    sudo curl https://deb.releases.teleport.dev/teleport-pubkey.asc \
-      -o /usr/share/keyrings/teleport-archive-keyring.asc
-	. /etc/os-release
-    echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/{{ .MajorVersion }}" |
-      sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
+  . /etc/os-release
+
+  # old versions of ubuntu require that keys get added by `apt-key add`, without
+  # adding the key apt shows a key signing error when installing teleport.
+  LEGACY_UBUNTU=false
+  if [ "$VERSION_CODENAME" = "xenial" ] || [ "$VERSION_CODENAME" = "trusty" ]; then
+	  LEGACY_UBUNTU=true
+  fi
+
+  if [ "$ID" = "debian" ] || [ "$ID" = "ubuntu" ]; then
+	if [ "$LEGACY_UBUNTU" = true ]; then
+		curl -o /tmp/teleport-pubkey.asc https://deb.releases.teleport.dev/teleport-pubkey.asc
+		cat /tmp/teleport-pubkey.asc | sudo apt-key add -
+		echo "deb https://apt.releases.teleport.dev/ubuntu ${VERSION_CODENAME?} stable/{{ .MajorVersion }}" | sudo tee /etc/apt/sources.list.d/teleport.list
+		rm /tmp/teleport-pubkey.asc
+	else
+		sudo curl https://deb.releases.teleport.dev/teleport-pubkey.asc \
+			 -o /usr/share/keyrings/teleport-archive-keyring.asc
+		echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/{{ .MajorVersion }}" |  sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
+	fi
     sudo apt-get update
     sudo apt-get install -y teleport jq
-  elif [ "$distro_id" = "amzn" ] || [ "$distro_id" = "rhel" ]; then
-    . /etc/os-release
+  elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ]; then
     sudo yum-config-manager --add-repo \
       "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/{{ .MajorVersion }}/teleport.repo")"
     sudo yum install -y teleport jq
   else
-    echo "Unsupported distro: $distro_id"
+    echo "Unsupported distro: $ID"
     exit 1
   fi
 

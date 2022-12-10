@@ -78,9 +78,13 @@ type InitConfig struct {
 	// Authorities is a list of pre-configured authorities to supply on first start
 	Authorities []types.CertAuthority
 
-	// Resources is a list of previously backed-up resources used to
+	// ApplyOnStartupResources is a set of resources that should be applied
+	// on each Teleport start.
+	ApplyOnStartupResources []types.Resource
+
+	// BootstrapResources is a list of previously backed-up resources used to
 	// bootstrap backend on first start.
-	Resources []types.Resource
+	BootstrapResources []types.Resource
 
 	// AuthServiceName is a human-readable name of this CA. If several Auth services are running
 	// (managing multiple teleport clusters) this field is used to tell them apart in UIs
@@ -197,6 +201,9 @@ type InitConfig struct {
 
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
+
+	// UsageReporter is a service that forwards cluster usage events.
+	UsageReporter services.UsageReporter
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -223,23 +230,32 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// if resources are supplied, use them to bootstrap backend state
+	// if bootstrap resources are supplied, use them to bootstrap backend state
 	// on initial startup.
-	if len(cfg.Resources) > 0 {
+	if len(cfg.BootstrapResources) > 0 {
 		firstStart, err := isFirstStart(ctx, asrv, cfg)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if firstStart {
-			log.Infof("Applying %v bootstrap resources (first initialization)", len(cfg.Resources))
-			if err := checkResourceConsistency(asrv.keyStore, domainName, cfg.Resources...); err != nil {
+			log.Infof("Applying %v bootstrap resources (first initialization)", len(cfg.BootstrapResources))
+			if err := checkResourceConsistency(ctx, asrv.keyStore, domainName, cfg.BootstrapResources...); err != nil {
 				return nil, trace.Wrap(err, "refusing to bootstrap backend")
 			}
-			if err := local.CreateResources(ctx, cfg.Backend, cfg.Resources...); err != nil {
+			if err := local.CreateResources(ctx, cfg.Backend, cfg.BootstrapResources...); err != nil {
 				return nil, trace.Wrap(err, "backend bootstrap failed")
 			}
 		} else {
-			log.Warnf("Ignoring %v bootstrap resources (previously initialized)", len(cfg.Resources))
+			log.Warnf("Ignoring %v bootstrap resources (previously initialized)", len(cfg.BootstrapResources))
+		}
+	}
+
+	// if apply-on-startup resources are supplied, apply them
+	if len(cfg.ApplyOnStartupResources) > 0 {
+		log.Infof("Applying %v resources (apply-on-startup)", len(cfg.ApplyOnStartupResources))
+
+		if err := applyResources(ctx, asrv.Services, cfg.ApplyOnStartupResources); err != nil {
+			return nil, trace.Wrap(err, "applying resources failed")
 		}
 	}
 
@@ -359,12 +375,12 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 				return nil, trace.Wrap(err)
 			}
 			log.Infof("First start: generating %s certificate authority.", caID.Type)
-			if err := asrv.createSelfSignedCA(caID); err != nil {
+			if err := asrv.createSelfSignedCA(ctx, caID); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		} else {
 			// Already have a CA. Make sure the keyStore has usable keys.
-			hasUsableActiveKeys, err := asrv.keyStore.HasUsableActiveKeys(ca)
+			hasUsableActiveKeys, err := asrv.keyStore.HasUsableActiveKeys(ctx, ca)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -391,11 +407,11 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 					}
 				}
 			}
-			hasUsableActiveKeys, err = asrv.keyStore.HasUsableActiveKeys(ca)
+			hasUsableActiveKeys, err = asrv.keyStore.HasUsableActiveKeys(ctx, ca)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			hasUsableAdditionalKeys, err := asrv.keyStore.HasUsableAdditionalKeys(ca)
+			hasUsableAdditionalKeys, err := asrv.keyStore.HasUsableAdditionalKeys(ctx, ca)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -593,7 +609,7 @@ func isFirstStart(ctx context.Context, authServer *Server, cfg InitConfig) (bool
 }
 
 // checkResourceConsistency checks far basic conflicting state issues.
-func checkResourceConsistency(keyStore *keystore.Manager, clusterName string, resources ...types.Resource) error {
+func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, clusterName string, resources ...types.Resource) error {
 	for _, rsc := range resources {
 		switch r := rsc.(type) {
 		case types.CertAuthority:
@@ -605,11 +621,11 @@ func checkResourceConsistency(keyStore *keystore.Manager, clusterName string, re
 			var signerErr error
 			switch r.GetType() {
 			case types.HostCA, types.UserCA:
-				_, signerErr = keyStore.GetSSHSigner(r)
+				_, signerErr = keyStore.GetSSHSigner(ctx, r)
 			case types.DatabaseCA:
-				_, _, signerErr = keyStore.GetTLSCertAndSigner(r)
+				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
 			case types.JWTSigner:
-				_, signerErr = keyStore.GetJWTSigner(r)
+				_, signerErr = keyStore.GetJWTSigner(ctx, r)
 			default:
 				return trace.BadParameter("unexpected cert_authority type %s for cluster %v", r.GetType(), clusterName)
 			}
@@ -1135,5 +1151,25 @@ func migrateDBAuthority(ctx context.Context, asrv *Server) error {
 		}
 	}
 
+	return nil
+}
+
+// Unlike when resources are loaded via --bootstrap, we're inserting elements via their service.
+// This means consistency is checked. This function does not currently support applying resources
+// with dependencies (like a user referring to a role) as it won't necessarily apply them in the
+// right order.
+func applyResources(ctx context.Context, service *Services, resources []types.Resource) error {
+	var err error
+	for _, resource := range resources {
+		switch r := resource.(type) {
+		case types.ProvisionToken:
+			err = service.Provisioner.UpsertToken(ctx, r)
+		default:
+			return trace.NotImplemented("cannot apply resource of type %T", resource)
+		}
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }

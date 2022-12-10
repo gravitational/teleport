@@ -26,9 +26,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -213,6 +215,7 @@ func NewKubeClusterFromAzureAKS(cluster *azure.AKSCluster) (types.KubeCluster, e
 func labelsFromAzureKubeCluster(cluster *azure.AKSCluster) map[string]string {
 	labels := azureTagsToLabels(cluster.Tags)
 	labels[types.OriginLabel] = types.OriginCloud
+	labels[types.CloudLabel] = types.CloudAzure
 	labels[labelRegion] = cluster.Location
 
 	labels[labelResourceGroup] = cluster.GroupName
@@ -220,7 +223,45 @@ func labelsFromAzureKubeCluster(cluster *azure.AKSCluster) map[string]string {
 	return labels
 }
 
-// NewKubeClusterFromAWSEKS creates a database resource from an EKS cluster.
+// NewKubeClusterFromGCPGKE creates a kube_cluster resource from an GKE cluster.
+func NewKubeClusterFromGCPGKE(cluster gcp.GKECluster) (types.KubeCluster, error) {
+	return types.NewKubernetesClusterV3(
+		setKubeName(types.Metadata{
+			Description: getOrSetDefaultGCPDescription(cluster),
+			Labels:      labelsFromGCPKubeCluster(cluster),
+		}, cluster.Name),
+		types.KubernetesClusterSpecV3{
+			GCP: types.KubeGCP{
+				Name:      cluster.Name,
+				ProjectID: cluster.ProjectID,
+				Location:  cluster.Location,
+			},
+		})
+}
+
+// getOrSetDefaultGCPDescription gets the default GKE cluster description if available,
+// otherwise returns a default one.
+func getOrSetDefaultGCPDescription(cluster gcp.GKECluster) string {
+	if len(cluster.Description) > 0 {
+		return cluster.Description
+	}
+	return fmt.Sprintf("GKE cluster %q in %s",
+		cluster.Name,
+		cluster.Location)
+}
+
+// labelsFromGCPKubeCluster creates kube cluster labels.
+func labelsFromGCPKubeCluster(cluster gcp.GKECluster) map[string]string {
+	labels := maps.Clone(cluster.Labels)
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[types.CloudLabel] = types.CloudGCP
+	labels[labelLocation] = cluster.Location
+
+	labels[labelProjectID] = cluster.ProjectID
+	return labels
+}
+
+// NewKubeClusterFromAWSEKS creates a kube_cluster resource from an EKS cluster.
 func NewKubeClusterFromAWSEKS(cluster *eks.Cluster) (types.KubeCluster, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(cluster.Arn))
 	if err != nil {
@@ -248,6 +289,7 @@ func NewKubeClusterFromAWSEKS(cluster *eks.Cluster) (types.KubeCluster, error) {
 func labelsFromAWSKubeCluster(cluster *eks.Cluster, parsedARN arn.ARN) map[string]string {
 	labels := awsEKSTagsToLabels(cluster.Tags)
 	labels[types.OriginLabel] = types.OriginCloud
+	labels[types.CloudLabel] = types.CloudAWS
 	labels[labelRegion] = parsedARN.Region
 
 	labels[labelAccountID] = parsedARN.AccountID
@@ -266,3 +308,10 @@ func awsEKSTagsToLabels(tags map[string]*string) map[string]string {
 	}
 	return labels
 }
+
+const (
+	// labelProjectID is the label key for GCP project ID.
+	labelProjectID = "project-id"
+	// labelLocation is the label key for GCP location.
+	labelLocation = "location"
+)

@@ -29,13 +29,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	clients "github.com/gravitational/teleport/lib/cloud"
-	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -326,54 +324,6 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
-}
-
-// DELETE IN 11.0.
-func TestAWSIAMDeleteOldPolicy(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	// Configure mocks.
-	stsClient := &STSMock{
-		ARN: "arn:aws:iam::1234567890:role/test-role",
-	}
-
-	iamClient := &IAMMock{
-		attachedRolePolicies: map[string]map[string]string{
-			"test-role": map[string]string{
-				"teleport-host-id":                 "old policy",
-				"cluster.local" + policyNameSuffix: "new policy",
-			},
-		},
-	}
-
-	fakeClock := clockwork.NewFakeClock()
-
-	// Make configurator.
-	configurator, err := NewIAM(ctx, IAMConfig{
-		Clock:       fakeClock,
-		AccessPoint: &mockAccessPoint{},
-		Clients: &clients.TestCloudClients{
-			STS: stsClient,
-			IAM: iamClient,
-		},
-		HostID: "host-id",
-	})
-	require.NoError(t, err)
-	require.NoError(t, configurator.Start(ctx))
-
-	isPolicyDeleted := func() bool {
-		// Advance in periodic check to make sure Advance happens after
-		// Clock.Sleep in deleteOldPolicy goroutine.
-		fakeClock.Advance(time.Hour)
-
-		_, err = iamClient.GetRolePolicyWithContext(ctx, &iam.GetRolePolicyInput{
-			RoleName:   aws.String("test-role"),
-			PolicyName: aws.String("teleport-host-id"),
-		})
-		return trace.IsNotFound(awslib.ConvertIAMError(err))
-	}
-	require.Eventually(t, isPolicyDeleted, 2*time.Second, 100*time.Millisecond)
 }
 
 // mockAccessPoint is a mock for auth.DatabaseAccessPoint.

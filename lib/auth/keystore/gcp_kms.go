@@ -34,6 +34,7 @@ import (
 	"google.golang.org/api/iterator"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/keystore/internal/faketime"
 )
 
 const (
@@ -46,6 +47,8 @@ const (
 	// We always use version 1, during rotation brand new keys are created.
 	keyVersionSuffix = "/cryptoKeyVersions/1"
 )
+
+type pendingRetryTag struct{}
 
 var (
 	gcpKMSProtectionLevels = map[string]kmspb.ProtectionLevel{
@@ -67,6 +70,9 @@ type GCPKMSConfig struct {
 	// server without races when multiple auth servers are configured with the
 	// same KeyRing.
 	HostUUID string
+
+	kmsClientOverride *kms.KeyManagementClient
+	clockOverride     faketime.Clock
 }
 
 func (cfg *GCPKMSConfig) CheckAndSetDefaults() error {
@@ -88,17 +94,29 @@ type gcpKMSKeyStore struct {
 	protectionLevel kmspb.ProtectionLevel
 	kmsClient       *kms.KeyManagementClient
 	log             logrus.FieldLogger
+	clock           faketime.Clock
 	waiting         chan struct{}
 }
 
 // newGCPKMSKeyStore returns a new keystore configured to use a GCP KMS keyring
 // to manage all key material.
-func newGCPKMSKeyStore(cfg *GCPKMSConfig, logger logrus.FieldLogger) (*gcpKMSKeyStore, error) {
-	ctx := context.TODO()
+func newGCPKMSKeyStore(ctx context.Context, cfg *GCPKMSConfig, logger logrus.FieldLogger) (*gcpKMSKeyStore, error) {
+	var kmsClient *kms.KeyManagementClient
+	if cfg.kmsClientOverride != nil {
+		kmsClient = cfg.kmsClientOverride
+	} else {
+		var err error
+		kmsClient, err = kms.NewKeyManagementClient(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
-	kmsClient, err := kms.NewKeyManagementClient(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var clock faketime.Clock
+	if cfg.clockOverride == nil {
+		clock = faketime.NewRealClock()
+	} else {
+		clock = cfg.clockOverride
 	}
 
 	logger = logger.WithFields(logrus.Fields{trace.Component: "GCPKMSKeyStore"})
@@ -109,6 +127,7 @@ func newGCPKMSKeyStore(cfg *GCPKMSConfig, logger logrus.FieldLogger) (*gcpKMSKey
 		protectionLevel: gcpKMSProtectionLevels[cfg.ProtectionLevel],
 		kmsClient:       kmsClient,
 		log:             logger,
+		clock:           clock,
 		waiting:         make(chan struct{}),
 	}, nil
 }
@@ -117,9 +136,7 @@ func newGCPKMSKeyStore(cfg *GCPKMSConfig, logger logrus.FieldLogger) (*gcpKMSKey
 // crypto.Signer. The returned identifier for gcpKMSKeyStore encoded the full
 // GCP KMS key version name, and can be passed to getSigner later to get the same
 // crypto.Signer.
-func (g *gcpKMSKeyStore) generateRSA(opts ...RSAKeyOption) ([]byte, crypto.Signer, error) {
-	ctx := context.TODO()
-
+func (g *gcpKMSKeyStore) generateRSA(ctx context.Context, opts ...RSAKeyOption) ([]byte, crypto.Signer, error) {
 	options := &RSAKeyOptions{}
 	for _, opt := range opts {
 		opt(options)
@@ -168,8 +185,7 @@ func (g *gcpKMSKeyStore) generateRSA(opts ...RSAKeyOption) ([]byte, crypto.Signe
 }
 
 // getSigner returns a crypto.Signer for the given pem-encoded private key.
-func (g *gcpKMSKeyStore) getSigner(rawKey []byte) (crypto.Signer, error) {
-	ctx := context.TODO()
+func (g *gcpKMSKeyStore) getSigner(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
 	keyID, err := parseGCPKMSKeyID(rawKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -198,7 +214,7 @@ func (g *gcpKMSKeyStore) deleteKey(ctx context.Context, rawKey []byte) error {
 // configured with the same keyring. This is a divergence from the PKCS#11
 // keystore where different auth servers will always create their own keys even
 // if configured to use the same HSM
-func (g *gcpKMSKeyStore) canSignWithKey(raw []byte, keyType types.PrivateKeyType) (bool, error) {
+func (g *gcpKMSKeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
 	if keyType != types.PrivateKeyType_GCP_KMS {
 		return false, nil
 	}
@@ -354,7 +370,7 @@ func retryWhilePending[reqType, optType, respType any](
 	ctx, cancel := context.WithTimeout(ctx, defaultGCPPendingTimeout)
 	defer cancel()
 
-	ticker := time.NewTicker(defaultGCPPendingRetryInterval)
+	ticker := g.clock.NewTicker(defaultGCPPendingRetryInterval, pendingRetryTag{})
 	defer ticker.Stop()
 	for {
 		resp, err := doGCPRequest(ctx, g, f, req)
@@ -367,7 +383,7 @@ func retryWhilePending[reqType, optType, respType any](
 		select {
 		case <-ctx.Done():
 			return nil, trace.Wrap(ctx.Err())
-		case <-ticker.C:
+		case <-ticker.C():
 		}
 	}
 }

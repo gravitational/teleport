@@ -1,0 +1,58 @@
+name: Build CI Service Images
+run-name: Build CI Service Images
+on:
+  push:
+    paths:
+      - .github/services/Dockerfile.*
+      - examples/etcd/certs/*.pem
+    branches:
+      - master
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: gravitational/ci-etcd
+  ETCD_VERSION: 3.3.9
+
+jobs:
+  build:
+    name: Build CI Services Images
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+      - name: Build etcd image
+        id: docker_build
+        uses: docker/build-push-action@v2
+        with:
+          context: ${{ github.workspace }}
+          file: .github/services/Dockerfile.etcd
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.ETCD_VERSION }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            ETCD_VERSION=${{ env.ETCD_VERSION }}
+          push: true
+
+      - name: Image digest
+        run: echo ${{ steps.docker_build.outputs.digest }}

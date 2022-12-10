@@ -27,15 +27,13 @@ import (
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -47,7 +45,7 @@ type transportConfig struct {
 	publicPort   string
 	cipherSuites []uint16
 	jwt          string
-	w            events.StreamWriter
+	audit        common.Audit
 	traits       wrappers.Traits
 	log          logrus.FieldLogger
 	user         string
@@ -55,8 +53,8 @@ type transportConfig struct {
 
 // Check validates configuration.
 func (c *transportConfig) Check() error {
-	if c.w == nil {
-		return trace.BadParameter("stream writer missing")
+	if c.audit == nil {
+		return trace.BadParameter("audit writer missing")
 	}
 	if c.app == nil {
 		return trace.BadParameter("app missing")
@@ -147,6 +145,11 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	sessionCtx, err := common.GetSessionContext(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Forward the request to the target application and emit an audit event.
 	resp, err := t.tr.RoundTrip(r)
 	if err != nil {
@@ -154,7 +157,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	// Emit the event to the audit log.
-	if err := t.emitAuditEvent(r, resp); err != nil {
+	if err := t.c.audit.OnRequest(t.closeContext, sessionCtx, r, resp, nil /*aws endpoint*/); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -264,34 +267,11 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 
 		// If the redirect location is one of the hosts specified in the list of
 		// redirects, rewrite the header.
-		if apiutils.SliceContainsStr(t.c.app.GetRewrite().Redirect, host(u.Host)) {
+		if slices.Contains(t.c.app.GetRewrite().Redirect, host(u.Host)) {
 			u.Scheme = "https"
 			u.Host = net.JoinHostPort(t.c.app.GetPublicAddr(), t.c.publicPort)
 		}
 		resp.Header.Set("Location", u.String())
-	}
-	return nil
-}
-
-// emitAuditEvent writes the request and response to audit stream.
-func (t *transport) emitAuditEvent(req *http.Request, resp *http.Response) error {
-	appSessionRequestEvent := &apievents.AppSessionRequest{
-		Metadata: apievents.Metadata{
-			Type: events.AppSessionRequestEvent,
-			Code: events.AppSessionRequestCode,
-		},
-		Method:     req.Method,
-		Path:       req.URL.Path,
-		RawQuery:   req.URL.RawQuery,
-		StatusCode: uint32(resp.StatusCode),
-		AppMetadata: apievents.AppMetadata{
-			AppURI:        t.c.app.GetURI(),
-			AppPublicAddr: t.c.app.GetPublicAddr(),
-			AppName:       t.c.app.GetName(),
-		},
-	}
-	if err := t.c.w.EmitAuditEvent(t.closeContext, appSessionRequestEvent); err != nil {
-		return trace.Wrap(err)
 	}
 	return nil
 }

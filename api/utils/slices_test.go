@@ -22,24 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSliceContainsStr(t *testing.T) {
-	tests := []struct {
-		name         string
-		slice        []string
-		target       string
-		wantContains bool
-	}{
-		{name: "does contain", slice: []string{"two", "one"}, target: "one", wantContains: true},
-		{name: "does not contain", slice: []string{"two", "one"}, target: "five", wantContains: false},
-		{name: "empty slice", slice: nil, target: "one", wantContains: false},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.wantContains, SliceContainsStr(tc.slice, tc.target))
-		})
-	}
-}
-
 func TestDeduplicate(t *testing.T) {
 	tests := []struct {
 		name         string

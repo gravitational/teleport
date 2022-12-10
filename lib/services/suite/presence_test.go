@@ -44,7 +44,7 @@ func TestServerLabels(t *testing.T) {
 		},
 		Spec: types.ServerSpecV2{
 			CmdLabels: map[string]types.CommandLabelV2{
-				"time": types.CommandLabelV2{
+				"time": {
 					Period:  types.NewDuration(time.Second),
 					Command: []string{"time"},
 					Result:  "now",

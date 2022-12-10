@@ -373,6 +373,16 @@ func TestConfigReading(t *testing.T) {
 					Subscriptions:  []string{"sub1"},
 				},
 			},
+			GCPMatchers: []GCPMatcher{
+				{
+					Types:     []string{"gke"},
+					Locations: []string{"uswest1"},
+					Tags: map[string]apiutils.Strings{
+						"a": {"b"},
+					},
+					ProjectIDs: []string{"p1", "p2"},
+				},
+			},
 		},
 		Proxy: Proxy{
 			Service: Service{
@@ -1401,6 +1411,17 @@ func makeConfigFixture() string {
 		},
 	}
 
+	conf.Discovery.GCPMatchers = []GCPMatcher{
+		{
+			Types:     []string{"gke"},
+			Locations: []string{"uswest1"},
+			Tags: map[string]apiutils.Strings{
+				"a": {"b"},
+			},
+			ProjectIDs: []string{"p1", "p2"},
+		},
+	}
+
 	// proxy-service:
 	conf.Proxy.EnabledFlag = "yes"
 	conf.Proxy.ListenAddress = "tcp://proxy"
@@ -2254,7 +2275,7 @@ db_service:
   - name: foo
     protocol: postgres
 `,
-			outError: `invalid database "foo" address`,
+			outError: `database "foo" URI is empty`,
 		},
 		{
 			desc: "invalid database uri (missing port)",
@@ -2339,7 +2360,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				DatabaseName:     "foo",
 				DatabaseProtocol: defaults.ProtocolPostgres,
 			},
-			outError: `invalid database "foo" address`,
+			outError: `database "foo" URI is empty`,
 		},
 		{
 			desc: "invalid database uri (missing port)",

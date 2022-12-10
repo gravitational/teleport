@@ -35,6 +35,9 @@ type Config struct {
 	CertsDir string
 	// InsecureSkipVerify is an option to skip HTTPS cert check
 	InsecureSkipVerify bool
+	// ListeningC propagates the address on which the gRPC server listens. Mostly useful in tests, as
+	// the Electron app gets the server port from stdout.
+	ListeningC chan<- utils.NetAddr
 }
 
 // CheckAndSetDefaults checks and sets default config values.

@@ -331,6 +331,63 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			},
 			expectedErr: &trace.BadParameterError{},
 		},
+		{
+			desc: "kubernetes valid",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount: "namespace:my-service-account",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "kubernetes wrong service account name",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount: "my-service-account",
+							},
+						},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "kubernetes allow rule blank",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{},
+						},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
 	}
 
 	for _, tc := range testcases {

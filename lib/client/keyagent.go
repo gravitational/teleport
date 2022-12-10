@@ -250,35 +250,34 @@ func (a *LocalKeyAgent) LoadKey(key Key) error {
 	}
 
 	// remove any keys that the user may already have loaded
-	err = a.UnloadKey()
+	err = a.UnloadKey(key.KeyIndex)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// iterate over all teleport and system agent and load key
+	var errs []error
 	for _, agent := range agents {
 		for _, agentKey := range agentKeys {
 			err = agent.Add(agentKey)
 			if err != nil {
-				a.log.Warnf("Unable to communicate with agent and add key: %v", err)
+				errs = append(errs, trace.Wrap(err, "failed to add key to agent"))
 			}
 		}
 	}
 
-	// return the first key because it has the embedded private key in it.
-	// see docs for AsAgentKeys for more details.
-	return nil
+	return trace.NewAggregate(errs...)
 }
 
-// UnloadKey will unload key for user from the teleport ssh agent as well as
-// the system agent.
-func (a *LocalKeyAgent) UnloadKey() error {
-	agents := []agent.ExtendedAgent{a.ExtendedAgent}
+// UnloadKey will unload keys matching the given KeyIndex from
+// the teleport ssh agent and the system agent.
+func (a *LocalKeyAgent) UnloadKey(key KeyIndex) error {
+	agents := []agent.Agent{a.ExtendedAgent}
 	if a.sshAgent != nil {
 		agents = append(agents, a.sshAgent)
 	}
 
-	// iterate over all agents we have and unload keys for this user
+	// iterate over all agents we have and unload keys matching the given key
 	for _, agent := range agents {
 		// get a list of all keys in the agent
 		keyList, err := agent.List()
@@ -286,11 +285,10 @@ func (a *LocalKeyAgent) UnloadKey() error {
 			a.log.Warnf("Unable to communicate with agent and list keys: %v", err)
 		}
 
-		// remove any teleport keys we currently have loaded in the agent for this user
-		for _, key := range keyList {
-			if key.Comment == fmt.Sprintf("teleport:%v", a.username) {
-				err = agent.Remove(key)
-				if err != nil {
+		// remove any teleport keys we currently have loaded in the agent for this user and proxy
+		for _, agentKey := range keyList {
+			if agentKeyIdx, ok := parseTeleportAgentKeyComment(agentKey.Comment); ok && agentKeyIdx.Match(key) {
+				if err = agent.Remove(agentKey); err != nil {
 					a.log.Warnf("Unable to communicate with agent and remove key: %v", err)
 				}
 			}
@@ -308,7 +306,7 @@ func (a *LocalKeyAgent) UnloadKeys() error {
 		agents = append(agents, a.sshAgent)
 	}
 
-	// iterate over all agents we have
+	// iterate over all agents we have and unload keys
 	for _, agent := range agents {
 		// get a list of all keys in the agent
 		keyList, err := agent.List()
@@ -318,9 +316,8 @@ func (a *LocalKeyAgent) UnloadKeys() error {
 
 		// remove any teleport keys we currently have loaded in the agent
 		for _, key := range keyList {
-			if strings.HasPrefix(key.Comment, "teleport:") {
-				err = agent.Remove(key)
-				if err != nil {
+			if isTeleportAgentKey(key) {
+				if err = agent.Remove(key); err != nil {
 					a.log.Warnf("Unable to communicate with agent and remove key: %v", err)
 				}
 			}
@@ -528,7 +525,6 @@ func (a *LocalKeyAgent) AddKey(key *Key) error {
 	if err := a.addKey(key); err != nil {
 		return trace.Wrap(err)
 	}
-
 	// Load key into the teleport agent and system agent.
 	err := a.LoadKey(*key)
 	if trace.IsNotImplemented(err) {
@@ -597,7 +593,7 @@ func (a *LocalKeyAgent) DeleteKey() error {
 
 	// remove any keys that are loaded for this user from the teleport and
 	// system agents
-	err = a.UnloadKey()
+	err = a.UnloadKey(KeyIndex{ProxyHost: a.proxyHost, Username: a.username})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -630,29 +626,50 @@ func (a *LocalKeyAgent) DeleteKeys() error {
 	return nil
 }
 
-// certsForCluster returns a set of ssh.Signers using all certificates
+// Signers returns a set of ssh.Signers using all certificates
 // for the current proxy and user.
-func (a *LocalKeyAgent) signers() ([]ssh.Signer, error) {
-	k, err := a.GetCoreKey()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func (a *LocalKeyAgent) Signers() ([]ssh.Signer, error) {
+	var signers []ssh.Signer
 
-	certs, err := a.keyStore.GetSSHCertificates(a.proxyHost, a.username)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	signers := make([]ssh.Signer, len(certs))
-	for i, cert := range certs {
-		if err := k.checkCert(cert); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		signer, err := sshutils.SSHSigner(cert, k)
+	// If we find a valid key store, load all valid ssh certificates as signers.
+	if k, err := a.GetCoreKey(); err == nil {
+		certs, err := a.keyStore.GetSSHCertificates(a.proxyHost, a.username)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		signers[i] = signer
+
+		for _, cert := range certs {
+			if err := k.checkCert(cert); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			signer, err := sshutils.SSHSigner(cert, k)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			signers = append(signers, signer)
+		}
+	}
+
+	// Load all agent certs, including the ones from a local SSH agent.
+	agentSigners, err := a.ExtendedAgent.Signers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if a.sshAgent != nil {
+		sshAgentSigners, err := a.sshAgent.Signers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		agentSigners = append(signers, sshAgentSigners...)
+	}
+
+	// Filter out non-certificates (like regular public SSH keys stored in the SSH agent).
+	for _, s := range agentSigners {
+		if _, ok := s.PublicKey().(*ssh.Certificate); ok {
+			signers = append(signers, s)
+		} else if k, ok := s.PublicKey().(*agent.Key); ok && sshutils.IsSSHCertType(k.Type()) {
+			signers = append(signers, s)
+		}
 	}
 
 	return signers, nil

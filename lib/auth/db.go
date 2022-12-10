@@ -69,7 +69,7 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 			return nil, trace.Wrap(err)
 		}
 	}
-	caCert, signer, err := getCAandSigner(s.GetKeyStore(), databaseCA, req)
+	caCert, signer, err := getCAandSigner(ctx, s.GetKeyStore(), databaseCA, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -82,10 +82,20 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		PublicKey: csr.PublicKey,
 		Subject:   csr.Subject,
 		NotAfter:  s.clock.Now().UTC().Add(req.TTL.Get()),
+	}
+	if req.CertificateExtensions == proto.DatabaseCertRequest_WINDOWS_SMARTCARD {
+		// Pass through ExtKeyUsage (which we need for Smartcard Logon usage)
+		// and SubjectAltName (which we need for otherName SAN, not supported
+		// out of the box in crypto/x509) extensions only.
+		certReq.ExtraExtensions = filterExtensions(csr.Extensions, oidExtKeyUsage, oidSubjectAltName)
+		certReq.KeyUsage = x509.KeyUsageDigitalSignature
+		// CRL is required for Windows smartcard certs.
+		certReq.CRLDistributionPoints = []string{req.CRLEndpoint}
+	} else {
 		// Include provided server names as SANs in the certificate, CommonName
 		// has been deprecated since Go 1.15:
 		//   https://golang.org/doc/go1.15#commonname
-		DNSNames: getServerNames(req),
+		certReq.DNSNames = getServerNames(req)
 	}
 	cert, err := tlsCA.GenerateCertificate(certReq)
 	if err != nil {
@@ -101,14 +111,14 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 // This function covers the database CA rotation scenario when on rotation init phase additional/new TLS
 // key should be used to sign the database CA. Otherwise, the trust chain will break after the old CA is
 // removed - standby phase.
-func getCAandSigner(keyStore *keystore.Manager, databaseCA types.CertAuthority, req *proto.DatabaseCertRequest,
+func getCAandSigner(ctx context.Context, keyStore *keystore.Manager, databaseCA types.CertAuthority, req *proto.DatabaseCertRequest,
 ) ([]byte, crypto.Signer, error) {
 	if req.RequesterName == proto.DatabaseCertRequest_TCTL &&
 		databaseCA.GetRotation().Phase == types.RotationPhaseInit {
-		return keyStore.GetAdditionalTrustedTLSCertAndSigner(databaseCA)
+		return keyStore.GetAdditionalTrustedTLSCertAndSigner(ctx, databaseCA)
 	}
 
-	return keyStore.GetTLSCertAndSigner(databaseCA)
+	return keyStore.GetTLSCertAndSigner(ctx, databaseCA)
 }
 
 // getServerNames returns deduplicated list of server names from signing request.
@@ -193,7 +203,7 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 		return nil, trace.Wrap(err)
 	}
 
-	cert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ca)
+	cert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -260,7 +270,7 @@ func (s *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 
 	subject, issuer := getSnowflakeJWTParams(req.AccountName, req.UserName, pubKey)
 
-	_, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ca)
+	_, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

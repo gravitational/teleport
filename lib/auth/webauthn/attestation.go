@@ -21,9 +21,9 @@ import (
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 )
 
 // x5cFormats enumerates all attestation formats that supply an attestation
@@ -94,7 +94,7 @@ func x509PEMsToCertPool(certPEMs []string) (*x509.CertPool, error) {
 }
 
 func getChainFromObj(obj protocol.AttestationObject) ([]*x509.Certificate, error) {
-	if utils.SliceContainsStr(x5cFormats, obj.Format) {
+	if slices.Contains(x5cFormats, obj.Format) {
 		return getChainFromX5C(obj)
 	}
 	if obj.Format == "none" {

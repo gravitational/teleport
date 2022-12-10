@@ -193,7 +193,7 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 			errorAssertion: trace.IsBadParameter,
 		},
 		{
-			desc: "check additional pricipals",
+			desc: "check additional principals",
 			req: &types.RegisterUsingTokenRequest{
 				Token:                dynamicToken,
 				HostID:               "localhost",

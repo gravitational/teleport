@@ -35,7 +35,7 @@ func New(cfg Config) (*APIServer, error) {
 
 	// Create the listener, set up the server.
 
-	ls, err := newListener(cfg.HostAddr)
+	ls, err := newListener(cfg.HostAddr, cfg.ListeningC)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -69,7 +69,7 @@ func (s *APIServer) Stop() {
 	s.grpcServer.GracefulStop()
 }
 
-func newListener(hostAddr string) (net.Listener, error) {
+func newListener(hostAddr string, listeningC chan<- utils.NetAddr) (net.Listener, error) {
 	uri, err := utils.ParseAddr(hostAddr)
 
 	if err != nil {
@@ -83,6 +83,9 @@ func newListener(hostAddr string) (net.Listener, error) {
 
 	addr := utils.FromAddr(lis.Addr())
 	sendBoundNetworkPortToStdout(addr)
+	if listeningC != nil {
+		listeningC <- addr
+	}
 
 	log.Infof("tsh daemon is listening on %v.", addr.FullAddress())
 

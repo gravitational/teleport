@@ -20,9 +20,9 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/circleci"
 )
 
@@ -60,7 +60,7 @@ func checkCircleCIAllowRules(token *types.ProvisionTokenV2, claims *circleci.IDT
 
 		// If ContextID is specified in rule, it must be contained in the slice
 		// of ContextIDs within the claims.
-		if rule.ContextID != "" && !apiutils.SliceContainsStr(claims.ContextIDs, rule.ContextID) {
+		if rule.ContextID != "" && !slices.Contains(claims.ContextIDs, rule.ContextID) {
 			continue
 		}
 

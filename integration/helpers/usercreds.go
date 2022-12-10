@@ -98,22 +98,23 @@ type UserCredsRequest struct {
 	RouteToCluster string
 	// SourceIP is an optional source IP to use in SSH certs
 	SourceIP string
-	// CertificateTTL is an optional TTL for the generated user certificate.
-	CertificateTTL time.Duration
+	// TTL is an optional TTL for the certs. Defaults to one hour.
+	TTL time.Duration
 }
 
 // GenerateUserCreds generates key to be used by client
 func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
+	ttl := req.TTL
+	if ttl == 0 {
+		ttl = time.Hour
+	}
+
 	priv, err := testauthority.New().GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	a := req.Process.GetAuthServer()
 	sshPub := ssh.MarshalAuthorizedKey(priv.SSHPublicKey())
-	ttl := time.Hour
-	if req.CertificateTTL != 0 {
-		ttl = req.CertificateTTL
-	}
 	sshCert, x509Cert, err := a.GenerateUserTestCerts(
 		sshPub, req.Username, ttl, constants.CertificateFormatStandard, req.RouteToCluster, req.SourceIP)
 	if err != nil {

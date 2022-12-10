@@ -160,7 +160,7 @@ surrounded by spaces.
 
 If a partial defines parameters but a page does not assign them when including
 the partial, the docs engine will render the literal `{{ }}` expressions for
-those paramters within the content of the included partial. The exception to
+those parameters within the content of the included partial. The exception to
 this is when the partial defines default parameter values, as described in the
 next section.
 
@@ -511,6 +511,14 @@ $ curl https://<Var name="proxy"/>/webapi/ping
 ```
 
 </Details>
+
+<Admonition type="tip">
+
+The `Var` component only works in [code blocks](#code-blocks) using the `code`
+syntax (e.g. <code>```code</code>), and only for "command" lines (beginning
+with `$`). The component will work without caveats outside of code blocks.
+
+</Admonition>
 
 When a user updates the value of an in-page variable, the values of any `Var`
 components with the same `name` property update automatically. When you copy a

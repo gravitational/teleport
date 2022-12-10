@@ -73,11 +73,11 @@ New-GPO -Name $ACCESS_GPO_NAME | New-GPLink -Target $DOMAIN_DN
 $CERT = [System.Convert]::FromBase64String($TELEPORT_CA_CERT_BLOB_BASE64)
 Set-GPRegistryValue -Name $ACCESS_GPO_NAME -Key "HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\SystemCertificates\Root\Certificates\$TELEPORT_CA_CERT_SHA1" -ValueName "Blob" -Type Binary -Value $CERT
 
+$TeleportPEMFile = $env:TEMP + "\teleport.pem"
+Write-Output $TELEPORT_CA_CERT_PEM | Out-File -FilePath $TeleportPEMFile
 
-Write-Output $TELEPORT_CA_CERT_PEM | Out-File -FilePath teleport.pem
-
-certutil -dspublish -f teleport.pem RootCA
-certutil -dspublish -f teleport.pem NTAuthCA
+certutil -dspublish -f $TeleportPEMFile RootCA
+certutil -dspublish -f $TeleportPEMFile NTAuthCA
 certutil -pulse
 
 $ACCESS_SECURITY_TEMPLATE=@'
@@ -123,12 +123,14 @@ Set-GPRegistryValue -Name $ACCESS_GPO_NAME -Key "HKEY_LOCAL_MACHINE\Software\Pol
 
 
 # # Step 5/7. Export your LDAP CA certificate
-certutil "-ca.cert" windows.der
-certutil -encode windows.der windows.pem
+$WindowsDERFile = $env:TEMP + "\windows.der"
+$WindowsPEMFile = $env:TEMP + "\windows.pem"
+certutil "-ca.cert" $WindowsDERFile 
+certutil -encode $WindowsDERFile $WindowsPEMFile
 
 gpupdate.exe /force
 
-$CA_CERT_PEM = Get-Content -Path windows.pem
+$CA_CERT_PEM = Get-Content -Path $WindowsPEMFile
 $CA_CERT_YAML = $CA_CERT_PEM | ForEach-Object { "        " + $_  } | Out-String
 
 
@@ -193,7 +195,7 @@ if ($host.name -match 'ISE')
 Write-Output $OUTPUT
 
 # cleanup files that were created during execution of this script
-Remove-Item teleport.pem -Recurse
-Remove-Item windows.der -Recurse
-Remove-Item windows.pem -Recurse
+Remove-Item $TeleportPEMFile -Recurse
+Remove-Item $WindowsDERFile -Recurse
+Remove-Item $WindowsPEMFile -Recurse
 

@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/vulcand/predicate"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -150,16 +151,52 @@ func CalculateAccessCapabilities(ctx context.Context, clt RequestValidatorGetter
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if len(req.ResourceIDs) != 0 {
+		caps.ApplicableRolesForResources, err = v.applicableSearchAsRoles(ctx, req.ResourceIDs, "")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	if req.RequestableRoles {
 		caps.RequestableRoles, err = v.GetRequestableRoles()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
+
 	if req.SuggestedReviewers {
 		caps.SuggestedReviewers = v.SuggestedReviewers
 	}
+
 	return &caps, nil
+}
+
+// applicableSearchAsRoles prunes the search_as_roles and only returns those
+// application for the given list of resourceIDs.
+func (m *RequestValidator) applicableSearchAsRoles(ctx context.Context, resourceIDs []types.ResourceID, loginHint string) ([]string, error) {
+	// First collect all possible search_as_roles.
+	var rolesToRequest []string
+	for _, roleName := range m.Roles.AllowSearch {
+		if !m.CanSearchAsRole(roleName) {
+			continue
+		}
+		rolesToRequest = append(rolesToRequest, roleName)
+	}
+	if len(rolesToRequest) == 0 {
+		return nil, trace.BadParameter(`user attempted a resource request but does not have any "search_as_roles"`)
+	}
+
+	// Prune the list of roles to request to only those which may be necessary
+	// to access the requested resources.
+	var err error
+	rolesToRequest, err = m.pruneResourceRequestRoles(ctx, resourceIDs, loginHint, rolesToRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rolesToRequest, nil
 }
 
 // DynamicAccessExt is an extended dynamic access interface
@@ -1000,7 +1037,7 @@ func (m *RequestValidator) GetRequestableRoles() ([]string, error) {
 
 	var expanded []string
 	for _, role := range allRoles {
-		if n := role.GetName(); !apiutils.SliceContainsStr(m.user.GetRoles(), n) && m.CanRequestRole(n) {
+		if n := role.GetName(); !slices.Contains(m.user.GetRoles(), n) && m.CanRequestRole(n) {
 			// user does not currently hold this role, and is allowed to request it.
 			expanded = append(expanded, n)
 		}
@@ -1082,22 +1119,7 @@ func (m *RequestValidator) setRolesForResourceRequest(ctx context.Context, req t
 		return nil
 	}
 
-	// First collect all possible search_as_roles.
-	var rolesToRequest []string
-	for _, roleName := range m.Roles.AllowSearch {
-		if !m.CanSearchAsRole(roleName) {
-			continue
-		}
-		rolesToRequest = append(rolesToRequest, roleName)
-	}
-	if len(rolesToRequest) == 0 {
-		return trace.BadParameter(`user attempted a resource request but does not have any "search_as_roles"`)
-	}
-
-	// Prune the list of roles to request to only those which may be necessary
-	// to access the requested resources.
-	var err error
-	rolesToRequest, err = m.pruneResourceRequestRoles(ctx, req.GetRequestedResourceIDs(), req.GetLoginHint(), rolesToRequest)
+	rolesToRequest, err := m.applicableSearchAsRoles(ctx, req.GetRequestedResourceIDs(), req.GetLoginHint())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1184,7 +1206,7 @@ func (m *RequestValidator) CanRequestRole(name string) bool {
 // CanSearchAsRole check if a given role can be requested through a search-based
 // access request
 func (m *RequestValidator) CanSearchAsRole(name string) bool {
-	if apiutils.SliceContainsStr(m.Roles.DenySearch, name) {
+	if slices.Contains(m.Roles.DenySearch, name) {
 		return false
 	}
 	for _, deny := range m.Roles.DenyRequest {
@@ -1192,7 +1214,7 @@ func (m *RequestValidator) CanSearchAsRole(name string) bool {
 			return false
 		}
 	}
-	return apiutils.SliceContainsStr(m.Roles.AllowSearch, name)
+	return slices.Contains(m.Roles.AllowSearch, name)
 }
 
 // collectSetsForRole collects the threshold index sets which describe the various groups of
@@ -1233,7 +1255,7 @@ func (m *RequestValidator) SystemAnnotations() map[string][]string {
 	for k, va := range m.Annotations.Allow {
 		var filtered []string
 		for _, v := range va {
-			if !apiutils.SliceContainsStr(m.Annotations.Deny[k], v) {
+			if !slices.Contains(m.Annotations.Deny[k], v) {
 				filtered = append(filtered, v)
 			}
 		}
@@ -1390,6 +1412,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			necessaryRoles[role.GetName()] = struct{}{}
 		}
 	}
+
 	if len(necessaryRoles) == 0 {
 		resourcesStr, err := types.ResourceIDsToString(resourceIDs)
 		if err != nil {

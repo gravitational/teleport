@@ -49,8 +49,10 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	clients "github.com/gravitational/teleport/lib/cloud"
+	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -74,10 +76,12 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	native.PrecomputeTestKeys(m)
 	os.Exit(m.Run())
 }
 
@@ -1738,7 +1742,7 @@ func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, userN
 
 // makeTLSConfig returns tls configuration for the test's tls listener.
 func (c *testContext) makeTLSConfig(t *testing.T) *tls.Config {
-	creds, err := utils.GenerateSelfSignedCert([]string{"localhost"})
+	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"})
 	require.NoError(t, err)
 	cert, err := tls.X509KeyPair(creds.Cert, creds.PrivateKey)
 	require.NoError(t, err)
@@ -2011,14 +2015,15 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		OnReconcile: p.OnReconcile,
 		LockWatcher: lockWatcher,
 		CloudClients: &clients.TestCloudClients{
-			STS:            &cloud.STSMock{},
-			RDS:            &cloud.RDSMock{},
-			Redshift:       &cloud.RedshiftMock{},
-			ElastiCache:    &cloud.ElastiCacheMock{},
-			MemoryDB:       &cloud.MemoryDBMock{},
-			SecretsManager: secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
-			IAM:            &cloud.IAMMock{},
-			GCPSQL:         p.GCPSQL,
+			STS:                &cloud.STSMock{},
+			RDS:                &cloud.RDSMock{},
+			Redshift:           &cloud.RedshiftMock{},
+			RedshiftServerless: &cloudtest.RedshiftServerlessMock{},
+			ElastiCache:        &cloud.ElastiCacheMock{},
+			MemoryDB:           &cloud.MemoryDBMock{},
+			SecretsManager:     secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
+			IAM:                &cloud.IAMMock{},
+			GCPSQL:             p.GCPSQL,
 		},
 	})
 	require.NoError(t, err)

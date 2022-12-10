@@ -45,7 +45,7 @@ func TestMain(m *testing.M) {
 
 // commonEtcdParams holds the common etcd configuration for all tests.
 var commonEtcdParams = backend.Params{
-	"peers":         []string{"https://127.0.0.1:2379"},
+	"peers":         []string{etcdTestEndpoint()},
 	"prefix":        examplePrefix,
 	"tls_key_file":  "../../../examples/etcd/certs/client-key.pem",
 	"tls_cert_file": "../../../examples/etcd/certs/client-cert.pem",
@@ -174,7 +174,7 @@ func TestCompareAndSwapOversizedValue(t *testing.T) {
 	// setup
 	const maxClientMsgSize = 128
 	bk, err := New(context.Background(), backend.Params{
-		"peers":                          []string{"https://127.0.0.1:2379"},
+		"peers":                          []string{etcdTestEndpoint()},
 		"prefix":                         "/teleport",
 		"tls_key_file":                   "../../../examples/etcd/certs/client-key.pem",
 		"tls_cert_file":                  "../../../examples/etcd/certs/client-cert.pem",
@@ -245,6 +245,15 @@ func TestLeaseBucketing(t *testing.T) {
 
 func etcdTestEnabled() bool {
 	return os.Getenv("TELEPORT_ETCD_TEST") != ""
+}
+
+// Returns etcd host used in tests
+func etcdTestEndpoint() string {
+	host := os.Getenv("TELEPORT_ETCD_TEST_ENDPOINT")
+	if host != "" {
+		return host
+	}
+	return "https://127.0.0.1:2379"
 }
 
 func (r blockingFakeClock) Advance(d time.Duration) {

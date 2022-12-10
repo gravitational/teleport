@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/labels"
 )
 
@@ -45,9 +46,7 @@ type kubeDetails struct {
 
 // newClusterDetails creates a proxied kubeDetails structure given a dynamic cluster.
 func newClusterDetails(ctx context.Context, cloudClients cloud.Clients, cluster types.KubeCluster, log *logrus.Entry, checker ImpersonationPermissionsChecker) (*kubeDetails, error) {
-	var (
-		dynLabels *labels.Dynamic
-	)
+	var dynLabels *labels.Dynamic
 
 	creds, err := getKubeClusterCredentials(ctx, cloudClients, cluster, log, checker)
 	if err != nil {
@@ -92,6 +91,8 @@ func getKubeClusterCredentials(ctx context.Context, cloudClients cloud.Clients, 
 		return getAzureCredentials(ctx, cloudClients, cluster, log, checker)
 	case cluster.IsAWS():
 		return getAWSCredentials(ctx, cloudClients, cluster, log, checker)
+	case cluster.IsGCP():
+		return getGCPCredentials(ctx, cloudClients, cluster, log, checker)
 	default:
 		return nil, trace.BadParameter("authentication method provided for cluster %q not supported", cluster.GetName())
 	}
@@ -230,4 +231,30 @@ func getStaticCredentialsFromKubeconfig(ctx context.Context, cluster types.KubeC
 
 	creds, err := extractKubeCreds(ctx, cluster.GetName(), restConfig, log, checker)
 	return creds, trace.Wrap(err)
+}
+
+// getGCPCredentials creates a dynamicKubeCreds that generates and updates the access credentials to a GKE kubernetes cluster.
+func getGCPCredentials(ctx context.Context, cloudClients cloud.Clients, cluster types.KubeCluster, log *logrus.Entry, checker ImpersonationPermissionsChecker) (*dynamicKubeCreds, error) {
+	// create a client that returns the credentials for kubeCluster
+	client := gcpRestConfigClient(cloudClients)
+	creds, err := newDynamicKubeCreds(ctx, cluster, log, client, checker)
+	return creds, trace.Wrap(err)
+}
+
+// gcpRestConfigClient creates a dynamicCredsClient that returns credentials to a GKE cluster.
+func gcpRestConfigClient(cloudClients cloud.Clients) dynamicCredsClient {
+	return func(ctx context.Context, cluster types.KubeCluster) (*rest.Config, time.Time, error) {
+		gkeClient, err := cloudClients.GetGCPGKEClient(ctx)
+		if err != nil {
+			return nil, time.Time{}, trace.Wrap(err)
+		}
+		cfg, exp, err := gkeClient.GetClusterRestConfig(ctx,
+			gcp.ClusterDetails{
+				ProjectID: cluster.GetGCPConfig().ProjectID,
+				Location:  cluster.GetGCPConfig().Location,
+				Name:      cluster.GetGCPConfig().Name,
+			},
+		)
+		return cfg, exp, trace.Wrap(err)
+	}
 }

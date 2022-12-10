@@ -108,7 +108,7 @@ func (c *Cluster) GetDatabases(ctx context.Context, r *api.GetDatabasesRequest) 
 		}
 		defer proxyClient.Close()
 
-		authClient, err = proxyClient.ConnectToRootCluster(ctx)
+		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -154,13 +154,13 @@ func (c *Cluster) GetDatabases(ctx context.Context, r *api.GetDatabasesRequest) 
 	return response, nil
 }
 
-// ReissueDBCerts issues new certificates for specific DB access
-func (c *Cluster) ReissueDBCerts(ctx context.Context, user string, db types.Database) error {
+// ReissueDBCerts issues new certificates for specific DB access and saves them to disk.
+func (c *Cluster) ReissueDBCerts(ctx context.Context, routeToDatabase tlsca.RouteToDatabase) error {
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database
 	// user to authenticate the connection as.
-	if db.GetProtocol() == libdefaults.ProtocolMongoDB && user == "" {
-		return trace.BadParameter("please provide the database user name using --db-user flag")
+	if routeToDatabase.Protocol == libdefaults.ProtocolMongoDB && routeToDatabase.Username == "" {
+		return trace.BadParameter("the username must be present for MongoDB connections")
 	}
 
 	err := addMetadataToRetryableError(ctx, func() error {
@@ -177,9 +177,9 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, user string, db types.Data
 		err = c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 			RouteToCluster: c.clusterClient.SiteName,
 			RouteToDatabase: proto.RouteToDatabase{
-				ServiceName: db.GetName(),
-				Protocol:    db.GetProtocol(),
-				Username:    user,
+				ServiceName: routeToDatabase.ServiceName,
+				Protocol:    routeToDatabase.Protocol,
+				Username:    routeToDatabase.Username,
 			},
 			AccessRequests: c.status.ActiveRequests.AccessRequests,
 		})
@@ -194,11 +194,7 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, user string, db types.Data
 	}
 
 	// Update the database-specific connection profile file.
-	err = dbprofile.Add(ctx, c.clusterClient, tlsca.RouteToDatabase{
-		ServiceName: db.GetName(),
-		Protocol:    db.GetProtocol(),
-		Username:    user,
-	}, c.status)
+	err = dbprofile.Add(ctx, c.clusterClient, routeToDatabase, c.status)
 	if err != nil {
 		return trace.Wrap(err)
 	}

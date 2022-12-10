@@ -267,7 +267,7 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 
 		pingResponse, err := client.Ping(ctx)
 		if err != nil {
-			log.Debugf("unnable to ping auth client: %s.", err.Error())
+			log.Debugf("unable to ping auth client: %s.", err.Error())
 		}
 
 		if err == nil && pingResponse.GetServerFeatures().Cloud {

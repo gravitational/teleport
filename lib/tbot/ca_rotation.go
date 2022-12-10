@@ -24,9 +24,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
@@ -191,7 +191,7 @@ func filterCAEvent(log logrus.FieldLogger, event types.Event, clusterName string
 
 	// We want to update for all phases but init and update_servers
 	phase := ca.GetRotation().Phase
-	if utils.SliceContainsStr([]string{
+	if slices.Contains([]string{
 		"", types.RotationPhaseInit, types.RotationPhaseUpdateServers,
 	}, phase) {
 		return fmt.Sprintf("skipping due to phase '%s'", phase)
@@ -207,7 +207,7 @@ func filterCAEvent(log logrus.FieldLogger, event types.Event, clusterName string
 	}
 
 	// We want to skip anything that is not host, user, db
-	if !utils.SliceContainsStr([]string{
+	if !slices.Contains([]string{
 		string(types.HostCA),
 		string(types.UserCA),
 		string(types.DatabaseCA),

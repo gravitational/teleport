@@ -22,9 +22,9 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/configurators"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
@@ -37,6 +37,7 @@ var awsDatabaseTypes = []string{
 	types.DatabaseTypeRDS,
 	types.DatabaseTypeRDSProxy,
 	types.DatabaseTypeRedshift,
+	types.DatabaseTypeRedshiftServerless,
 	types.DatabaseTypeElastiCache,
 	types.DatabaseTypeMemoryDB,
 }
@@ -181,7 +182,7 @@ func (f *configureDatabaseAWSFlags) CheckAndSetDefaults() error {
 
 	f.typesList = strings.Split(f.types, ",")
 	for _, dbType := range f.typesList {
-		if !apiutils.SliceContainsStr(awsDatabaseTypes, dbType) {
+		if !slices.Contains(awsDatabaseTypes, dbType) {
 			return trace.BadParameter("--types %q not supported. supported types are: %s", dbType, strings.Join(awsDatabaseTypes, ", "))
 		}
 	}
@@ -223,6 +224,8 @@ func buildAWSConfigurator(manual bool, flags configureDatabaseAWSFlags) (configu
 			configuratorFlags.ForceRDSProxyPermissions = true
 		case types.DatabaseTypeRedshift:
 			configuratorFlags.ForceRedshiftPermissions = true
+		case types.DatabaseTypeRedshiftServerless:
+			configuratorFlags.ForceRedshiftServerlessPermissions = true
 		case types.DatabaseTypeElastiCache:
 			configuratorFlags.ForceElastiCachePermissions = true
 		case types.DatabaseTypeMemoryDB:

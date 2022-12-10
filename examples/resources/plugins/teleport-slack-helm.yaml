@@ -7,5 +7,5 @@ slack:
 
 # Mapping from role to recipients
 roleToRecipients: []
-  # "dev" = "devs-slack-channel"
-  # "*" = ["admin@email.com", "admin-slack-channel"]
+  # "dev": "devs-slack-channel"
+  # "*": ["admin@email.com", "admin-slack-channel"]

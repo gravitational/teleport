@@ -395,6 +395,10 @@ const (
 	// AppSessionRequestEvent is an HTTP request and response.
 	AppSessionRequestEvent = "app.session.request"
 
+	// AppSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
+	// a request via app access session.
+	AppSessionDynamoDBRequestEvent = "app.session.dynamodb.request"
+
 	// DatabaseCreateEvent is emitted when a database resource is created.
 	DatabaseCreateEvent = "db.create"
 	// DatabaseUpdateEvent is emitted when a database resource is updated.
@@ -484,6 +488,10 @@ const (
 	// DatabaseSessionElasticsearchRequestEvent is emitted when Elasticsearch client sends
 	// a generic request.
 	DatabaseSessionElasticsearchRequestEvent = "db.session.elasticsearch.request"
+
+	// DatabaseSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
+	// a request via database-access.
+	DatabaseSessionDynamoDBRequestEvent = "db.session.dynamodb.request"
 
 	// DatabaseSessionMalformedPacketEvent is emitted when SQL packet is malformed.
 	DatabaseSessionMalformedPacketEvent = "db.session.malformed_packet"

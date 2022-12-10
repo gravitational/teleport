@@ -21,9 +21,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -127,12 +127,13 @@ func (a *aksFetcher) getAKSClusters(ctx context.Context) ([]*azure.AKSCluster, e
 }
 
 func (a *aksFetcher) isRegionSupported(region string) bool {
-	return utils.SliceContainsStr(a.Regions, types.Wildcard) || utils.SliceContainsStr(a.Regions, region)
+	return slices.Contains(a.Regions, types.Wildcard) || slices.Contains(a.Regions, region)
 }
 
 func (a *aksFetcher) ResourceType() string {
 	return types.KindKubernetesCluster
 }
+
 func (a *aksFetcher) Cloud() string {
-	return Azure
+	return types.CloudAzure
 }

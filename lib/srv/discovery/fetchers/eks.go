@@ -136,8 +136,9 @@ func (a *eksFetcher) getEKSClusters(ctx context.Context) (types.KubeClusters, er
 func (a *eksFetcher) ResourceType() string {
 	return types.KindKubernetesCluster
 }
+
 func (a *eksFetcher) Cloud() string {
-	return AWS
+	return types.CloudAWS
 }
 
 // awsEKSTagsToLabels converts EKS tags to a labels map.

@@ -18,9 +18,9 @@ package aws
 
 import (
 	"bytes"
-	"context"
-	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
@@ -29,14 +29,12 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/gravitational/oxy/forward"
-	"github.com/gravitational/oxy/utils"
+	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -52,7 +50,7 @@ func NewSigningService(config SigningServiceConfig) (*SigningService, error) {
 
 	fwd, err := forward.New(
 		forward.RoundTripper(svc),
-		forward.ErrorHandler(utils.ErrorHandlerFunc(svc.formatForwardResponseError)),
+		forward.ErrorHandler(oxyutils.ErrorHandlerFunc(svc.formatForwardResponseError)),
 		forward.PassHostHeader(true),
 	)
 	if err != nil {
@@ -74,8 +72,8 @@ type SigningService struct {
 
 // SigningServiceConfig is the SigningService configuration.
 type SigningServiceConfig struct {
-	// Client is an HTTP client instance used for HTTP calls.
-	Client *http.Client
+	// RoundTripper is an http.RoundTripper instance used for requests.
+	RoundTripper http.RoundTripper
 	// Log is the Logger.
 	Log logrus.FieldLogger
 	// Session is AWS session.
@@ -90,14 +88,12 @@ type SigningServiceConfig struct {
 
 // CheckAndSetDefaults validates the SigningServiceConfig config.
 func (s *SigningServiceConfig) CheckAndSetDefaults() error {
-	if s.Client == nil {
+	if s.RoundTripper == nil {
 		tr, err := defaults.Transport()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		s.Client = &http.Client{
-			Transport: tr,
-		}
+		s.RoundTripper = tr
 	}
 	if s.Clock == nil {
 		s.Clock = clockwork.NewRealClock()
@@ -137,6 +133,7 @@ func (s *SigningServiceConfig) CheckAndSetDefaults() error {
 //	 5. Sign HTTP request.
 //	 6. Forward the signed HTTP request to the AWS API.
 func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
+	defer req.Body.Close()
 	sessionCtx, err := common.GetSessionContext(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -145,44 +142,29 @@ func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signedReq, err := s.prepareSignedRequest(req, resolvedEndpoint, sessionCtx)
+	payload, err := awsutils.GetAndReplaceReqBody(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resp, err := s.Client.Do(signedReq)
+	signedReq, err := s.prepareSignedRequest(req, payload, resolvedEndpoint, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if err := s.emitAuditEvent(req.Context(), signedReq, resp, sessionCtx, resolvedEndpoint); err != nil {
+	resp, err := s.RoundTripper.RoundTrip(signedReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// emit audit event with original request, but change the URL since we resolved and rewrote it.
+	signedReq.Body = io.NopCloser(bytes.NewReader(payload))
+	if isDynamoDBEndpoint(resolvedEndpoint) {
+		err = sessionCtx.Audit.OnDynamoDBRequest(req.Context(), sessionCtx, signedReq, resp, resolvedEndpoint)
+	} else {
+		err = sessionCtx.Audit.OnRequest(req.Context(), sessionCtx, signedReq, resp, resolvedEndpoint)
+	}
+	if err != nil {
 		s.Log.WithError(err).Warn("Failed to emit audit event.")
 	}
 	return resp, nil
-}
-
-// emitAuditEvent writes details of the AWS request to audit stream.
-func (s *SigningService) emitAuditEvent(ctx context.Context, req *http.Request, resp *http.Response, sessionCtx *common.SessionContext, endpoint *endpoints.ResolvedEndpoint) error {
-	event := &apievents.AppSessionRequest{
-		Metadata: apievents.Metadata{
-			Type: events.AppSessionRequestEvent,
-			Code: events.AppSessionRequestCode,
-		},
-		Method:     req.Method,
-		Path:       req.URL.Path,
-		RawQuery:   req.URL.RawQuery,
-		StatusCode: uint32(resp.StatusCode),
-		AppMetadata: apievents.AppMetadata{
-			AppURI:        sessionCtx.App.GetURI(),
-			AppPublicAddr: sessionCtx.App.GetPublicAddr(),
-			AppName:       sessionCtx.App.GetName(),
-		},
-		AWSRequestMetadata: apievents.AWSRequestMetadata{
-			AWSRegion:  endpoint.SigningRegion,
-			AWSService: endpoint.SigningName,
-			AWSHost:    req.Host,
-		},
-	}
-	return trace.Wrap(sessionCtx.Emitter.EmitAuditEvent(ctx, event))
 }
 
 func (s *SigningService) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {
@@ -201,12 +183,11 @@ func (s *SigningService) formatForwardResponseError(rw http.ResponseWriter, r *h
 
 // prepareSignedRequest creates a new HTTP request and rewrites the header from the original request and returns a new
 // HTTP request signed by STS AWS API.
-func (s *SigningService) prepareSignedRequest(r *http.Request, re *endpoints.ResolvedEndpoint, sessionCtx *common.SessionContext) (*http.Request, error) {
-	payload, err := awsutils.GetAndReplaceReqBody(r)
+func (s *SigningService) prepareSignedRequest(r *http.Request, payload []byte, re *endpoints.ResolvedEndpoint, sessionCtx *common.SessionContext) (*http.Request, error) {
+	url, err := urlForResolvedEndpoint(r, re)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	url := fmt.Sprintf("%s%s", re.URL, r.URL.Opaque)
 	reqCopy, err := http.NewRequest(r.Method, url, bytes.NewReader(payload))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -232,6 +213,24 @@ func rewriteHeaders(r *http.Request, reqCopy *http.Request) {
 		}
 	}
 	reqCopy.Header.Del("Content-Length")
+}
+
+// urlForResolvedEndpoint creates an URL based on input request and resolved endpoint.
+func urlForResolvedEndpoint(r *http.Request, re *endpoints.ResolvedEndpoint) (string, error) {
+	resolvedURL, err := url.Parse(re.URL)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// Replaces scheme and host. Keeps original path etc.
+	clone := *r.URL
+	if resolvedURL.Host != "" {
+		clone.Host = resolvedURL.Host
+	}
+	if resolvedURL.Scheme != "" {
+		clone.Scheme = resolvedURL.Scheme
+	}
+	return clone.String(), nil
 }
 
 type getSigningCredentialsFunc func(c client.ConfigProvider, sessionCtx *common.SessionContext) *credentials.Credentials

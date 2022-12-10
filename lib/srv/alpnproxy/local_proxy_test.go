@@ -19,6 +19,9 @@ package alpnproxy
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -32,10 +35,14 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // TestHandleAWSAccessSigVerification tests if LocalProxy verifies the AWS SigV4 signature of incoming request.
@@ -246,6 +253,187 @@ func TestMiddleware(t *testing.T) {
 	m.waitForCounts(t, 1, 1)
 }
 
+// mockCertRenewer is a mock middleware for the local proxy that always sets the local proxy certs slice.
+type mockCertRenewer struct{}
+
+func (m *mockCertRenewer) OnNewConnection(_ context.Context, lp *LocalProxy, _ net.Conn) error {
+	lp.SetCerts([]tls.Certificate{})
+	return nil
+}
+
+func (m *mockCertRenewer) OnStart(_ context.Context, lp *LocalProxy) error {
+	lp.SetCerts([]tls.Certificate{})
+	return nil
+}
+
+// TestLocalProxyConcurrentCertRenewal tests for data races in local proxy cert renewal.
+func TestLocalProxyConcurrentCertRenewal(t *testing.T) {
+	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
+	t.Cleanup(func() {
+		hs.Close()
+	})
+	lp, err := NewLocalProxy(LocalProxyConfig{
+		Listener:           mustCreateLocalListener(t),
+		RemoteProxyAddr:    hs.Listener.Addr().String(),
+		Protocols:          []common.Protocol{common.ProtocolHTTP},
+		ParentContext:      context.Background(),
+		InsecureSkipVerify: true,
+		Middleware:         &mockCertRenewer{},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		lp.Close()
+	})
+	go func() {
+		assert.NoError(t, lp.Start(context.Background()))
+	}()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			conn, err := net.Dial("tcp", lp.GetAddr())
+			assert.NoError(t, err)
+			assert.NoError(t, conn.Close())
+		}()
+	}
+	wg.Wait()
+}
+
+func TestCheckDBCerts(t *testing.T) {
+	suite := NewSuite(t)
+	dbRouteInCert := tlsca.RouteToDatabase{
+		ServiceName: "svc1",
+		Protocol:    defaults.ProtocolPostgres,
+		Username:    "user1",
+		Database:    "db1",
+	}
+	clockValid := clockwork.NewFakeClockAt(time.Now())
+	clockAfterValid := clockwork.NewFakeClockAt(clockValid.Now().Add(time.Hour))
+	clockBeforeValid := clockwork.NewFakeClockAt(clockValid.Now().Add(-time.Hour))
+
+	// we wont actually be listening for connections, but local proxy config needs to be valid to pass checks.
+	lp, err := NewLocalProxy(LocalProxyConfig{
+		RemoteProxyAddr:    "localhost",
+		Protocols:          []common.Protocol{common.ProtocolPostgres},
+		ParentContext:      context.Background(),
+		InsecureSkipVerify: true,
+		// freeze the local proxy in time, we'll be manipulating fakeClock for cert generation.
+		Clock: clockwork.NewFakeClockAt(clockValid.Now()),
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		clock       clockwork.Clock
+		dbRoute     tlsca.RouteToDatabase
+		errAssertFn require.ErrorAssertionFunc
+	}{
+		{
+			name:        "detects clock is after cert expires",
+			clock:       clockAfterValid,
+			dbRoute:     dbRouteInCert,
+			errAssertFn: requireExpiredCertErr,
+		},
+		{
+			name:        "detects clock is before cert is valid",
+			clock:       clockBeforeValid,
+			dbRoute:     dbRouteInCert,
+			errAssertFn: requireExpiredCertErr,
+		},
+		{
+			name:  "detects that cert subject user does not match db route",
+			clock: clockValid,
+			dbRoute: tlsca.RouteToDatabase{
+				ServiceName: "svc1",
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "user2",
+				Database:    "db1",
+			},
+			errAssertFn: requireCertSubjectUserErr,
+		},
+		{
+			name:  "detects that cert subject database does not match db route",
+			clock: clockValid,
+			dbRoute: tlsca.RouteToDatabase{
+				ServiceName: "svc1",
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "user1",
+				Database:    "db2",
+			},
+			errAssertFn: requireCertSubjectDatabaseErr,
+		},
+		{
+			name:        "valid cert",
+			clock:       clockValid,
+			dbRoute:     dbRouteInCert,
+			errAssertFn: require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			tlsCert := mustGenCertSignedWithCA(t, suite.ca,
+				withIdentity(tlsca.Identity{
+					Username:        "test-user",
+					Groups:          []string{"test-group"},
+					RouteToDatabase: dbRouteInCert,
+				}),
+				withClock(tt.clock),
+			)
+			lp.SetCerts([]tls.Certificate{tlsCert})
+			tt.errAssertFn(t, lp.CheckDBCerts(tt.dbRoute))
+		})
+	}
+}
+
+type mockMiddlewareConnUnauth struct {
+}
+
+func (m *mockMiddlewareConnUnauth) OnNewConnection(_ context.Context, _ *LocalProxy, _ net.Conn) error {
+	return trace.AccessDenied("access denied.")
+}
+
+func (m *mockMiddlewareConnUnauth) OnStart(_ context.Context, _ *LocalProxy) error {
+	return nil
+}
+
+var _ LocalProxyMiddleware = (*mockMiddlewareConnUnauth)(nil)
+
+func TestLocalProxyClosesConnOnError(t *testing.T) {
+	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
+	lp, err := NewLocalProxy(LocalProxyConfig{
+		Listener:           mustCreateLocalListener(t),
+		RemoteProxyAddr:    hs.Listener.Addr().String(),
+		Protocols:          []common.Protocol{common.ProtocolHTTP},
+		ParentContext:      context.Background(),
+		InsecureSkipVerify: true,
+		Middleware:         &mockMiddlewareConnUnauth{},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := lp.Close()
+		require.NoError(t, err)
+		hs.Close()
+	})
+	go func() {
+		assert.NoError(t, lp.Start(context.Background()))
+	}()
+
+	conn, err := net.Dial("tcp", lp.GetAddr())
+	require.NoError(t, err)
+
+	// set a read deadline so that if the connection is not closed,
+	// this test will fail quickly instead of hanging.
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	buf := make([]byte, 512)
+	_, err = conn.Read(buf)
+	require.Error(t, err)
+	require.ErrorIs(t, err, io.EOF)
+}
+
 func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *LocalProxy {
 	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
 
@@ -268,4 +456,30 @@ func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *Loc
 		assert.NoError(t, err)
 	}()
 	return lp
+}
+
+func requireExpiredCertErr(t require.TestingT, err error, _ ...interface{}) {
+	if h, ok := t.(*testing.T); ok {
+		h.Helper()
+	}
+	require.Error(t, err)
+	var certErr x509.CertificateInvalidError
+	require.ErrorAs(t, err, &certErr)
+	require.Equal(t, certErr.Reason, x509.Expired)
+}
+
+func requireCertSubjectUserErr(t require.TestingT, err error, _ ...interface{}) {
+	if h, ok := t.(*testing.T); ok {
+		h.Helper()
+	}
+	require.Error(t, err)
+	require.ErrorContains(t, err, "certificate subject is for user")
+}
+
+func requireCertSubjectDatabaseErr(t require.TestingT, err error, _ ...interface{}) {
+	if h, ok := t.(*testing.T); ok {
+		h.Helper()
+	}
+	require.Error(t, err)
+	require.ErrorContains(t, err, "certificate subject is for database name")
 }
