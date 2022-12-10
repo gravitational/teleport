@@ -37,6 +37,7 @@ var awsDatabaseTypes = []string{
 	types.DatabaseTypeRDS,
 	types.DatabaseTypeRDSProxy,
 	types.DatabaseTypeRedshift,
+	types.DatabaseTypeRedshiftServerless,
 	types.DatabaseTypeElastiCache,
 	types.DatabaseTypeMemoryDB,
 }
@@ -223,6 +224,8 @@ func buildAWSConfigurator(manual bool, flags configureDatabaseAWSFlags) (configu
 			configuratorFlags.ForceRDSProxyPermissions = true
 		case types.DatabaseTypeRedshift:
 			configuratorFlags.ForceRedshiftPermissions = true
+		case types.DatabaseTypeRedshiftServerless:
+			configuratorFlags.ForceRedshiftServerlessPermissions = true
 		case types.DatabaseTypeElastiCache:
 			configuratorFlags.ForceElastiCachePermissions = true
 		case types.DatabaseTypeMemoryDB:

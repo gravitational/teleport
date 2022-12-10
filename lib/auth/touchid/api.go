@@ -17,7 +17,6 @@ package touchid
 import (
 	"bytes"
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
@@ -25,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
 	"os"
 	"sort"
 	"sync"
@@ -39,6 +37,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/darwin"
 )
 
 var (
@@ -258,7 +257,7 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 	pubKeyRaw := resp.publicKeyRaw
 
 	// Parse public key and transform to the required CBOR object.
-	pubKey, err := pubKeyFromRawAppleKey(pubKeyRaw)
+	pubKey, err := darwin.ECDSAPublicKeyFromRaw(pubKeyRaw)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -347,32 +346,6 @@ func HasCredentials(rpid, user string) bool {
 		return false
 	}
 	return len(creds) > 0
-}
-
-func pubKeyFromRawAppleKey(pubKeyRaw []byte) (*ecdsa.PublicKey, error) {
-	// Verify key length to avoid a potential panic below.
-	// 3 is the smallest number that clears it, but in practice 65 is the more
-	// common length.
-	// Apple's docs make no guarantees, hence no assumptions are made here.
-	if len(pubKeyRaw) < 3 {
-		return nil, fmt.Errorf("public key representation too small (%v bytes)", len(pubKeyRaw))
-	}
-
-	// "For an elliptic curve public key, the format follows the ANSI X9.63
-	// standard using a byte string of 04 || X || Y. (...) All of these
-	// representations use constant size integers, including leading zeros as
-	// needed."
-	// https://developer.apple.com/documentation/security/1643698-seckeycopyexternalrepresentation?language=objc
-	pubKeyRaw = pubKeyRaw[1:] // skip 0x04
-	l := len(pubKeyRaw) / 2
-	x := pubKeyRaw[:l]
-	y := pubKeyRaw[l:]
-
-	return &ecdsa.PublicKey{
-		Curve: elliptic.P256(),
-		X:     (&big.Int{}).SetBytes(x),
-		Y:     (&big.Int{}).SetBytes(y),
-	}, nil
 }
 
 type credentialData struct {
@@ -619,7 +592,7 @@ func ListCredentials() ([]CredentialInfo, error) {
 	// Parse public keys.
 	for i := range infos {
 		info := &infos[i]
-		key, err := pubKeyFromRawAppleKey(info.publicKeyRaw)
+		key, err := darwin.ECDSAPublicKeyFromRaw(info.publicKeyRaw)
 		if err != nil {
 			log.Warnf("Failed to convert public key: %v", err)
 		}

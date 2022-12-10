@@ -54,6 +54,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	// Import to register Postgres engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/postgres"
+	// Import to register Redis engine.
+	_ "github.com/gravitational/teleport/lib/srv/db/redis"
 	// Import to register Snowflake engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/snowflake"
 	"github.com/gravitational/teleport/lib/utils"
@@ -848,6 +850,7 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 		Clock:        s.cfg.Clock,
 		Log:          sessionCtx.Log,
 		Users:        s.cfg.CloudUsers,
+		DataDir:      s.cfg.DataDir,
 	})
 }
 

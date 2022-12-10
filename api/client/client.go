@@ -1191,16 +1191,52 @@ func (c *Client) GetAppSession(ctx context.Context, req types.GetAppSessionReque
 
 // GetAppSessions gets all application web sessions.
 func (c *Client) GetAppSessions(ctx context.Context) ([]types.WebSession, error) {
-	resp, err := c.grpc.GetAppSessions(ctx, &emptypb.Empty{}, c.callOpts...)
+	var (
+		nextToken string
+		sessions  []types.WebSession
+	)
+
+	// Leverages ListAppSessions instead of GetAppSessions to prevent
+	// the server from having to send all sessions in a single message.
+	// If there are enough sessions it can cause the max message size to be
+	// exceeded.
+	for {
+		webSessions, token, err := c.ListAppSessions(ctx, defaults.DefaultChunkSize, nextToken, "")
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+
+		sessions = append(sessions, webSessions...)
+		if token == "" {
+			break
+		}
+
+		nextToken = token
+	}
+
+	return sessions, nil
+}
+
+// ListAppSessions gets a paginated list of application web sessions.
+func (c *Client) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	resp, err := c.grpc.ListAppSessions(
+		ctx,
+		&proto.ListAppSessionsRequest{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+			User:      user,
+		},
+		c.callOpts...,
+	)
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, "", trail.FromGRPC(err)
 	}
 
 	out := make([]types.WebSession, 0, len(resp.GetSessions()))
 	for _, v := range resp.GetSessions() {
 		out = append(out, v)
 	}
-	return out, nil
+	return out, resp.NextPageToken, nil
 }
 
 // GetSnowflakeSessions gets all Snowflake web sessions.
@@ -2910,5 +2946,12 @@ func (c *Client) UpsertClusterAlert(ctx context.Context, alert types.ClusterAler
 
 func (c *Client) ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error {
 	_, err := c.grpc.ChangePassword(ctx, req, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// SubmitUsageEvent submits an external usage event.
+func (c *Client) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
+	_, err := c.grpc.SubmitUsageEvent(ctx, req, c.callOpts...)
+
 	return trail.FromGRPC(err)
 }
