@@ -421,7 +421,7 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 		user = user[i+1:]
 	}
 
-	certDER, keyDER, err := s.generateCredentials(s.closeCtx, user, s.cfg.Domain, windowsDesktopServiceCertTTL)
+	certDER, keyDER, err := s.generateCredentials(s.closeCtx, user, s.cfg.Domain, windowsDesktopServiceCertTTL, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -817,9 +817,9 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 			entry := entries[0]
 			// TODO(isaiah) this sid comes out looking like "\x01\x05\x00\x00\x00\x00\x00\x05\x15\x00\x00\x004\xfb?O\xa3\x98\r\x9dD\xb6Lq\xf4\x01\x00\x00"
 			// however we may need to change this to another format
-			sid := entry.GetAttributeValue("objectSid")
-			s.cfg.Log.Debugf("sid = %v", sid)
-			return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl)
+			activeDirectorySID := entry.GetRawAttributeValue("objectSid")
+			s.cfg.Log.Debugf("sid = %v", activeDirectorySID)
+			return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl, activeDirectorySID)
 		},
 		CertTTL:               windows.CertTTL,
 		Addr:                  desktop.GetAddr(),
@@ -1055,8 +1055,8 @@ func timer() func() int64 {
 // the regular Teleport user certificate, to meet the requirements of Active
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
-func (s *WindowsService) generateCredentials(ctx context.Context, username, domain string, ttl time.Duration) (certDER, keyDER []byte, err error) {
-	return windows.GenerateCredentials(ctx, username, domain, ttl, s.clusterName, s.cfg.LDAPConfig, s.cfg.AuthClient)
+func (s *WindowsService) generateCredentials(ctx context.Context, username, domain string, ttl time.Duration, activeDirectorySID []byte) (certDER, keyDER []byte, err error) {
+	return windows.GenerateCredentials(ctx, username, domain, ttl, s.clusterName, s.cfg.LDAPConfig, s.cfg.AuthClient, activeDirectorySID)
 }
 
 // trackSession creates a session tracker for the given sessionID and

@@ -46,7 +46,7 @@ type certRequest struct {
 	keyDER      []byte
 }
 
-func getCertRequest(username, domain string, clusterName string, ldapConfig LDAPConfig) (*certRequest, error) {
+func getCertRequest(username, domain string, clusterName string, ldapConfig LDAPConfig, activeDirectorySID []byte) (*certRequest, error) {
 	// Important: rdpclient currently only supports 2048-bit RSA keys.
 	// If you switch the key type here, update handle_general_authentication in
 	// rdp/rdpclient/src/piv.rs accordingly.
@@ -77,6 +77,58 @@ func getCertRequest(username, domain string, clusterName string, ldapConfig LDAP
 			san,
 		},
 	}
+	// asn1.Unmarshal
+	realvalstr := "S-1-5-21-1329593140-2634913955-1900852804-500"
+	realval, _ := asn1.Marshal(realvalstr)
+	fmt.Printf("realval = %v\n", realval)
+	realval2 := []byte{0x30, 0x3f, 0xa0, 0x3d, 0x06, 0x0a, 0x2b, 0x06, 0x01, 0x04, 0x01, 0x82, 0x37, 0x19, 0x02, 0x01, 0xa0, 0x2f, 0x04, 45, 83, 45, 49, 45, 53, 45, 50, 49, 45, 49, 51, 50, 57, 53, 57, 51, 49, 52, 48, 45, 50, 54, 51, 52, 57, 49, 51, 57, 53, 53, 45, 49, 57, 48, 48, 56, 53, 50, 56, 48, 52, 45, 53, 48, 48}
+	val := "S-1-5-21-1381186052-4247692386-135928078-1225"
+	value, _ := asn1.Marshal(val)
+	// 0x30 0x3f ; SEQUENCE (0x3f Bytes)
+	value2 := []byte{0x30, 0x3f, 0xa0, 0x3d, 0x06, 0x0a, 0x2b, 0x06, 0x01, 0x04, 0x01, 0x82, 0x37, 0x19, 0x02, 0x01, 0xa0, 0x2f, 0x04, 0x2d, 0x53, 0x2d, 0x31, 0x2d, 0x35, 0x2d, 0x32, 0x31, 0x2d, 0x31, 0x33, 0x38, 0x31, 0x31, 0x38, 0x36, 0x30, 0x35, 0x32, 0x2d, 0x34, 0x32, 0x34, 0x37, 0x36, 0x39, 0x32, 0x33, 0x38, 0x36, 0x2d, 0x31, 0x33, 0x35, 0x39, 0x32, 0x38, 0x30, 0x37, 0x38, 0x2d, 0x31, 0x32, 0x32, 0x35}
+	fmt.Printf("value = %v\n", value)
+	asutf, _ := asn1.Marshal(struct {
+		Value string `asn1:"utf8"`
+	}{
+		Value: val,
+	})
+	asia5, _ := asn1.Marshal(struct {
+		Value string `asn1:"ia5"`
+	}{
+		Value: val,
+	})
+	asprintable, _ := asn1.Marshal(struct {
+		Value string `asn1:"printable"`
+	}{
+		Value: val,
+	})
+	fmt.Printf("value as utf = %v\n", asutf)
+	fmt.Printf("value as asia5 = %v\n", asia5)
+	fmt.Printf("value as asprintable = %v\n", asprintable)
+	fmt.Printf("value2 = %v\n", value2)
+	asn1oid, _ := asn1.Marshal(ActiveDirectorySidOID)
+	fmt.Printf("asn1OID = %x\n", asn1oid)
+	oidstruct, _ := asn1.Marshal(parentoidstruct{
+		Oidstruct: oidstruct{
+			OID: ActiveDirectorySidOID1,
+			Value: valstruct{
+				Value: []byte(val),
+			},
+		}})
+	fmt.Printf("oidstruct = %x\n", oidstruct)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if activeDirectorySID != nil {
+		fmt.Printf("appending activeDirectorySID\n") //todo(isaiah): delete
+		csr.ExtraExtensions = append(csr.ExtraExtensions, pkix.Extension{
+			Id:    ActiveDirectorySidOID,
+			Value: realval2,
+		})
+	}
+
+	fmt.Printf("len(csr.ExtraExtensions) = %v\n", len(csr.ExtraExtensions))
+
 	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csr, rsaKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -91,6 +143,20 @@ func getCertRequest(username, domain string, clusterName string, ldapConfig LDAP
 	// published a CRL there.
 	crlDN := crlDN(clusterName, ldapConfig)
 	return &certRequest{csrPEM: csrPEM, crlEndpoint: fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN), keyDER: keyDER}, nil
+}
+
+type parentoidstruct struct {
+	Oidstruct oidstruct `asn1:"tag:0"`
+}
+
+type oidstruct struct {
+	OID asn1.ObjectIdentifier
+	// Value string `asn1:"utf8"`
+	Value valstruct `asn1:"tag:0"`
+}
+
+type valstruct struct {
+	Value []byte
 }
 
 // AuthInterface is a subset of auth.ClientI
@@ -111,8 +177,8 @@ type AuthInterface interface {
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
 // TODO(isaiah): convert the parameters into a struct
-func GenerateCredentials(ctx context.Context, username, domain string, ttl time.Duration, clusterName string, ldapConfig LDAPConfig, authClient AuthInterface, objectSid string) (certDER, keyDER []byte, err error) {
-	certReq, err := getCertRequest(username, domain, clusterName, ldapConfig)
+func GenerateCredentials(ctx context.Context, username, domain string, ttl time.Duration, clusterName string, ldapConfig LDAPConfig, authClient AuthInterface, activeDirectorySID []byte) (certDER, keyDER []byte, err error) {
+	certReq, err := getCertRequest(username, domain, clusterName, ldapConfig, activeDirectorySID)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -144,7 +210,7 @@ func GenerateCredentials(ctx context.Context, username, domain string, ttl time.
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
 func GenerateDatabaseCredentials(ctx context.Context, username, domain string, ttl time.Duration, clusterName string, ldapConfig LDAPConfig, authClient AuthInterface) (certDER, keyDER []byte, err error) {
-	certReq, err := getCertRequest(username, domain, clusterName, ldapConfig)
+	certReq, err := getCertRequest(username, domain, clusterName, ldapConfig, nil)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -209,6 +275,11 @@ var (
 	// UPNOtherNameOID is the object identifier that is used to include
 	// the user principal name in a certificate's subject alternative name
 	UPNOtherNameOID = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 20, 2, 3}
+
+	// ActiveDirectorySidOID is the Active Directory SID extension for mapping certificates
+	// to their user's Active Directory SID. See https://go.microsoft.com/fwlink/?linkid=2189925
+	ActiveDirectorySidOID  = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 25, 2}
+	ActiveDirectorySidOID1 = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 25, 2, 1}
 )
 
 // EnhancedKeyUsageExtension is a set of required extended key fields specific for Microsoft certificates

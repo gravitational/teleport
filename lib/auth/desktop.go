@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -70,8 +71,11 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		// Pass through ExtKeyUsage (which we need for Smartcard Logon usage)
 		// and SubjectAltName (which we need for otherName SAN, not supported
 		// out of the box in crypto/x509) extensions only.
-		ExtraExtensions: filterExtensions(csr.Extensions, oidExtKeyUsage, oidSubjectAltName),
-		KeyUsage:        x509.KeyUsageDigitalSignature,
+		// TODO(isaiah): is this extension filtering really necessary here? can't we just "filter" by selectively
+		// including what we actually want in here in the request?
+		ExtraExtensions: filterExtensions(csr.Extensions, oidExtKeyUsage, oidSubjectAltName, oidActiveDirectorySid),
+		// ExtraExtensions: filterExtensions(csr.Extensions, oidExtKeyUsage, oidSubjectAltName),
+		KeyUsage: x509.KeyUsageDigitalSignature,
 		// CRL is required for Windows smartcard certs.
 		CRLDistributionPoints: []string{req.CRLEndpoint},
 	}
@@ -84,9 +88,11 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	}, nil
 }
 
+// TODO(isaiah): these are duplicated due to circular imports, see if you can un-duplicate
 var (
-	oidExtKeyUsage    = asn1.ObjectIdentifier{2, 5, 29, 37}
-	oidSubjectAltName = asn1.ObjectIdentifier{2, 5, 29, 17}
+	oidExtKeyUsage        = asn1.ObjectIdentifier{2, 5, 29, 37}
+	oidSubjectAltName     = asn1.ObjectIdentifier{2, 5, 29, 17}
+	oidActiveDirectorySid = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 25, 2}
 )
 
 func filterExtensions(extensions []pkix.Extension, oids ...asn1.ObjectIdentifier) []pkix.Extension {
