@@ -489,6 +489,10 @@ const (
 	// a generic request.
 	DatabaseSessionElasticsearchRequestEvent = "db.session.elasticsearch.request"
 
+	// DatabaseSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
+	// a request via database-access.
+	DatabaseSessionDynamoDBRequestEvent = "db.session.dynamodb.request"
+
 	// DatabaseSessionMalformedPacketEvent is emitted when SQL packet is malformed.
 	DatabaseSessionMalformedPacketEvent = "db.session.malformed_packet"
 

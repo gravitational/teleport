@@ -288,30 +288,6 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Syste
   ![Enable Smartcard](../../img/desktop-access/smartcard.png)
 </Figure>
 
-### Open firewall to inbound RDP connections
-
-<Admonition type="warning" title="Warning">
-  During testing on a Windows Server 2012 R2 server, we found that the following
-  firewall rule would sometimes mysteriously disappear. If connections through
-  Teleport later appear to be hanging for a few seconds and then failing, double
-  check that this rule is still in effect.
-</Admonition>
-
-1. Select:
-
-```text
-Computer Configuration > Policies > Windows Settings > Security Settings > Windows Firewall with Advanced Security (x2)
-```
-
-2. Right click on `Inbound Rules` and select `New Rule...`.
-3. Under `Predefined` select `Remote Desktop`.
-4. Only select the rule for `User Mode (TCP-in)`.
-5. On the next screen, select `Allow the connection` and finish.
-
-<Figure align="left" bordered caption="Open the Firewall">
-  ![Open the Firewall](../../img/desktop-access/firewall.png)
-</Figure>
-
 ### Allow remote RDP connections
 
 1. Next, select:
@@ -327,10 +303,43 @@ Computer Configuration > Policies > Administrative Templates > Windows Component
 Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security
 ```
 
-4. Right click `Require user authentication for remote connections by using Network Level Authentication`, edit, select **`Disable`** and `OK`.
+4. Right click `Require user authentication for remote connections by using Network Level Authentication`, edit, select `Disable` and `OK`.
 
 <Figure align="left" bordered caption="Disable Require user authentication...">
   ![Disable Require](../../img/desktop-access/disable.png)
+</Figure>
+
+5. Right click `Always prompt for password upon connection`, edit, select **`Disabled`** and .
+   Teleport's smart card based authentication generates a random smart card PIN for each
+   desktop session and provides the PIN to the desktop during the RDP connection establishment.
+   Since the PIN is never provided to the Teleport user, this setting must be disabled in
+   order for authentication to complete.
+
+### Allow credentials to be provided over RDP
+
+Select:
+
+```text
+Computer Configuration > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security > "Always prompt for password upon connection" 
+```
+
+Set to `Disabled` and click `OK`.
+
+### Open firewall to inbound RDP connections
+
+1. Select:
+
+```text
+Computer Configuration > Policies > Windows Settings > Security Settings > Windows Firewall with Advanced Security (x2)
+```
+
+2. Right click on `Inbound Rules` and select `New Rule...`.
+3. Under `Predefined` select `Remote Desktop`.
+4. Only select the rule for `User Mode (TCP-in)`.
+5. On the next screen, select `Allow the connection` and finish.
+
+<Figure align="left" bordered caption="Open the Firewall">
+  ![Open the Firewall](../../img/desktop-access/firewall.png)
 </Figure>
 
 ### Ensure your GPO is updated
@@ -373,7 +382,7 @@ Start > Control Panel > Administrative Tools > Certificate Authority
 7. In the `Cryptography` tab change `Provider Category` to `Key Storage Provider`, then `Algorithm name` to `ECDH_P384`. Also, change `Request hash` to `SHA384`.
 8. Next, in the `Extensions` tab select `Application Polices` and click the `Edit` button.
 9. Remove all entries from the list.
-10. Go to the `Security` tab, select `Domain Controllers` and give the group `Read` and `Enroll` permissions.
+10. Go to the `Security` tab, select `Domain Computers` and give the group `Read` and `Enroll` permissions.
 11. Finally, create a template by clicking `OK`.
 12. Go back to the Certificate Authority window and right-click on `Certificate Templates`. Then:
 
@@ -557,9 +566,11 @@ sudo teleport start -c /etc/teleport.yaml
 ### Create a Teleport user/role for Windows Desktop Access
 
 In order to gain access to a remote desktop, a Teleport user needs to have the
-appropriate permissions for that desktop. For example, you can create a role
-that gives its users access to all Windows desktop labels and the
-`"Administrator"` user:
+appropriate permissions for that desktop. 
+
+For example, you can create a role that gives its users access to all Windows
+desktop labels and the `"Administrator"` user. To do so, create a file called
+`windows-desktop-admins.yaml` with the following content:
 
 ```yaml
 kind: role
@@ -580,11 +591,13 @@ be allowed to access.
 Usernames shared between domain and local users will create login conflicts.
 </Admonition>
 
-See the [RBAC page](./rbac.mdx) for more information about setting up
-Windows Desktop Access permissions.
+Create the role:
 
-See the [Access Controls Getting Started](../access-controls/getting-started.mdx#step-13-add-local-users-with-preset-roles)
-guide for instructions on how to create or update a user with a given role.
+```code
+$ tctl create -f windows-desktop-admins.yaml
+```
+
+(!docs/pages/includes/add-role-to-user.mdx role="windows-desktop-admins"!)
 
 ### Connect to your Windows desktop
 

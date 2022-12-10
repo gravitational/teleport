@@ -288,6 +288,8 @@ const (
 	AWSMatcherRDSProxy = "rdsproxy"
 	// AWSMatcherRedshift is the AWS matcher type for Redshift databases.
 	AWSMatcherRedshift = "redshift"
+	// AWSMatcherRedshiftServerless is the AWS matcher type for Redshift Serverless databases.
+	AWSMatcherRedshiftServerless = "redshift-serverless"
 	// AWSMatcherElastiCache is the AWS matcher type for ElastiCache databases.
 	AWSMatcherElastiCache = "elasticache"
 	// AWSMatcherMemoryDB is the AWS matcher type for MemoryDB databases.
@@ -300,4 +302,6 @@ const (
 	AzureMatcherPostgres = "postgres"
 	// AzureMatcherRedis is the Azure matcher type for Azure Cache for Redis databases.
 	AzureMatcherRedis = "redis"
+	// AzureMatcherSQLServer is the Azure matcher type for SQL Server databases.
+	AzureMatcherSQLServer = "sqlserver"
 )

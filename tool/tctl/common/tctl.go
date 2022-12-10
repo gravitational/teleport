@@ -55,7 +55,6 @@ const (
 
 const (
 	identityFileEnvVar = "TELEPORT_IDENTITY_FILE"
-	proxyAddrEnvVar    = "TELEPORT_PROXY"
 	authAddrEnvVar     = "TELEPORT_AUTH_SERVER"
 )
 
@@ -138,9 +137,6 @@ func TryRun(commands []CLICommand, args []string) error {
 		}
 	}
 
-	// Check environment for proxy or auth addresses
-	ccf.AuthServerAddr = authAddressesFromEnv()
-
 	// these global flags apply to all commands
 	app.Flag("debug", "Enable verbose logging to stderr").
 		Short('d').
@@ -152,6 +148,7 @@ func TryRun(commands []CLICommand, args []string) error {
 		"Base64 encoded configuration string").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
 	app.Flag("auth-server",
 		fmt.Sprintf("Attempts to connect to specific auth/proxy address(es) instead of local auth [%v]", defaults.AuthConnectAddr().Addr)).
+		Envar(authAddrEnvVar).
 		StringsVar(&ccf.AuthServerAddr)
 	app.Flag("identity",
 		"Path to an identity file. Must be provided to make remote connections to auth. An identity file can be exported with 'tctl auth sign'").
@@ -459,15 +456,4 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 	}
 
 	return authConfig, nil
-}
-
-func authAddressesFromEnv() []string {
-	var addresses []string
-	if val := os.Getenv(proxyAddrEnvVar); val != "" {
-		addresses = append(addresses, val)
-	}
-	if val := os.Getenv(authAddrEnvVar); val != "" {
-		addresses = append(addresses, val)
-	}
-	return addresses
 }

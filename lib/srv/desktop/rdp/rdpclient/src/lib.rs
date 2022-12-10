@@ -32,9 +32,10 @@
 //!    it didn't allocate but needs to hold on to, is responsible for copying it to its
 //!    own respective heap.
 //!
-//! In practice, this means that all the functions called from Go (those prefixed with
-//! `pub unsafe extern "C"`) MUST NOT hang on to any of the pointers passed in to them after
-//! they return. All pointer data that needs to persist MUST be copied into Rust-owned memory.
+//! In practice, this means that all the functions called from Go (those
+//! prefixed with `pub unsafe extern "C"`) MUST NOT hang on to any of the
+//! pointers passed in to them after they return. All pointer data that needs to
+//! persist MUST be copied into Rust-owned memory.
 
 mod cliprdr;
 mod errors;
@@ -64,7 +65,7 @@ use rdp::model::link::{Link, Stream};
 use rdpdr::path::UnixPath;
 use rdpdr::ServerCreateDriveRequest;
 use std::convert::TryFrom;
-use std::ffi::CStr;
+use std::ffi::{CStr, CString, NulError};
 use std::io::Error as IoError;
 use std::io::ErrorKind;
 use std::io::{Cursor, Read, Write};
@@ -188,8 +189,8 @@ pub unsafe extern "C" fn connect_rdp(
     allow_directory_sharing: bool,
 ) -> ClientOrError {
     // Convert from C to Rust types.
-    let addr = from_go_string(go_addr);
-    let username = from_go_string(go_username);
+    let addr = from_c_string(go_addr);
+    let username = from_c_string(go_username);
     let cert_der = from_go_array(cert_der, cert_der_len);
     let key_der = from_go_array(key_der, key_der_len);
 
@@ -1367,6 +1368,64 @@ pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOErrCode {
     res
 }
 
+#[repr(C)]
+pub struct ReasonOrError {
+    reason: *const c_char,
+    err: CGOErrCode,
+}
+
+/// get_server_disconnect_reason gets the reason the server disconnected the rdp session as communicated by the Set Error Info PDU
+/// (https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/a21a1bd9-2303-49c1-90ec-3932435c248c).
+/// If no error has occured it returns an empty string.
+///
+/// # Safety
+///
+/// client_ptr must be a valid pointer to a Client.
+///
+/// It is the responsibility of the caller to call free_go_string on the return value's reason
+/// field if the error field is CGOErrCode::ErrCodeSuccess. If the error field is any other value
+/// the caller must not call free_go_string on the reason field.
+#[no_mangle]
+pub unsafe extern "C" fn get_server_disconnect_reason(client_ptr: *mut Client) -> ReasonOrError {
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return ReasonOrError {
+                reason: ptr::null(),
+                err: cgo_error,
+            };
+        }
+    };
+
+    let rdp_client = match client.rdp_client.lock() {
+        Ok(rdp_client) => rdp_client,
+        Err(e) => {
+            error!("{:?}", e);
+            return ReasonOrError {
+                reason: ptr::null(),
+                err: CGOErrCode::ErrCodeFailure,
+            };
+        }
+    };
+
+    let reason = rdp_client.global.get_server_disconnect_reason();
+    let reason = match to_c_string(&reason) {
+        Ok(reason) => reason,
+        Err(e) => {
+            error!("{:?}", e);
+            return ReasonOrError {
+                reason: ptr::null(),
+                err: CGOErrCode::ErrCodeFailure,
+            };
+        }
+    };
+
+    ReasonOrError {
+        reason,
+        err: CGOErrCode::ErrCodeSuccess,
+    }
+}
+
 /// free_rdp lets the Go side inform us when it's done with Client and it can be dropped.
 ///
 /// # Safety
@@ -1383,7 +1442,7 @@ pub unsafe extern "C" fn free_rdp(client_ptr: *mut Client) {
 /// s must be a C-style null terminated string.
 /// s is cloned here, and the caller is responsible for
 /// ensuring its memory is freed.
-unsafe fn from_go_string(s: *const c_char) -> String {
+unsafe fn from_c_string(s: *const c_char) -> String {
     // # Safety
     //
     // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
@@ -1402,6 +1461,27 @@ unsafe fn from_go_array<T: Clone>(data: *mut T, len: u32) -> Vec<T> {
     // In other words, all pointer data that needs to persist after this function returns MUST
     // be copied into Rust-owned memory.
     slice::from_raw_parts(data, len as usize).to_vec()
+}
+
+/// to_c_string can be used to return string values over the Go boundary.
+/// To avoid memory leaks, the Go function must call free_go_string once
+/// it's done with the memory.
+///
+/// See https://doc.rust-lang.org/std/ffi/struct.CString.html#method.into_raw
+fn to_c_string(s: &str) -> Result<*const c_char, NulError> {
+    let c_string = CString::new(s)?;
+    Ok(c_string.into_raw())
+}
+
+/// See the docstring for to_c_string.
+///
+/// # Safety
+///
+/// s must be a pointer originally created by to_c_string
+#[no_mangle]
+pub unsafe extern "C" fn free_c_string(s: *mut c_char) {
+    // retake pointer to free memory
+    let _ = CString::from_raw(s);
 }
 
 #[repr(C)]
@@ -1435,7 +1515,7 @@ impl From<CGOSharedDirectoryAnnounce> for SharedDirectoryAnnounce {
         unsafe {
             SharedDirectoryAnnounce {
                 directory_id: cgo.directory_id,
-                name: from_go_string(cgo.name),
+                name: from_c_string(cgo.name),
             }
         }
     }
@@ -1557,7 +1637,7 @@ impl From<CGOFileSystemObject> for FileSystemObject {
                 size: cgo_fso.size,
                 file_type: cgo_fso.file_type,
                 is_empty: cgo_fso.is_empty,
-                path: UnixPath::from(from_go_string(cgo_fso.path)),
+                path: UnixPath::from(from_c_string(cgo_fso.path)),
             }
         }
     }

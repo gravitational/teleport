@@ -72,6 +72,29 @@ If that doesn't help, log into the target host directly, open PowerShell and
 run `gpupdate.exe /force`. This forces a Group Policy sync and should pick up
 the new CA.
 
+### Smart card PIN not detected
+
+Teleport uses a cryptographically secure random number generator to generate
+a smart card PIN for each new desktop session. In order to prevent the smart
+card certificate from being used for any purpose other than the initial login,
+this PIN is never shared with the Teleport user.
+
+Teleport provides this PIN to the desktop during the RDP connection phase.
+If your group policy prevents the desktop from seeing this PIN, the user will
+remain at the login screen even though the smart card was detected.
+
+**Solution:** ensure that group policy allows specifying credentials during
+ RDP connection establishment. This setting can be found under:
+ 
+ ```text
+ Computer Configuration > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security
+ ```
+ 
+ Right click `Always prompt for password upon connection` and select **Disabled**.
+ 
+ Note: despite mention of passwords in the name of this policy, no passwords are sent
+ on the wire. This mechanism is used only to send the smart card PIN.
+ 
 ## New session "hangs"
 
 ### Host unreachable

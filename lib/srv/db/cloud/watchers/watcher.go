@@ -167,11 +167,12 @@ func makeFetchers(ctx context.Context, config *WatcherConfig) (result []Fetcher,
 func makeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (result []Fetcher, err error) {
 	type makeFetcherFunc func(cloud.Clients, string, types.Labels) (Fetcher, error)
 	makeFetcherFuncs := map[string][]makeFetcherFunc{
-		services.AWSMatcherRDS:         {makeRDSInstanceFetcher, makeRDSAuroraFetcher},
-		services.AWSMatcherRDSProxy:    {makeRDSProxyFetcher},
-		services.AWSMatcherRedshift:    {makeRedshiftFetcher},
-		services.AWSMatcherElastiCache: {makeElastiCacheFetcher},
-		services.AWSMatcherMemoryDB:    {makeMemoryDBFetcher},
+		services.AWSMatcherRDS:                {makeRDSInstanceFetcher, makeRDSAuroraFetcher},
+		services.AWSMatcherRDSProxy:           {makeRDSProxyFetcher},
+		services.AWSMatcherRedshift:           {makeRedshiftFetcher},
+		services.AWSMatcherRedshiftServerless: {makeRedshiftServerlessFetcher},
+		services.AWSMatcherElastiCache:        {makeElastiCacheFetcher},
+		services.AWSMatcherMemoryDB:           {makeMemoryDBFetcher},
 	}
 
 	for _, matcher := range matchers {
@@ -197,9 +198,10 @@ func makeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (res
 func makeAzureFetchers(ctx context.Context, clients cloud.Clients, matchers []services.AzureMatcher) (result []Fetcher, err error) {
 	type makeFetcherFunc func(azureFetcherConfig) (Fetcher, error)
 	makeFetcherFuncs := map[string][]makeFetcherFunc{
-		services.AzureMatcherMySQL:    {newAzureMySQLFetcher},
-		services.AzureMatcherPostgres: {newAzurePostgresFetcher},
-		services.AzureMatcherRedis:    {newAzureRedisFetcher, newAzureRedisEnterpriseFetcher},
+		services.AzureMatcherMySQL:     {newAzureMySQLFetcher},
+		services.AzureMatcherPostgres:  {newAzurePostgresFetcher},
+		services.AzureMatcherRedis:     {newAzureRedisFetcher, newAzureRedisEnterpriseFetcher},
+		services.AzureMatcherSQLServer: {newAzureSQLServerFetcher, newAzureManagedSQLServerFetcher},
 	}
 	for _, matcher := range matchers {
 		for _, matcherType := range matcher.Types {
@@ -320,6 +322,20 @@ func makeMemoryDBFetcher(clients cloud.Clients, region string, tags types.Labels
 	})
 }
 
+// makeRedshiftServerlessFetcher returns Redshift Serverless fetcher for the
+// provided region and tags.
+func makeRedshiftServerlessFetcher(clients cloud.Clients, region string, tags types.Labels) (Fetcher, error) {
+	client, err := clients.GetAWSRedshiftServerlessClient(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newRedshiftServerlessFetcher(redshiftServerlessFetcherConfig{
+		Region: region,
+		Labels: tags,
+		Client: client,
+	})
+}
+
 // filterDatabasesByLabels filters input databases with provided labels.
 func filterDatabasesByLabels(databases types.Databases, labels types.Labels, log logrus.FieldLogger) types.Databases {
 	var matchedDatabases types.Databases
@@ -334,4 +350,12 @@ func filterDatabasesByLabels(databases types.Databases, labels types.Labels, log
 		}
 	}
 	return matchedDatabases
+}
+
+// flatten flattens a nested slice [][]T to []T.
+func flatten[T any](s [][]T) (result []T) {
+	for i := range s {
+		result = append(result, s[i]...)
+	}
+	return
 }

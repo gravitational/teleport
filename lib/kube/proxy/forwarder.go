@@ -52,6 +52,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/httpstream"
+	"k8s.io/apiserver/pkg/util/wsstream"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
 	kubeexec "k8s.io/client-go/util/exec"
@@ -76,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -432,7 +434,11 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 		return nil, trace.AccessDenied("access denied: only mutual TLS authentication is supported")
 	}
 	clientCert := peers[0]
-	authContext, err := f.setupContext(*userContext, req, isRemoteUser, clientCert.NotAfter)
+	clientIdentity, err := tlsca.FromSubject(clientCert.Subject, clientCert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authContext, err := f.setupContext(*userContext, req, isRemoteUser, clientIdentity)
 	if err != nil {
 		f.log.Warn(err.Error())
 		if trace.IsAccessDenied(err) {
@@ -536,14 +542,14 @@ func (f *Forwarder) formatResponseError(rw http.ResponseWriter, respErr error) {
 	}
 }
 
-func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUser bool, certExpires time.Time) (*authContext, error) {
-	roles := ctx.Checker
+func (f *Forwarder) setupContext(authCtx auth.Context, req *http.Request, isRemoteUser bool, clientIdentity *tlsca.Identity) (*authContext, error) {
+	roles := authCtx.Checker
 
 	// adjust session ttl to the smaller of two values: the session
 	// ttl requested in tsh or the session ttl for the role.
 	sessionTTL := roles.AdjustSessionTTL(time.Hour)
 
-	identity := ctx.Identity.GetIdentity()
+	identity := authCtx.Identity.GetIdentity()
 	teleportClusterName := identity.RouteToCluster
 	if teleportClusterName == "" {
 		teleportClusterName = f.cfg.ClusterName
@@ -592,7 +598,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	// By default, if no kubernetes_users is set (which will be a majority),
 	// user will impersonate themselves, which is the backwards-compatible behavior.
 	if len(kubeUsers) == 0 {
-		kubeUsers = append(kubeUsers, ctx.User.GetName())
+		kubeUsers = append(kubeUsers, authCtx.User.GetName())
 	}
 
 	// KubeSystemAuthenticated is a builtin group that allows
@@ -666,16 +672,22 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		return nil, trace.Wrap(err)
 	}
 
-	authCtx := &authContext{
-		clientIdleTimeout: roles.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
-		sessionTTL:        sessionTTL,
-		Context:           ctx,
-		kubeGroups:        utils.StringsSet(kubeGroups),
-		kubeUsers:         utils.StringsSet(kubeUsers),
-		kubeClusterLabels: kubeLabels,
-		recordingConfig:   recordingConfig,
-		kubeCluster:       kubeCluster,
-		certExpires:       certExpires,
+	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(req.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &authContext{
+		clientIdleTimeout:     roles.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		sessionTTL:            sessionTTL,
+		Context:               authCtx,
+		kubeGroups:            utils.StringsSet(kubeGroups),
+		kubeUsers:             utils.StringsSet(kubeUsers),
+		kubeClusterLabels:     kubeLabels,
+		recordingConfig:       recordingConfig,
+		kubeCluster:           kubeCluster,
+		certExpires:           clientIdentity.Expires,
+		disconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(roles, authPref, clientIdentity),
 		teleportCluster: teleportClusterClient{
 			name:           teleportClusterName,
 			remoteAddr:     utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
@@ -683,19 +695,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 			isRemote:       isRemoteCluster,
 			isRemoteClosed: isRemoteClosed,
 		},
-	}
-
-	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(req.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	disconnectExpiredCert := roles.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
-	if !certExpires.IsZero() && disconnectExpiredCert {
-		authCtx.disconnectExpiredCert = certExpires
-	}
-
-	return authCtx, nil
+	}, nil
 }
 
 // kubeAccessDetails holds the allowed kube groups/users names and the cluster labels for a local kube cluster.
@@ -802,13 +802,13 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 // async streamer buffers the events to disk and uploads the events later
 func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
 	if services.IsRecordSync(ctx.recordingConfig.GetMode()) {
-		f.log.Debugf("Using sync streamer for session.")
+		f.log.Debug("Using sync streamer for session.")
 		return f.cfg.AuthClient, nil
 	}
-	f.log.Debugf("Using async streamer for session.")
+	f.log.Debug("Using async streamer for session.")
 	dir := filepath.Join(
 		f.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, apidefaults.Namespace,
+		events.StreamingSessionsDir, apidefaults.Namespace,
 	)
 	fileStreamer, err := filesessions.NewStreamer(dir)
 	if err != nil {
@@ -1383,6 +1383,17 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 	}
 	f.log.Debugf("Done %v.", request)
 	return nil, nil
+}
+
+// runPortForwarding checks if the request contains WebSocket upgrade headers and
+// decides which protocol the client expects.
+// Go client uses SPDY while other clients still require WebSockets.
+// This function will run until the end of the execution of the request.
+func runPortForwarding(req portForwardRequest) error {
+	if wsstream.IsWebSocketRequest(req.httpRequest) {
+		return trace.Wrap(runPortForwardingWebSocket(req))
+	}
+	return trace.Wrap(runPortForwardingHTTPStreams(req))
 }
 
 const (

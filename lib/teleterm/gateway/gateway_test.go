@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestCLICommandUsesCLICommandProvider(t *testing.T) {
@@ -52,14 +53,24 @@ func TestGatewayStart(t *testing.T) {
 		hs.Close()
 	})
 
+	keyPairPaths := gatewaytest.MustGenAndSaveCert(t, tlsca.Identity{
+		Username: "alice",
+		Groups:   []string{"test-group"},
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: "foo",
+			Protocol:    defaults.ProtocolPostgres,
+			Username:    "alice",
+		},
+	})
+
 	gateway, err := New(
 		Config{
 			TargetName:         "foo",
 			TargetURI:          uri.NewClusterURI("bar").AppendDB("foo").String(),
 			TargetUser:         "alice",
 			Protocol:           defaults.ProtocolPostgres,
-			CertPath:           "../../../fixtures/certs/proxy1.pem",
-			KeyPath:            "../../../fixtures/certs/proxy1-key.pem",
+			CertPath:           keyPairPaths.CertPath,
+			KeyPath:            keyPairPaths.KeyPath,
 			Insecure:           true,
 			WebProxyAddr:       hs.Listener.Addr().String(),
 			CLICommandProvider: mockCLICommandProvider{},
@@ -148,14 +159,24 @@ func createGateway(t *testing.T, tcpPortAllocator TCPPortAllocator) *Gateway {
 		hs.Close()
 	})
 
+	keyPairPaths := gatewaytest.MustGenAndSaveCert(t, tlsca.Identity{
+		Username: "alice",
+		Groups:   []string{"test-group"},
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: "foo",
+			Protocol:    defaults.ProtocolPostgres,
+			Username:    "alice",
+		},
+	})
+
 	gateway, err := New(
 		Config{
 			TargetName:         "foo",
 			TargetURI:          uri.NewClusterURI("bar").AppendDB("foo").String(),
 			TargetUser:         "alice",
 			Protocol:           defaults.ProtocolPostgres,
-			CertPath:           "../../../fixtures/certs/proxy1.pem",
-			KeyPath:            "../../../fixtures/certs/proxy1-key.pem",
+			CertPath:           keyPairPaths.CertPath,
+			KeyPath:            keyPairPaths.KeyPath,
 			Insecure:           true,
 			WebProxyAddr:       hs.Listener.Addr().String(),
 			CLICommandProvider: mockCLICommandProvider{},

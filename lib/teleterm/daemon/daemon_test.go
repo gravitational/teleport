@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type mockGatewayCreator struct {
@@ -46,6 +47,18 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		hs.Close()
 	})
 
+	resourceURI := uri.New(params.TargetURI)
+
+	keyPairPaths := gatewaytest.MustGenAndSaveCert(m.t, tlsca.Identity{
+		Username: params.TargetUser,
+		Groups:   []string{"test-group"},
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: resourceURI.GetDbName(),
+			Protocol:    defaults.ProtocolPostgres,
+			Username:    params.TargetUser,
+		},
+	})
+
 	gateway, err := gateway.New(gateway.Config{
 		LocalPort:             params.LocalPort,
 		TargetURI:             params.TargetURI,
@@ -53,8 +66,8 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		TargetName:            params.TargetURI,
 		TargetSubresourceName: params.TargetSubresourceName,
 		Protocol:              defaults.ProtocolPostgres,
-		CertPath:              "../../../fixtures/certs/proxy1.pem",
-		KeyPath:               "../../../fixtures/certs/proxy1-key.pem",
+		CertPath:              keyPairPaths.CertPath,
+		KeyPath:               keyPairPaths.KeyPath,
 		Insecure:              true,
 		WebProxyAddr:          hs.Listener.Addr().String(),
 		CLICommandProvider:    params.CLICommandProvider,
@@ -273,9 +286,12 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 	}
 
+	gatewayCertReissuer := GatewayCertReissuer{Log: storage.Log}
+
 	daemon, err := New(Config{
 		Storage:                         storage,
 		CreateTshdEventsClientCredsFunc: createTshdEventsClientCredsFunc,
+		GatewayCertReissuer:             &gatewayCertReissuer,
 	})
 	require.NoError(t, err)
 
@@ -285,7 +301,7 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 
 	err = daemon.UpdateAndDialTshdEventsServerAddress(ls.Addr().String())
 	require.NoError(t, err)
-	require.NotNil(t, daemon.tshdEventsClient)
+	require.NotNil(t, gatewayCertReissuer.TSHDEventsClient)
 	require.Equal(t, 1, createTshdEventsClientCredsFuncCallCount,
 		"Expected createTshdEventsClientCredsFunc to be called exactly once")
 }

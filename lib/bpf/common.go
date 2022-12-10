@@ -60,6 +60,9 @@ type SessionContext struct {
 	// ServerID is the UUID of the server this session is executing on.
 	ServerID string
 
+	// ServerHostname is the hostname of the server this session is executing on.
+	ServerHostname string
+
 	// Login is the Unix login for this session.
 	Login string
 

@@ -845,6 +845,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	webauthnwin := newWebauthnwinCommand(app)
 
+	// Device Trust commands.
+	deviceCmd := newDeviceCommand(app)
+
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
@@ -1087,6 +1090,12 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = tid.diag.run(&cf)
 	case webauthnwin.diag.FullCommand():
 		err = webauthnwin.diag.run(&cf)
+	case deviceCmd.enroll.FullCommand():
+		err = deviceCmd.enroll.run(&cf)
+	case deviceCmd.collect.FullCommand():
+		err = deviceCmd.collect.run(&cf)
+	case deviceCmd.keyget.FullCommand():
+		err = deviceCmd.keyget.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -1271,18 +1280,21 @@ func exportSession(cf *CLIConf) error {
 		// when playing from a file, id is not included, this
 		// makes the outputs otherwise identical
 		delete(event, "id")
-		var e []byte
-		var err error
-		if format == teleport.JSON {
-			e, err = utils.FastMarshal(event)
-		} else {
-			e, err = yaml.Marshal(event)
-		}
-		if err != nil {
+	}
+
+	switch format {
+	case teleport.JSON:
+		if err := utils.WriteJSON(os.Stdout, events); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(string(e))
+	case teleport.YAML:
+		if err := utils.WriteYAML(os.Stdout, events); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.Errorf("Invalid format %s, only pty, json and yaml are supported", format)
 	}
+
 	return nil
 }
 
