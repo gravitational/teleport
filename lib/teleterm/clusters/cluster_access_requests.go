@@ -64,6 +64,9 @@ func (c *Cluster) GetAccessRequest(ctx context.Context, req types.AccessRequestF
 		defer authClient.Close()
 
 		requests, err := proxyClient.GetAccessRequests(ctx, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		// This has to happen inside this scope because we need access to the authClient
 		// We can remove this once we make the change to keep around the proxy and auth clients
 		if len(requests) < 1 {
