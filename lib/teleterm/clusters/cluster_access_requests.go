@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
@@ -31,17 +30,21 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
+type ResourceDetails struct {
+	Hostname string
+}
+
 type AccessRequest struct {
 	URI uri.ResourceURI
 	types.AccessRequest
-	ResourceDetails map[string]ui.ResourceDetails
+	ResourceDetails map[string]ResourceDetails
 }
 
 // GetAccessRequest returns a specific access request by ID and includes resource details
 func (c *Cluster) GetAccessRequest(ctx context.Context, req types.AccessRequestFilter) (*AccessRequest, error) {
 	var (
 		request         types.AccessRequest
-		resourceDetails map[string]ui.ResourceDetails
+		resourceDetails map[string]ResourceDetails
 		proxyClient     *client.ProxyClient
 		authClient      auth.ClientI
 		err             error
@@ -260,7 +263,7 @@ func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 	return nil
 }
 
-func getResourceDetails(ctx context.Context, req types.AccessRequest, clt auth.ClientI) (map[string]ui.ResourceDetails, error) {
+func getResourceDetails(ctx context.Context, req types.AccessRequest, clt auth.ClientI) (map[string]ResourceDetails, error) {
 	resourceIDsByCluster := make(map[string][]types.ResourceID)
 	for _, resourceID := range req.GetRequestedResourceIDs() {
 		if resourceID.Kind != types.KindNode {
@@ -275,7 +278,7 @@ func getResourceDetails(ctx context.Context, req types.AccessRequest, clt auth.C
 		req.UseSearchAsRoles = true
 		req.UsePreviewAsRoles = true
 	}
-	resourceDetails := make(map[string]ui.ResourceDetails)
+	resourceDetails := make(map[string]ResourceDetails)
 	for clusterName, resourceIDs := range resourceIDsByCluster {
 		resources, err := services.GetResourcesByResourceIDs(ctx, clt, resourceIDs, withExtraRoles)
 		if err != nil {
@@ -297,7 +300,7 @@ func getResourceDetails(ctx context.Context, req types.AccessRequest, clt auth.C
 				Name:        resource.GetName(),
 			}
 			key := types.ResourceIDToString(id)
-			resourceDetails[key] = ui.ResourceDetails{
+			resourceDetails[key] = ResourceDetails{
 				Hostname: hostname,
 			}
 		}

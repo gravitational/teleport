@@ -21,7 +21,6 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gravitational/teleport/e/lib/web/ui"
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
@@ -137,7 +136,7 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 	}
 	resources := make([]*api.Resource, len(requestedResourceIDs))
 	for i, r := range requestedResourceIDs {
-		uiDetails := req.ResourceDetails[resourceIDToString(r)]
+		details := req.ResourceDetails[resourceIDToString(r)]
 
 		resources[i] = &api.Resource{
 			Id: &api.ResourceID{
@@ -147,7 +146,7 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 			},
 			// If there are no details for this resource, the map lookup returns
 			// the default value which is empty details
-			Details: newApiResourceDetails(uiDetails),
+			Details: newApiResourceDetails(details),
 		}
 	}
 
@@ -173,7 +172,7 @@ func resourceIDToString(id *api.ResourceID) string {
 	return fmt.Sprintf("/%s/%s/%s", id.ClusterName, id.Kind, id.Name)
 }
 
-func newApiResourceDetails(details ui.ResourceDetails) *api.ResourceDetails {
+func newApiResourceDetails(details clusters.ResourceDetails) *api.ResourceDetails {
 	return &api.ResourceDetails{
 		Hostname: details.Hostname,
 	}
