@@ -146,7 +146,7 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 			},
 			// If there are no details for this resource, the map lookup returns
 			// the default value which is empty details
-			Details: newApiResourceDetails(details),
+			Details: newAPIResourceDetails(details),
 		}
 	}
 
@@ -172,7 +172,7 @@ func resourceIDToString(id *api.ResourceID) string {
 	return fmt.Sprintf("/%s/%s/%s", id.ClusterName, id.Kind, id.Name)
 }
 
-func newApiResourceDetails(details clusters.ResourceDetails) *api.ResourceDetails {
+func newAPIResourceDetails(details clusters.ResourceDetails) *api.ResourceDetails {
 	return &api.ResourceDetails{
 		Hostname: details.Hostname,
 	}
