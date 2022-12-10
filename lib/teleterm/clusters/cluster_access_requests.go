@@ -37,7 +37,7 @@ type AccessRequest struct {
 	ResourceDetails map[string]ui.ResourceDetails
 }
 
-// Returns a specific access request by id and includes resource details
+// GetAccessRequest returns a specific access request by ID and includes resource details
 func (c *Cluster) GetAccessRequest(ctx context.Context, req types.AccessRequestFilter) (*AccessRequest, error) {
 	var (
 		request         types.AccessRequest
