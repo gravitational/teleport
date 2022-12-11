@@ -18,7 +18,10 @@ package tbot
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"sync"
 	"time"
 
@@ -112,6 +115,18 @@ func (b *Bot) caRotationLoop(ctx context.Context) error {
 		err := b.watchCARotations(ctx, rd.attempt)
 		if ctx.Err() != nil {
 			return nil
+		}
+
+		// If the error is due to the client being replaced with a new client
+		// as part of the credentials renewal. Ignore it, and immediately begin
+		// watching again with the new client. We can safely check for Canceled
+		// here, because if the context was actually cancelled, it would've
+		// been caught in the error check immediately following watchCARotations
+		var statusErr interface {
+			GRPCStatus() *status.Status
+		}
+		if errors.As(err, &statusErr) && statusErr.GRPCStatus().Code() == codes.Canceled {
+			continue
 		}
 
 		backoffPeriod := jitter(caRotationRetryBackoff)
