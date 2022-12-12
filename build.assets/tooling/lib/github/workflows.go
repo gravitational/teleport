@@ -36,7 +36,7 @@ func setsAreEqual(a, b map[int64]struct{}) bool {
 }
 
 func firstUniqueInSet(newSet, baseSet map[int64]struct{}) (int64, bool) {
-	for k, _ := range newSet {
+	for k := range newSet {
 		if _, present := baseSet[k]; !present {
 			return k, true
 		}
@@ -115,7 +115,7 @@ func (gh *ghClient) TriggerDispatchEvent(ctx context.Context, owner, repo, workf
 	defer ticker.Stop()
 
 	newRuns := make(map[int64]struct{})
-	for k, _ := range oldRuns {
+	for k := range oldRuns {
 		newRuns[k] = struct{}{}
 	}
 

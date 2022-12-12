@@ -44,8 +44,8 @@ func NewGitHub() GitHub {
 	}
 }
 
-// NewGitHub returns a new instance of the minimal GitHub client that 
-// authenticates to GitHub with a Personal Access Token (or other 
+// NewGitHub returns a new instance of the minimal GitHub client that
+// authenticates to GitHub with a Personal Access Token (or other
 // oauth token).
 func NewGitHubWithToken(ctx context.Context, token string) GitHub {
 	ts := oauth2.StaticTokenSource(
