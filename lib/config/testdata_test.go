@@ -234,6 +234,18 @@ teleport:
 auth_service:
   enabled: yes
   cluster_name: "example.com"
+  disconnect_expired_cert: true
+`
+
+// AuthPreferenceConfigWithMOTDString is a configuration file with the
+// `message_of_the_day` `cluster_auth_preference` field.
+const AuthPreferenceConfigWithMOTDString = `
+teleport:
+  nodename: node.example.com
+
+auth_service:
+  enabled: yes
+  cluster_name: "example.com"
   message_of_the_day: "welcome!"
 `
 
