@@ -20,11 +20,12 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -194,6 +195,26 @@ func (client *InstanceMetadataClient) GetHostname(ctx context.Context) (string, 
 		return "", trace.NotFound("tag %q not found", types.CloudHostnameTag)
 	}
 	return value, nil
+}
+
+// GetID gets the Azure resource ID of the cloud instance.
+func (client *InstanceMetadataClient) GetID(ctx context.Context) (string, error) {
+	compute := struct {
+		ResourceID string `json:"resourceId"`
+	}{}
+	body, err := client.getRawMetadata(ctx, "/instance/compute")
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if err := utils.FastUnmarshal(body, &compute); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if compute.ResourceID == "" {
+		return "", trace.NotFound("instance resource ID not available")
+	}
+
+	return compute.ResourceID, nil
 }
 
 // selectVersion selects the most recent API version greater than or equal to

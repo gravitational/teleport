@@ -23,14 +23,13 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 func TestMain(m *testing.M) {
@@ -41,7 +40,7 @@ func TestMain(m *testing.M) {
 func TestStartStop(t *testing.T) {
 	t.Parallel()
 
-	_, signer, err := utils.CreateCertificate("foo", ssh.HostCert)
+	_, signer, err := cert.CreateCertificate("foo", ssh.HostCert)
 	require.NoError(t, err)
 
 	called := false
@@ -93,7 +92,7 @@ func TestStartStop(t *testing.T) {
 func TestShutdown(t *testing.T) {
 	t.Parallel()
 
-	_, signer, err := utils.CreateCertificate("foo", ssh.HostCert)
+	_, signer, err := cert.CreateCertificate("foo", ssh.HostCert)
 	require.NoError(t, err)
 
 	closeContext, cancel := context.WithCancel(context.TODO())
@@ -149,7 +148,7 @@ func TestShutdown(t *testing.T) {
 func TestConfigureCiphers(t *testing.T) {
 	t.Parallel()
 
-	_, signer, err := utils.CreateCertificate("foo", ssh.HostCert)
+	_, signer, err := cert.CreateCertificate("foo", ssh.HostCert)
 	require.NoError(t, err)
 
 	fn := NewChanHandlerFunc(func(_ context.Context, _ *ConnectionContext, nch ssh.NewChannel) {
@@ -198,10 +197,10 @@ func TestConfigureCiphers(t *testing.T) {
 func TestHostSignerFIPS(t *testing.T) {
 	t.Parallel()
 
-	_, signer, err := utils.CreateCertificate("foo", ssh.HostCert)
+	_, signer, err := cert.CreateCertificate("foo", ssh.HostCert)
 	require.NoError(t, err)
 
-	_, ellipticSigner, err := utils.CreateEllipticCertificate("foo", ssh.HostCert)
+	_, ellipticSigner, err := cert.CreateEllipticCertificate("foo", ssh.HostCert)
 	require.NoError(t, err)
 
 	fn := NewChanHandlerFunc(func(_ context.Context, _ *ConnectionContext, nch ssh.NewChannel) {

@@ -21,20 +21,18 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-
-	"github.com/gravitational/trace"
-
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 )
 
 // UploadCompleterConfig specifies configuration for the uploader
@@ -71,7 +69,7 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 		cfg.Component = teleport.ComponentAuth
 	}
 	if cfg.CheckPeriod == 0 {
-		cfg.CheckPeriod = defaults.AbandonedUploadPollingRate
+		cfg.CheckPeriod = AbandonedUploadPollingRate
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()

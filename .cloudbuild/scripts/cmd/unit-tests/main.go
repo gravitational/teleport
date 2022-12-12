@@ -147,8 +147,9 @@ func run() error {
 	if err != nil {
 		return trace.Wrap(err, "Failed analyzing code")
 	}
+	log.Printf("Detected changes: %+v", ch)
 
-	if !ch.Code {
+	if !ch.HasCodeChanges() {
 		log.Println("No code changes detected. Skipping tests.")
 		return nil
 	}
@@ -195,7 +196,10 @@ func runUnitTests(workspace string, ch changes.Changes) error {
 		"TELEPORT_BPF_TEST=yes",
 	}
 
-	targets := []string{"test-go", "test-sh", "test-api"}
+	var targets []string
+	if ch.Code {
+		targets = append(targets, "test-go", "test-sh", "test-api")
+	}
 	if ch.Helm {
 		targets = append(targets, "test-helm")
 	}
@@ -207,6 +211,11 @@ func runUnitTests(workspace string, ch changes.Changes) error {
 	}
 	if ch.Operator {
 		targets = append(targets, "test-operator")
+	}
+
+	if len(targets) == 0 {
+		log.Printf("No tests to run: %+v", ch)
+		return nil
 	}
 
 	log.Printf("Running test targets: %v", strings.Join(targets, " "))

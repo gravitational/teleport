@@ -23,19 +23,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"errors"
 	"os"
 	"sort"
 	"strings"
 	"time"
-
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
-	cq "github.com/gravitational/teleport/lib/utils/concurrentqueue"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
@@ -50,6 +42,14 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
+	cq "github.com/gravitational/teleport/lib/utils/concurrentqueue"
 )
 
 var (
@@ -408,6 +408,9 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 		MaxCallSendMsgSize: b.cfg.MaxClientMsgSizeBytes,
 	})
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return trace.WrapWithMessage(err, "timed out dialing etcd endpoints: %s", b.nodes)
+		}
 		return trace.Wrap(err)
 	}
 	b.client = clt

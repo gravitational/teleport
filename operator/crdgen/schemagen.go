@@ -21,21 +21,21 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gobuffalo/flect"
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	crdtools "sigs.k8s.io/controller-tools/pkg/crd"
 	crdmarkers "sigs.k8s.io/controller-tools/pkg/crd/markers"
 	"sigs.k8s.io/controller-tools/pkg/loader"
 	"sigs.k8s.io/controller-tools/pkg/markers"
-
-	"github.com/gobuffalo/flect"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	crdtools "sigs.k8s.io/controller-tools/pkg/crd"
-
-	"github.com/gravitational/trace"
 )
 
 const k8sKindPrefix = "Teleport"
 
+// Add names to this array when adding support to new Teleport resources that could conflict with Kubernetes
+var kubernetesReservedNames = []string{"role"}
 var regexpResourceName = regexp.MustCompile(`^([A-Za-z]+)(V[0-9]+)$`)
 
 // SchemaGenerator generates the OpenAPI v3 schema from a proto file.
@@ -213,6 +213,11 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 				Items: &apiextv1.JSONSchemaPropsOrArray{Schema: &apiextv1.JSONSchemaProps{Type: "string"}},
 			},
 		}
+	case field.TypeName() == ".wrappers.StringValues":
+		prop.Type = "array"
+		prop.Items = &apiextv1.JSONSchemaPropsOrArray{
+			Schema: &apiextv1.JSONSchemaProps{Type: "string"},
+		}
 	case field.TypeName() == ".types.CertExtensionType" || field.TypeName() == ".types.CertExtensionMode":
 		prop.Type = "integer"
 		prop.Format = "int32"
@@ -256,7 +261,7 @@ func (root RootSchema) CustomResourceDefinition() apiextv1.CustomResourceDefinit
 				ListKind:   k8sKindPrefix + root.kind + "List",
 				Plural:     strings.ToLower(k8sKindPrefix + root.pluralName),
 				Singular:   strings.ToLower(k8sKindPrefix + root.name),
-				ShortNames: []string{root.name, root.pluralName},
+				ShortNames: root.getShortNames(),
 			},
 			Scope: apiextv1.NamespaceScoped,
 		},
@@ -330,4 +335,13 @@ func (root RootSchema) CustomResourceDefinition() apiextv1.CustomResourceDefinit
 		})
 	}
 	return crd
+}
+
+// getShortNames returns the schema short names while ensuring they won't conflict with existing Kubernetes resources
+// See https://github.com/gravitational/teleport/issues/17587 and https://github.com/kubernetes/kubernetes/issues/113227
+func (root RootSchema) getShortNames() []string {
+	if slices.Contains(kubernetesReservedNames, root.name) {
+		return []string{}
+	}
+	return []string{root.name, root.pluralName}
 }

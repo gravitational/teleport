@@ -21,17 +21,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/oxy/forward"
+	oxyutils "github.com/gravitational/oxy/utils"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
-
-	"github.com/gravitational/oxy/forward"
-	oxyutils "github.com/gravitational/oxy/utils"
-	"github.com/sirupsen/logrus"
 )
 
 // session holds a request forwarder and web session for this request.

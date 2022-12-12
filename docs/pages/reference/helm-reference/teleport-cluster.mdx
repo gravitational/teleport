@@ -748,6 +748,16 @@ Teleport's RBAC policies to define access rules for the cluster.
 
 ## `persistence`
 
+<Details title="Read this if using Kubernetes 1.23+ on EKS" opened={false}>
+
+Changes in Kubernetes 1.23+ mean that persistent volumes will not automatically be provisioned in AWS EKS clusters
+without additional configuration.
+
+See [AWS documentation on the EBS CSI driver](https://docs.aws.amazon.com/eks/latest/userguide/ebs-csi.html) for more details.
+This driver addon must be configured to use persistent volumes in EKS clusters after Kubernetes 1.23.
+
+</Details>
+
 ### `persistence.enabled`
 
 | Type | Default value | Can be used in `custom` mode? |

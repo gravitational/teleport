@@ -20,7 +20,6 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"

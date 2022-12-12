@@ -19,15 +19,19 @@ package scripts
 import (
 	_ "embed"
 	"net/http"
+	"sort"
+	"strings"
 	"text/template"
 
-	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // SetScriptHeaders sets response headers to plain text.
 func SetScriptHeaders(h http.Header) {
-	httplib.SetNoCacheHeaders(h)
-	httplib.SetNoSniff(h)
 	h.Set("Content-Type", "text/plain")
 }
 
@@ -46,3 +50,33 @@ exit 1
 var installNodeBashScript string
 
 var InstallNodeBashScript = template.Must(template.New("nodejoin").Parse(installNodeBashScript))
+
+// MarshalLabelsYAML returns a list of strings, each one containing a label key/value pair.
+// This is used to create yaml sections within the join scripts.
+func MarshalLabelsYAML(resourceMatcherLabels types.Labels) ([]string, error) {
+	if len(resourceMatcherLabels) == 0 {
+		return []string{"{}"}, nil
+	}
+
+	ret := []string{}
+
+	// Consistently iterate over fields
+	labelKeys := make([]string, 0, len(resourceMatcherLabels))
+	for k := range resourceMatcherLabels {
+		labelKeys = append(labelKeys, k)
+	}
+
+	sort.Strings(labelKeys)
+
+	for _, labelName := range labelKeys {
+		labelValue := resourceMatcherLabels[labelName]
+		bs, err := yaml.Marshal(map[string]utils.Strings{labelName: labelValue})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		ret = append(ret, strings.TrimSpace(string(bs)))
+	}
+
+	return ret, nil
+}

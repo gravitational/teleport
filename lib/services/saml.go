@@ -26,18 +26,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	saml2 "github.com/russellhaering/gosaml2"
+	samltypes "github.com/russellhaering/gosaml2/types"
+	dsig "github.com/russellhaering/goxmldsig"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	saml2 "github.com/russellhaering/gosaml2"
-	samltypes "github.com/russellhaering/gosaml2/types"
-	dsig "github.com/russellhaering/goxmldsig"
 )
 
 // ValidateSAMLConnector validates the SAMLConnector and sets default values.
@@ -104,6 +103,10 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
 	if rg != nil {
 		for _, mapping := range sc.GetAttributesToRoles() {
 			for _, role := range mapping.Roles {
+				if utils.ContainsExpansion(role) {
+					// Role is a template so we cannot check for existence of that literal name.
+					continue
+				}
 				_, err := rg.GetRole(context.Background(), role)
 				switch {
 				case trace.IsNotFound(err):

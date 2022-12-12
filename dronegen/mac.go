@@ -537,7 +537,7 @@ func darwinBuildCommands(toolchainConfig toolchainConfig, artifactConfig darwinA
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 			`build.assets/build-fido2-macos.sh build`,
 			`export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"`,
-			`make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes`,
+			`make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes PIV=yes`,
 		)
 	}
 
@@ -557,8 +557,6 @@ func darwinBuildCommands(toolchainConfig toolchainConfig, artifactConfig darwinA
 			// available.
 			// https://www.electron.build/code-signing
 			`export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83`,
-
-			`export DEBUG="electron-*"`,
 		)
 
 		if artifactConfig == binariesWithConnect {

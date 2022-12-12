@@ -15,12 +15,13 @@
 package client
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
 )
 
-// EventToGRPC converts types.Event to proto.Event
+// EventToGRPC converts types.Event to proto.Event.
 func EventToGRPC(in types.Event) (*proto.Event, error) {
 	eventType, err := EventTypeToGRPC(in.Type)
 	if err != nil {

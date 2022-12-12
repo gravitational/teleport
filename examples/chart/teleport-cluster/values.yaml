@@ -5,7 +5,7 @@
 # clusterName is a unique cluster name.
 # This value cannot be changed after your cluster starts without rebuilding it from scratch.
 # We recommend using the fully qualified domain name that you use to access your cluster,
-# for example: teleport.example.com
+# for example: teleport.example.com.
 clusterName: ""
 
 # Name for this kubernetes cluster to be used by teleport users.
@@ -30,7 +30,7 @@ authentication:
   connectorName: ""
 
   # Enable/disable local authentication by setting `authentication.local_auth` in `teleport.yaml`.
-  # Disabling local auth is required for FedRAMP / FIPS; see https://gravitational.com/teleport/docs/enterprise/ssh-kubernetes-fedramp/
+  # Disabling local auth is required for FedRAMP / FIPS; see https://gravitational.com/teleport/docs/enterprise/ssh-kubernetes-fedramp/.
   localAuth: true
 
   # Controls the locking mode: in case of network split should Teleport guarantee availability or integrity ?
@@ -163,6 +163,9 @@ chartMode: standalone
 
 ######################################################################
 # Persistence settings (only used in "standalone" and "custom" modes)
+# NOTE: Changes in Kubernetes 1.23+ mean that persistent volumes will not automatically be provisioned in AWS EKS clusters
+# without additional configuration. See https://docs.aws.amazon.com/eks/latest/userguide/ebs-csi.html for more details.
+# This driver addon must be configured to use persistent volumes in EKS clusters after Kubernetes 1.23.
 ######################################################################
 persistence:
   # Enable persistence using a PersistentVolumeClaim
@@ -342,7 +345,7 @@ annotations:
 # Kubernetes service account to create/use.
 serviceAccount:
   # Specifies whether a ServiceAccount should be created
-  create: true 
+  create: true
   # The name of the ServiceAccount to use.
   # If not set and serviceAccount.create is true, the name is generated using the release name.
   # If create is false, the name will be used to reference an existing service account.

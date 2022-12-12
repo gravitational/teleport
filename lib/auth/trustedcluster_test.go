@@ -284,7 +284,9 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: authority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
 		},
 	}
 	a, err := NewServer(authConfig)

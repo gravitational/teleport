@@ -27,13 +27,13 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/aquasecurity/libbpfgo"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/aquasecurity/libbpfgo"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/bpf"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -83,7 +83,7 @@ type sessionMgr struct {
 }
 
 // New creates a RestrictedSession service.
-func New(config *Config, wc RestrictionsWatcherClient) (Manager, error) {
+func New(config *bpf.RestrictedSessionConfig, wc RestrictionsWatcherClient) (Manager, error) {
 	err := config.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)

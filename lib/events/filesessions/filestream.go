@@ -27,13 +27,13 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
 )
 
 var (
@@ -69,9 +69,7 @@ const minUploadBytes = events.MaxProtoMessageSizeBytes * 2
 
 // NewStreamer creates a streamer sending uploads to disk
 func NewStreamer(dir string) (*events.ProtoStreamer, error) {
-	handler, err := NewHandler(Config{
-		Directory: dir,
-	})
+	handler, err := NewHandler(Config{Directory: dir})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

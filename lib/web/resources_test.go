@@ -21,14 +21,13 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/web/ui"
-
-	"github.com/gravitational/trace"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestExtractResourceAndValidate(t *testing.T) {
@@ -79,6 +78,7 @@ spec:
   client_id: ""
   client_secret: ""
   display: ""
+  endpoint_url: ""
   redirect_url: ""
   teams_to_logins:
   - logins:

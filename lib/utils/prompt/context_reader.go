@@ -26,9 +26,8 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/term"
-
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/term"
 )
 
 // ErrReaderClosed is returned from ContextReader.ReadContext after it is

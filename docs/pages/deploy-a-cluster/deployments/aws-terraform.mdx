@@ -38,8 +38,8 @@ We will assume that you have configured your AWS cli access with credentials ava
 ```code
 $ cat ~/.aws/credentials
 # [default]
-# aws_access_key_id = AKIA....
-# aws_secret_access_key = 8ZRxy....
+# aws_access_key_id = (=aws.aws_access_key=)
+# aws_secret_access_key = (=aws.aws_secret_access_key=)
 ```
 
 You should also have a default region set under `~/.aws/config`:
@@ -74,7 +74,7 @@ level of AWS permissions.
 Firstly, you'll need to clone the Teleport repo to get the Terraform code available on your system:
 
 ```code
-$ git clone https://github.com/gravitational/teleport
+$ git clone https://github.com/gravitational/teleport -b branch/v(=teleport.major_version=)
 # Cloning into 'teleport'...
 # remote: Enumerating objects: 106, done.
 # remote: Counting objects: 100% (106/106), done.
@@ -854,3 +854,9 @@ $ ./connect.sh proxy 1
 # connect to the node
 $ ./connect.sh node
 ```
+
+## Troubleshooting
+
+### AWS quotas
+
+(!docs/pages/includes/aws-quotas.mdx!)

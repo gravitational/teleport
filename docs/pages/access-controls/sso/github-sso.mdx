@@ -11,7 +11,8 @@ Teleport.
 ## Prerequisites
 
 - A GitHub organization with at least one team. <ScopedBlock scope="oss">This organization must not have external SSO set up, or Teleport
-will refuse to create the GitHub authentication connector.</ScopedBlock>
+will refuse to create the GitHub authentication connector.</ScopedBlock><ScopedBlock scope={["enterprise", "cloud"]}>This organization can be hosted
+from either GitHub Cloud or Github Enterprise Server.</ScopedBlock>
 - Teleport role with access to maintaining `github` resources for using `tctl` from the Desktop. This is available in the default `editor` role.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -40,6 +41,9 @@ Instructions for creating a GitHub OAuth app are available here:
 Define a GitHub authentication connector by creating a file called `github.yaml`
 with the following content:
 
+<Tabs>
+<TabItem label="Open Source" scope="oss">
+
 ```yaml
 kind: github
 version: v3
@@ -63,6 +67,38 @@ spec:
       roles:
         - access
 ```
+
+</TabItem>
+<TabItem label="Enterprise / Cloud" scope={["enterprise", "cloud"]}>
+
+```yaml
+kind: github
+version: v3
+metadata:
+  # Connector name that will be used with `tsh --auth=github login`
+  name: github
+spec:
+  # Client ID of your GitHub OAuth App
+  client_id: <client-id>
+  # Client secret of your GitHub OAuth App
+  client_secret: <client-secret>
+  # Connector display name that will be shown on the Web UI login screen
+  display: GitHub
+  # URL of your GitHub Enterprise Server instance (if applicable)
+  endpoint_url: https://<github-enterprise-server-address>
+  # Callback URL that will be called after successful authentication
+  redirect_url: https://<proxy-address>/v1/webapi/github/callback
+  # Mapping of org/team memberships onto allowed roles
+  teams_to_roles:
+    - organization: octocats # GitHub organization name
+      team: admins # GitHub team name within that organization
+      # Maps octocats/admins to the "access" Teleport role
+      roles:
+        - access
+```
+
+</TabItem>
+</Tabs>
 
 The values of `client_id`, `client_secret`, and `redirect_url` come from the
 GitHub OAuth App you created earlier.

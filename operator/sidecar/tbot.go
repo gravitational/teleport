@@ -21,6 +21,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -30,8 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -193,30 +194,35 @@ func (b *Bot) Start(ctx context.Context) error {
 
 // CreateAndBootstrapBot connects to teleport using a local auth connection, creates operator's role in teleport
 // and creates tbot's configuration.
-func CreateAndBootstrapBot(ctx context.Context, opts Options) (*Bot, error) {
+func CreateAndBootstrapBot(ctx context.Context, opts Options) (*Bot, *proto.Features, error) {
 	if err := opts.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	// First we are creating a local auth client, like local tctl
 	authClientConfig, err := createAuthClientConfig(opts)
 	if err != nil {
-		return nil, trace.WrapWithMessage(err, "failed to create auth client config")
+		return nil, nil, trace.WrapWithMessage(err, "failed to create auth client config")
 	}
 
 	authClient, err := authclient.Connect(ctx, authClientConfig)
 	if err != nil {
-		return nil, trace.WrapWithMessage(err, "failed to create auth client")
+		return nil, nil, trace.WrapWithMessage(err, "failed to create auth client")
+	}
+
+	ping, err := authClient.Ping(ctx)
+	if err != nil {
+		return nil, nil, trace.WrapWithMessage(err, "failed to ping teleport")
 	}
 
 	// Then we create a role for the operator
 	role, err := sidecarRole(opts.Role)
 	if err != nil {
-		return nil, trace.WrapWithMessage(err, "failed to create role")
+		return nil, nil, trace.WrapWithMessage(err, "failed to create role")
 	}
 
 	if err := authClient.UpsertRole(ctx, role); err != nil {
-		return nil, trace.WrapWithMessage(err, "failed to create operator's role")
+		return nil, nil, trace.WrapWithMessage(err, "failed to create operator's role")
 	}
 	log.Debug("Operator role created")
 
@@ -227,7 +233,7 @@ func CreateAndBootstrapBot(ctx context.Context, opts Options) (*Bot, error) {
 	}
 
 	bot.initializeConfig()
-	return bot, nil
+	return bot, ping.ServerFeatures, nil
 }
 
 // It is not currently possible to join back the cluster as an existing bot.

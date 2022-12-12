@@ -32,6 +32,8 @@ import (
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -40,13 +42,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 const (

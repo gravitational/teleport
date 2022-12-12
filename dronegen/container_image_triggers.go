@@ -21,11 +21,12 @@ import (
 
 // Describes a Drone trigger as it pertains to container image building.
 type TriggerInfo struct {
-	Trigger           trigger
-	Name              string
-	Flags             *TriggerFlags
-	SupportedVersions []*ReleaseVersion
-	SetupSteps        []step
+	Trigger              trigger
+	Name                 string
+	Flags                *TriggerFlags
+	SupportedVersions    []*ReleaseVersion
+	SetupSteps           []step
+	ParentePipelineNames []string
 }
 
 // This type is mainly used to make passing these vars around cleaner
@@ -50,15 +51,23 @@ func NewTagTrigger(branchMajorVersion string) *TriggerInfo {
 		},
 		SupportedVersions: []*ReleaseVersion{
 			{
-				MajorVersion:        branchMajorVersion,
-				ShellVersion:        "$DRONE_TAG",
+				MajorVersion: branchMajorVersion,
+				ShellVersion: "$DRONE_TAG",
+				// Omitted because it doesn't matter here - only the full semver will only be published (see Flags)
+				// ShellIsPrerelease:   // ,
 				RelativeVersionName: "branch",
 			},
+		},
+		ParentePipelineNames: []string{
+			tagCleanupPipelineName,
 		},
 	}
 }
 
 func NewPromoteTrigger(branchMajorVersion string) *TriggerInfo {
+	prereleaseFilePath := "/go/vars/release-is-prerelease"
+	shellVersion := "$DRONE_TAG"
+
 	promoteTrigger := triggerPromote
 	promoteTrigger.Target.Include = append(promoteTrigger.Target.Include, "promote-docker")
 
@@ -73,12 +82,14 @@ func NewPromoteTrigger(branchMajorVersion string) *TriggerInfo {
 		},
 		SupportedVersions: []*ReleaseVersion{
 			{
-				MajorVersion:        branchMajorVersion,
-				ShellVersion:        "$DRONE_TAG",
+				MajorVersion: branchMajorVersion,
+				ShellVersion: shellVersion,
+				// Truthy if the file exists, which indicates a prerelease. See `recordPrereleaseStatus`` for details.
+				ShellIsPrerelease:   fmt.Sprintf("[ -f %s ]", prereleaseFilePath),
 				RelativeVersionName: "branch",
 			},
 		},
-		SetupSteps: verifyValidPromoteRunSteps(),
+		SetupSteps: []step{verifyTaggedStep(), recordPrereleaseStatus(shellVersion, prereleaseFilePath)},
 	}
 }
 
@@ -87,25 +98,27 @@ func NewCronTrigger(latestMajorVersions []string) *TriggerInfo {
 		return nil
 	}
 
-	majorVersionVarDirectory := "/go/vars/full-version"
+	majorVersionVarBasePath := "/go/vars/full-version"
 
 	supportedVersions := make([]*ReleaseVersion, 0, len(latestMajorVersions))
 	if len(latestMajorVersions) > 0 {
 		latestMajorVersion := latestMajorVersions[0]
 		supportedVersions = append(supportedVersions, &ReleaseVersion{
 			MajorVersion:        latestMajorVersion,
-			ShellVersion:        readCronShellVersionCommand(majorVersionVarDirectory, latestMajorVersion),
+			ShellVersion:        readCronShellVersionCommand(majorVersionVarBasePath, latestMajorVersion),
 			RelativeVersionName: "current-version",
-			SetupSteps:          []step{getLatestSemverStep(latestMajorVersion, majorVersionVarDirectory)},
+			SetupSteps:          []step{getLatestSemverStep(latestMajorVersion, majorVersionVarBasePath)},
 		})
 
 		if len(latestMajorVersions) > 1 {
 			for i, majorVersion := range latestMajorVersions[1:] {
 				supportedVersions = append(supportedVersions, &ReleaseVersion{
-					MajorVersion:        majorVersion,
-					ShellVersion:        readCronShellVersionCommand(majorVersionVarDirectory, majorVersion),
+					MajorVersion: majorVersion,
+					ShellVersion: readCronShellVersionCommand(majorVersionVarBasePath, majorVersion),
+					// Omitted because it doesn't matter here - latest tags should always be built
+					// ShellIsPrerelease:   // ,
 					RelativeVersionName: fmt.Sprintf("previous-version-%d", i+1),
-					SetupSteps:          []step{getLatestSemverStep(majorVersion, majorVersionVarDirectory)},
+					SetupSteps:          []step{getLatestSemverStep(majorVersion, majorVersionVarBasePath)},
 				})
 			}
 		}
@@ -124,26 +137,48 @@ func NewCronTrigger(latestMajorVersions []string) *TriggerInfo {
 	}
 }
 
-func getLatestSemverStep(majorVersion string, majorVersionVarDirectory string) step {
+func getLatestSemverStep(majorVersion string, majorVersionVarBasePath string) step {
 	// We don't use "/go/src/github.com/gravitational/teleport" here as a later stage
 	// may need to clone a different version, and "/go" persists between steps
 	cloneDirectory := "/tmp/teleport"
-	majorVersionVarPath := path.Join(majorVersionVarDirectory, majorVersion)
+	majorVersionVarPath := fmt.Sprintf("%s-%s", majorVersionVarBasePath, majorVersion)
 	return step{
 		Name:  fmt.Sprintf("Find the latest available semver for %s", majorVersion),
 		Image: fmt.Sprintf("golang:%s", GoVersion),
 		Commands: append(
 			cloneRepoCommands(cloneDirectory, fmt.Sprintf("branch/%s", majorVersion)),
-			fmt.Sprintf("mkdir -pv %q", majorVersionVarDirectory),
+			fmt.Sprintf("mkdir -pv $(dirname %q)", majorVersionVarPath),
 			fmt.Sprintf("cd %q", path.Join(cloneDirectory, "build.assets", "tooling", "cmd", "query-latest")),
-			fmt.Sprintf("go run . %q > %q", majorVersion, majorVersionVarPath),
+			fmt.Sprintf("go run . %q | sed 's/v//' > %q", majorVersion, majorVersionVarPath),
 			fmt.Sprintf("echo Found full semver \"$(cat %q)\" for major version %q", majorVersionVarPath, majorVersion),
 		),
 	}
 }
 
 func readCronShellVersionCommand(majorVersionDirectory, majorVersion string) string {
-	return fmt.Sprintf("$(cat '%s')", path.Join(majorVersionDirectory, majorVersion))
+	return fmt.Sprintf("v$(cat '%s-%s')", majorVersionDirectory, majorVersion)
+}
+
+func recordPrereleaseStatus(shellVersion, recordFilePath string) step {
+	clonePath := "/tmp/repo"
+	commands := []string{
+		"apk add git",
+	}
+	commands = append(commands, cloneRepoCommands(clonePath, "${DRONE_TAG}")...)
+	commands = append(commands,
+		fmt.Sprintf("mkdir -pv $(dirname %q)", recordFilePath),
+		fmt.Sprintf("cd %q", path.Join(clonePath, "build.assets", "tooling")),
+		// If the tag is a prerelease, create a file who's existence shows that it is one
+		fmt.Sprintf("go run ./cmd/check -tag %s -check prerelease &> /dev/null || echo 'Version is a prerelease' > %q", shellVersion, recordFilePath),
+		fmt.Sprintf("printf 'Version is '; [ ! -f \"%s\" ] && printf 'not '; echo 'a prerelease'", recordFilePath),
+	)
+
+	return step{
+		// Note that Drone will evaluate certain variables (such as '${DRONE_TAG}') to their actual value in the step name
+		Name:     fmt.Sprintf("Record if tag (%s) is prerelease", shellVersion),
+		Image:    fmt.Sprintf("golang:%s-alpine", GoVersion),
+		Commands: commands,
+	}
 }
 
 // Drone triggers must all evaluate to "true" for a pipeline to be executed.
@@ -155,6 +190,7 @@ func (ti *TriggerInfo) buildPipelines() []pipeline {
 		pipeline := teleportVersion.buildVersionPipeline(ti.SetupSteps, ti.Flags)
 		pipeline.Name += "-" + ti.Name
 		pipeline.Trigger = ti.Trigger
+		pipeline.DependsOn = append(pipeline.DependsOn, ti.ParentePipelineNames...)
 
 		pipelines = append(pipelines, pipeline)
 	}

@@ -20,10 +20,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestServerLabels(t *testing.T) {
@@ -44,7 +44,7 @@ func TestServerLabels(t *testing.T) {
 		},
 		Spec: types.ServerSpecV2{
 			CmdLabels: map[string]types.CommandLabelV2{
-				"time": types.CommandLabelV2{
+				"time": {
 					Period:  types.NewDuration(time.Second),
 					Command: []string{"time"},
 					Result:  "now",

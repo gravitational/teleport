@@ -27,10 +27,13 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
+const githubURL = "https://github.com"
+
 // GithubConnector defines an interface for a Github OAuth2 connector
 type GithubConnector interface {
 	// ResourceWithSecrets is a common interface for all resources
 	ResourceWithSecrets
+	ResourceWithOrigin
 	// SetMetadata sets object metadata
 	SetMetadata(meta Metadata)
 	// GetClientID returns the connector client ID
@@ -60,6 +63,8 @@ type GithubConnector interface {
 	GetDisplay() string
 	// SetDisplay sets the connector display name
 	SetDisplay(string)
+	// GetEndpointURL returns the endpoint URL
+	GetEndpointURL() string
 }
 
 // NewGithubConnector creates a new Github connector from name and spec
@@ -134,6 +139,16 @@ func (c *GithubConnectorV3) SetMetadata(meta Metadata) {
 // GetMetadata returns the connector metadata
 func (c *GithubConnectorV3) GetMetadata() Metadata {
 	return c.Metadata
+}
+
+// Origin returns the origin value of the resource.
+func (c *GithubConnectorV3) Origin() string {
+	return c.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (c *GithubConnectorV3) SetOrigin(origin string) {
+	c.Metadata.SetOrigin(origin)
 }
 
 // WithoutSecrets returns an instance of resource without secrets.
@@ -245,6 +260,11 @@ func (c *GithubConnectorV3) GetDisplay() string {
 // SetDisplay sets the connector display name
 func (c *GithubConnectorV3) SetDisplay(display string) {
 	c.Spec.Display = display
+}
+
+// GetEndpointURL returns the endpoint URL
+func (c *GithubConnectorV3) GetEndpointURL() string {
+	return githubURL
 }
 
 // MapClaims returns a list of logins based on the provided claims,

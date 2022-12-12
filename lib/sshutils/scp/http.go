@@ -26,10 +26,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
-
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -192,7 +192,7 @@ func (l *httpFileSystem) CreateFile(filePath string, length uint64) (io.WriteClo
 	header := l.writer.Header()
 
 	httplib.SetNoCacheHeaders(header)
-	httplib.SetNoSniff(header)
+	httplib.SetDefaultSecurityHeaders(header)
 	header.Set("Content-Length", contentLength)
 	header.Set("Content-Type", "application/octet-stream")
 	filename = url.QueryEscape(filename)

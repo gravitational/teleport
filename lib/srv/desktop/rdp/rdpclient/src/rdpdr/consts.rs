@@ -106,7 +106,7 @@ pub enum MinorFunction {
 /// Windows defines an absolutely massive list of potential NTSTATUS values.
 /// This enum includes the basic ones we support for communicating with the windows machine.
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55
-#[derive(ToPrimitive, Debug, PartialEq, Eq)]
+#[derive(ToPrimitive, FromPrimitive, Debug, PartialEq, Eq, Copy, Clone)]
 #[repr(u32)]
 #[allow(non_camel_case_types)]
 #[allow(dead_code)]

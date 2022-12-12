@@ -24,10 +24,11 @@ import (
 	"testing"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils/golden"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTemplateSSHClient_Render(t *testing.T) {

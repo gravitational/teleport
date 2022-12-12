@@ -21,11 +21,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/trace"
 )
 
 // tokenJoinMethod returns the join method of the token with the given tokenName
@@ -112,6 +113,14 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		if err := a.checkGitHubJoinRequest(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case types.JoinMethodCircleCI:
+		if err := a.checkCircleCIJoinRequest(ctx, req); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case types.JoinMethodKubernetes:
+		if err := a.checkKubernetesJoinRequest(ctx, req); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	case types.JoinMethodToken:
 		// carry on to common token checking logic
 	default:
@@ -155,7 +164,10 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 		case types.JoinMethodToken:
 			shouldDeleteToken = true
 			renewable = true
-		case types.JoinMethodIAM, types.JoinMethodGitHub:
+		case types.JoinMethodIAM,
+			types.JoinMethodGitHub,
+			types.JoinMethodCircleCI,
+			types.JoinMethodKubernetes:
 			shouldDeleteToken = false
 			renewable = false
 		default:

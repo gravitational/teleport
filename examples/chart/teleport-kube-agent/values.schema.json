@@ -9,6 +9,7 @@
         "apps",
         "appResources",
         "awsDatabases",
+        "azureDatabases",
         "databases",
         "databaseResources",
         "teleportVersionOverride",
@@ -136,6 +137,72 @@
                     "default": []
                 },
                 "additionalProperties": false
+            }
+        },
+        "azureDatabases": {
+            "$id": "#/properties/azureDatabases",
+            "type": "array",
+            "default": [],
+            "items": {
+                "type": "object",
+                "default": {},
+                "required": [
+                    "types",
+                    "tags"
+                ],
+                "properties": {
+                    "types": {
+                        "$id": "#/properties/azureDatabases/types",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "default": []
+                    },
+                    "tags": {
+                        "$id": "#/properties/azureDatabases/tags",
+                        "type": "object",
+                        "default": {},
+                        "additionalProperties": {
+                            "oneOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "subscriptions": {
+                        "$id": "#/properties/azureDatabases/subscriptions",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "default": []
+                    },
+                    "regions": {
+                        "$id": "#/properties/azureDatabases/regions",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "default": []
+                    },
+                    "resource_groups": {
+                        "$id": "#/properties/azureDatabases/resource_groups",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "default": []
+                    },
+                    "additionalProperties": false
+                }
             }
         },
         "databases": {

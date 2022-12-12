@@ -27,7 +27,7 @@ addr = "localhost:3025"
 identity = "identity"
 
 [msapi]
-# MS API ID's. Please, check the documentation.
+# MS API IDs. Please, check the documentation.
 app_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 # Either contains the app secret or the path of a file containing the secret
 app_secret = "XXXXXXXXXXXXXXXXXXXXXX"

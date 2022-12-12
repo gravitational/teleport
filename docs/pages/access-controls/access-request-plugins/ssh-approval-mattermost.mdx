@@ -4,26 +4,10 @@ description: How to set up Teleport's Mattermost plugin for privilege elevation 
 ---
 
 This guide will explain how to set up Teleport with Mattermost, an open source
-messaging platform. Teleport's Mattermost integration allows teams to approve or
-deny Teleport Access Requests using Mattermost, making it easier to implement
-security best practices without compromising productivity.
-
-Here is example of sending an Access Request via Teleport's Mattermost
-plugin:
-
-<video controls>
-  <source
-    src="../../../img/enterprise/plugins/mattermost/mattermost.mp4"
-    type="video/mp4"
-  />
-
-  <source
-    src="../../../img/enterprise/plugins/mattermost/mattermost.webm"
-    type="video/webm"
-  />
-
-  Your browser does not support the video tag.
-</video>
+messaging platform. Teleport's Mattermost notifies individuals of
+Access Requests. Users can then approve and deny Access Requests by following the
+message link, making it easier to implement security best practices without
+compromising productivity.
 
 ## Prerequisites
 
@@ -85,10 +69,7 @@ Run `./install` from `teleport-mattermost` or place the executable in the approp
   ```
 </TabItem>
 <TabItem label="Helm Chart">
-  ```code
-  $ helm repo add teleport (=teleport.helm_repo_url=)
-  $ helm repo update
-  ```
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 </TabItem>
 </Tabs>
 

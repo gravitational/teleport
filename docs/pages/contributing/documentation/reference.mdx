@@ -65,9 +65,25 @@ To prevent content duplication, it's useful to include code examples or Markdown
 content from a partial file into the current page. This allows our documentation
 to reduce maintenance overhead so we can focus on writing new articles.
 
-To include a partial, use the following syntax: `(\!path-to-file.mdx\!)` syntax (remove the backslashes in an actual page).
+### Including partials
 
-Paths are resolved from the root of the repository.
+To include a partial, use the following syntax, removing the `\` character
+before each `!`:
+
+```markdown
+(\!path-to-file.mdx\!) 
+```
+
+<Notice type="tip"> 
+
+In the rest of this section, we will include examples of partial inclusion
+expressions that use `(\!` and `\!)` instead of `(!` and `!)`.  This is to
+prevent the docs engine from evaluating these expressions as partials.
+
+</Notice>
+
+When a page includes a partial, our docs engine resolves the partial's path from
+the root of the `gravitational/teleport` repository.
 
 Partials will be linted when a PR is created as part of our CI/CD process. If a
 partial does not exist in the repository, our system will throw an error.
@@ -75,7 +91,7 @@ Incorrect placement of include statements will also throw errors.
 
 Partials will only be included in these two cases:
 
-### Surrounded by newlines
+#### Surrounded by newlines
 
    ```md
    Some text.
@@ -85,10 +101,10 @@ Partials will only be included in these two cases:
    Some other text.
    ```
 
-   If the partial is an `.mdx` file, it will be parsed and rendered as Markdown. In other cases
-   it will be included as-is.
+If the partial is an `.mdx` file, it will be parsed and rendered as Markdown. In
+other cases it will be included as-is.
 
-### Inside code blocks
+#### Inside code blocks
 
    ````md
    ```code
@@ -100,6 +116,96 @@ Partials will only be included in these two cases:
    ````
 
 These will be inserted as-is, even in the case of `.mdx` files.
+
+### Partial parameters
+
+A partial can define parameters, which allow multiple docs pages to include the
+same partial but with slightly different content.
+
+Inside a partial, a parameter uses the `{{ }}` syntax. For example, the partial
+`mypartial.mdx` below uses the `{{ action }}` parameter.
+
+```markdown
+This is an example of a partial.
+
+A partial makes it possible to {{ action }}.
+```
+
+To provide a value for a partial, the page that includes it can use the
+following syntax:
+
+```text
+(\!mypartial.mdx param1="val" param2="val"\!)
+```
+
+For example, a page could supply a value to the `action` parameter in the
+`mypartial.mdx` partial above using this expression:
+
+```text
+(\!mypartial.mdx action="reuse content in docs pages."\!)
+```
+
+This partial would render as:
+
+```markdown
+This is an example of a partial.
+
+A partial makes it possible to reuse content in docs pages.
+```
+
+When including a partial, parameter definitions must be separated by single
+spaces. Values must be enclosed in double quotes. Parameter names and values
+must be separated by a `=` character, and the `=` character must not be
+surrounded by spaces. 
+
+If a partial defines parameters but a page does not assign them when including
+the partial, the docs engine will render the literal `{{ }}` expressions for
+those parameters within the content of the included partial. The exception to
+this is when the partial defines default parameter values, as described in the
+next section.
+
+### Default parameter values
+
+When defining parameters in a partial, you can instruct the docs engine to
+supply a value for those parameters if a page that includes the partial does
+not.
+
+To define default parameter values, add an expression with the following format
+to the top line of a partial:
+
+```markdown
+{{ param1="val1" param2="val2" param3="val3" }}
+```
+
+For example, let's say the `mypartial.mdx` partial we introduced earlier begins
+with the following expression:
+
+```markdown
+{{ action="write docs pages more easily." }}
+This is an example of a partial.
+
+A partial makes it possible to {{ action }}.
+```
+
+If a page includes the partial with this expression...
+
+```markdown
+(\!mypartial.mdx\!)
+```
+
+...then the partial will render as follows:
+
+```markdown
+This is an example of a partial.
+
+A partial makes it possible to write docs pages more easily.
+```
+
+Default parameter assignments follow the same rules as parameter value
+assignments. Default parameter assignments must be separated by single spaces.
+Values must be enclosed in double quotes. Parameter names and values must be
+separated by a `=` character, and the `=` character must not be surrounded by
+spaces. 
 
 ## Image pixel density markers
 
@@ -360,9 +466,102 @@ To insert a details block like the one above, use this syntax:
 If `scopeOnly` is assigned to `{true}`, the component will only be visible
 in the provided scope and invisible in all other scopes.
 
+## In-page edits
+
+Teleport deeply integrates with a user's infrastructure, so configuration
+options, URLs, and other values often vary from setup to setup. Docs pages can
+define variables that users can edit, allowing them to tailor their
+documentation experience to their own environment.
+
+### The Var component
+
+To declare a variable, use the `Var` component, as shown in the two `code`
+snippets below:
+
+````markdown
+<Details title="Getting cluster information" opened>
+Log in to your Teleport cluster using the following command:
+
+```code
+$ tsh login --user=<Var name="user"/> --proxy=<Var name="proxy" description="Domain name of your Teleport Web UI" />
+```
+
+Get information about your Teleport cluster:
+
+```code
+$ curl https://<Var name="proxy"/>/webapi/ping
+```
+
+</Details>
+````
+
+Here is the result:
+
+<Details title="Getting cluster information" opened>
+Log in to your Teleport cluster using the following command:
+
+```code
+$ tsh login --user=<Var name="user"/> --proxy=<Var name="proxy" description="Domain name of your Teleport Web UI" />
+```
+
+Get information about your Teleport cluster:
+
+```code
+$ curl https://<Var name="proxy"/>/webapi/ping
+```
+
+</Details>
+
+<Admonition type="tip">
+
+The `Var` component only works in [code blocks](#code-blocks) using the `code`
+syntax (e.g. <code>```code</code>), and only for "command" lines (beginning
+with `$`). The component will work without caveats outside of code blocks.
+
+</Admonition>
+
+When a user updates the value of an in-page variable, the values of any `Var`
+components with the same `name` property update automatically. When you copy a
+`code` snippet using the copy button, the values of any in-page variables within
+the `code` snippet are added to the clipboard.
+
+The `description` field is used in the `VarList` component, which we explain in
+the next section. You only need to specify the `description` once.
+
+<Admonition type="tip" title="Global variables">
+
+Variables are scoped to a single page by default. You can make a variable
+preserve its value across all of the pages a user visits by adding the
+`isGlobal` property to the `<Var/>` tag. Variable values are not preserved
+between browser sessions.
+
+</Admonition>
+
+`Var` tags must be self closing (ending in `/>`).
+
+### The VarList component
+
+To provide a key for all of the global and page-local variables the docs have
+defined, use the `VarList` component:
+
+```markdown
+<Details title="Page variables" opened>
+<VarList/>
+</Details>
+```
+
+This results in the following:
+
+<Details title="Page variables" opened>
+<VarList/>
+</Details>
+
+The description we added to the `proxy` variable appears here. Since the `user`
+variable does not have a description, the `VarList` shows its name instead.
+
 ## Figures
 
-{/* TODO: Document all props */}
+{/* TODO: Document all props*/}
 
 The `Figure` component can help with using images, figures, and diagrams:
 
@@ -383,6 +582,27 @@ The `Figure` component can help with using images, figures, and diagrams:
   ![Example](../../../img/overview.png)
 </Figure>
 ```
+
+## Icons
+
+The `Icon` component lets you insert icons into documentation text. This is
+useful when referencing a UI element with an icon. For example:
+
+```md
+In the main menu, click on <Icon name="desktop" inline size="sm"/> **Desktops**
+to view desktops available to your Teleport user.
+```
+
+Which renders as:
+
+In the main menu, click on <Icon name="desktop" inline size="sm"/> **Desktops**
+to view desktops available to your Teleport user.
+
+<Details title="Available icons">
+
+(!docs/pages/includes/icons-table.mdx!)
+
+</Details>
 
 ## ScopedBlock
 

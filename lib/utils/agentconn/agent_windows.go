@@ -22,9 +22,8 @@ package agentconn
 import (
 	"net"
 
-	"github.com/gravitational/trace"
-
 	"github.com/Microsoft/go-winio"
+	"github.com/gravitational/trace"
 )
 
 const namedPipe = `\\.\pipe\openssh-ssh-agent`

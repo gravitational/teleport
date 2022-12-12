@@ -22,9 +22,17 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type TerminalServiceClient interface {
+	// UpdateTshdEventsServerAddress lets the Electron app update the address the tsh daemon is
+	// supposed to use when connecting to the tshd events gRPC service. This RPC needs to be made
+	// before any other from this service.
+	//
+	// The service is supposed to return a response from this call only after the client is ready.
+	UpdateTshdEventsServerAddress(ctx context.Context, in *UpdateTshdEventsServerAddressRequest, opts ...grpc.CallOption) (*UpdateTshdEventsServerAddressResponse, error)
 	// ListRootClusters lists root clusters
+	// Does not include detailed cluster information that would require a network request.
 	ListRootClusters(ctx context.Context, in *ListClustersRequest, opts ...grpc.CallOption) (*ListClustersResponse, error)
 	// ListLeafClusters lists leaf clusters
+	// Does not include detailed cluster information that would require a network request.
 	ListLeafClusters(ctx context.Context, in *ListLeafClustersRequest, opts ...grpc.CallOption) (*ListClustersResponse, error)
 	// GetAllDatabases lists all databases without pagination
 	GetAllDatabases(ctx context.Context, in *GetAllDatabasesRequest, opts ...grpc.CallOption) (*GetAllDatabasesResponse, error)
@@ -80,7 +88,8 @@ type TerminalServiceClient interface {
 	SetGatewayLocalPort(ctx context.Context, in *SetGatewayLocalPortRequest, opts ...grpc.CallOption) (*Gateway, error)
 	// GetAuthSettings returns cluster auth settigns
 	GetAuthSettings(ctx context.Context, in *GetAuthSettingsRequest, opts ...grpc.CallOption) (*AuthSettings, error)
-	// GetCluster returns a cluster
+	// GetCluster returns cluster. Makes a network request and includes detailed
+	// information about enterprise features availabed on the connected auth server
 	GetCluster(ctx context.Context, in *GetClusterRequest, opts ...grpc.CallOption) (*Cluster, error)
 	// Login logs in a user to a cluster
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
@@ -113,6 +122,15 @@ type terminalServiceClient struct {
 
 func NewTerminalServiceClient(cc grpc.ClientConnInterface) TerminalServiceClient {
 	return &terminalServiceClient{cc}
+}
+
+func (c *terminalServiceClient) UpdateTshdEventsServerAddress(ctx context.Context, in *UpdateTshdEventsServerAddressRequest, opts ...grpc.CallOption) (*UpdateTshdEventsServerAddressResponse, error) {
+	out := new(UpdateTshdEventsServerAddressResponse)
+	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TerminalService/UpdateTshdEventsServerAddress", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *terminalServiceClient) ListRootClusters(ctx context.Context, in *ListClustersRequest, opts ...grpc.CallOption) (*ListClustersResponse, error) {
@@ -443,9 +461,17 @@ func (x *terminalServiceTransferFileClient) Recv() (*FileTransferProgress, error
 // All implementations must embed UnimplementedTerminalServiceServer
 // for forward compatibility
 type TerminalServiceServer interface {
+	// UpdateTshdEventsServerAddress lets the Electron app update the address the tsh daemon is
+	// supposed to use when connecting to the tshd events gRPC service. This RPC needs to be made
+	// before any other from this service.
+	//
+	// The service is supposed to return a response from this call only after the client is ready.
+	UpdateTshdEventsServerAddress(context.Context, *UpdateTshdEventsServerAddressRequest) (*UpdateTshdEventsServerAddressResponse, error)
 	// ListRootClusters lists root clusters
+	// Does not include detailed cluster information that would require a network request.
 	ListRootClusters(context.Context, *ListClustersRequest) (*ListClustersResponse, error)
 	// ListLeafClusters lists leaf clusters
+	// Does not include detailed cluster information that would require a network request.
 	ListLeafClusters(context.Context, *ListLeafClustersRequest) (*ListClustersResponse, error)
 	// GetAllDatabases lists all databases without pagination
 	GetAllDatabases(context.Context, *GetAllDatabasesRequest) (*GetAllDatabasesResponse, error)
@@ -501,7 +527,8 @@ type TerminalServiceServer interface {
 	SetGatewayLocalPort(context.Context, *SetGatewayLocalPortRequest) (*Gateway, error)
 	// GetAuthSettings returns cluster auth settigns
 	GetAuthSettings(context.Context, *GetAuthSettingsRequest) (*AuthSettings, error)
-	// GetCluster returns a cluster
+	// GetCluster returns cluster. Makes a network request and includes detailed
+	// information about enterprise features availabed on the connected auth server
 	GetCluster(context.Context, *GetClusterRequest) (*Cluster, error)
 	// Login logs in a user to a cluster
 	Login(context.Context, *LoginRequest) (*EmptyResponse, error)
@@ -533,6 +560,9 @@ type TerminalServiceServer interface {
 type UnimplementedTerminalServiceServer struct {
 }
 
+func (UnimplementedTerminalServiceServer) UpdateTshdEventsServerAddress(context.Context, *UpdateTshdEventsServerAddressRequest) (*UpdateTshdEventsServerAddressResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateTshdEventsServerAddress not implemented")
+}
 func (UnimplementedTerminalServiceServer) ListRootClusters(context.Context, *ListClustersRequest) (*ListClustersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListRootClusters not implemented")
 }
@@ -637,6 +667,24 @@ type UnsafeTerminalServiceServer interface {
 
 func RegisterTerminalServiceServer(s grpc.ServiceRegistrar, srv TerminalServiceServer) {
 	s.RegisterService(&TerminalService_ServiceDesc, srv)
+}
+
+func _TerminalService_UpdateTshdEventsServerAddress_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateTshdEventsServerAddressRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).UpdateTshdEventsServerAddress(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/teleport.terminal.v1.TerminalService/UpdateTshdEventsServerAddress",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).UpdateTshdEventsServerAddress(ctx, req.(*UpdateTshdEventsServerAddressRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _TerminalService_ListRootClusters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -1215,6 +1263,10 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "teleport.terminal.v1.TerminalService",
 	HandlerType: (*TerminalServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "UpdateTshdEventsServerAddress",
+			Handler:    _TerminalService_UpdateTshdEventsServerAddress_Handler,
+		},
 		{
 			MethodName: "ListRootClusters",
 			Handler:    _TerminalService_ListRootClusters_Handler,

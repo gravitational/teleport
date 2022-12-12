@@ -22,8 +22,9 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api"
 )
 
 // KubeServer represents a single Kubernetes server.
@@ -79,7 +80,7 @@ func NewKubernetesServerV3FromCluster(cluster *KubernetesClusterV3, hostname, ho
 
 // NewLegacyKubeServer creates legacy Kube server object. Used in tests.
 //
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func NewLegacyKubeServer(cluster *KubernetesClusterV3, hostname, hostID string) (Server, error) {
 	return NewServer(hostID, KindKubeService,
 		ServerSpecV2{
@@ -96,7 +97,7 @@ func NewLegacyKubeServer(cluster *KubernetesClusterV3, hostname, hostID string) 
 
 // NewKubeServersV3FromServer creates a list of kube servers from a legacy Server resource.
 //
-// DELETE IN 12.0.0
+// DELETE IN 13.0.0
 func NewKubeServersV3FromServer(server Server) (result []KubeServer, err error) {
 	for _, legacyCluster := range server.GetKubernetesClusters() {
 		kubeCluster, err := NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), legacyCluster)

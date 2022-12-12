@@ -78,11 +78,11 @@ service DeviceTrustService {
   // ListDevices lists all registered devices.
   rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
 
-  // BulkCreateDevice is a bulk variant of CreateDevice.
+  // BulkCreateDevices is a bulk variant of CreateDevice.
   //
   // Unlike CreateDevice, it does not support creation of enrollment tokens, as
   // it is meant for bulk inventory registration.
-  rpc BulkCreateDevice(BulkCreateDeviceRequest) returns (BulkCreateDeviceResponse);
+  rpc BulkCreateDevices(BulkCreateDevicesRequest) returns (BulkCreateDevicesResponse);
 
   // CreateDeviceEnrollToken creates a DeviceEnrollToken for a Device.
   // An enrollment token is required for the enrollment ceremony. See
@@ -186,14 +186,14 @@ enum DeviceView {
   DEVICE_VIEW_RESOURCE = 2;
 }
 
-// Request for BulkCreateDevice.
-message BulkCreateDeviceRequest {
+// Request for BulkCreateDevices.
+message BulkCreateDevicesRequest {
   // Devices to create.
   repeated Device devices = 1;
 }
 
-// Response for BulkCreateDevice.
-message BulkCreateDeviceResponse {
+// Response for BulkCreateDevices.
+message BulkCreateDevicesResponse {
   // Created devices or a failure reason.
   // Responses are sorted according to the request.
   repeated DeviceOrStatus devices = 1;
@@ -203,6 +203,8 @@ message BulkCreateDeviceResponse {
 // in case of failures.
 message DeviceOrStatus {
   // Status of the operation.
+  // May either be absent or contain the OK code for successes, at the
+  // implementation's discretion.
   google.rpc.Status status = 1;
 
   // ID of the created device.
