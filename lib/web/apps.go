@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -63,7 +64,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	apps, numExcludedApps := removeTCPApps(appServers)
+	apps := removeUnsupportedApps(appServers)
 
 	return listResourcesGetResponse{
 		Items: ui.MakeApps(ui.MakeAppsConfig{
@@ -74,7 +75,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 			Apps:              apps,
 		}),
 		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount - numExcludedApps,
+		TotalCount: len(apps),
 	}, nil
 }
 
@@ -357,15 +358,20 @@ func (h *Handler) proxyDNSNames() (dnsNames []string) {
 	return dnsNames
 }
 
-// removeTCPApps filters TCP apps out of the list of app servers.
-// TCP apps are filtered out because they are not accessible from the web UI.
-// It returns the HTTP apps and the number of TCP apps that were removed.
-func removeTCPApps(appServers []types.AppServer) (apps types.Apps, numExcluded int) {
+// removeUnsupportedApps filters unsupported (TCP, Cloud API-only) apps out of the list of app servers.
+func removeUnsupportedApps(appServers []types.AppServer) (apps types.Apps) {
 	for _, server := range appServers {
-		// Skip over TCP apps since they cannot be accessed through web UI.
-		if !server.GetApp().IsTCP() {
-			apps = append(apps, server.GetApp())
+		a := server.GetApp()
+		// Skip over API-only Cloud apps
+		if strings.HasPrefix(a.GetURI(), "cloud://") {
+			continue
 		}
+
+		// Skip over TCP apps since they cannot be accessed through web UI.
+		if server.GetApp().IsTCP() {
+			continue
+		}
+		apps = append(apps, server.GetApp())
 	}
-	return apps, len(appServers) - len(apps)
+	return apps
 }
