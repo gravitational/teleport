@@ -194,11 +194,11 @@ func TestKnownHosts(t *testing.T) {
 		_, p2, _ := s.keygen.GenerateKeyPair()
 		pub2, _, _, _, _ := ssh.ParseAuthorizedKey(p2)
 
-		err = s.store.AddKnownHostKeys("example.com", "proxy.example.com", []ssh.PublicKey{pub})
+		err = addTrustedHostKeys(s.store, "proxy.example.com", "example.com", pub)
 		require.NoError(t, err)
-		err = s.store.AddKnownHostKeys("example.com", "proxy.example.com", []ssh.PublicKey{pub2})
+		err = addTrustedHostKeys(s.store, "proxy.example.com", "example.com", pub2)
 		require.NoError(t, err)
-		err = s.store.AddKnownHostKeys("example.org", "proxy.example.org", []ssh.PublicKey{pub2})
+		err = addTrustedHostKeys(s.store, "proxy.example.org", "example.org", pub2)
 		require.NoError(t, err)
 
 		keys, err := s.store.GetKnownHostKeys("")
@@ -208,9 +208,9 @@ func TestKnownHosts(t *testing.T) {
 
 		// check against dupes:
 		before, _ := s.store.GetKnownHostKeys("")
-		err = s.store.AddKnownHostKeys("example.org", "proxy.example.org", []ssh.PublicKey{pub2})
+		err = addTrustedHostKeys(s.store, "proxy.example.org", "example.org", pub2)
 		require.NoError(t, err)
-		err = s.store.AddKnownHostKeys("example.org", "proxy.example.org", []ssh.PublicKey{pub2})
+		err = addTrustedHostKeys(s.store, "proxy.example.org", "example.org", pub2)
 		require.NoError(t, err)
 		after, _ := s.store.GetKnownHostKeys("")
 		require.Equal(t, len(before), len(after))
@@ -239,7 +239,7 @@ func TestKnownHosts(t *testing.T) {
 		pub, _, _, _, err := ssh.ParseAuthorizedKey(CAPub)
 		require.NoError(t, err)
 
-		err = s.store.AddKnownHostKeys("example1.com", "proxy.example1.com", []ssh.PublicKey{pub})
+		err = addTrustedHostKeys(s.store, "proxy.example1.com", "example1.com", pub)
 		require.NoError(t, err)
 
 		var wg sync.WaitGroup
@@ -249,7 +249,7 @@ func TestKnownHosts(t *testing.T) {
 				_, p2, _ := s.keygen.GenerateKeyPair()
 				tmpPub, _, _, _, _ := ssh.ParseAuthorizedKey(p2)
 
-				err := s.store.AddKnownHostKeys("example2.com", "proxy.example2.com", []ssh.PublicKey{tmpPub})
+				err := addTrustedHostKeys(s.store, "proxy.example2.com", "example2.com", tmpPub)
 				assert.NoError(t, err)
 
 				_, err = s.store.GetKnownHostKeys("")
@@ -302,7 +302,7 @@ func TestProxySSHConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	firsthost := "127.0.0.1"
-	err = s.store.AddKnownHostKeys(firsthost, idx.ProxyHost, []ssh.PublicKey{caPub})
+	err = addTrustedHostKeys(s.store, idx.ProxyHost, firsthost, caPub)
 	require.NoError(t, err)
 
 	clientConfig, err := key.ProxyClientSSHConfig(s.store, firsthost)
@@ -370,7 +370,7 @@ func TestProxySSHConfig(t *testing.T) {
 	require.NoError(t, err)
 	caPub22, _, _, _, err := ssh.ParseAuthorizedKey(spub)
 	require.NoError(t, err)
-	err = s.store.AddKnownHostKeys("second-host", idx.ProxyHost, []ssh.PublicKey{caPub22})
+	err = addTrustedHostKeys(s.store, idx.ProxyHost, "second-host", caPub22)
 	require.NoError(t, err)
 
 	// The ProxyClientSSHConfig should create configuration that validates server authority only based on
@@ -438,7 +438,7 @@ func TestSaveGetTrustedCerts(t *testing.T) {
 			TLSCertificates: secondLeafCluster.TLSCertificates,
 		},
 	}
-	err = s.store.SaveTrustedCerts(proxy, cas)
+	err = s.store.AddTrustedCerts(proxy, cas)
 	require.NoError(t, err)
 
 	blocks, err := s.store.GetTrustedCertsPEM(proxy)
@@ -482,7 +482,7 @@ func TestConfigDirNotDeleted(t *testing.T) {
 
 type keyStoreTest struct {
 	storeDir  string
-	store     *FSLocalKeyStore
+	store     *FSClientStore
 	keygen    *testauthority.Keygen
 	tlsCA     *tlsca.CertAuthority
 	tlsCACert auth.TrustedCerts
@@ -493,7 +493,7 @@ func (s *keyStoreTest) addKey(key *Key) error {
 		return err
 	}
 	// Also write the trusted CA certs for the host.
-	return s.store.SaveTrustedCerts(key.ProxyHost, []auth.TrustedCerts{s.tlsCACert})
+	return s.store.AddTrustedCerts(key.ProxyHost, []auth.TrustedCerts{s.tlsCACert})
 }
 
 // makeSignedKey helper returns all 3 components of a user key (signed by CAPriv key)
@@ -541,7 +541,7 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired boo
 	key.PrivateKey = priv
 	key.Cert = cert
 	key.TLSCert = tlsCert
-	key.TrustedCA = []auth.TrustedCerts{s.tlsCACert}
+	key.TrustedCerts = []auth.TrustedCerts{s.tlsCACert}
 	key.DBTLSCerts["example-db"] = tlsCert
 	return key
 }
@@ -569,7 +569,7 @@ func newTest(t *testing.T) (keyStoreTest, func()) {
 	dir, err := os.MkdirTemp("", "teleport-keystore")
 	require.NoError(t, err)
 
-	store, err := NewFSLocalKeyStore(dir)
+	store, err := NewFSClientStore(dir)
 	require.NoError(t, err)
 
 	s := keyStoreTest{
@@ -624,16 +624,14 @@ func TestMemLocalKeyStore(t *testing.T) {
 	defer cleanup()
 
 	// create keystore
-	dir := t.TempDir()
-	keystore, err := NewMemLocalKeyStore(dir)
-	require.NoError(t, err)
+	keystore := NewMemClientStore()
 
 	// create a test key
 	idx := KeyIndex{"test.com", "test", "root"}
 	key := s.makeSignedKey(t, idx, false)
 
 	// add the test key to the memory store
-	err = keystore.AddKey(key)
+	err := keystore.AddKey(key)
 	require.NoError(t, err)
 
 	// check that the key exists in the store
@@ -667,27 +665,4 @@ func TestMemLocalKeyStore(t *testing.T) {
 	retrievedKey, err = keystore.GetKey(idx)
 	require.Error(t, err)
 	require.Nil(t, retrievedKey)
-}
-
-func TestMatchesWildcard(t *testing.T) {
-	// Not a wildcard pattern.
-	require.False(t, matchesWildcard("foo.example.com", "example.com"))
-
-	// Not a match.
-	require.False(t, matchesWildcard("foo.example.org", "*.example.com"))
-
-	// Too many levels deep.
-	require.False(t, matchesWildcard("a.b.example.com", "*.example.com"))
-
-	// Single-part hostnames never match.
-	require.False(t, matchesWildcard("example", "*.example.com"))
-	require.False(t, matchesWildcard("example", "*.example"))
-	require.False(t, matchesWildcard("example", "example"))
-	require.False(t, matchesWildcard("example", "*."))
-
-	// Valid wildcard matches.
-	require.True(t, matchesWildcard("foo.example.com", "*.example.com"))
-	require.True(t, matchesWildcard("bar.example.com", "*.example.com"))
-	require.True(t, matchesWildcard("bar.example.com.", "*.example.com"))
-	require.True(t, matchesWildcard("bar.foo", "*.foo"))
 }

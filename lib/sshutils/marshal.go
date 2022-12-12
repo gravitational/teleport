@@ -45,15 +45,19 @@ func MarshalAuthorizedKeysFormat(clusterName string, keyBytes []byte) (string, e
 // authorized_hosts format, a space-separated list of: marker, hosts, key, and comment.
 // For example:
 //
-//	@cert-authority *.cluster-a,cluster-a ssh-rsa AAA... type=host
+//	@cert-authority proxy.example.com,cluster-a,*.cluster-a ssh-rsa AAA... type=host
 //
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
-func MarshalAuthorizedHostsFormat(clusterName string, keyBytes []byte, logins []string) (string, error) {
+func MarshalAuthorizedHostsFormat(clusterName, proxyHost string, keyBytes []byte, logins ...string) string {
 	comment := url.Values{
 		"type":   []string{"host"},
 		"logins": logins,
 	}
 
-	return fmt.Sprintf("@cert-authority %s,*.%s %s %s",
-		clusterName, clusterName, strings.TrimSpace(string(keyBytes)), comment.Encode()), nil
+	hosts := []string{clusterName, "*." + clusterName}
+	if proxyHost != "" {
+		hosts = append(hosts, proxyHost)
+	}
+
+	return fmt.Sprintf("@cert-authority %s %s %s", strings.Join(hosts, ","), strings.TrimSpace(string(keyBytes)), comment.Encode())
 }

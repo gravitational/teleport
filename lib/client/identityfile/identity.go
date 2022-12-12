@@ -207,14 +207,11 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			},
 		}
 		// append trusted host certificate authorities
-		for _, ca := range cfg.Key.TrustedCA {
+		for _, ca := range cfg.Key.TrustedCerts {
 			// append ssh ca certificates
 			for _, publicKey := range ca.HostCertificates {
-				data, err := sshutils.MarshalAuthorizedHostsFormat(ca.ClusterName, publicKey, nil)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				idFile.CACerts.SSH = append(idFile.CACerts.SSH, []byte(data))
+				authorizedHost := sshutils.MarshalAuthorizedHostsFormat(ca.ClusterName, cfg.Key.ProxyHost, publicKey)
+				idFile.CACerts.SSH = append(idFile.CACerts.SSH, []byte(authorizedHost))
 			}
 			// append tls ca certificates
 			idFile.CACerts.TLS = append(idFile.CACerts.TLS, ca.TLSCertificates...)
@@ -275,7 +272,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 		var caCerts []byte
-		for _, ca := range cfg.Key.TrustedCA {
+		for _, ca := range cfg.Key.TrustedCerts {
 			for _, cert := range ca.TLSCertificates {
 				caCerts = append(caCerts, cert...)
 			}
@@ -299,7 +296,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 		var caCerts []byte
-		for _, ca := range cfg.Key.TrustedCA {
+		for _, ca := range cfg.Key.TrustedCerts {
 			for _, cert := range ca.TLSCertificates {
 				caCerts = append(caCerts, cert...)
 			}
@@ -317,7 +314,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		}
 
 		var caCerts []byte
-		for _, ca := range cfg.Key.TrustedCA {
+		for _, ca := range cfg.Key.TrustedCerts {
 			for _, cert := range ca.TLSCertificates {
 				block, _ := pem.Decode(cert)
 				cert, err := x509.ParseCertificate(block.Bytes)
@@ -422,7 +419,7 @@ func writeCassandraFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error
 
 func prepareCassandraTruststore(cfg WriteConfig) (*bytes.Buffer, error) {
 	var caCerts []byte
-	for _, ca := range cfg.Key.TrustedCA {
+	for _, ca := range cfg.Key.TrustedCerts {
 		for _, cert := range ca.TLSCertificates {
 			block, _ := pem.Decode(cert)
 			caCerts = append(caCerts, block.Bytes...)

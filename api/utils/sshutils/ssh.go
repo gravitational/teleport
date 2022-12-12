@@ -24,6 +24,7 @@ import (
 	"io"
 	"net"
 	"regexp"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -68,21 +69,73 @@ func ParseCertificate(buf []byte) (*ssh.Certificate, error) {
 }
 
 // ParseKnownHosts parses provided known_hosts entries into ssh.PublicKey list.
-func ParseKnownHosts(knownHosts [][]byte) ([]ssh.PublicKey, error) {
+// If one or more hostnames are provided, only keys that have at least one match
+// will be returned.
+func ParseKnownHosts(knownHosts [][]byte, matchHostname ...string) ([]ssh.PublicKey, error) {
+	hostnameMatch := func(hosts []string) bool {
+		if len(matchHostname) == 0 {
+			return true
+		}
+
+		for _, matchHost := range matchHostname {
+			for _, host := range hosts {
+				if host == matchHost || matchesWildcard(matchHost, host) {
+					return true
+				}
+			}
+		}
+
+		return false
+	}
+
 	var keys []ssh.PublicKey
 	for _, line := range knownHosts {
 		for {
-			_, _, publicKey, _, bytes, err := ssh.ParseKnownHosts(line)
+			_, hosts, publicKey, _, bytes, err := ssh.ParseKnownHosts(line)
 			if err == io.EOF {
 				break
 			} else if err != nil {
 				return nil, trace.Wrap(err, "failed parsing known hosts: %v; raw line: %q", err, line)
 			}
-			keys = append(keys, publicKey)
+
+			if hostnameMatch(hosts) {
+				keys = append(keys, publicKey)
+			}
+
 			line = bytes
 		}
 	}
 	return keys, nil
+}
+
+// matchesWildcard ensures the given `hostname` matches the given `pattern`.
+// The `pattern` may be prefixed with `*.` which will match exactly one domain
+// segment, meaning `*.example.com` will match `foo.example.com` but not
+// `foo.bar.example.com`.
+func matchesWildcard(hostname, pattern string) bool {
+	// Trim any trailing "." in case of an absolute domain.
+	hostname = strings.TrimSuffix(hostname, ".")
+
+	// Don't allow non-wildcard patterns.
+	if !strings.HasPrefix(pattern, "*.") {
+		return false
+	}
+
+	// Never match a top-level hostname.
+	if !strings.Contains(hostname, ".") {
+		return false
+	}
+
+	// Don't allow empty matches.
+	pattern = pattern[2:]
+	if strings.TrimSpace(pattern) == "" {
+		return false
+	}
+
+	hostnameParts := strings.Split(hostname, ".")
+	hostnameRoot := strings.Join(hostnameParts[1:], ".")
+
+	return hostnameRoot == pattern
 }
 
 // ParseAuthorizedKeys parses provided authorized_keys entries into ssh.PublicKey list.

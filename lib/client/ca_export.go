@@ -290,5 +290,5 @@ func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client auth.ClientI) 
 		return "", trace.Wrap(err)
 	}
 	allowedLogins, _ := roles.GetLoginsForTTL(apidefaults.MinCertDuration + time.Second)
-	return sshutils.MarshalAuthorizedHostsFormat(ca.GetClusterName(), keyBytes, allowedLogins)
+	return sshutils.MarshalAuthorizedHostsFormat(ca.GetClusterName(), "" /* proxyHost */, keyBytes, allowedLogins...), nil
 }

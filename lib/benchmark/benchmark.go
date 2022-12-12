@@ -275,7 +275,7 @@ func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, erro
 		Host:   host,
 		Tracer: tracing.NoopProvider().Tracer("test"),
 	}
-	path := profile.FullProfilePath("")
+
 	if login != "" {
 		c.HostLogin = login
 		c.Username = login
@@ -283,7 +283,12 @@ func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, erro
 	if proxy != "" {
 		c.SSHProxyAddr = proxy
 	}
-	if err := c.LoadProfile(path, proxy); err != nil {
+
+	keyStore, err := client.NewFSClientStore(profile.FullProfilePath(""))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := c.LoadProfile(keyStore, proxy); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	tc, err := client.NewClient(&c)

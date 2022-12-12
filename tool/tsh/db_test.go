@@ -124,8 +124,11 @@ func TestDatabaseLogin(t *testing.T) {
 			require.NoError(t, err)
 
 			// Fetch the active profile.
-			profile, err := client.StatusFor(tmpHomePath, proxyAddr.Host(), alice.GetName())
+			keyStore, err := client.NewFSClientStore(tmpHomePath)
 			require.NoError(t, err)
+			profile, err := client.ReadProfileStatus(keyStore, proxyAddr.Host())
+			require.NoError(t, err)
+			require.Equal(t, alice.GetName(), profile.Username)
 
 			// Verify certificates.
 			certs, keys, err := decodePEM(profile.DatabaseCertPathForCluster("", test.databaseName))

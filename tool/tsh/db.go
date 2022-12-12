@@ -52,13 +52,12 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(listDatabasesAllClusters(cf))
 	}
 
-	// Retrieve profile to be able to show which databases user is logged into.
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	tc, err := makeClient(cf, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	tc, err := makeClient(cf, false)
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -205,7 +204,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 	dbListings := <-dbListingsResultChan
 	sort.Sort(dbListings)
 
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := cf.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -287,7 +286,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 		return trace.Wrap(err)
 	}
 
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -319,7 +318,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	}
 
 	// Refresh the profile.
-	profile, err = client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err = tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -334,7 +333,7 @@ func onDatabaseLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -460,7 +459,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -723,7 +722,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -958,7 +957,7 @@ func isMFADatabaseAccessRequired(cf *CLIConf, tc *client.TeleportClient, databas
 // If logged into multiple databases, returns an error unless one specified
 // explicitly via --db flag.
 func pickActiveDatabase(cf *CLIConf) (*tlsca.RouteToDatabase, error) {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := cf.ProfileStatus()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -397,10 +397,10 @@ type TrustedCerts struct {
 	// for host authorities that means base hostname of all servers,
 	// for user authorities that means organization name
 	ClusterName string `json:"domain_name"`
-	// HostCertificates is a list of SSH public keys that can be used to check
-	// host certificate signatures
+	// HostCertificates is a list of SSH public keys in authorized_keys format
+	// that can be used to check host certificate signatures.
 	HostCertificates [][]byte `json:"checking_keys"`
-	// TLSCertificates  is a list of TLS certificates of the certificate authority
+	// TLSCertificates is a list of TLS certificates of the certificate authority
 	// of the authentication server
 	TLSCertificates [][]byte `json:"tls_certs"`
 }

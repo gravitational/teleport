@@ -68,7 +68,7 @@ type Certs struct {
 
 // CACerts contains PEM encoded CA certificates.
 type CACerts struct {
-	// SSH are CA certs used for SSH.
+	// SSH are CA certs used for SSH in known_hosts format.
 	SSH [][]byte
 	// TLS are CA certs used for TLS.
 	TLS [][]byte

@@ -367,8 +367,8 @@ type sshTrustedHostKeyWrapper struct {
 }
 
 // GetKnownHostKeys returns know trusted key for a particular hostname.
-func (m *sshTrustedHostKeyWrapper) GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error) {
-	ca, err := m.Key.SSHCAsForClusters([]string{hostname})
+func (m *sshTrustedHostKeyWrapper) GetKnownHostKeys(hostnames ...string) ([]ssh.PublicKey, error) {
+	ca, err := m.Key.TrustedCAHostKeysForCluster(hostnames)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -385,16 +385,20 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 		return nil, trace.NotFound("identity has been supplied, skip loading the config")
 	}
 
+	keyStore, err := client.NewFSClientStore(cfg.TeleportHome)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	proxyAddr := ""
 	if len(ccf.AuthServerAddr) != 0 {
 		proxyAddr = ccf.AuthServerAddr[0]
 	}
-	profile, _, err := client.Status(cfg.TeleportHome, proxyAddr)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
+	profile, err := client.ReadProfileStatus(keyStore, proxyAddr)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
 	}
+
 	// client is already logged in using tsh login and profile is not expired
 	if profile == nil {
 		return nil, trace.NotFound("profile is not found")
@@ -403,16 +407,12 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 		return nil, trace.BadParameter("your credentials have expired, please login using `tsh login`")
 	}
 
-	log.WithFields(log.Fields{"proxy": profile.ProxyURL.String(), "user": profile.Username}).Debugf("Found active profile.")
-
 	c := client.MakeDefaultConfig()
-	if err := c.LoadProfile(cfg.TeleportHome, proxyAddr); err != nil {
+	log.WithFields(log.Fields{"proxy": profile.ProxyURL.String(), "user": profile.Username}).Debugf("Found active profile.")
+	if err := c.LoadProfile(keyStore, proxyAddr); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keyStore, err := client.NewFSLocalKeyStore(c.KeysDir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	webProxyHost, _ := c.WebProxyHostPort()
 	idx := client.KeyIndex{ProxyHost: webProxyHost, Username: c.Username, ClusterName: profile.Cluster}
 	key, err := keyStore.GetKey(idx, client.WithSSHCerts{})

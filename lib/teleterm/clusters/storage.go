@@ -161,7 +161,7 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 		return nil, trace.Wrap(err)
 	}
 
-	if err := cfg.SaveProfile(s.Dir, false); err != nil {
+	if err := cfg.SaveProfile(false); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -185,8 +185,13 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 	clusterNameForKey := profileName
 	clusterURI := uri.NewClusterURI(profileName)
 
+	keyStore, err := client.NewFSClientStore(s.Dir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg := client.MakeDefaultConfig()
-	if err := cfg.LoadProfile(s.Dir, profileName); err != nil {
+	if err := cfg.LoadProfile(keyStore, profileName); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	cfg.KeysDir = s.Dir
@@ -213,7 +218,7 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 	}
 
 	if err == nil && cfg.Username != "" {
-		status, err = client.ReadProfileStatus(s.Dir, profileName)
+		status, err = clusterClient.ProfileStatus()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

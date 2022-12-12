@@ -95,7 +95,7 @@ func newClientKey(t *testing.T) *client.Key {
 		PrivateKey: privateKey,
 		Cert:       certificate,
 		TLSCert:    tlsCert,
-		TrustedCA: []auth.TrustedCerts{
+		TrustedCerts: []auth.TrustedCerts{
 			tc,
 		},
 		KeyIndex: client.KeyIndex{
