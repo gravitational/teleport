@@ -408,7 +408,7 @@ func buildKeyLabel(key string, sensitivePrefixes []string) string {
 // sensitive values.
 var sensitiveBackendPrefixes = []string{
 	"tokens",
-	"resetpasswordtokens",
+	"usertoken",
 	"adduseru2fchallenges",
 	"access_requests",
 }
