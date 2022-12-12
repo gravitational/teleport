@@ -40,6 +40,7 @@ func Commands() []CLICommand {
 		&RecordingsCommand{},
 		&AlertCommand{},
 		&ProxyCommand{},
+		&VersionControlCommand{},
 	}
 }
 

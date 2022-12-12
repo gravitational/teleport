@@ -25,7 +25,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apiutils "github.com/gravitational/teleport/api/utils"
-	vc "github.com/gravitational/teleport/lib/versioncontrol"
+	vc "github.com/gravitational/teleport/api/versioncontrol"
+	libvc "github.com/gravitational/teleport/lib/versioncontrol"
 )
 
 // TestGithubAPI tests the github releases iterator against the real github
@@ -282,7 +283,7 @@ func TestVisit(t *testing.T) {
 			return parsePage([]byte(page))
 		}
 
-		visitor := vc.Visitor{
+		visitor := libvc.Visitor{
 			Current: vc.NewTarget("v1.2.3"),
 		}
 

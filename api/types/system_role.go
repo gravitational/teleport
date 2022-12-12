@@ -135,18 +135,28 @@ func NewTeleportRoles(in []string) (SystemRoles, error) {
 func ParseTeleportRoles(str string) (SystemRoles, error) {
 	var roles SystemRoles
 	for _, s := range strings.Split(str, ",") {
-		cleaned := strings.ToLower(strings.TrimSpace(s))
-		if r, ok := roleMappings[cleaned]; ok && r.Check() == nil {
-			roles = append(roles, r)
-			continue
+
+		r, ok := ParseTeleportRole(s)
+		if !ok {
+			return nil, trace.BadParameter("invalid role %q", str)
 		}
-		return nil, trace.BadParameter("invalid role %q", s)
+		roles = append(roles, r)
 	}
 	if len(roles) == 0 {
 		return nil, trace.BadParameter("no valid roles in $%q", str)
 	}
 
 	return roles, roles.Check()
+}
+
+// ParseTeleportRole takes a string or SystemRole and attempts to convert it to a canonical
+// system role value.
+func ParseTeleportRole[S ~string](str S) (role SystemRole, ok bool) {
+	cleaned := strings.ToLower(strings.TrimSpace(string(str)))
+	if r, ok := roleMappings[cleaned]; ok && r.Check() == nil {
+		return r, true
+	}
+	return "", false
 }
 
 // Include returns 'true' if a given list of teleport roles includes a given role

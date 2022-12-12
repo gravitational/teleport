@@ -1583,6 +1583,7 @@ type ClientI interface {
 	services.WindowsDesktops
 	WebService
 	services.Status
+	services.VersionControl
 	services.ClusterConfiguration
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic

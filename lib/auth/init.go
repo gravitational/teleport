@@ -138,6 +138,9 @@ type InitConfig struct {
 	// Status is a service that manages cluster status info.
 	Status services.StatusInternal
 
+	// VersionControl is a service that manages teleport upgrades.
+	VersionControl services.VersionControl
+
 	// Roles is a set of roles to create
 	Roles []types.Role
 

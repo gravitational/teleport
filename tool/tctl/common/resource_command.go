@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gravitational/kingpin"
@@ -108,6 +109,8 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindToken:                   rc.createToken,
 		types.KindInstaller:               rc.createInstaller,
 		types.KindNode:                    rc.createNode,
+		types.KindVersionControlInstaller: rc.createVersionControlInstaller,
+		types.KindVersionDirective:        rc.createVersionDirective,
 	}
 	rc.config = config
 
@@ -640,6 +643,39 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, 
 
 	_, err = client.UpsertNode(ctx, server)
 	return trace.Wrap(err)
+}
+
+func (rc *ResourceCommand) createVersionControlInstaller(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	var installer types.VersionControlInstaller
+	switch strings.ReplaceAll(raw.SubKind, "-", "_") {
+	case types.SubKindLocalScript:
+		var i types.LocalScriptInstallerV1
+		if err := utils.FastUnmarshal(raw.Raw, &i); err != nil {
+			return trace.Wrap(err)
+		}
+		installer = &i
+	default:
+		return trace.BadParameter("unknown version control installer sub_kind %q", raw.SubKind)
+	}
+
+	if err := client.UpsertVersionControlInstaller(ctx, installer); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (rc *ResourceCommand) createVersionDirective(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	var directive types.VersionDirectiveV1
+	if err := utils.FastUnmarshal(raw.Raw, &directive); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := client.UpsertVersionDirective(ctx, &directive); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // Delete deletes resource by name

@@ -28,9 +28,9 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	vc "github.com/gravitational/teleport/api/versioncontrol"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-	vc "github.com/gravitational/teleport/lib/versioncontrol"
 )
 
 // we use dedicated global jitters for all the intervals/retires in this
@@ -202,6 +202,8 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 				return trace.BadParameter("unexpected downstream hello")
 			case proto.DownstreamInventoryPing:
 				h.handlePing(sender, m)
+			case proto.InventoryExec:
+				panic("TODO")
 			default:
 				return trace.BadParameter("unexpected downstream message type: %T", m)
 			}

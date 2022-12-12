@@ -61,6 +61,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	vc "github.com/gravitational/teleport/api/versioncontrol"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -85,7 +86,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-	vc "github.com/gravitational/teleport/lib/versioncontrol"
+	libvc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/github"
 )
 
@@ -152,6 +153,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if cfg.Status == nil {
 		cfg.Status = local.NewStatusService(cfg.Backend)
+	}
+	if cfg.VersionControl == nil {
+		cfg.VersionControl = local.NewVersionControlService(cfg.Backend)
 	}
 	if cfg.Events == nil {
 		cfg.Events = local.NewEventsService(cfg.Backend)
@@ -236,6 +240,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Enforcer:              cfg.Enforcer,
 		ConnectionsDiagnostic: cfg.ConnectionsDiagnostic,
 		StatusInternal:        cfg.Status,
+		VersionControl:        cfg.VersionControl,
 		UsageReporter:         cfg.UsageReporter,
 	}
 
@@ -314,6 +319,7 @@ type Services struct {
 	services.Enforcer
 	services.ConnectionsDiagnostic
 	services.StatusInternal
+	services.VersionControl
 	services.UsageReporter
 	types.Events
 	events.IAuditLog
@@ -633,7 +639,7 @@ func (a *Server) syncReleaseAlerts(ctx context.Context, checkRemote bool) {
 		current = t
 	}
 
-	visitor := vc.Visitor{
+	visitor := libvc.Visitor{
 		Current: current,
 	}
 
@@ -665,7 +671,7 @@ func (a *Server) syncReleaseAlerts(ctx context.Context, checkRemote bool) {
 // of existing alerts. This lets us "reevaluate" the alerts based on newer cluster state without
 // re-pulling the releases page. Future version of teleport will cache actual full release
 // descriptions, rending this unnecessary.
-func (a *Server) visitCachedAlertVersions(ctx context.Context, visitor *vc.Visitor) error {
+func (a *Server) visitCachedAlertVersions(ctx context.Context, visitor *libvc.Visitor) error {
 	// reconstruct the target for the "latest stable" alert if it exists.
 	alert, err := a.getClusterAlert(ctx, releaseAlertID)
 	if err != nil && !trace.IsNotFound(err) {
@@ -703,13 +709,13 @@ func (a *Server) getClusterAlert(ctx context.Context, id string) (types.ClusterA
 	return alerts[0], nil
 }
 
-func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visitor vc.Visitor, cleanup bool) {
+func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visitor libvc.Visitor, cleanup bool) {
 	const alertTTL = time.Minute * 30
 	// use visitor to find the oldest version among connected instances.
 	// TODO(fspmarshall): replace this check as soon as we have a backend inventory repr. using
 	// connected instances is a poor approximation and may lead to missed notifications if auth
 	// server is up to date, but instances not connected to this auth need update.
-	var instanceVisitor vc.Visitor
+	var instanceVisitor libvc.Visitor
 	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
 		v := vc.Normalize(handle.Hello().Version)
 		instanceVisitor.Visit(vc.NewTarget(v))
@@ -786,7 +792,7 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 
 // makeUpgradeSuggestionMsg generates an upgrade suggestion alert msg if one is
 // needed (returns "" if everything looks up to date).
-func makeUpgradeSuggestionMsg(visitor vc.Visitor, current, oldestInstance vc.Target) (msg string, ver string) {
+func makeUpgradeSuggestionMsg(visitor libvc.Visitor, current, oldestInstance vc.Target) (msg string, ver string) {
 	if next := visitor.NextMajor(); next.Ok() {
 		// at least one stable release exists for the next major version
 		log.Debugf("Generating alert msg for next major version. current=%s, next=%s", current.Version(), next.Version())

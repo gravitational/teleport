@@ -24,7 +24,27 @@ import (
 	"golang.org/x/mod/semver"
 )
 
-// NOTE: the contents of this file might be moving to the 'api' package in the future.
+// Normalize attaches the expected `v` prefix to a version string if the supplied
+// version is currently invalid, and attaching the prefix makes it valid. Useful for normalizing
+// the teleport.Version variable. Note that this package generally treats targets and version strings
+// as immutable, so normalization is never applied automatically. It is the responsibility of the
+// consumers of this package to apply normalization when and where immutability is known to not
+// be required (e.g. the 'teleport.Version' can and should always be normalized).
+//
+// NOTE: this isn't equivalent to "canonicalization" which makes equivalent version strings
+// comparable via `==`. version strings returned by this function should still only be compared
+// via `semver.Compare`, or via the comparison methods on the vc.Target type.
+func Normalize(v string) string {
+	if semver.IsValid(v) {
+		return v
+	}
+
+	if n := fmt.Sprintf("v%s", v); semver.IsValid(n) {
+		return n
+	}
+
+	return v
+}
 
 // isValidLabel checks if a string is a valid target label or value. this function is exposed
 // as two separate helpers below in order to simplfiy things if we start having different

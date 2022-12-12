@@ -286,6 +286,21 @@ const (
 	// KindInstance represents a teleport instance independent of any specific service.
 	KindInstance = "instance"
 
+	// KindVersionDirective is a configuration object that describes the desired state of
+	// teleport installations.
+	KindVersionDirective = "version_directive"
+
+	// KindVersionControlInstaller is an installer used by the version control system.
+	KindVersionControlInstaller = "version_control_installer"
+
+	// SubKindLocalScript is a script-based installer used by the version control system
+	// to upgrade teleport instances.
+	SubKindLocalScript = "local_script"
+
+	// SubKindCustom is the default sub_kind of version directives.  typically indicates
+	// that the directive was created manually with tctl.
+	SubKindCustom = "custom"
+
 	// V5 is the fifth version of resources.
 	V5 = "v5"
 

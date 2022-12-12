@@ -249,6 +249,8 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				}
 			case proto.UpstreamInventoryPong:
 				c.handlePong(handle, m)
+			case proto.InventoryExecResult:
+				panic("TODO")
 			default:
 				log.Warnf("Unexpected upstream message type %T on control stream of server %q.", m, handle.Hello().ServerID)
 				handle.CloseWithError(trace.BadParameter("unexpected upstream message type %T", m))

@@ -844,6 +844,70 @@ func (a *ServerWithRoles) GetInstances(ctx context.Context, filter types.Instanc
 	return a.authServer.GetInstances(ctx, filter)
 }
 
+func (a *ServerWithRoles) GetVersionControlInstallers(ctx context.Context, filter types.VersionControlInstallerFilter) (types.VersionControlInstallerSet, error) {
+	if err := a.action(apidefaults.Namespace, types.KindVersionControlInstaller, types.VerbList, types.VerbRead); err != nil {
+		return types.VersionControlInstallerSet{}, trace.Wrap(err)
+	}
+
+	return a.authServer.GetVersionControlInstallers(ctx, filter)
+}
+
+func (a *ServerWithRoles) UpsertVersionControlInstaller(ctx context.Context, installer types.VersionControlInstaller) error {
+	if err := a.action(apidefaults.Namespace, types.KindVersionControlInstaller, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.UpsertVersionControlInstaller(ctx, installer)
+}
+
+func (a *ServerWithRoles) DeleteVersionControlInstaller(ctx context.Context, filter types.VersionControlInstallerFilter) error {
+	if err := a.action(apidefaults.Namespace, types.KindVersionControlInstaller, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.DeleteVersionControlInstaller(ctx, filter)
+}
+
+func (a *ServerWithRoles) GetVersionDirectives(ctx context.Context, filter types.VersionDirectiveFilter) (types.VersionDirectiveSet, error) {
+	if err := a.action(apidefaults.Namespace, types.KindVersionDirective, types.VerbList, types.VerbRead); err != nil {
+		return types.VersionDirectiveSet{}, trace.Wrap(err)
+	}
+
+	return a.authServer.GetVersionDirectives(ctx, filter)
+}
+
+func (a *ServerWithRoles) UpsertVersionDirective(ctx context.Context, directive types.VersionDirective) error {
+	if err := a.action(apidefaults.Namespace, types.KindVersionDirective, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.UpsertVersionDirective(ctx, directive)
+}
+
+func (a *ServerWithRoles) DeleteVersionDirective(ctx context.Context, filter types.VersionDirectiveFilter) error {
+	if err := a.action(apidefaults.Namespace, types.KindVersionDirective, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.DeleteVersionDirective(ctx, filter)
+}
+
+func (a *ServerWithRoles) PromoteVersionDirective(ctx context.Context, req proto.PromoteVersionDirectiveRequest) (proto.PromoteVersionDirectiveResponse, error) {
+	if err := a.action(apidefaults.Namespace, types.KindVersionDirective, types.VerbCreate, types.VerbUpdate); err != nil {
+		return proto.PromoteVersionDirectiveResponse{}, trace.Wrap(err)
+	}
+
+	return a.authServer.PromoteVersionDirective(ctx, req)
+}
+
+func (a *ServerWithRoles) SetVersionDirectiveStatus(ctx context.Context, req proto.SetVersionDirectiveStatusRequest) (proto.SetVersionDirectiveStatusResponse, error) {
+	if err := a.action(apidefaults.Namespace, types.KindVersionDirective, types.VerbUpdate); err != nil {
+		return proto.SetVersionDirectiveStatusResponse{}, trace.Wrap(err)
+	}
+
+	panic("TODO")
+}
+
 func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error) {
 	// unauthenticated clients can never check for alerts. we don't normally explicitly
 	// check for this kind of thing, but since alerts use an unusual access-control

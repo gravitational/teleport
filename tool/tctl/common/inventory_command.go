@@ -30,11 +30,11 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	vc "github.com/gravitational/teleport/api/versioncontrol"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
-	vc "github.com/gravitational/teleport/lib/versioncontrol"
 )
 
 // InventoryCommand implements the `tctl inventory` family of commands.
