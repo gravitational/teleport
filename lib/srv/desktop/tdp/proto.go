@@ -1486,9 +1486,9 @@ func writeUint64(b *bytes.Buffer, v uint64) {
 // the browser (Teleport never receives this message, so won't be decoding it)
 const tdpMaxNotificationMessageLength = 10240
 
-// TODO: tdpMaxPathLength is currently just an arbitrary value for the maximum length of
-// path strings passed over TDP. More research is required,
-// see https://github.com/gravitational/teleport/issues/14950.
+// tdpMaxPathLength is somewhat arbitrary because we weren't able to determine
+// a precise value to set it to: https://github.com/gravitational/teleport/issues/14950#issuecomment-1341632465
+// The limit is kept as an additional defense-in-depth measure.
 const tdpMaxPathLength = 10240
 
 const maxClipboardDataLength = 1024 * 1024    // 1MB
