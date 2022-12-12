@@ -286,9 +286,12 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 	}
 
+	gatewayCertReissuer := GatewayCertReissuer{Log: storage.Log}
+
 	daemon, err := New(Config{
 		Storage:                         storage,
 		CreateTshdEventsClientCredsFunc: createTshdEventsClientCredsFunc,
+		GatewayCertReissuer:             &gatewayCertReissuer,
 	})
 	require.NoError(t, err)
 
@@ -298,7 +301,7 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 
 	err = daemon.UpdateAndDialTshdEventsServerAddress(ls.Addr().String())
 	require.NoError(t, err)
-	require.NotNil(t, daemon.tshdEventsClient)
+	require.NotNil(t, gatewayCertReissuer.TSHDEventsClient)
 	require.Equal(t, 1, createTshdEventsClientCredsFuncCallCount,
 		"Expected createTshdEventsClientCredsFunc to be called exactly once")
 }
