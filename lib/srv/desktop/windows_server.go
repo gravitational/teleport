@@ -803,8 +803,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 			filters = append(filters, "(objectCategory=person)")
 			filters = append(filters, "(objectClass=user)")
 			filters = append(filters, fmt.Sprintf("(name=%s)", username))
-			s.cfg.Log.Debugf("s.cfg.LDAPConfig.DomainDN() = %v", s.cfg.LDAPConfig.DomainDN())
-			entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), windows.CombineLDAPFilters(filters), []string{"objectSid"})
+			entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), windows.CombineLDAPFilters(filters), []string{windows.ObjectSidAttr})
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
@@ -813,13 +812,13 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 			} else if len(entries) > 1 {
 				s.cfg.Log.Warnf("LDAP unexpectedly returned multiple entries for objectSid for username: %v, taking the first", username)
 			}
-			s.cfg.Log.Debugf("len(entries) = %v", len(entries))
 			entry := entries[0]
-			// TODO(isaiah) this sid comes out looking like "\x01\x05\x00\x00\x00\x00\x00\x05\x15\x00\x00\x004\xfb?O\xa3\x98\r\x9dD\xb6Lq\xf4\x01\x00\x00"
-			// however we may need to change this to another format
-			activeDirectorySID := entry.GetRawAttributeValue("objectSid")
-			s.cfg.Log.Debugf("sid = %v", activeDirectorySID)
-			return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl, activeDirectorySID)
+			activeDirectorySID, err := windows.ADSIDStringFromLDAPEntry(entry)
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+			s.cfg.Log.Debugf("Found objectSid %v for Windows username %v", activeDirectorySID, username)
+			return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl, []byte(activeDirectorySID))
 		},
 		CertTTL:               windows.CertTTL,
 		Addr:                  desktop.GetAddr(),

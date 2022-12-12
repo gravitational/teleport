@@ -79,12 +79,11 @@ func getCertRequest(username, domain string, clusterName string, ldapConfig LDAP
 	}
 
 	if activeDirectorySID != nil {
-		realvalstr := "S-1-5-21-1329593140-2634913955-1900852804-500"
 		adUserMapping, _ := asn1.Marshal(SubjectAltName{
 			otherName{
 				OID: ADUserMappingInternalOID,
 				Value: adSid{
-					Value: []byte(realvalstr),
+					Value: activeDirectorySID,
 				},
 			}})
 		csr.ExtraExtensions = append(csr.ExtraExtensions, pkix.Extension{
