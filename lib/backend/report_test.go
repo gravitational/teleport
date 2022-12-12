@@ -93,6 +93,10 @@ func TestBuildLabelKey_SensitiveBackendPrefixes(t *testing.T) {
 		{"/tokens/1234-5678", "/tokens/******678"},
 		{"/usertoken/1234-5678", "/usertoken/******678"},
 		{"/access_requests/1234-5678", "/access_requests/******678"},
+
+		{"/webauthn/sessionData/scope/1234-5678", "/webauthn/sessionData"},
+		{"/webauthn/sessionData/1234-5678", "/webauthn/sessionData"},
+		{"/sessionData/1234-5678", "/sessionData/******678"},
 	}
 	for _, tc := range testCases {
 		require.Equal(t, tc.masked, buildKeyLabel(tc.input, sensitiveBackendPrefixes))
