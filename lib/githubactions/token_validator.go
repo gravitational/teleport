@@ -35,6 +35,9 @@ type IDTokenValidatorConfig struct {
 	// GitHub's cloud hosted version. If no GHESHost override is provided to
 	// the call to Validate, then this will be used as the host.
 	GitHubIssuerHost string
+	// insecure configures the validator to use HTTP rather than HTTPS. This
+	// is not exported as this is only used in the test for now.
+	insecure bool
 }
 
 type IDTokenValidator struct {
@@ -55,10 +58,15 @@ func NewIDTokenValidator(cfg IDTokenValidatorConfig) *IDTokenValidator {
 }
 
 func (id *IDTokenValidator) issuerURL(GHESHost string) string {
-	if GHESHost == "" {
-		return fmt.Sprintf("https://%s", id.GitHubIssuerHost)
+	proto := "https"
+	if id.insecure {
+		proto = "http"
 	}
-	return fmt.Sprintf("https://%s/_services/token", GHESHost)
+
+	if GHESHost == "" {
+		return fmt.Sprintf("%s://%s", proto, id.GitHubIssuerHost)
+	}
+	return fmt.Sprintf("%s://%s/_services/token", proto, GHESHost)
 }
 
 func (id *IDTokenValidator) Validate(ctx context.Context, GHESHost string, token string) (*IDTokenClaims, error) {
