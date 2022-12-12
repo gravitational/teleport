@@ -242,20 +242,10 @@ In addition to supporting automatic Teleport agent installation, an agentless op
 will also be supported. This mode will update the OpenSSH CA to use the Teleport CA
 without installing the full Teleport Agent.
 
-The teleport ca and host keys will be generated and then uploaded to
-the the AWS Secret store where, for each node discovered a new secret
-will be created, each secret will have the following contents
-
-```json
-{
-	"ca_key": "...",
-	"host_key": "...",
-	"host_cert": "...",
-}
-```
-
-This will require changes to Teleport in order to support RBAC of OpenSSH based
-nodes and to support showing the nodes in tsh/web ui.
+A new `teleport join` command will be added. This will identify itself
+with the cluster, using an EC2 join token, in order to fetch the
+Teleport CA and to generate host keys. This command will also modify
+the sshd config to make use of the fetched keys.
 
 This mode can be enabled by setting `agentless: true` in the matcher. When the
 matcher includes this, a predefined script for agentless installation will be used for
@@ -272,7 +262,7 @@ discovery_service:
     tags:
       "teleport": "yes" # aws tags to match
     install:
-      agentless: true
+      install_teleport: true # default value
       # default to this as a result of agentless: true
       script_name: "default-agentless-installer"
       sshd_config: "/etc/ssh/sshd_config" # default path
@@ -292,12 +282,7 @@ Example SSM document:
 schemaVersion: '2.2'
 description: aws:runShellScript
 parameters:
-  caKey:
-    types: String
-    description: "(Required) The Teleport CA to sshd will trust."
-  hostCert:
-    types: String
-    description: "(Required) The Teleport host cert to use."
+
   sshdConfigPath:
     types: String
     description: "(Required) The path to the sshd config file."
@@ -314,7 +299,6 @@ mainSteps:
   inputs:
     timeoutSeconds: '300'
     runCommand:
-      - export CERT_SECRETS='{{ secretName }}'
       - export SSHD_CONFIG='{{ sshdConfigPath }}'
       - /bin/sh /tmp/installTeleport.sh
 ```
@@ -334,37 +318,22 @@ Possible agentless installer script:
   fi
 
   if [ "$distro_id" = "debian" ] || [ "$distro_id" = "ubuntu" ]; then
-	sudo apt-get install -y awscli jq
+    # ... add teleport repo as in other script
+	sudo apt-get install -y teleport
   elif [ "$distro_id" = "amzn" ] || [ "$distro_id" = "rhel" ]; then
-    sudo yum install -y awscli jq
+    sudo yum install -y teleport
   fi
 
-  CA_KEY=$(aws secretsmanager get-secret-value --output=json --secret-id="$CERT_SECRETS" | jq -r '.["SecretString"] | fromjson."ca_key"')
-  HOST_KEY=$(aws secretsmanager get-secret-value --output=json --secret-id="$CERT_SECRETS" | jq -r '.["SecretString"] | fromjson."host_key"')
-  HOST_CERT=$(aws secretsmanager get-secret-value --output=json --secret-id="$CERT_SECRETS" | jq -r '.["SecretString"] | fromjson."host_cert"')
+  # new command to create the host certs, teleport ca, and update sshd_config
+  teleport join --proxy-server=proxy.example.com --token=aws-join-token --openssh-config="$SSHD_CONFIG" --restart-sshd=true
 
-  echo "$CA_KEY" > /etc/ssh/teleport_user_ca.pub
-  echo 'TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub' >> $SSHD_CONFIG
-
-  echo "$HOST_KEY" > /etc/ssh/teleport
-  chmod 0600 /etc/ssh/teleport
-  echo "$HOST_CERT" > /etc/ssh/teleport-cert.pub
-  chmod 0600 /etc/ssh/teleport-cert.pub
-
-  echo 'HostKey /etc/ssh/teleport' >> $SSHD_CONFIG
-  echo 'HostCertificate /etc/ssh/teleport-cert.pub' >> $SSHD_CONFIG
-
-  if ! sshd -t; then
-	echo "sshd_config is in a bad state, exiting without reloading"
-	exit 1
-  fi
   systemctl restart sshd
 
 ) 9>/var/lock/teleport_install.lock
 ```
 
-The discovery agent will need CRUD permissions on `host_cert` resources as well as
-permission to create Node resources.
+The discovery agent will listen for certificate rotations and rerun the `teleport join`
+command on the agentless nodes already present in the cluster.
 
 
 ### Including AWS Tags as Teleport labels
@@ -377,9 +346,9 @@ introduced with will store metadata about discovered nodes that was retrieved vi
 AWS API.
 
 When Teleport is installed and registers the EC2 instance, the Auth server will check
-for a corresponding `DIscoveredServer` resource by matching on `instance-id` and
+for a corresponding `DiscoveredServer` resource by matching on `instance-id` and
 `account-id` labels. If there is a matching `DiscoveredServer`, it will create a
-`Server` resource using the metadata from the `DIscoveredServer` and ignore labels
+`Server` resource using the metadata from the `DiscoveredServer` and ignore labels
 sent via heartbeat from the node.
 
 ## UX
