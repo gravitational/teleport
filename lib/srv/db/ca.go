@@ -35,7 +35,6 @@ import (
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // startCARenewer renewer which is going to renew cloud-based database CA.
@@ -125,36 +124,17 @@ func (s *Server) getCACerts(ctx context.Context, database types.Database) ([]byt
 // getCACert returns the downloaded certificate for provided database and file
 // path.
 //
-// The cert can already be cached in the filesystem, otherwise we will attempt
-// to download it.
+// The cert is going to be updated and persisted into the filesystem.
 func (s *Server) getCACert(ctx context.Context, database types.Database, filePath string) ([]byte, error) {
 	// Try to update the certificate.
 	err := s.updateCACert(ctx, database, filePath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Check if we already have it.
-	_, err = utils.StatFile(filePath)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-	// It's already downloaded.
-	if err == nil {
-		s.log.Debugf("Loaded CA certificate %v.", filePath)
-		return os.ReadFile(filePath)
-	}
-	// Otherwise download it.
-	s.log.Debugf("Downloading CA certificate for %v.", database)
-	bytes, version, err := s.cfg.CADownloader.Download(ctx, database, filepath.Base(filePath))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Save to the filesystem.
-	err = s.saveCACert(filePath, bytes, version)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return bytes, nil
+	// The update flow is going to create/update the cached CA, so we can read
+	// the contents from it.
+	s.log.Debugf("Loaded CA certificate %v.", filePath)
+	return os.ReadFile(filePath)
 }
 
 // getCACertPaths returns the paths where automatically downloaded root certificate
