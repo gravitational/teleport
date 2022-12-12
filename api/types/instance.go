@@ -249,3 +249,8 @@ func (i *InstanceV1) expireControlLog(now time.Time, ttl time.Duration) time.Tim
 func (i *InstanceV1) Clone() Instance {
 	return proto.Clone(i).(*InstanceV1)
 }
+
+func (e *InstanceControlLogEntry) Clone() InstanceControlLogEntry {
+	e.Time = e.Time.UTC()
+	return *proto.Clone(e).(*InstanceControlLogEntry)
+}

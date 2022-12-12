@@ -328,13 +328,12 @@ func TestInstanceHeartbeat(t *testing.T) {
 	)
 
 	// attempt qualified event inclusion
-	tracker := handle.StateTracker()
 	var included bool
 	for i := 0; i < includeAttempts; i++ {
-		tracker.WithLock(func() {
+		handle.VisitInstanceState(func(ref InstanceStateRef) (update InstanceStateUpdate) {
 			// check if we've already successfully included the ping entry
-			if tracker.LastHeartbeat != nil {
-				for _, entry := range tracker.LastHeartbeat.GetControlLog() {
+			if ref.LastHeartbeat != nil {
+				for _, entry := range ref.LastHeartbeat.GetControlLog() {
 					if entry.Type == "qualified" && entry.ID == 2 {
 						included = true
 						return
@@ -342,16 +341,17 @@ func TestInstanceHeartbeat(t *testing.T) {
 				}
 			}
 			// check if the ping entry is in the pinding log
-			for _, entry := range tracker.QualifiedPendingControlLog {
+			for _, entry := range ref.QualifiedPendingControlLog {
 				if entry.Type == "qualified" && entry.ID == 2 {
 					return
 				}
 			}
-			tracker.QualifiedPendingControlLog = append(tracker.QualifiedPendingControlLog, types.InstanceControlLogEntry{
+			update.QualifiedPendingControlLog = append(update.QualifiedPendingControlLog, types.InstanceControlLogEntry{
 				Type: "qualified",
 				ID:   2,
 			})
 			handle.HeartbeatInstance()
+			return
 		})
 
 		if included {
@@ -367,12 +367,13 @@ func TestInstanceHeartbeat(t *testing.T) {
 	require.True(t, included)
 
 	// attempt unqualified event inclusion
-	tracker.WithLock(func() {
-		tracker.UnqualifiedPendingControlLog = append(tracker.UnqualifiedPendingControlLog, types.InstanceControlLogEntry{
+	handle.VisitInstanceState(func(_ InstanceStateRef) (update InstanceStateUpdate) {
+		update.UnqualifiedPendingControlLog = append(update.UnqualifiedPendingControlLog, types.InstanceControlLogEntry{
 			Type: "unqualified",
 			ID:   3,
 		})
 		handle.HeartbeatInstance()
+		return
 	})
 	included = false
 	for i := 0; i < includeAttempts; i++ {
@@ -380,15 +381,16 @@ func TestInstanceHeartbeat(t *testing.T) {
 			expect(instanceHeartbeatOk),
 			deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
 		)
-		tracker.WithLock(func() {
-			if tracker.LastHeartbeat != nil {
-				for _, entry := range tracker.LastHeartbeat.GetControlLog() {
+		handle.VisitInstanceState(func(ref InstanceStateRef) (_ InstanceStateUpdate) {
+			if ref.LastHeartbeat != nil {
+				for _, entry := range ref.LastHeartbeat.GetControlLog() {
 					if entry.Type == "unqualified" && entry.ID == 3 {
 						included = true
 						return
 					}
 				}
 			}
+			return
 		})
 		if included {
 			break
@@ -418,15 +420,15 @@ func TestInstanceHeartbeat(t *testing.T) {
 	// confirm that qualified pending control log is reset on failed CompareAndSwap but
 	// unqualified pending control log is not.
 	for i := 0; i < includeAttempts; i++ {
-		tracker.WithLock(func() {
+		handle.VisitInstanceState(func(ref InstanceStateRef) (update InstanceStateUpdate) {
 			if i%2 == 0 {
-				tracker.QualifiedPendingControlLog = append(tracker.QualifiedPendingControlLog, types.InstanceControlLogEntry{
+				update.QualifiedPendingControlLog = append(update.QualifiedPendingControlLog, types.InstanceControlLogEntry{
 					Type: "never",
 					ID:   4,
 				})
 			} else {
 				unqualifiedCount++
-				tracker.UnqualifiedPendingControlLog = append(tracker.UnqualifiedPendingControlLog, types.InstanceControlLogEntry{
+				update.UnqualifiedPendingControlLog = append(update.UnqualifiedPendingControlLog, types.InstanceControlLogEntry{
 					Type: "always",
 					ID:   uint64(unqualifiedCount),
 				})
@@ -442,6 +444,7 @@ func TestInstanceHeartbeat(t *testing.T) {
 			auth.lastRawInstance, _ = utils.FastMarshal(auth.lastInstance)
 			auth.mu.Unlock()
 			handle.HeartbeatInstance()
+			return
 		})
 
 		// wait to hit CompareFailed.
@@ -460,14 +463,15 @@ func TestInstanceHeartbeat(t *testing.T) {
 	// verify that none of the qualified events were ever heartbeat because
 	// a reset always occurred.
 	var unqualifiedIncludes int
-	tracker.WithLock(func() {
-		require.NotNil(t, tracker.LastHeartbeat)
-		for _, entry := range tracker.LastHeartbeat.GetControlLog() {
+	handle.VisitInstanceState(func(ref InstanceStateRef) (_ InstanceStateUpdate) {
+		require.NotNil(t, ref.LastHeartbeat)
+		for _, entry := range ref.LastHeartbeat.GetControlLog() {
 			require.NotEqual(t, entry.Type, "never")
 			if entry.Type == "always" {
 				unqualifiedIncludes++
 			}
 		}
+		return
 	})
 	require.Equal(t, unqualifiedCount, unqualifiedIncludes)
 

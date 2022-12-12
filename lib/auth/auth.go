@@ -2637,31 +2637,30 @@ func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingReque
 		return entry.Type == pingAttempt && entry.ID == id
 	}
 
-	tracker := stream.StateTracker()
-
 	var included bool
 	for i := 1; i <= maxAttempts; i++ {
-		tracker.WithLock(func() {
+		stream.VisitInstanceState(func(ref inventory.InstanceStateRef) (update inventory.InstanceStateUpdate) {
 			// check if we've already successfully included the ping entry
-			if tracker.LastHeartbeat != nil {
-				if slices.IndexFunc(tracker.LastHeartbeat.GetControlLog(), matchEntry) >= 0 {
+			if ref.LastHeartbeat != nil {
+				if slices.IndexFunc(ref.LastHeartbeat.GetControlLog(), matchEntry) >= 0 {
 					included = true
 					return
 				}
 			}
 
 			// if the entry pending already, we just need to wait
-			if slices.IndexFunc(tracker.QualifiedPendingControlLog, matchEntry) >= 0 {
+			if slices.IndexFunc(ref.QualifiedPendingControlLog, matchEntry) >= 0 {
 				return
 			}
 
 			// either this is the first iteration, or the pending control log was reset.
-			tracker.QualifiedPendingControlLog = append(tracker.QualifiedPendingControlLog, types.InstanceControlLogEntry{
+			update.QualifiedPendingControlLog = append(update.QualifiedPendingControlLog, types.InstanceControlLogEntry{
 				Type: pingAttempt,
 				ID:   id,
 				Time: time.Now(),
 			})
 			stream.HeartbeatInstance()
+			return
 		})
 
 		if included {
@@ -2690,14 +2689,15 @@ func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingReque
 		return proto.InventoryPingResponse{}, trace.Wrap(err)
 	}
 
-	tracker.WithLock(func() {
-		tracker.UnqualifiedPendingControlLog = append(tracker.UnqualifiedPendingControlLog, types.InstanceControlLogEntry{
+	stream.VisitInstanceState(func(_ inventory.InstanceStateRef) (update inventory.InstanceStateUpdate) {
+		update.UnqualifiedPendingControlLog = append(update.UnqualifiedPendingControlLog, types.InstanceControlLogEntry{
 			Type: pingSuccess,
 			ID:   id,
 			Labels: map[string]string{
 				"duration": fmt.Sprintf("%s", d),
 			},
 		})
+		return
 	})
 	stream.HeartbeatInstance()
 

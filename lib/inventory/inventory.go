@@ -277,20 +277,21 @@ type UpstreamHandle interface {
 	// stream.
 	HasService(types.SystemRole) bool
 
-	// StateTracker gets the instance state tracker.
-	//
-	// NOTE: The returned state tracker is *not* locked, and must be locked prior to any
-	// access. Prefer using the InstanceStateTracker.WithLock method where possible.
-	StateTracker() *InstanceStateTracker
+	// VisitInstanceState runs the provided closure against a representation of the most
+	// recently observed instance state, plus any pending control log entries. The returned
+	// value may optionally include additional control log entries to add to the pending
+	// queues. Inputs and outputs are deep copied to avoid concurrency issues. See the InstanceStateTracker
+	// for an explanation of how this system works.
+	VisitInstanceState(func(ref InstanceStateRef) InstanceStateUpdate)
 
 	// HeartbeatInstance triggers an early instance heartbeat. This function does not
 	// wait for the instance heartbeat to actually be completed, so calling this and then
-	// immediately locking the InstanceStateTracker will likely result in observing the
+	// immediately locking the instanceStateTracker will likely result in observing the
 	// pre-heartbeat state.
 	HeartbeatInstance()
 }
 
-// InstanceStateTracker tracks the state of a connected instance from the point of view of
+// instanceStateTracker tracks the state of a connected instance from the point of view of
 // the inventory controller. Values in this struct tend to be lazily updated/consumed. For
 // example, the LastHeartbeat value is nil until the first attempt to heartbeat the instance
 // has been made *for this TCP connection*, meaning that you can't distinguish between an instance
@@ -301,7 +302,7 @@ type UpstreamHandle interface {
 // and then observe wether or not said entries end up being included on subsequent iterations. This
 // patterns lets us achieve a kind of lazy "locking", whereby complex coordination can occur without
 // large spikes in backend load. See the QualifiedPendingControlLog field for an example of this pattern.
-type InstanceStateTracker struct {
+type instanceStateTracker struct {
 	// MU protects all below fields and must be locked during access of any of the
 	// below fields.
 	MU sync.Mutex
@@ -349,15 +350,67 @@ type InstanceStateTracker struct {
 	retryHeartbeat bool
 }
 
+// InstanceStateRef is a helper used to present a copy of the public subset of instanceStateTracker. Used by
+// the VisitInstanceState helper to show callers the current state without risking concurrency issues due
+// to misuse.
+type InstanceStateRef struct {
+	QualifiedPendingControlLog   []types.InstanceControlLogEntry
+	UnqualifiedPendingControlLog []types.InstanceControlLogEntry
+	LastHeartbeat                types.Instance
+}
+
+// InstanceStateUpdate encodes additional pending control log entries that should be included in future heartbeats. Used by
+// the VisitInstanceState helper to provide a mechanism of appending to the primary pending queues without risking
+// concurrency issues due to misuse.
+type InstanceStateUpdate struct {
+	QualifiedPendingControlLog   []types.InstanceControlLogEntry
+	UnqualifiedPendingControlLog []types.InstanceControlLogEntry
+}
+
+// VisitInstanceState provides a mechanism of viewing and potentially updating the instance control log of a
+// given instance. The supplied closure is given a view of the most recent successful heartbeat, as well as
+// any existing pending entries. It may then return additional pending entries. This method performs
+// significant defensive copying, so care should be taken to limit its use.
+func (h *upstreamHandle) VisitInstanceState(fn func(InstanceStateRef) InstanceStateUpdate) {
+	h.stateTracker.MU.Lock()
+	defer h.stateTracker.MU.Unlock()
+
+	var ref InstanceStateRef
+
+	// copy over last heartbeat if set
+	if h.stateTracker.LastHeartbeat != nil {
+		ref.LastHeartbeat = h.stateTracker.LastHeartbeat.Clone()
+	}
+
+	// copy over control log entries
+	ref.QualifiedPendingControlLog = cloneAppendLog(ref.QualifiedPendingControlLog, h.stateTracker.QualifiedPendingControlLog...)
+	ref.UnqualifiedPendingControlLog = cloneAppendLog(ref.UnqualifiedPendingControlLog, h.stateTracker.UnqualifiedPendingControlLog...)
+
+	// run closure
+	update := fn(ref)
+
+	// copy updates back into state tracker
+	h.stateTracker.QualifiedPendingControlLog = cloneAppendLog(h.stateTracker.QualifiedPendingControlLog, update.QualifiedPendingControlLog...)
+	h.stateTracker.UnqualifiedPendingControlLog = cloneAppendLog(h.stateTracker.UnqualifiedPendingControlLog, update.UnqualifiedPendingControlLog...)
+}
+
+// cloneAppendLog is a helper for performing deep copies of control log entries
+func cloneAppendLog(log []types.InstanceControlLogEntry, entries ...types.InstanceControlLogEntry) []types.InstanceControlLogEntry {
+	for _, entry := range entries {
+		log = append(log, entry.Clone())
+	}
+	return log
+}
+
 // WithLock runs the provided closure with the tracker lock held.
-func (i *InstanceStateTracker) WithLock(fn func()) {
+func (i *instanceStateTracker) WithLock(fn func()) {
 	i.MU.Lock()
 	defer i.MU.Unlock()
 	fn()
 }
 
 // nextHeartbeat calculates the next heartbeat value. *Must* be called only while lock is held.
-func (i *InstanceStateTracker) nextHeartbeat(now time.Time, hello proto.UpstreamInventoryHello, authID string) (types.Instance, error) {
+func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.UpstreamInventoryHello, authID string) (types.Instance, error) {
 	instance, err := types.NewInstance(hello.ServerID, types.InstanceSpecV1{
 		Version:  vc.Normalize(hello.Version),
 		Services: hello.Services,
@@ -393,7 +446,7 @@ type upstreamHandle struct {
 
 	pingC chan pingRequest
 
-	stateTracker InstanceStateTracker
+	stateTracker instanceStateTracker
 
 	// --- fields below this point only safe for access by handler goroutine
 
@@ -410,10 +463,6 @@ type upstreamHandle struct {
 	// sshServerKeepAliveErrs is a counter used to track the number of failed keepalives
 	// with the above lease. too many failures clears the lease.
 	sshServerKeepAliveErrs int
-}
-
-func (h *upstreamHandle) StateTracker() *InstanceStateTracker {
-	return &h.stateTracker
 }
 
 func (h *upstreamHandle) HeartbeatInstance() {

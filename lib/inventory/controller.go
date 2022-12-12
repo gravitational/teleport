@@ -285,7 +285,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 }
 
 func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Time) error {
-	tracker := handle.StateTracker()
+	tracker := &handle.stateTracker
 	tracker.MU.Lock()
 	defer tracker.MU.Unlock()
 
