@@ -175,15 +175,15 @@ correct Google Workspace plan.
 You'll need a callback URL in order to complete the creation of an OAuth client ID with Google. For
 most deployments, this URL is your `public_addr` value. This consists of a domain name and port number.
 
-You can lookup the `public_addr` of your Teleport proxy using the following command:
+Most deployments use port 443 or port 3080. The callback URL you use might look like the following examples (replace example.teleport.com or example.teleport.sh with your cluster's value):
 
-```code
-$ curl https://example.teleport.com/webapi/ping | jq '.proxy'
-```
+Teleport Cloud: `example.teleport.sh:443/v1/webapi/oidc/callback`
 
-Within the output of that command look for `"public_addr": "example.teleport.com:443"`. Some
-cluster may specify a different port. Use the port you find in the output of the previous command
-for the next steps.
+Teleport Enterprise: `example.teleport.com:443/v1/webapi/oidc/callback`
+
+Teleport Enterprise: `example.teleport.com:3080/v1/webapi/oidc/callback`
+
+Some clusters may specify a different port.
 
 #### Configure the OAuth Client ID
 
