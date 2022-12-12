@@ -256,7 +256,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		sessionLingeringThreshold = *cfg.cachedSessionLingeringThreshold
 	}
 
-	auth, err := newSessionCache(sessionCacheOptions{
+	sessionCache, err := newSessionCache(h.cfg.Context, sessionCacheOptions{
 		proxyClient:               cfg.ProxyClient,
 		accessPoint:               cfg.AccessPoint,
 		servers:                   []utils.NetAddr{cfg.AuthServers},
@@ -267,7 +267,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	h.auth = auth
+	h.auth = sessionCache
 
 	_, sshPort, err := net.SplitHostPort(cfg.ProxySSHAddr.String())
 	if err != nil {
