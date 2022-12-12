@@ -24,7 +24,7 @@ message UserLoginEvent {
   // empty for local or github/saml/oidc
   string connector_type = 2;
 
-// TODO(espadolini): should passwordless be a flag?
+  // TODO(espadolini): should passwordless be a flag?
 }
 
 message SSOCreateEvent {
@@ -37,7 +37,7 @@ message ResourceCreateEvent {
   // databases/desktops/kube clusters accessed through it?
   string resource_type = 1;
 
-// TODO(espadolini): flags for Discover, autodiscovery, join scripts?
+  // TODO(espadolini): flags for Discover, autodiscovery, join scripts?
 }
 
 message SessionStartEvent {

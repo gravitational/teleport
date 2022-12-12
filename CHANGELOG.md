@@ -1,5 +1,15 @@
 # Changelog
 
+## 11.1.2
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with EC2 discovery failing to install Teleport on older Ubuntu instances. [#18965](https://github.com/gravitational/teleport/pull/18965)
+* Fixed issue with log spam when cleaning up groups for automatically created Linux users. [#18990](https://github.com/gravitational/teleport/pull/18990)
+* Fixed issue with `tctl windows_desktops ls` not producing results in JSON and YAML formats. [#19016](https://github.com/gravitational/teleport/pull/19016)
+* Fixed issue with web SSH sessions in proxy recording mode. [#19021](https://github.com/gravitational/teleport/pull/19021)
+* Improved handling of corrupted session recordings. [#19040](https://github.com/gravitational/teleport/pull/19040)
+
 ## 11.1.1
 
 This release of Teleport contains a security fix as well as multiple improvements and bug fixes.
