@@ -39,7 +39,7 @@ name: push-build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
   UID: "1000"
 trigger:
   event:
@@ -152,7 +152,7 @@ name: push-build-linux-386
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
   UID: "1000"
 trigger:
   event:
@@ -257,7 +257,7 @@ name: push-build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
   UID: "1000"
 trigger:
   event:
@@ -366,7 +366,7 @@ name: push-build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
   UID: "1000"
 trigger:
   event:
@@ -535,7 +535,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.19.2
+    RUNTIME: go1.19.4
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -1166,7 +1166,7 @@ name: push-build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
   UID: "1000"
 trigger:
   event:
@@ -1271,7 +1271,7 @@ name: push-build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
   UID: "1000"
 trigger:
   event:
@@ -1713,7 +1713,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
 trigger:
   event:
     include:
@@ -1902,7 +1902,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
 trigger:
   event:
     include:
@@ -2090,7 +2090,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
 trigger:
   event:
     include:
@@ -2291,7 +2291,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
 trigger:
   event:
     include:
@@ -3505,7 +3505,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
 trigger:
   event:
     include:
@@ -4265,7 +4265,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.19.2
+    RUNTIME: go1.19.4
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -4836,7 +4836,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
 trigger:
   event:
     include:
@@ -5022,7 +5022,7 @@ type: kubernetes
 name: build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
 trigger:
   event:
     include:
@@ -6236,7 +6236,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.2
+  RUNTIME: go1.19.4
 trigger:
   event:
     include:
@@ -18318,6 +18318,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 77e189ae3d74560471a91234fe0965701556f5b8885e890510a7b41f5ae0aebb
+hmac: 022415a46b3b4ede494dbc4f65f2b8d00731a6e9d837ff02dd7a59c0b362b946
 
 ...
