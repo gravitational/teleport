@@ -73,7 +73,7 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		// out of the box in crypto/x509) extensions only.
 		// TODO(isaiah): is this extension filtering really necessary here? can't we just "filter" by selectively
 		// including what we actually want in here in the request?
-		ExtraExtensions: filterExtensions(csr.Extensions, oidExtKeyUsage, oidSubjectAltName, oidActiveDirectorySid),
+		ExtraExtensions: filterExtensions(csr.Extensions, oidExtKeyUsage, oidSubjectAltName, oidADUserMapping),
 		// ExtraExtensions: filterExtensions(csr.Extensions, oidExtKeyUsage, oidSubjectAltName),
 		KeyUsage: x509.KeyUsageDigitalSignature,
 		// CRL is required for Windows smartcard certs.
@@ -90,9 +90,9 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 
 // TODO(isaiah): these are duplicated due to circular imports, see if you can un-duplicate
 var (
-	oidExtKeyUsage        = asn1.ObjectIdentifier{2, 5, 29, 37}
-	oidSubjectAltName     = asn1.ObjectIdentifier{2, 5, 29, 17}
-	oidActiveDirectorySid = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 25, 2}
+	oidExtKeyUsage    = asn1.ObjectIdentifier{2, 5, 29, 37}
+	oidSubjectAltName = asn1.ObjectIdentifier{2, 5, 29, 17}
+	oidADUserMapping  = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 25, 2}
 )
 
 func filterExtensions(extensions []pkix.Extension, oids ...asn1.ObjectIdentifier) []pkix.Extension {
