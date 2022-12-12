@@ -339,6 +339,42 @@ the `teleport-azure` identity you created earlier.
 
 </Details>
 
+<Details title="Denying access to Azure identities">
+
+You can define a Teleport role that denies a user access to one or more Azure
+identities. To do so, assign values to the `azure_identities` field within the
+`spec.deny` section of a `role` resource. 
+
+For example, this role denies the user access to all Azure idenitities:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: "no-azure-identities"
+spec:
+  allow:
+    app_labels:
+      '*': '*'
+  deny:
+    azure_identities:
+      - '*'
+```
+
+The `no-azure-identities` role enables the user to access all registered
+applications, but makes use of the wildcard character (`*`) within the
+`deny.azure_identities` field to prevent the user from assuming any Azure
+identity. 
+
+Unlike values of `allow.azure_identities`, values of `deny.azure_identities` can
+include wildcard expessions in addition to the URIs of specific Azure
+identities.
+
+The Teleport Auth Service gives `deny` rules precedence over `allow` rules when
+evaluating a user's roles.
+
+</Details>
+
 ## Step 4/4. Use the Azure CLI with Teleport
 
 Now that you have authorized your Teleport user to assume the `teleport-azure`
@@ -435,6 +471,12 @@ To start the local proxy, run the following `tsh` command:
 ```code
 $ tsh proxy azure 
 ```
+
+<Notice type="tip">
+
+The command `tsh proxy az` is an alias for `tsh proxy azure`.
+
+</Notice>
 
 The command will print the address of the local proxy server along with `export`
 commands for assigning environment variables. Azure CLI applications read these
