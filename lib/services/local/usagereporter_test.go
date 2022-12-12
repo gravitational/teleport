@@ -41,27 +41,28 @@ const (
 	testMinBatchSize  = 3
 	testMaxBatchSize  = 5
 	testMaxBufferSize = 10
+	testRetryAttempts = 2
 )
 
 // newTestSubmitter creates a submitter that reports batches to a channel.
-func newTestSubmitter(size int) (UsageSubmitFunc, chan []*prehogapi.SubmitEventRequest) {
-	ch := make(chan []*prehogapi.SubmitEventRequest, size)
+func newTestSubmitter(size int) (UsageSubmitFunc, chan []*SubmittedEvent) {
+	ch := make(chan []*SubmittedEvent, size)
 
-	return func(reporter *UsageReporter, batch []*prehogapi.SubmitEventRequest) error {
+	return func(reporter *UsageReporter, batch []*SubmittedEvent) ([]*SubmittedEvent, error) {
 		ch <- batch
-		return nil
+		return nil, nil
 	}, ch
 }
 
 // newFailingSubmitter creates a submitter function that always reports batches
 // as failed. The current batch of events is written to the channel as usual
 // for inspection.
-func newFailingSubmitter(size int) (UsageSubmitFunc, chan []*prehogapi.SubmitEventRequest) {
-	ch := make(chan []*prehogapi.SubmitEventRequest, size)
+func newFailingSubmitter(size int) (UsageSubmitFunc, chan []*SubmittedEvent) {
+	ch := make(chan []*SubmittedEvent, size)
 
-	return func(reporter *UsageReporter, batch []*prehogapi.SubmitEventRequest) error {
+	return func(reporter *UsageReporter, batch []*SubmittedEvent) ([]*SubmittedEvent, error) {
 		ch <- batch
-		return trace.BadParameter("testing error")
+		return batch, trace.BadParameter("testing error")
 	}, ch
 }
 
@@ -96,8 +97,8 @@ func newTestingUsageReporter(
 	reporter := &UsageReporter{
 		Entry:           l,
 		anonymizer:      anonymizer,
-		events:          make(chan []*prehogapi.SubmitEventRequest, 1),
-		submissionQueue: make(chan []*prehogapi.SubmitEventRequest, 1),
+		events:          make(chan []*SubmittedEvent, 1),
+		submissionQueue: make(chan []*SubmittedEvent, 1),
 		submit:          submitter,
 		clock:           clock,
 		submitClock:     submitClock,
@@ -108,6 +109,7 @@ func newTestingUsageReporter(
 		maxBufferSize:   testMaxBufferSize,
 		submitDelay:     usageReporterSubmitDelay,
 		receiveFunc:     receive,
+		retryAttempts:   testRetryAttempts,
 	}
 
 	go reporter.Run(ctx)
@@ -133,13 +135,13 @@ func createDummyEvents(start, count int) []services.UsageAnonymizable {
 }
 
 // compareUsageEvents ensures all given usage events
-func compareUsageEvents(t *testing.T, reporter *UsageReporter, inputs []services.UsageAnonymizable, outputs []*prehogapi.SubmitEventRequest) {
+func compareUsageEvents(t *testing.T, reporter *UsageReporter, inputs []services.UsageAnonymizable, outputs []*SubmittedEvent) {
 	require.Len(t, outputs, len(inputs))
 
 	for i := 0; i < len(inputs); i++ {
 		input := inputs[i]
 		anonymized := input.Anonymize(reporter.anonymizer)
-		output := outputs[i]
+		output := outputs[i].Event
 
 		expectedClusterName := reporter.anonymizer.AnonymizeString(reporter.clusterName.GetClusterName())
 		require.Equal(t, expectedClusterName, output.ClusterName)
@@ -375,16 +377,20 @@ func TestUsageReporterErrorReenqueue(t *testing.T) {
 	reporter, cancel, rx := newTestingUsageReporter(t, fakeClock, fakeSubmitClock, submitter)
 	defer cancel()
 
-	// Create enough events to fill the buffer and then some.
+	// Create enough events to fill the buffer.
 	events := createDummyEvents(0, 10)
 	require.NoError(t, reporter.SubmitAnonymizedUsageEvents(events...))
 	<-rx
+
+	var prev []*SubmittedEvent
 
 	// Receive the first (failed) batch.
 	select {
 	case e := <-batchChan:
 		require.Len(t, e, testMaxBatchSize)
 		compareUsageEvents(t, reporter, events[:5], e)
+
+		prev = e
 	case <-time.After(time.Second):
 		t.Fatalf("Did not receive expected events.")
 	}
@@ -396,6 +402,13 @@ func TestUsageReporterErrorReenqueue(t *testing.T) {
 	// send at the submit delay rather than the full batch send interval.
 	fakeClock.BlockUntil(1)
 	fakeSubmitClock.BlockUntil(1)
+
+	// Before continuing, check the last batch's retry counter. We need to check
+	// this after the timers are ready, but before we advance the clock.
+	for _, event := range prev {
+		require.Equal(t, testRetryAttempts-1, event.retriesRemaining)
+	}
+
 	advanceClocks(usageReporterSubmitDelay, fakeClock, fakeSubmitClock)
 
 	// Receive the second batch.
@@ -403,6 +416,8 @@ func TestUsageReporterErrorReenqueue(t *testing.T) {
 	case e := <-batchChan:
 		require.Len(t, e, testMaxBatchSize)
 		compareUsageEvents(t, reporter, events[5:10], e)
+
+		prev = e
 	case <-time.After(time.Second):
 		t.Fatalf("Did not receive expected events.")
 	}
@@ -412,6 +427,13 @@ func TestUsageReporterErrorReenqueue(t *testing.T) {
 
 	fakeClock.BlockUntil(1)
 	fakeSubmitClock.BlockUntil(1)
+
+	// As above, check the retry counter. These events still have only failed
+	// once.
+	for _, event := range prev {
+		require.Equal(t, testRetryAttempts-1, event.retriesRemaining)
+	}
+
 	advanceClocks(usageReporterSubmitDelay, fakeClock, fakeSubmitClock)
 
 	// Receive the first batch again, since it was reenqueued.
@@ -419,6 +441,8 @@ func TestUsageReporterErrorReenqueue(t *testing.T) {
 	case e := <-batchChan:
 		require.Len(t, e, testMaxBatchSize)
 		compareUsageEvents(t, reporter, events[:5], e)
+
+		prev = e
 	case <-time.After(time.Second):
 		t.Fatalf("Did not receive expected events.")
 	}
@@ -427,6 +451,12 @@ func TestUsageReporterErrorReenqueue(t *testing.T) {
 
 	fakeClock.BlockUntil(1)
 	fakeSubmitClock.BlockUntil(1)
+
+	// Now that it's been resubmitted once, retry attempts is lower.
+	for _, event := range prev {
+		require.Equal(t, 0, event.retriesRemaining)
+	}
+
 	advanceClocks(usageReporterSubmitDelay, fakeClock, fakeSubmitClock)
 
 	// Receive the second batch again, since it was reenqueued.
@@ -434,7 +464,21 @@ func TestUsageReporterErrorReenqueue(t *testing.T) {
 	case e := <-batchChan:
 		require.Len(t, e, testMaxBatchSize)
 		compareUsageEvents(t, reporter, events[5:10], e)
+
+		prev = e
 	case <-time.After(time.Second):
 		t.Fatalf("Did not receive expected events.")
 	}
+
+	<-rx
+	fakeClock.BlockUntil(1)
+	fakeSubmitClock.BlockUntil(1)
+
+	// Now that it's been resubmitted once, retry attempts is lower.
+	for _, event := range prev {
+		require.Equal(t, 0, event.retriesRemaining)
+	}
+
+	// All events should have been dropped.
+	require.Empty(t, reporter.buf)
 }
