@@ -630,7 +630,6 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	if fc.Auth.MessageOfTheDay != "" {
-		cfg.Auth.Preference.SetOrigin(types.OriginConfigFile)
 		cfg.Auth.Preference.SetMessageOfTheDay(fc.Auth.MessageOfTheDay)
 	}
 

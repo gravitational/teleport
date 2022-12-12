@@ -950,6 +950,25 @@ func TestApplyCustomAuthPreference(t *testing.T) {
 	require.True(t, cfg.Auth.Enabled)
 	require.Equal(t, "example.com", cfg.Auth.ClusterName.GetClusterName())
 	require.Equal(t, types.OriginConfigFile, cfg.Auth.Preference.Origin())
+	require.True(t, cfg.Auth.Preference.GetDisconnectExpiredCert())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.NetworkingConfig.Origin())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.SessionRecordingConfig.Origin())
+}
+
+// TestApplyCustomAuthPreferenceWithMOTD makes sure that if the auth file configuration
+// has only the `message_of_the_day` `cluster_auth_preference` field, then it will have
+// the origin label as defaults (instead of config-file).
+func TestApplyCustomAuthPreferenceWithMOTD(t *testing.T) {
+	conf, err := ReadConfig(bytes.NewBufferString(AuthPreferenceConfigWithMOTDString))
+	require.NoError(t, err)
+
+	cfg := service.MakeDefaultConfig()
+	err = ApplyFileConfig(conf, cfg)
+	require.NoError(t, err)
+
+	require.True(t, cfg.Auth.Enabled)
+	require.Equal(t, "example.com", cfg.Auth.ClusterName.GetClusterName())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.Preference.Origin())
 	require.Equal(t, "welcome!", cfg.Auth.Preference.GetMessageOfTheDay())
 	require.Equal(t, types.OriginDefaults, cfg.Auth.NetworkingConfig.Origin())
 	require.Equal(t, types.OriginDefaults, cfg.Auth.SessionRecordingConfig.Origin())
