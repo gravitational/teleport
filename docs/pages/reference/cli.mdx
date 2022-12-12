@@ -631,7 +631,7 @@ $ tsh --ttl=1 login
 $ tsh --proxy=proxy.example.com --auth=local --user=admin login
 
 # Login using GitHub as an SSO provider, assuming the GitHub connector is called "github"
-$ tsh --proxy=proxy.example.com --auth=github --user=admin login
+$ tsh --proxy=proxy.example.com --auth=github login
 
 # Suppress the opening of the system default browser for external provider logins
 $ tsh --proxy=proxy.example.com --browser=none
@@ -934,7 +934,7 @@ New command `tsh l`:
 
 ```yaml
 aliases:
-    "l": "tsh login --auth=okta --username=alice"
+    "l": "tsh login --auth=okta"
 ```
 
 Make `tsh status` use JSON as a default format:
