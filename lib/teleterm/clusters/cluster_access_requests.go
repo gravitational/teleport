@@ -57,23 +57,24 @@ func (c *Cluster) GetAccessRequest(ctx context.Context, req types.AccessRequestF
 		}
 		defer proxyClient.Close()
 
+		requests, err := proxyClient.GetAccessRequests(ctx, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// This has to happen inside this scope because we need access to the authClient
+		// We can remove this once we make the change to keep around the proxy and auth clients
+		if len(requests) < 1 {
+			return trace.NotFound("Access request not found.")
+		}
+		request = requests[0]
+
 		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer authClient.Close()
 
-		requests, err := proxyClient.GetAccessRequests(ctx, req)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		// This has to happen inside this scope because we need access to the authClient
-		// We can remove this once we make the change to keep around the proxy and auth clients
-		if len(requests) < 1 {
-			return trace.NotFound("Access request not found.")
-		}
-
-		request = requests[0]
 		resourceDetails, err = getResourceDetails(ctx, request, authClient)
 
 		return err
