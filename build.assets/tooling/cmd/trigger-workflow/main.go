@@ -35,7 +35,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), args.timeout)
 	defer cancel()
 
-	// Create a GitHub client that authenticates witha Personal Access Token
+	// Create a GitHub client that authenticates with a Personal Access Token
 	gh := github.NewGitHubWithToken(ctx, args.token)
 
 	dispatchCtx, cancelDispatch := context.WithTimeout(ctx, 1*time.Minute)

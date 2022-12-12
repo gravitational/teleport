@@ -82,7 +82,7 @@ func (gh *ghClient) ListWorkflowRuns(ctx context.Context, owner, repo, path, ref
 // this method requires that the GitHub and client clocks are roughly in sync.
 func (gh *ghClient) TriggerDispatchEvent(ctx context.Context, owner, repo, workflow, ref string, inputs map[string]interface{}) (*github.WorkflowRun, error) {
 	// There is no way that I know of to 100% accurately detect which workflow runs
-	// are created in response to a workflow_dispatch event. We can make a vey good
+	// are created in response to a workflow_dispatch event. We can make a very good
 	// guess, though, by looking at what workflow runs (with matching filename and
 	// source references) start immediately after we issue the event - so that's
 	// what we do here.
@@ -109,7 +109,7 @@ func (gh *ghClient) TriggerDispatchEvent(ctx context.Context, owner, repo, workf
 		return nil, trace.Wrap(err, "Failed to issue request")
 	}
 
-	// Now we poll the GitHub API to see if any new Workflow Runs appear.We do this until
+	// Now we poll the GitHub API to see if any new Workflow Runs appear. We do this until
 	// the caller-supplied context expires, so be sure to set a timeout.
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
