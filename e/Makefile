@@ -344,7 +344,7 @@ test:
 # Dockerized build: useful for making Linux binaries on OSX
 .PHONY:docker-binaries
 docker-binaries: clean
-	make -C ../build.assets build-enterprise-binaries
+	make -C ../build.assets build-enterprise-binaries PIV=$(PIV)
 
 .PHONY: image
 image: clean docker-binaries
