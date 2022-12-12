@@ -2,3 +2,133 @@
 title: Getting Started with Desktop Access
 description: Access Windows systems through Teleport Desktop Access
 ---
+
+## Prerequisites
+
+- An existing Teleport cluster with one of the following versions:
+
+  **Open Source or Enterprise:** version 8.0 or newer
+
+  **Teleport Cloud:** version 9.0 or newer
+
+  See [Teleport Getting Started](../getting-started.mdx) if you're new to Teleport.
+
+- A Linux server to run the Teleport Desktop Access service on.
+
+  You can reuse an existing server running any other Teleport instance.
+
+- The `tctl` administration tool version >= (=teleport.version=)
+
+  (!docs/pages/includes/tctl.mdx!)
+
+## Prepare Windows
+
+### Import the Teleport root certificate and DLL
+
+Use `tctl` to export the Teleport root certificate:
+
+```code
+$ tctl auth export --type=windows > teleport.cer
+```
+
+Copy this certificate to your Windows system, if you didn't run `tctl` from there.
+
+From the Windows system, download the [Teleport service installer](#LinkToCome) {/*Rename as needed */}
+and run it. When prompted, select the Teleport certificate file from the previous step.
+Once complete, reboot the system.
+
+{/* Old steps, remove once installer is confirmed. */}
+
+Import the certificate to your Windows certificate trust. Right click on the
+certificate and select **Install Certificate**:
+
+![Install the Teleport root Certificate](../../img/desktop-access/install-root-certificate@2x.png)
+
+From the Certificate Import Wizard under **Store Location** select **Local Machine**:
+
+![Select Local Machine](../../img/desktop-access/certificate-import-step1@2x.png)
+
+At the next screen, select **Place all certificates in the following store**.
+Click **Browse** and select "Trusted Root Certification Authorities":
+
+![Trusted Root Certification Authorities](../../img/desktop-access/trusted-root-certification-authorities@2x.png)
+
+At the next screen, click **Finish** to complete the certificate import.
+
+The Teleport DLL file provides support for Teleport's certificate-based
+authentication for Windows systems not connected to an Active Directory Domain.
+
+[Download the Teleport DLL](#LinkToCome), and register it in your system. From a Powershell
+window opened with Administrator Privleges, run:
+
+```code
+$ cp teleport.dll C:\Windows\System32\teleport.dll
+$ regsvr32.exe C:\Windows\System32\teleport.dll
+```
+
+Reboot the Windows system after installing the DLL.
+
+### Disable network level authenticate for RDP
+
+<Tabs>
+<TabItem label="Windows 10">
+
+Open the **Local Group Policy Editor**. You can search for "Edit group policy" from the Start Menu to find it. Navigate to:
+
+```txt
+Local Computer Policy > Computer Configuration > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security
+```
+
+Open **Require user authentication for remote connections by using Network Level Authentication**, and disable it:
+
+![Disable Netowrk Level Authentication](../../img/desktop-access/disable-nla@2x.png)
+
+</TabItem>
+<TabItem label="Windows Server">
+
+Content
+
+</TabItem>
+</Tabs>
+
+{/* End old steps */}
+
+## Install the Teleport Windows service
+
+On the Linux host where you will run the Desktop service, install Teleport (if you plan on running the Windows protocol on the same host as an existing Teleport service, you can skip this step):
+
+(!docs/pages/includes/install-linux.mdx!)
+
+Define the Windows protocol service and list the Windows systems configured for access through Teleport in `/etc/teleport.yaml`:
+
+```yml
+version: v3
+teleport:
+  nodename: example.teleport.com
+windows_desktop_service:
+  enabled: yes
+  listen_addr: 0.0.0.0:3028
+  hosts:
+    - 192.0.2.156
+```
+
+Start the Teleport Service. The examples below depend on how you installed Teleport (from a system package or a TAR archive):
+
+<Tabs>
+<TabItem label="System Package">
+
+```code
+$ sudo systemctl start teleport.service
+```
+
+</TabItem>
+<TabItem label="Tar Archive">
+
+```code
+$ sudo teleport install systemd --output=/etc/systemd/system/teleport.service;
+$ sudo systemctl enable teleport;
+$ sudo systemctl start teleport;
+```
+
+</TabItem>
+</Tabs>
