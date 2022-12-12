@@ -18,14 +18,19 @@ package github
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/go-github/v41/github"
 	"github.com/gravitational/trace"
+	"golang.org/x/oauth2"
 )
 
 // GitHub is a minimal GitHub client for ease of use
 type GitHub interface {
 	ListReleases(ctx context.Context, organization, repository string) ([]github.RepositoryRelease, error)
+	ListWorkflowRuns(ctx context.Context, owner, repo, path, ref string, since time.Time) (map[int64]struct{}, error)
+	TriggerDispatchEvent(ctx context.Context, owner, repo, path, ref string, inputs map[string]interface{}) (*github.WorkflowRun, error)
+	WaitForRun(ctx context.Context, owner, repo, path, ref string, runID int64) (string, error)
 }
 
 type ghClient struct {
@@ -36,6 +41,20 @@ type ghClient struct {
 func NewGitHub() GitHub {
 	return &ghClient{
 		client: github.NewClient(nil),
+	}
+}
+
+// NewGitHub returns a new instance of the minimal GitHub client that 
+// authenticates to GitHub with a Personal Access Token (or other 
+// oauth token).
+func NewGitHubWithToken(ctx context.Context, token string) GitHub {
+	ts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: token},
+	)
+	authClient := oauth2.NewClient(ctx, ts)
+
+	return &ghClient{
+		client: github.NewClient(authClient),
 	}
 }
 

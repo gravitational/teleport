@@ -19,8 +19,10 @@ package main
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/go-github/v41/github"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -102,4 +104,16 @@ func (f *fakeGitHub) ListReleases(ctx context.Context, organization, repository 
 		ghReleases = append(ghReleases, github.RepositoryRelease{TagName: &tag})
 	}
 	return ghReleases, nil
+}
+
+func (f *fakeGitHub) ListWorkflowRuns(ctx context.Context, owner, repo, path, ref string, since time.Time) (map[int64]struct{}, error) {
+	return nil, trace.NotImplemented("Not required for test")
+}
+
+func (f *fakeGitHub) TriggerDispatchEvent(ctx context.Context, owner, repo, path, ref string, inputs map[string]interface{}) (*github.WorkflowRun, error) {
+	return nil, trace.NotImplemented("Not required for test")
+}
+
+func (f *fakeGitHub) WaitForRun(ctx context.Context, owner, repo, path, ref string, runID int64) (string, error) {
+	return "", trace.NotImplemented("Not required for test")
 }
