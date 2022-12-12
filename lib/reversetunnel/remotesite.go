@@ -812,6 +812,11 @@ func (s *remoteSite) connThroughTunnel(req *sshutils.DialReq) (*sshutils.ChConn,
 	s.Debugf("Requesting connection to %v [%v] in remote cluster.",
 		req.Address, req.ServerID)
 
+	start := time.Now()
+	defer func() {
+		s.Debugf("[DEBUG] Connecting through tunnel %v %+v took: %v", s.domainName, req, time.Since(start))
+	}()
+
 	// Loop through existing remote connections and try and establish a
 	// connection over the "reverse tunnel".
 	var conn *sshutils.ChConn

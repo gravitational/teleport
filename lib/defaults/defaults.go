@@ -98,7 +98,7 @@ const (
 	HTTPMaxConnsPerHost = 250
 
 	// HTTPIdleTimeout is a default timeout for idle HTTP connections
-	HTTPIdleTimeout = 30 * time.Second
+	HTTPIdleTimeout = 60 * time.Second
 
 	// DefaultThrottleTimeout is a timemout used to throttle failed auth servers
 	DefaultThrottleTimeout = 10 * time.Second
@@ -106,7 +106,7 @@ const (
 	// WebHeadersTimeout is a timeout that is set for web requests
 	// before browsers raise "Timeout waiting web headers" error in
 	// the browser
-	WebHeadersTimeout = 10 * time.Second
+	WebHeadersTimeout = 30 * time.Second
 
 	// DefaultIdleConnectionDuration indicates for how long Teleport will hold
 	// the SSH connection open if there are no reads/writes happening over it.
@@ -131,7 +131,7 @@ const (
 
 	// HandshakeReadDeadline is the default time to wait for the client during
 	// the TLS handshake.
-	HandshakeReadDeadline = 5 * time.Second
+	HandshakeReadDeadline = 15 * time.Second
 
 	// SignupTokenTTL is a default TTL for a web signup one time token
 	SignupTokenTTL = time.Hour
