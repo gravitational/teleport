@@ -1,11 +1,13 @@
-import { EventEmitter } from 'node:events';
-
+import Emittery from 'emittery';
 import * as grpc from '@grpc/grpc-js';
 
 import * as api from 'teleterm/services/tshd/v1/tshd_events_service_pb';
 import * as apiService from 'teleterm/services/tshd/v1/tshd_events_service_grpc_pb';
 import Logger from 'teleterm/logger';
 import { SubscribeToTshdEvent } from 'teleterm/types';
+
+export type ReloginRequest = api.ReloginRequest.AsObject;
+export type SendNotificationRequest = api.SendNotificationRequest.AsObject;
 
 /**
  * Starts tshd events server.
@@ -19,11 +21,13 @@ export async function createTshdEventsServer(
   resolvedAddress: string;
   subscribeToTshdEvent: SubscribeToTshdEvent;
 }> {
+  const logger = new Logger('tshd events');
   const { server, resolvedAddress } = await createServer(
     requestedAddress,
-    credentials
+    credentials,
+    logger
   );
-  const { service, subscribeToTshdEvent } = createService();
+  const { service, subscribeToTshdEvent } = createService(logger);
 
   server.addService(
     apiService.TshdEventsServiceService,
@@ -42,9 +46,9 @@ export async function createTshdEventsServer(
 
 async function createServer(
   requestedAddress: string,
-  credentials: grpc.ServerCredentials
+  credentials: grpc.ServerCredentials,
+  logger: Logger
 ): Promise<{ server: grpc.Server; resolvedAddress: string }> {
-  const logger = new Logger('tshd events');
   const server = new grpc.Server();
 
   // grpc-js requires us to pass localhost:port for TCP connections,
@@ -86,21 +90,62 @@ async function createServer(
 // Instead, we create an event emitter and expose subscribeToEvent through the contextBridge.
 // subscribeToEvent lets UI code register a callback for a specific event. That callback receives
 // a simple JS object which can freely pass the contextBridge.
-function createService(): {
+//
+// # Async behavior
+//
+// The callback can return a promise. The service will not return a response until all callbacks
+// resolve. This lets us model behavior where tshd calls the Electron app and then blocks until it
+// receives a response, in case the Electron app needs to do some work before we want to unblock
+// tshd.
+//
+// If any of the callbacks return an error, the service will return that error immediately, without
+// waiting for other listeners.
+function createService(logger: Logger): {
   service: apiService.ITshdEventsServiceServer;
   subscribeToTshdEvent: SubscribeToTshdEvent;
 } {
-  const emitter = new EventEmitter();
+  const emitter = new Emittery();
 
   const subscribeToTshdEvent: SubscribeToTshdEvent = (eventName, listener) => {
     emitter.on(eventName, listener);
   };
 
   const service: apiService.ITshdEventsServiceServer = {
-    // TODO(ravicious): Remove this once we add an actual RPC to tshd events service.
-    test: (call, callback) => {
-      emitter.emit('test', call.request.toObject());
-      callback(null, new api.TestResponse());
+    relogin: (call, callback) => {
+      const request = call.request.toObject();
+
+      logger.info('Emitting relogin', request);
+
+      const onCancelled = (callback: () => void) => {
+        call.on('cancelled', callback);
+      };
+
+      emitter.emit('relogin', { request, onCancelled }).then(
+        () => {
+          callback(null, new api.ReloginResponse());
+        },
+        error => {
+          callback(error);
+        }
+      );
+    },
+    sendNotification: (call, callback) => {
+      const request = call.request.toObject();
+
+      logger.info('Emitting sendNotification', request);
+
+      const onCancelled = (callback: () => void) => {
+        call.on('cancelled', callback);
+      };
+
+      emitter.emit('sendNotification', { request, onCancelled }).then(
+        () => {
+          callback(null, new api.SendNotificationResponse());
+        },
+        error => {
+          callback(error);
+        }
+      );
     },
   };
 

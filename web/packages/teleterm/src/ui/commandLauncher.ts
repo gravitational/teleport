@@ -127,7 +127,7 @@ const commands = {
     description: '',
     run(ctx: IAppContext, args: { clusterUri: string }) {
       const cluster = ctx.clustersService.findCluster(args.clusterUri);
-      ctx.modalsService.openDialog({
+      ctx.modalsService.openRegularDialog({
         kind: 'cluster-logout',
         clusterUri: cluster.uri,
         clusterTitle: cluster.name,

@@ -21,11 +21,8 @@ import { Flex } from 'design';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService/documentsService/types';
 import { Tabs } from 'teleterm/ui/Tabs';
-
 import { DocumentsRenderer } from 'teleterm/ui/Documents';
-
-import AppContext from 'teleterm/ui/appContext';
-
+import { IAppContext } from 'teleterm/ui/types';
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
 
 import { useTabShortcuts } from './useTabShortcuts';
@@ -43,7 +40,7 @@ export function TabHostContainer() {
   return <ClusterConnectPanel />;
 }
 
-export function TabHost({ ctx }: { ctx: AppContext }) {
+export function TabHost({ ctx }: { ctx: IAppContext }) {
   const documentsService =
     ctx.workspacesService.getActiveWorkspaceDocumentService();
   const activeDocument = documentsService?.getActive();

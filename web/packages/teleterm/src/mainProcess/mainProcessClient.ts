@@ -28,5 +28,8 @@ export default function createMainProcessClient(): MainProcessClient {
     removeKubeConfig(options) {
       return ipcRenderer.invoke('main-process-remove-kube-config', options);
     },
+    forceFocusWindow() {
+      return ipcRenderer.invoke('main-process-force-focus-window');
+    },
   };
 }

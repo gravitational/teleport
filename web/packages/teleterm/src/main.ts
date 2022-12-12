@@ -43,6 +43,7 @@ function initializeApp(): void {
     logger,
     configService,
     fileStorage,
+    windowsManager,
   });
 
   app.on(

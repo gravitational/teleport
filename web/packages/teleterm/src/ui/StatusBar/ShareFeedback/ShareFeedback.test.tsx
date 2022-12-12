@@ -5,7 +5,6 @@ import { fireEvent, render } from 'design/utils/testing';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { Cluster } from 'teleterm/services/tshd/v1/cluster_pb';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-
 import { IAppContext } from 'teleterm/ui/types';
 
 import { ShareFeedback } from './ShareFeedback';

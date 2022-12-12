@@ -21,14 +21,18 @@ import { Attempt } from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/clusters/types';
 
-import { ClusterLoginPresentation } from './ClusterLogin';
-import { State } from './useClusterLogin';
+import { gateway } from 'teleterm/services/tshd/fixtures/mocks';
+
+import {
+  ClusterLoginPresentation,
+  ClusterLoginPresentationProps,
+} from './ClusterLogin';
 
 export default {
   title: 'Teleterm/ClusterLogin',
 };
 
-function makeProps(): State {
+function makeProps(): ClusterLoginPresentationProps {
   return {
     shouldPromptSsoStatus: false,
     title: 'localhost',
@@ -60,6 +64,7 @@ function makeProps(): State {
     onLoginWithSso: () => null,
     clearLoginAttempt: () => null,
     webauthnLogin: null,
+    reason: undefined,
   };
 }
 
@@ -103,6 +108,40 @@ export const LocalOnly = () => {
   const props = makeProps();
   props.initAttempt.data.secondFactor = 'off';
   props.initAttempt.data.allowPasswordless = false;
+
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const LocalOnlyWithReasonGatewayCertExpiredWithGateway = () => {
+  const props = makeProps();
+  props.initAttempt.data.secondFactor = 'off';
+  props.initAttempt.data.allowPasswordless = false;
+  props.reason = {
+    kind: 'reason.gateway-cert-expired',
+    targetUri: gateway.targetUri,
+    gateway: gateway,
+  };
+
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const LocalOnlyWithReasonGatewayCertExpiredWithoutGateway = () => {
+  const props = makeProps();
+  props.initAttempt.data.secondFactor = 'off';
+  props.initAttempt.data.allowPasswordless = false;
+  props.reason = {
+    kind: 'reason.gateway-cert-expired',
+    targetUri: gateway.targetUri,
+    gateway: undefined,
+  };
 
   return (
     <TestContainer>
