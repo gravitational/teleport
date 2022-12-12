@@ -24,6 +24,8 @@ import (
 	"github.com/google/go-github/v41/github"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	gh "github.com/gravitational/teleport/build.assets/tooling/lib/github"
 )
 
 func TestGetLatest(t *testing.T) {
@@ -106,7 +108,7 @@ func (f *fakeGitHub) ListReleases(ctx context.Context, organization, repository 
 	return ghReleases, nil
 }
 
-func (f *fakeGitHub) ListWorkflowRuns(ctx context.Context, owner, repo, path, ref string, since time.Time) (map[int64]struct{}, error) {
+func (f *fakeGitHub) ListWorkflowRuns(ctx context.Context, owner, repo, path, ref string, since time.Time) (gh.RunIDSet, error) {
 	return nil, trace.NotImplemented("Not required for test")
 }
 

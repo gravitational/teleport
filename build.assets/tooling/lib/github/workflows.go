@@ -23,30 +23,58 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func setsAreEqual(a, b map[int64]struct{}) bool {
-	if len(a) != len(b) {
+type RunIDSet map[int64]struct{}
+
+// Equals performs a deep comparison of the set values
+func (s RunIDSet) Equals(other RunIDSet) bool {
+	if len(s) != len(other) {
 		return false
 	}
-	for k := range a {
-		if _, present := b[k]; !present {
+	for k := range s {
+		if _, present := other[k]; !present {
 			return false
 		}
 	}
 	return true
 }
 
-func firstUniqueInSet(newSet, baseSet map[int64]struct{}) (int64, bool) {
-	for k := range newSet {
-		if _, present := baseSet[k]; !present {
-			return k, true
+// Insert adds an element to a set. Adding an element multiple times is not
+// considered an error.
+func (s RunIDSet) Insert(runID int64) {
+	s[runID] = struct{}{}
+}
+
+// Unique returns the elements that are in `s` but not in `other`
+func (s RunIDSet) Unique(other RunIDSet) RunIDSet {
+	result := make(RunIDSet)
+	for k := range s {
+		if _, present := other[k]; !present {
+			result[k] = struct{}{}
 		}
 	}
-	return 0, false
+	return result
+}
+
+// Copy returns a deep copy of the set
+func (s RunIDSet) Copy() RunIDSet {
+	result := make(RunIDSet)
+	for k := range s {
+		result[k] = struct{}{}
+	}
+	return result
+}
+
+// RandomItem returns a random item from the set. Returns an error if the set is empty.
+func (s RunIDSet) RandomElement() (int64, error) {
+	for k := range s {
+		return k, nil
+	}
+	return 0, trace.BadParameter("Empty set")
 }
 
 // ListWorkflowRuns returns a set of RunIDs, representing the set of all for
 // workflow runs created since the supplied start time.
-func (gh *ghClient) ListWorkflowRuns(ctx context.Context, owner, repo, path, ref string, since time.Time) (map[int64]struct{}, error) {
+func (gh *ghClient) ListWorkflowRuns(ctx context.Context, owner, repo, path, ref string, since time.Time) (RunIDSet, error) {
 	listOptions := github.ListWorkflowRunsOptions{
 		ListOptions: github.ListOptions{
 			PerPage: 100,
@@ -55,7 +83,7 @@ func (gh *ghClient) ListWorkflowRuns(ctx context.Context, owner, repo, path, ref
 		Created: ">" + since.Format(time.RFC3339),
 	}
 
-	runIDs := make(map[int64]struct{})
+	runIDs := make(RunIDSet)
 
 	for {
 		runs, resp, err := gh.client.Actions.ListWorkflowRunsByFileName(ctx, owner, repo, path, &listOptions)
@@ -64,7 +92,7 @@ func (gh *ghClient) ListWorkflowRuns(ctx context.Context, owner, repo, path, ref
 		}
 
 		for _, r := range runs.WorkflowRuns {
-			runIDs[r.GetID()] = struct{}{}
+			runIDs.Insert(r.GetID())
 		}
 
 		if resp.NextPage == 0 {
@@ -114,17 +142,14 @@ func (gh *ghClient) TriggerDispatchEvent(ctx context.Context, owner, repo, workf
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
-	newRuns := make(map[int64]struct{})
-	for k := range oldRuns {
-		newRuns[k] = struct{}{}
-	}
+	newRuns := oldRuns.Copy()
 
 	log.Printf("Waiting for new workflow run to start")
 
 	// Remember that the set of RunIDs includes completed runs as well as any
 	// in flight, so we don't have to account for expiring run IDs in our "old"
 	// set.
-	for setsAreEqual(newRuns, oldRuns) {
+	for newRuns.Equals(oldRuns) {
 		select {
 		case <-ticker.C:
 			newRuns, err = gh.ListWorkflowRuns(ctx, owner, repo, workflow, ref, baselineTime)
@@ -137,10 +162,10 @@ func (gh *ghClient) TriggerDispatchEvent(ctx context.Context, owner, repo, workf
 		}
 	}
 
-	// Find the first runID in the new set that is not in the old set and deem
+	// Pick a random runID in the new set that is not in the old set and deem
 	// that to be our workflow of interest.
-	runID, ok := firstUniqueInSet(newRuns, oldRuns)
-	if !ok {
+	runID, err := newRuns.Unique(oldRuns).RandomElement()
+	if err != nil {
 		return nil, trace.Errorf("Unable to detect new run ID")
 	}
 
