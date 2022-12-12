@@ -23,8 +23,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// inputMap represents thi inoput values to a workflow. The odd `interface{}`
-// value type (rather than the mor eobvious `string`) is so that we match the
+// inputMap represents the input values to a workflow. The odd `interface{}`
+// value type (rather than the more obvious `string`) is so that we match the
 // type that the GitHub API expects, and we can plug an `inputMap` straight
 // in without any further conversion.
 type inputMap map[string]interface{}
