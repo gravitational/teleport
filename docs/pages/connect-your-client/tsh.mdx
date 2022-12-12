@@ -176,7 +176,7 @@ A Teleport cluster can be configured for multiple user identity sources. For exa
 $ tsh --proxy=proxy.example.com --auth=local --user=admin login
 
 # Log in using GitHub as an SSO provider, assuming the GitHub connector is called "github"
-$ tsh --proxy=proxy.example.com --auth=github --user=admin login
+$ tsh --proxy=proxy.example.com --auth=github login
 ```
 
 </ScopedBlock>
@@ -187,7 +187,7 @@ $ tsh --proxy=proxy.example.com --auth=github --user=admin login
 $ tsh --proxy=mytenant.teleport.sh --auth=local --user=admin login
 
 # Log in using GitHub as an SSO provider, assuming the GitHub connector is called "github"
-$ tsh --proxy=mytenant.teleport.sh --auth=github --user=admin login
+$ tsh --proxy=mytenant.teleport.sh --auth=github login
 ```
 
 </ScopedBlock>
@@ -795,10 +795,10 @@ In either of those files you can add define an alias such as:
 
 ```yaml
 aliases:
-    "l": "tsh login --auth=okta --user=alice"
+    "l": "tsh login --auth=okta"
 ```
 
-From now on, `tsh l` will resolve to `tsh login --auth=okta --user=alice`.
+From now on, `tsh l` will resolve to `tsh login --auth=okta`.
 
 You can also change the defaults for regular `tsh` commands:
 
