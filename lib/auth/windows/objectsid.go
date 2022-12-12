@@ -76,12 +76,12 @@ func decodeADSID(b []byte) adSID {
 }
 
 func ADSIDStringFromLDAPEntry(entry *ldap.Entry) (string, error) {
-	bytes := entry.GetRawAttributeValue(objectSidAttr)
+	bytes := entry.GetRawAttributeValue(ObjectSidAttr)
 	if len(bytes) == 0 {
-		return "", trace.Errorf("failed to find %v", objectSidAttr)
+		return "", trace.Errorf("failed to find %v", ObjectSidAttr)
 	}
 	sid := decodeADSID(bytes)
 	return sid.String(), nil
 }
 
-const objectSidAttr = "objectSid"
+const ObjectSidAttr = "objectSid"

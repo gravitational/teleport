@@ -19,8 +19,6 @@ package auth
 import (
 	"context"
 	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/asn1"
 
 	"github.com/gravitational/trace"
 
@@ -64,18 +62,12 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	// See https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
 	// for cert requirements for Windows authn.
 	certReq := tlsca.CertificateRequest{
-		Clock:     s.clock,
-		PublicKey: csr.PublicKey,
-		Subject:   csr.Subject,
-		NotAfter:  s.clock.Now().UTC().Add(req.TTL.Get()),
-		// Pass through ExtKeyUsage (which we need for Smartcard Logon usage)
-		// and SubjectAltName (which we need for otherName SAN, not supported
-		// out of the box in crypto/x509) extensions only.
-		// TODO(isaiah): is this extension filtering really necessary here? can't we just "filter" by selectively
-		// including what we actually want in here in the request?
-		ExtraExtensions: filterExtensions(csr.Extensions, oidExtKeyUsage, oidSubjectAltName, oidADUserMapping),
-		// ExtraExtensions: filterExtensions(csr.Extensions, oidExtKeyUsage, oidSubjectAltName),
-		KeyUsage: x509.KeyUsageDigitalSignature,
+		Clock:           s.clock,
+		PublicKey:       csr.PublicKey,
+		Subject:         csr.Subject,
+		NotAfter:        s.clock.Now().UTC().Add(req.TTL.Get()),
+		ExtraExtensions: csr.Extensions,
+		KeyUsage:        x509.KeyUsageDigitalSignature,
 		// CRL is required for Windows smartcard certs.
 		CRLDistributionPoints: []string{req.CRLEndpoint},
 	}
@@ -86,23 +78,4 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	return &proto.WindowsDesktopCertResponse{
 		Cert: cert,
 	}, nil
-}
-
-// TODO(isaiah): these are duplicated due to circular imports, see if you can un-duplicate
-var (
-	oidExtKeyUsage    = asn1.ObjectIdentifier{2, 5, 29, 37}
-	oidSubjectAltName = asn1.ObjectIdentifier{2, 5, 29, 17}
-	oidADUserMapping  = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 25, 2}
-)
-
-func filterExtensions(extensions []pkix.Extension, oids ...asn1.ObjectIdentifier) []pkix.Extension {
-	filtered := make([]pkix.Extension, 0, len(oids))
-	for _, e := range extensions {
-		for _, id := range oids {
-			if e.Id.Equal(id) {
-				filtered = append(filtered, e)
-			}
-		}
-	}
-	return filtered
 }

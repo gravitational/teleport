@@ -21,6 +21,8 @@ import (
 	"crypto"
 	"crypto/sha256"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
@@ -314,4 +316,16 @@ func getSnowflakeJWTParams(accountName, userName string, publicKey []byte) (stri
 	issuer := fmt.Sprintf("%s.%s.SHA256:%s", accnTokenCap, userNameCap, keyFpStr)
 
 	return subject, issuer
+}
+
+func filterExtensions(extensions []pkix.Extension, oids ...asn1.ObjectIdentifier) []pkix.Extension {
+	filtered := make([]pkix.Extension, 0, len(oids))
+	for _, e := range extensions {
+		for _, id := range oids {
+			if e.Id.Equal(id) {
+				filtered = append(filtered, e)
+			}
+		}
+	}
+	return filtered
 }
