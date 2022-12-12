@@ -89,6 +89,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	forward := app.Command(teleport.ForwardSubCommand, "Used internally by Teleport to re-exec itself to port forward.").Hidden()
 	checkHomeDir := app.Command(teleport.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
 	park := app.Command(teleport.ParkSubCommand, "Used internally by Teleport to re-exec itself to do nothing.").Hidden()
+	waitNoResolve := app.Command(teleport.WaitNoResolveSubCommand, "Used internally by Teleport to wait until the TELEPORT_WAIT_NO_RESOLVE_DOMAIN stops resolving IP addresses.").Hidden()
 	app.HelpFlag.Short('h')
 
 	// define start flags:
@@ -428,6 +429,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		srv.RunAndExit(teleport.CheckHomeDirSubCommand)
 	case park.FullCommand():
 		srv.RunAndExit(teleport.ParkSubCommand)
+	case waitNoResolve.FullCommand():
+		srv.RunAndExit(teleport.WaitNoResolveSubCommand)
 	case ver.FullCommand():
 		utils.PrintVersion()
 	case dbConfigureCreate.FullCommand():

@@ -37,6 +37,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/shell"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
 // FileFD is a file descriptor passed down from a parent process when
@@ -608,6 +610,105 @@ func runPark() (errw io.Writer, code int, err error) {
 	}
 }
 
+const (
+	waitNoResolveDefaultPeriod  = 10 * time.Second
+	waitNoResolveDefaultTimeout = 10 * time.Minute
+)
+
+func waitNoResolve() (io.Writer, int, error) {
+	// We get parameters from environment variables
+	utils.InitLogger(utils.LoggingForCLI, log.DebugLevel)
+
+	domainName := os.Getenv(teleport.WaitNoResolveDomainEnvVar)
+	if domainName == "" {
+		return io.Discard, teleport.DomainStillResolving,
+			fmt.Errorf("environment variable %s must be set", teleport.WaitNoResolveDomainEnvVar)
+	}
+
+	var err error
+	period := waitNoResolveDefaultPeriod
+	periodEnv := os.Getenv(teleport.WaitNoResolvePeriodEnvVar)
+	if periodEnv != "" {
+		period, err = time.ParseDuration(periodEnv)
+	}
+
+	if err != nil {
+		return io.Discard, teleport.DomainStillResolving, err
+	}
+	timeout := waitNoResolveDefaultTimeout
+	timeoutEnv := os.Getenv(teleport.WaitNoResolveTimeoutEnvVar)
+	if timeoutEnv != "" {
+		timeout, err = time.ParseDuration(timeoutEnv)
+	}
+	if err != nil {
+		return io.Discard, teleport.DomainStillResolving, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	// We resolve the previous auth service until there's no IP returned.
+	// This means all pods got rollout and we don't risk connecting to an auth pod running the previous version
+	periodic := interval.New(interval.Config{
+		Duration:      period,
+		FirstDuration: time.Millisecond,
+		Jitter:        retryutils.NewSeventhJitter(),
+	})
+	defer periodic.Stop()
+
+	exit := false
+	for !exit {
+		select {
+		case <-ctx.Done():
+			log.Errorf(
+				"timeout (%s) reached, but domain '%s' is still resolving",
+				timeout,
+				domainName,
+			)
+			return io.Discard, teleport.DomainStillResolving, nil
+
+		case <-periodic.Next():
+			exit, err = checkDomainNoResolve(domainName)
+			if err != nil {
+				return io.Discard, teleport.DomainStillResolving, nil
+			}
+		}
+	}
+	log.Info("no endpoints found, exiting with success code")
+	return io.Discard, teleport.RemoteCommandSuccess, nil
+}
+
+func checkDomainNoResolve(domainName string) (exit bool, err error) {
+	endpoints, err := countEndpoints(domainName)
+	if err != nil {
+		dnsErr, ok := err.(*net.DNSError)
+		if !ok {
+			log.Errorf("unexpected error when resolving domain %s : %s", domainName, err)
+			return false, err
+		}
+		if dnsErr.Temporary() {
+			log.Warnf("temporary error when resolving domain %s : %s", domainName, err)
+			return false, nil
+		}
+		if dnsErr.IsNotFound {
+			log.Infof("domain %s not found", domainName)
+			return true, nil
+		}
+		log.Errorf("error when resolving domain %s : %s", domainName, err)
+		return false, nil
+	}
+	log.Infof("%d endpoints found when resolving domain %s", endpoints, domainName)
+	return endpoints == 0, nil
+}
+
+func countEndpoints(serviceName string) (int, error) {
+	ips, err := net.LookupIP(serviceName)
+	if err != nil {
+		return 0, err
+	}
+	return len(ips), nil
+}
+
 // RunAndExit will run the requested command and then exit. This wrapper
 // allows Run{Command,Forward} to use defers and makes sure error messages
 // are consistent across both.
@@ -625,6 +726,8 @@ func RunAndExit(commandType string) {
 		w, code, err = runCheckHomeDir()
 	case teleport.ParkSubCommand:
 		w, code, err = runPark()
+	case teleport.WaitNoResolveSubCommand:
+		w, code, err = waitNoResolve()
 	default:
 		w, code, err = os.Stderr, teleport.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}

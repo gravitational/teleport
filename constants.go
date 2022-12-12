@@ -276,6 +276,15 @@ const (
 	// IterationsEnvVar sets tests iterations to run
 	IterationsEnvVar = "ITERATIONS"
 
+	// WaitNoResolveDomainEnvVar configures the wait-no-resolve domain.
+	WaitNoResolveDomainEnvVar = "TELEPORT_WAIT_NO_RESOLVE_DOMAIN"
+
+	// WaitNoResolvePeriodEnvVar allows to configure the period lookup of the wait-no-resolve command.
+	WaitNoResolvePeriodEnvVar = "TELEPORT_WAIT_NO_RESOLVE_PERIOD"
+
+	// WaitNoResolveTimeoutEnvVar configures the wait-no-resolve timeout.
+	WaitNoResolveTimeoutEnvVar = "TELEPORT_WAIT_NO_RESOLVE_TIMEOUT"
+
 	// DefaultTerminalWidth defines the default width of a server-side allocated
 	// pseudo TTY
 	DefaultTerminalWidth = 80
@@ -507,6 +516,9 @@ const (
 	// HomeDirNotFound is returned when a the "teleport checkhomedir" command cannot
 	// find the user's home directory.
 	HomeDirNotFound = 254
+	// DomainStillResolving is returned when there are still auth servers running
+	// the previous major version
+	DomainStillResolving = 253
 )
 
 // MaxEnvironmentFileLines is the maximum number of lines in a environment file.
@@ -754,6 +766,11 @@ const (
 	// SFTPSubCommand is the sub-command Teleport uses to re-exec itself to
 	// handle SFTP connections.
 	SFTPSubCommand = "sftp"
+
+	// WaitNoResolveSubCommand is the sub-command Teleport uses to wait
+	// until a domain name stops resolving. Its main use is to ensure no
+	// auth instances are still running the previous major version.
+	WaitNoResolveSubCommand = "wait-no-resolve"
 )
 
 const (
