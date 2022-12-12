@@ -1,0 +1,35 @@
+query getLatestPRs($owner: String!, $repo: String!, $limit: Int!, $before: String) {
+	repository(owner: $owner, name: $repo) {
+		  pullRequests(last: $limit, before: $before, states:MERGED) {
+		pageInfo{
+		  startCursor
+		}      
+		nodes{
+		  number
+		  mergedAt
+		  commits(last: 5) {
+			nodes {
+			  commit {
+				checkSuites(first: 15) {
+				  nodes {
+					app {
+					  name
+					}
+					checkRuns(first: 50) {
+					  nodes {
+						name
+						conclusion
+						startedAt
+						completedAt
+						permalink
+					  }
+					}
+				  }
+				}
+			  }
+			}
+		  }
+		}
+	  }
+	}
+  }
