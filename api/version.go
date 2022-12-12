@@ -3,7 +3,7 @@
 package api
 
 const (
-	Version = "11.1.2"
+	Version = "11.1.3-dev.ravicious.2"
 )
 
 // Gitref variable is automatically set to the output of git-describe
