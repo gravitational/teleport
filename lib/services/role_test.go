@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -1846,6 +1847,8 @@ func TestApplyTraits(t *testing.T) {
 		outWindowsLogins        []string
 		inRoleARNs              []string
 		outRoleARNs             []string
+		inAzureIdentities       []string
+		outAzureIdentities      []string
 		inLabels                types.Labels
 		outLabels               types.Labels
 		inKubeLabels            types.Labels
@@ -1960,6 +1963,32 @@ func TestApplyTraits(t *testing.T) {
 			deny: rule{
 				inRoleARNs:  []string{"{{external.foo}}", teleport.TraitInternalAWSRoleARNs},
 				outRoleARNs: []string{"bar", "baz"},
+			},
+		},
+		{
+			comment: "Azure identity substitute in allow rule",
+			inTraits: map[string][]string{
+				"foo":                          {"/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/external-foo/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure"},
+				constants.TraitAzureIdentities: {"/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/internal-azure-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure"},
+			},
+			deny: rule{
+				inAzureIdentities: []string{"{{external.foo}}", teleport.TraitInternalAzureIdentities},
+				outAzureIdentities: []string{
+					"/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/external-foo/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
+					"/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/internal-azure-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure"},
+			},
+		},
+		{
+			comment: "Azure identity substitute in deny rule",
+			inTraits: map[string][]string{
+				"foo":                          {"/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/external-foo/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure"},
+				constants.TraitAzureIdentities: {"/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/internal-azure-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure"},
+			},
+			deny: rule{
+				inAzureIdentities: []string{"{{external.foo}}", teleport.TraitInternalAzureIdentities},
+				outAzureIdentities: []string{
+					"/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/external-foo/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
+					"/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/internal-azure-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure"},
 			},
 		},
 		{
@@ -2344,6 +2373,8 @@ func TestApplyTraits(t *testing.T) {
 						KubeGroups:           tt.allow.inKubeGroups,
 						KubeUsers:            tt.allow.inKubeUsers,
 						AppLabels:            tt.allow.inAppLabels,
+						AWSRoleARNs:          tt.allow.inRoleARNs,
+						AzureIdentities:      tt.allow.inAzureIdentities,
 						DatabaseLabels:       tt.allow.inDBLabels,
 						DatabaseNames:        tt.allow.inDBNames,
 						DatabaseUsers:        tt.allow.inDBUsers,
@@ -2360,6 +2391,8 @@ func TestApplyTraits(t *testing.T) {
 						KubeGroups:           tt.deny.inKubeGroups,
 						KubeUsers:            tt.deny.inKubeUsers,
 						AppLabels:            tt.deny.inAppLabels,
+						AWSRoleARNs:          tt.deny.inRoleARNs,
+						AzureIdentities:      tt.deny.inAzureIdentities,
 						DatabaseLabels:       tt.deny.inDBLabels,
 						DatabaseNames:        tt.deny.inDBNames,
 						DatabaseUsers:        tt.deny.inDBUsers,
@@ -2387,6 +2420,8 @@ func TestApplyTraits(t *testing.T) {
 				require.Equal(t, rule.spec.outKubeGroups, outRole.GetKubeGroups(rule.condition))
 				require.Equal(t, rule.spec.outKubeUsers, outRole.GetKubeUsers(rule.condition))
 				require.Equal(t, rule.spec.outAppLabels, outRole.GetAppLabels(rule.condition))
+				require.Equal(t, rule.spec.outRoleARNs, outRole.GetAWSRoleARNs(rule.condition))
+				require.Equal(t, rule.spec.outAzureIdentities, outRole.GetAzureIdentities(rule.condition))
 				require.Equal(t, rule.spec.outDBLabels, outRole.GetDatabaseLabels(rule.condition))
 				require.Equal(t, rule.spec.outDBNames, outRole.GetDatabaseNames(rule.condition))
 				require.Equal(t, rule.spec.outDBUsers, outRole.GetDatabaseUsers(rule.condition))
@@ -3493,6 +3528,104 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 					AccessMFAParams{},
 					&AWSRoleARNMatcher{RoleARN: access.roleARN})
 				if access.hasAccess {
+					require.NoError(t, err)
+				} else {
+					require.Error(t, err)
+					require.True(t, trace.IsAccessDenied(err))
+				}
+			}
+		})
+	}
+}
+
+// TestCheckAccessToAzureCloud verifies Azure identities access checker.
+func TestCheckAccessToAzureCloud(t *testing.T) {
+	app, err := types.NewAppV3(types.Metadata{Name: "azureapp"}, types.AppSpecV3{Cloud: types.CloudAzure})
+	require.NoError(t, err)
+	readOnlyIdentity := "readonly"
+	fullAccessIdentity := "fullaccess"
+	roleNoAccess := &types.RoleV5{
+		Metadata: types.Metadata{
+			Name:      "noaccess",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:      []string{apidefaults.Namespace},
+				AppLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AzureIdentities: []string{},
+			},
+		},
+	}
+	roleReadOnly := &types.RoleV5{
+		Metadata: types.Metadata{
+			Name:      "readonly",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:      []string{apidefaults.Namespace},
+				AppLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AzureIdentities: []string{readOnlyIdentity},
+			},
+		},
+	}
+	roleFullAccess := &types.RoleV5{
+		Metadata: types.Metadata{
+			Name:      "fullaccess",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:      []string{apidefaults.Namespace},
+				AppLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AzureIdentities: []string{readOnlyIdentity, fullAccessIdentity},
+			},
+		},
+	}
+	tests := []struct {
+		name   string
+		roles  RoleSet
+		access map[string]bool
+	}{
+		{
+			name:  "empty role set",
+			roles: nil,
+			access: map[string]bool{
+				readOnlyIdentity:   false,
+				fullAccessIdentity: false,
+			},
+		},
+		{
+			name:  "no access role",
+			roles: RoleSet{roleNoAccess},
+			access: map[string]bool{
+				readOnlyIdentity:   false,
+				fullAccessIdentity: false,
+			},
+		},
+		{
+			name:  "readonly role",
+			roles: RoleSet{roleReadOnly},
+			access: map[string]bool{
+				readOnlyIdentity:   true,
+				fullAccessIdentity: false,
+			},
+		},
+		{
+			name:  "full access role",
+			roles: RoleSet{roleFullAccess},
+			access: map[string]bool{
+				readOnlyIdentity:   true,
+				fullAccessIdentity: true,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			for identity, hasAccess := range test.access {
+				err := test.roles.checkAccess(app, AccessMFAParams{}, &AzureIdentityMatcher{Identity: identity})
+				if hasAccess {
 					require.NoError(t, err)
 				} else {
 					require.Error(t, err)
@@ -5255,6 +5388,204 @@ func TestPrivateKeyPolicy(t *testing.T) {
 				}))
 			}
 			require.Equal(t, tc.expectPrivateKeyPolicy, set.PrivateKeyPolicy(tc.authPrefPrivateKeyPolicy))
+		})
+	}
+}
+
+func TestAzureIdentityMatcher_Match(t *testing.T) {
+	tests := []struct {
+		name       string
+		identities []string
+
+		role      types.Role
+		matchType types.RoleConditionType
+
+		wantMatched []string
+	}{
+		{
+			name:       "allow ignores wildcard",
+			identities: []string{"foo", "BAR", "baz"},
+			role: newRole(func(r *types.RoleV5) {
+				r.Spec.Allow.AzureIdentities = []string{"*", "bar", "baz"}
+			}),
+			matchType:   types.Allow,
+			wantMatched: []string{"BAR", "baz"},
+		},
+		{
+			name:       "deny matches wildcard",
+			identities: []string{"FoO", "BAr", "baz"},
+			role: newRole(func(r *types.RoleV5) {
+				r.Spec.Deny.AzureIdentities = []string{"*", "bar", "baz"}
+			}),
+			matchType:   types.Deny,
+			wantMatched: []string{"FoO", "BAr", "baz"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var matched []string
+			for _, identity := range tt.identities {
+				m := &AzureIdentityMatcher{Identity: identity}
+				if ok, _ := m.Match(tt.role, tt.matchType); ok {
+					matched = append(matched, identity)
+				}
+			}
+			require.Equal(t, tt.wantMatched, matched)
+		})
+	}
+}
+
+func TestMatchAzureIdentity(t *testing.T) {
+	tests := []struct {
+		name string
+
+		identities    []string
+		identity      string
+		matchWildcard bool
+
+		wantMatch     bool
+		wantMatchType string
+	}{
+		{
+			name: "allow exact match",
+
+			identities:    []string{"foo", "bar", "baz"},
+			identity:      "bar",
+			matchWildcard: false,
+
+			wantMatch:     true,
+			wantMatchType: "element matched",
+		},
+		{
+			name: "allow case insensitive match",
+
+			identities:    []string{"foo", "bar", "baz"},
+			identity:      "BAR",
+			matchWildcard: false,
+
+			wantMatch:     true,
+			wantMatchType: "element matched",
+		},
+		{
+			name: "allow wildcard mismatch",
+
+			identities:    []string{"foo", "bar", "*"},
+			identity:      "baz",
+			matchWildcard: false,
+
+			wantMatch:     false,
+			wantMatchType: "no match, role selectors [foo bar *], identity: baz",
+		},
+		{
+			name: "deny exact match",
+
+			identities:    []string{"foo", "bar", "baz"},
+			identity:      "bar",
+			matchWildcard: true,
+
+			wantMatch:     true,
+			wantMatchType: "element matched",
+		},
+		{
+			name: "deny case insensitive match",
+
+			identities:    []string{"foo", "bar", "baz"},
+			identity:      "BAZ",
+			matchWildcard: true,
+
+			wantMatch:     true,
+			wantMatchType: "element matched",
+		},
+		{
+			name: "deny wildcard match",
+
+			identities:    []string{"foo", "bar", "*"},
+			identity:      "baz",
+			matchWildcard: true,
+
+			wantMatch:     true,
+			wantMatchType: "wildcard matched",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotMatch, gotMatchType := MatchAzureIdentity(tt.identities, tt.identity, tt.matchWildcard)
+			require.Equal(t, tt.wantMatch, gotMatch)
+			require.Equal(t, tt.wantMatchType, gotMatchType)
+		})
+	}
+}
+
+func TestMatchValidAzureIdentity(t *testing.T) {
+	tests := []struct {
+		name                  string
+		identity              string
+		valid                 bool
+		ignoreParseResourceID bool
+	}{
+		{
+			name:                  "wildcard",
+			identity:              "*",
+			valid:                 true,
+			ignoreParseResourceID: true,
+		},
+		{
+			name:     "correct format",
+			identity: "/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
+			valid:    true,
+		},
+		{
+			name:     "correct format, case insensitive match",
+			identity: "/SUBscriptions/0000000000000-0000-CAFE-A0B0C0D0E0F0/RESOURCEGroups/EXAMPLE-resource-group/provIders/microsoft.managedidentity/userassignedidentities/Tele10329azure",
+			valid:    true,
+		},
+		{
+			name:     "invalid format # 1",
+			identity: "/subscriptions/0000000000000-XXXX-XXXX-000000000000/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
+			valid:    false,
+		},
+		{
+			name:     "invalid format # 2",
+			identity: "/subscriptions/0000000000000-0000-0000-000000000000/resourceGroups/example resource group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
+			valid:    false,
+		},
+		{
+			name:     "invalid format # 3",
+			identity: "/subscriptions/0000000000000-0000-0000-000000000000/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport azure",
+			valid:    false,
+		},
+		{
+			name:     "invalid format # 4",
+			identity: "/subscriptions/0000000000000-0000-0000-000000000000/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/",
+			valid:    false,
+		},
+		{
+			name:     "invalid format # 5",
+			identity: "/subscriptions/0000000000000-0000-0000-000000000000/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities",
+			valid:    false,
+		},
+		{
+			name:     "invalid format # 6",
+			identity: "whatever /subscriptions/0000000000000-0000-0000-000000000000/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/foo",
+			valid:    false,
+		},
+		{
+			name:     "invalid format # 7",
+			identity: "///subscriptions///1020304050607-cafe-8090-a0b0c0d0e0f0///resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
+			valid:    false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.valid, MatchValidAzureIdentity(tt.identity))
+
+			if tt.ignoreParseResourceID == false {
+				// if it ParseResourceID returns an error, we expect MatchValidAzureIdentity to do the same.
+				_, err := arm.ParseResourceID(tt.identity)
+				if err != nil {
+					require.False(t, MatchValidAzureIdentity(tt.identity))
+				}
+			}
 		})
 	}
 }
