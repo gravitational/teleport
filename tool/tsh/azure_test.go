@@ -88,8 +88,6 @@ func TestAzure(t *testing.T) {
 			return nil
 		}))
 
-	t.Setenv("HOME", "/user/home/dir")
-
 	// basic requests to verify we can dial proxy as expected
 	// more comprehensive tests cover AzureMSIMiddleware directly
 	requests := []struct {
@@ -152,7 +150,7 @@ func TestAzure(t *testing.T) {
 				return ""
 			}
 
-			require.Equal(t, "/user/home/dir/.azure-teleport-azure-api", getEnvValue("AZURE_CONFIG_DIR"))
+			require.Equal(t, path.Join(tmpHomePath, "azure/localhost/azure-api"), getEnvValue("AZURE_CONFIG_DIR"))
 			require.Equal(t, "https://azure-msi.teleport.dev/very-secret", getEnvValue("MSI_ENDPOINT"))
 			require.Equal(t, path.Join(tmpHomePath, "keys/127.0.0.1/alice@example.com-app/localhost/azure-api-localca.pem"), getEnvValue("REQUESTS_CA_BUNDLE"))
 			require.True(t, strings.HasPrefix(getEnvValue("HTTPS_PROXY"), "http://127.0.0.1:"))
