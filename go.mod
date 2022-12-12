@@ -33,7 +33,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.75.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.17.6
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
-	github.com/beevik/etree v1.1.0
+	github.com/beevik/etree v1.1.0 // indirect
 	github.com/bufbuild/connect-go v1.3.2
 	github.com/coreos/go-oidc v2.1.0+incompatible // replaced
 	github.com/coreos/go-semver v0.3.0
@@ -103,7 +103,7 @@ require (
 	github.com/prometheus/common v0.37.0
 	github.com/russellhaering/gosaml2 v0.8.1
 	github.com/russellhaering/goxmldsig v1.2.0
-	github.com/schollz/progressbar/v3 v3.12.1
+	github.com/schollz/progressbar/v3 v3.12.2
 	github.com/sethvargo/go-diceware v0.3.0
 	github.com/sirupsen/logrus v1.9.0 // replaced
 	github.com/snowflakedb/gosnowflake v1.6.15
@@ -129,7 +129,7 @@ require (
 	golang.org/x/oauth2 v0.2.0
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.3.0
-	golang.org/x/term v0.2.0
+	golang.org/x/term v0.3.0
 	golang.org/x/text v0.4.0
 	golang.org/x/tools v0.3.0
 	google.golang.org/api v0.103.0
@@ -168,6 +168,8 @@ require (
 	github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd // indirect
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
 )
+
+require github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726
 
 require (
 	cloud.google.com/go v0.105.0 // indirect
@@ -220,7 +222,6 @@ require (
 	github.com/cncf/udpa/go v0.0.0-20210930031921-04548b0d99d4 // indirect
 	github.com/cncf/xds/go v0.0.0-20211011173535-cb28da3451f1 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.3-0.20220203105225-a9a7ef127534 // indirect
-	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.1 // indirect
 	github.com/danieljoos/wincred v1.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -322,14 +323,13 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pquerna/cachecontrol v0.1.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
-	github.com/rivo/uniseg v0.4.2 // indirect
+	github.com/rivo/uniseg v0.4.3 // indirect
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	github.com/rs/zerolog v1.28.0 // indirect
 	github.com/russross/blackfriday v1.5.2 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46 // indirect
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
-	github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726 // indirect
 	github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07 // indirect
 	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/spf13/cobra v1.4.0 // indirect
