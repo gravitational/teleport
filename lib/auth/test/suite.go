@@ -188,9 +188,9 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 	c.Assert(err, check.IsNil)
 	parsedCert, err = sshutils.ParseCertificate(cert)
 	c.Assert(err, check.IsNil)
-	devId, ok := parsedCert.Extensions[teleport.CertExtensionMFAVerified]
+	devID, ok := parsedCert.Extensions[teleport.CertExtensionMFAVerified]
 	c.Assert(ok, check.Equals, true)
-	c.Assert(devId, check.Equals, "mfa-device-id")
+	c.Assert(devID, check.Equals, "mfa-device-id")
 	prevIDExpiresStr, ok := parsedCert.Extensions[teleport.CertExtensionPreviousIdentityExpires]
 	c.Assert(ok, check.Equals, true)
 	prevIDExpires, err := time.Parse(time.RFC3339, prevIDExpiresStr)
