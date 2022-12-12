@@ -118,11 +118,11 @@ address of your Teleport Proxy Service.
 ```code
 $ teleport db start \
   --token=/tmp/token \
-  --db-name=aurora \
+  --name=aurora \
   --auth-server=teleport.example.com:3080 \
-  --db-protocol=postgres \
-  --db-uri=postgres-aurora-instance-1.abcdefghijklm.us-west-1.rds.amazonaws.com:5432 \
-  --db-aws-region=us-west-1
+  --protocol=postgres \
+  --uri=postgres-aurora-instance-1.abcdefghijklm.us-west-1.rds.amazonaws.com:5432 \
+  --aws-region=us-west-1
 ```
 
 </ScopedBlock>
@@ -136,11 +136,11 @@ address of your Teleport Cloud tenant.
 ```code
 $ teleport db start \
   --token=/tmp/token \
-  --db-name=aurora \
+  --name=aurora \
   --auth-server=mytenant.teleport.sh:443 \
-  --db-protocol=postgres \
-  --db-uri=postgres-aurora-instance-1.abcdefghijklm.us-west-1.rds.amazonaws.com:5432 \
-  --db-aws-region=us-west-1
+  --protocol=postgres \
+  --uri=postgres-aurora-instance-1.abcdefghijklm.us-west-1.rds.amazonaws.com:5432 \
+  --aws-region=us-west-1
 ```
 
 </ScopedBlock>
