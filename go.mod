@@ -4,7 +4,6 @@ go 1.19
 
 require (
 	cloud.google.com/go/container v1.8.0
-	cloud.google.com/go/firestore v1.6.1
 	cloud.google.com/go/iam v0.8.0
 	cloud.google.com/go/kms v1.6.0
 	cloud.google.com/go/storage v1.28.1
@@ -133,7 +132,6 @@ require (
 	golang.org/x/text v0.5.0
 	golang.org/x/tools v0.3.0
 	google.golang.org/api v0.103.0
-	google.golang.org/genproto v0.0.0-20221201164419-0e50fba7f41c // indirect
 	google.golang.org/grpc v1.51.0
 	google.golang.org/grpc/examples v0.0.0-20221010194801-c67245195065
 	google.golang.org/protobuf v1.28.1
@@ -154,6 +152,13 @@ require (
 	sigs.k8s.io/controller-runtime v0.13.1
 	sigs.k8s.io/controller-tools v0.10.0
 	sigs.k8s.io/yaml v1.3.0
+)
+
+// DO NOT UPDATE genproto without first updating firestore to 1.9.0
+// and fixing the deprecation of the Batch api in firestore 1.7.0.
+require (
+	cloud.google.com/go/firestore v1.6.1
+	google.golang.org/genproto v0.0.0-20221201164419-0e50fba7f41c
 )
 
 // DO NOT UPDATE crypto beyond v0.2.0, the commit below breaks compatibility
