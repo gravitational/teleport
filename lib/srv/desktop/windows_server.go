@@ -797,25 +797,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	rdpc, err := rdpclient.New(rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
-			// Find the user's SID
-			s.cfg.Log.Debugf("querying LDAP for objectSid of Windows username: %v", username)
-			filters := []string{fmt.Sprintf("(%s=person)", windows.AttrObjectCategory), fmt.Sprintf("(%s=user)", windows.AttrObjectClass), fmt.Sprintf("(name=%s)", username)}
-			entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), windows.CombineLDAPFilters(filters), []string{windows.AttrObjectSid})
-			if err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-			if len(entries) == 0 {
-				return nil, nil, trace.NotFound("LDAP failed to return objectSid for Windows username: %v", username)
-			} else if len(entries) > 1 {
-				s.cfg.Log.Warnf("LDAP unexpectedly returned multiple entries for objectSid for username: %v, taking the first", username)
-			}
-			entry := entries[0]
-			activeDirectorySID, err := windows.ADSIDStringFromLDAPEntry(entry)
-			if err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-			s.cfg.Log.Debugf("Found objectSid %v for Windows username %v", activeDirectorySID, username)
-			return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl, &activeDirectorySID)
+			return s.generateUserCert(ctx, username, ttl, desktop)
 		},
 		CertTTL:               windows.CertTTL,
 		Addr:                  desktop.GetAddr(),
@@ -1044,6 +1026,31 @@ func timer() func() int64 {
 		}
 		return int64(time.Since(first) / time.Millisecond)
 	}
+}
+
+// generateUserCert queries LDAP for the passed username's SID and generates
+// a private key / public certificate pair for the given Windows username.
+func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop) (certDER, keyDER []byte, err error) {
+	// Find the user's SID
+	s.cfg.Log.Debugf("querying LDAP for objectSid of Windows username: %v", username)
+	filters := []string{fmt.Sprintf("(%s=person)", windows.AttrObjectCategory), fmt.Sprintf("(%s=user)", windows.AttrObjectClass), fmt.Sprintf("(name=%s)", username)}
+	entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), windows.CombineLDAPFilters(filters), []string{windows.AttrObjectSid})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	if len(entries) == 0 {
+		return nil, nil, trace.NotFound("LDAP failed to return objectSid for Windows username: %v", username)
+	} else if len(entries) > 1 {
+		s.cfg.Log.Warnf("LDAP unexpectedly returned multiple entries for objectSid for username: %v, taking the first", username)
+	}
+	entry := entries[0]
+	activeDirectorySID, err := windows.ADSIDStringFromLDAPEntry(entry)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	s.cfg.Log.Debugf("Found objectSid %v for Windows username %v", activeDirectorySID, username)
+	// Generate credentials with the user's SID
+	return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl, &activeDirectorySID)
 }
 
 // generateCredentials generates a private key / certificate pair for the given
