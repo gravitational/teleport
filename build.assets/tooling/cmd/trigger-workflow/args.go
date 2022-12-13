@@ -40,15 +40,12 @@ func (m inputMap) String() string {
 func (m inputMap) Set(s string) error {
 	parts := strings.SplitN(s, "=", 2)
 
-	key := parts[0]
-	if key == "" {
-		return trace.BadParameter("missing input name")
+	if len(parts) != 2 {
+		return trace.BadParameter("Invalid input. Must be name=value")
 	}
 
-	value := ""
-	if len(parts) > 1 {
-		value = parts[1]
-	}
+	key := parts[0]
+	value := parts[1]
 
 	m[key] = value
 	return nil
@@ -56,13 +53,14 @@ func (m inputMap) Set(s string) error {
 
 // args holds the parsed command-line arguments for the command.
 type args struct {
-	token       string
-	owner       string
-	repo        string
-	workflow    string
-	workflowRef string
-	timeout     time.Duration
-	inputs      inputMap
+	token          string
+	owner          string
+	repo           string
+	workflow       string
+	workflowRef    string
+	useWorkflowTag bool
+	timeout        time.Duration
+	inputs         inputMap
 }
 
 func parseCommandLine() args {
@@ -77,6 +75,7 @@ func parseCommandLine() args {
 	flag.StringVar(&args.repo, "repo", "", "Repo to target")
 	flag.StringVar(&args.workflow, "workflow", "", "Path to workflow")
 	flag.StringVar(&args.workflowRef, "workflow-ref", args.workflowRef, "Revision reference")
+	flag.BoolVar(&args.useWorkflowTag, "tag-workflow", false, "Use a workflow input to tag and ID workflows spawned by the event")
 	flag.DurationVar(&args.timeout, "timeout", 30*time.Minute, "Timeout")
 	flag.Var(args.inputs, "input", "Input to target workflow")
 

@@ -44,8 +44,8 @@ func (s RunIDSet) Insert(runID int64) {
 	s[runID] = struct{}{}
 }
 
-// Unique returns the elements that are in `s` but not in `other`
-func (s RunIDSet) Unique(other RunIDSet) RunIDSet {
+// NotIn returns the elements that are in `s` but not in `other`
+func (s RunIDSet) NotIn(other RunIDSet) RunIDSet {
 	result := make(RunIDSet)
 	for k := range s {
 		if _, present := other[k]; !present {
@@ -55,26 +55,16 @@ func (s RunIDSet) Unique(other RunIDSet) RunIDSet {
 	return result
 }
 
-// Copy returns a deep copy of the set
-func (s RunIDSet) Copy() RunIDSet {
-	result := make(RunIDSet)
-	for k := range s {
-		result[k] = struct{}{}
-	}
-	return result
-}
-
-// RandomItem returns a random item from the set. Returns an error if the set is empty.
-func (s RunIDSet) RandomElement() (int64, error) {
-	for k := range s {
-		return k, nil
-	}
-	return 0, trace.BadParameter("Empty set")
+// WorkflowRuns defines the minimal API used to lst and query GitHub action
+// runner workflows and jobs
+type WorkflowRuns interface {
+	GetWorkflowRunByID(ctx context.Context, owner, repo string, runID int64) (*github.WorkflowRun, *github.Response, error)
+	ListWorkflowRunsByFileName(ctx context.Context, owner, repo, workflowFileName string, opts *github.ListWorkflowRunsOptions) (*github.WorkflowRuns, *github.Response, error)
 }
 
 // ListWorkflowRuns returns a set of RunIDs, representing the set of all for
 // workflow runs created since the supplied start time.
-func (gh *ghClient) ListWorkflowRuns(ctx context.Context, owner, repo, path, ref string, since time.Time) (RunIDSet, error) {
+func ListWorkflowRuns(ctx context.Context, actions WorkflowRuns, owner, repo, path, ref string, since time.Time) (RunIDSet, error) {
 	listOptions := github.ListWorkflowRunsOptions{
 		ListOptions: github.ListOptions{
 			PerPage: 100,
@@ -86,7 +76,7 @@ func (gh *ghClient) ListWorkflowRuns(ctx context.Context, owner, repo, path, ref
 	runIDs := make(RunIDSet)
 
 	for {
-		runs, resp, err := gh.client.Actions.ListWorkflowRunsByFileName(ctx, owner, repo, path, &listOptions)
+		runs, resp, err := actions.ListWorkflowRunsByFileName(ctx, owner, repo, path, &listOptions)
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to fetch runs")
 		}
@@ -105,89 +95,45 @@ func (gh *ghClient) ListWorkflowRuns(ctx context.Context, owner, repo, path, ref
 	return runIDs, nil
 }
 
-// TriggerDispatchEvent triggers a workflow_dispatch event in the target
-// repository and waits for a workflow to be started in response. Note that
-// this method requires that the GitHub and client clocks are roughly in sync.
-func (gh *ghClient) TriggerDispatchEvent(ctx context.Context, owner, repo, workflow, ref string, inputs map[string]interface{}) (*github.WorkflowRun, error) {
-	// There is no way that I know of to 100% accurately detect which workflow runs
-	// are created in response to a workflow_dispatch event. We can make a very good
-	// guess, though, by looking at what workflow runs (with matching filename and
-	// source references) start immediately after we issue the event - so that's
-	// what we do here.
-
-	// Determine what workflows runs have already been created before we start, so
-	// we can exclude them when trying to detect a new run started in response to
-	// our dispatch event. Note that we pick a time slightly in the past to handle
-	// any clock skew.
-	baselineTime := time.Now().Add(-2 * time.Minute)
-	oldRuns, err := gh.ListWorkflowRuns(ctx, owner, repo, workflow, ref, baselineTime)
-	if err != nil {
-		return nil, trace.Wrap(err, "Failed to fetch task list")
-	}
-
-	log.Printf("Attempting to trigger %s/%s %s at ref %s\n", owner, repo, workflow, ref)
-	triggerArgs := github.CreateWorkflowDispatchEventRequest{
-		Ref:    ref,
-		Inputs: inputs,
-	}
-
-	// Issue the workflow_dispatch event.
-	_, err = gh.client.Actions.CreateWorkflowDispatchEventByFileName(ctx, owner, repo, workflow, triggerArgs)
-	if err != nil {
-		return nil, trace.Wrap(err, "Failed to issue request")
-	}
-
-	// Now we poll the GitHub API to see if any new Workflow Runs appear. We do this until
-	// the caller-supplied context expires, so be sure to set a timeout.
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-
-	newRuns := oldRuns.Copy()
-
-	log.Printf("Waiting for new workflow run to start")
-
-	// Remember that the set of RunIDs includes completed runs as well as any
-	// in flight, so we don't have to account for expiring run IDs in our "old"
-	// set.
-	for newRuns.Equals(oldRuns) {
-		select {
-		case <-ticker.C:
-			newRuns, err = gh.ListWorkflowRuns(ctx, owner, repo, workflow, ref, baselineTime)
-			if err != nil {
-				return nil, trace.Wrap(err, "Failed to fetch task list")
-			}
-
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
-	}
-
-	// Pick a random runID in the new set that is not in the old set and deem
-	// that to be our workflow of interest.
-	runID, err := newRuns.Unique(oldRuns).RandomElement()
-	if err != nil {
-		return nil, trace.Errorf("Unable to detect new run ID")
-	}
-
-	log.Printf("Started workflow run ID %d", runID)
-
-	// Fetch the run info
-	run, _, err := gh.client.Actions.GetWorkflowRunByID(ctx, owner, repo, runID)
-	if err != nil {
-		return nil, trace.Wrap(err, "Failed polling run")
-	}
-
-	return run, nil
+// WorkflowJobLister defines the minimal GitHub client interafce required to
+// list query and compose workflow jobs.
+type WorkflowJobLister interface {
+	ListWorkflowJobs(ctx context.Context, owner, repo string, runID int64, opts *github.ListWorkflowJobsOptions) (*github.Jobs, *github.Response, error)
 }
 
-func (gh *ghClient) WaitForRun(ctx context.Context, owner, repo, path, ref string, runID int64) (string, error) {
+// ListWorkflowJobs lists the jobs for a given workflow run in the specified
+// repository.
+func ListWorkflowJobs(ctx context.Context, lister WorkflowJobLister, owner, repo string, runID int64) ([]*github.WorkflowJob, error) {
+	listOptions := github.ListWorkflowJobsOptions{}
+	result := []*github.WorkflowJob{}
+	for {
+		jobs, resp, err := lister.ListWorkflowJobs(ctx, owner, repo, runID, &listOptions)
+		if err != nil {
+			return nil, trace.Wrap(err, "Failed to fetch workflow jobs")
+		}
+
+		result = append(result, jobs.Jobs...)
+
+		if resp.NextPage == 0 {
+			break
+		}
+
+		listOptions.Page = resp.NextPage
+	}
+
+	return result, nil
+}
+
+// WaitForRun blocks until the specified workflow run completes, and returns the overall
+// workflow status.
+func WaitForRun(ctx context.Context, actions WorkflowRuns, owner, repo, path, ref string, runID int64) (string, error) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			run, _, err := gh.client.Actions.GetWorkflowRunByID(ctx, owner, repo, runID)
+			run, _, err := actions.GetWorkflowRunByID(ctx, owner, repo, runID)
 			if err != nil {
 				return "", trace.Wrap(err, "Failed polling run")
 			}

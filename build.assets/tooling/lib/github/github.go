@@ -18,7 +18,6 @@ package github
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/go-github/v41/github"
 	"github.com/gravitational/trace"
@@ -28,9 +27,6 @@ import (
 // GitHub is a minimal GitHub client for ease of use
 type GitHub interface {
 	ListReleases(ctx context.Context, organization, repository string) ([]github.RepositoryRelease, error)
-	ListWorkflowRuns(ctx context.Context, owner, repo, path, ref string, since time.Time) (RunIDSet, error)
-	TriggerDispatchEvent(ctx context.Context, owner, repo, path, ref string, inputs map[string]interface{}) (*github.WorkflowRun, error)
-	WaitForRun(ctx context.Context, owner, repo, path, ref string, runID int64) (string, error)
 }
 
 type ghClient struct {
