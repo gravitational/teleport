@@ -1191,16 +1191,52 @@ func (c *Client) GetAppSession(ctx context.Context, req types.GetAppSessionReque
 
 // GetAppSessions gets all application web sessions.
 func (c *Client) GetAppSessions(ctx context.Context) ([]types.WebSession, error) {
-	resp, err := c.grpc.GetAppSessions(ctx, &emptypb.Empty{}, c.callOpts...)
+	var (
+		nextToken string
+		sessions  []types.WebSession
+	)
+
+	// Leverages ListAppSessions instead of GetAppSessions to prevent
+	// the server from having to send all sessions in a single message.
+	// If there are enough sessions it can cause the max message size to be
+	// exceeded.
+	for {
+		webSessions, token, err := c.ListAppSessions(ctx, defaults.DefaultChunkSize, nextToken, "")
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+
+		sessions = append(sessions, webSessions...)
+		if token == "" {
+			break
+		}
+
+		nextToken = token
+	}
+
+	return sessions, nil
+}
+
+// ListAppSessions gets a paginated list of application web sessions.
+func (c *Client) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	resp, err := c.grpc.ListAppSessions(
+		ctx,
+		&proto.ListAppSessionsRequest{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+			User:      user,
+		},
+		c.callOpts...,
+	)
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, "", trail.FromGRPC(err)
 	}
 
 	out := make([]types.WebSession, 0, len(resp.GetSessions()))
 	for _, v := range resp.GetSessions() {
 		out = append(out, v)
 	}
-	return out, nil
+	return out, resp.NextPageToken, nil
 }
 
 // GetSnowflakeSessions gets all Snowflake web sessions.
@@ -1221,10 +1257,11 @@ func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, 
 // sessions represent a browser session the client holds.
 func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
 	resp, err := c.grpc.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:    req.Username,
-		PublicAddr:  req.PublicAddr,
-		ClusterName: req.ClusterName,
-		AWSRoleARN:  req.AWSRoleARN,
+		Username:      req.Username,
+		PublicAddr:    req.PublicAddr,
+		ClusterName:   req.ClusterName,
+		AWSRoleARN:    req.AWSRoleARN,
+		AzureIdentity: req.AzureIdentity,
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)

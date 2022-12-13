@@ -168,6 +168,8 @@ func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func (s *SigningService) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {
+	common.SetTeleportAPIErrorHeader(rw, err)
+
 	switch trace.Unwrap(err).(type) {
 	case *trace.BadParameterError:
 		s.Log.Debugf("Failed to process request: %v.", err)

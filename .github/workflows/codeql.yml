@@ -42,10 +42,12 @@ jobs:
       uses: github/codeql-action/init@v2
       with:
         languages: ${{ matrix.language }}
+      timeout-minutes: 10
 
     - name: Autobuild
       uses: github/codeql-action/autobuild@v2
       if: ${{ matrix.language != 'go' }}
+      timeout-minutes: 30
 
     - name: Build Teleport OSS
       run: |
@@ -56,3 +58,4 @@ jobs:
       uses: github/codeql-action/analyze@v2
       with:
         category: "/language:${{matrix.language}}"
+      timeout-minutes: 30

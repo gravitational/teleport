@@ -276,6 +276,9 @@ const (
 	// KindDevice represents a registered or trusted device.
 	KindDevice = "device"
 
+	// KindDownload represents Teleport binaries downloads.
+	KindDownload = "download"
+
 	// KindUsageEvent is an external cluster usage event. Similar to
 	// KindHostCert, this kind is not backed by a real resource.
 	KindUsageEvent = "usage_event"
@@ -379,6 +382,9 @@ const (
 	CloudAzure = "Azure"
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
+
+	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
+	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.

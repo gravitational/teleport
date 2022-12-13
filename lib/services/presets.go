@@ -74,6 +74,8 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindDatabaseCertificate, RW()),
 					types.NewRule(types.KindInstaller, RW()),
 					types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+					types.NewRule(types.KindLicense, RO()),
+					types.NewRule(types.KindDownload, RO()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -128,6 +130,7 @@ func NewPresetAccessRole() types.Role {
 	role.SetKubeUsers(types.Allow, []string{teleport.TraitInternalKubeUsersVariable})
 	role.SetKubeGroups(types.Allow, []string{teleport.TraitInternalKubeGroupsVariable})
 	role.SetAWSRoleARNs(types.Allow, []string{teleport.TraitInternalAWSRoleARNs})
+	role.SetAzureIdentities(types.Allow, []string{teleport.TraitInternalAzureIdentities})
 	return role
 }
 
