@@ -1389,14 +1389,14 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
          - [ ] Stop a leaf cluster.
          - [ ] Disconnect your device from the internet.
    - DocumentGateway
-      - Create a db connection tab for a given database. Then remove access to that db for that
+      - [ ] Create a db connection tab for a given database. Then remove access to that db for that
         user. Go back to Connect and:
-         - Change database name in the tab. This should still work.
-         - Change database port. This should result in an error.
-      - Open DocumentCluster and make sure a given db is visible on the list of available dbs. Click
-        "Connect" to show a list of db users. Now remove access to that db. Go back to Connect and
-        choose a username. Verify that a recoverable error is shown and the user can continue using
-        the app.
+         - [ ] Change database name in the tab. This should still work.
+         - [ ] Change database port. This should result in an error.
+      - [ ] Open DocumentCluster and make sure a given db is visible on the list of available dbs.
+        Click "Connect" to show a list of db users. Now remove access to that db. Go back to Connect
+        and choose a username. Verify that a recoverable error is shown and the user can continue
+        using the app.
 - File transfer
    - Download
       - [ ] Verify if Connect asks for a path when downloading the file.
