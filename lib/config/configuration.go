@@ -124,6 +124,9 @@ type CommandLineFlags struct {
 	// AppURI is the internal address of the application to proxy.
 	AppURI string
 
+	// AppCloud is set if application is proxying Cloud API
+	AppCloud string
+
 	// AppPublicAddr is the public address of the application to proxy.
 	AppPublicAddr string
 
@@ -1935,9 +1938,14 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// If this process is trying to join a cluster as an application service,
 	// make sure application name and URI are provided.
-	if slices.Contains(splitRoles(clf.Roles), defaults.RoleApp) &&
-		(clf.AppName == "" || clf.AppURI == "") {
-		return trace.BadParameter("application name (--app-name) and URI (--app-uri) flags are both required to join application proxy to the cluster")
+	if slices.Contains(splitRoles(clf.Roles), defaults.RoleApp) {
+		if clf.AppName == "" {
+			return trace.BadParameter("to join application proxy to the cluster application name is required, provide it with --app-name or --name")
+		}
+
+		if clf.AppURI == "" && clf.AppCloud == "" {
+			return trace.BadParameter("to join application proxy to the cluster application URI or Cloud identifier is required, provide it with --app-uri, --uri or --cloud")
+		}
 	}
 
 	// If application name was specified on command line, add to file
@@ -1955,6 +1963,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		app := service.App{
 			Name:          clf.AppName,
 			URI:           clf.AppURI,
+			Cloud:         clf.AppCloud,
 			PublicAddr:    clf.AppPublicAddr,
 			StaticLabels:  static,
 			DynamicLabels: dynamic,

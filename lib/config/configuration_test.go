@@ -2236,71 +2236,113 @@ app_service:
 // in on the command line.
 func TestAppsCLF(t *testing.T) {
 	tests := []struct {
-		desc      string
-		inRoles   string
-		inAppName string
-		inAppURI  string
-		outError  error
+		desc         string
+		inRoles      string
+		inAppName    string
+		inAppURI     string
+		inAppCloud   string
+		outApps      []service.App
+		requireError require.ErrorAssertionFunc
 	}{
 		{
 			desc:      "role provided, valid name and uri",
 			inRoles:   defaults.RoleApp,
 			inAppName: "foo",
 			inAppURI:  "http://localhost:8080",
-			outError:  nil,
+			outApps: []service.App{
+				{
+					Name:          "foo",
+					URI:           "http://localhost:8080",
+					StaticLabels:  map[string]string{"teleport.dev/origin": "config-file"},
+					DynamicLabels: map[string]types.CommandLabel{},
+				},
+			},
+			requireError: require.NoError,
 		},
 		{
 			desc:      "role provided, name not provided",
 			inRoles:   defaults.RoleApp,
 			inAppName: "",
 			inAppURI:  "http://localhost:8080",
-			outError:  trace.BadParameter(""),
+			outApps:   nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "to join application proxy to the cluster application name is required, provide it with --app-name or --name")
+			},
 		},
 		{
 			desc:      "role provided, uri not provided",
 			inRoles:   defaults.RoleApp,
 			inAppName: "foo",
 			inAppURI:  "",
-			outError:  trace.BadParameter(""),
+			outApps:   nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "to join application proxy to the cluster application URI or Cloud identifier is required, provide it with --app-uri, --uri or --cloud")
+			},
 		},
 		{
 			desc:      "valid name and uri",
 			inAppName: "foo",
 			inAppURI:  "http://localhost:8080",
-			outError:  nil,
+			outApps: []service.App{
+				{
+					Name:          "foo",
+					URI:           "http://localhost:8080",
+					StaticLabels:  map[string]string{"teleport.dev/origin": "config-file"},
+					DynamicLabels: map[string]types.CommandLabel{},
+				},
+			},
+			requireError: require.NoError,
+		},
+		{
+			desc:       "valid name and cloud",
+			inAppName:  "foo",
+			inAppCloud: types.CloudGCP,
+			outApps: []service.App{
+				{
+					Name:          "foo",
+					URI:           "cloud://GCP",
+					Cloud:         "GCP",
+					StaticLabels:  map[string]string{"teleport.dev/origin": "config-file"},
+					DynamicLabels: map[string]types.CommandLabel{},
+				},
+			},
+			requireError: require.NoError,
 		},
 		{
 			desc:      "invalid name",
 			inAppName: "-foo",
 			inAppURI:  "http://localhost:8080",
-			outError:  trace.BadParameter(""),
+			outApps:   nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "application name \"-foo\" must be a valid DNS subdomain: https://goteleport.com/teleport/docs/application-access/#application-name")
+			},
 		},
 		{
 			desc:      "missing uri",
 			inAppName: "foo",
-			outError:  trace.BadParameter(""),
+			outApps:   nil,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "missing application \"foo\" URI")
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			clf := CommandLineFlags{
-				Roles:   tt.inRoles,
-				AppName: tt.inAppName,
-				AppURI:  tt.inAppURI,
+				Roles:    tt.inRoles,
+				AppName:  tt.inAppName,
+				AppURI:   tt.inAppURI,
+				AppCloud: tt.inAppCloud,
 			}
 			cfg := service.MakeDefaultConfig()
 			err := Configure(&clf, cfg)
-			if err != nil {
-				require.IsType(t, err, tt.outError)
-			} else {
-				require.NoError(t, err)
-			}
-			if tt.outError != nil {
-				return
-			}
-			require.True(t, cfg.Apps.Enabled)
-			require.Len(t, cfg.Apps.Apps, 1)
+			tt.requireError(t, err)
+			require.Equal(t, tt.outApps, cfg.Apps.Apps)
 		})
 	}
 }

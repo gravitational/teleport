@@ -194,6 +194,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	appStartCmd.Flag("fips", "Start Teleport in FedRAMP/FIPS 140-2 mode.").Default("false").BoolVar(&ccf.FIPS)
 	appStartCmd.Flag("name", "Name of the application to start.").StringVar(&ccf.AppName)
 	appStartCmd.Flag("uri", "Internal address of the application to proxy.").StringVar(&ccf.AppURI)
+	appStartCmd.Flag("cloud", fmt.Sprintf("Set to one of %v if application should proxy particular cloud API", []string{types.CloudAWS, types.CloudAzure, types.CloudGCP})).StringVar(&ccf.AppCloud)
 	appStartCmd.Flag("public-addr", "Public address of the application to proxy.").StringVar(&ccf.AppPublicAddr)
 	appStartCmd.Flag("diag-addr", "Start diagnostic prometheus and healthz endpoint.").StringVar(&ccf.DiagnosticAddr)
 	appStartCmd.Flag("insecure", "Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
@@ -453,7 +454,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 
 // OnStart is the handler for "start" CLI command
 func OnStart(clf config.CommandLineFlags, config *service.Config) error {
-	//check to see if the config file is not passed and if the
+	// check to see if the config file is not passed and if the
 	// default config file is available. If available it will be used
 	configFileUsed := clf.ConfigFile
 	if clf.ConfigFile == "" && utils.FileExists(defaults.ConfigFilePath) {
