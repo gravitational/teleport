@@ -162,6 +162,8 @@ type Identity struct {
 	ClientIP string
 	// AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
 	AWSRoleARNs []string
+	// AzureIdentities is a list of allowed Azure identities user can assume.
+	AzureIdentities []string
 	// ActiveRequests is a list of UUIDs of active requests for this Identity.
 	ActiveRequests []string
 	// DisallowReissue is a flag that, if set, instructs the auth server to
@@ -202,6 +204,9 @@ type RouteToApp struct {
 
 	// AWSRoleARN is the AWS role to assume when accessing AWS console.
 	AWSRoleARN string
+
+	// AzureIdentity is the Azure identity to assume when accessing Azure API.
+	AzureIdentity string
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -245,11 +250,12 @@ func (id *Identity) GetEventIdentity() events.Identity {
 	var routeToApp *events.RouteToApp
 	if id.RouteToApp != (RouteToApp{}) {
 		routeToApp = &events.RouteToApp{
-			Name:        id.RouteToApp.Name,
-			SessionID:   id.RouteToApp.SessionID,
-			PublicAddr:  id.RouteToApp.PublicAddr,
-			ClusterName: id.RouteToApp.ClusterName,
-			AWSRoleARN:  id.RouteToApp.AWSRoleARN,
+			Name:          id.RouteToApp.Name,
+			SessionID:     id.RouteToApp.SessionID,
+			PublicAddr:    id.RouteToApp.PublicAddr,
+			ClusterName:   id.RouteToApp.ClusterName,
+			AWSRoleARN:    id.RouteToApp.AWSRoleARN,
+			AzureIdentity: id.RouteToApp.AzureIdentity,
 		}
 	}
 	var routeToDatabase *events.RouteToDatabase
@@ -283,6 +289,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		PreviousIdentityExpires: id.PreviousIdentityExpires,
 		ClientIP:                id.ClientIP,
 		AWSRoleARNs:             id.AWSRoleARNs,
+		AzureIdentities:         id.AzureIdentities,
 		AccessRequests:          id.ActiveRequests,
 		DisallowReissue:         id.DisallowReissue,
 		AllowedResourceIDs:      events.ResourceIDs(id.AllowedResourceIDs),
@@ -366,6 +373,14 @@ var (
 	// PrivateKeyPolicyASN1ExtensionOID is an extension ID used to determine the
 	// private key policy supported by the certificate.
 	PrivateKeyPolicyASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 15}
+
+	// AppAzureIdentityASN1ExtensionOID is an extension ID used when encoding/decoding
+	// Azure identity into a certificate.
+	AppAzureIdentityASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 16}
+
+	// AzureIdentityASN1ExtensionOID is an extension ID used when encoding/decoding
+	// allowed Azure identity into a certificate.
+	AzureIdentityASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 17}
 
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// database service name into certificates.
@@ -515,6 +530,20 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  AWSRoleARNsASN1ExtensionOID,
 				Value: id.AWSRoleARNs[i],
+			})
+	}
+	if id.RouteToApp.AzureIdentity != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AppAzureIdentityASN1ExtensionOID,
+				Value: id.RouteToApp.AzureIdentity,
+			})
+	}
+	for i := range id.AzureIdentities {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AzureIdentityASN1ExtensionOID,
+				Value: id.AzureIdentities[i],
 			})
 	}
 	if id.Renewable {
@@ -730,6 +759,16 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.AWSRoleARNs = append(id.AWSRoleARNs, val)
 			}
+		case attr.Type.Equal(AppAzureIdentityASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToApp.AzureIdentity = val
+			}
+		case attr.Type.Equal(AzureIdentityASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.AzureIdentities = append(id.AzureIdentities, val)
+			}
 		case attr.Type.Equal(RenewableCertificateASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
@@ -843,6 +882,7 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		User:           id.Username,
 		Impersonator:   id.Impersonator,
 		AWSRoleARN:     id.RouteToApp.AWSRoleARN,
+		AzureIdentity:  id.RouteToApp.AzureIdentity,
 		AccessRequests: id.ActiveRequests,
 	}
 }
