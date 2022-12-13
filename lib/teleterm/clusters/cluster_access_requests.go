@@ -21,7 +21,6 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -268,46 +267,20 @@ func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 }
 
 func getResourceDetails(ctx context.Context, req types.AccessRequest, clt auth.ClientI) (map[string]ResourceDetails, error) {
-	resourceIDsByCluster := make(map[string][]types.ResourceID)
-	for _, resourceID := range req.GetRequestedResourceIDs() {
-		if resourceID.Kind != types.KindNode {
-			// The only detail we want, for now, is the server hostname, so we
-			// can skip all other resource kinds as a minor optimization.
-			continue
-		}
-		resourceIDsByCluster[resourceID.ClusterName] = append(resourceIDsByCluster[resourceID.ClusterName], resourceID)
-	}
+	resourceIDsByCluster := services.GetResourceIDsByCluster(req)
 
-	withExtraRoles := func(req *proto.ListResourcesRequest) {
-		req.UseSearchAsRoles = true
-		req.UsePreviewAsRoles = true
-	}
 	resourceDetails := make(map[string]ResourceDetails)
 	for clusterName, resourceIDs := range resourceIDsByCluster {
-		resources, err := services.GetResourcesByResourceIDs(ctx, clt, resourceIDs, withExtraRoles)
+		hostnames, err := services.GetResourceHostnames(ctx, clusterName, clt, resourceIDs)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		for _, resource := range resources {
-			hostname := ""
-			if r, ok := resource.(interface{ GetHostname() string }); ok {
-				hostname = r.GetHostname()
-			} else {
-				// The only detail we want, for now, is the server hostname.
-				continue
-			}
-
-			id := types.ResourceID{
-				ClusterName: clusterName,
-				Kind:        resource.GetKind(),
-				Name:        resource.GetName(),
-			}
-			key := types.ResourceIDToString(id)
-			resourceDetails[key] = ResourceDetails{
+		for id, hostname := range hostnames {
+			resourceDetails[id] = ResourceDetails{
 				Hostname: hostname,
 			}
 		}
 	}
+
 	return resourceDetails, nil
 }
