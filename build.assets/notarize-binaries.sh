@@ -8,7 +8,7 @@ usage() {
 }
 
 shell_array_to_json_array() {
-    $shell_array=$1
+    shell_array=$1
     printf "["; IFS=, ; printf "${shell_array[*]}"; echo "]"
 }
 
