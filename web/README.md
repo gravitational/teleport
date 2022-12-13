@@ -292,6 +292,6 @@ When a new event is added to Teleport, the web UI has to be updated to display i
 3. Add a new entry in [Formatters](https://github.com/gravitational/webapps/blob/8a0201667f045be7a46606189a6deccdaee2fe1f/packages/teleport/src/services/audit/makeEvent.ts) to format the event on the events table. The `format` function will receive the event you added to `RawEvents` as parameter.
 4. Define an icon to the event on [`EventIconMap`](https://github.com/gravitational/webapps/blob/8a0201667f045be7a46606189a6deccdaee2fe1f/packages/teleport/src/Audit/EventList/EventTypeCell.tsx).
 5. Add an entry to the [`events`](https://github.com/gravitational/webapps/blob/8a0201667f045be7a46606189a6deccdaee2fe1f/packages/teleport/src/Audit/fixtures/index.ts) array so it will show up on the [`AllEvents` story](https://github.com/gravitational/webapps/blob/8a0201667f045be7a46606189a6deccdaee2fe1f/packages/teleport/src/Audit/Audit.story.tsx)
-6. Check fixture is rendered in storybook, then update snapshot for `Audit.story.test.tsx`
+6. Check fixture is rendered in storybook, then update snapshot for `Audit.story.test.tsx` using `yarn test-update-snapshot`.
 
 You can see an example in [this pr](https://github.com/gravitational/webapps/pull/561).

@@ -206,6 +206,8 @@ export const eventCodes = {
   X11_FORWARD_FAILURE: 'T3008W',
   CERTIFICATE_CREATED: 'TC000I',
   UPGRADE_WINDOW_UPDATED: 'TUW01I',
+  BOT_JOIN: 'TJ001I',
+  INSTANCE_JOIN: 'TJ002I',
 } as const;
 
 /**
@@ -1060,6 +1062,21 @@ export type RawEvents = {
       region: string;
       status: string;
       exit_code: number;
+    }
+  >;
+  [eventCodes.BOT_JOIN]: RawEvent<
+    typeof eventCodes.BOT_JOIN,
+    {
+      bot_name: string;
+      method: string;
+    }
+  >;
+  [eventCodes.INSTANCE_JOIN]: RawEvent<
+    typeof eventCodes.INSTANCE_JOIN,
+    {
+      node_name: string;
+      method: string;
+      role: string;
     }
   >;
 };

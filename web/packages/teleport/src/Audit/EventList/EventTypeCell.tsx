@@ -188,6 +188,8 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.SESSION_RECORDING_ACCESS]: Icons.Info,
   [eventCodes.SSMRUN_SUCCESS]: Icons.Info,
   [eventCodes.SSMRUN_FAIL]: Icons.Info,
+  [eventCodes.BOT_JOIN]: Icons.Info,
+  [eventCodes.INSTANCE_JOIN]: Icons.Info,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 

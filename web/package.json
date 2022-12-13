@@ -7,6 +7,7 @@
     "storybook": "start-storybook -p 9002 -c .storybook -s .storybook/public",
     "test": "jest",
     "test-coverage": "jest --coverage && scripts/print-coverage-link.sh",
+    "test-update-snapshot": "yarn test -- --updateSnapshot",
     "tdd": "jest --watch",
     "package-term": "yarn workspace @gravitational/teleterm package",
     "package-term-ci": "yarn workspace @gravitational/teleterm package-ci",
