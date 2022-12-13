@@ -26,10 +26,14 @@ import (
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh/agent"
+
+	"github.com/gravitational/teleport"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/utils/agentconn"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
@@ -110,6 +114,22 @@ func (tc *TeleportClient) PromptMFAChallenge(ctx context.Context, proxyAddr stri
 		applyOpts(opts)
 	}
 
+	// First, check for a forwarded ssh agent that supports remote mfa challenges.
+	socketPath := os.Getenv(teleport.SSHAuthSock)
+	conn, err := agentconn.Dial(socketPath)
+	if err == nil {
+		defer conn.Close()
+		agentclient := agent.NewClient(conn)
+		supportedExtension, err := callQueryExtension(agentclient)
+		if err == nil && supportedExtension[promptMFAChallengeAgentExtension] {
+			resp, err := callPromptMFAChallengeExtension(agentclient, proxyAddr, c, opts)
+			if err == nil {
+				return resp, nil
+			}
+		}
+	}
+
+	// Default to local mfa challenge.
 	return promptMFAStandalone(ctx, c, addr, opts)
 }
 

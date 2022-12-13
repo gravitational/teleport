@@ -23,6 +23,8 @@ limitations under the License.
 package client
 
 import (
+	"bytes"
+	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
@@ -30,10 +32,12 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -99,6 +103,15 @@ func WithSignExtension() ExtendedKeyringOpt {
 func WithKeyExtension(s *Store) ExtendedKeyringOpt {
 	return func(r *extendedKeyring) {
 		r.extensionHandlers[keyAgentExtension] = keyExtensionHandler(r, s)
+	}
+}
+
+// WithPromptMFAChallengeExtension adds the prompt-mfa-challegne@goteleport.com extension
+// to the extended keyring. This extension can be used to prompt mfa challenges locally
+// and get the challenge result.
+func WithPromptMFAChallengeExtension() ExtendedKeyringOpt {
+	return func(r *extendedKeyring) {
+		r.extensionHandlers[promptMFAChallengeAgentExtension] = promptMFAChallengeExtensionHandler(r)
 	}
 }
 
@@ -220,6 +233,10 @@ const (
 	// the sign extension can be used to issue a standard signature request to an agent
 	// key, rather than an ssh style signature.
 	signAgentExtension = "sign@goteleport.com"
+
+	// the prompt mfa challenge extension can be used to prompt an mfa challenge on a
+	// remote device through the agent.
+	promptMFAChallengeAgentExtension = "prompt-mfa-challenge@goteleport.com"
 
 	// Used to indicate that the salt length will be set during signing to the largest
 	// value possible. This salt length can then be auto-detected during verification.
@@ -472,6 +489,92 @@ func callKeyExtension(agent agent.ExtendedAgent) (*profile.Profile, *ForwardedKe
 	}
 
 	return &profile, &forwardedKey, nil
+}
+
+type promptMFAChallengeRequest struct {
+	ProxyAddr         string
+	MFAChallengeBlob  []byte
+	ChallengeOptsBlob []byte
+}
+
+type promptMFAChallengeResponse struct {
+	MFAChallengeResponseBlob []byte
+}
+
+// promptMFAChallengeExtensionHandler returns an extensionHandler for the
+// prompt-mfa-challenge@goteleport.com extension.
+func promptMFAChallengeExtensionHandler(r *extendedKeyring) extensionHandler {
+	return func(contents []byte) ([]byte, error) {
+		var req promptMFAChallengeRequest
+		if err := ssh.Unmarshal(contents, &req); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		var challengeReq proto.MFAAuthenticateChallenge
+		if err := json.Unmarshal(req.MFAChallengeBlob, &challengeReq); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		var challengeOpts PromptMFAChallengeOpts
+		if err := json.Unmarshal(req.ChallengeOptsBlob, &challengeOpts); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		mfaResp, err := PromptMFAChallenge(context.Background(), &challengeReq, req.ProxyAddr, &challengeOpts)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		buf := new(bytes.Buffer)
+		if err := (&jsonpb.Marshaler{}).Marshal(buf, mfaResp); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ssh.Marshal(promptMFAChallengeResponse{
+			MFAChallengeResponseBlob: buf.Bytes(),
+		}), nil
+	}
+}
+
+// callPromptMFAChallengeExtension calls the prompt-mfa-challenge@goteleport.com
+// issue the given mfa challenge to the agent.
+func callPromptMFAChallengeExtension(agent agent.ExtendedAgent, proxyAddr string, c *proto.MFAAuthenticateChallenge, opts *PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
+	challengeBlob, err := json.Marshal(c)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if opts == nil {
+		opts = &PromptMFAChallengeOpts{}
+	}
+
+	challengeOptsBlob, err := json.Marshal(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req := promptMFAChallengeRequest{
+		ProxyAddr:         proxyAddr,
+		MFAChallengeBlob:  challengeBlob,
+		ChallengeOptsBlob: challengeOptsBlob,
+	}
+
+	respBlob, err := agent.Extension(promptMFAChallengeAgentExtension, ssh.Marshal(req))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var resp promptMFAChallengeResponse
+	if err := ssh.Unmarshal(respBlob, &resp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var mfaChallengeResponse proto.MFAAuthenticateResponse
+	if err := jsonpb.Unmarshal(bytes.NewReader(resp.MFAChallengeResponseBlob), &mfaChallengeResponse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &mfaChallengeResponse, nil
 }
 
 // Returns the crypto.Hash for the given hash name, matching the

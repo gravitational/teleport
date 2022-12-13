@@ -984,6 +984,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		localAgentCfg.KeyringOpts = []ExtendedKeyringOpt{
 			WithKeyExtension(localAgentCfg.ClientStore),
 			WithSignExtension(),
+			WithPromptMFAChallengeExtension(),
 		}
 	}
 
