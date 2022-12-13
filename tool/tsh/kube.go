@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	dockerterm "github.com/moby/term"
+	"golang.org/x/exp/slices"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -53,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
@@ -925,7 +925,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	clusterNames := kubeClustersToStrings(kubeClusters)
-	if !apiutils.SliceContainsStr(clusterNames, c.kubeCluster) {
+	if !slices.Contains(clusterNames, c.kubeCluster) {
 		return trace.NotFound("kubernetes cluster %q not found, check 'tsh kube ls' for a list of known clusters", c.kubeCluster)
 	}
 
@@ -1030,6 +1030,8 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 		Impersonate:         cf.kubernetesImpersonationConfig.kubernetesUser,
 		ImpersonateGroups:   cf.kubernetesImpersonationConfig.kubernetesGroups,
 		Namespace:           cf.kubeNamespace,
+		// Only switch the current context if kube-cluster is explicitly set on the command line.
+		SelectCluster: cf.KubernetesCluster,
 	}
 
 	if cf.executablePath == "" {
@@ -1048,7 +1050,7 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 	clusterNames := kubeClustersToStrings(kubeStatus.kubeClusters)
 
 	// Validate if cf.KubernetesCluster is part of the returned list of clusters
-	if cf.KubernetesCluster != "" && !apiutils.SliceContainsStr(clusterNames, cf.KubernetesCluster) {
+	if cf.KubernetesCluster != "" && !slices.Contains(clusterNames, cf.KubernetesCluster) {
 		return nil, trace.NotFound("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'.", cf.KubernetesCluster)
 	}
 	// If ListAll is not enabled, update only cf.KubernetesCluster cluster.
@@ -1056,13 +1058,11 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 		clusterNames = []string{cf.KubernetesCluster}
 	}
 
+	v.KubeClusters = clusterNames
 	v.Exec = &kubeconfig.ExecValues{
 		TshBinaryPath:     cf.executablePath,
 		TshBinaryInsecure: cf.InsecureSkipVerify,
-		KubeClusters:      clusterNames,
 		Env:               make(map[string]string),
-		// Only switch the current context if kube-cluster is explicitly set on the command line.
-		SelectCluster: cf.KubernetesCluster,
 	}
 
 	if cf.HomePath != "" {
@@ -1121,7 +1121,7 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 		if !strings.Contains(path, cf.KubernetesCluster) {
 			return trace.BadParameter("profile specific kubeconfig is in use, run 'eval $(tsh env --unset)' to switch contexts to another kube cluster")
 		}
-		values.Exec.KubeClusters = []string{cf.KubernetesCluster}
+		values.KubeClusters = []string{cf.KubernetesCluster}
 	}
 
 	return trace.Wrap(kubeconfig.Update(path, *values, tc.LoadAllCAs))

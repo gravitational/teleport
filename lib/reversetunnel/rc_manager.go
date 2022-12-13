@@ -192,6 +192,7 @@ func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 			continue
 		}
 		pool.Stop()
+		trustedClustersStats.DeleteLabelValues(pool.Cluster)
 		delete(w.pools, k)
 	}
 
@@ -202,6 +203,7 @@ func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 			continue
 		}
 
+		trustedClustersStats.WithLabelValues(k.cluster).Set(0)
 		pool, err := w.newAgentPool(ctx, w.cfg, k.cluster, k.addr)
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))

@@ -27,6 +27,56 @@ RUN mkdir -p /opt && cd /opt && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     scl enable devtoolset-11 "make && BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install"
 
+
+
+FROM centos:7 AS boringssl
+# The below tools are required in order to build and compile the module:
+# Clang compiler version 7.0.1
+# Go programming language version 1.12.7
+# Ninja build system version 1.9.0
+#
+# We also need the FIPS 140-2 validated release of BoringSSL: ae223d6138807a13006342edfeef32e813246b39
+# For more information please refer to the section 12. Guidance and Secure Operation of:
+# https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp3678.pdf
+
+# Install required dependencies.
+RUN yum groupinstall -y 'Development Tools' && \
+    yum install -y epel-release && \
+    yum update -y && \
+    yum -y install centos-release-scl-rh && \
+    yum install -y \
+    cmake3 \
+    llvm-toolset-7.0-clang-7.0.1 \
+    git
+
+
+RUN mkdir -p /opt && cd /opt && \
+    curl -sLO https://go.dev/dl/go1.12.7.linux-amd64.tar.gz && \
+    echo "66d83bfb5a9ede000e33c6579a91a29e6b101829ad41fffb5c5bb6c900e109d9" "go1.12.7.linux-amd64.tar.gz" | sha256sum --check && \
+    tar xf go1.12.7.linux-amd64.tar.gz && \
+    rm -f go1.12.7.linux-amd64.tar.gz && \
+    chmod a+w /opt/go && \
+    chmod a+w /var/lib && \
+    chmod a-w /
+ENV GOPATH="/go" \
+    GOROOT="/opt/go" \
+    PATH="/opt/llvm/bin:$PATH:/opt/go/bin:/go/bin"
+
+RUN git clone https://github.com/ninja-build/ninja.git && \
+    cd ninja && \
+    git checkout v1.9.0 && \
+    ./configure.py --bootstrap && \
+    mv ninja /usr/bin
+
+RUN mkdir -p /opt && cd /opt && \
+    git clone https://github.com/google/boringssl.git && \
+    cd boringssl && \
+    git checkout ae223d6138807a13006342edfeef32e813246b39 && \
+    mkdir build && \
+    cd build && \
+    scl enable llvm-toolset-7.0 "cd /opt/boringssl/build && cmake3 -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DFIPS=1 -DCMAKE_BUILD_TYPE=Release -GNinja .. && ninja"
+
+
 FROM centos:7
 
 ENV LANGUAGE=en_US.UTF-8 \
@@ -52,6 +102,8 @@ RUN yum groupinstall -y 'Development Tools' && \
     elfutils-libelf-devel-static \
     git \
     net-tools \
+    # required to create bindings for Rust's boring-rs crate
+    llvm-toolset-7.0-clang-7.0.1 \
     # required by Teleport PAM support
     pam-devel \
     perl-IPC-Cmd \
@@ -91,6 +143,33 @@ RUN cd / && curl -L https://s3.amazonaws.com/clientbuilds.gravitational.io/go/ce
 # Copy libbpf into the final image.
 COPY --from=libbpf /opt/libbpf/usr /usr
 
+ARG RUST_VERSION
+ENV RUSTUP_HOME=/usr/local/rustup \
+     CARGO_HOME=/usr/local/cargo \
+     PATH=/usr/local/cargo/bin:$PATH \
+     RUST_VERSION=$RUST_VERSION
+
+RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
+    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+
+# Install Rust using the ci user, as that is the user that
+# will run builds using the Rust toolchains we install here.
 USER ci
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+    rustup --version && \
+    cargo --version && \
+    rustc --version && \
+    rustup component add rustfmt clippy && \
+    rustup target add aarch64-unknown-linux-gnu
+
+
+# Copy BoringSSL into the final image
+COPY --from=boringssl /opt/boringssl /opt/boringssl
+
+# set boring-rs crate env variables to point to pre-built binaries
+# https://github.com/cloudflare/boring#support-for-pre-built-binaries
+ENV BORING_BSSL_PATH=/opt/boringssl
+ENV BORING_BSSL_INCLUDE_PATH=/opt/boringssl/include
+
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

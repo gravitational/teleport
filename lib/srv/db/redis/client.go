@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
+	"github.com/gravitational/teleport/lib/srv/db/redis/connection"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 )
 
@@ -100,11 +101,11 @@ type clusterClient struct {
 
 // newClient creates a new Redis client based on given ConnectionMode. If connection mode is not supported
 // an error is returned.
-func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsConfig *tls.Config, onConnect onClientConnectFunc) (redis.UniversalClient, error) {
-	connectionAddr := net.JoinHostPort(connectionOptions.address, connectionOptions.port)
+func newClient(ctx context.Context, connectionOptions *connection.Options, tlsConfig *tls.Config, onConnect onClientConnectFunc) (redis.UniversalClient, error) {
+	connectionAddr := net.JoinHostPort(connectionOptions.Address, connectionOptions.Port)
 	// TODO(jakub): Investigate Redis Sentinel.
-	switch connectionOptions.mode {
-	case Standalone:
+	switch connectionOptions.Mode {
+	case connection.Standalone:
 		return redis.NewClient(&redis.Options{
 			Addr:      connectionAddr,
 			TLSConfig: tlsConfig,
@@ -114,7 +115,7 @@ func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsCon
 			// "automatic" auth by the client.
 			DisableAuthOnConnect: true,
 		}), nil
-	case Cluster:
+	case connection.Cluster:
 		client := &clusterClient{
 			ClusterClient: *redis.NewClusterClient(&redis.ClusterOptions{
 				Addrs:     []string{connectionAddr},
@@ -132,7 +133,7 @@ func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsCon
 		return client, nil
 	default:
 		// We've checked that while validating the config, but checking again can help with regression.
-		return nil, trace.BadParameter("incorrect connection mode %s", connectionOptions.mode)
+		return nil, trace.BadParameter("incorrect connection mode %s", connectionOptions.Mode)
 	}
 }
 

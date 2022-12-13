@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"path/filepath"
+	"path"
 	"strings"
 	"time"
 
@@ -158,7 +158,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 
 // afterObjectDelete is a passthrough function to delete an object
 func afterObjectDelete(ctx context.Context, object *storage.ObjectHandle, err error) error {
-	return nil
+	return err
 }
 
 // ComposerRun is a passthrough function that runs composer
@@ -295,7 +295,7 @@ func (h *Handler) path(sessionID session.ID) string {
 	if h.Path == "" {
 		return string(sessionID) + ".tar"
 	}
-	return strings.TrimPrefix(filepath.Join(h.Path, string(sessionID)+".tar"), "/")
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".tar"), slash)
 }
 
 // ensureBucket makes sure bucket exists, and if it does not, creates it

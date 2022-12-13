@@ -19,21 +19,21 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/proxy"
+	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 )
 
-// ClusterDialerFunc is a function that implements a proxy.ClusterDialer.
-type ClusterDialerFunc func(clusterName string, request proxy.DialParams) (net.Conn, error)
+// ClusterDialerFunc is a function that implements a peer.ClusterDialer.
+type ClusterDialerFunc func(clusterName string, request peer.DialParams) (net.Conn, error)
 
 // Dial dials makes a dial request to the given cluster.
-func (f ClusterDialerFunc) Dial(clusterName string, request proxy.DialParams) (net.Conn, error) {
+func (f ClusterDialerFunc) Dial(clusterName string, request peer.DialParams) (net.Conn, error) {
 	return f(clusterName, request)
 }
 
 // NewClusterDialer implements proxy.ClusterDialer for a reverse tunnel server.
 func NewClusterDialer(server reversetunnel.Server) ClusterDialerFunc {
-	return ClusterDialerFunc(func(clusterName string, request proxy.DialParams) (net.Conn, error) {
+	return func(clusterName string, request peer.DialParams) (net.Conn, error) {
 		site, err := server.GetSite(clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -52,5 +52,5 @@ func NewClusterDialer(server reversetunnel.Server) ClusterDialerFunc {
 			return nil, trace.Wrap(err)
 		}
 		return conn, nil
-	})
+	}
 }

@@ -1,0 +1,35 @@
+# Example Discord plugin configuration TOML file
+
+[teleport]
+# Teleport Auth/Proxy Server address.
+# addr = "example.com:3025"
+#
+# Should be port 3025 for Auth Server and 3080 or 443 for Proxy.
+# For Teleport Cloud, should be in the form "your-account.teleport.sh:443".
+
+# Credentials generated with `tctl auth sign`.
+#
+# When using --format=file:
+# identity = "/var/lib/teleport/plugins/discord/auth_id"    # Identity file
+#
+# When using --format=tls:
+# client_key = "/var/lib/teleport/plugins/discord/auth.key" # Teleport TLS secret key
+# client_crt = "/var/lib/teleport/plugins/discord/auth.crt" # Teleport TLS certificate
+# root_cas = "/var/lib/teleport/plugins/discord/auth.cas"   # Teleport CA certs
+
+[discord]
+# Discord Bot OAuth token
+token = "XXXXXXXXX"
+
+[role_to_recipients]
+# Map roles to recipients.
+#
+# Provide Discord channel ID recipients for access requests for specific roles.
+# "*" must be provided to match non-specified roles.
+#
+# "dev" = "1234567890"
+# "*" = ["0987654321"]
+
+[log]
+output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/discord.log"
+severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".

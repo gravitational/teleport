@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
@@ -352,7 +353,7 @@ func (m *Metadata) CheckAndSetDefaults() error {
 
 	// Check the origin value.
 	if m.Origin() != "" {
-		if !utils.SliceContainsStr(OriginValues, m.Origin()) {
+		if !slices.Contains(OriginValues, m.Origin()) {
 			return trace.BadParameter("invalid origin value %q, must be one of %v", m.Origin(), OriginValues)
 		}
 	}

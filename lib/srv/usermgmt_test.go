@@ -25,9 +25,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -251,7 +251,7 @@ func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
 		for _, group := range user.groups {
 			mgmt.CreateGroup(group)
 		}
-		if utils.SliceContainsStr(user.groups, types.TeleportServiceGroup) {
+		if slices.Contains(user.groups, types.TeleportServiceGroup) {
 			users.CreateUser(user.user, &services.HostUsersInfo{Groups: user.groups})
 		} else {
 			mgmt.CreateUser(user.user, user.groups)
@@ -297,5 +297,23 @@ func TestSudoersSanitization(t *testing.T) {
 	} {
 		actual := sanitizeSudoersName(tc.user)
 		require.Equal(t, tc.userExpected, actual)
+	}
+}
+
+func TestIsUnknownGroupError(t *testing.T) {
+	unknownGroupName := "unknown"
+	for _, tc := range []struct {
+		err                 error
+		isUnknownGroupError bool
+	}{
+		{
+			err:                 user.UnknownGroupError(unknownGroupName),
+			isUnknownGroupError: true,
+		}, {
+			err:                 fmt.Errorf("lookup groupname %s: no such file or directory", unknownGroupName),
+			isUnknownGroupError: true,
+		},
+	} {
+		require.Equal(t, tc.isUnknownGroupError, isUnknownGroupError(tc.err, unknownGroupName))
 	}
 }

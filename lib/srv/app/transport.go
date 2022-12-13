@@ -27,11 +27,11 @@ import (
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -267,7 +267,7 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 
 		// If the redirect location is one of the hosts specified in the list of
 		// redirects, rewrite the header.
-		if apiutils.SliceContainsStr(t.c.app.GetRewrite().Redirect, host(u.Host)) {
+		if slices.Contains(t.c.app.GetRewrite().Redirect, host(u.Host)) {
 			u.Scheme = "https"
 			u.Host = net.JoinHostPort(t.c.app.GetPublicAddr(), t.c.publicPort)
 		}

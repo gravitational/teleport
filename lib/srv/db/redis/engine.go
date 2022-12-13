@@ -24,14 +24,15 @@ import (
 
 	"github.com/go-redis/redis/v9"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
+	"github.com/gravitational/teleport/lib/srv/db/redis/connection"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -206,16 +207,16 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 	}
 
 	// Set default mode. Default mode can be overridden by URI parameters.
-	defaultMode := Standalone
+	defaultMode := connection.Standalone
 	switch sessionCtx.Database.GetType() {
 	case types.DatabaseTypeElastiCache:
 		if sessionCtx.Database.GetAWS().ElastiCache.EndpointType == apiawsutils.ElastiCacheConfigurationEndpoint {
-			defaultMode = Cluster
+			defaultMode = connection.Cluster
 		}
 
 	case types.DatabaseTypeMemoryDB:
 		if sessionCtx.Database.GetAWS().MemoryDB.EndpointType == apiawsutils.MemoryDBClusterEndpoint {
-			defaultMode = Cluster
+			defaultMode = connection.Cluster
 		}
 
 	case types.DatabaseTypeAzure:
@@ -223,11 +224,11 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 		//
 		// https://learn.microsoft.com/en-us/azure/azure-cache-for-redis/quickstart-create-redis-enterprise#clustering-policy
 		if sessionCtx.Database.GetAzure().Redis.ClusteringPolicy == azure.RedisEnterpriseClusterPolicyOSS {
-			defaultMode = Cluster
+			defaultMode = connection.Cluster
 		}
 	}
 
-	connectionOptions, err := ParseRedisAddressWithDefaultMode(sessionCtx.Database.GetURI(), defaultMode)
+	connectionOptions, err := connection.ParseRedisAddressWithDefaultMode(sessionCtx.Database.GetURI(), defaultMode)
 	if err != nil {
 		return nil, trace.BadParameter("Redis connection string is incorrect %q: %v", sessionCtx.Database.GetURI(), err)
 	}
@@ -258,7 +259,7 @@ func (e *Engine) createOnClientConnectFunc(sessionCtx *common.Session, username,
 	// database session. Fetching an user's password on each new connection
 	// ensures the correct password is used for each shard connection when
 	// Redis is in cluster mode.
-	case apiutils.SliceContainsStr(sessionCtx.Database.GetManagedUsers(), sessionCtx.DatabaseUser):
+	case slices.Contains(sessionCtx.Database.GetManagedUsers(), sessionCtx.DatabaseUser):
 		return fetchUserPasswordOnConnect(sessionCtx, e.Users, e.Audit)
 
 	default:

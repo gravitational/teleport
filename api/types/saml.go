@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -371,7 +372,7 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if name := o.Metadata.Name; utils.SliceContainsStr(constants.SystemConnectors, name) {
+	if name := o.Metadata.Name; slices.Contains(constants.SystemConnectors, name) {
 		return trace.BadParameter("ID: invalid connector name, %v is a reserved name", name)
 	}
 	if o.Spec.AssertionConsumerService == "" {

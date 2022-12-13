@@ -27,11 +27,11 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/exp/slices"
 	"gopkg.in/square/go-jose.v2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -99,10 +99,6 @@ const (
 
 	// By default all users use /bin/bash
 	DefaultShell = "/bin/bash"
-
-	// InviteTokenTTL sets the lifespan of tokens used for adding nodes and users
-	// to a cluster
-	InviteTokenTTL = 15 * time.Minute
 
 	// HTTPMaxIdleConns is the max idle connections across all hosts.
 	HTTPMaxIdleConns = 2000
@@ -195,9 +191,6 @@ const (
 	// MaxPasswordLength is maximum password length (for sanity)
 	MaxPasswordLength = 128
 
-	// IterationLimit is a default limit if it's not set
-	IterationLimit = 100
-
 	// MaxIterationLimit is max iteration limit
 	MaxIterationLimit = 1000
 
@@ -268,14 +261,6 @@ const (
 	// before timeout.
 	CallbackTimeout = 180 * time.Second
 
-	// ConcurrentUploadsPerStream limits the amount of concurrent uploads
-	// per stream
-	ConcurrentUploadsPerStream = 1
-
-	// InactivityFlushPeriod is a period of inactivity
-	// that triggers upload of the data - flush.
-	InactivityFlushPeriod = 5 * time.Minute
-
 	// NodeJoinTokenTTL is when a token for nodes expires.
 	NodeJoinTokenTTL = 4 * time.Hour
 
@@ -287,59 +272,23 @@ const (
 	// no name is provided at connection time.
 	DefaultRedisUsername = "default"
 
-	// AbandonedUploadPollingRate defines how often to check for
-	// abandoned uploads which need to be completed.
-	AbandonedUploadPollingRate = defaults.SessionTrackerTTL / 6
-
 	// ProxyPingInterval is the interval ping messages are going to be sent.
 	// This is only applicable for TLS routing protocols that support ping
 	// wrapping.
 	ProxyPingInterval = 30 * time.Second
 )
 
-var (
-	// ResyncInterval is how often tunnels are resynced.
-	ResyncInterval = 5 * time.Second
-
+const (
 	// TerminalResizePeriod is how long tsh waits before updating the size of the
 	// terminal window.
 	TerminalResizePeriod = 2 * time.Second
 
-	// SessionRefreshPeriod is how often session data is updated on the backend.
-	// The web client polls this information about session to update the UI.
-	//
-	// TODO(klizhentas): All polling periods should go away once backend supports
-	// events.
-	SessionRefreshPeriod = 2 * time.Second
-
 	// SessionIdlePeriod is the period of inactivity after which the
 	// session will be considered idle
-	SessionIdlePeriod = SessionRefreshPeriod * 10
-
-	// NetworkBackoffDuration is a standard backoff on network requests
-	// usually is slow, e.g. once in 30 seconds
-	NetworkBackoffDuration = time.Second * 30
-
-	// AuditBackoffTimeout is a time out before audit logger will
-	// start losing events
-	AuditBackoffTimeout = 5 * time.Second
-
-	// NetworkRetryDuration is a standard retry on network requests
-	// to retry quickly, e.g. once in one second
-	NetworkRetryDuration = time.Second
-
-	// FastAttempts is the initial amount of fast retry attempts
-	// before switching to slow mode
-	FastAttempts = 10
-
-	// ReportingPeriod is a period for reports in logs
-	ReportingPeriod = 5 * time.Minute
+	SessionIdlePeriod = 20 * time.Second
 
 	// HighResPollingPeriod is a default high resolution polling period
 	HighResPollingPeriod = 10 * time.Second
-
-	// HeartbeatCheckPeriod is a period between heartbeat status checks
-	HeartbeatCheckPeriod = 5 * time.Second
 
 	// LowResPollingPeriod is a default low resolution polling period
 	LowResPollingPeriod = 600 * time.Second
@@ -348,12 +297,20 @@ var (
 	// period used in services
 	HighResReportingPeriod = 10 * time.Second
 
-	// DiskAlertThreshold is the disk space alerting threshold.
-	DiskAlertThreshold = 90
+	// SessionControlTimeout is the maximum amount of time a controlled session
+	// may persist after contact with the auth server is lost (sessctl semaphore
+	// leases are refreshed at a rate of ~1/2 this duration).
+	SessionControlTimeout = time.Minute * 2
 
-	// DiskAlertInterval is disk space check interval.
-	DiskAlertInterval = 5 * time.Minute
+	// PrometheusScrapeInterval is the default time interval for prometheus scrapes. Used for metric update periods.
+	PrometheusScrapeInterval = 15 * time.Second
 
+	// MaxWatcherBackoff is the maximum retry time a watcher should use in
+	// the event of connection issues
+	MaxWatcherBackoff = time.Minute
+)
+
+const (
 	// AuthQueueSize is auth service queue size
 	AuthQueueSize = 8192
 
@@ -377,21 +334,14 @@ var (
 
 	// DiscoveryQueueSize is discovery service queue size.
 	DiscoveryQueueSize = 128
+)
 
-	// SessionControlTimeout is the maximum amount of time a controlled session
-	// may persist after contact with the auth server is lost (sessctl semaphore
-	// leases are refreshed at a rate of ~1/2 this duration).
-	SessionControlTimeout = time.Minute * 2
+var (
+	// ResyncInterval is how often tunnels are resynced.
+	ResyncInterval = 5 * time.Second
 
-	// AsyncBufferSize is a default buffer size for async emitters
-	AsyncBufferSize = 1024
-
-	// MaxWatcherBackoff is the maximum retry time a watcher should use in
-	// the event of connection issues
-	MaxWatcherBackoff = time.Minute
-
-	// PrometheusScrapeInterval is the default time interval for prometheus scrapes. Used for metric update periods.
-	PrometheusScrapeInterval = 15 * time.Second
+	// HeartbeatCheckPeriod is a period between heartbeat status checks
+	HeartbeatCheckPeriod = 5 * time.Second
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport
@@ -540,17 +490,7 @@ const (
 	CgroupPath = "/cgroup2"
 )
 
-var (
-	// ConfigFilePath is default path to teleport config file
-	ConfigFilePath = "/etc/teleport.yaml"
-
-	// DataDir is where all mutable data is stored (user keys, recorded sessions,
-	// registered SSH servers, etc):
-	DataDir = "/var/lib/teleport"
-
-	// StartRoles is default roles teleport assumes when started via 'start' command
-	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService, RoleApp, RoleDatabase}
-
+const (
 	// ConfigEnvar is a name of teleport's configuration environment variable
 	ConfigEnvar = "TELEPORT_CONFIG"
 
@@ -568,10 +508,22 @@ var (
 	Krb5FilePath = "/etc/krb5.conf"
 )
 
+var (
+	// ConfigFilePath is default path to teleport config file
+	ConfigFilePath = "/etc/teleport.yaml"
+
+	// DataDir is where all mutable data is stored (user keys, recorded sessions,
+	// registered SSH servers, etc):
+	DataDir = "/var/lib/teleport"
+
+	// StartRoles is default roles teleport assumes when started via 'start' command
+	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService, RoleApp, RoleDatabase}
+)
+
 const (
-	// ServiceName is the default PAM policy to use if one is not passed in
+	// PAMServiceName is the default PAM policy to use if one is not passed in
 	// configuration.
-	ServiceName = "sshd"
+	PAMServiceName = "sshd"
 )
 
 const (
@@ -693,6 +645,12 @@ const (
 
 	// WebsocketWebauthnChallenge is sending a webauthn challenge.
 	WebsocketWebauthnChallenge = "n"
+
+	// WebsocketSessionMetadata is sending the data for a ssh session.
+	WebsocketSessionMetadata = "s"
+
+	// WebsocketError is sending an error message.
+	WebsocketError = "e"
 )
 
 // The following are cryptographic primitives Teleport does not support in
@@ -756,26 +714,6 @@ var (
 	}
 )
 
-// CheckPasswordLimiter creates a rate limit that can be used to slow down
-// requests that come to the check password endpoint.
-func CheckPasswordLimiter() *limiter.Limiter {
-	limiter, err := limiter.NewLimiter(limiter.Config{
-		MaxConnections:   LimiterMaxConnections,
-		MaxNumberOfUsers: LimiterMaxConcurrentUsers,
-		Rates: []limiter.Rate{
-			{
-				Period:  1 * time.Second,
-				Average: 10,
-				Burst:   10,
-			},
-		},
-	})
-	if err != nil {
-		panic(fmt.Sprintf("Failed to create limiter: %v.", err))
-	}
-	return limiter
-}
-
 // Transport returns a new http.Client with sensible defaults.
 func HTTPClient() (*http.Client, error) {
 	transport, err := Transport()
@@ -829,7 +767,7 @@ var TeleportConfigVersions = []string{
 }
 
 func ValidateConfigVersion(version string) error {
-	hasVersion := apiutils.SliceContainsStr(TeleportConfigVersions, version)
+	hasVersion := slices.Contains(TeleportConfigVersions, version)
 	if !hasVersion {
 		return trace.BadParameter("version must be one of %s", strings.Join(TeleportConfigVersions, ", "))
 	}

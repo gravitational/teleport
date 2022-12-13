@@ -177,6 +177,14 @@ RUN go install github.com/daixiang0/gci@v0.8.2
 RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
      cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
      rm -r helm-tarball*)
+
+# TODO(hugoShaka): remove this backward compatible hack with teleportv13 buildbox
+RUN helm plugin install https://github.com/quintush/helm-unittest && \
+    mkdir -p /home/ci/.local/share/helm && \
+    cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm/plugins-new && \
+    chown -R ci /home/ci/.local/share/helm && \
+    helm plugin uninstall unittest && \
+    HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new helm plugin list
 RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
     mkdir -p /home/ci/.local/share/helm && \
     cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm && \
@@ -190,7 +198,7 @@ RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar 
 
 # Install shellcheck.
 RUN scversion='v0.8.0' && \
-    curl -sSL "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.x86_64.tar.xz" | \
+    curl -sSL "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch64"; fi).tar.xz" | \
         tar -xJv && \
     cp "shellcheck-$scversion/shellcheck" /usr/local/bin/ && \
     shellcheck --version
@@ -215,7 +223,7 @@ RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1 && \
 
 # Install buf
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.9.0" && \
+    VERSION="1.10.0" && \
       curl -sSL \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \

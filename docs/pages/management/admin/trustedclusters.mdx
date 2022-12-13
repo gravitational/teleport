@@ -706,31 +706,7 @@ $ tctl create demo-cluster-access.yaml
 role 'demo-cluster-access' has been created
 ```
 
-Next, retrieve your user's role definition and overwrite the `user.yaml` file
-you created earlier. Replace `myuser` with the name of your Teleport user:
-
-```code
-$ tctl get user/myuser > user.yaml
-```
-
-Make the following change to `user.yaml`:
-
-```diff
- spec:
-   roles:
-   - editor
-   - access
-+  - demo-cluster-access
-```
-
-Update your user:
-
-```code
-$ tctl create -f user.yaml
-```
-
-When you log out of the cluster and log in again, you should see the
-`remote_cluster` you just labeled.
+(!docs/pages/includes/add-role-to-user.mdx role="demo-cluster-access"!)
 
 Confirm that the updated labels have been set:
 
@@ -1023,5 +999,5 @@ should check to see the following:
 
 ## Further reading
 - Read more about how Trusted Clusters fit into Teleport's overall architecture:
-  [Architecture Introduction](../../architecture/overview.mdx).
+  [Architecture Introduction](../../architecture/trustedclusters.mdx).
 

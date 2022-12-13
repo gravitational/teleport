@@ -34,13 +34,16 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	clients "github.com/gravitational/teleport/lib/cloud"
+	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	cloudtest "github.com/gravitational/teleport/lib/cloud/test"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 )
@@ -49,20 +52,26 @@ import (
 func TestWatcher(t *testing.T) {
 	ctx := context.Background()
 
-	rdsInstance1, rdsDatabase1 := makeRDSInstance(t, "instance-1", "us-east-1", map[string]string{"env": "prod"})
-	rdsInstance2, _ := makeRDSInstance(t, "instance-2", "us-east-2", map[string]string{"env": "prod"})
-	rdsInstance3, _ := makeRDSInstance(t, "instance-3", "us-east-1", map[string]string{"env": "dev"})
+	envProdLabels := map[string]string{"env": "prod"}
+	envDevLabels := map[string]string{"env": "dev"}
+
+	rdsInstance1, rdsDatabase1 := makeRDSInstance(t, "instance-1", "us-east-1", envProdLabels)
+	rdsInstance2, _ := makeRDSInstance(t, "instance-2", "us-east-2", envProdLabels)
+	rdsInstance3, _ := makeRDSInstance(t, "instance-3", "us-east-1", envDevLabels)
 	rdsInstance4, rdsDatabase4 := makeRDSInstance(t, "instance-4", "us-west-1", nil)
+	rdsInstance5, rdsDatabase5 := makeRDSInstance(t, "instance-5", "us-east-2", map[string]string{"env": "dev"})
 	rdsInstanceUnavailable, _ := makeRDSInstance(t, "instance-5", "us-west-1", nil, withRDSInstanceStatus("stopped"))
 	rdsInstanceUnknownStatus, rdsDatabaseUnknownStatus := makeRDSInstance(t, "instance-5", "us-west-6", nil, withRDSInstanceStatus("status-does-not-exist"))
+	auroraMySQLEngine := &rds.DBEngineVersion{Engine: aws.String(services.RDSEngineAuroraMySQL)}
+	postgresEngine := &rds.DBEngineVersion{Engine: aws.String(services.RDSEnginePostgres)}
 
-	auroraCluster1, auroraDatabase1 := makeRDSCluster(t, "cluster-1", "us-east-1", map[string]string{"env": "prod"})
-	auroraCluster2, auroraDatabases2 := makeRDSClusterWithExtraEndpoints(t, "cluster-2", "us-east-2", map[string]string{"env": "dev"}, true)
-	auroraCluster3, _ := makeRDSCluster(t, "cluster-3", "us-east-2", map[string]string{"env": "prod"})
+	auroraCluster1, auroraDatabase1 := makeRDSCluster(t, "cluster-1", "us-east-1", envProdLabels)
+	auroraCluster2, auroraDatabases2 := makeRDSClusterWithExtraEndpoints(t, "cluster-2", "us-east-2", envDevLabels, true)
+	auroraCluster3, _ := makeRDSCluster(t, "cluster-3", "us-east-2", envProdLabels)
 	auroraClusterUnsupported, _ := makeRDSCluster(t, "serverless", "us-east-1", nil, withRDSClusterEngineMode("serverless"))
 	auroraClusterUnavailable, _ := makeRDSCluster(t, "cluster-4", "us-east-1", nil, withRDSClusterStatus("creating"))
 	auroraClusterUnknownStatus, auroraDatabaseUnknownStatus := makeRDSCluster(t, "cluster-5", "us-east-1", nil, withRDSClusterStatus("status-does-not-exist"))
-	auroraClusterNoWriter, auroraDatabasesNoWriter := makeRDSClusterWithExtraEndpoints(t, "cluster-6", "us-east-1", map[string]string{"env": "dev"}, false)
+	auroraClusterNoWriter, auroraDatabasesNoWriter := makeRDSClusterWithExtraEndpoints(t, "cluster-6", "us-east-1", envDevLabels, false)
 
 	redshiftUse1Prod, redshiftDatabaseUse1Prod := makeRedshiftCluster(t, "us-east-1", "prod")
 	redshiftUse1Dev, _ := makeRedshiftCluster(t, "us-east-1", "dev")
@@ -105,6 +114,15 @@ func TestWatcher(t *testing.T) {
 	rdsProxyVpc2, _ := makeRDSProxy(t, "rds-proxy-2", "us-east-1", "vpc2")
 	rdsProxyEndpointVpc1, rdsProxyEndpointDatabaseVpc1 := makeRDSProxyCustomEndpoint(t, rdsProxyVpc1, "endpoint-1", "us-east-1")
 	rdsProxyEndpointVpc2, _ := makeRDSProxyCustomEndpoint(t, rdsProxyVpc2, "endpoint-2", "us-east-1")
+
+	redshiftserverlessWorkgroupProd, redshiftserverlessWorkgroupDatabaseProd := makeRedshiftServerlessWorkgroup(t, "wg1", "us-east-1", envProdLabels)
+	redshiftserverlessWorkgroupDev, _ := makeRedshiftServerlessWorkgroup(t, "wg2", "us-east-1", envDevLabels)
+	redshiftserverlessEndpointProd, redshiftserverlessEndpointDatabaseProd := makeRedshiftServerlessEndpoint(t, redshiftserverlessWorkgroupProd, "endpoint", "us-east-1", envProdLabels)
+	redshiftserverlessTags := map[string][]*redshiftserverless.Tag{
+		aws.StringValue(redshiftserverlessWorkgroupProd.WorkgroupArn): libcloudaws.LabelsToTags[redshiftserverless.Tag](envProdLabels),
+		aws.StringValue(redshiftserverlessWorkgroupDev.WorkgroupArn):  libcloudaws.LabelsToTags[redshiftserverless.Tag](envDevLabels),
+		aws.StringValue(redshiftserverlessEndpointProd.EndpointArn):   libcloudaws.LabelsToTags[redshiftserverless.Tag](envProdLabels),
+	}
 
 	const (
 		group1        = "group1"
@@ -168,16 +186,48 @@ func TestWatcher(t *testing.T) {
 			clients: &clients.TestCloudClients{
 				RDSPerRegion: map[string]rdsiface.RDSAPI{
 					"us-east-1": &cloud.RDSMock{
-						DBInstances: []*rds.DBInstance{rdsInstance1, rdsInstance3},
-						DBClusters:  []*rds.DBCluster{auroraCluster1},
+						DBInstances:      []*rds.DBInstance{rdsInstance1, rdsInstance3},
+						DBClusters:       []*rds.DBCluster{auroraCluster1},
+						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine, postgresEngine},
 					},
 					"us-east-2": &cloud.RDSMock{
-						DBInstances: []*rds.DBInstance{rdsInstance2},
-						DBClusters:  []*rds.DBCluster{auroraCluster2, auroraCluster3},
+						DBInstances:      []*rds.DBInstance{rdsInstance2},
+						DBClusters:       []*rds.DBCluster{auroraCluster2, auroraCluster3},
+						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine, postgresEngine},
 					},
 				},
 			},
 			expectedDatabases: append(types.Databases{rdsDatabase1, auroraDatabase1}, auroraDatabases2...),
+		},
+		{
+			name: "RDS unrecognized engines are skipped",
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types:   []string{services.AWSMatcherRDS},
+					Regions: []string{"us-east-1"},
+					Tags:    types.Labels{"env": []string{"prod"}},
+				},
+				{
+					Types:   []string{services.AWSMatcherRDS},
+					Regions: []string{"us-east-2"},
+					Tags:    types.Labels{"env": []string{"dev"}},
+				},
+			},
+			clients: &clients.TestCloudClients{
+				RDSPerRegion: map[string]rdsiface.RDSAPI{
+					"us-east-1": &cloud.RDSMock{
+						DBInstances:      []*rds.DBInstance{rdsInstance1, rdsInstance3},
+						DBClusters:       []*rds.DBCluster{auroraCluster1},
+						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine},
+					},
+					"us-east-2": &cloud.RDSMock{
+						DBInstances:      []*rds.DBInstance{rdsInstance5},
+						DBClusters:       []*rds.DBCluster{auroraCluster2, auroraCluster3},
+						DBEngineVersions: []*rds.DBEngineVersion{postgresEngine},
+					},
+				},
+			},
+			expectedDatabases: types.Databases{auroraDatabase1, rdsDatabase5},
 		},
 		{
 			name: "RDS unsupported databases are skipped",
@@ -189,7 +239,8 @@ func TestWatcher(t *testing.T) {
 			clients: &clients.TestCloudClients{
 				RDSPerRegion: map[string]rdsiface.RDSAPI{
 					"us-east-1": &cloud.RDSMock{
-						DBClusters: []*rds.DBCluster{auroraCluster1, auroraClusterUnsupported},
+						DBClusters:       []*rds.DBCluster{auroraCluster1, auroraClusterUnsupported},
+						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine},
 					},
 				},
 			},
@@ -204,8 +255,9 @@ func TestWatcher(t *testing.T) {
 			}},
 			clients: &clients.TestCloudClients{
 				RDS: &cloud.RDSMock{
-					DBInstances: []*rds.DBInstance{rdsInstance1, rdsInstanceUnavailable, rdsInstanceUnknownStatus},
-					DBClusters:  []*rds.DBCluster{auroraCluster1, auroraClusterUnavailable, auroraClusterUnknownStatus},
+					DBInstances:      []*rds.DBInstance{rdsInstance1, rdsInstanceUnavailable, rdsInstanceUnknownStatus},
+					DBClusters:       []*rds.DBCluster{auroraCluster1, auroraClusterUnavailable, auroraClusterUnknownStatus},
+					DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine, postgresEngine},
 				},
 			},
 			expectedDatabases: types.Databases{rdsDatabase1, rdsDatabaseUnknownStatus, auroraDatabase1, auroraDatabaseUnknownStatus},
@@ -219,7 +271,8 @@ func TestWatcher(t *testing.T) {
 			}},
 			clients: &clients.TestCloudClients{
 				RDS: &cloud.RDSMock{
-					DBClusters: []*rds.DBCluster{auroraClusterNoWriter},
+					DBClusters:       []*rds.DBCluster{auroraClusterNoWriter},
+					DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine},
 				},
 			},
 			expectedDatabases: auroraDatabasesNoWriter,
@@ -235,14 +288,20 @@ func TestWatcher(t *testing.T) {
 				RDSPerRegion: map[string]rdsiface.RDSAPI{
 					"ca-central-1": &cloud.RDSMockUnauth{},
 					"us-west-1": &cloud.RDSMockByDBType{
-						DBInstances: &cloud.RDSMock{DBInstances: []*rds.DBInstance{rdsInstance4}},
-						DBClusters:  &cloud.RDSMockUnauth{},
-						DBProxies:   &cloud.RDSMockUnauth{},
+						DBInstances: &cloud.RDSMock{
+							DBInstances:      []*rds.DBInstance{rdsInstance4},
+							DBEngineVersions: []*rds.DBEngineVersion{postgresEngine},
+						},
+						DBClusters: &cloud.RDSMockUnauth{},
+						DBProxies:  &cloud.RDSMockUnauth{},
 					},
 					"us-east-1": &cloud.RDSMockByDBType{
 						DBInstances: &cloud.RDSMockUnauth{},
-						DBClusters:  &cloud.RDSMock{DBClusters: []*rds.DBCluster{auroraCluster1}},
-						DBProxies:   &cloud.RDSMockUnauth{},
+						DBClusters: &cloud.RDSMock{
+							DBClusters:       []*rds.DBCluster{auroraCluster1},
+							DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine},
+						},
+						DBProxies: &cloud.RDSMockUnauth{},
 					},
 				},
 			},
@@ -279,6 +338,24 @@ func TestWatcher(t *testing.T) {
 				},
 			},
 			expectedDatabases: types.Databases{redshiftDatabaseUse1Prod, redshiftDatabaseUnknownStatus},
+		},
+		{
+			name: "Redshift Serverless",
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types:   []string{services.AWSMatcherRedshiftServerless},
+					Regions: []string{"us-east-1"},
+					Tags:    types.Labels{"env": []string{"prod"}},
+				},
+			},
+			clients: &clients.TestCloudClients{
+				RedshiftServerless: &cloudtest.RedshiftServerlessMock{
+					Workgroups: []*redshiftserverless.Workgroup{redshiftserverlessWorkgroupProd, redshiftserverlessWorkgroupDev},
+					Endpoints:  []*redshiftserverless.EndpointAccess{redshiftserverlessEndpointProd},
+					TagsByARN:  redshiftserverlessTags,
+				},
+			},
+			expectedDatabases: types.Databases{redshiftserverlessWorkgroupDatabaseProd, redshiftserverlessEndpointDatabaseProd},
 		},
 		{
 			name: "ElastiCache",
@@ -357,7 +434,8 @@ func TestWatcher(t *testing.T) {
 			},
 			clients: &clients.TestCloudClients{
 				RDS: &cloud.RDSMock{
-					DBClusters: []*rds.DBCluster{auroraCluster1},
+					DBClusters:       []*rds.DBCluster{auroraCluster1},
+					DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine},
 				},
 				Redshift: &cloud.RedshiftMock{
 					Clusters: []*redshift.Cluster{redshiftUse1Prod},
@@ -614,7 +692,8 @@ func TestWatcher(t *testing.T) {
 			},
 			clients: &clients.TestCloudClients{
 				RDS: &cloud.RDSMock{
-					DBClusters: []*rds.DBCluster{auroraCluster1},
+					DBClusters:       []*rds.DBCluster{auroraCluster1},
+					DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine},
 				},
 				Redshift: &cloud.RedshiftMock{
 					Clusters: []*redshift.Cluster{redshiftUse1Prod},
@@ -898,7 +977,7 @@ func makeRDSInstance(t *testing.T, name, region string, labels map[string]string
 			Address: aws.String("localhost"),
 			Port:    aws.Int64(5432),
 		},
-		TagList: labelsToTags(labels),
+		TagList: libcloudaws.LabelsToTags[rds.Tag](labels),
 	}
 	for _, opt := range opts {
 		opt(instance)
@@ -919,7 +998,7 @@ func makeRDSCluster(t *testing.T, name, region string, labels map[string]string,
 		Status:              aws.String("available"),
 		Endpoint:            aws.String("localhost"),
 		Port:                aws.Int64(3306),
-		TagList:             labelsToTags(labels),
+		TagList:             libcloudaws.LabelsToTags[rds.Tag](labels),
 		DBClusterMembers: []*rds.DBClusterMember{&rds.DBClusterMember{
 			IsClusterWriter: aws.Bool(true), // Only one writer.
 		}},
@@ -967,7 +1046,7 @@ func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels 
 		Endpoint:            aws.String("localhost"),
 		ReaderEndpoint:      aws.String("reader.host"),
 		Port:                aws.Int64(3306),
-		TagList:             labelsToTags(labels),
+		TagList:             libcloudaws.LabelsToTags[rds.Tag](labels),
 		DBClusterMembers: []*rds.DBClusterMember{&rds.DBClusterMember{
 			IsClusterWriter: aws.Bool(false), // Add reader by default. Writer is added below based on hasWriter.
 		}},
@@ -1095,6 +1174,22 @@ func makeRDSProxyCustomEndpoint(t *testing.T, rdsProxy *rds.DBProxy, name, regio
 	return rdsProxyEndpoint, rdsProxyEndpointDatabase
 }
 
+func makeRedshiftServerlessWorkgroup(t *testing.T, name, region string, labels map[string]string) (*redshiftserverless.Workgroup, types.Database) {
+	workgroup := cloudtest.RedshiftServerlessWorkgroup(name, region)
+	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](labels)
+	database, err := services.NewDatabaseFromRedshiftServerlessWorkgroup(workgroup, tags)
+	require.NoError(t, err)
+	return workgroup, database
+}
+
+func makeRedshiftServerlessEndpoint(t *testing.T, workgroup *redshiftserverless.Workgroup, name, region string, labels map[string]string) (*redshiftserverless.EndpointAccess, types.Database) {
+	endpoint := cloudtest.RedshiftServerlessEndpointAccess(workgroup, name, region)
+	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](labels)
+	database, err := services.NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint, workgroup, tags)
+	require.NoError(t, err)
+	return endpoint, database
+}
+
 // withRDSInstanceStatus returns an option function for makeRDSInstance to overwrite status.
 func withRDSInstanceStatus(status string) func(*rds.DBInstance) {
 	return func(instance *rds.DBInstance) {
@@ -1133,16 +1228,6 @@ func withElastiCacheConfigurationEndpoint() func(*elasticache.ReplicationGroup) 
 			Port:    aws.Int64(6379),
 		}
 	}
-}
-
-func labelsToTags(labels map[string]string) (tags []*rds.Tag) {
-	for key, val := range labels {
-		tags = append(tags, &rds.Tag{
-			Key:   aws.String(key),
-			Value: aws.String(val),
-		})
-	}
-	return tags
 }
 
 func labelsToAzureTags(labels map[string]string) map[string]*string {

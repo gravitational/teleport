@@ -4,6 +4,7 @@ templates:
   - config.yaml
 tests:
   - it: creates a StatefulSet
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     elease:
@@ -15,6 +16,7 @@ tests:
           count: 1
 
   - it: sets StatefulSet labels when specified
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/extra-labels.yaml
@@ -28,6 +30,7 @@ tests:
       - matchSnapshot: {}
 
   - it: sets Pod labels when specified
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/extra-labels.yaml
@@ -42,6 +45,7 @@ tests:
           path: spec.template.spec
 
   - it: sets Pod annotations when specified
+    template: statefulset.yaml
     values:
       - ../.lint/annotations.yaml
       - ../.lint/stateful.yaml
@@ -56,6 +60,7 @@ tests:
           path: spec.template.spec
 
   - it: should have one replica when replicaCount is not set
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     asserts:
@@ -66,6 +71,7 @@ tests:
           path: spec.template.spec
 
   - it: should have multiple replicas when replicaCount is set (using .replicaCount, deprecated)
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     set:
@@ -78,6 +84,7 @@ tests:
           path: spec.template.spec
 
   - it: should have multiple replicas when replicaCount is set (using highAvailability.replicaCount)
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     set:
@@ -91,6 +98,7 @@ tests:
           path: spec.template.spec
 
   - it: should set affinity when set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/affinity.yaml
@@ -101,6 +109,7 @@ tests:
           path: spec.template.spec
 
   - it: should set required affinity when highAvailability.requireAntiAffinity is set
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     set:
@@ -120,6 +129,7 @@ tests:
           path: spec.template.spec
 
   - it: should set preferred affinity when more than one replica is used
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     set:
@@ -138,6 +148,7 @@ tests:
           path: spec.template.spec
 
   - it: should set tolerations when set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/tolerations.yaml
@@ -148,6 +159,7 @@ tests:
           path: spec.template.spec
 
   - it: should set resources when set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/resources.yaml
@@ -168,6 +180,7 @@ tests:
           path: spec.template.spec
 
   - it: should set SecurityContext
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     asserts:
@@ -192,6 +205,7 @@ tests:
           path: spec.template.spec
 
   - it: should set image and tag correctly
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     set:
@@ -204,6 +218,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount extraVolumes and extraVolumeMounts
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/volumes.yaml
@@ -223,6 +238,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount auth token if token is provided
+    template: statefulset.yaml
     values:
       - ../.lint/join-params-token.yaml
     asserts:
@@ -240,6 +256,7 @@ tests:
               secretName: teleport-kube-agent-join-token
 
   - it: should set imagePullPolicy when set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     set:
@@ -252,6 +269,7 @@ tests:
           path: spec.template.spec
 
   - it: should set environment when extraEnv set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     set:
@@ -282,6 +300,7 @@ tests:
           path: spec.template.spec
 
   - it: should provision initContainer correctly when set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/initcontainers.yaml
@@ -311,6 +330,7 @@ tests:
           path: spec.template.spec
 
   - it: should add insecureSkipProxyTLSVerify to args when set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     set:
@@ -323,6 +343,7 @@ tests:
           path: spec.template.spec
 
   - it: should expose diag port
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     asserts:
@@ -336,6 +357,7 @@ tests:
           path: spec.template.spec
 
   - it: should set nodeSelector if set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/node-selector.yaml
@@ -348,6 +370,7 @@ tests:
           path: spec.template.spec
 
   - it: should not add emptyDir for data when using StatefulSet
+    template: statefulset.yaml
     release:
       isupgrade: true
     set:
@@ -364,6 +387,7 @@ tests:
           path: spec.template.spec
 
   - it: should add volumeMount for data volume when using StatefulSet
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     asserts:
@@ -376,6 +400,7 @@ tests:
           path: spec.template.spec
 
   - it: should add volumeClaimTemplate for data volume when using StatefulSet and action is an Upgrade
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     set:
@@ -391,6 +416,7 @@ tests:
           path: spec.template.spec
 
   - it: should add volumeClaimTemplate for data volume when using StatefulSet and is Fresh Install
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     set:
@@ -405,6 +431,7 @@ tests:
       - matchSnapshot: {}
 
   - it: should set storage.storageClassName when set in values and action is an Upgrade
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     release:
@@ -424,6 +451,7 @@ tests:
           path: spec.template.spec
 
   - it: should set storage.requests when set in values and action is an Upgrade
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
     release:
@@ -442,6 +470,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount tls.existingCASecretName and set environment when set in values
+    template: statefulset.yaml
     values:
       - ../.lint/existing-tls-secret-with-ca.yaml
     asserts:
@@ -466,6 +495,7 @@ tests:
           path: spec.template.spec
 
   - it: should mount tls.existingCASecretName and set extra environment when set in values
+    template: statefulset.yaml
     values:
       - ../.lint/existing-tls-secret-with-ca.yaml
       - ../.lint/extra-env.yaml
@@ -497,6 +527,7 @@ tests:
 
 
   - it: should set serviceAccountName when set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/service-account-name.yaml
@@ -508,6 +539,7 @@ tests:
           path: spec.template.spec
 
   - it: should set default serviceAccountName when not set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/backwards-compatibility.yaml
@@ -519,6 +551,7 @@ tests:
           path: spec.template.spec
 
   - it: should set probeTimeoutSeconds when set in values
+    template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
       - ../.lint/probe-timeout-seconds.yaml
@@ -533,6 +566,7 @@ tests:
           path: spec.template.spec
 
   - it: should install Statefulset when storage is disabled and mode is a Fresh Install
+    template: statefulset.yaml
     release:
       isupgrade: false
     values:
@@ -566,6 +600,7 @@ tests:
           path: spec.template.spec
 
   - it: should generate Statefulset when storage is disabled and mode is a Upgrade
+    template: statefulset.yaml
     release:
       isupgrade: true
     values:

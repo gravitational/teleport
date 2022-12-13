@@ -778,6 +778,9 @@ func TestApplyConfig(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, types.AgentMesh, tunnelStrategyType)
 	require.Equal(t, types.DefaultAgentMeshTunnelStrategy(), cfg.Auth.NetworkingConfig.GetAgentMeshTunnelStrategy())
+	require.Equal(t, types.OriginConfigFile, cfg.Auth.Preference.Origin())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.NetworkingConfig.Origin())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.SessionRecordingConfig.Origin())
 
 	require.True(t, cfg.Proxy.Enabled)
 	require.Equal(t, "tcp://webhost:3080", cfg.Proxy.WebAddr.FullAddress())
@@ -900,6 +903,9 @@ func TestApplyConfigNoneEnabled(t *testing.T) {
 
 	require.False(t, cfg.Auth.Enabled)
 	require.Empty(t, cfg.Auth.PublicAddrs)
+	require.Equal(t, types.OriginDefaults, cfg.Auth.Preference.Origin())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.NetworkingConfig.Origin())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.SessionRecordingConfig.Origin())
 	require.False(t, cfg.Proxy.Enabled)
 	require.Empty(t, cfg.Proxy.PublicAddrs)
 	require.False(t, cfg.SSH.Enabled)
@@ -910,6 +916,100 @@ func TestApplyConfigNoneEnabled(t *testing.T) {
 	require.False(t, cfg.WindowsDesktop.Enabled)
 	require.Empty(t, cfg.Proxy.PostgresPublicAddrs)
 	require.Empty(t, cfg.Proxy.MySQLPublicAddrs)
+}
+
+// TestApplyConfigNoneEnabled makes sure that if the auth file configuration
+// does not have `cluster_auth_preference`, `cluster_networking_config` and
+// `session_recording` fields, then they all have the origin label as defaults.
+func TestApplyDefaultAuthResources(t *testing.T) {
+	conf, err := ReadConfig(bytes.NewBufferString(DefaultAuthResourcesConfigString))
+	require.NoError(t, err)
+
+	cfg := service.MakeDefaultConfig()
+	err = ApplyFileConfig(conf, cfg)
+	require.NoError(t, err)
+
+	require.True(t, cfg.Auth.Enabled)
+	require.Equal(t, "example.com", cfg.Auth.ClusterName.GetClusterName())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.Preference.Origin())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.NetworkingConfig.Origin())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.SessionRecordingConfig.Origin())
+}
+
+// TestApplyCustomAuthPreference makes sure that if the auth file configuration
+// has a `cluster_auth_preference` field, then it will have the origin label as
+// config-file.
+func TestApplyCustomAuthPreference(t *testing.T) {
+	conf, err := ReadConfig(bytes.NewBufferString(CustomAuthPreferenceConfigString))
+	require.NoError(t, err)
+
+	cfg := service.MakeDefaultConfig()
+	err = ApplyFileConfig(conf, cfg)
+	require.NoError(t, err)
+
+	require.True(t, cfg.Auth.Enabled)
+	require.Equal(t, "example.com", cfg.Auth.ClusterName.GetClusterName())
+	require.Equal(t, types.OriginConfigFile, cfg.Auth.Preference.Origin())
+	require.True(t, cfg.Auth.Preference.GetDisconnectExpiredCert())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.NetworkingConfig.Origin())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.SessionRecordingConfig.Origin())
+}
+
+// TestApplyCustomAuthPreferenceWithMOTD makes sure that if the auth file configuration
+// has only the `message_of_the_day` `cluster_auth_preference` field, then it will have
+// the origin label as defaults (instead of config-file).
+func TestApplyCustomAuthPreferenceWithMOTD(t *testing.T) {
+	conf, err := ReadConfig(bytes.NewBufferString(AuthPreferenceConfigWithMOTDString))
+	require.NoError(t, err)
+
+	cfg := service.MakeDefaultConfig()
+	err = ApplyFileConfig(conf, cfg)
+	require.NoError(t, err)
+
+	require.True(t, cfg.Auth.Enabled)
+	require.Equal(t, "example.com", cfg.Auth.ClusterName.GetClusterName())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.Preference.Origin())
+	require.Equal(t, "welcome!", cfg.Auth.Preference.GetMessageOfTheDay())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.NetworkingConfig.Origin())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.SessionRecordingConfig.Origin())
+}
+
+// TestApplyCustomNetworkingConfig makes sure that if the auth file configuration
+// has a `cluster_networking_config` field, then it will have the origin label as
+// config-file.
+func TestApplyCustomNetworkingConfig(t *testing.T) {
+	conf, err := ReadConfig(bytes.NewBufferString(CustomNetworkingConfigString))
+	require.NoError(t, err)
+
+	cfg := service.MakeDefaultConfig()
+	err = ApplyFileConfig(conf, cfg)
+	require.NoError(t, err)
+
+	require.True(t, cfg.Auth.Enabled)
+	require.Equal(t, "example.com", cfg.Auth.ClusterName.GetClusterName())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.Preference.Origin())
+	require.Equal(t, types.OriginConfigFile, cfg.Auth.NetworkingConfig.Origin())
+	require.Equal(t, 10*time.Second, cfg.Auth.NetworkingConfig.GetWebIdleTimeout())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.SessionRecordingConfig.Origin())
+}
+
+// TestApplyCustomSessionRecordingConfig makes sure that if the auth file configuration
+// has a `session_recording` field, then it will have the origin label as
+// config-file.
+func TestApplyCustomSessionRecordingConfig(t *testing.T) {
+	conf, err := ReadConfig(bytes.NewBufferString(CustomSessionRecordingConfigString))
+	require.NoError(t, err)
+
+	cfg := service.MakeDefaultConfig()
+	err = ApplyFileConfig(conf, cfg)
+	require.NoError(t, err)
+
+	require.True(t, cfg.Auth.Enabled)
+	require.Equal(t, cfg.Auth.ClusterName.GetClusterName(), "example.com")
+	require.Equal(t, types.OriginDefaults, cfg.Auth.Preference.Origin())
+	require.Equal(t, types.OriginDefaults, cfg.Auth.NetworkingConfig.Origin())
+	require.Equal(t, types.OriginConfigFile, cfg.Auth.SessionRecordingConfig.Origin())
+	require.True(t, cfg.Auth.SessionRecordingConfig.GetProxyChecksHostKeys())
 }
 
 // TestPostgresPublicAddr makes sure Postgres proxy public address default
@@ -2275,7 +2375,7 @@ db_service:
   - name: foo
     protocol: postgres
 `,
-			outError: `invalid database "foo" address`,
+			outError: `database "foo" URI is empty`,
 		},
 		{
 			desc: "invalid database uri (missing port)",
@@ -2360,7 +2460,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				DatabaseName:     "foo",
 				DatabaseProtocol: defaults.ProtocolPostgres,
 			},
-			outError: `invalid database "foo" address`,
+			outError: `database "foo" URI is empty`,
 		},
 		{
 			desc: "invalid database uri (missing port)",

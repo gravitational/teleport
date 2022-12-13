@@ -60,6 +60,9 @@ type SessionContext struct {
 	// ServerID is the UUID of the server this session is executing on.
 	ServerID string
 
+	// ServerHostname is the hostname of the server this session is executing on.
+	ServerHostname string
+
 	// Login is the Unix login for this session.
 	Login string
 
@@ -112,6 +115,26 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.CgroupPath == "" {
 		c.CgroupPath = defaults.CgroupPath
+	}
+
+	return nil
+}
+
+// RestrictedSessionConfig holds configuration for the RestrictedSession service.
+type RestrictedSessionConfig struct {
+	// Enabled if this service will try and install BPF programs on this system.
+	Enabled bool
+
+	// EventsBufferSize is the size (in pages) of the perf buffer for events.
+	EventsBufferSize *int
+}
+
+// CheckAndSetDefaults checks BPF configuration.
+func (c *RestrictedSessionConfig) CheckAndSetDefaults() error {
+	var perfBufferPageCount = defaults.PerfBufferPageCount
+
+	if c.EventsBufferSize == nil {
+		c.EventsBufferSize = &perfBufferPageCount
 	}
 
 	return nil

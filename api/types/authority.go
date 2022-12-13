@@ -22,9 +22,9 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils"
 )
 
 // CertAuthority is a host or user certificate authority that
@@ -558,8 +558,8 @@ type CertRoles struct {
 func (k *TLSKeyPair) Clone() *TLSKeyPair {
 	return &TLSKeyPair{
 		KeyType: k.KeyType,
-		Key:     utils.CopyByteSlice(k.Key),
-		Cert:    utils.CopyByteSlice(k.Cert),
+		Key:     slices.Clone(k.Key),
+		Cert:    slices.Clone(k.Cert),
 	}
 }
 
@@ -568,8 +568,8 @@ func (k *TLSKeyPair) Clone() *TLSKeyPair {
 func (k *JWTKeyPair) Clone() *JWTKeyPair {
 	return &JWTKeyPair{
 		PrivateKeyType: k.PrivateKeyType,
-		PrivateKey:     utils.CopyByteSlice(k.PrivateKey),
-		PublicKey:      utils.CopyByteSlice(k.PublicKey),
+		PrivateKey:     slices.Clone(k.PrivateKey),
+		PublicKey:      slices.Clone(k.PublicKey),
 	}
 }
 
@@ -578,8 +578,8 @@ func (k *JWTKeyPair) Clone() *JWTKeyPair {
 func (k *SSHKeyPair) Clone() *SSHKeyPair {
 	return &SSHKeyPair{
 		PrivateKeyType: k.PrivateKeyType,
-		PrivateKey:     utils.CopyByteSlice(k.PrivateKey),
-		PublicKey:      utils.CopyByteSlice(k.PublicKey),
+		PrivateKey:     slices.Clone(k.PrivateKey),
+		PublicKey:      slices.Clone(k.PublicKey),
 	}
 }
 

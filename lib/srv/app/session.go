@@ -213,6 +213,11 @@ func (s *Server) withAWSForwarder(ctx context.Context, sess *sessionChunk, ident
 	return nil
 }
 
+func (s *Server) withAzureForwarder(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
+	sess.fwd = s.azureHandler.Forwarder
+	return nil
+}
+
 // acquire() increments in-flight request count by 1.
 // It is supposed to be paired with a `release()` call,
 // after the chunk is done with for the individual request
@@ -323,7 +328,7 @@ func (s *Server) newStreamer(app types.Application, chunkID string, recConfig ty
 	s.log.Debugf("Using async streamer for session chunk %v.", chunkID)
 	uploadDir := filepath.Join(
 		s.c.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, apidefaults.Namespace,
+		events.StreamingSessionsDir, apidefaults.Namespace,
 	)
 	fileStreamer, err := filesessions.NewStreamer(uploadDir)
 	if err != nil {
