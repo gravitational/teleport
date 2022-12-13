@@ -279,7 +279,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 		)
 	}
 
-	// Now attempt to lock the destination so we have sole use of it
+	// Now attempt to lock the destination, so we have sole use of it.
 	unlock, err := dest.TryLock()
 	if err != nil {
 		if errors.Is(err, utils.ErrUnsuccessfulLockTry) {
@@ -411,7 +411,7 @@ func checkDestinations(cfg *config.BotConfig) error {
 		return trace.Wrap(err)
 	}
 
-	// TODO: consider warning if ownership of all destintions is not expected.
+	// TODO: consider warning if ownership of all destinations is not expected.
 
 	// Note: no subdirs to init for bot's internal storage.
 	if err := storage.Init([]string{}); err != nil {

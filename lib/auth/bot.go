@@ -216,7 +216,7 @@ func (s *Server) deleteBot(ctx context.Context, botName string) error {
 	// Note: this does not remove any locks for the bot's user / role. That
 	// might be convenient in case of accidental bot locking but there doesn't
 	// seem to be any automatic deletion of locks in teleport today (other
-	// than expiration). Consistency around security controls seems important
+	// than expiration). Consistency around security controls seems important,
 	// but we can revisit this if desired.
 	resourceName := BotResourceName(botName)
 
@@ -365,10 +365,10 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 
 		// Fetch a fresh copy of the user we can mutate safely. We can't
 		// implement a protobuf clone on User due to protobuf's proto.Clone()
-		// panicing when the user object has traits set, and a JSON
+		// panicking when the user object has traits set, and a JSON
 		// marshal/unmarshal creates an import cycle so... here we are.
 		// There's a tiny chance the underlying user is mutated between calls
-		// to GetUser() but we're comparing with an older value so it'll fail
+		// to GetUser() but we're comparing with an older value, so it'll fail
 		// safely.
 		newUser, err := s.Services.GetUser(user.GetName(), false)
 		if err != nil {

@@ -52,8 +52,8 @@ func TestClient_DialTimeout(t *testing.T) {
 	}
 
 	for _, tt := range cases {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			tt := tt
 			t.Parallel()
 
 			// create a client that will attempt to connect to a blackholed address. The address is reserved
