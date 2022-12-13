@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 func TestMakeDatabaseConfig(t *testing.T) {
@@ -78,6 +80,22 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.ElementsMatch(t, flags.RedshiftDiscoveryRegions, databases.AWSMatchers[0].Regions)
 	})
 
+	t.Run("AWS discovery tags", func(t *testing.T) {
+		flags := DatabaseSampleFlags{
+			RedshiftServerlessDiscoveryRegions: []string{"us-west-1", "us-west-2"},
+			AWSRawTags:                         "teleport.dev/discovery=true,env=prod",
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AWSMatchers, 1)
+		require.ElementsMatch(t, []string{"redshift-serverless"}, databases.AWSMatchers[0].Types)
+		require.ElementsMatch(t, flags.RedshiftServerlessDiscoveryRegions, databases.AWSMatchers[0].Regions)
+		require.Equal(t, map[string]apiutils.Strings{
+			"teleport.dev/discovery": {"true"},
+			"env":                    {"prod"},
+		}, databases.AWSMatchers[0].Tags)
+	})
+
 	t.Run("AzureMySQLAutoDiscovery", func(t *testing.T) {
 		flags := DatabaseSampleFlags{
 			AzureMySQLDiscoveryRegions: []string{"eastus", "eastus2"},
@@ -98,6 +116,25 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.Len(t, databases.AzureMatchers, 1)
 		require.ElementsMatch(t, []string{"postgres"}, databases.AzureMatchers[0].Types)
 		require.ElementsMatch(t, flags.AzurePostgresDiscoveryRegions, databases.AzureMatchers[0].Regions)
+	})
+
+	t.Run("Azure discovery tags,subscriptions,resource_groups", func(t *testing.T) {
+		flags := DatabaseSampleFlags{
+			AzureRedisDiscoveryRegions: []string{"eastus", "eastus2"},
+			AzureSubscriptions:         []string{"sub1", "sub2"},
+			AzureResourceGroups:        []string{"group1", "group2"},
+			AzureRawTags:               "TeleportDiscovery=true,Env=prod",
+		}
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AzureMatchers, 1)
+		require.ElementsMatch(t, []string{"redis"}, databases.AzureMatchers[0].Types)
+		require.ElementsMatch(t, flags.AzureRedisDiscoveryRegions, databases.AzureMatchers[0].Regions)
+		require.ElementsMatch(t, flags.AzureSubscriptions, databases.AzureMatchers[0].Subscriptions)
+		require.ElementsMatch(t, flags.AzureResourceGroups, databases.AzureMatchers[0].ResourceGroups)
+		require.Equal(t, map[string]apiutils.Strings{
+			"TeleportDiscovery": {"true"},
+			"Env":               {"prod"},
+		}, databases.AzureMatchers[0].ResourceTags)
 	})
 
 	t.Run("StaticDatabase", func(t *testing.T) {

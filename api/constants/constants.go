@@ -317,6 +317,10 @@ const (
 	// TraitAWSRoleARNs is the name of the role variable used to store
 	// allowed AWS role ARNs.
 	TraitAWSRoleARNs = "aws_role_arns"
+
+	// TraitAzureIdentities is the name of the role variable used to store
+	// allowed Azure identity names.
+	TraitAzureIdentities = "azure_identities"
 )
 
 // Constants for AWS discovery

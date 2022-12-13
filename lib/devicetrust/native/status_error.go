@@ -34,6 +34,10 @@ type statusError struct {
 func (e *statusError) Error() string {
 	switch e.status {
 	case errSecItemNotFound:
+		// errSecItemNotFound can also occur because of an unsigned binary - it
+		// cannot read the correct key, so it appears the same as not finding any.
+		// TODO(codingllama): Consider adding a signature check to client-side
+		//  Device Trust, like lib/auth/touchid.
 		return "device key not found, was the device enrolled?"
 	case errSecMissingEntitlement:
 		return "binary missing signature or entitlements, download the client binaries from https://goteleport.com/download/"

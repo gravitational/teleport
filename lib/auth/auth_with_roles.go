@@ -2559,6 +2559,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		appPublicAddr:     req.RouteToApp.PublicAddr,
 		appClusterName:    req.RouteToApp.ClusterName,
 		awsRoleARN:        req.RouteToApp.AWSRoleARN,
+		azureIdentity:     req.RouteToApp.AzureIdentity,
 		checker:           checker,
 		traits:            accessInfo.Traits,
 		activeRequests: services.RequestIDs{
@@ -4039,6 +4040,16 @@ func (a *ServerWithRoles) GetAppSessions(ctx context.Context) ([]types.WebSessio
 		return nil, trace.Wrap(err)
 	}
 	return sessions, nil
+}
+
+// ListAppSessions gets a paginated list of application web sessions.
+func (a *ServerWithRoles) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	sessions, nextKey, err := a.authServer.ListAppSessions(ctx, pageSize, pageToken, user)
+	return sessions, nextKey, trace.Wrap(err)
 }
 
 // GetSnowflakeSessions gets all Snowflake web sessions.
