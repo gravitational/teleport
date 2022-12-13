@@ -1327,7 +1327,7 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
    - [ ] Check that those connections are removed after you log out of the root cluster that they
          belong to.
    - [ ] Verify that reopening a db connection from the connections picker remembers last used port.
-- Cluster resources (servers/databases)
+- Cluster resources (servers, databases, k8s)
    - [ ] Verify that the app shows the same resources as the Web UI.
    - [ ] Verify that search is working for the resources lists.
    - [ ] Verify that pagination is working for the resources lists.
@@ -1340,12 +1340,6 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
    - [ ] Repeat the above steps for resources in leaf clusters.
    - [ ] Verify that tabs have correct titles set.
    - [ ] Verify that changing tab position works.
-   - [ ] Verify that the port number remains the same for a db connection between app restarts.
-   - [ ] Verify that you can't open more than one tab for the same db server + username pair. Trying
-     to open a second tab with the same pair should just switch you to the already existing tab.
-   - [ ] Create a db connection, close the app, run `tsh proxy db` with the same port, start the
-     app. Verify that the app doesn't crash and the db connection tab shows you the error (address
-     in use) and offers a way to retry creating the connection.
 - Shortcuts
    - [ ] Verify that switching between tabs works on `Cmd+[1...9]`.
    - [ ] Verify that other shortcuts are shown after you close all tabs.
@@ -1389,6 +1383,10 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
          - [ ] Stop a leaf cluster.
          - [ ] Disconnect your device from the internet.
    - DocumentGateway
+      - [ ] Verify that the port number remains the same for a db connection between app restarts.
+      - [ ] Verify that you can't open more than one tab for the same db server + username pair.
+        Trying to open a second tab with the same pair should just switch you to the already
+        existing tab.
       - [ ] Create a db connection tab for a given database. Then remove access to that db for that
         user. Go back to Connect and:
          - [ ] Change database name in the tab. This should still work.
@@ -1397,6 +1395,9 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
         Click "Connect" to show a list of db users. Now remove access to that db. Go back to Connect
         and choose a username. Verify that a recoverable error is shown and the user can continue
         using the app.
+      - [ ] Create a db connection, close the app, run `tsh proxy db` with the same port, start the
+        app. Verify that the app doesn't crash and the db connection tab shows you the error
+        (address in use) and offers a way to retry creating the connection.
 - File transfer
    - Download
       - [ ] Verify if Connect asks for a path when downloading the file.
