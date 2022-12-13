@@ -127,10 +127,10 @@ func IsNonFatalErr(err error) bool {
 		return false
 	}
 
-	return errors.Is(err, trace.LimitExceeded(clipDataMaxLenErrMsg)) ||
-		errors.Is(err, trace.LimitExceeded(stringMaxLenErrMsg)) ||
-		errors.Is(err, trace.LimitExceeded(fileReadWriteMaxLenErrMsg)) ||
-		errors.Is(err, trace.LimitExceeded(mfaDataMaxLenErrMsg))
+	return errors.Is(err, clipDataMaxLenErr) ||
+		errors.Is(err, stringMaxLenErr) ||
+		errors.Is(err, fileReadWriteMaxLenErr) ||
+		errors.Is(err, mfaDataMaxLenErr)
 }
 
 // IsFatalErr returns the inverse of IsNonFatalErr

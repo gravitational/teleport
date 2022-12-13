@@ -444,7 +444,7 @@ func (r ClientUsername) Encode() ([]byte, error) {
 func decodeClientUsername(in io.Reader) (ClientUsername, error) {
 	username, err := decodeString(in, windowsMaxUsernameLength)
 	if err != nil {
-		if errors.Is(err, trace.LimitExceeded(stringMaxLenErrMsg)) {
+		if errors.Is(err, stringMaxLenErr) {
 			// Change the error message here so it's considered a fatal error
 			return ClientUsername{}, trace.LimitExceeded("ClientUsername exceeded maximum length")
 		}
@@ -556,8 +556,6 @@ func (c ClipboardData) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-const clipDataMaxLenErrMsg = "clipboard sync failed: clipboard data exceeded maximum length"
-
 func decodeClipboardData(in io.Reader, maxLen uint32) (ClipboardData, error) {
 	var length uint32
 	if err := binary.Read(in, binary.BigEndian, &length); err != nil {
@@ -568,7 +566,7 @@ func decodeClipboardData(in io.Reader, maxLen uint32) (ClipboardData, error) {
 		// If clipboard data exceeds maxLen,
 		// discard the rest of the message
 		_, _ = io.CopyN(io.Discard, in, int64(length))
-		return nil, trace.LimitExceeded(clipDataMaxLenErrMsg)
+		return nil, clipDataMaxLenErr
 	}
 
 	b := make([]byte, int(length))
@@ -626,8 +624,6 @@ func (m MFA) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-const mfaDataMaxLenErrMsg = "MFA challenge data exceeds maximum length"
-
 func DecodeMFA(in byteReader) (*MFA, error) {
 	mt, err := in.ReadByte()
 	if err != nil {
@@ -648,7 +644,7 @@ func DecodeMFA(in byteReader) (*MFA, error) {
 
 	if length > maxMFADataLength {
 		_, _ = io.CopyN(io.Discard, in, int64(length))
-		return nil, trace.LimitExceeded(mfaDataMaxLenErrMsg)
+		return nil, mfaDataMaxLenErr
 	}
 
 	b := make([]byte, int(length))
@@ -1224,8 +1220,6 @@ func (s SharedDirectoryReadResponse) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-const fileReadWriteMaxLenErrMsg = "TDP file read or write message exceeds maximum size limit"
-
 func decodeSharedDirectoryReadResponse(in io.Reader, maxLen uint32) (SharedDirectoryReadResponse, error) {
 	var completionID, errorCode, readDataLength uint32
 
@@ -1246,7 +1240,7 @@ func decodeSharedDirectoryReadResponse(in io.Reader, maxLen uint32) (SharedDirec
 
 	if readDataLength > maxLen {
 		_, _ = io.CopyN(io.Discard, in, int64(readDataLength))
-		return SharedDirectoryReadResponse{}, trace.LimitExceeded(fileReadWriteMaxLenErrMsg)
+		return SharedDirectoryReadResponse{}, fileReadWriteMaxLenErr
 	}
 
 	readData := make([]byte, int(readDataLength))
@@ -1319,7 +1313,7 @@ func decodeSharedDirectoryWriteRequest(in byteReader, maxLen uint32) (SharedDire
 
 	if writeDataLength > maxLen {
 		_, _ = io.CopyN(io.Discard, in, int64(writeDataLength))
-		return SharedDirectoryWriteRequest{}, trace.LimitExceeded(fileReadWriteMaxLenErrMsg)
+		return SharedDirectoryWriteRequest{}, fileReadWriteMaxLenErr
 	}
 
 	writeData := make([]byte, int(writeDataLength))
@@ -1442,8 +1436,6 @@ func encodeString(w io.Writer, s string) error {
 	return nil
 }
 
-const stringMaxLenErrMsg = "TDP string length exceeds allowable limit"
-
 func decodeString(r io.Reader, maxLen uint32) (string, error) {
 	var length uint32
 	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
@@ -1452,7 +1444,7 @@ func decodeString(r io.Reader, maxLen uint32) (string, error) {
 
 	if length > maxLen {
 		_, _ = io.CopyN(io.Discard, r, int64(length))
-		return "", trace.LimitExceeded(stringMaxLenErrMsg)
+		return "", stringMaxLenErr
 	}
 
 	s := make([]byte, int(length))
@@ -1500,4 +1492,11 @@ const (
 	ErrCodeFailed        uint32 = 1
 	ErrCodeDoesNotExist  uint32 = 2
 	ErrCodeAlreadyExists uint32 = 3
+)
+
+var (
+	clipDataMaxLenErr      = trace.LimitExceeded("clipboard sync failed: clipboard data exceeded maximum length")
+	stringMaxLenErr        = trace.LimitExceeded("TDP string length exceeds allowable limit")
+	fileReadWriteMaxLenErr = trace.LimitExceeded("TDP file read or write message exceeds maximum size limit")
+	mfaDataMaxLenErr       = trace.LimitExceeded("MFA challenge data exceeds maximum length")
 )

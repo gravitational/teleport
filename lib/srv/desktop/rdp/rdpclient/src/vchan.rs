@@ -27,9 +27,9 @@ use std::io::{Cursor, Read};
 /// See https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/343e4888-4c48-4054-b0e3-4e0762d1993c
 /// for more information about chunks.
 pub struct Client {
-    // size_limit is the maximum size of an RDP
-    // message we will receive from the RDP server,
-    // minus any ChannelPDUHeaders.
+    // size_limit is the maximum size (in bytes) of an RDP
+    // message we will receive from the RDP server, minus
+    // any ChannelPDUHeaders.
     size_limit: usize,
     data: Vec<u8>,
     drop_current_message: bool,

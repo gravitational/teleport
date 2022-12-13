@@ -1986,4 +1986,4 @@ pub(crate) trait Encode: std::fmt::Debug {
 ///
 /// Note that this is not an RDP defined value, but rather one we've chosen
 /// in order to harden system security.
-const MAX_ALLOWED_VCHAN_MSG_SIZE: usize = 2_usize.pow(21); // 2MB
+const MAX_ALLOWED_VCHAN_MSG_SIZE: usize = 2 * 1024 * 1024; // 2MB
