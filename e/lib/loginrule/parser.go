@@ -68,9 +68,11 @@ func newParser(env *parseEnv) (predicate.Parser, error) {
 			"option":             newOption,
 		},
 		Methods: map[string]any{
-			"add":      set.add,
-			"remove":   set.remove,
-			"contains": set.contains,
+			"add":        set.add,
+			"contains":   set.contains,
+			"put":        dict.put,
+			"add_values": dict.addValues,
+			"remove":     remover.remove,
 		},
 	})
 	return parser, trace.Wrap(err)
@@ -78,14 +80,29 @@ func newParser(env *parseEnv) (predicate.Parser, error) {
 
 type unknownIdentifier string
 
+// remover is an interface used so that the parser can call the "remove" method
+// on both set and dict.
+type remover interface {
+	remove(items ...any) (any, error)
+}
+
 type set map[string]struct{}
 
 func newSet(values ...string) set {
-	s := make(map[string]struct{}, len(values))
+	s := make(set, len(values))
 	for _, value := range values {
 		s[value] = struct{}{}
 	}
 	return s
+}
+
+// clone returns a copy of [s].
+func (s set) clone() set {
+	copy := make(set, len(s))
+	for k := range s {
+		copy[k] = struct{}{}
+	}
+	return copy
 }
 
 func (s set) items() []string {
@@ -122,7 +139,7 @@ func (s set) add(values ...any) (set, error) {
 }
 
 // remove returns a copy of the set with values added.
-func (s set) remove(values ...any) (set, error) {
+func (s set) remove(values ...any) (any, error) {
 	out := make(set, len(s))
 	for value := range s {
 		out[value] = struct{}{}
@@ -154,12 +171,80 @@ func union(sets ...any) (set, error) {
 
 type dict map[string]set
 
-func newDict(pairs ...pair) dict {
+// newDict returns a dict initialized with the key-value pairs as specified in
+// [pairs].
+func newDict(pairs ...any) (dict, error) {
 	d := make(dict, len(pairs))
-	for _, p := range pairs {
+	for _, pairArg := range pairs {
+		p, ok := pairArg.(pair)
+		if !ok {
+			return nil, trace.BadParameter("arguments to dict must have type pair, got %T", pairArg)
+		}
 		d[p.first] = p.second
 	}
-	return d
+	return d, nil
+}
+
+// clone returns a deep copy of [d].
+func (d dict) clone() dict {
+	copy := make(dict, len(d))
+	for key, set := range d {
+		copy[key] = set.clone()
+	}
+	return copy
+}
+
+// addValues returns a copy of [d] with [values] added at [key].
+func (d dict) addValues(key any, values ...any) (dict, error) {
+	keyStr, ok := key.(string)
+	if !ok {
+		return nil, trace.BadParameter("first argument (key) to dict.add_values must have type string, got %T", key)
+	}
+
+	copy := d.clone()
+	for _, value := range values {
+		valueStr, ok := value.(string)
+		if !ok {
+			return nil, trace.BadParameter("variadic arguments (values) to dict.add_values must have type string, got %T", value)
+		}
+		s := copy[keyStr]
+		if s == nil {
+			copy[keyStr] = map[string]struct{}{
+				valueStr: struct{}{},
+			}
+		} else {
+			copy[keyStr][valueStr] = struct{}{}
+		}
+	}
+	return copy, nil
+}
+
+// remove returns a copy of [d] with [keys] removed.
+func (d dict) remove(keys ...any) (any, error) {
+	copy := d.clone()
+	for _, key := range keys {
+		keyStr, ok := key.(string)
+		if !ok {
+			return nil, trace.BadParameter("arguments (keys) to dict.remove must have type string, got %T", key)
+		}
+		delete(copy, keyStr)
+	}
+	return copy, nil
+}
+
+// put returns a copy of [d] with [key] set to [value].
+func (d dict) put(key, value any) (dict, error) {
+	keyStr, ok := key.(string)
+	if !ok {
+		return nil, trace.BadParameter("first argument (key) to dict.put must have type string, got %T", key)
+	}
+	valueSet, ok := value.(set)
+	if !ok {
+		return nil, trace.BadParameter("second argument (value) to dict.put must have type set, got %t", value)
+	}
+	copy := d.clone()
+	copy[keyStr] = valueSet
+	return copy, nil
 }
 
 type pair struct {

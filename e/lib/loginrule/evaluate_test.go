@@ -233,6 +233,72 @@ func TestEvaluate(t *testing.T) {
 			errorContains: "arguments to set.add must have type string, got loginrule.set",
 		},
 		{
+			desc: "dict creation",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsExpression("rule", 0, `dict(
+					pair("x", external.a),
+					pair("y", set("y")),
+					pair("z", union(external.a, external.b)))`),
+			},
+			inputTraits: map[string][]string{
+				"a": []string{"a"},
+				"b": []string{"b"},
+			},
+			expectedTraits: map[string][]string{
+				"x": []string{"a"},
+				"y": []string{"y"},
+				"z": []string{"a", "b"},
+			},
+		},
+		{
+			desc: "dict.add_values",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsExpression("rule", 0,
+					`external.add_values("a", "aa", "aaa").add_values("z", "z")`),
+			},
+			inputTraits: map[string][]string{
+				"a": []string{"a"},
+				"b": []string{"b"},
+			},
+			expectedTraits: map[string][]string{
+				"a": []string{"a", "aa", "aaa"},
+				"b": []string{"b"},
+				"z": []string{"z"},
+			},
+		},
+		{
+			desc: "dict.put",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsExpression("rule", 0,
+					`external.put("a", set("aa", "aaa")).put("b", external.a).put("z", set("z"))`),
+			},
+			inputTraits: map[string][]string{
+				"a": []string{"a"},
+				"b": []string{"b"},
+			},
+			expectedTraits: map[string][]string{
+				"a": []string{"aa", "aaa"},
+				"b": []string{"a"},
+				"z": []string{"z"},
+			},
+		},
+		{
+			desc: "dict.remove",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsExpression("rule", 0,
+					`external.remove("a", "b").remove("c").remove("z")`),
+			},
+			inputTraits: map[string][]string{
+				"a": []string{"a"},
+				"b": []string{"b"},
+				"c": []string{"c"},
+				"d": []string{"d"},
+			},
+			expectedTraits: map[string][]string{
+				"d": []string{"d"},
+			},
+		},
+		{
 			desc: "string helpers",
 			rules: []*loginrulepb.LoginRule{
 				newLoginRuleWithTraitsMap("rule", 0, map[string][]string{

@@ -78,7 +78,10 @@ func sortLoginRules(rules []*loginrulepb.LoginRule) {
 }
 
 func evaluateTraitsMap(p predicate.Parser, traitsMap map[string]*wrappers.StringValues) (dict, error) {
-	d := newDict()
+	d, err := newDict()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	for key, values := range traitsMap {
 		for _, expr := range values.Values {
 			result, err := p.Parse(expr)
