@@ -144,10 +144,10 @@ require (
 	k8s.io/apiextensions-apiserver v0.25.4
 	k8s.io/apimachinery v0.26.0
 	k8s.io/apiserver v0.26.0
-	k8s.io/cli-runtime v0.25.4
+	k8s.io/cli-runtime v0.26.0
 	k8s.io/client-go v0.26.0
 	k8s.io/klog/v2 v2.80.1
-	k8s.io/kubectl v0.25.4
+	k8s.io/kubectl v0.26.0
 	k8s.io/utils v0.0.0-20221107191617-1a15be271d1d
 	sigs.k8s.io/controller-runtime v0.13.1
 	sigs.k8s.io/controller-tools v0.10.0
@@ -325,7 +325,6 @@ require (
 	github.com/rivo/uniseg v0.4.3 // indirect
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	github.com/rs/zerolog v1.28.0 // indirect
-	github.com/russross/blackfriday v1.5.2 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46 // indirect
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
