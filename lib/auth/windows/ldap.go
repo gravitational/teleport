@@ -73,19 +73,24 @@ func (cfg LDAPConfig) DomainDN() string {
 }
 
 const (
-	// ComputerClass is the object class for computers in Active Directory
-	ComputerClass = "computer"
-	// ContainerClass is the object class for containers in Active Directory
-	ContainerClass = "container"
-	// GMSAClass is the object class for group managed service accounts in Active Directory.
-	GMSAClass = "msDS-GroupManagedServiceAccount"
-
 	// See: https://docs.microsoft.com/en-US/windows/security/identity-protection/access-control/security-identifiers
 
 	// WritableDomainControllerGroupID is the windows security identifier for dcs with write permissions
 	WritableDomainControllerGroupID = "516"
 	// ReadOnlyDomainControllerGroupID is the windows security identifier for read only dcs
 	ReadOnlyDomainControllerGroupID = "521"
+
+	// ClassComputer is the object class for computers in Active Directory
+	ClassComputer = "computer"
+	// ClassContainer is the object class for containers in Active Directory
+	ClassContainer = "container"
+	// ClassGMSA is the object class for group managed service accounts in Active Directory.
+	ClassGMSA = "msDS-GroupManagedServiceAccount"
+	// ClassUser is the object class for users in Active Directory
+	ClassUser = "user"
+
+	// CategoryPerson is object category for persons in Active Directory
+	CategoryPerson = "person"
 
 	// AttrName is the name of an LDAP object
 	AttrName = "name"
@@ -222,7 +227,7 @@ func (c *LDAPClient) Create(dn string, class string, attrs map[string][]string) 
 // CreateContainer creates an LDAP container entry if
 // it doesn't already exist.
 func (c *LDAPClient) CreateContainer(dn string) error {
-	err := c.Create(dn, ContainerClass, nil)
+	err := c.Create(dn, ClassContainer, nil)
 	// Ignore the error if container already exists.
 	if trace.IsAlreadyExists(err) {
 		return nil

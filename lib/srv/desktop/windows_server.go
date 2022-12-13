@@ -1033,7 +1033,11 @@ func timer() func() int64 {
 func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop) (certDER, keyDER []byte, err error) {
 	// Find the user's SID
 	s.cfg.Log.Debugf("querying LDAP for objectSid of Windows username: %v", username)
-	filters := []string{fmt.Sprintf("(%s=person)", windows.AttrObjectCategory), fmt.Sprintf("(%s=user)", windows.AttrObjectClass), fmt.Sprintf("(name=%s)", username)}
+	filters := []string{
+		fmt.Sprintf("(%s=%s)", windows.AttrObjectCategory, windows.CategoryPerson),
+		fmt.Sprintf("(%s=%s)", windows.AttrObjectClass, windows.ClassUser),
+		fmt.Sprintf("(%s=%s)", windows.AttrName, username),
+	}
 	entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), windows.CombineLDAPFilters(filters), []string{windows.AttrObjectSid})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
