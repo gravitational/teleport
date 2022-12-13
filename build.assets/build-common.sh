@@ -122,9 +122,10 @@ notarize() {
   }
 }
 EOF
-  if [[ -n "$DRY_RUN_PREFIX" ]]; then
+  # if [[ -n "$DRY_RUN_PREFIX" ]]; then
     log "gon configuration:"
     cat "$goncfg"
-  fi
+  # fi
+  ls -laht $target
   $DRY_RUN_PREFIX gon "$goncfg"
 }

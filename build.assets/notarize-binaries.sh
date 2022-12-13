@@ -31,8 +31,9 @@ for BINARY in "$@"; do
 done
 
 for BINARY in "$@"; do
-    echo "Notarizing $BINARY..."
-    notarize "$BINARY" "$TEAMID" "$TSH_BUNDLEID"
+    BUNDLE_ID="com.gravitational.teleport.$(basename $BINARY)"
+    echo "Notarizing $BINARY with team ID $TEAMID and bundle ID $BUNDLE_ID..."
+    notarize "$BINARY" "$TEAMID" "$BUNDLE_ID"
 done
 
 echo "Finished notarizing $# binaries"
