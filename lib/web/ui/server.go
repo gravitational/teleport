@@ -312,9 +312,9 @@ func MakeDesktopServices(windowsDesktopServices []types.WindowsDesktopService) [
 	return desktopServices
 }
 
-// stripProtocolAndPort returns only the hostname of the uri.
-// Handles uri's with no protocol eg: for some database connection
-// endpoint the uri can be in the format "hostname:port".
+// stripProtocolAndPort returns only the hostname of the URI.
+// Handles URIs with no protocol eg: for some database connection
+// endpoint the URI can be in the format "hostname:port".
 func stripProtocolAndPort(uri string) string {
 	stripPort := func(uri string) string {
 		splitURI := strings.Split(uri, ":")
