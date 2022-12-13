@@ -855,6 +855,10 @@ func (a *Server) SetEmitter(emitter apievents.Emitter) {
 	a.emitter = emitter
 }
 
+func (a *Server) GetEmitter() apievents.Emitter {
+	return a.emitter
+}
+
 // SetEnforcer sets the server's enforce service
 func (a *Server) SetEnforcer(enforcer services.Enforcer) {
 	a.Services.Enforcer = enforcer
