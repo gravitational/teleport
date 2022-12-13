@@ -1376,10 +1376,11 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
 - Resilience when resources become unavailable
    - DocumentCluster
       - For each scenario, create at least one DocumentCluster tab for each available resource kind.
-      - For each scenario, first do the action described in the bullet point, then click "Sync" on
-        the relevant cluster tab. Verify that no unrecoverable error was raised (that is, the app
-        still works). Then restart the app and verify that it was restarted gracefully (no
-        unrecoverable error on restart, the user can continue using the app).
+      - For each scenario, first do the action described in the bullet point, then refetch list of
+        resources by entering the search field and pressing enter. Verify that no unrecoverable
+        error was raised (that is, the app still works). Then restart the app and verify that it was
+        restarted gracefully (no unrecoverable error on restart, the user can continue using the
+        app).
          - [ ] Stop the root cluster.
          - [ ] Stop a leaf cluster.
          - [ ] Disconnect your device from the internet.
