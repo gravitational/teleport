@@ -799,11 +799,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
 			// Find the user's SID
 			s.cfg.Log.Debugf("querying LDAP for objectSid of Windows username: %v", username)
-			var filters []string
-			filters = append(filters, "(objectCategory=person)")
-			filters = append(filters, "(objectClass=user)")
-			filters = append(filters, fmt.Sprintf("(name=%s)", username))
-			entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), windows.CombineLDAPFilters(filters), []string{windows.ObjectSidAttr})
+			filters := []string{fmt.Sprintf("(%s=person)", windows.AttrObjectCategory), fmt.Sprintf("(%s=user)", windows.AttrObjectClass), fmt.Sprintf("(name=%s)", username)}
+			entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), windows.CombineLDAPFilters(filters), []string{windows.AttrObjectSid})
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}

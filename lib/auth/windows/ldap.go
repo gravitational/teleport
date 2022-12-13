@@ -103,6 +103,12 @@ const (
 	AttrOSVersion = "operatingSystemVersion"
 	// AttrPrimaryGroupID is the primary group id of an LDAP object
 	AttrPrimaryGroupID = "primaryGroupID"
+	// AttrObjectSid is the object sid of an LDAP object
+	AttrObjectSid = "objectSid"
+	// AttrObjectCategory is the object category of an LDAP object
+	AttrObjectCategory = "objectCategory"
+	// AttrObjectClass is the object class of an LDAP object
+	AttrObjectClass = "objectClass"
 )
 
 // Note: if you want to browse LDAP on the Windows machine, run ADSIEdit.msc.
@@ -169,7 +175,7 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 // You can find the list of all AD classes at
 // https://docs.microsoft.com/en-us/windows/win32/adschema/classes-all
 func (c *LDAPClient) Read(dn string, class string, attrs []string) ([]*ldap.Entry, error) {
-	return c.ReadWithFilter(dn, fmt.Sprintf("(objectClass=%s)", class), attrs)
+	return c.ReadWithFilter(dn, fmt.Sprintf("(%s=%s)", AttrObjectClass, class), attrs)
 }
 
 // Create creates an LDAP entry at the given path, with the given class and
