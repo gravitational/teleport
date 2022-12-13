@@ -7,6 +7,53 @@ usage() {
   exit 1
 }
 
+shell_array_to_json_array() {
+    $shell_array=$1
+    printf "["; IFS=, ; printf "${shell_array[*]}"; echo "]"
+}
+
+# This is largely pulled from `build-common.sh` but modified for this use case
+sign_and_notarize_binaries() {
+  local output_zip="$1"
+  local bundle_id="$2"
+  local targets="${@:3}"
+
+  # XCode 12.
+  local gondir=''
+  gondir="$(mktemp -d)"
+  # Early expansion on purpose.
+  #shellcheck disable=SC2064
+  trap "rm -fr '$gondir'" EXIT
+
+  # Gon configuration file needs a proper extension.
+  local goncfg="$gondir/gon.json"
+  cat >"$goncfg" <<EOF
+{
+  "source": $(shell_array_to_json_array $targets),
+  "sign": {
+    "application_identity": "$DEVELOPER_ID_APPLICATION"
+  },
+  "zip": {
+    "output_path": "$output_zip"
+  },
+  "notarize": [{
+    "path": "$output_zip",
+    "bundle_id": "$bundle_id",
+    "staple": true
+  }],
+  "apple_id": {
+    "username": "$APPLE_USERNAME",
+    "password": "@env:APPLE_PASSWORD"
+  }
+}
+EOF
+
+  echo "gon configuration:"
+  cat "$goncfg"
+  ls -laht $target
+  $DRY_RUN_PREFIX gon -log-level=debug "$goncfg"
+}
+
 # Don't follow sourced script.
 #shellcheck disable=SC1090
 #shellcheck disable=SC1091
@@ -31,11 +78,6 @@ for BINARY in "$@"; do
 done
 
 ZIP_FILE="teleport.zip"
-
-for BINARY in "$@"; do
-    zip -ur "$ZIP_FILE" "$BINARY"
-done
-
-BUNDLE_ID="com.gravitational.teleport.zip"
-echo "Notarizing $ZIP_FILE with team ID $TEAMID and bundle ID $BUNDLE_ID..."
-notarize "$ZIP_FILE" "$TEAMID" "$BUNDLE_ID"
+BUNDLE_ID="com.gravitational.$ZIP_FILE"
+echo "Notarizing $ZIP_FILE with bundle ID $BUNDLE_ID..."
+sign_and_notarize_binaries "$ZIP_FILE" "$BUNDLE_ID" $@
