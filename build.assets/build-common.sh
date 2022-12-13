@@ -127,5 +127,5 @@ EOF
     cat "$goncfg"
   # fi
   ls -laht $target
-  $DRY_RUN_PREFIX gon "$goncfg"
+  $DRY_RUN_PREFIX gon "$goncfg" -log-level=debug -log-json
 }
