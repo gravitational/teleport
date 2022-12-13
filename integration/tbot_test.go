@@ -1,46 +1,40 @@
 /*
-Copyright 2022 Gravitational, Inc.
+ *
+ * Copyright 2022 Gravitational, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * /
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-package tbot
+package integration
 
 import (
 	"context"
-	"os"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-	native.PrecomputeTestKeys(m)
-	os.Exit(m.Run())
-}
 
 func rotate(
 	ctx context.Context, t *testing.T, log logrus.FieldLogger, svc func() *service.TeleportProcess, phase string, reload chan struct{},
@@ -80,14 +74,6 @@ func rotate(
 
 	err = waitForProcessEvent(svc(), service.ProxyReverseTunnelReady, 30*time.Second)
 	require.NoError(t, err)
-}
-
-// waitForProcessEvent waits for process event to occur or timeout
-func waitForProcessEvent(svc *service.TeleportProcess, event string, timeout time.Duration) error {
-	if _, err := svc.WaitForEventTimeout(timeout, event); err != nil {
-		return trace.BadParameter("timeout waiting for service to broadcast event %v", event)
-	}
-	return nil
 }
 
 func setupServerForCARotationTest(ctx context.Context, t *testing.T, log utils.Logger,
@@ -195,22 +181,24 @@ func TestBot_Run_CARotation(t *testing.T) {
 	// TODO(jakule): Changing this value should not make this test flaky.
 	botConfig.RenewalInterval = 4 * time.Second
 
-	b := New(botConfig, log, make(chan struct{}))
+	testBot := tbot.TestBot{
+		Bot: tbot.New(botConfig, log, make(chan struct{})),
+	}
 
 	go func() {
-		err := b.Run(ctx)
+		err := testBot.Run(ctx)
 		errC <- err
 	}()
 
 	// Wait for the bot to start running and watching for CA rotations.
 	require.Eventually(t, func() bool {
-		return b.ident() != nil
+		return testBot.Ident(t) != nil
 	}, 10*time.Second, 200*time.Millisecond)
 
 	// Fetch initial host cert
-	require.Len(t, b.ident().TLSCACertsBytes, 2)
+	require.Len(t, testBot.Ident(t).TLSCACertsBytes, 2)
 	initialCAs := [][]byte{}
-	copy(initialCAs, b.ident().TLSCACertsBytes)
+	copy(initialCAs, testBot.Ident(t).TLSCACertsBytes)
 
 	// Begin rotating through all the phases, testing the client after
 	// each rotation phase has completed.
@@ -220,7 +208,7 @@ func TestBot_Run_CARotation(t *testing.T) {
 
 	// Ensure both sets of CA certificates are now available locally
 	require.Eventually(t, func() bool {
-		return len(b.ident().TLSCACertsBytes) == 3
+		return len(testBot.Ident(t).TLSCACertsBytes) == 3
 	}, 30*time.Second, 200*time.Millisecond)
 
 	rotate(ctx, t, log, teleportProcess, types.RotationPhaseUpdateServers, reloadChan)
@@ -228,9 +216,9 @@ func TestBot_Run_CARotation(t *testing.T) {
 	rotate(ctx, t, log, teleportProcess, types.RotationStateStandby, reloadChan)
 
 	require.Eventually(t, func() bool {
-		return len(b.ident().TLSCACertsBytes) == 2
+		return len(testBot.Ident(t).TLSCACertsBytes) == 2
 	}, 30*time.Second, 200*time.Millisecond)
 
-	finalCAs := b.ident().TLSCACertsBytes
+	finalCAs := testBot.Ident(t).TLSCACertsBytes
 	require.NotEqual(t, initialCAs, finalCAs)
 }

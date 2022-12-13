@@ -23,6 +23,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -51,6 +52,17 @@ type Bot struct {
 	_proxyPong *webclient.PingResponse
 	_cas       map[types.CertAuthType][]types.CertAuthority
 	started    bool
+}
+
+// TestBot is a wrapper around Bot struct with some internal exposed.
+type TestBot struct {
+	*Bot
+}
+
+// Ident exposes private Bot.ident() method. testing.T parameter allows this
+// method only to be used in tests.
+func (b *TestBot) Ident(_ *testing.T) *identity.Identity {
+	return b.ident()
 }
 
 func New(cfg *config.BotConfig, log logrus.FieldLogger, reloadChan chan struct{}) *Bot {
