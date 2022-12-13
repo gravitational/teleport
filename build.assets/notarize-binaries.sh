@@ -30,10 +30,12 @@ for BINARY in "$@"; do
     fi
 done
 
+ZIP_FILE="teleport.zip"
+
 for BINARY in "$@"; do
-    BUNDLE_ID="com.gravitational.teleport.$(basename $BINARY)"
-    echo "Notarizing $BINARY with team ID $TEAMID and bundle ID $BUNDLE_ID..."
-    notarize "$BINARY" "$TEAMID" "$BUNDLE_ID"
+    zip -ur "$ZIP_FILE" "$BINARY"
 done
 
-echo "Finished notarizing $# binaries"
+BUNDLE_ID="com.gravitational.teleport.zip"
+echo "Notarizing $ZIP_FILE with team ID $TEAMID and bundle ID $BUNDLE_ID..."
+notarize "$ZIP_FILE" "$TEAMID" "$BUNDLE_ID"
