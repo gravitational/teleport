@@ -1338,6 +1338,7 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
       - Logins and db usernames are taken from the role, under `spec.allow.logins` and
         `spec.allow.db_users`.
    - [ ] Repeat the above steps for resources in leaf clusters.
+- Tabs
    - [ ] Verify that tabs have correct titles set.
    - [ ] Verify that changing tab position works.
 - Shortcuts
