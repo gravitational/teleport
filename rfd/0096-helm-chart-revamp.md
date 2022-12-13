@@ -83,6 +83,9 @@ The main LB service should send traffic to the proxies, two additional services
 for in-cluster communication should be created: one for the proxies and one for
 the auth.
 
+The trust between auth and proxy should be bootstrapped by
+[creating a provisionToken on start](https://github.com/gravitational/teleport/pull/19009).
+
 #### Labels and selectors
 
 Deploying different pod sets requires a way to discriminate them. The only
@@ -114,13 +117,10 @@ on `app.kubernetes.io/name`.
 
 #### Custom Resources
 
-The chart should support deploying teleport Custom Resources when
-the operator is enabled. Currently supported OSS resources are `TeleportUsers`,
-`TeleportRoles`, `TeleportGithubConnector`. Enterprise users can also
-deploy `TeleportOIDCConnector` and `TeleportSAMLConnector`.
-
-The [Custom Resources configuration values]() section covers how
-the CR configuration is passed through values.
+It was initially planned to allow deployment of custom resources through the chart.
+Unfortunately, Helm does not support deploying both a CRD and its CRs in the same
+release (it checks if the API is supported before deploying). This section has been
+removed from the RFD during implementation.
 
 ### Values and Teleport configuration
 
@@ -144,17 +144,18 @@ cluster's name would use the values:
 ```yaml
 clusterName: my-cluster
 chartMode: standalone
-teleport.yaml:
-  teleport:
-    kex_algos:
-      - ecdh-sha2-nistp256
-      - ecdh-sha2-nistp384
-      - ecdh-sha2-nistp521
-    log:
-      format:
-        extra_fields: ~
-  kubernetes_service:
-    kube_cluster_name: my-override
+auth:
+  teleportConfig:
+    teleport:
+      kex_algos:
+        - ecdh-sha2-nistp256
+        - ecdh-sha2-nistp384
+        - ecdh-sha2-nistp521
+      log:
+        format:
+          extra_fields: ~
+    kubernetes_service:
+      kube_cluster_name: my-override
 ```
 
 The generated chart configuration for the `standalone` mode is
@@ -220,16 +221,21 @@ The main drawback of this approach is that comments and value ordering are lost
 during the round-trip.  This approach could be extended to support multiple
 configuration syntax, following a breaking change for example.
 
-`custom` mode would be kept as a way to disable config generation from the
-chart. Compared to the previous Helm chart, users in custom mode would not
-provide an external ConfigMap. This is a breaking change for them, but by the
-nature of the auth/proxy split it is not possible to be backward compatible
-with `custom` mode.
+`custom` should be removed in favor of a new `scratch` mode. Compared to
+the previous Helm chart, users would not provide an external ConfigMap
+but pass the custom configuration through the values. This is a breaking
+change for them, but by the nature of the auth/proxy split it is not possible
+to be backward compatible with `custom` mode.
+
+In order to mitigate the risk of building an invalid confifguration, the chart should
+run pre-install and pre-upgrade hooks validating the configuration.
 
 #### Backward compatibility
 
 Splitting between auth and proxies will imply breaking some logic, we will try
-to provide backward compatibility as much as possible.
+to provide backward compatibility as much as possible. This includes being
+compatible with the previous installation guides and seamlessly upgrading setups
+created from those guides.
 
 The revamp of the `teleport-cluster` change should ensure the IP of the service
 stays the same, this requires the loadbalancing service to remain the same.
@@ -344,58 +350,15 @@ specific values should take precedence over the ones at the root.
 - `teleportVersionOverride`
 - `resources`
 
-#### CustomResources configuration values
+### Configuration examples
 
-Those values control which Teleport Custom Resources are deployed
-by the chart. Those values can be used only when the operator is
-enabled, to reflect this, they should be nested under the `operator`
-field.
+As this RFD brings numerous value changes and adds several ways of doing the same
+thing, users should be provided full working examples covering various common setups.
 
-Manually maintaining a 1-1 mapping for every CR field adds little
-value and will create additional maintenance and drift risks.
-Each supported CR spec should be exposed under its own field.
-Specifying the API version in the field name will help managing
-version updates with breaking changes. In extreme cases the chart
-could implement translation from previous versions to the new one,
-but this likely should be the operator's responsibility.
+Such examples would complete the documentation by demonstrating to users the best
+practices and capabilities of the chart.
 
-The chart should dynamically set the metadata (name, namespace, labels)
-and pass as-is the spec from the value. For example, a valuefile
-creating two users, one role and setting up the github connector
-would look like:
-
-```yaml
-operator:
-  CRs:
-    userV2:
-      alice:
-        roles:
-          - auditor
-      bob:
-        roles:
-          - team-lead
-    roleV5:
-      team-lead:
-        allow:
-          logins: ["root"]
-          kubernetes_groups: ["system:masters"]
-    githubV2:
-      dev-team:
-        client_id: XXXX
-        client_secret: XXXX
-        display: github-dev-team
-        redirect_url: XXXX
-        teams_to_role:
-          - organization: octocats
-            team: dev
-            roles:
-              - access
-          - organization: octocats
-            team: admin
-            roles:
-              - access
-              - team-lead
-```
+Those examples should also be used to lint the chart.
 
 ### Update strategy between major versions
 
@@ -409,7 +372,7 @@ harmful at scale.
 
 Proxies will have an initContainer checking if all auth pods from the past
 version were removed. Version check via the Teleport gRPC api (`PingResponse`)
-requires valid credentials to connect to Teleport. To workaround this issue we
+requires valid credentials to connect to Teleport. To work around this issue we
 can rely on Kubernetes's service discovery through DNS to discover how many
 pods are running which version:
 
@@ -425,7 +388,11 @@ pods are running which version:
 
 Headless services selecting auth pods with a specific version should contain 
 on-ready endpoints to ensure the rollout happens only when all pods are
-completely terminated. The means setting `spec.publishNotReadyAddresses: true`.
+completely terminated. This means setting `spec.publishNotReadyAddresses: true`.
+
+This rollout approach might take some time on largest Teleport deployments.
+This is not an issue per-se but has to be documented, as users running with
+`--atomic` or `--wait` might have to increase their Helm timeouts.
 
 Note: Teleport does not officially support multiple auth nodes running under
 different major versions. The recommended update approach is to scale down to
