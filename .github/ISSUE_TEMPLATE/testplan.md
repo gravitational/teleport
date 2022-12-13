@@ -1383,7 +1383,6 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
          - [ ] Stop a leaf cluster.
          - [ ] Disconnect your device from the internet.
    - DocumentGateway
-      - [ ] Verify that the port number remains the same for a db connection between app restarts.
       - [ ] Verify that you can't open more than one tab for the same db server + username pair.
         Trying to open a second tab with the same pair should just switch you to the already
         existing tab.
