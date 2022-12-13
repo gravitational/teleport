@@ -1388,9 +1388,8 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
         Trying to open a second tab with the same pair should just switch you to the already
         existing tab.
       - [ ] Create a db connection tab for a given database. Then remove access to that db for that
-        user. Go back to Connect and:
-         - [ ] Change database name in the tab. This should still work.
-         - [ ] Change database port. This should result in an error.
+        user. Go back to Connect and change the database name and port. Both actions should not
+        return an error.
       - [ ] Open DocumentCluster and make sure a given db is visible on the list of available dbs.
         Click "Connect" to show a list of db users. Now remove access to that db. Go back to Connect
         and choose a username. Verify that a recoverable error is shown and the user can continue
