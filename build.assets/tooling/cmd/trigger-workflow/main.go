@@ -50,9 +50,10 @@ import (
 
 	ghapi "github.com/google/go-github/v41/github"
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/build.assets/tooling/lib/github"
 	"github.com/gravitational/trace"
 	"golang.org/x/oauth2"
+
+	"github.com/gravitational/teleport/build.assets/tooling/lib/github"
 )
 
 const wokflowTagInput = "workflow-tag"
@@ -167,7 +168,7 @@ func waitForNewWorkflowRun(ctx context.Context, gh *ghapi.Client, args args, tag
 				// Note that the list of jobs and steps changes over time as the workflows
 				// start to execute, so unfortunately we can't simply exclude any rejected
 				// workflow runs from further testing. We will have to re-check them next
-				// time around in case the appropiate jobs & steps have appeared in the
+				// time around in case the appropriate jobs & steps have appeared in the
 				// meantime.
 			}
 		}
