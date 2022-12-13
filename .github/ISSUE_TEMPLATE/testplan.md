@@ -1304,7 +1304,7 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
       - [ ] Removes the connection
       - [ ] Logs out of the cluster
 - State restoration from disk
-   - [ ] Verify that the app asks about restoring the previous tabs when launched and restores them
+   - [ ] Verify that the app asks about restoring previous tabs when launched and restores them
          properly.
    - [ ] Verify that the app opens with the cluster that was active when you closed the app.
    - [ ] Verify that the app remembers size & position after restart.
@@ -1320,7 +1320,7 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
      connection tracker and choose said db connection from it. Verify that the newly opened tab uses
      the same db name and port.
    - [ ] Log in to a cluster. Close the DocumentCluster tab. Open a new DocumentCluster tab. Restart
-     the app. Verify that the app doesn't ask you about restoring the previous tabs.
+     the app. Verify that the app doesn't ask you about restoring previous tabs.
 - Connections picker
    - [ ] Verify that the connections picker shows new connections when ssh & db tabs are opened.
    - [ ] Check if those connections are available after the app restart.
