@@ -329,3 +329,8 @@ func filterExtensions(extensions []pkix.Extension, oids ...asn1.ObjectIdentifier
 	}
 	return filtered
 }
+
+var (
+	oidExtKeyUsage    = asn1.ObjectIdentifier{2, 5, 29, 37}
+	oidSubjectAltName = asn1.ObjectIdentifier{2, 5, 29, 17}
+)

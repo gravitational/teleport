@@ -46,7 +46,7 @@ type certRequest struct {
 	keyDER      []byte
 }
 
-func getCertRequest(username, domain string, clusterName string, ldapConfig LDAPConfig, activeDirectorySID []byte) (*certRequest, error) {
+func getCertRequest(username, domain string, clusterName string, ldapConfig LDAPConfig, activeDirectorySID *string) (*certRequest, error) {
 	// Important: rdpclient currently only supports 2048-bit RSA keys.
 	// If you switch the key type here, update handle_general_authentication in
 	// rdp/rdpclient/src/piv.rs accordingly.
@@ -79,11 +79,11 @@ func getCertRequest(username, domain string, clusterName string, ldapConfig LDAP
 	}
 
 	if activeDirectorySID != nil {
-		adUserMapping, _ := asn1.Marshal(SubjectAltName{
-			otherName{
+		adUserMapping, _ := asn1.Marshal(SubjectAltName[adSid]{
+			otherName[adSid]{
 				OID: ADUserMappingInternalOID,
 				Value: adSid{
-					Value: activeDirectorySID,
+					Value: []byte(*activeDirectorySID),
 				},
 			}})
 		csr.ExtraExtensions = append(csr.ExtraExtensions, pkix.Extension{
@@ -120,18 +120,38 @@ type AuthInterface interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
-// GenerateCredentials generates a private key / certificate pair for the given
+// GenerateCredentialsRequest are the request parameters for
+// generating a windows cert/key pair
+type GenerateCredentialsRequest struct {
+	// Username is the Windows username
+	Username string
+	// Domain is the Windows domain
+	Domain string
+	// TTL is the ttl for the certificate
+	TTL time.Duration
+	// ClusterName is the local cluster name
+	ClusterName string
+	// ActiveDirectorySID is the SID of the Windows user
+	// specified by Username. If specified (non-nil), it is
+	// encoded in the certificate per https://go.microsoft.com/fwlink/?linkid=2189925.
+	ActiveDirectorySID *string
+	// LDAPConfig is the ldap config
+	LDAPConfig LDAPConfig
+	// AuthClient is the windows AuthInterface
+	AuthClient AuthInterface
+}
+
+// GenerateWindowsDesktopCredentials generates a private key / certificate pair for the given
 // Windows username. The certificate has certain special fields different from
 // the regular Teleport user certificate, to meet the requirements of Active
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
-// TODO(isaiah): convert the parameters into a struct
-func GenerateCredentials(ctx context.Context, username, domain string, ttl time.Duration, clusterName string, ldapConfig LDAPConfig, authClient AuthInterface, activeDirectorySID []byte) (certDER, keyDER []byte, err error) {
-	certReq, err := getCertRequest(username, domain, clusterName, ldapConfig, activeDirectorySID)
+func GenerateWindowsDesktopCredentials(ctx context.Context, req *GenerateCredentialsRequest) (certDER, keyDER []byte, err error) {
+	certReq, err := getCertRequest(req.Username, req.Domain, req.ClusterName, req.LDAPConfig, req.ActiveDirectorySID)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	genResp, err := authClient.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{
+	genResp, err := req.AuthClient.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{
 		CSR: certReq.csrPEM,
 		// LDAP URI pointing at the CRL created with updateCRL.
 		//
@@ -142,7 +162,7 @@ func GenerateCredentials(ctx context.Context, username, domain string, ttl time.
 		// domain_controller_addr) will cause Windows to fetch the CRL from any
 		// of its current domain controllers.
 		CRLEndpoint: certReq.crlEndpoint,
-		TTL:         proto.Duration(ttl),
+		TTL:         proto.Duration(req.TTL),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -153,17 +173,17 @@ func GenerateCredentials(ctx context.Context, username, domain string, ttl time.
 	return certDER, keyDER, nil
 }
 
-// GenerateDatabaseCredentials generates a private key / certificate pair for the given
+// generateDatabaseCredentials generates a private key / certificate pair for the given
 // Windows username. The certificate has certain special fields different from
 // the regular Teleport user certificate, to meet the requirements of Active
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
-func GenerateDatabaseCredentials(ctx context.Context, username, domain string, ttl time.Duration, clusterName string, ldapConfig LDAPConfig, authClient AuthInterface) (certDER, keyDER []byte, err error) {
-	certReq, err := getCertRequest(username, domain, clusterName, ldapConfig, nil)
+func generateDatabaseCredentials(ctx context.Context, req *GenerateCredentialsRequest) (certDER, keyDER []byte, err error) {
+	certReq, err := getCertRequest(req.Username, req.Domain, req.ClusterName, req.LDAPConfig, nil)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	genResp, err := authClient.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{
+	genResp, err := req.AuthClient.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{
 		CSR: certReq.csrPEM,
 		// LDAP URI pointing at the CRL created with updateCRL.
 		//
@@ -174,7 +194,7 @@ func GenerateDatabaseCredentials(ctx context.Context, username, domain string, t
 		// domain_controller_addr) will cause Windows to fetch the CRL from any
 		// of its current domain controllers.
 		CRLEndpoint:           certReq.crlEndpoint,
-		TTL:                   proto.Duration(ttl),
+		TTL:                   proto.Duration(req.TTL),
 		CertificateExtensions: proto.DatabaseCertRequest_WINDOWS_SMARTCARD,
 	})
 	if err != nil {
@@ -187,8 +207,8 @@ func GenerateDatabaseCredentials(ctx context.Context, username, domain string, t
 }
 
 // CertKeyPEM returns certificate and private key bytes encoded in PEM format for use with `kinit`
-func CertKeyPEM(ctx context.Context, username, domain string, ttl time.Duration, clusterName string, ldapConfig LDAPConfig, authClient AuthInterface) (certPEM, keyPEM []byte, err error) {
-	certDER, keyDER, err := GenerateDatabaseCredentials(ctx, username, domain, ttl, clusterName, ldapConfig, authClient)
+func CertKeyPEM(ctx context.Context, req *GenerateCredentialsRequest) (certPEM, keyPEM []byte, err error) {
+	certDER, keyDER, err := generateDatabaseCredentials(ctx, req)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -261,8 +281,8 @@ func SubjectAltNameExtension(user, domain string) (pkix.Extension, error) {
 	ext := pkix.Extension{Id: SubjectAltNameExtensionOID}
 	var err error
 	ext.Value, err = asn1.Marshal(
-		SubjectAltName{
-			OtherName: otherName{
+		SubjectAltName[upn]{
+			OtherName: otherName[upn]{
 				OID: UPNOtherNameOID,
 				Value: upn{
 					Value: fmt.Sprintf("%s@%s", user, domain), // TODO(zmb3): sanitize username to avoid domain spoofing
@@ -279,13 +299,13 @@ func SubjectAltNameExtension(user, domain string) (pkix.Extension, error) {
 // Types for ASN.1 SAN serialization.
 
 // SubjectAltName is a struct for marshaling the SAN field in a certificate
-type SubjectAltName struct {
-	OtherName otherName `asn1:"tag:0"`
+type SubjectAltName[T any] struct {
+	OtherName otherName[T] `asn1:"tag:0"`
 }
 
-type otherName struct {
+type otherName[T any] struct {
 	OID   asn1.ObjectIdentifier
-	Value any `asn1:"tag:0"`
+	Value T `asn1:"tag:0"`
 }
 
 type upn struct {
@@ -295,5 +315,5 @@ type upn struct {
 type adSid struct {
 	// Value is the bytes representation of the user's SID string,
 	// e.g. []byte("S-1-5-21-1329593140-2634913955-1900852804-500")
-	Value []byte // Gets encoded as an ASN.1 Octet String
+	Value []byte // Gets encoded as an asn1 octet string
 }

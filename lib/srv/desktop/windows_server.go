@@ -818,7 +818,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 				return nil, nil, trace.Wrap(err)
 			}
 			s.cfg.Log.Debugf("Found objectSid %v for Windows username %v", activeDirectorySID, username)
-			return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl, []byte(activeDirectorySID))
+			return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl, &activeDirectorySID)
 		},
 		CertTTL:               windows.CertTTL,
 		Addr:                  desktop.GetAddr(),
@@ -1054,8 +1054,16 @@ func timer() func() int64 {
 // the regular Teleport user certificate, to meet the requirements of Active
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
-func (s *WindowsService) generateCredentials(ctx context.Context, username, domain string, ttl time.Duration, activeDirectorySID []byte) (certDER, keyDER []byte, err error) {
-	return windows.GenerateCredentials(ctx, username, domain, ttl, s.clusterName, s.cfg.LDAPConfig, s.cfg.AuthClient, activeDirectorySID)
+func (s *WindowsService) generateCredentials(ctx context.Context, username, domain string, ttl time.Duration, activeDirectorySID *string) (certDER, keyDER []byte, err error) {
+	return windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
+		Username:           username,
+		Domain:             domain,
+		TTL:                ttl,
+		ClusterName:        s.clusterName,
+		ActiveDirectorySID: activeDirectorySID,
+		LDAPConfig:         s.cfg.LDAPConfig,
+		AuthClient:         s.cfg.AuthClient,
+	})
 }
 
 // trackSession creates a session tracker for the given sessionID and
