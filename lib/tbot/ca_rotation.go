@@ -117,6 +117,8 @@ func (b *Bot) caRotationLoop(ctx context.Context) error {
 			return nil
 		}
 
+		backoffPeriod := jitter(caRotationRetryBackoff)
+
 		// If the error is due to the client being replaced with a new client
 		// as part of the credentials renewal. Ignore it, and immediately begin
 		// watching again with the new client. We can safely check for Canceled
@@ -125,12 +127,13 @@ func (b *Bot) caRotationLoop(ctx context.Context) error {
 		var statusErr interface {
 			GRPCStatus() *status.Status
 		}
-		if errors.As(err, &statusErr) && statusErr.GRPCStatus().Code() == codes.Canceled {
-			continue
+		isCancelledErr := errors.As(err, &statusErr) && statusErr.GRPCStatus().Code() == codes.Canceled
+		if isCancelledErr {
+			b.log.Debugf("CA watcher detected client closing. Re-watching in %s.", backoffPeriod)
+		} else if err != nil {
+			b.log.WithError(err).Errorf("Error occurred whilst watching CA rotations, retrying in %s.", backoffPeriod)
 		}
 
-		backoffPeriod := jitter(caRotationRetryBackoff)
-		b.log.WithError(err).Errorf("Error occurred whilst watching CA rotations, retrying in %s.", backoffPeriod)
 		select {
 		case <-ctx.Done():
 			b.log.Warn("Context canceled during backoff for CA rotation watcher. Aborting.")
