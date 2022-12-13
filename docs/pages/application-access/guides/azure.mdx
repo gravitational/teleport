@@ -552,10 +552,10 @@ To avoid port randomization, you can choose the listening port using the --port 
 
 Use the following credentials and HTTPS proxy setting to connect to the proxy:
 
-  export AZURE_CONFIG_DIR=/Users/myuser/.azure-teleport
+  export AZURE_CONFIG_DIR=/Users/myuser/.tsh/azure/my.teleport.cluster/azure
   export HTTPS_PROXY=http://127.0.0.1:54330
   export HTTP_PROXY=http://127.0.0.1:54330
-  export MSI_ENDPOINT=https://azure-msi.teleport.dev
+  export MSI_ENDPOINT=https://azure-msi.teleport.dev/eedfd5b55257c0aaa58f
   export REQUESTS_CA_BUNDLE=/Users/myuser/.tsh/keys/teleport.example.com/myuser-app/teleport.example.com/azure-cli-localca.pem
 ```
 
