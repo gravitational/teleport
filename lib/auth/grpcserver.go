@@ -2665,9 +2665,6 @@ func (g *GRPCServer) UpsertSAMLConnector(ctx context.Context, samlConnector *typ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = services.ValidateSAMLConnector(samlConnector, auth); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if err = auth.ServerWithRoles.UpsertSAMLConnector(ctx, samlConnector); err != nil {
 		return nil, trace.Wrap(err)
 	}
