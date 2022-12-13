@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Command trigger-workflow triggers a GigHub Actions workflow in a given
-// repository and awaits the result. The target workflow must repond to a
+// repository and awaits the result. The target workflow must respond to a
 // repository_dispatch event.
 //
 // There is no natively-supported way to positively identify the workflow
