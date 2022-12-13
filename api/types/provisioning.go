@@ -388,6 +388,13 @@ func (p *ProvisionTokenV2) GetSafeName() string {
 		return name
 	}
 
+	// If the token name is short, we just blank the whole thing.
+	if len(name) < 16 {
+		return strings.Repeat("*", len(name))
+	}
+
+	// If the token name is longer, we can show the last 25% of it to help
+	// the operator identify it.
 	hiddenBefore := int(0.75 * float64(len(name)))
 	name = name[hiddenBefore:]
 	name = strings.Repeat("*", hiddenBefore) + name
