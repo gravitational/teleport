@@ -18,6 +18,7 @@ package types
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
