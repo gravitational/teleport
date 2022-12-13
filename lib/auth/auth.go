@@ -851,12 +851,14 @@ func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
 	a.Services.IAuditLog = auditLog
 }
 
-func (a *Server) SetEmitter(emitter apievents.Emitter) {
-	a.emitter = emitter
-}
-
+// GetEmitter fetches the current audit log emitter implementation.
 func (a *Server) GetEmitter() apievents.Emitter {
 	return a.emitter
+}
+
+// SetEmitter sets the current audit log emitter.
+func (a *Server) SetEmitter(emitter apievents.Emitter) {
+	a.emitter = emitter
 }
 
 // SetEnforcer sets the server's enforce service
