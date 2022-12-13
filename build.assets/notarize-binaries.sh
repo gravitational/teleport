@@ -8,8 +8,8 @@ usage() {
 }
 
 shell_array_to_json_array() {
-    shell_array=$1
-    printf "["; IFS=, ; printf "${shell_array[*]}"; echo "]"
+    shell_array=$@
+    printf "["; IFS=, ; printf "\"${shell_array[*]}\""; echo "]"
 }
 
 # This is largely pulled from `build-common.sh` but modified for this use case
