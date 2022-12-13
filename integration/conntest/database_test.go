@@ -161,7 +161,7 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 				{
 					Type:   types.ConnectionDiagnosticTrace_RBAC_DATABASE,
 					Status: types.ConnectionDiagnosticTrace_FAILED,
-					Details: "You are not authorized to access this Database. " +
+					Details: "Database not found. " +
 						"Ensure your role grants access by adding it to the 'db_labels' property. " +
 						"This can also happen when you don't have a Database Agent proxying the database - " +
 						"you can fix that by adding the database labels to the 'db_service.resources.labels' in 'teleport.yaml' file of the database agent.",
@@ -182,7 +182,7 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 				{
 					Type:    types.ConnectionDiagnosticTrace_RBAC_DATABASE_LOGIN,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
-					Details: "Access denied when accessing Database. Ensure your role allows you to use the requested Database Name and Database User.",
+					Details: "Access denied when accessing Database. Please check the Error message for more information.",
 				},
 			},
 		},

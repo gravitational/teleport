@@ -320,10 +320,25 @@ func (s DatabaseConnectionTester) handlePingSuccess(ctx context.Context, connect
 	return connDiag, nil
 }
 
-func (s DatabaseConnectionTester) handlePingError(ctx context.Context, connectionDiagnosticID string, pingErr error, databasePinger databasePinger) (types.ConnectionDiagnostic, error) {
+func errorFromDatabaseService(pingErr error) bool {
 	// If the requested DB User/Name can't be used per RBAC checks, the Database Agent returns an error which gets here.
-	// It must be ignored because there's already a Connection Diagnostic Trace written by the Database Agent (lib/srv/db/server.go)
 	if strings.Contains(pingErr.Error(), "access to db denied. User does not have permissions. Confirm database user and name.") {
+		return true
+	}
+
+	// When there's an error when trying to use RDS IAM auth.
+	if strings.Contains(pingErr.Error(), "FATAL: PAM authentication failed for user") &&
+		strings.Contains(pingErr.Error(), "IAM policy") {
+		return true
+	}
+
+	return false
+}
+
+func (s DatabaseConnectionTester) handlePingError(ctx context.Context, connectionDiagnosticID string, pingErr error, databasePinger databasePinger) (types.ConnectionDiagnostic, error) {
+	// The Database Agent (lib/srv/db/server.go) might add an trace in some cases.
+	// Here, it must be ignored to prevent multiple failed traces.
+	if errorFromDatabaseService(pingErr) {
 		connDiag, err := s.cfg.UserClient.GetConnectionDiagnostic(ctx, connectionDiagnosticID)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -380,7 +395,7 @@ func (s DatabaseConnectionTester) handlePingError(ctx context.Context, connectio
 	connDiag, err := s.appendDiagnosticTrace(ctx,
 		connectionDiagnosticID,
 		types.ConnectionDiagnosticTrace_UNKNOWN_ERROR,
-		"An unknown error occurred.",
+		fmt.Sprintf("Unknown error. %v", pingErr),
 		pingErr,
 	)
 	if err != nil {

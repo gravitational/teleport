@@ -820,7 +820,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 				&types.ConnectionDiagnosticTrace{
 					Type:    types.ConnectionDiagnosticTrace_RBAC_DATABASE_LOGIN,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
-					Details: "Access denied when accessing Database. Ensure your role allows you to use the requested Database Name and Database User.",
+					Details: "Access denied when accessing Database. Please check the Error message for more information.",
 					Error:   err.Error(),
 				},
 			)
