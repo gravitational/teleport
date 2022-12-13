@@ -18,15 +18,23 @@ package client
 
 import (
 	"context"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509/pkix"
+	"io"
+	"net"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
@@ -40,6 +48,16 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+func newTestKey(t *testing.T) *Key {
+	a := newTestAuthority(t)
+	idx := KeyIndex{
+		ProxyHost:   "proxy.example.com",
+		ClusterName: "root",
+		Username:    "test-user",
+	}
+	return a.makeSignedKey(t, idx, false)
+}
 
 type testAuthority struct {
 	keygen       *testauthority.Keygen
@@ -246,6 +264,92 @@ func TestClientStore(t *testing.T) {
 		require.Len(t, otherStatuses, 1)
 		require.Equal(t, expectOtherStatus, otherStatuses[0])
 	})
+}
+
+func TestNewClientStoreFromAgent(t *testing.T) {
+	t.Parallel()
+
+	remoteClientStore := NewMemClientStore()
+	key := newTestKey(t)
+	profile := &profile.Profile{
+		WebProxyAddr: key.ProxyHost + ":3080",
+		SiteName:     key.ClusterName,
+		Username:     key.Username,
+	}
+	agentKey, err := key.AsAgentKey()
+	require.NoError(t, err)
+
+	err = remoteClientStore.AddKey(key)
+	require.NoError(t, err)
+	err = remoteClientStore.SaveProfile(profile, true)
+	require.NoError(t, err)
+
+	tmpDir := t.TempDir()
+	sockPath := filepath.Join(tmpDir, "sock")
+	l, err := net.Listen("unix", sockPath)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, l.Close())
+	})
+
+	remoteAgent := newTestExtendedKeyring(t, WithKeyExtension(remoteClientStore), WithSignExtension())
+	err = remoteAgent.Add(agentKey)
+	require.NoError(t, err)
+	go func() {
+		for {
+			conn, err := l.Accept()
+			if err != nil {
+				return
+			}
+			defer conn.Close()
+
+			err = agent.ServeAgent(remoteAgent, conn)
+			assert.ErrorIs(t, err, io.EOF)
+		}
+	}()
+
+	localClientStore, err := NewClientStoreFromAgent(sockPath)
+	require.NoError(t, err)
+
+	// The local client store should have the remote key preloaded with forwarded certs.
+	retrievedKey, err := localClientStore.GetKey(key.KeyIndex, WithAllCerts...)
+	require.NoError(t, err)
+	require.Equal(t, key.KeyIndex, retrievedKey.KeyIndex)
+	require.Equal(t, key.Cert, retrievedKey.Cert)
+	require.Equal(t, key.TLSCert, retrievedKey.TLSCert)
+	require.Equal(t, key.TrustedCerts, retrievedKey.TrustedCerts)
+
+	// The local client store should have the current remote profile preloaded.
+	currentProfile, err := localClientStore.CurrentProfile()
+	require.NoError(t, err)
+	require.Equal(t, key.ProxyHost, currentProfile)
+	retrievedProfile, err := localClientStore.GetProfile(currentProfile)
+	require.NoError(t, err)
+	require.Equal(t, profile, retrievedProfile)
+
+	// The local key should have an agentSigner that points to the right ssh cert and auth socket.
+	agentSigner, ok := retrievedKey.Signer.(*agentSigner)
+	require.True(t, ok)
+	sshCert, err := key.SSHCert()
+	require.NoError(t, err)
+	require.Equal(t, sshCert, agentSigner.sshCert)
+	require.Equal(t, sockPath, agentSigner.sshAuthSock)
+
+	// Sign extension should produce verifiable signatures using the agent signer.
+	hashFunc := crypto.SHA1
+	digest := make([]byte, 100)
+	_, err = rand.Read(digest)
+	require.NoError(t, err)
+	h := hashFunc.New()
+	h.Write(digest)
+	digest = h.Sum(nil)
+
+	sig, err := agentSigner.Sign(rand.Reader, digest, hashFunc)
+	require.NoError(t, err)
+	rsaPub, ok := key.Public().(*rsa.PublicKey)
+	require.True(t, ok)
+	err = rsa.VerifyPKCS1v15(rsaPub, hashFunc, digest, sig)
+	require.NoError(t, err)
 }
 
 // TestProxySSHConfig tests proxy client SSH config function

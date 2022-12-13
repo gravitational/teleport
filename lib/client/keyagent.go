@@ -104,15 +104,16 @@ type LocalAgentConfig struct {
 	Insecure    bool
 	Site        string
 	LoadAllCAs  bool
+	KeyringOpts []ExtendedKeyringOpt
 }
 
 // NewLocalAgent reads all available credentials from the provided LocalKeyStore
 // and loads them into the local and system agent
 func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 	if conf.Agent == nil {
-		keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
-		if !ok {
-			return nil, trace.Errorf("unexpected keyring type: %T, expected agent.ExtendedKeyring", keyring)
+		keyring, err := NewExtendedKeyring(conf.KeyringOpts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 		conf.Agent = keyring
 	}

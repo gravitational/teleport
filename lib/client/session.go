@@ -246,38 +246,28 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Sessi
 
 	// if agent forwarding was requested (and we have a agent to forward),
 	// forward the agent to endpoint.
-	tc := ns.nodeClient.TC
-	targetAgent := selectKeyAgent(tc)
+	var targetAgent agent.ExtendedAgent
+	switch ns.nodeClient.TC.ForwardAgent {
+	case ForwardAgentYes:
+		log.Debugf("Forwarding system key agent.")
+		targetAgent = ns.nodeClient.TC.localAgent.sshAgent
+	case ForwardAgentLocal:
+		log.Warnf("Forwarding local agent. This operation is insecure as it can put your current Teleport credentials at risk. It should only be used on trusted hosts.")
+		targetAgent = ns.nodeClient.TC.localAgent.ExtendedAgent
+	default:
+		log.Debugf("No Key Agent selected.")
+		return sess, nil
+	}
 
-	if targetAgent != nil {
-		log.Debugf("Forwarding Selected Key Agent")
-		err = agent.ForwardToAgent(ns.nodeClient.Client.Client, targetAgent)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		err = agent.RequestAgentForwarding(sess.Session)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err = agent.ForwardToAgent(ns.nodeClient.Client.Client, targetAgent); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = agent.RequestAgentForwarding(sess.Session); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return sess, nil
-}
-
-// selectKeyAgent picks the appropriate key agent for forwarding to the
-// server, if any.
-func selectKeyAgent(tc *TeleportClient) agent.ExtendedAgent {
-	switch tc.ForwardAgent {
-	case ForwardAgentYes:
-		log.Debugf("Selecting system key agent.")
-		return tc.localAgent.sshAgent
-	case ForwardAgentLocal:
-		log.Debugf("Selecting local Teleport key agent.")
-		return tc.localAgent.ExtendedAgent
-	default:
-		log.Debugf("No Key Agent selected.")
-		return nil
-	}
 }
 
 // interactiveSession creates an interactive session on the remote node, executes

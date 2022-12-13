@@ -979,6 +979,14 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		LoadAllCAs:  tc.LoadAllCAs,
 	}
 
+	// If Teleport local agent forwarding was requested, enable agent extensions.
+	if c.ForwardAgent == ForwardAgentLocal {
+		localAgentCfg.KeyringOpts = []ExtendedKeyringOpt{
+			WithKeyExtension(localAgentCfg.ClientStore),
+			WithSignExtension(),
+		}
+	}
+
 	// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
 	tc.localAgent, err = NewLocalAgent(localAgentCfg)
 	if err != nil {

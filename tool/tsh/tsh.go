@@ -3248,6 +3248,14 @@ func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
 
 	clientStore := client.NewFSClientStore(cf.HomePath)
 
+	// If the fs ClientStore has no current profile, check for a forward agent store.
+	if _, err := clientStore.CurrentProfile(); trace.IsNotFound(err) {
+		sshAuthSock := os.Getenv(teleport.SSHAuthSock)
+		if keyStoreFromAgent, err := client.NewClientStoreFromAgent(sshAuthSock); err == nil {
+			return keyStoreFromAgent, nil
+		}
+	}
+
 	// Store client keys in memory, but still save trusted certs and profile to disk.
 	if cf.AddKeysToAgent == client.AddKeysToAgentOnly {
 		clientStore.KeyStore = client.NewMemKeyStore()

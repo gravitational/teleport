@@ -14,17 +14,23 @@ limitations under the License.
 package client
 
 import (
+	"crypto"
+	"io"
 	"net/url"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/utils/keys"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/agentconn"
 )
 
 // Store is a storage interface for client data. Store is made up of three
@@ -60,6 +66,90 @@ func NewMemClientStore() *Store {
 		TrustedCertsStore: NewMemTrustedCertsStore(),
 		ProfileStore:      NewMemProfileStore(),
 	}
+}
+
+// NewClientStoreFromAgent initializes a new in-memory client store and
+// loads any keys found in the ssh agent found at the given socket. If the
+// ssh agent does not support the key@goteleport.com and sign@goteleport.com
+// extensions, an unsupported agent extension error is returned.
+func NewClientStoreFromAgent(sshAuthSocket string) (*Store, error) {
+	conn, err := agentconn.Dial(sshAuthSocket)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer conn.Close()
+	agentClient := agent.NewClient(conn)
+
+	supportedExtensions, err := callQueryExtension(agentClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !supportedExtensions[keyAgentExtension] || !supportedExtensions[signAgentExtension] {
+		return nil, agent.ErrExtensionUnsupported
+	}
+
+	profile, forwardedKey, err := callKeyExtension(agentClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Create an agent signer using the forwarded ssh certificate.
+	sshCert, err := apisshutils.ParseCertificate(forwardedKey.SSHCertificate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	priv, err := keys.NewPrivateKey(newAgentSigner(sshAuthSocket, sshCert), nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	key := NewKey(priv)
+	key.KeyIndex = forwardedKey.KeyIndex
+	key.Cert = forwardedKey.SSHCertificate
+	key.TLSCert = forwardedKey.TLSCertificate
+	key.TrustedCerts = forwardedKey.TrustedCerts
+
+	// Preload the client key and profile from the agent.
+	clientStore := NewMemClientStore()
+	if err := clientStore.AddKey(key); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := clientStore.SaveProfile(profile, true); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return clientStore, nil
+}
+
+type agentSigner struct {
+	sshAuthSock string
+	sshCert     *ssh.Certificate
+}
+
+func newAgentSigner(sshAuthSock string, sshCert *ssh.Certificate) crypto.Signer {
+	return &agentSigner{
+		sshAuthSock: sshAuthSock,
+		sshCert:     sshCert,
+	}
+}
+
+func (as *agentSigner) Public() crypto.PublicKey {
+	if pubGetter, ok := as.sshCert.Key.(ssh.CryptoPublicKey); ok {
+		return pubGetter.CryptoPublicKey()
+	}
+	return nil
+}
+
+func (as *agentSigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	conn, err := agentconn.Dial(as.sshAuthSock)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer conn.Close()
+
+	agentClient := agent.NewClient(conn)
+	return callSignExtension(agentClient, as.sshCert, digest, opts)
 }
 
 // AddKey adds the given key to the key store. The key's trusted certificates are
