@@ -14,6 +14,9 @@
 // the userspace can adjust this value based on config.
 #define EVENTS_BUF_SIZE (4096*128)
 
+// Maximum monitored sessions.
+#define MAX_MONITORED_SESSIONS 1024
+
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 struct val_t {
@@ -32,6 +35,9 @@ struct data_t {
 };
 
 BPF_HASH(infotmp, u64, struct val_t, INFLIGHT_MAX);
+
+// hashmap keeps all cgroups id that should be monitored by Teleport.
+BPF_HASH(monitored_cgroups, u64, int64_t, MAX_MONITORED_SESSIONS);
 
 // open_events ring buffer
 BPF_RING_BUF(open_events, EVENTS_BUF_SIZE);
@@ -52,11 +58,21 @@ static int enter_open(const char *filename, int flags) {
 
 static int exit_open(int ret) {
     u64 id = bpf_get_current_pid_tgid();
+    u64 cgroup = bpf_get_current_cgroup_id();
+
     struct val_t *valp;
     struct data_t data = {};
+    u64 *is_monitored;
 
     valp = bpf_map_lookup_elem(&infotmp, &id);
     if (valp == 0) {
+        // Missed entry.
+        return 0;
+    }
+
+    // Check if the cgroup should be monitored.
+    is_monitored = bpf_map_lookup_elem(&monitored_cgroups, &cgroup);
+    if (is_monitored == 0) {
         // Missed entry.
         return 0;
     }
@@ -70,7 +86,7 @@ static int exit_open(int ret) {
     data.pid = valp->pid;
     data.flags = valp->flags;
     data.ret = ret;
-    data.cgroup = bpf_get_current_cgroup_id();
+    data.cgroup = cgroup;
 
     if (bpf_ringbuf_output(&open_events, &data, sizeof(data), 0) != 0)
         INCR_COUNTER(lost);
