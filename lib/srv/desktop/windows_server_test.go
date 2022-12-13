@@ -17,7 +17,6 @@ package desktop
 import (
 	"context"
 	"crypto/x509"
-	"encoding/asn1"
 	"io"
 	"math/rand"
 	"testing"
@@ -101,6 +100,8 @@ func TestGenerateCredentials(t *testing.T) {
 		domain      = "test.example.com"
 	)
 
+	testSid := "S-1-5-21-1329593140-2634913955-1900852804-500"
+
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		ClusterName: clusterName,
 		Dir:         t.TempDir(),
@@ -135,44 +136,49 @@ func TestGenerateCredentials(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	certb, keyb, err := w.generateCredentials(ctx, user, domain, windows.CertTTL)
-	require.NoError(t, err)
-	require.NotNil(t, certb)
-	require.NotNil(t, keyb)
+	for _, test := range []struct {
+		name               string
+		activeDirectorySID *string
+	}{
+		{
+			name:               "no ad sid",
+			activeDirectorySID: nil,
+		},
+		{
+			name:               "with ad sid",
+			activeDirectorySID: &testSid,
+		},
+	} {
+		certb, keyb, err := w.generateCredentials(ctx, user, domain, windows.CertTTL, test.activeDirectorySID)
+		require.NoError(t, err)
+		require.NotNil(t, certb)
+		require.NotNil(t, keyb)
 
-	cert, err := x509.ParseCertificate(certb)
-	require.NoError(t, err)
-	require.NotNil(t, cert)
+		cert, err := x509.ParseCertificate(certb)
+		require.NoError(t, err)
+		require.NotNil(t, cert)
 
-	require.Equal(t, user, cert.Subject.CommonName)
-	require.Contains(t, cert.CRLDistributionPoints,
-		`ldap:///CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`)
+		require.Equal(t, user, cert.Subject.CommonName)
+		require.Contains(t, cert.CRLDistributionPoints,
+			`ldap:///CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`)
 
-	foundKeyUsage := false
-	foundAltName := false
-	for _, extension := range cert.Extensions {
-		switch {
-		case extension.Id.Equal(windows.EnhancedKeyUsageExtensionOID):
-			foundKeyUsage = true
-			var oids []asn1.ObjectIdentifier
-			_, err = asn1.Unmarshal(extension.Value, &oids)
-			require.NoError(t, err)
-			require.Len(t, oids, 2)
-			require.Contains(t, oids, windows.ClientAuthenticationOID)
-			require.Contains(t, oids, windows.SmartcardLogonOID)
-
-		case extension.Id.Equal(windows.SubjectAltNameExtensionOID):
-			foundAltName = true
-			var san windows.SubjectAltName
-			_, err = asn1.Unmarshal(extension.Value, &san)
-			require.NoError(t, err)
-
-			require.Equal(t, san.OtherName.OID, windows.UPNOtherNameOID)
-			require.Equal(t, san.OtherName.Value.Value, user+"@"+domain)
+		foundKeyUsage := false
+		foundAltName := false
+		foundAdUserMapping := false
+		for _, extension := range cert.Extensions {
+			switch {
+			case extension.Id.Equal(windows.EnhancedKeyUsageExtensionOID):
+				foundKeyUsage = true
+			case extension.Id.Equal(windows.SubjectAltNameExtensionOID):
+				foundAltName = true
+			case extension.Id.Equal(windows.ADUserMappingExtensionOID):
+				foundAdUserMapping = true
+			}
 		}
+		require.True(t, foundKeyUsage)
+		require.True(t, foundAltName)
+		require.Equal(t, test.activeDirectorySID != nil, foundAdUserMapping)
 	}
-	require.True(t, foundKeyUsage)
-	require.True(t, foundAltName)
 }
 
 func TestEmitsRecordingEventsOnSend(t *testing.T) {
