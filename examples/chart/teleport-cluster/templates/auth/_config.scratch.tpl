@@ -9,5 +9,5 @@ auth_service:
 {{- end -}}
 
 {{- define "teleport-cluster.auth.config.custom" -}}
-{{ fail "'custom' mode has been depreacted with chart v12 because of the proxy/auth split, see http://link" }}
+{{ fail "'custom' mode has been deprecated with chart v12 because of the proxy/auth split, see http://link" }}
 {{- end -}}
