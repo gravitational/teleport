@@ -1,11 +1,12 @@
 ---
-title: "Protect the Azure CLI with Teleport Application Access"
-description: How to enable secure access to the Azure CLI.
+title: "Protect Azure CLIs with Teleport Application Access"
+description: How to enable secure access to Azure CLIs.
 ---
 
-You can use Teleport Application Access to manage access to Azure CLI tools.
-This lets you control access to your infrastructure's management APIs using the
-same RBAC system that you use to protect your infrastructure itself.
+You can use Teleport Application Access to manage access to CLI tools that
+interact with Azure's APIs. This lets you control access to your
+infrastructure's management APIs using the same RBAC system that you use to
+protect your infrastructure itself.
 
 The Teleport Application Service uses Azure managed identities to obtain
 authentication tokens from Azure. When a user authenticates to Teleport, they
@@ -41,8 +42,8 @@ prevent unauthorized access to your organization's Azure identities.
   In this guide, we will create a user-assigned managed identity to demonstrate
   Azure CLI access with Teleport. 
 
-  If you have another identity you would like users of the Azure CLI to assume
-  via Teleport, you can use that instead. In this case, you will not need the
+  If you have another identity you would like Azure CLI users to assume via
+  Teleport, you can use that instead. In this case, you will not need the
   Managed Identity Contributor role assignment.
 
   </Admonition>
@@ -55,9 +56,9 @@ In this step, we will create an Azure managed identity and assign it to your
 Azure VM. The identity we will create will be called `teleport-azure`, and will
 have permissions to view resources in your Azure account.
 
-You can enable Teleport to grant access to the Azure CLI under any Azure
-identity. If you have another one you intend to use, you can skip the creation
-of a new identity.
+You can enable Teleport to grant access to Azure CLIs under any Azure identity.
+If you have another one you intend to use, you can skip the creation of a new
+identity.
 
 ### Create an Azure managed identity
 
@@ -193,7 +194,7 @@ Application Service:
 </TabItem>
 <TabItem label="Teleport Cloud" scope="cloud">
 
-(!docs/pages/includes/install-agent-cloud.mdx service="the Teleport Kubernetes Service"!)
+(!docs/pages/includes/install-agent-cloud.mdx!)
 
 </TabItem>
 </Tabs>
@@ -209,7 +210,7 @@ teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  proxy_server: "teleport.example.com:3080"
+  proxy_server: "teleport.example.com:443"
 auth_service:
   enabled: off
 proxy_service:
@@ -223,7 +224,7 @@ app_service:
     cloud: Azure
 ```
 
-Edit `/etc/teleport.yaml` to replace `teleport.example.com:3080` with the host
+Edit `/etc/teleport.yaml` to replace `teleport.example.com:443` with the host
 and port of your Teleport Proxy Service or Teleport Cloud tenant, e.g.,
 `mytenant.teleport.sh:443`.
 
@@ -232,7 +233,7 @@ within `app_service.apps` is an application configuration.
 
 In this example, we have enabled Azure CLI access by setting `cloud` to `Azure`.
 With this setting configured, the Application Service will proxy user commands
-from the Azure CLI by requesting access to Azure's APIs under the user's chosen
+from Azure CLIs by requesting access to Azure's APIs under the user's chosen
 identity, which works as long as the identity is one of the ones attached to the
 Application Service host.
 
@@ -259,7 +260,7 @@ $ sudo systemctl start teleport;
 </TabItem>
 </Tabs>
 
-## Step 3/4. Enable your user to access the Azure CLI
+## Step 3/4. Enable your user to access Azure CLIs
 
 The next step is to authorize your Teleport user to assume an Azure identity and
 execute Azure CLI commands via Teleport. You will protect access to this
@@ -302,7 +303,7 @@ spec:
       - '{{internal.azure_identities}}'
 ```
 
-When a user with the `azure-cli-access` role authenticates to the Azure CLI via
+When a user with the `azure-cli-access` role authenticates to an Azure CLI via
 Teleport, the Teleport Auth Service populates the
 `{{internal.azure_identities}}` template variable with any Azure identities you
 have assigned to the user.
@@ -352,7 +353,7 @@ spec:
       - '{{external.azure_identities}}'
 ```
 
-When a user with the `azure-cli-access` role authenticates to the Azure CLI via
+When a user with the `azure-cli-access` role authenticates to an Azure CLI via
 Teleport, the Teleport Auth Service populates the
 `{{external.azure_identities}}` template variable with any Azure identities you
 have assigned to the user.
@@ -368,7 +369,7 @@ $ tctl create -f azure-cli-access.yaml
 
 Define a role with access to specific Azure identities, which means that
 Teleport users who assume this role can use those (and only those) identites to
-execute commands via the Azure CLI.
+execute commands via an Azure CLI.
 
 Create a file called `azure-cli-access.yaml` with the following content:
 
@@ -439,7 +440,7 @@ evaluating a user's roles.
 
 (!docs/pages/includes/add-role-to-user.mdx role="azure-cli-access"!)
 
-## Step 4/4. Use the Azure CLI with Teleport
+## Step 4/4. Use Azure CLIs with Teleport
 
 Now that you have authorized your Teleport user to assume the `teleport-azure`
 identity, you can use Teleport to authenticate to Azure's APIs and execute
@@ -457,7 +458,7 @@ Application Description Type Public Address                 Labels
 azure-cli               HTTP azure-cli.teleport.example.com teleport.dev/origin
 ```
 
-### Log in to use the Azure CLI
+### Log in to use an Azure CLI
 
 Log in to the application, specifying that you would like to assume the
 `teleport-azure` identity:
