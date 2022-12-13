@@ -706,7 +706,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	join.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringsVar(&cf.Invited)
 	join.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
 	// play
-	play := app.Command("play", "Replay the recorded SSH session")
+	play := app.Command("play", "Replay the recorded session (SSH, Kubernetes, App)")
 	play.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	play.Flag("format", defaults.FormatFlagDescription(
 		teleport.PTY, teleport.JSON, teleport.YAML,
