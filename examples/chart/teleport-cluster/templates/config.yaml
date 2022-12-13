@@ -100,7 +100,7 @@ data:
       proxy_listener_mode: multiplex
   {{- end }}
     kubernetes_service:
-      enabled: true
+      enabled: {{ .Values.kubernetesServiceEnabled }}
   {{- if eq .Values.proxyListenerMode "multiplex" }}
       listen_addr: 0.0.0.0:443
   {{- else if not .Values.proxyListenerMode }}
