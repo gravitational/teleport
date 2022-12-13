@@ -577,6 +577,11 @@ const (
 	// completes on a discovered EC2 node
 	SSMRunEvent = "ssm.run"
 
+	// BotJoinEvent is emitted when a bot joins
+	BotJoinEvent = "bot.join"
+	// InstanceJoinEvent is emitted when an instance joins
+	InstanceJoinEvent = "instance.join"
+
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
 )
