@@ -174,7 +174,7 @@ labels: {}
 # - "standalone": will deploy a Teleport container running auth and proxy services with a PersistentVolumeClaim for storage.
 # - "aws": will deploy Teleport using DynamoDB for backend/audit log storage and S3 for session recordings. (1)
 # - "gcp": will deploy Teleport using Firestore for backend/audit log storage and Google Cloud storage for session recordings. (2)
-# - "scratch": will deploy Teleport container but will not provide default configuration file. You must pass your own configuration. (3)
+# - "scratch": will deploy Teleport containers but will not provide default configuration file. You must pass your own configuration. (3)
 # (1) To use "aws" mode, you must also configure the "aws" section below.
 # (2) To use "gcp" mode, you must also configure the "gcp" section below.
 # (3) When set to "scratch", you must write the teleport configuration in auth.teleportConfig and proxy.teleportConfig.
@@ -182,7 +182,7 @@ chartMode: standalone
 
 # Whether the chart should create a Teleport ProvisionToken for the proxies to join the Teleport cluster.
 # Disabling this flag will cause the proxies not to be able to join the auth pods. In this case, the
-# Helm chart user is responsible to configure working join_params on the proxy.
+# Helm chart user is responsible for configuring working join_params on the proxy.
 createProxyToken: true
 
 ######################################################################
