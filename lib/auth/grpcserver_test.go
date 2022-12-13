@@ -22,6 +22,8 @@ import (
 	"encoding/base32"
 	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"sort"
 	"testing"
 	"time"
@@ -54,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -744,6 +747,8 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 	clock := srv.Clock()
+	userCertTTL := 12 * time.Hour
+	userCertExpires := clock.Now().Add(userCertTTL)
 
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
@@ -806,7 +811,9 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	role.SetOptions(roleOpt)
 	err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
-	cl, err := srv.NewClient(TestUser(user.GetName()))
+	testUser := TestUser(user.GetName())
+	testUser.TTL = userCertTTL
+	cl, err := srv.NewClient(testUser)
 	require.NoError(t, err)
 
 	// Register MFA devices for the fake user.
@@ -850,9 +857,10 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					cert, err := sshutils.ParseCertificate(crt)
 					require.NoError(t, err)
 
-					require.Equal(t, cert.Extensions[teleport.CertExtensionMFAVerified], webDevID)
+					require.Equal(t, webDevID, cert.Extensions[teleport.CertExtensionMFAVerified])
+					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
-					require.Equal(t, cert.ValidBefore, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()))
+					require.Equal(t, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()), cert.ValidBefore)
 				},
 			},
 		},
@@ -878,9 +886,10 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					cert, err := sshutils.ParseCertificate(crt)
 					require.NoError(t, err)
 
-					require.Equal(t, cert.Extensions[teleport.CertExtensionMFAVerified], webDevID)
+					require.Equal(t, webDevID, cert.Extensions[teleport.CertExtensionMFAVerified])
+					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
-					require.Equal(t, cert.ValidBefore, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()))
+					require.Equal(t, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()), cert.ValidBefore)
 				},
 			},
 		},
@@ -907,10 +916,11 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 					require.NoError(t, err)
-					require.Equal(t, identity.MFAVerified, webDevID)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
 					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())
-					require.Equal(t, identity.Usage, []string{teleport.UsageKubeOnly})
-					require.Equal(t, identity.KubernetesCluster, "kube-a")
+					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
+					require.Equal(t, "kube-a", identity.KubernetesCluster)
 				},
 			},
 		},
@@ -939,9 +949,10 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 					require.NoError(t, err)
-					require.Equal(t, identity.MFAVerified, webDevID)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
 					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())
-					require.Equal(t, identity.Usage, []string{teleport.UsageDatabaseOnly})
+					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
 					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
 				},
 			},
@@ -2518,6 +2529,106 @@ func TestExport(t *testing.T) {
 
 			tt.errAssertion(t, traceClt.UploadTraces(ctx, tt.spans))
 			tt.uploadedAssertion(t, tt.mockTraceClient.spans)
+		})
+	}
+}
+
+// TestSAMLValidation tests that SAML validation does not perform an HTTP
+// request if the calling user does not have permissions to create or update
+// a SAML connector.
+func TestSAMLValidation(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{SAML: true},
+	})
+
+	// minimal entity_descriptor to pass validation. not actually valid
+	const minimalEntityDescriptor = `
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="http://example.com">
+  <md:IDPSSODescriptor>
+    <md:SingleSignOnService Location="http://example.com" />
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>`
+
+	allowSAMLUpsert := types.RoleConditions{
+		Rules: []types.Rule{{
+			Resources: []string{types.KindSAML},
+			Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+		}},
+	}
+
+	testCases := []struct {
+		desc               string
+		allow              types.RoleConditions
+		entityDescriptor   string
+		entityServerCalled bool
+		assertErr          func(error) bool
+	}{
+		{
+			desc:               "access denied",
+			allow:              types.RoleConditions{},
+			entityServerCalled: false,
+			assertErr:          trace.IsAccessDenied,
+		},
+		{
+			desc:               "validation failure",
+			allow:              allowSAMLUpsert,
+			entityDescriptor:   "", // validation fails with no issuer
+			entityServerCalled: true,
+			assertErr:          trace.IsBadParameter,
+		},
+		{
+			desc:               "access permitted",
+			allow:              allowSAMLUpsert,
+			entityDescriptor:   minimalEntityDescriptor,
+			entityServerCalled: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			server := newTestTLSServer(t)
+			// Create an http server to serve the entity descriptor url
+			entityServerCalled := false
+			entityServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				entityServerCalled = true
+				_, err := w.Write([]byte(tc.entityDescriptor))
+				require.NoError(t, err)
+			}))
+
+			role, err := CreateRole(ctx, server.Auth(), "test_role", types.RoleSpecV5{Allow: tc.allow})
+			require.NoError(t, err)
+			user, err := CreateUser(server.Auth(), "test_user", role)
+			require.NoError(t, err)
+
+			connector, err := types.NewSAMLConnector("test_connector", types.SAMLConnectorSpecV2{
+				AssertionConsumerService: "http://localhost:65535/acs", // not called
+				EntityDescriptorURL:      entityServer.URL,
+				AttributesToRoles: []types.AttributeMapping{
+					// not used. can be any name, value but role must exist
+					{Name: "groups", Value: "admin", Roles: []string{role.GetName()}},
+				},
+			})
+			require.NoError(t, err)
+
+			client, err := server.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			err = client.UpsertSAMLConnector(ctx, connector)
+
+			if tc.assertErr != nil {
+				require.Error(t, err)
+				require.True(t, tc.assertErr(err), "UpsertSAMLConnector error type mismatch. got: %T", trace.Unwrap(err))
+			} else {
+				require.NoError(t, err)
+			}
+			if tc.entityServerCalled {
+				require.True(t, entityServerCalled, "entity_descriptor_url was not called")
+			} else {
+				require.False(t, entityServerCalled, "entity_descriptor_url was called")
+			}
 		})
 	}
 }

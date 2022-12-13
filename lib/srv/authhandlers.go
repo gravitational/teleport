@@ -202,6 +202,14 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		}
 		identity.AllowedResourceIDs = allowedResourceIDs
 	}
+	if previousIdentityExpires, ok := certificate.Extensions[teleport.CertExtensionPreviousIdentityExpires]; ok {
+		asTime, err := time.Parse(time.RFC3339, previousIdentityExpires)
+		if err != nil {
+			return IdentityContext{}, trace.Wrap(err)
+		}
+		identity.PreviousIdentityExpires = asTime
+	}
+
 	return identity, nil
 }
 
