@@ -39,7 +39,17 @@ const (
 	maxPlaybackSpeed = 16
 )
 
-type delayCancelSignal = chan interface{}
+type signal = chan interface{}
+
+// moveState keeps the state of currect move action
+type moveState struct {
+	// position is milliseconds that player is seeking
+	position int64
+	// paused indicates if playback was paused before move
+	paused bool
+	// initlized tells if move has been initialized
+	initialized bool
+}
 
 // Player manages the playback of a recorded session.
 // It streams events from the audit log to the browser over
@@ -48,12 +58,13 @@ type Player struct {
 	ws *websocket.Conn
 
 	mu                sync.Mutex
-	cond              *sync.Cond
 	playState         playbackState
 	playSpeed         float32
 	eventHandler      eventHandler
 	streamer          Streamer
-	delayCancelSignal delayCancelSignal
+	delayCancelSignal signal
+	moveState         moveState
+	lastDelay         int64
 
 	log logrus.FieldLogger
 	sID string
@@ -80,6 +91,7 @@ type eventHandlerPayload struct {
 
 // eventHandler is the interface that provides specific event handling for concreate player
 type eventHandler interface {
+	// handleEvent function should handle received event and optionally return error if events loop needs to be stoped
 	handleEvent(ctx context.Context, payload eventHandlerPayload) error
 }
 
@@ -107,6 +119,7 @@ const (
 	playStatePlaying  = playbackState("playing")
 	playStatePaused   = playbackState("paused")
 	playStateFinished = playbackState("finished")
+	playStateMove     = playbackState("move")
 )
 
 // playbackAction identifies a command sent from the
@@ -120,6 +133,9 @@ const (
 
 	// actionSpeed sets the playback speed
 	actionSpeed = playbackAction("speed")
+
+	// actionMove changes the playback position to given value in ms
+	actionMove = playbackAction("move")
 )
 
 // actionMessage is a message passed from the playback client
@@ -128,33 +144,32 @@ const (
 type actionMessage struct {
 	Action        playbackAction `json:"action"`
 	PlaybackSpeed float32        `json:"speed,omitempty"`
+	MovePosition  int64          `json:"movePosition,omitempty"`
 }
 
 // waitWhilePaused waits idly while the player's state is paused, waiting until:
 // - the play state is toggled back to playing
 // - the play state is set to finished (the player is closed)
 func (pp *Player) waitWhilePaused() {
-	pp.cond.L.Lock()
-	defer pp.cond.L.Unlock()
-
 	for pp.playState == playStatePaused {
-		pp.cond.Wait()
+		<-pp.delayCancelSignal
 	}
 }
 
 // togglePlaying toggles the state of the player between playing and paused,
-// and wakes up any goroutines waiting in waitWhilePaused.
+// and wakes up events play goroutine waiting for play state.
 func (pp *Player) togglePlaying() {
-	pp.cond.L.Lock()
-	defer pp.cond.L.Unlock()
+	pp.mu.Lock()
+	defer pp.mu.Unlock()
+
 	switch pp.playState {
 	case playStatePlaying:
 		pp.playState = playStatePaused
-		pp.delayCancelSignal <- playStatePaused
 	case playStatePaused:
 		pp.playState = playStatePlaying
 	}
-	pp.cond.Broadcast()
+
+	pp.cancelDelay()
 }
 
 // close closes the websocket connection, wakes up any goroutines waiting on the playState condition,
@@ -173,7 +188,7 @@ func (pp *Player) close(cancel context.CancelFunc) {
 		}
 
 		pp.playState = playStateFinished
-		pp.cond.Broadcast()
+		pp.cancelDelay()
 		cancel()
 	})
 }
@@ -196,19 +211,14 @@ func (pp *Player) receiveActions(cancel context.CancelFunc) {
 			return
 		}
 		pp.log.Debugf("received playback action: %+v", action)
+
 		switch action.Action {
 		case actionPlayPause:
 			pp.togglePlaying()
 		case actionSpeed:
-			if action.PlaybackSpeed < minPlaybackSpeed {
-				action.PlaybackSpeed = minPlaybackSpeed
-			} else if action.PlaybackSpeed > maxPlaybackSpeed {
-				action.PlaybackSpeed = maxPlaybackSpeed
-			}
-
-			pp.mu.Lock()
-			pp.playSpeed = action.PlaybackSpeed
-			pp.mu.Unlock()
+			pp.changeActionSpeed(action)
+		case actionMove:
+			pp.setPlayerToMoveState(action)
 		default:
 			pp.log.Errorf("received unknown action: %v", action.Action)
 			return
@@ -216,7 +226,41 @@ func (pp *Player) receiveActions(cancel context.CancelFunc) {
 	}
 }
 
-func (pp *Player) marshalAndSendEvent(e interface{}) error {
+func (pp *Player) changeActionSpeed(action actionMessage) {
+	if action.PlaybackSpeed < minPlaybackSpeed {
+		action.PlaybackSpeed = minPlaybackSpeed
+	} else if action.PlaybackSpeed > maxPlaybackSpeed {
+		action.PlaybackSpeed = maxPlaybackSpeed
+	}
+
+	pp.doLocked(func() {
+		pp.playSpeed = action.PlaybackSpeed
+	})
+}
+
+func (pp *Player) setPlayerToMoveState(action actionMessage) {
+	paused := pp.playState == playStatePaused
+
+	pp.cancelDelay()
+
+	pp.doLocked(func() {
+		pp.moveState = moveState{
+			position: action.MovePosition,
+			paused:   paused,
+		}
+		pp.playState = playStateMove
+	})
+}
+
+// doLocked is just a short hand for doing things inside Mutex Lock/Unlock block
+func (pp *Player) doLocked(action func()) {
+	pp.mu.Lock()
+	defer pp.mu.Unlock()
+	action()
+}
+
+// marshalAndSend handles all the logic necessary for fast marshaling value and sending it to client via websocket.
+func (pp *Player) marshalAndSend(e interface{}) error {
 	msg, err := utils.FastMarshal(e)
 	if err != nil {
 		pp.log.WithError(err).Errorf("failed to marshal %T event into JSON: %v", e, e)
@@ -226,13 +270,21 @@ func (pp *Player) marshalAndSendEvent(e interface{}) error {
 		return err
 	}
 
-	if _, err := pp.ws.Write(msg); err != nil {
+	if err := pp.send(msg); err != nil {
 		// We expect net.ErrClosed to arise when another goroutine returns before
 		// this one or the browser window is closed, both of which cause the websocket to close.
 		if !errors.Is(err, net.ErrClosed) {
-			pp.log.WithError(err).Error("failed to write %T event over websocket", e)
+			pp.log.WithError(err).Error("failed to write %T: %v over websocket", e, e)
 		}
 
+		return err
+	}
+
+	return nil
+}
+
+func (pp *Player) send(msg []byte) error {
+	if _, err := pp.ws.Write(msg); err != nil {
 		return err
 	}
 
@@ -249,11 +301,26 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 	defer pp.log.Debug("playbackPlayer.StreamSessionEvents returned")
 	defer pp.close(cancel)
 
-	var lastDelay int64
+	pp.lastDelay = 0
 
 	eventsC, errC := pp.streamer.StreamSessionEvents(ctx, session.ID(pp.sID), 0)
 	for {
 		pp.waitWhilePaused()
+
+		pp.mu.Lock()
+		if !pp.moveState.initialized && pp.playState == playStateMove {
+			pp.moveState.initialized = true
+
+			// If move position is smaller than last know position then restart events stream
+			if pp.moveState.position <= pp.lastDelay {
+				eventsC, errC = pp.streamer.StreamSessionEvents(ctx, session.ID(pp.sID), 0)
+
+				if err := pp.send([]byte(`{"event": "reset"}`)); err != nil {
+					return
+				}
+			}
+		}
+		pp.mu.Unlock()
 
 		select {
 		case err := <-errC:
@@ -265,23 +332,20 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 				} else {
 					errorText = "server error"
 				}
-				if _, err := pp.ws.Write([]byte(fmt.Sprintf(`{"message": "error", "errorText": "%v"}`, errorText))); err != nil {
-					pp.log.WithError(err).Error("failed to write \"error\" message over websocket")
-				}
+				pp.send([]byte(fmt.Sprintf(`{"message": "error", "errorText": "%v"}`, errorText)))
 			}
 			return
 		case evt := <-eventsC:
 			if evt == nil {
 				pp.log.Debug("reached end of playback")
-				if _, err := pp.ws.Write([]byte(`{"message":"end"}`)); err != nil {
-					pp.log.WithError(err).Error("failed to write \"end\" message over websocket")
-				}
+				pp.send([]byte(`{"message":"end"}`))
+
 				return
 			}
 
 			payload := eventHandlerPayload{
 				pp:        pp,
-				lastDelay: &lastDelay,
+				lastDelay: &pp.lastDelay,
 				cancel:    cancel,
 				event:     evt,
 			}
@@ -293,21 +357,76 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 	}
 }
 
+// handleMoveState does check if player is in move state and does all neccessary steps to correctly handle it.
+// It returns boolean which indicates whenever delay for event should be skipped because of fast-forwarding.
+func (pp *Player) handleMoveState(delayMilliseconds int64) bool {
+	pp.mu.Lock()
+	defer pp.mu.Unlock()
+
+	moveActive := pp.playState == playStateMove
+	shouldSkip := moveActive && pp.moveState.position >= delayMilliseconds
+	isFirstEventAfterMove := moveActive && pp.moveState.position < delayMilliseconds
+
+	if shouldSkip {
+		pp.lastDelay = delayMilliseconds
+	}
+
+	if isFirstEventAfterMove {
+		pp.lastDelay = pp.moveState.position
+
+		if pp.moveState.paused {
+			pp.playState = playStatePaused
+		} else {
+			pp.playState = playStatePlaying
+		}
+
+		pp.send([]byte(fmt.Sprintf(`{"event": "move", "position": %v}`, pp.moveState.position)))
+	}
+
+	return shouldSkip
+}
+
 // waitForDelay pauses sending the event until given delay is met takes account for pause during delay.
 // It scales delay by playback speed.
-func (pp *Player) waitForDelay(delayMilliseconds int64, lastDelay *int64) {
+func (pp *Player) waitForDelay(delayMilliseconds int64) {
 	startTime := time.Now()
 	for {
+		// In case player is seeking position skip delay
+		if pp.handleMoveState(delayMilliseconds) {
+			return
+		}
+
 		pp.waitWhilePaused()
-		duration := time.Duration(pp.scaleDelay(delayMilliseconds-*lastDelay)) * time.Millisecond
+
+		if pp.playState == playStateMove {
+			return
+		}
+
+		duration := time.Duration(pp.scaleDelay(delayMilliseconds-pp.lastDelay)) * time.Millisecond
 
 		select {
 		case <-time.After(duration):
-			*lastDelay = delayMilliseconds
+			pp.lastDelay = delayMilliseconds
 			return
 		case <-pp.delayCancelSignal:
 			sleepDuration := pp.scaleDelay(time.Now().Local().Sub(startTime).Milliseconds())
-			*lastDelay += sleepDuration
+
+			if pp.isResetMove(delayMilliseconds) {
+				return
+			}
+
+			pp.lastDelay += sleepDuration
 		}
 	}
+}
+
+func (pp *Player) cancelDelay() {
+	pp.delayCancelSignal <- true
+}
+
+func (pp *Player) isResetMove(delayMilliseconds int64) bool {
+	pp.mu.Lock()
+	defer pp.mu.Unlock()
+
+	return pp.playState == playStateMove && pp.moveState.position < delayMilliseconds
 }

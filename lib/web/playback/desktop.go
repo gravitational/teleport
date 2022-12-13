@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"net"
-	"sync"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
@@ -45,7 +44,6 @@ func NewDesktopPlayer(sID string, ws *websocket.Conn, streamer Streamer, log log
 		playSpeed:         1.0,
 		delayCancelSignal: make(chan interface{}, 1),
 	}
-	p.cond = sync.NewCond(&p.mu)
 	return p
 }
 
@@ -55,7 +53,7 @@ func (e desktopEventHandler) handleEvent(ctx context.Context, payload eventHandl
 
 	switch e := evt.(type) {
 	case *apievents.DesktopRecording:
-		pp.waitForDelay(e.DelayMilliseconds, payload.lastDelay)
+		pp.waitForDelay(e.DelayMilliseconds)
 
 		msg, err := utils.FastMarshal(e)
 		if err != nil {

@@ -18,7 +18,6 @@ package playback
 
 import (
 	"context"
-	"sync"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/sirupsen/logrus"
@@ -40,7 +39,6 @@ func NewTtyPlayer(sID string, ws *websocket.Conn, streamer Streamer, log logrus.
 		playSpeed:         1.0,
 		delayCancelSignal: make(chan interface{}, 1),
 	}
-	p.cond = sync.NewCond(&p.mu)
 	return p
 }
 
@@ -49,13 +47,13 @@ func (e ttyEventHandler) handleEvent(ctx context.Context, payload eventHandlerPa
 
 	switch e := evt.(type) {
 	case *apievents.SessionPrint:
-		pp.waitForDelay(e.DelayMilliseconds, payload.lastDelay)
+		pp.waitForDelay(e.DelayMilliseconds)
 
-		if err := pp.marshalAndSendEvent(e); err != nil {
+		if err := pp.marshalAndSend(e); err != nil {
 			return err
 		}
 	case *apievents.Resize, *apievents.SessionStart:
-		if err := pp.marshalAndSendEvent(e); err != nil {
+		if err := pp.marshalAndSend(e); err != nil {
 			return err
 		}
 	default:
