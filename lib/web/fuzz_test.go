@@ -23,10 +23,12 @@ import (
 )
 
 func FuzzTdpMFACodecDecode(f *testing.F) {
+	f.Add([]byte(""))
+
 	f.Fuzz(func(t *testing.T, buf []byte) {
 		require.NotPanics(t, func() {
 			codec := tdpMFACodec{}
-			codec.decode(buf, "")
+			_, _ = codec.decode(buf, "")
 		})
 	})
 }
