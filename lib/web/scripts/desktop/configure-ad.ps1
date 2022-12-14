@@ -136,6 +136,7 @@ $CA_CERT_YAML = $CA_CERT_PEM | ForEach-Object { "        " + $_  } | Out-String
 
 $NET_BIOS_NAME = (Get-ADDomain).NetBIOSName
 $LDAP_USERNAME = "$NET_BIOS_NAME\$SAM_ACCOUNT_NAME"
+$LDAP_USER_SID=(Get-ADUser -Identity svc-teleport).SID.Value
 
 $COMPUTER_NAME = (Resolve-DnsName -Type A $Env:COMPUTERNAME).Name
 $COMPUTER_IP = (Resolve-DnsName -Type A $Env:COMPUTERNAME).Address
@@ -160,15 +161,16 @@ windows_desktop_service:
     addr:     '{2}'
     domain:   '{3}'
     username: '{4}'
-    server_name: '{5}'
+    sid: '{5}'
+    server_name: '{6}'
     insecure_skip_verify: false
     ldap_ca_cert: |
-{6}
+{7}
   discovery:
     base_dn: '*'
   labels:
-    teleport.internal/resource-id: {7}
-'@ -f $TELEPORT_PROVISION_TOKEN, $TELEPORT_PROXY_PUBLIC_ADDR, $LDAP_ADDR, $DOMAIN_NAME, $LDAP_USERNAME, $COMPUTER_NAME, $CA_CERT_YAML, $TELEPORT_INTERNAL_RESOURCE_ID
+    teleport.internal/resource-id: {8}
+'@ -f $TELEPORT_PROVISION_TOKEN, $TELEPORT_PROXY_PUBLIC_ADDR, $LDAP_ADDR, $DOMAIN_NAME, $LDAP_USERNAME, $LDAP_USER_SID, $COMPUTER_NAME, $CA_CERT_YAML, $TELEPORT_INTERNAL_RESOURCE_ID
 
 $OUTPUT=@'
 
