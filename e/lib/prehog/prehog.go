@@ -37,7 +37,7 @@ func InitPreHogUsageReporting(
 	process *service.TeleportProcess,
 ) error {
 	var endpoint string
-	if e, ok := os.LookupEnv(envVarPreHogEndpoint); ok {
+	if e := os.Getenv(envVarPreHogEndpoint); e != "" {
 		endpoint = e
 	} else {
 		log.Warnf("%q not set and no default available, PreHog usage reporting will not be enabled.", envVarPreHogEndpoint)
@@ -80,7 +80,7 @@ func InitPreHogUsageReporting(
 	wrappedLog, err := usageevents.New(
 		reporter,
 		log,
-		process.GetAuthServer().Services.IAuditLog,
+		process.GetAuthServer().GetEmitter(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
