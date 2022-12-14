@@ -65,14 +65,14 @@ static int exit_open(int ret) {
     u64 *is_monitored;
 
     valp = bpf_map_lookup_elem(&infotmp, &id);
-    if (valp == 0) {
+    if (valp == NULL) {
         // Missed entry.
         return 0;
     }
 
     // Check if the cgroup should be monitored.
     is_monitored = bpf_map_lookup_elem(&monitored_cgroups, &cgroup);
-    if (is_monitored == 0) {
+    if (is_monitored == NULL) {
         // Missed entry.
         return 0;
     }
