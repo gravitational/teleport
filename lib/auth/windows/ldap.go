@@ -108,7 +108,7 @@ const (
 	AttrOSVersion = "operatingSystemVersion"
 	// AttrPrimaryGroupID is the primary group id of an LDAP object
 	AttrPrimaryGroupID = "primaryGroupID"
-	// AttrObjectSid is the object sid of an LDAP object
+	// AttrObjectSid is the Security Identifier of an LDAP object
 	AttrObjectSid = "objectSid"
 	// AttrObjectCategory is the object category of an LDAP object
 	AttrObjectCategory = "objectCategory"
