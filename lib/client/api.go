@@ -65,7 +65,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/touchid"
-	"github.com/gravitational/teleport/lib/auth/webauthncli"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -4777,14 +4776,14 @@ func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC, toUT
 	return sessions, nil
 }
 
-func parseMFAMode(in string) (webauthncli.AuthenticatorAttachment, error) {
+func parseMFAMode(in string) (wancli.AuthenticatorAttachment, error) {
 	switch in {
 	case "auto", "":
-		return webauthncli.AttachmentAuto, nil
+		return wancli.AttachmentAuto, nil
 	case "platform":
-		return webauthncli.AttachmentPlatform, nil
+		return wancli.AttachmentPlatform, nil
 	case "cross-platform":
-		return webauthncli.AttachmentCrossPlatform, nil
+		return wancli.AttachmentCrossPlatform, nil
 	default:
 		return 0, trace.BadParameter("unsupported mfa mode %q", in)
 	}
