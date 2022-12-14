@@ -50,8 +50,6 @@ var embedFS embed.FS
 // events.
 const ArgsCacheSize = 1024
 
-const monitoredCGroups = "monitored_cgroups"
-
 // SessionWatch is a map of cgroup IDs that the BPF service is watching and
 // emitting events for.
 type SessionWatch struct {
@@ -223,14 +221,7 @@ func (s *Service) OpenSession(ctx *SessionContext) (uint64, error) {
 		return 0, trace.Wrap(err)
 	}
 
-	cgroupMap, err := s.open.module.GetMap(monitoredCGroups)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	dummyVal := 0
-	err = cgroupMap.Update(unsafe.Pointer(&cgroupID), unsafe.Pointer(&dummyVal))
-	if err != nil {
+	if err := s.open.startSession(cgroupID); err != nil {
 		return 0, trace.Wrap(err)
 	}
 
@@ -257,12 +248,7 @@ func (s *Service) CloseSession(ctx *SessionContext) error {
 	// Stop watching for events from this PID.
 	s.watch.Remove(cgroupID)
 
-	cgroupMap, err := s.open.module.GetMap(monitoredCGroups)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := cgroupMap.DeleteKey(unsafe.Pointer(&cgroupID)); err != nil {
+	if err := s.open.endSession(cgroupID); err != nil {
 		return trace.Wrap(err)
 	}
 
