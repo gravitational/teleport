@@ -869,7 +869,8 @@ func (a *Server) GetEmitter() apievents.Emitter {
 	return a.emitter
 }
 
-// SetEmitter sets the current audit log emitter.
+// SetEmitter sets the current audit log emitter. Note that this is only safe to
+// use before main server start.
 func (a *Server) SetEmitter(emitter apievents.Emitter) {
 	a.emitter = emitter
 }
@@ -879,7 +880,8 @@ func (a *Server) SetEnforcer(enforcer services.Enforcer) {
 	a.Services.Enforcer = enforcer
 }
 
-// SetUsageReporter sets the server's usage reporter
+// SetUsageReporter sets the server's usage reporter. Note that this is only
+// safe to use before server start.
 func (a *Server) SetUsageReporter(reporter services.UsageReporter) {
 	a.Services.UsageReporter = reporter
 }
