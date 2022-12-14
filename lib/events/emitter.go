@@ -498,7 +498,7 @@ func (t *TeeStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEve
 	}
 	// Forward session events except the ones that pollute global logs
 	switch event.GetType() {
-	case ResizeEvent, SessionPrintEvent, AppSessionRequestEvent, DesktopRecordingEvent, "":
+	case ResizeEvent, SessionDiskEvent, SessionPrintEvent, AppSessionRequestEvent, DesktopRecordingEvent, "":
 		return trace.NewAggregate(errors...)
 	}
 	if err := t.emitter.EmitAuditEvent(ctx, event); err != nil {
