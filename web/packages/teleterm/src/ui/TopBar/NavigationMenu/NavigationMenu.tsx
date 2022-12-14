@@ -8,6 +8,7 @@ import { Box, Text, Flex } from 'design';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { DocumentsService } from 'teleterm/ui/services/workspacesService';
 import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { useIdentity } from '../Identity/useIdentity';
 
@@ -15,7 +16,7 @@ import { NavigationItem } from './NavigationItem';
 
 function getNavigationItems(
   documentsService: DocumentsService,
-  clusterUri: string
+  clusterUri: RootClusterUri
 ): {
   title: string;
   Icon: JSX.Element;

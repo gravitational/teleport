@@ -17,6 +17,7 @@ limitations under the License.
 import * as shared from 'shared/services/types';
 
 import * as tsh from 'teleterm/services/tshd/types';
+import * as uri from 'teleterm/ui/uri';
 
 export type SyncStatus = {
   status: 'processing' | 'ready' | 'failed' | '';
@@ -79,14 +80,12 @@ export interface AuthSettings extends tsh.AuthSettings {
 export { tsh };
 
 export type ClustersServiceState = {
-  clusters: Map<string, tsh.Cluster>;
-  gateways: Map<string, tsh.Gateway>;
-  apps: Map<string, tsh.Application>;
-  servers: Map<string, tsh.Server>;
-  kubes: Map<string, tsh.Kube>;
-  dbs: Map<string, tsh.Database>;
-  kubesSyncStatus: Map<string, SyncStatus>;
-  appsSyncStatus: Map<string, SyncStatus>;
-  serversSyncStatus: Map<string, SyncStatus>;
-  dbsSyncStatus: Map<string, SyncStatus>;
+  clusters: Map<uri.ClusterUri, tsh.Cluster>;
+  gateways: Map<uri.GatewayUri, tsh.Gateway>;
+  servers: Map<uri.ServerUri, tsh.Server>;
+  kubes: Map<uri.KubeUri, tsh.Kube>;
+  dbs: Map<uri.DatabaseUri, tsh.Database>;
+  kubesSyncStatus: Map<uri.ClusterUri, SyncStatus>;
+  serversSyncStatus: Map<uri.ClusterUri, SyncStatus>;
+  dbsSyncStatus: Map<uri.ClusterUri, SyncStatus>;
 };

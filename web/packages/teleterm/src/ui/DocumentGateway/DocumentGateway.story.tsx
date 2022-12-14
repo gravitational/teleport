@@ -6,16 +6,18 @@ import {
   makeErrorAttempt,
 } from 'shared/hooks/useAsync';
 
+import { Gateway } from 'teleterm/services/tshd/types';
+
 import { DocumentGateway } from './DocumentGateway';
 
 export default {
   title: 'Teleterm/DocumentGateway',
 };
 
-const gateway = {
-  uri: '/bar',
+const gateway: Gateway = {
+  uri: '/gateways/bar',
   targetName: 'sales-production',
-  targetUri: '/foo',
+  targetUri: '/clusters/bar/dbs/foo',
   targetUser: 'alice',
   localAddress: 'localhost',
   localPort: '1337',
@@ -43,10 +45,10 @@ export function Online() {
 }
 
 export function OnlineWithLongValues() {
-  const gateway = {
-    uri: '/bar',
+  const gateway: Gateway = {
+    uri: '/gateways/bar',
     targetName: 'sales-production',
-    targetUri: '/foo',
+    targetUri: '/clusters/bar/dbs/foo',
     targetUser:
       'quux-quuz-foo-bar-quux-quuz-foo-bar-quux-quuz-foo-bar-quux-quuz-foo-bar',
     localAddress: 'localhost',

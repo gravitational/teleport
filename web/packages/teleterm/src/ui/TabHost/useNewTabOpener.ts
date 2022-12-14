@@ -1,13 +1,14 @@
 import { useCallback } from 'react';
 
 import { DocumentsService } from 'teleterm/ui/services/workspacesService';
+import { ClusterUri } from 'teleterm/ui/uri';
 
 export function useNewTabOpener({
   documentsService,
   localClusterUri,
 }: {
   documentsService: DocumentsService;
-  localClusterUri: string;
+  localClusterUri: ClusterUri;
 }) {
   const openClusterTab = useCallback(() => {
     if (localClusterUri) {

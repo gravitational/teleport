@@ -1,10 +1,9 @@
 import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/useNewRequest';
-
-import { SortType } from 'design/DataTable/types';
-
 import { RequestState } from 'e-teleport/services/workflow';
-
+import { SortType } from 'design/DataTable/types';
 import { FileTransferListeners } from 'shared/components/FileTransfer';
+
+import * as uri from 'teleterm/ui/uri';
 
 import apiCluster from './v1/cluster_pb';
 import apiDb from './v1/database_pb';
@@ -17,15 +16,30 @@ import apiAuthSettings from './v1/auth_settings_pb';
 import apiAccessRequest from './v1/access_request_pb';
 
 export type Application = apiApp.App.AsObject;
-export type Kube = apiKube.Kube.AsObject;
-export type Server = apiServer.Server.AsObject;
-export type Gateway = apigateway.Gateway.AsObject;
+export interface Kube extends apiKube.Kube.AsObject {
+  uri: uri.KubeUri;
+}
+export interface Server extends apiServer.Server.AsObject {
+  uri: uri.ServerUri;
+}
+export interface Gateway extends apigateway.Gateway.AsObject {
+  uri: uri.GatewayUri;
+  targetUri: uri.DatabaseUri;
+}
 export type AccessRequest = apiAccessRequest.AccessRequest.AsObject;
 export type ResourceId = apiAccessRequest.ResourceID.AsObject;
 export type AccessRequestReview = apiAccessRequest.AccessRequestReview.AsObject;
-export type GetServersResponse = apiService.GetServersResponse.AsObject;
-export type GetDatabasesResponse = apiService.GetDatabasesResponse.AsObject;
-export type GetKubesResponse = apiService.GetKubesResponse.AsObject;
+export interface GetServersResponse
+  extends apiService.GetServersResponse.AsObject {
+  agentsList: Server[];
+}
+export interface GetDatabasesResponse
+  extends apiService.GetDatabasesResponse.AsObject {
+  agentsList: Database[];
+}
+export interface GetKubesResponse extends apiService.GetKubesResponse.AsObject {
+  agentsList: Kube[];
+}
 export type GetRequestableRolesResponse =
   apiService.GetRequestableRolesResponse.AsObject;
 // Available types are listed here:
@@ -39,10 +53,13 @@ export type GatewayProtocol =
   | 'cockroachdb'
   | 'redis'
   | 'sqlserver';
-export type Database = apiDb.Database.AsObject;
-export type Cluster = Omit<apiCluster.Cluster.AsObject, 'loggedInUser'> & {
+export interface Database extends apiDb.Database.AsObject {
+  uri: uri.DatabaseUri;
+}
+export interface Cluster extends apiCluster.Cluster.AsObject {
+  uri: uri.ClusterUri;
   loggedInUser?: LoggedInUser;
-};
+}
 export type LoggedInUser = apiCluster.LoggedInUser.AsObject & {
   assumedRequests?: Record<string, AssumedRequest>;
 };
@@ -73,16 +90,16 @@ export type LoginPasswordlessRequest =
 
 export type TshClient = {
   listRootClusters: () => Promise<Cluster[]>;
-  listLeafClusters: (clusterUri: string) => Promise<Cluster[]>;
-  listApps: (clusterUri: string) => Promise<Application[]>;
-  getAllKubes: (clusterUri: string) => Promise<Kube[]>;
+  listLeafClusters: (clusterUri: uri.RootClusterUri) => Promise<Cluster[]>;
+  listApps: (clusterUri: uri.ClusterUri) => Promise<Application[]>;
+  getAllKubes: (clusterUri: uri.ClusterUri) => Promise<Kube[]>;
   getKubes: (params: ServerSideParams) => Promise<GetKubesResponse>;
-  getAllDatabases: (clusterUri: string) => Promise<Database[]>;
+  getAllDatabases: (clusterUri: uri.ClusterUri) => Promise<Database[]>;
   getDatabases: (params: ServerSideParams) => Promise<GetDatabasesResponse>;
-  listDatabaseUsers: (dbUri: string) => Promise<string[]>;
-  getAllServers: (clusterUri: string) => Promise<Server[]>;
+  listDatabaseUsers: (dbUri: uri.DatabaseUri) => Promise<string[]>;
+  getAllServers: (clusterUri: uri.ClusterUri) => Promise<Server[]>;
   assumeRole: (
-    clusterUri: string,
+    clusterUri: uri.RootClusterUri,
     requestIds: string[],
     dropIds: string[]
   ) => Promise<void>;
@@ -90,37 +107,42 @@ export type TshClient = {
     params: GetRequestableRolesParams
   ) => Promise<GetRequestableRolesResponse>;
   getServers: (params: ServerSideParams) => Promise<GetServersResponse>;
-  getAccessRequests: (clusterUri: string) => Promise<AccessRequest[]>;
+  getAccessRequests: (
+    clusterUri: uri.RootClusterUri
+  ) => Promise<AccessRequest[]>;
   getAccessRequest: (
-    clusterUri: string,
+    clusterUri: uri.RootClusterUri,
     requestId: string
   ) => Promise<AccessRequest>;
   reviewAccessRequest: (
-    clusterUri: string,
+    clusterUri: uri.RootClusterUri,
     params: ReviewAccessRequestParams
   ) => Promise<AccessRequest>;
   createAccessRequest: (
     params: CreateAccessRequestParams
   ) => Promise<AccessRequest>;
-  deleteAccessRequest: (clusterUri: string, requestId: string) => Promise<void>;
+  deleteAccessRequest: (
+    clusterUri: uri.RootClusterUri,
+    requestId: string
+  ) => Promise<void>;
   createAbortController: () => TshAbortController;
   addRootCluster: (addr: string) => Promise<Cluster>;
 
   listGateways: () => Promise<Gateway[]>;
   createGateway: (params: CreateGatewayParams) => Promise<Gateway>;
-  removeGateway: (gatewayUri: string) => Promise<void>;
+  removeGateway: (gatewayUri: uri.GatewayUri) => Promise<void>;
   setGatewayTargetSubresourceName: (
-    gatewayUri: string,
+    gatewayUri: uri.GatewayUri,
     targetSubresourceName: string
   ) => Promise<Gateway>;
   setGatewayLocalPort: (
-    gatewayUri: string,
+    gatewayUri: uri.GatewayUri,
     localPort: string
   ) => Promise<Gateway>;
 
-  getCluster: (clusterUri: string) => Promise<Cluster>;
-  getAuthSettings: (clusterUri: string) => Promise<AuthSettings>;
-  removeCluster: (clusterUri: string) => Promise<void>;
+  getCluster: (clusterUri: uri.RootClusterUri) => Promise<Cluster>;
+  getAuthSettings: (clusterUri: uri.RootClusterUri) => Promise<AuthSettings>;
+  removeCluster: (clusterUri: uri.RootClusterUri) => Promise<void>;
   loginLocal: (
     params: LoginLocalParams,
     abortSignal?: TshAbortSignal
@@ -133,7 +155,7 @@ export type TshClient = {
     params: LoginPasswordlessParams,
     abortSignal?: TshAbortSignal
   ) => Promise<void>;
-  logout: (clusterUri: string) => Promise<void>;
+  logout: (clusterUri: uri.RootClusterUri) => Promise<void>;
   transferFile: (
     options: FileTransferRequest,
     abortSignal?: TshAbortSignal
@@ -151,7 +173,7 @@ export type TshAbortSignal = {
 };
 
 interface LoginParamsBase {
-  clusterUri: string;
+  clusterUri: uri.RootClusterUri;
 }
 
 export interface LoginLocalParams extends LoginParamsBase {
@@ -170,14 +192,14 @@ export interface LoginPasswordlessParams extends LoginParamsBase {
 }
 
 export type CreateGatewayParams = {
-  targetUri: string;
+  targetUri: uri.DatabaseUri;
   port?: string;
   user: string;
   subresource_name?: string;
 };
 
 export type ServerSideParams = {
-  clusterUri: string;
+  clusterUri: uri.ClusterUri;
   search?: string;
   searchAsRoles?: string;
   sort?: SortType;
@@ -194,7 +216,7 @@ export type ReviewAccessRequestParams = {
 };
 
 export type CreateAccessRequestParams = {
-  rootClusterUri: string;
+  rootClusterUri: uri.RootClusterUri;
   reason: string;
   roles: string[];
   suggestedReviewers: string[];
@@ -202,7 +224,7 @@ export type CreateAccessRequestParams = {
 };
 
 export type GetRequestableRolesParams = {
-  rootClusterUri: string;
+  rootClusterUri: uri.RootClusterUri;
   resourceIds?: { kind: ResourceKind; clusterName: string; id: string }[];
 };
 

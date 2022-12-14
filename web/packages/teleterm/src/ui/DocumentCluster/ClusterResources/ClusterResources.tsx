@@ -23,7 +23,6 @@ import { useClusterContext } from 'teleterm/ui/DocumentCluster/clusterContext';
 import SideNav from './SideNav';
 import Servers from './Servers';
 import Databases from './Databases';
-import Applications from './Applications';
 import Kubes from './Kubes';
 
 export default function ClusterResources() {
@@ -46,7 +45,6 @@ export default function ClusterResources() {
         <HorizontalSplit>
           {clusterCtx.isLocationActive('/resources/servers') && <Servers />}
           {clusterCtx.isLocationActive('/resources/databases') && <Databases />}
-          {clusterCtx.isLocationActive('/resources/apps') && <Applications />}
           {clusterCtx.isLocationActive('/resources/kubes') && <Kubes />}
         </HorizontalSplit>
       </Flex>

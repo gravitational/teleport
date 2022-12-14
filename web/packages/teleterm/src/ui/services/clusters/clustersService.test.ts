@@ -1,11 +1,11 @@
 import { tsh, SyncStatus } from 'teleterm/ui/services/clusters/types';
-
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { ClustersService } from './clustersService';
 
-const clusterUri = '/clusters/test';
+const clusterUri: RootClusterUri = '/clusters/test';
 
 const clusterMock: tsh.Cluster = {
   uri: clusterUri,
@@ -35,7 +35,7 @@ const dbMock: tsh.Database = {
 };
 
 const gatewayMock: tsh.Gateway = {
-  uri: 'gatewayTestUri',
+  uri: '/gateways/gatewayTestUri',
   localAddress: 'localhost',
   localPort: '2000',
   protocol: 'https',
@@ -69,23 +69,6 @@ const kubeMock: tsh.Kube = {
       value: 'K8',
     },
   ],
-};
-
-const appMock: tsh.Application = {
-  uri: `${clusterUri}/apps/appTestUri`,
-  name: 'TestApp',
-  labelsList: [
-    {
-      name: 'Type',
-      value: 'OnDemand',
-    },
-  ],
-  appUri: 'appTestUri',
-  awsConsole: false,
-  awsRolesList: [],
-  description: '',
-  fqdn: '',
-  publicAddr: 'app.test',
 };
 
 const NotificationsServiceMock = NotificationsService as jest.MockedClass<
@@ -130,7 +113,6 @@ function testIfClusterResourcesHaveBeenCleared(service: ClustersService): void {
     syncing: false,
     dbs: { status: '' },
     servers: { status: '' },
-    apps: { status: '' },
     kubes: { status: '' },
   });
 }
@@ -231,7 +213,7 @@ test('create a gateway', async () => {
   const service = createService({
     createGateway,
   });
-  const targetUri = 'testId';
+  const targetUri = '/clusters/foo/dbs/testId';
   const port = '2000';
   const user = 'alice';
 
@@ -248,7 +230,7 @@ test('remove a gateway', async () => {
   const service = createService({
     removeGateway,
   });
-  const gatewayUri = 'gatewayUri';
+  const gatewayUri = '/gateways/gatewayUri';
 
   await service.removeGateway(gatewayUri);
 
@@ -337,17 +319,6 @@ test('find kubes by cluster uri', () => {
   expect(foundKubes).toStrictEqual([kubeMock]);
 });
 
-test('find apps by cluster uri', () => {
-  const service = createService({});
-  service.setState(draftState => {
-    draftState.apps.set(appMock.uri, appMock);
-  });
-
-  const foundApps = service.findApps(clusterUri);
-
-  expect(foundApps).toStrictEqual([appMock]);
-});
-
 test('find cluster by resource uri', () => {
   const service = createService({});
   service.setState(draftState => {
@@ -376,24 +347,6 @@ test.each([
   });
 
   expect(foundDbs).toStrictEqual([dbMock]);
-});
-
-test.each([
-  { prop: 'name', value: appMock.name },
-  { prop: 'publicAddr', value: appMock.publicAddr },
-  { prop: 'description', value: appMock.description },
-  { prop: 'labelsList', value: appMock.labelsList[0].value },
-])('search apps by prop: $prop', ({ value }) => {
-  const service = createService({});
-  service.setState(draftState => {
-    draftState.apps.set(appMock.uri, appMock);
-  });
-
-  const foundApps = service.searchApps(clusterUri, {
-    search: value.toLocaleLowerCase(),
-  });
-
-  expect(foundApps).toStrictEqual([appMock]);
 });
 
 test.each([

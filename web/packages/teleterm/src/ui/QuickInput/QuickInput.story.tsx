@@ -34,7 +34,7 @@ export const Story = () => {
     workspaces: {
       '/clusters/localhost': {
         documents: [],
-        location: '',
+        location: undefined,
         localClusterUri: '/clusters/localhost',
         accessRequests: {
           pending: getEmptyPendingAccessRequest(),

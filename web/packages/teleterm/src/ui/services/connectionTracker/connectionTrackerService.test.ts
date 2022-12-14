@@ -120,7 +120,7 @@ it('updates the port of a gateway connection when the underlying doc gets update
 
   const document: DocumentGateway = {
     kind: 'doc.gateway',
-    uri: 'test-doc-uri',
+    uri: '/docs/test-doc-uri',
     title: 'Test title',
     gatewayUri: '/gateways/4f68927b-579c-47a8-b965-efa8159203c9',
     targetUri: '/clusters/localhost/dbs/test',
@@ -137,8 +137,8 @@ it('updates the port of a gateway connection when the underlying doc gets update
         pending: getEmptyPendingAccessRequest(),
         isBarCollapsed: false,
       },
-      localClusterUri: '',
-      location: '',
+      localClusterUri: '/clusters/localhost',
+      location: document.uri,
       documents: [document],
     };
   });

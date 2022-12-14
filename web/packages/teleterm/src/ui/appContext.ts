@@ -19,6 +19,10 @@ import {
   ElectronGlobals,
   SubscribeToTshdEvent,
 } from 'teleterm/types';
+import {
+  ReloginRequest,
+  SendNotificationRequest,
+} from 'teleterm/services/tshdEvents';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { TerminalsService } from 'teleterm/ui/services/terminals';
@@ -131,11 +135,16 @@ export default class AppContext implements IAppContext {
   private setUpTshdEventSubscriptions() {
     this.subscribeToTshdEvent('relogin', ({ request, onCancelled }) => {
       // The handler for the relogin event should return only after the relogin procedure finishes.
-      return this.reloginService.relogin(request, onCancelled);
+      return this.reloginService.relogin(
+        request as ReloginRequest,
+        onCancelled
+      );
     });
 
     this.subscribeToTshdEvent('sendNotification', ({ request }) => {
-      this.tshdNotificationsService.sendNotification(request);
+      this.tshdNotificationsService.sendNotification(
+        request as SendNotificationRequest
+      );
     });
   }
 }

@@ -30,6 +30,48 @@ export const paths = {
   doc: '/docs/:docId',
 };
 
+type RootClusterId = string;
+type LeafClusterId = string;
+type ServerId = string;
+type KubeId = string;
+type DbId = string;
+export type RootClusterUri = `/clusters/${RootClusterId}`;
+export type RootClusterServerUri =
+  `/clusters/${RootClusterId}/servers/${ServerId}`;
+export type RootClusterKubeUri = `/clusters/${RootClusterId}/kubes/${KubeId}`;
+export type RootClusterDatabaseUri = `/clusters/${RootClusterId}/dbs/${DbId}`;
+export type RootClusterResourceUri =
+  | RootClusterServerUri
+  | RootClusterKubeUri
+  | RootClusterDatabaseUri;
+export type RootClusterOrResourceUri = RootClusterUri | RootClusterResourceUri;
+export type LeafClusterUri =
+  `/clusters/${RootClusterId}/leaves/${LeafClusterId}`;
+export type LeafClusterServerUri =
+  `/clusters/${RootClusterId}/leaves/${LeafClusterId}/servers/${ServerId}`;
+export type LeafClusterKubeUri =
+  `/clusters/${RootClusterId}/leaves/${LeafClusterId}/kubes/${KubeId}`;
+export type LeafClusterDatabaseUri =
+  `/clusters/${RootClusterId}/leaves/${LeafClusterId}/dbs/${DbId}`;
+export type LeafClusterResourceUri =
+  | LeafClusterServerUri
+  | LeafClusterKubeUri
+  | LeafClusterDatabaseUri;
+export type LeafClusterOrResourceUri = LeafClusterUri | LeafClusterResourceUri;
+
+export type ResourceUri = RootClusterResourceUri | LeafClusterResourceUri;
+export type ClusterUri = RootClusterUri | LeafClusterUri;
+export type ServerUri = RootClusterServerUri | LeafClusterServerUri;
+export type KubeUri = RootClusterKubeUri | LeafClusterKubeUri;
+export type DatabaseUri = RootClusterDatabaseUri | LeafClusterDatabaseUri;
+export type ClusterOrResourceUri = ResourceUri | ClusterUri;
+
+type DocumentId = string;
+export type DocumentUri = `/docs/${DocumentId}`;
+
+type GatewayId = string;
+export type GatewayUri = `/gateways/${GatewayId}`;
+
 export const routing = {
   parseClusterUri(uri: string) {
     const leafMatch = routing.parseUri(uri, paths.leafCluster);
@@ -38,13 +80,13 @@ export const routing = {
   },
 
   // Pass either a root or a leaf cluster URI to get back a root cluster URI.
-  ensureRootClusterUri(uri: string) {
+  ensureRootClusterUri(uri: ClusterOrResourceUri) {
     const { rootClusterId } = routing.parseClusterUri(uri).params;
-    return routing.getClusterUri({ rootClusterId });
+    return routing.getClusterUri({ rootClusterId }) as RootClusterUri;
   },
 
   // Pass any resource URI to get back a cluster URI.
-  ensureClusterUri(uri: string) {
+  ensureClusterUri(uri: ClusterOrResourceUri) {
     const params = routing.parseClusterUri(uri).params;
     return routing.getClusterUri(params);
   },
@@ -83,43 +125,46 @@ export const routing = {
   },
 
   getDocUri(params: Params) {
-    return generatePath(paths.doc, params as any);
+    return generatePath(paths.doc, params as any) as DocumentUri;
   },
 
-  getClusterUri(params: Params) {
+  getClusterUri(params: Params): ClusterUri {
     if (params.leafClusterId) {
-      return generatePath(paths.leafCluster, params as any);
+      return generatePath(paths.leafCluster, params as any) as LeafClusterUri;
     }
 
-    return generatePath(paths.rootCluster, params as any);
+    return generatePath(paths.rootCluster, params as any) as RootClusterUri;
   },
 
   getServerUri(params: Params) {
-    return generatePath(paths.server, params as any);
+    return generatePath(paths.server, params as any) as ServerUri;
   },
 
-  isClusterServer(clusterUri: string, serverUri: string) {
+  isClusterServer(clusterUri: ClusterUri, serverUri: ServerUri) {
     return serverUri.startsWith(`${clusterUri}/servers/`);
   },
 
-  isClusterKube(clusterUri: string, kubeUri: string) {
+  isClusterKube(clusterUri: ClusterUri, kubeUri: KubeUri) {
     return kubeUri.startsWith(`${clusterUri}/kubes/`);
   },
 
-  isClusterDb(clusterUri: string, dbUri: string) {
+  isClusterDb(clusterUri: ClusterUri, dbUri: DatabaseUri) {
     return dbUri.startsWith(`${clusterUri}/dbs/`);
   },
 
-  isClusterApp(clusterUri: string, appUri: string) {
+  isClusterApp(clusterUri: ClusterUri, appUri: string) {
     return appUri.startsWith(`${clusterUri}/apps/`);
   },
 
-  isLeafCluster(clusterUri: string) {
+  isLeafCluster(clusterUri: ClusterUri) {
     const match = routing.parseClusterUri(clusterUri);
     return match && Boolean(match.params.leafClusterId);
   },
 
-  belongsToProfile(clusterUri: string, resourceUri: string) {
+  belongsToProfile(
+    clusterUri: ClusterOrResourceUri,
+    resourceUri: ClusterOrResourceUri
+  ) {
     const rootClusterUri = this.ensureRootClusterUri(clusterUri);
     const resourceRootClusterUri = this.ensureRootClusterUri(resourceUri);
 

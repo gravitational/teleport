@@ -6,12 +6,16 @@ import { DocumentAccessRequests } from 'e-teleterm/ui/DocumentAccessRequests/Doc
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
-import { DocumentsService } from 'teleterm/ui/services/workspacesService';
+import {
+  DocumentsService,
+  Workspace,
+} from 'teleterm/ui/services/workspacesService';
 import DocumentCluster from 'teleterm/ui/DocumentCluster';
 import DocumentGateway from 'teleterm/ui/DocumentGateway';
 import DocumentTerminal from 'teleterm/ui/DocumentTerminal';
 
 import Document from 'teleterm/ui/Document';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { WorkspaceContextProvider } from './workspaceContext';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
@@ -29,7 +33,7 @@ export function DocumentsRenderer() {
   const workspaces = useMemo(
     () =>
       Object.entries(workspacesService.getWorkspaces()).map(
-        ([clusterUri, workspace]) => ({
+        ([clusterUri, workspace]: [RootClusterUri, Workspace]) => ({
           rootClusterUri: clusterUri,
           localClusterUri: workspace.localClusterUri,
           documentsService:

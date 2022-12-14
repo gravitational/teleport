@@ -17,6 +17,7 @@ limitations under the License.
 import { useStore } from 'shared/libs/stores';
 
 import * as types from 'teleterm/services/tshd/types';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { ImmutableStore } from '../immutableStore';
 
@@ -93,8 +94,8 @@ export class ModalsService extends ImmutableStore<State> {
 
   // TODO(ravicious): Remove this method in favor of calling openRegularDialog directly.
   openClusterConnectDialog(options: {
-    clusterUri?: string;
-    onSuccess?(clusterUri: string): void;
+    clusterUri?: RootClusterUri;
+    onSuccess?(clusterUri: RootClusterUri): void;
     onCancel?(): void;
   }) {
     return this.openRegularDialog({
@@ -141,9 +142,10 @@ export interface DialogBase {
 
 export interface DialogClusterConnect {
   kind: 'cluster-connect';
-  clusterUri?: string;
+  clusterUri?: RootClusterUri;
   reason?: ClusterConnectReason;
   onSuccess?(clusterUri: string): void;
+  onSuccess?(clusterUri: RootClusterUri): void;
   onCancel?(): void;
 }
 
@@ -159,7 +161,7 @@ export type ClusterConnectReason = ClusterConnectReasonGatewayCertExpired;
 
 export interface DialogClusterLogout {
   kind: 'cluster-logout';
-  clusterUri: string;
+  clusterUri: RootClusterUri;
   clusterTitle: string;
 }
 

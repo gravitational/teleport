@@ -19,18 +19,19 @@ import React from 'react';
 import { DocumentsService } from 'teleterm/ui/services/workspacesService';
 import { AccessRequestsService } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { ClusterUri, RootClusterUri } from 'teleterm/ui/uri';
 
 const WorkspaceContext = React.createContext<{
-  rootClusterUri: string;
-  localClusterUri: string;
+  rootClusterUri: RootClusterUri;
+  localClusterUri: ClusterUri;
   documentsService: DocumentsService;
   accessRequestsService: AccessRequestsService;
 }>(null);
 
 export const WorkspaceContextProvider: React.FC<{
   value: {
-    rootClusterUri: string;
-    localClusterUri: string;
+    rootClusterUri: RootClusterUri;
+    localClusterUri: ClusterUri;
     documentsService: DocumentsService;
     accessRequestsService: AccessRequestsService;
   };

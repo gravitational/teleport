@@ -15,7 +15,13 @@ limitations under the License.
 */
 
 import { IAppContext } from 'teleterm/ui/types';
-import { routing } from 'teleterm/ui/uri';
+import {
+  ClusterUri,
+  KubeUri,
+  RootClusterUri,
+  routing,
+  ServerUri,
+} from 'teleterm/ui/uri';
 import { tsh } from 'teleterm/ui/services/clusters/types';
 import { TrackedKubeConnection } from 'teleterm/ui/services/connectionTracker';
 
@@ -26,7 +32,7 @@ const commands = {
     description: '',
     run(
       ctx: IAppContext,
-      args: { loginHost: string; localClusterUri: string }
+      args: { loginHost: string; localClusterUri: ClusterUri }
     ) {
       const { loginHost, localClusterUri } = args;
       const rootClusterUri = routing.ensureRootClusterUri(localClusterUri);
@@ -62,7 +68,7 @@ const commands = {
         console.error('Ambiguous host');
       }
 
-      let serverUri: string, serverHostname: string;
+      let serverUri: ServerUri, serverHostname: string;
 
       if (server) {
         serverUri = server.uri;
@@ -89,7 +95,7 @@ const commands = {
   'kube-connect': {
     displayName: '',
     description: '',
-    run(ctx: IAppContext, args: { kubeUri: string }) {
+    run(ctx: IAppContext, args: { kubeUri: KubeUri }) {
       const documentsService =
         ctx.workspacesService.getActiveWorkspaceDocumentService();
       const kubeDoc = documentsService.createTshKubeDocument({
@@ -110,8 +116,11 @@ const commands = {
   'cluster-connect': {
     displayName: '',
     description: '',
-    run(ctx: IAppContext, args: { clusterUri?: string; onSuccess?(): void }) {
-      const defaultHandler = (clusterUri: string) => {
+    run(
+      ctx: IAppContext,
+      args: { clusterUri?: RootClusterUri; onSuccess?(): void }
+    ) {
+      const defaultHandler = (clusterUri: RootClusterUri) => {
         ctx.commandLauncher.executeCommand('cluster-open', { clusterUri });
       };
 
@@ -125,7 +134,7 @@ const commands = {
   'cluster-logout': {
     displayName: '',
     description: '',
-    run(ctx: IAppContext, args: { clusterUri: string }) {
+    run(ctx: IAppContext, args: { clusterUri: RootClusterUri }) {
       const cluster = ctx.clustersService.findCluster(args.clusterUri);
       ctx.modalsService.openRegularDialog({
         kind: 'cluster-logout',
@@ -138,7 +147,7 @@ const commands = {
   'cluster-open': {
     displayName: '',
     description: '',
-    async run(ctx: IAppContext, args: { clusterUri: string }) {
+    async run(ctx: IAppContext, args: { clusterUri: ClusterUri }) {
       const { clusterUri } = args;
       const rootCluster =
         ctx.clustersService.findRootClusterByResource(clusterUri);

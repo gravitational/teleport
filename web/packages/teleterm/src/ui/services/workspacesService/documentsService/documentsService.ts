@@ -15,8 +15,7 @@ limitations under the License.
 */
 
 import { unique } from 'teleterm/ui/utils/uid';
-
-import { paths, routing } from 'teleterm/ui/uri';
+import { DocumentUri, paths, routing, ServerUri } from 'teleterm/ui/uri';
 
 import {
   CreateAccessRequestDocumentOpts,
@@ -40,7 +39,7 @@ export class DocumentsService {
     ) => void
   ) {}
 
-  open(docUri: string) {
+  open(docUri: DocumentUri) {
     if (!this.getDocument(docUri)) {
       this.add({
         uri: docUri,
@@ -90,17 +89,17 @@ export class DocumentsService {
       leafClusterId: params.leafClusterId,
       kubeId: params.kubeId,
       kubeUri: options.kubeUri,
+      // We prepend the name with `rootClusterId/` to create a kube config
+      // inside this directory. When the user logs out of the cluster,
+      // the entire directory is deleted.
       kubeConfigRelativePath:
         options.kubeConfigRelativePath ||
-        // We prepend the name with `rootClusterId/` to create a kube config
-        // inside this directory. When the user logs out of the cluster,
-        // the entire directory is deleted.
         `${params.rootClusterId}/${params.kubeId}-${unique(5)}`,
       title: params.kubeId,
     };
   }
 
-  createTshNodeDocument(serverUri: string): DocumentTshNode {
+  createTshNodeDocument(serverUri: ServerUri): DocumentTshNode {
     const { params } = routing.parseServerUri(serverUri);
     const uri = routing.getDocUri({ docId: unique() });
     return {

@@ -1,4 +1,5 @@
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { ClusterUri } from 'teleterm/ui/uri';
 
 export function useClusters() {
   const { workspacesService, clustersService, commandLauncher } =
@@ -51,7 +52,7 @@ export function useClusters() {
     clearPendingAccessRequest,
     selectedItem:
       localClusterUri && clustersService.findCluster(localClusterUri),
-    selectItem: (localClusterUri: string) => {
+    selectItem: (localClusterUri: ClusterUri) => {
       workspacesService.setWorkspaceLocalClusterUri(
         rootClusterUri,
         localClusterUri

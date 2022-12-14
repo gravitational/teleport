@@ -3,7 +3,7 @@ import {
   createFileTransferEventsEmitter,
 } from 'shared/components/FileTransfer';
 
-import { routing } from 'teleterm/ui/uri';
+import { routing, ServerUri } from 'teleterm/ui/uri';
 import { FileTransferDirection } from 'teleterm/services/tshd/v1/service_pb';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -82,5 +82,5 @@ type FileTransferRequestObject = {
   source: string;
   destination: string;
   login: string;
-  serverUri: string;
+  serverUri: ServerUri;
 };

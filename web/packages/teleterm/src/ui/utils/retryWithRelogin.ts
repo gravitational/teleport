@@ -1,4 +1,4 @@
-import { routing } from 'teleterm/ui/uri';
+import { ClusterOrResourceUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 import { IAppContext } from 'teleterm/ui/types';
 import Logger from 'teleterm/logger';
 
@@ -26,7 +26,7 @@ const logger = new Logger('retryWithRelogin');
  */
 export async function retryWithRelogin<T>(
   appContext: IAppContext,
-  resourceUri: string,
+  resourceUri: ClusterOrResourceUri,
   actionToRetry: () => Promise<T>
 ): Promise<T> {
   let retryableErrorFromActionToRetry: Error;
@@ -71,7 +71,10 @@ export async function retryWithRelogin<T>(
 // Notice that we don't differentiate between onSuccess and onCancel. In both cases, we're going to
 // retry the action anyway in case the cert was refreshed externally before the modal was closed,
 // for example through tsh login.
-function login(appContext: IAppContext, rootClusterUri: string): Promise<void> {
+function login(
+  appContext: IAppContext,
+  rootClusterUri: RootClusterUri
+): Promise<void> {
   return new Promise(resolve => {
     appContext.modalsService.openClusterConnectDialog({
       clusterUri: rootClusterUri,
