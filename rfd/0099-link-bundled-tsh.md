@@ -96,12 +96,18 @@ most likely means that we'll have to copy the default script and keep it in sync
 electron-builder.
 
 Instead of symlinking the binary to `/usr/bin/tsh`, we can symlink it to `/usr/local/bin/tsh`. This
-is where our Linux teleport package places our binaries. This way if someone installs Connect after
-installing teleport, we'll overwrite just a single symlink instead of the user ending up with two
-different symlinks for tsh.
+is where our Linux teleport package places its binaries. We should assume that if both teleport and
+teleport-connect packages are installed, the user prefers the tsh version from the teleport package.
 
-When adding the custom script, we might want to change the location of the `teleport-connect`
-symlink to `/usr/local/bin` as well.
+* Connect should create the symlink only if it doesn't exist already.
+* Connect should remove the symlink only if it points at the tsh bundled with Connect.
+* If Connect decides not to create or remove the symlink, it should echo a message explaining the
+  reason.
+
+This ensures that the teleport and teleport-connect packages don't fight with each other.
+
+When adding the custom post install script, we might want to change the location of the
+`teleport-connect` symlink to `/usr/local/bin` as well.
 
 #### Windows
 
@@ -113,8 +119,8 @@ at the top of that page there's a big red banner telling you to use [the EnVar
 plugin](https://nsis.sourceforge.io/EnVar_plug-in) for path manipulation instead due to length
 limitations in the built-in utilities.
 
-We will have to figure out how to use that plugin but once that's done, we should be able to simply
-add the bin folder to the path, just as VSCode does.
+We will have to figure out how to use that plugin but once that's done, Connect should simply add
+the bin folder to the path without creating symlinks of any kind, just as VSCode does.
 
 #### macOS
 
@@ -125,3 +131,9 @@ to the VSCode command.
 Similar to Linux, we can symlink the binary to `/usr/local/bin/tsh`. The tsh .pkg installer also
 places the binary there. We'll still need to ask about administrator privileges because that
 directory is owned by root.
+
+Running the command will overwrite an existing symlink if present – we should emit a warning if that
+happened.
+
+We will also add `tsh uninstall` which will remove the symlink. Both commands will be present only
+in the macOS version of the app.
