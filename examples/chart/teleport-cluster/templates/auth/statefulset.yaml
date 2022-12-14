@@ -12,12 +12,7 @@ metadata:
   annotations: {{- toYaml $auth.annotations.deployment | nindent 4 }}
 {{- end }}
 spec:
-{{- if not (eq $auth.chartMode "standalone") }}
   replicas: {{ $auth.highAvailability.replicaCount }}
-  minReadySeconds: {{ $auth.highAvailability.minReadySeconds }}
-  {{- else }}
-  replicas: 1
-  {{- end }}
   serviceName: {{ .Release.Name }}-auth
   selector:
     matchLabels: {{- include "teleport-cluster.auth.selectorLabels" . | nindent 6 }}
