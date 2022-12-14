@@ -46,6 +46,9 @@ var ErrSAMLNoRoles = trace.AccessDenied("No roles mapped from claims. The mappin
 
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
+	if err := services.ValidateSAMLConnector(connector, a); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := a.Services.UpsertSAMLConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
