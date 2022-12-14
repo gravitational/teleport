@@ -249,7 +249,7 @@ var (
 	// to their user's Active Directory SID. This value goes in the Id field of the pkix.Extension.
 	// See https://go.microsoft.com/fwlink/?linkid=2189925.
 	ADUserMappingExtensionOID = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 25, 2}
-	// ADUserMappingInternalOID is the OID that's send as part of the Other Name section
+	// ADUserMappingInternalOID is the OID that's sent as part of the Other Name section
 	// of the Active Directory SID extension. There's limited documentation on this extension,
 	// this value was determined empirically based on how AD CA's Enterprise CA issues these
 	// certificates post the May 10, 2022 Windows update.
