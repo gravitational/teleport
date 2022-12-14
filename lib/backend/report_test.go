@@ -94,7 +94,7 @@ func TestBuildLabelKey_SensitiveBackendPrefixes(t *testing.T) {
 		{"/usertoken/1234-5678", "/usertoken/******678"},
 		{"/access_requests/1234-5678", "/access_requests/******678"},
 
-		{"/webauthn/sessionData/scope/1234-5678", "/webauthn/sessionData"},
+		{"/webauthn/sessionData/login/1234-5678", "/webauthn/sessionData"},
 		{"/webauthn/sessionData/1234-5678", "/webauthn/sessionData"},
 		{"/sessionData/1234-5678", "/sessionData/******678"},
 	}
